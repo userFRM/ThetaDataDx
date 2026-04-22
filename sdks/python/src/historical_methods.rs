@@ -17,20 +17,24 @@ impl StockListSymbolsBuilder {
         slf
     }
 
-    /// Execute the request and return `list[str]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+    /// Execute the request and return a typed `StringList` wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
-        run_blocking(py, async move {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 tdx.stock_list_symbols().await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "symbol")
     }
 
-    /// Async companion to `list()` — returns an awaitable yielding `list[str]`.
+    /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
@@ -40,7 +44,7 @@ impl StockListSymbolsBuilder {
             } else {
                 tdx.stock_list_symbols().await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
 }
 
@@ -75,22 +79,26 @@ impl StockListDatesBuilder {
         slf
     }
 
-    /// Execute the request and return `list[str]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+    /// Execute the request and return a typed `StringList` wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
-        run_blocking(py, async move {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol).await
             } else {
                 tdx.stock_list_dates(&request_type, &symbol).await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "date")
     }
 
-    /// Async companion to `list()` — returns an awaitable yielding `list[str]`.
+    /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let request_type = self.request_type.clone();
@@ -102,7 +110,7 @@ impl StockListDatesBuilder {
             } else {
                 tdx.stock_list_dates(&request_type, &symbol).await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
 }
 
@@ -147,38 +155,11 @@ impl StockSnapshotOhlcBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_ohlc(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
@@ -198,22 +179,10 @@ impl StockSnapshotOhlcBuilder {
             }
             request.await
         })?;
-        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -233,82 +202,7 @@ impl StockSnapshotOhlcBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_ohlc(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_ohlc(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_ohlc(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -352,38 +246,11 @@ impl StockSnapshotTradeBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_trade(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
@@ -403,22 +270,10 @@ impl StockSnapshotTradeBuilder {
             }
             request.await
         })?;
-        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -438,82 +293,7 @@ impl StockSnapshotTradeBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_trade(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_trade(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_trade(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -557,38 +337,11 @@ impl StockSnapshotQuoteBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_quote(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
@@ -608,22 +361,10 @@ impl StockSnapshotQuoteBuilder {
             }
             request.await
         })?;
-        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -643,82 +384,7 @@ impl StockSnapshotQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_quote(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_quote(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_quote(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -762,38 +428,11 @@ impl StockSnapshotMarketValueBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_market_value(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        market_value_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<MarketValueTickList>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
@@ -813,22 +452,10 @@ impl StockSnapshotMarketValueBuilder {
             }
             request.await
         })?;
-        slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
+        market_value_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -848,82 +475,7 @@ impl StockSnapshotMarketValueBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_market_value(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_market_value(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let venue = self.venue.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.stock_snapshot_market_value(&refs);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -965,31 +517,11 @@ impl StockHistoryEodBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        eod_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<EodTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
@@ -1002,22 +534,10 @@ impl StockHistoryEodBuilder {
             }
             request.await
         })?;
-        slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
+        eod_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1030,61 +550,7 @@ impl StockHistoryEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -1163,51 +629,11 @@ impl StockHistoryOhlcBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
@@ -1240,22 +666,10 @@ impl StockHistoryOhlcBuilder {
             }
             request.await
         })?;
-        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1288,121 +702,7 @@ impl StockHistoryOhlcBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -1473,50 +773,11 @@ impl StockHistoryTradeBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.stock_history_trade(&symbol, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
@@ -1548,22 +809,10 @@ impl StockHistoryTradeBuilder {
             }
             request.await
         })?;
-        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1595,118 +844,7 @@ impl StockHistoryTradeBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_trade(&symbol, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_trade(&symbol, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_trade(&symbol, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -1786,51 +924,11 @@ impl StockHistoryQuoteBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
@@ -1863,22 +961,10 @@ impl StockHistoryQuoteBuilder {
             }
             request.await
         })?;
-        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1911,121 +997,7 @@ impl StockHistoryQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -2103,54 +1075,11 @@ impl StockHistoryTradeQuoteBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let exclusive = self.exclusive;
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.stock_history_trade_quote(&symbol, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &exclusive {
-                request = request.exclusive(*value);
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        trade_quote_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeQuoteTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
@@ -2186,22 +1115,10 @@ impl StockHistoryTradeQuoteBuilder {
             }
             request.await
         })?;
-        slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)
+        trade_quote_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -2237,130 +1154,7 @@ impl StockHistoryTradeQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let exclusive = self.exclusive;
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_trade_quote(&symbol, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &exclusive {
-                request = request.exclusive(*value);
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let exclusive = self.exclusive;
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_trade_quote(&symbol, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &exclusive {
-                request = request.exclusive(*value);
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let exclusive = self.exclusive;
-        let venue = self.venue.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_trade_quote(&symbol, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &exclusive {
-                request = request.exclusive(*value);
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -2422,36 +1216,11 @@ impl StockAtTimeTradeBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
@@ -2469,22 +1238,10 @@ impl StockAtTimeTradeBuilder {
             }
             request.await
         })?;
-        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -2502,76 +1259,7 @@ impl StockAtTimeTradeBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -2633,36 +1321,11 @@ impl StockAtTimeQuoteBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
@@ -2680,22 +1343,10 @@ impl StockAtTimeQuoteBuilder {
             }
             request.await
         })?;
-        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -2713,76 +1364,7 @@ impl StockAtTimeQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -2803,20 +1385,24 @@ impl OptionListSymbolsBuilder {
         slf
     }
 
-    /// Execute the request and return `list[str]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+    /// Execute the request and return a typed `StringList` wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
-        run_blocking(py, async move {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 tdx.option_list_symbols().await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "symbol")
     }
 
-    /// Async companion to `list()` — returns an awaitable yielding `list[str]`.
+    /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
@@ -2826,7 +1412,7 @@ impl OptionListSymbolsBuilder {
             } else {
                 tdx.option_list_symbols().await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
 }
 
@@ -2883,8 +1469,11 @@ impl OptionListDatesBuilder {
         slf
     }
 
-    /// Execute the request and return `list[str]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+    /// Execute the request and return a typed `StringList` wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         let request_type = self.request_type.clone();
@@ -2892,16 +1481,17 @@ impl OptionListDatesBuilder {
         let expiration = self.expiration.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        run_blocking(py, async move {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol, &expiration, &strike, &right).await
             } else {
                 tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right).await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "date")
     }
 
-    /// Async companion to `list()` — returns an awaitable yielding `list[str]`.
+    /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let request_type = self.request_type.clone();
@@ -2916,7 +1506,7 @@ impl OptionListDatesBuilder {
             } else {
                 tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right).await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
 }
 
@@ -2945,21 +1535,25 @@ impl OptionListExpirationsBuilder {
         slf
     }
 
-    /// Execute the request and return `list[str]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+    /// Execute the request and return a typed `StringList` wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
-        run_blocking(py, async move {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
             } else {
                 tdx.option_list_expirations(&symbol).await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "expiration")
     }
 
-    /// Async companion to `list()` — returns an awaitable yielding `list[str]`.
+    /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -2970,7 +1564,7 @@ impl OptionListExpirationsBuilder {
             } else {
                 tdx.option_list_expirations(&symbol).await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "expiration").map(|p| p.into_any()))
     }
 }
 
@@ -3006,22 +1600,26 @@ impl OptionListStrikesBuilder {
         slf
     }
 
-    /// Execute the request and return `list[str]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+    /// Execute the request and return a typed `StringList` wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        run_blocking(py, async move {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms), &symbol, &expiration).await
             } else {
                 tdx.option_list_strikes(&symbol, &expiration).await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "strike")
     }
 
-    /// Async companion to `list()` — returns an awaitable yielding `list[str]`.
+    /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -3033,7 +1631,7 @@ impl OptionListStrikesBuilder {
             } else {
                 tdx.option_list_strikes(&symbol, &expiration).await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "strike").map(|p| p.into_any()))
     }
 }
 
@@ -3086,35 +1684,11 @@ impl OptionListContractsBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let request_type = self.request_type.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let max_dte = self.max_dte;
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        option_contracts_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<OptionContractList>> {
         let tdx = self.tdx.clone();
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
@@ -3131,22 +1705,10 @@ impl OptionListContractsBuilder {
             }
             request.await
         })?;
-        slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)
+        option_contracts_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let request_type = self.request_type.clone();
@@ -3163,73 +1725,7 @@ impl OptionListContractsBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| option_contracts_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let request_type = self.request_type.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let max_dte = self.max_dte;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::option_contract_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let request_type = self.request_type.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let max_dte = self.max_dte;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let request_type = self.request_type.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let max_dte = self.max_dte;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::option_contract_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| option_contracts_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -3300,44 +1796,11 @@ impl OptionSnapshotOhlcBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -3363,22 +1826,10 @@ impl OptionSnapshotOhlcBuilder {
             }
             request.await
         })?;
-        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -3404,100 +1855,7 @@ impl OptionSnapshotOhlcBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -3562,40 +1920,11 @@ impl OptionSnapshotTradeBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -3617,22 +1946,10 @@ impl OptionSnapshotTradeBuilder {
             }
             request.await
         })?;
-        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -3654,88 +1971,7 @@ impl OptionSnapshotTradeBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -3807,44 +2043,11 @@ impl OptionSnapshotQuoteBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -3870,22 +2073,10 @@ impl OptionSnapshotQuoteBuilder {
             }
             request.await
         })?;
-        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -3911,100 +2102,7 @@ impl OptionSnapshotQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -4077,44 +2175,11 @@ impl OptionSnapshotOpenInterestBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        open_interest_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<OpenInterestTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -4140,22 +2205,10 @@ impl OptionSnapshotOpenInterestBuilder {
             }
             request.await
         })?;
-        slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)
+        open_interest_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -4181,100 +2234,7 @@ impl OptionSnapshotOpenInterestBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -4344,44 +2304,11 @@ impl OptionSnapshotMarketValueBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        market_value_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<MarketValueTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -4407,22 +2334,10 @@ impl OptionSnapshotMarketValueBuilder {
             }
             request.await
         })?;
-        slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
+        market_value_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -4448,100 +2363,7 @@ impl OptionSnapshotMarketValueBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -4656,68 +2478,11 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        iv_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<IvTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -4767,22 +2532,10 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             }
             request.await
         })?;
-        slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
+        iv_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -4832,172 +2585,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -5112,68 +2700,11 @@ impl OptionSnapshotGreeksAllBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -5223,22 +2754,10 @@ impl OptionSnapshotGreeksAllBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -5288,172 +2807,7 @@ impl OptionSnapshotGreeksAllBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -5568,68 +2922,11 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -5679,22 +2976,10 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -5744,172 +3029,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -6024,68 +3144,11 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -6135,22 +3198,10 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -6200,172 +3251,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -6480,68 +3366,11 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -6591,22 +3420,10 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -6656,172 +3473,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let stock_price = self.stock_price;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let min_time = self.min_time.clone();
-        let use_market_value = self.use_market_value;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &stock_price {
-                request = request.stock_price(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(value) = &use_market_value {
-                request = request.use_market_value(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -6901,42 +3553,11 @@ impl OptionHistoryEodBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        eod_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<EodTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -6960,22 +3581,10 @@ impl OptionHistoryEodBuilder {
             }
             request.await
         })?;
-        slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
+        eod_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -6999,94 +3608,7 @@ impl OptionHistoryEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -7186,54 +3708,11 @@ impl OptionHistoryOhlcBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -7269,22 +3748,10 @@ impl OptionHistoryOhlcBuilder {
             }
             request.await
         })?;
-        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -7320,130 +3787,7 @@ impl OptionHistoryOhlcBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -7544,57 +3888,11 @@ impl OptionHistoryTradeBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -7633,22 +3931,10 @@ impl OptionHistoryTradeBuilder {
             }
             request.await
         })?;
-        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -7687,139 +3973,7 @@ impl OptionHistoryTradeBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -7926,58 +4080,11 @@ impl OptionHistoryQuoteBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -8017,22 +4124,10 @@ impl OptionHistoryQuoteBuilder {
             }
             request.await
         })?;
-        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -8072,142 +4167,7 @@ impl OptionHistoryQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -8315,61 +4275,11 @@ impl OptionHistoryTradeQuoteBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let exclusive = self.exclusive;
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &exclusive {
-                request = request.exclusive(*value);
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        trade_quote_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeQuoteTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -8412,22 +4322,10 @@ impl OptionHistoryTradeQuoteBuilder {
             }
             request.await
         })?;
-        slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)
+        trade_quote_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -8470,151 +4368,7 @@ impl OptionHistoryTradeQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let exclusive = self.exclusive;
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &exclusive {
-                request = request.exclusive(*value);
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let exclusive = self.exclusive;
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &exclusive {
-                request = request.exclusive(*value);
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let exclusive = self.exclusive;
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &exclusive {
-                request = request.exclusive(*value);
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -8700,49 +4454,11 @@ impl OptionHistoryOpenInterestBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        open_interest_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<OpenInterestTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -8773,22 +4489,10 @@ impl OptionHistoryOpenInterestBuilder {
             }
             request.await
         })?;
-        slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)
+        open_interest_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -8819,115 +4523,7 @@ impl OptionHistoryOpenInterestBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -9041,62 +4637,11 @@ impl OptionHistoryGreeksEodBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let underlyer_use_nbbo = self.underlyer_use_nbbo;
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &underlyer_use_nbbo {
-                request = request.underlyer_use_nbbo(*value);
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -9140,22 +4685,10 @@ impl OptionHistoryGreeksEodBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -9199,154 +4732,7 @@ impl OptionHistoryGreeksEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let underlyer_use_nbbo = self.underlyer_use_nbbo;
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &underlyer_use_nbbo {
-                request = request.underlyer_use_nbbo(*value);
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let underlyer_use_nbbo = self.underlyer_use_nbbo;
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &underlyer_use_nbbo {
-                request = request.underlyer_use_nbbo(*value);
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let underlyer_use_nbbo = self.underlyer_use_nbbo;
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &underlyer_use_nbbo {
-                request = request.underlyer_use_nbbo(*value);
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -9475,70 +4861,11 @@ impl OptionHistoryGreeksAllBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -9590,22 +4917,10 @@ impl OptionHistoryGreeksAllBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -9657,178 +4972,7 @@ impl OptionHistoryGreeksAllBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -9957,73 +5101,11 @@ impl OptionHistoryTradeGreeksAllBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -10078,22 +5160,10 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -10148,187 +5218,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -10457,70 +5347,11 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -10572,22 +5403,10 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -10639,178 +5458,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -10939,73 +5587,11 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -11060,22 +5646,10 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -11130,187 +5704,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -11439,70 +5833,11 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -11554,22 +5889,10 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -11621,178 +5944,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -11921,73 +6073,11 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -12042,22 +6132,10 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -12112,187 +6190,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -12421,70 +6319,11 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -12536,22 +6375,10 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -12603,178 +6430,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -12903,73 +6559,11 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -13024,22 +6618,10 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             request.await
         })?;
-        slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -13094,187 +6676,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::greeks_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -13402,70 +6804,11 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        iv_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<IvTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -13517,22 +6860,10 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             }
             request.await
         })?;
-        slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
+        iv_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -13584,178 +6915,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -13883,73 +7043,11 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        iv_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<IvTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -14004,22 +7102,10 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             request.await
         })?;
-        slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)
+        iv_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -14074,187 +7160,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let date = self.date.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let annual_dividend = self.annual_dividend;
-        let rate_type = self.rate_type.clone();
-        let rate_value = self.rate_value;
-        let version = self.version.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &annual_dividend {
-                request = request.annual_dividend(*value);
-            }
-            if let Some(value) = &rate_type {
-                request = request.rate_type(value.as_str());
-            }
-            if let Some(value) = &rate_value {
-                request = request.rate_value(*value);
-            }
-            if let Some(value) = &version {
-                request = request.version(value.as_str());
-            }
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -14341,43 +7247,11 @@ impl OptionAtTimeTradeBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -14402,22 +7276,10 @@ impl OptionAtTimeTradeBuilder {
             }
             request.await
         })?;
-        slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -14442,97 +7304,7 @@ impl OptionAtTimeTradeBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -14617,43 +7389,11 @@ impl OptionAtTimeQuoteBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<QuoteTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -14678,22 +7418,10 @@ impl OptionAtTimeQuoteBuilder {
             }
             request.await
         })?;
-        slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -14718,97 +7446,7 @@ impl OptionAtTimeQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let max_dte = self.max_dte;
-        let strike_range = self.strike_range;
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
-            if let Some(value) = &max_dte {
-                request = request.max_dte(*value);
-            }
-            if let Some(value) = &strike_range {
-                request = request.strike_range(*value);
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -14829,20 +7467,24 @@ impl IndexListSymbolsBuilder {
         slf
     }
 
-    /// Execute the request and return `list[str]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+    /// Execute the request and return a typed `StringList` wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
-        run_blocking(py, async move {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 tdx.index_list_symbols().await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "symbol")
     }
 
-    /// Async companion to `list()` — returns an awaitable yielding `list[str]`.
+    /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
@@ -14852,7 +7494,7 @@ impl IndexListSymbolsBuilder {
             } else {
                 tdx.index_list_symbols().await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
 }
 
@@ -14880,21 +7522,25 @@ impl IndexListDatesBuilder {
         slf
     }
 
-    /// Execute the request and return `list[str]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Vec<String>> {
+    /// Execute the request and return a typed `StringList` wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
-        run_blocking(py, async move {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
             } else {
                 tdx.index_list_dates(&symbol).await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "date")
     }
 
-    /// Async companion to `list()` — returns an awaitable yielding `list[str]`.
+    /// Async companion to `list()` — awaitable yields the `StringList` wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -14905,7 +7551,7 @@ impl IndexListDatesBuilder {
             } else {
                 tdx.index_list_dates(&symbol).await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
 }
 
@@ -14941,34 +7587,11 @@ impl IndexSnapshotOhlcBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_ohlc(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
@@ -14984,22 +7607,10 @@ impl IndexSnapshotOhlcBuilder {
             }
             request.await
         })?;
-        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -15015,70 +7626,7 @@ impl IndexSnapshotOhlcBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_ohlc(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_ohlc(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_ohlc(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -15114,34 +7662,11 @@ impl IndexSnapshotPriceBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_price(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        price_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<PriceTickList>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
@@ -15157,22 +7682,10 @@ impl IndexSnapshotPriceBuilder {
             }
             request.await
         })?;
-        slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
+        price_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -15188,70 +7701,7 @@ impl IndexSnapshotPriceBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_price(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::price_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_price(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_price(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -15287,34 +7737,11 @@ impl IndexSnapshotMarketValueBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_market_value(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        market_value_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<MarketValueTickList>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
@@ -15330,22 +7757,10 @@ impl IndexSnapshotMarketValueBuilder {
             }
             request.await
         })?;
-        slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)
+        market_value_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbols = self.symbols.clone();
@@ -15361,70 +7776,7 @@ impl IndexSnapshotMarketValueBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_market_value(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_market_value(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbols = self.symbols.clone();
-        let min_time = self.min_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = tdx.index_snapshot_market_value(&refs);
-            if let Some(value) = &min_time {
-                request = request.min_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -15466,31 +7818,11 @@ impl IndexHistoryEodBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        eod_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<EodTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
@@ -15503,22 +7835,10 @@ impl IndexHistoryEodBuilder {
             }
             request.await
         })?;
-        slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)
+        eod_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -15531,61 +7851,7 @@ impl IndexHistoryEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -15650,40 +7916,11 @@ impl IndexHistoryOhlcBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
@@ -15705,22 +7942,10 @@ impl IndexHistoryOhlcBuilder {
             }
             request.await
         })?;
-        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -15742,88 +7967,7 @@ impl IndexHistoryOhlcBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -15896,47 +8040,11 @@ impl IndexHistoryPriceBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.index_history_price(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        price_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<PriceTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let date = self.date.clone();
@@ -15965,22 +8073,10 @@ impl IndexHistoryPriceBuilder {
             }
             request.await
         })?;
-        slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
+        price_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -16009,109 +8105,7 @@ impl IndexHistoryPriceBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_price(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::price_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_price(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let date = self.date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_price(&symbol, &date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &start_date {
-                request = request.start_date(value.as_str());
-            }
-            if let Some(value) = &end_date {
-                request = request.end_date(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -16161,32 +8155,11 @@ impl IndexAtTimePriceBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        price_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<PriceTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
@@ -16200,22 +8173,10 @@ impl IndexAtTimePriceBuilder {
             }
             request.await
         })?;
-        slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)
+        price_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -16229,64 +8190,7 @@ impl IndexAtTimePriceBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::price_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let time_of_day = self.time_of_day.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::price_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -16309,28 +8213,11 @@ impl CalendarOpenTodayBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.calendar_open_today();
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        calendar_days_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<CalendarDayList>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
@@ -16340,22 +8227,10 @@ impl CalendarOpenTodayBuilder {
             }
             request.await
         })?;
-        slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
+        calendar_days_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
@@ -16365,52 +8240,7 @@ impl CalendarOpenTodayBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.calendar_open_today();
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.calendar_open_today();
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.calendar_open_today();
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -16441,29 +8271,11 @@ impl CalendarOnDateBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let date = self.date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.calendar_on_date(&date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        calendar_days_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<CalendarDayList>> {
         let tdx = self.tdx.clone();
         let date = self.date.clone();
         let timeout_ms = self.timeout_ms;
@@ -16474,22 +8286,10 @@ impl CalendarOnDateBuilder {
             }
             request.await
         })?;
-        slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
+        calendar_days_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let date = self.date.clone();
@@ -16500,55 +8300,7 @@ impl CalendarOnDateBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let date = self.date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.calendar_on_date(&date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let date = self.date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.calendar_on_date(&date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let date = self.date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.calendar_on_date(&date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -16579,29 +8331,11 @@ impl CalendarYearBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let year = self.year.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.calendar_year(&year);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        calendar_days_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<CalendarDayList>> {
         let tdx = self.tdx.clone();
         let year = self.year.clone();
         let timeout_ms = self.timeout_ms;
@@ -16612,22 +8346,10 @@ impl CalendarYearBuilder {
             }
             request.await
         })?;
-        slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)
+        calendar_days_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let year = self.year.clone();
@@ -16638,55 +8360,7 @@ impl CalendarYearBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let year = self.year.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.calendar_year(&year);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let year = self.year.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.calendar_year(&year);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let year = self.year.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.calendar_year(&year);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -16728,31 +8402,11 @@ impl InterestRateHistoryEodBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        interest_rate_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<InterestRateTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
@@ -16765,22 +8419,10 @@ impl InterestRateHistoryEodBuilder {
             }
             request.await
         })?;
-        slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)
+        interest_rate_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -16793,61 +8435,7 @@ impl InterestRateHistoryEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| interest_rate_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| interest_rate_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -16915,44 +8503,11 @@ impl StockHistoryOhlcRangeBuilder {
         slf
     }
 
-    /// Execute the request and return a typed `list[TickClass]`.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
-    }
-
-    /// Execute the request and return a `pyarrow.Table`.
+    /// Execute the request and return a typed list wrapper.
     ///
-    /// Builder `.arrow()` takes the slice-based fast path:
-    /// the decoder-owned `Vec<tick::T>` feeds the Arrow column
-    /// builders directly, skipping the typed pyclass-list
-    /// materialisation. Peak RSS is ~½ the pyclass path at
-    /// large N (no double-buffered pyclass allocations).
-    fn arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
@@ -16978,22 +8533,10 @@ impl StockHistoryOhlcRangeBuilder {
             }
             request.await
         })?;
-        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
-    /// Execute the request and return a `pandas.DataFrame`.
-    fn pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_pandas(py, table)
-    }
-
-    /// Execute the request and return a `polars.DataFrame`.
-    fn polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = self.arrow(py)?;
-        pyarrow_table_to_polars(py, table)
-    }
-
-    /// Async companion to `list()`.
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -17019,100 +8562,7 @@ impl StockHistoryOhlcRangeBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
-    }
-
-    /// Async companion to `arrow()`.
-    fn arrow_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks))
-    }
-
-    /// Async companion to `pandas()`.
-    fn pandas_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_pandas(py, table)
-        })
-    }
-
-    /// Async companion to `polars()`.
-    fn polars_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let tdx = self.tdx.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| {
-            let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &ticks)?;
-            pyarrow_table_to_polars(py, table)
-        })
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -17191,14 +8641,15 @@ impl ThetaDataDx {
         &self,
         py: Python<'_>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Vec<String>> {
-        run_blocking(py, async move {
+    ) -> PyResult<Py<StringList>> {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 self.tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 self.tdx.stock_list_symbols().await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "symbol")
     }
 
     /// List all available stock ticker symbols.
@@ -17222,12 +8673,13 @@ impl ThetaDataDx {
             } else {
                 tdx.stock_list_symbols().await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_list_symbols`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_list_symbols`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_list_symbols()` for the sync signature; `stock_list_symbols_async()` for the awaitable companion.
     #[pyo3(signature = ())]
@@ -17250,14 +8702,15 @@ impl ThetaDataDx {
         request_type: &str,
         symbol: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Vec<String>> {
-        run_blocking(py, async move {
+    ) -> PyResult<Py<StringList>> {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 self.tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms), request_type, symbol).await
             } else {
                 self.tdx.stock_list_dates(request_type, symbol).await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "date")
     }
 
     /// List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
@@ -17283,12 +8736,13 @@ impl ThetaDataDx {
             } else {
                 tdx.stock_list_dates(&request_type, &symbol).await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_list_dates`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_list_dates`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_list_dates()` for the sync signature; `stock_list_dates_async()` for the awaitable companion.
     #[pyo3(signature = (request_type, symbol))]
@@ -17319,7 +8773,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<OhlcTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_ohlc(&refs);
         if let Some(value) = venue {
@@ -17332,7 +8786,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest OHLC snapshot for one or more stocks.
@@ -17369,12 +8823,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_snapshot_ohlc`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_snapshot_ohlc`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_snapshot_ohlc()` for the sync signature; `stock_snapshot_ohlc_async()` for the awaitable companion.
     #[pyo3(signature = (symbols))]
@@ -17404,7 +8859,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<TradeTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_trade(&refs);
         if let Some(value) = venue {
@@ -17417,7 +8872,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest trade snapshot for one or more stocks.
@@ -17453,12 +8908,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_snapshot_trade`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_snapshot_trade`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_snapshot_trade()` for the sync signature; `stock_snapshot_trade_async()` for the awaitable companion.
     #[pyo3(signature = (symbols))]
@@ -17488,7 +8944,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<QuoteTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_quote(&refs);
         if let Some(value) = venue {
@@ -17501,7 +8957,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest NBBO quote snapshot for one or more stocks.
@@ -17537,12 +8993,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_snapshot_quote`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_snapshot_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_snapshot_quote()` for the sync signature; `stock_snapshot_quote_async()` for the awaitable companion.
     #[pyo3(signature = (symbols))]
@@ -17572,7 +9029,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<MarketValueTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_market_value(&refs);
         if let Some(value) = venue {
@@ -17585,7 +9042,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        market_value_ticks_to_pyclass_list(py, &ticks)
+        market_value_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest market value snapshot for one or more stocks.
@@ -17621,12 +9078,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_snapshot_market_value`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_snapshot_market_value`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_snapshot_market_value()` for the sync signature; `stock_snapshot_market_value_async()` for the awaitable companion.
     #[pyo3(signature = (symbols))]
@@ -17654,13 +9112,13 @@ impl ThetaDataDx {
         start_date: &str,
         end_date: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<EodTickList>> {
         let mut request = self.tdx.stock_history_eod(symbol, start_date, end_date);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        eod_ticks_to_pyclass_list(py, &ticks)
+        eod_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
@@ -17687,12 +9145,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_history_eod`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_history_eod`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_eod()` for the sync signature; `stock_history_eod_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, start_date, end_date))]
@@ -17729,7 +9188,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<OhlcTickList>> {
         let mut request = self.tdx.stock_history_ohlc(symbol, date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -17750,7 +9209,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch intraday OHLC bars for a stock on a single date.
@@ -17799,12 +9258,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_history_ohlc`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_history_ohlc`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_ohlc()` for the sync signature; `stock_history_ohlc_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, date, interval))]
@@ -17844,7 +9304,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<TradeTickList>> {
         let mut request = self.tdx.stock_history_trade(symbol, date);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -17865,7 +9325,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch all trades for a stock on a given date.
@@ -17912,12 +9372,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_history_trade`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_history_trade`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_trade()` for the sync signature; `stock_history_trade_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, date))]
@@ -17958,7 +9419,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<QuoteTickList>> {
         let mut request = self.tdx.stock_history_quote(symbol, date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -17979,7 +9440,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
@@ -18029,12 +9490,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_history_quote`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_history_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_quote()` for the sync signature; `stock_history_quote_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, date, interval))]
@@ -18075,7 +9537,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<TradeQuoteTickList>> {
         let mut request = self.tdx.stock_history_trade_quote(symbol, date);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -18099,7 +9561,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        trade_quote_ticks_to_pyclass_list(py, &ticks)
+        trade_quote_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
@@ -18150,12 +9612,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_history_trade_quote`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_history_trade_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_trade_quote()` for the sync signature; `stock_history_trade_quote_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, date))]
@@ -18197,7 +9660,7 @@ impl ThetaDataDx {
         time_of_day: &str,
         venue: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<TradeTickList>> {
         let mut request = self.tdx.stock_at_time_trade(symbol, start_date, end_date, time_of_day);
         if let Some(value) = venue {
             request = request.venue(value);
@@ -18206,7 +9669,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch the trade at a specific time of day across a date range.
@@ -18244,12 +9707,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_at_time_trade`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_at_time_trade`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_at_time_trade()` for the sync signature; `stock_at_time_trade_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, start_date, end_date, time_of_day))]
@@ -18290,7 +9754,7 @@ impl ThetaDataDx {
         time_of_day: &str,
         venue: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<QuoteTickList>> {
         let mut request = self.tdx.stock_at_time_quote(symbol, start_date, end_date, time_of_day);
         if let Some(value) = venue {
             request = request.venue(value);
@@ -18299,7 +9763,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch the quote at a specific time of day across a date range.
@@ -18337,12 +9801,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_at_time_quote`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_at_time_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_at_time_quote()` for the sync signature; `stock_at_time_quote_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, start_date, end_date, time_of_day))]
@@ -18372,14 +9837,15 @@ impl ThetaDataDx {
         &self,
         py: Python<'_>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Vec<String>> {
-        run_blocking(py, async move {
+    ) -> PyResult<Py<StringList>> {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 self.tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 self.tdx.option_list_symbols().await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "symbol")
     }
 
     /// List all available option underlying symbols.
@@ -18403,12 +9869,13 @@ impl ThetaDataDx {
             } else {
                 tdx.option_list_symbols().await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_list_symbols`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_list_symbols`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_list_symbols()` for the sync signature; `option_list_symbols_async()` for the awaitable companion.
     #[pyo3(signature = ())]
@@ -18435,14 +9902,15 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Vec<String>> {
-        run_blocking(py, async move {
+    ) -> PyResult<Py<StringList>> {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 self.tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms), request_type, symbol, expiration, strike, right).await
             } else {
                 self.tdx.option_list_dates(request_type, symbol, expiration, strike, right).await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "date")
     }
 
     /// List available dates for an option contract by request type.
@@ -18472,12 +9940,13 @@ impl ThetaDataDx {
             } else {
                 tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right).await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_list_dates`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_list_dates`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_list_dates()` for the sync signature; `option_list_dates_async()` for the awaitable companion.
     #[pyo3(signature = (request_type, symbol, expiration, strike, right))]
@@ -18510,14 +9979,15 @@ impl ThetaDataDx {
         py: Python<'_>,
         symbol: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Vec<String>> {
-        run_blocking(py, async move {
+    ) -> PyResult<Py<StringList>> {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 self.tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms), symbol).await
             } else {
                 self.tdx.option_list_expirations(symbol).await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "expiration")
     }
 
     /// List available expiration dates for an option underlying.
@@ -18543,12 +10013,13 @@ impl ThetaDataDx {
             } else {
                 tdx.option_list_expirations(&symbol).await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "expiration").map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_list_expirations`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_list_expirations`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_list_expirations()` for the sync signature; `option_list_expirations_async()` for the awaitable companion.
     #[pyo3(signature = (symbol))]
@@ -18574,14 +10045,15 @@ impl ThetaDataDx {
         symbol: &str,
         expiration: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Vec<String>> {
-        run_blocking(py, async move {
+    ) -> PyResult<Py<StringList>> {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 self.tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms), symbol, expiration).await
             } else {
                 self.tdx.option_list_strikes(symbol, expiration).await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "strike")
     }
 
     /// List available strike prices for an option at a given expiration.
@@ -18608,12 +10080,13 @@ impl ThetaDataDx {
             } else {
                 tdx.option_list_strikes(&symbol, &expiration).await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "strike").map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_list_strikes`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_list_strikes`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_list_strikes()` for the sync signature; `option_list_strikes_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration))]
@@ -18646,7 +10119,7 @@ impl ThetaDataDx {
         date: &str,
         max_dte: Option<i32>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<OptionContractList>> {
         let mut request = self.tdx.option_list_contracts(request_type, symbol, date);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -18655,7 +10128,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        option_contracts_to_pyclass_list(py, &ticks)
+        option_contracts_to_pyclass_list(py, ticks)
     }
 
     /// List all option contracts for a symbol on a given date.
@@ -18690,12 +10163,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| option_contracts_to_pyclass_list(py, &ticks))
+        }, |py, ticks| option_contracts_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_list_contracts`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_list_contracts`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_list_contracts()` for the sync signature; `option_list_contracts_async()` for the awaitable companion.
     #[pyo3(signature = (request_type, symbol, date))]
@@ -18731,7 +10205,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<OhlcTickList>> {
         let mut request = self.tdx.option_snapshot_ohlc(symbol, expiration, strike, right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -18746,7 +10220,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest OHLC snapshot for an option contract.
@@ -18787,12 +10261,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_snapshot_ohlc`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_snapshot_ohlc`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_ohlc()` for the sync signature; `option_snapshot_ohlc_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right))]
@@ -18832,7 +10307,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<TradeTickList>> {
         let mut request = self.tdx.option_snapshot_trade(symbol, expiration, strike, right);
         if let Some(value) = strike_range {
             request = request.strike_range(value);
@@ -18844,7 +10319,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest trade snapshot for an option contract.
@@ -18882,12 +10357,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_snapshot_trade`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_snapshot_trade`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_trade()` for the sync signature; `option_snapshot_trade_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right))]
@@ -18927,7 +10403,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<QuoteTickList>> {
         let mut request = self.tdx.option_snapshot_quote(symbol, expiration, strike, right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -18942,7 +10418,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest NBBO quote snapshot for an option contract.
@@ -18984,12 +10460,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_snapshot_quote`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_snapshot_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_quote()` for the sync signature; `option_snapshot_quote_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right))]
@@ -19031,7 +10508,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<OpenInterestTickList>> {
         let mut request = self.tdx.option_snapshot_open_interest(symbol, expiration, strike, right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -19046,7 +10523,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        open_interest_ticks_to_pyclass_list(py, &ticks)
+        open_interest_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest open interest snapshot for an option contract.
@@ -19089,12 +10566,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_snapshot_open_interest`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_snapshot_open_interest`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_open_interest()` for the sync signature; `option_snapshot_open_interest_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right))]
@@ -19133,7 +10611,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<MarketValueTickList>> {
         let mut request = self.tdx.option_snapshot_market_value(symbol, expiration, strike, right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -19148,7 +10626,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        market_value_ticks_to_pyclass_list(py, &ticks)
+        market_value_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest market value snapshot for an option contract.
@@ -19188,12 +10666,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_snapshot_market_value`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_snapshot_market_value`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_market_value()` for the sync signature; `option_snapshot_market_value_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right))]
@@ -19241,7 +10720,7 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<IvTickList>> {
         let mut request = self.tdx.option_snapshot_greeks_implied_volatility(symbol, expiration, strike, right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -19274,7 +10753,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        iv_ticks_to_pyclass_list(py, &ticks)
+        iv_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
@@ -19341,12 +10820,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_snapshot_greeks_implied_volatility`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_snapshot_greeks_implied_volatility`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_greeks_implied_volatility()` for the sync signature; `option_snapshot_greeks_implied_volatility_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right))]
@@ -19400,7 +10880,7 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_snapshot_greeks_all(symbol, expiration, strike, right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -19433,7 +10913,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
@@ -19500,12 +10980,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_snapshot_greeks_all`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_snapshot_greeks_all`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_greeks_all()` for the sync signature; `option_snapshot_greeks_all_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right))]
@@ -19559,7 +11040,7 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_snapshot_greeks_first_order(symbol, expiration, strike, right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -19592,7 +11073,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -19659,12 +11140,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_snapshot_greeks_first_order`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_snapshot_greeks_first_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_greeks_first_order()` for the sync signature; `option_snapshot_greeks_first_order_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right))]
@@ -19718,7 +11200,7 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_snapshot_greeks_second_order(symbol, expiration, strike, right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -19751,7 +11233,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -19818,12 +11300,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_snapshot_greeks_second_order`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_snapshot_greeks_second_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_greeks_second_order()` for the sync signature; `option_snapshot_greeks_second_order_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right))]
@@ -19877,7 +11360,7 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_snapshot_greeks_third_order(symbol, expiration, strike, right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -19910,7 +11393,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
@@ -19977,12 +11460,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_snapshot_greeks_third_order`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_snapshot_greeks_third_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_greeks_third_order()` for the sync signature; `option_snapshot_greeks_third_order_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right))]
@@ -20031,7 +11515,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<EodTickList>> {
         let mut request = self.tdx.option_history_eod(symbol, expiration, strike, right, start_date, end_date);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -20043,7 +11527,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        eod_ticks_to_pyclass_list(py, &ticks)
+        eod_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch end-of-day option data for a contract over a date range.
@@ -20084,12 +11568,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_eod`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_eod`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_eod()` for the sync signature; `option_history_eod_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date))]
@@ -20137,7 +11622,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<OhlcTickList>> {
         let mut request = self.tdx.option_history_ohlc(symbol, expiration, strike, right, date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -20158,7 +11643,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch intraday OHLC bars for an option contract.
@@ -20210,12 +11695,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_ohlc`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_ohlc`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_ohlc()` for the sync signature; `option_history_ohlc_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
@@ -20267,7 +11753,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<TradeTickList>> {
         let mut request = self.tdx.option_history_trade(symbol, expiration, strike, right, date);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -20291,7 +11777,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch all trades for an option contract on a given date.
@@ -20347,12 +11833,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_trade`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_trade`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade()` for the sync signature; `option_history_trade_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date))]
@@ -20403,7 +11890,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<QuoteTickList>> {
         let mut request = self.tdx.option_history_quote(symbol, expiration, strike, right, date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -20427,7 +11914,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
@@ -20483,12 +11970,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_quote`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_quote()` for the sync signature; `option_history_quote_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
@@ -20542,7 +12030,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<TradeQuoteTickList>> {
         let mut request = self.tdx.option_history_trade_quote(symbol, expiration, strike, right, date);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -20569,7 +12057,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        trade_quote_ticks_to_pyclass_list(py, &ticks)
+        trade_quote_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
@@ -20629,12 +12117,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_trade_quote`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_trade_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_quote()` for the sync signature; `option_history_trade_quote_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date))]
@@ -20683,7 +12172,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<OpenInterestTickList>> {
         let mut request = self.tdx.option_history_open_interest(symbol, expiration, strike, right, date);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -20701,7 +12190,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        open_interest_ticks_to_pyclass_list(py, &ticks)
+        open_interest_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch open interest history for an option contract.
@@ -20748,12 +12237,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_open_interest`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_open_interest`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_open_interest()` for the sync signature; `option_history_open_interest_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date))]
@@ -20803,7 +12293,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_history_greeks_eod(symbol, expiration, strike, right, start_date, end_date);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -20830,7 +12320,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
@@ -20890,12 +12380,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_greeks_eod`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_greeks_eod`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_eod()` for the sync signature; `option_history_greeks_eod_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date))]
@@ -20953,7 +12444,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_history_greeks_all(symbol, expiration, strike, right, date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -20986,7 +12477,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
@@ -21055,12 +12546,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_greeks_all`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_greeks_all`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_all()` for the sync signature; `option_history_greeks_all_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
@@ -21120,7 +12612,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_all(symbol, expiration, strike, right, date);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -21156,7 +12648,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch all Greeks on each trade for an option contract.
@@ -21228,12 +12720,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_trade_greeks_all`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_trade_greeks_all`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_all()` for the sync signature; `option_history_trade_greeks_all_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date))]
@@ -21292,7 +12785,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_history_greeks_first_order(symbol, expiration, strike, right, date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -21325,7 +12818,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
@@ -21394,12 +12887,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_greeks_first_order`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_greeks_first_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_first_order()` for the sync signature; `option_history_greeks_first_order_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
@@ -21459,7 +12953,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_first_order(symbol, expiration, strike, right, date);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -21495,7 +12989,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
@@ -21567,12 +13061,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_trade_greeks_first_order`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_trade_greeks_first_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_first_order()` for the sync signature; `option_history_trade_greeks_first_order_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date))]
@@ -21631,7 +13126,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_history_greeks_second_order(symbol, expiration, strike, right, date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -21664,7 +13159,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
@@ -21733,12 +13228,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_greeks_second_order`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_greeks_second_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_second_order()` for the sync signature; `option_history_greeks_second_order_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
@@ -21798,7 +13294,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_second_order(symbol, expiration, strike, right, date);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -21834,7 +13330,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
@@ -21906,12 +13402,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_trade_greeks_second_order`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_trade_greeks_second_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_second_order()` for the sync signature; `option_history_trade_greeks_second_order_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date))]
@@ -21970,7 +13467,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_history_greeks_third_order(symbol, expiration, strike, right, date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -22003,7 +13500,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
@@ -22072,12 +13569,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_greeks_third_order`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_greeks_third_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_third_order()` for the sync signature; `option_history_greeks_third_order_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
@@ -22137,7 +13635,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<GreeksTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_third_order(symbol, expiration, strike, right, date);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -22173,7 +13671,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, &ticks)
+        greeks_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
@@ -22245,12 +13743,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_trade_greeks_third_order`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_trade_greeks_third_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_third_order()` for the sync signature; `option_history_trade_greeks_third_order_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date))]
@@ -22308,7 +13807,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<IvTickList>> {
         let mut request = self.tdx.option_history_greeks_implied_volatility(symbol, expiration, strike, right, date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -22341,7 +13840,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        iv_ticks_to_pyclass_list(py, &ticks)
+        iv_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
@@ -22409,12 +13908,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_greeks_implied_volatility`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_greeks_implied_volatility`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_implied_volatility()` for the sync signature; `option_history_greeks_implied_volatility_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
@@ -22473,7 +13973,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<IvTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_implied_volatility(symbol, expiration, strike, right, date);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -22509,7 +14009,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        iv_ticks_to_pyclass_list(py, &ticks)
+        iv_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch implied volatility on each trade for an option contract.
@@ -22580,12 +14080,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| iv_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_history_trade_greeks_implied_volatility`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_history_trade_greeks_implied_volatility`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_implied_volatility()` for the sync signature; `option_history_trade_greeks_implied_volatility_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, date))]
@@ -22638,7 +14139,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<TradeTickList>> {
         let mut request = self.tdx.option_at_time_trade(symbol, expiration, strike, right, start_date, end_date, time_of_day);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -22650,7 +14151,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        trade_ticks_to_pyclass_list(py, &ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch the trade at a specific time of day across a date range for an option.
@@ -22692,12 +14193,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_at_time_trade`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_at_time_trade`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_at_time_trade()` for the sync signature; `option_at_time_trade_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day))]
@@ -22744,7 +14246,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<QuoteTickList>> {
         let mut request = self.tdx.option_at_time_quote(symbol, expiration, strike, right, start_date, end_date, time_of_day);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -22756,7 +14258,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        quote_ticks_to_pyclass_list(py, &ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch the quote at a specific time of day across a date range for an option.
@@ -22796,12 +14298,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `option_at_time_quote`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `option_at_time_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_at_time_quote()` for the sync signature; `option_at_time_quote_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day))]
@@ -22838,14 +14341,15 @@ impl ThetaDataDx {
         &self,
         py: Python<'_>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Vec<String>> {
-        run_blocking(py, async move {
+    ) -> PyResult<Py<StringList>> {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 self.tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
             } else {
                 self.tdx.index_list_symbols().await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "symbol")
     }
 
     /// List all available index symbols.
@@ -22869,12 +14373,13 @@ impl ThetaDataDx {
             } else {
                 tdx.index_list_symbols().await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `index_list_symbols`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `index_list_symbols`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_list_symbols()` for the sync signature; `index_list_symbols_async()` for the awaitable companion.
     #[pyo3(signature = ())]
@@ -22896,14 +14401,15 @@ impl ThetaDataDx {
         py: Python<'_>,
         symbol: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Vec<String>> {
-        run_blocking(py, async move {
+    ) -> PyResult<Py<StringList>> {
+        let values: Vec<String> = run_blocking(py, async move {
             if let Some(ms) = timeout_ms {
                 self.tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms), symbol).await
             } else {
                 self.tdx.index_list_dates(symbol).await
             }
-        })
+        })?;
+        strings_to_string_list(py, values, "date")
     }
 
     /// List available dates for an index symbol.
@@ -22928,12 +14434,13 @@ impl ThetaDataDx {
             } else {
                 tdx.index_list_dates(&symbol).await
             }
-        }, |py, value| Ok(pyo3::types::PyList::new(py, value)?.into_any().unbind()))
+        }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `index_list_dates`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `index_list_dates`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_list_dates()` for the sync signature; `index_list_dates_async()` for the awaitable companion.
     #[pyo3(signature = (symbol))]
@@ -22959,7 +14466,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<OhlcTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_ohlc(&refs);
         if let Some(value) = min_time {
@@ -22969,7 +14476,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest OHLC snapshot for one or more indices.
@@ -23000,12 +14507,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `index_snapshot_ohlc`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `index_snapshot_ohlc`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_snapshot_ohlc()` for the sync signature; `index_snapshot_ohlc_async()` for the awaitable companion.
     #[pyo3(signature = (symbols))]
@@ -23032,7 +14540,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<PriceTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_price(&refs);
         if let Some(value) = min_time {
@@ -23042,7 +14550,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        price_ticks_to_pyclass_list(py, &ticks)
+        price_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest price snapshot for one or more indices.
@@ -23073,12 +14581,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `index_snapshot_price`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `index_snapshot_price`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_snapshot_price()` for the sync signature; `index_snapshot_price_async()` for the awaitable companion.
     #[pyo3(signature = (symbols))]
@@ -23105,7 +14614,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<MarketValueTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_market_value(&refs);
         if let Some(value) = min_time {
@@ -23115,7 +14624,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        market_value_ticks_to_pyclass_list(py, &ticks)
+        market_value_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest market value snapshot for one or more indices.
@@ -23146,12 +14655,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| market_value_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `index_snapshot_market_value`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `index_snapshot_market_value`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_snapshot_market_value()` for the sync signature; `index_snapshot_market_value_async()` for the awaitable companion.
     #[pyo3(signature = (symbols))]
@@ -23178,13 +14688,13 @@ impl ThetaDataDx {
         start_date: &str,
         end_date: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<EodTickList>> {
         let mut request = self.tdx.index_history_eod(symbol, start_date, end_date);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        eod_ticks_to_pyclass_list(py, &ticks)
+        eod_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch end-of-day index data for a date range.
@@ -23211,12 +14721,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| eod_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `index_history_eod`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `index_history_eod`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_history_eod()` for the sync signature; `index_history_eod_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, start_date, end_date))]
@@ -23251,7 +14762,7 @@ impl ThetaDataDx {
         start_time: Option<&str>,
         end_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<OhlcTickList>> {
         let mut request = self.tdx.index_history_ohlc(symbol, start_date, end_date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -23263,7 +14774,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch intraday OHLC bars for an index.
@@ -23301,12 +14812,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `index_history_ohlc`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `index_history_ohlc`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_history_ohlc()` for the sync signature; `index_history_ohlc_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, start_date, end_date, interval))]
@@ -23347,7 +14859,7 @@ impl ThetaDataDx {
         start_date: Option<&str>,
         end_date: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<PriceTickList>> {
         let mut request = self.tdx.index_history_price(symbol, date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -23365,7 +14877,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        price_ticks_to_pyclass_list(py, &ticks)
+        price_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch intraday price history for an index.
@@ -23411,12 +14923,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `index_history_price`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `index_history_price`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_history_price()` for the sync signature; `index_history_price_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, date, interval))]
@@ -23452,13 +14965,13 @@ impl ThetaDataDx {
         end_date: &str,
         time_of_day: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<PriceTickList>> {
         let mut request = self.tdx.index_at_time_price(symbol, start_date, end_date, time_of_day);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        price_ticks_to_pyclass_list(py, &ticks)
+        price_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch the index price at a specific time of day across a date range.
@@ -23487,12 +15000,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| price_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `index_at_time_price`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `index_at_time_price`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_at_time_price()` for the sync signature; `index_at_time_price_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, start_date, end_date, time_of_day))]
@@ -23523,13 +15037,13 @@ impl ThetaDataDx {
         &self,
         py: Python<'_>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<CalendarDayList>> {
         let mut request = self.tdx.calendar_open_today();
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        calendar_days_to_pyclass_list(py, &ticks)
+        calendar_days_to_pyclass_list(py, ticks)
     }
 
     /// Check whether the market is open today.
@@ -23555,12 +15069,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
+        }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `calendar_open_today`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `calendar_open_today`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `calendar_open_today()` for the sync signature; `calendar_open_today_async()` for the awaitable companion.
     #[pyo3(signature = ())]
@@ -23585,13 +15100,13 @@ impl ThetaDataDx {
         py: Python<'_>,
         date: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<CalendarDayList>> {
         let mut request = self.tdx.calendar_on_date(date);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        calendar_days_to_pyclass_list(py, &ticks)
+        calendar_days_to_pyclass_list(py, ticks)
     }
 
     /// Get calendar information for a specific date.
@@ -23619,12 +15134,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
+        }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `calendar_on_date`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `calendar_on_date`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `calendar_on_date()` for the sync signature; `calendar_on_date_async()` for the awaitable companion.
     #[pyo3(signature = (date))]
@@ -23651,13 +15167,13 @@ impl ThetaDataDx {
         py: Python<'_>,
         year: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<CalendarDayList>> {
         let mut request = self.tdx.calendar_year(year);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        calendar_days_to_pyclass_list(py, &ticks)
+        calendar_days_to_pyclass_list(py, ticks)
     }
 
     /// Get calendar information for an entire year.
@@ -23685,12 +15201,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| calendar_days_to_pyclass_list(py, &ticks))
+        }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `calendar_year`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `calendar_year`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `calendar_year()` for the sync signature; `calendar_year_async()` for the awaitable companion.
     #[pyo3(signature = (year))]
@@ -23716,13 +15233,13 @@ impl ThetaDataDx {
         start_date: &str,
         end_date: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<InterestRateTickList>> {
         let mut request = self.tdx.interest_rate_history_eod(symbol, start_date, end_date);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        interest_rate_ticks_to_pyclass_list(py, &ticks)
+        interest_rate_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch end-of-day interest rate history.
@@ -23749,12 +15266,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| interest_rate_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| interest_rate_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `interest_rate_history_eod`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `interest_rate_history_eod`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `interest_rate_history_eod()` for the sync signature; `interest_rate_history_eod_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, start_date, end_date))]
@@ -23786,7 +15304,7 @@ impl ThetaDataDx {
         end_time: Option<&str>,
         venue: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<OhlcTickList>> {
         let mut request = self.tdx.stock_history_ohlc_range(symbol, start_date, end_date, interval);
         if let Some(value) = start_time {
             request = request.start_time(value);
@@ -23801,7 +15319,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        ohlc_ticks_to_pyclass_list(py, &ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch intraday OHLC bars across a date range.
@@ -23838,12 +15356,13 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, &ticks))
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Create a fluent-builder for `stock_history_ohlc_range`. Chain setters then call one of
-    /// `.arrow()` / `.list()` / `.polars()` / `.pandas()` (or their `_async`
-    /// companions) to execute the request.
+    /// Create a fluent-builder for `stock_history_ohlc_range`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_ohlc_range()` for the sync signature; `stock_history_ohlc_range_async()` for the awaitable companion.
     #[pyo3(signature = (symbol, start_date, end_date, interval))]
