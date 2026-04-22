@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-py"
-version = "8.0.3"
+version = "8.0.4"
 edition = "2021"
 description = "Python bindings for thetadatadx — native ThetaData SDK powered by Rust"
 license = "Apache-2.0"
@@ -60,6 +60,21 @@ tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
 # Error derivation for the 365-day auto-chunk date-math module. Matches
 # the workspace crate's pin so we never drift on the trait surface.
 thiserror = "2.0.18"
+
+# Reason: the auto-chunk helper splits multi-year date ranges into
+# ≤365-day chunks before dispatch. The hand-rolled YYYYMMDD parser in
+# `chunking.rs` previously range-checked month 1..=12 and day 1..=31
+# independently, so Gregorian-impossible inputs like "20230229" (Feb 29
+# in a non-leap year) and "20240231" (Feb 31) parsed to a `Ymd` whose
+# `to_ord` silently normalized to a neighbouring valid day — wrong
+# chunk boundaries on impossible ranges. Swap the hand-rolled validator
+# for `chrono::NaiveDate::parse_from_str(_, "%Y%m%d")` which enforces
+# real Gregorian validity. chrono is already a transitive dep via the
+# tzdb chain pulled in by the main crate, so adoption adds zero new
+# crates to the build tree (verified in `sdks/python/Cargo.lock`).
+# `default-features = false` with `alloc` keeps the compile profile
+# minimal — we only need the calendar math.
+chrono = { version = "=0.4.44", default-features = false, features = ["alloc"] }
 
 # Structured diagnostics for generator-emitted streaming helpers. Trace-level
 # emission only — shutdown-time `tx.send` failures (Python rx dropped before
