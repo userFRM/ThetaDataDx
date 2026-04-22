@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.3] - 2026-04-22
+
+Python-UX polish: DataFrame conversion is now a chain on the returned list
+(`tdx.stock_history_eod(...).to_polars()`). The free-function and client-method
+`to_polars(ticks)` / `to_arrow(ticks)` / `to_pandas(ticks)` / `to_dataframe(ticks)`
+entry points are removed hard — there is now exactly one surface for converting
+tick data into a DataFrame.
+
+### Changed
+
+- **Chained DataFrame conversion on every list-returning endpoint.** Every endpoint wraps its result in a typed `<ReturnType>List` pyclass (`EodTickList`, `TradeTickList`, `QuoteTickList`, …, plus `StringList`, `OptionContractList`, `CalendarDayList` for non-tick list returns). The wrapper exposes `.to_polars()`, `.to_arrow()`, `.to_pandas()`, `.to_list()` and the list protocol. Usage is `tdx.stock_history_eod(...).to_polars()` — no intermediate variable, no free-function round-trip. Builder terminals collapse from four parallel `.list()` / `.arrow()` / `.pandas()` / `.polars()` methods to a single `.list()` whose return carries the same chained terminals.
+
+### Removed (breaking)
+
+- **Free-function and client-method conversion helpers removed.** `thetadatadx.to_polars(ticks)`, `thetadatadx.to_arrow(ticks)`, `thetadatadx.to_pandas(ticks)`, `thetadatadx.to_dataframe(ticks)` and the identically-named methods on the client handle are deleted. Consumers migrate by chaining the terminal off the endpoint return value (`tdx.stock_history_eod(...).to_polars()` in place of `thetadatadx.to_polars(tdx.stock_history_eod(...))`). One path, one SSOT, one place to audit.
+
+### Internal
+
+- **Generator-emitted `_async` methods delegate to a `spawn_awaitable` helper** mirroring the sync `run_blocking` pattern. One call per emit replaces the open-coded `pyo3_async_runtimes::tokio::future_into_py(...)` + `Python::attach` + `map_err(to_py_err)` scaffolding that every `_async` method previously inlined. `sdks/python/src/historical_methods.rs` sheds ~599 lines of duplicated plumbing.
+- **Docs-site restructure.** Deleted the standalone benchmark page, the migration-from-thetadata guide, the five per-language `quickstart/*.md` files, and the separate async-python narrative. Replaced with a unified code-group quickstart exposing Rust / Python / TypeScript / Go / C++ via language tabs so one page stays in sync across SDKs.
+
 ## [8.0.2] - 2026-04-21
 
 Bigger than a typical patch: ships a P0 decode-correctness fix alongside
