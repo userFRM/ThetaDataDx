@@ -24,6 +24,17 @@ High-performance Rust SDK for ThetaData market data — single-language core, fi
 - **Zero-copy FFI.** Go, C++, and Node.js go through the same `extern "C"` layer; Python wheel ships via PyO3 ABI3.
 - **Feature-complete against the Java terminal.** Same MDDS gRPC contract, same FPSS wire format, same reconnect semantics. See [Java parity checklist](docs/java-parity-checklist.md).
 
+## Performance positioning
+
+`thetadatadx` delivers **5-6× faster wall-clock and ~10× lower peak RSS** versus the vendor's official Python client on bulk options-data pulls (historical greeks, quotes, trades, OHLC on dense option chains). Rust decode + direct-to-Arrow pipeline, async + sync surfaces, five language bindings from one shared implementation.
+
+- **Best wall-clock speedup:** `option_history_ohlc` at **6.08×** (117 691 rows; 15.6 s vendor → 2.6 s DX).
+- **Largest peak-RSS advantage:** `option_history_greeks_all` at **10.5× less peak** (176 732 × 31: 731 MB vendor → 70 MB DX arrow).
+- **Median across the 10 largest bulk endpoints:** **4.5× wall**.
+- **Correctness-restored:** `stock_history_trade_quote` and `option_history_trade_quote` now return the correct row counts (silent `Ok(vec![])` on non-empty responses was fixed in v8.0.2).
+
+Small snapshot / calendar calls (≤100 rows) run within ±5 % of the vendor. Both libraries hit the same gRPC wire; neither can beat network RTT on those shapes. The bulk-pull numbers are where the decode-pipeline redesign pays off.
+
 ## Quick start
 
 > [!TIP]
