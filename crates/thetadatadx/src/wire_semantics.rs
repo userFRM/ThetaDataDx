@@ -8,17 +8,6 @@
 /// Stock endpoints default an omitted `venue` to NQB.
 pub(crate) const DEFAULT_STOCK_VENUE: &str = "nqb";
 
-/// Lowercase string expected by the MDDS server (`"call"` / `"put"` /
-/// `"both"`).
-///
-/// # Errors
-///
-/// Returns the underlying `tdbe::right::parse_right` error if `right`
-/// is not one of the accepted SDK surface forms.
-pub(crate) fn normalize_right(right: &str) -> Result<String, tdbe::error::Error> {
-    Ok(tdbe::right::parse_right(right)?.as_mdds_str().to_string())
-}
-
 /// Canonicalize the `expiration` parameter for the MDDS server.
 ///
 /// Accepts the SDK's legacy `"0"` sentinel and the documented ISO-dashed
@@ -32,9 +21,18 @@ pub(crate) fn normalize_expiration(expiration: &str) -> String {
 }
 
 /// Map the SDK `strike` vocabulary to the wire representation.
+///
+/// The MDDS v3 server differentiates between an **absent** optional
+/// `ContractSpec.strike` (per-strike enumeration — slow path) and an
+/// **explicit wildcard** `"*"` (chain-wide lookup — fast path). The
+/// vendor v3 client always populates the field literally (`"*"` when
+/// unspecified), which keeps every request on the fast path. Mirror
+/// that shape: the SDK-surface wildcard sentinels (`""`, `"*"`, `"0"`)
+/// all canonicalize to the literal `"*"` string on the wire. Any
+/// other value forwards verbatim.
 pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
     if strike.is_empty() || strike == "*" || strike == "0" {
-        None
+        Some("*".to_string())
     } else {
         Some(strike.to_string())
     }
@@ -42,17 +40,20 @@ pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
 
 /// Map the SDK `right` vocabulary to the wire representation.
 ///
+/// Same fast-path / slow-path asymmetry as `wire_strike_opt`: an
+/// unset `ContractSpec.right` triggers per-right enumeration on the
+/// v3 server, while the explicit wire vocabulary (`"call"`, `"put"`,
+/// `"both"`) hits the fast path. Vendor always populates; we mirror
+/// that by always returning `Some(...)`.
+///
 /// # Errors
 ///
 /// Returns the underlying `tdbe::right::parse_right` error if `right`
 /// is not one of the accepted SDK surface forms.
 pub(crate) fn wire_right_opt(right: &str) -> Result<Option<String>, tdbe::error::Error> {
-    match tdbe::right::parse_right(right)? {
-        tdbe::right::ParsedRight::Both => Ok(None),
-        tdbe::right::ParsedRight::Call | tdbe::right::ParsedRight::Put => {
-            Ok(Some(normalize_right(right)?))
-        }
-    }
+    Ok(Some(
+        tdbe::right::parse_right(right)?.as_mdds_str().to_string(),
+    ))
 }
 
 /// Whether the string is `YYYY-MM-DD`.

@@ -379,14 +379,29 @@ pub(super) fn mdds_query_field_expr(
         }
         "interval" => format!("normalize_interval(&{arg_name})"),
         "time_of_day" => format!("normalize_time_of_day(&{arg_name})"),
-        // Top-level `expiration` fields on query messages get the same
-        // wire canonicalization as the ContractSpec copy: `0` -> `*`, ISO
-        // dashes stripped. Keeps the two expiration values on the request
-        // in agreement and prevents the server from seeing a raw `0` on
-        // either path. In list-endpoint context the arg is already `&str`
-        // (no extra borrow); in the parsed-endpoint context it's owned.
+        // Top-level `expiration` field on option query messages.
+        //
+        // Many option query protos carry BOTH a `ContractSpec` (whose
+        // `expiration` is the contract identity) AND a top-level
+        // `expiration` string (a vestigial wire field that predates
+        // `ContractSpec`). The vendor's v3 client never populates the
+        // top-level field when `contract_spec` is present — the server
+        // uses the `ContractSpec` copy for identity and treats a
+        // populated top-level `expiration` as a narrow filter that
+        // forces per-contract enumeration. Mirror vendor's shape: on
+        // messages that also carry `contract_spec`, emit an empty
+        // string for the top-level `expiration` field. On messages
+        // that only carry the top-level field (e.g. `option_list_strikes`,
+        // which has no `ContractSpec`), canonicalize the user-supplied
+        // value the way we always did.
         "expiration" => {
-            if list_context {
+            let has_contract_spec = endpoint
+                .fields
+                .iter()
+                .any(|f| f.proto_type == "ContractSpec");
+            if has_contract_spec {
+                "String::new()".into()
+            } else if list_context {
                 format!("normalize_expiration({arg_name})")
             } else {
                 format!("normalize_expiration(&{arg_name})")

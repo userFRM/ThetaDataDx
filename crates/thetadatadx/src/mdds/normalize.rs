@@ -231,10 +231,10 @@ mod tests {
     }
 
     #[test]
-    fn wire_strike_opt_treats_wildcards_as_unset() {
-        assert_eq!(wire_strike_opt(""), None);
-        assert_eq!(wire_strike_opt("0"), None);
-        assert_eq!(wire_strike_opt("*"), None);
+    fn wire_strike_opt_canonicalizes_wildcards_to_star_literal() {
+        assert_eq!(wire_strike_opt(""), Some("*".to_string()));
+        assert_eq!(wire_strike_opt("0"), Some("*".to_string()));
+        assert_eq!(wire_strike_opt("*"), Some("*".to_string()));
     }
 
     #[test]
@@ -244,11 +244,11 @@ mod tests {
     }
 
     #[test]
-    fn wire_right_opt_treats_wildcards_as_unset() {
-        assert_eq!(wire_right_opt("*").unwrap(), None);
-        assert_eq!(wire_right_opt("both").unwrap(), None);
-        assert_eq!(wire_right_opt("BOTH").unwrap(), None);
-        assert_eq!(wire_right_opt("Both").unwrap(), None);
+    fn wire_right_opt_canonicalizes_wildcards_to_both_literal() {
+        assert_eq!(wire_right_opt("*").unwrap(), Some("both".to_string()));
+        assert_eq!(wire_right_opt("both").unwrap(), Some("both".to_string()));
+        assert_eq!(wire_right_opt("BOTH").unwrap(), Some("both".to_string()));
+        assert_eq!(wire_right_opt("Both").unwrap(), Some("both".to_string()));
     }
 
     #[test]
