@@ -1756,7 +1756,7 @@ All variants implement `Display` and `std::error::Error`. Automatic conversions 
 
 ### ThetaData Server Error Codes
 
-The `tdbe::errors` module defines 14 server error codes (`ThetaDataError`) extracted from gRPC response metadata (`http_status_code`). When a gRPC `Status` carries a known code, the `Error::Status` variant is enriched with the ThetaData error name and description.
+The `tdbe::error` module defines 14 server error codes (`ThetaDataError`) extracted from gRPC response metadata (`http_status_code`). When a gRPC `Status` carries a known code, the `Error::Status` variant is enriched with the ThetaData error name and description.
 
 | Code | Name | Description |
 |------|------|-------------|
@@ -1784,7 +1784,7 @@ The `tdbe` crate provides lookup tables for the following enumerated code sets:
 | Exchange codes | 78 (0..77) | `tdbe::exchange` | `exchange_name(code)`, `exchange_symbol(code)` |
 | Trade conditions | 149 | `tdbe::conditions` | `trade_condition_name(code)` |
 | Quote conditions | 75 | `tdbe::conditions` | `quote_condition_name(code)` |
-| ThetaData server errors | 14 | `tdbe::errors` | `error_from_http_code(code)` |
+| ThetaData server errors | 14 | `tdbe::error` | `error_from_http_code(code)` |
 
 ---
 

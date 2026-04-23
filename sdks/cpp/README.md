@@ -111,9 +111,9 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `stock_history_eod(sym, start, end)` | `vector<EodTick>` | EOD data |
+| `stock_history_eod(sym, start_date, end_date)` | `vector<EodTick>` | EOD data |
 | `stock_history_ohlc(sym, date, interval)` | `vector<OhlcTick>` | Intraday OHLC bars. `interval` accepts ms (`"60000"`) or shorthand (`"1m"`). |
-| `stock_history_ohlc_range(sym, start, end, interval)` | `vector<OhlcTick>` | OHLC bars across date range. `interval` accepts ms or shorthand. |
+| `stock_history_ohlc_range(sym, start_date, end_date, interval)` | `vector<OhlcTick>` | OHLC bars across date range. `interval` accepts ms or shorthand. |
 | `stock_history_trade(sym, date)` | `vector<TradeTick>` | All trades on a date |
 | `stock_history_quote(sym, date, interval)` | `vector<QuoteTick>` | NBBO quotes. `interval` accepts ms or shorthand. |
 | `stock_history_trade_quote(sym, date)` | `vector<TradeQuoteTick>` | Combined trade + quote ticks |
@@ -122,67 +122,67 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `stock_at_time_trade(sym, start, end, time)` | `vector<TradeTick>` | Trade at a specific time across date range |
-| `stock_at_time_quote(sym, start, end, time)` | `vector<QuoteTick>` | Quote at a specific time across date range |
+| `stock_at_time_trade(sym, start_date, end_date, time)` | `vector<TradeTick>` | Trade at a specific time across date range |
+| `stock_at_time_quote(sym, start_date, end_date, time)` | `vector<QuoteTick>` | Quote at a specific time across date range |
 
 #### Option - List (5)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `option_list_symbols()` | `vector<string>` | All option underlyings |
-| `option_list_dates(req, sym, exp, strike, right)` | `vector<string>` | Available dates for an option contract |
+| `option_list_dates(req, sym, expiration, strike, right)` | `vector<string>` | Available dates for an option contract |
 | `option_list_expirations(sym)` | `vector<string>` | Expiration dates |
-| `option_list_strikes(sym, exp)` | `vector<string>` | Strike prices |
+| `option_list_strikes(sym, expiration)` | `vector<string>` | Strike prices |
 | `option_list_contracts(req, sym, date)` | `vector<OptionContract>` | All option contracts on a date |
 
 #### Option - Snapshot (10)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `option_snapshot_ohlc(sym, exp, strike, right)` | `vector<OhlcTick>` | Latest OHLC snapshot |
-| `option_snapshot_trade(sym, exp, strike, right)` | `vector<TradeTick>` | Latest trade snapshot |
-| `option_snapshot_quote(sym, exp, strike, right)` | `vector<QuoteTick>` | Latest quote snapshot |
-| `option_snapshot_open_interest(sym, exp, strike, right)` | `vector<OpenInterestTick>` | Latest open interest snapshot |
-| `option_snapshot_market_value(sym, exp, strike, right)` | `vector<MarketValueTick>` | Latest market value snapshot |
-| `option_snapshot_greeks_implied_volatility(sym, exp, strike, right)` | `vector<IvTick>` | IV snapshot |
-| `option_snapshot_greeks_all(sym, exp, strike, right)` | `vector<GreeksTick>` | All Greeks snapshot |
-| `option_snapshot_greeks_first_order(sym, exp, strike, right)` | `vector<GreeksTick>` | First-order Greeks snapshot |
-| `option_snapshot_greeks_second_order(sym, exp, strike, right)` | `vector<GreeksTick>` | Second-order Greeks snapshot |
-| `option_snapshot_greeks_third_order(sym, exp, strike, right)` | `vector<GreeksTick>` | Third-order Greeks snapshot |
+| `option_snapshot_ohlc(sym, expiration, strike, right)` | `vector<OhlcTick>` | Latest OHLC snapshot |
+| `option_snapshot_trade(sym, expiration, strike, right)` | `vector<TradeTick>` | Latest trade snapshot |
+| `option_snapshot_quote(sym, expiration, strike, right)` | `vector<QuoteTick>` | Latest quote snapshot |
+| `option_snapshot_open_interest(sym, expiration, strike, right)` | `vector<OpenInterestTick>` | Latest open interest snapshot |
+| `option_snapshot_market_value(sym, expiration, strike, right)` | `vector<MarketValueTick>` | Latest market value snapshot |
+| `option_snapshot_greeks_implied_volatility(sym, expiration, strike, right)` | `vector<IvTick>` | IV snapshot |
+| `option_snapshot_greeks_all(sym, expiration, strike, right)` | `vector<GreeksTick>` | All Greeks snapshot |
+| `option_snapshot_greeks_first_order(sym, expiration, strike, right)` | `vector<GreeksTick>` | First-order Greeks snapshot |
+| `option_snapshot_greeks_second_order(sym, expiration, strike, right)` | `vector<GreeksTick>` | Second-order Greeks snapshot |
+| `option_snapshot_greeks_third_order(sym, expiration, strike, right)` | `vector<GreeksTick>` | Third-order Greeks snapshot |
 
 #### Option - History (6)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `option_history_eod(sym, exp, strike, right, start, end)` | `vector<EodTick>` | EOD option data |
-| `option_history_ohlc(sym, exp, strike, right, date, interval)` | `vector<OhlcTick>` | Intraday OHLC for options |
-| `option_history_trade(sym, exp, strike, right, date)` | `vector<TradeTick>` | All trades for an option |
-| `option_history_quote(sym, exp, strike, right, date, interval)` | `vector<QuoteTick>` | Quotes for an option |
-| `option_history_trade_quote(sym, exp, strike, right, date)` | `vector<TradeQuoteTick>` | Combined trade + quote for an option |
-| `option_history_open_interest(sym, exp, strike, right, date)` | `vector<OpenInterestTick>` | Open interest history |
+| `option_history_eod(sym, expiration, strike, right, start_date, end_date)` | `vector<EodTick>` | EOD option data |
+| `option_history_ohlc(sym, expiration, strike, right, date, interval)` | `vector<OhlcTick>` | Intraday OHLC for options |
+| `option_history_trade(sym, expiration, strike, right, date)` | `vector<TradeTick>` | All trades for an option |
+| `option_history_quote(sym, expiration, strike, right, date, interval)` | `vector<QuoteTick>` | Quotes for an option |
+| `option_history_trade_quote(sym, expiration, strike, right, date)` | `vector<TradeQuoteTick>` | Combined trade + quote for an option |
+| `option_history_open_interest(sym, expiration, strike, right, date)` | `vector<OpenInterestTick>` | Open interest history |
 
 #### Option - History Greeks (11)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `option_history_greeks_eod(sym, exp, strike, right, start, end[, options])` | `vector<GreeksTick>` | EOD Greeks history. Optional `EndpointRequestOptions` exposes filters such as `strike_range`. |
-| `option_history_greeks_all(sym, exp, strike, right, date, interval)` | `vector<GreeksTick>` | All Greeks history (intraday) |
-| `option_history_trade_greeks_all(sym, exp, strike, right, date)` | `vector<GreeksTick>` | All Greeks on each trade |
-| `option_history_greeks_first_order(sym, exp, strike, right, date, interval)` | `vector<GreeksTick>` | First-order Greeks history |
-| `option_history_trade_greeks_first_order(sym, exp, strike, right, date)` | `vector<GreeksTick>` | First-order Greeks on each trade |
-| `option_history_greeks_second_order(sym, exp, strike, right, date, interval)` | `vector<GreeksTick>` | Second-order Greeks history |
-| `option_history_trade_greeks_second_order(sym, exp, strike, right, date)` | `vector<GreeksTick>` | Second-order Greeks on each trade |
-| `option_history_greeks_third_order(sym, exp, strike, right, date, interval)` | `vector<GreeksTick>` | Third-order Greeks history |
-| `option_history_trade_greeks_third_order(sym, exp, strike, right, date)` | `vector<GreeksTick>` | Third-order Greeks on each trade |
-| `option_history_greeks_implied_volatility(sym, exp, strike, right, date, interval)` | `vector<IvTick>` | IV history (intraday) |
-| `option_history_trade_greeks_implied_volatility(sym, exp, strike, right, date)` | `vector<IvTick>` | IV on each trade |
+| `option_history_greeks_eod(sym, expiration, strike, right, start_date, end_date[, options])` | `vector<GreeksTick>` | EOD Greeks history. Optional `EndpointRequestOptions` exposes filters such as `strike_range`. |
+| `option_history_greeks_all(sym, expiration, strike, right, date, interval)` | `vector<GreeksTick>` | All Greeks history (intraday) |
+| `option_history_trade_greeks_all(sym, expiration, strike, right, date)` | `vector<GreeksTick>` | All Greeks on each trade |
+| `option_history_greeks_first_order(sym, expiration, strike, right, date, interval)` | `vector<GreeksTick>` | First-order Greeks history |
+| `option_history_trade_greeks_first_order(sym, expiration, strike, right, date)` | `vector<GreeksTick>` | First-order Greeks on each trade |
+| `option_history_greeks_second_order(sym, expiration, strike, right, date, interval)` | `vector<GreeksTick>` | Second-order Greeks history |
+| `option_history_trade_greeks_second_order(sym, expiration, strike, right, date)` | `vector<GreeksTick>` | Second-order Greeks on each trade |
+| `option_history_greeks_third_order(sym, expiration, strike, right, date, interval)` | `vector<GreeksTick>` | Third-order Greeks history |
+| `option_history_trade_greeks_third_order(sym, expiration, strike, right, date)` | `vector<GreeksTick>` | Third-order Greeks on each trade |
+| `option_history_greeks_implied_volatility(sym, expiration, strike, right, date, interval)` | `vector<IvTick>` | IV history (intraday) |
+| `option_history_trade_greeks_implied_volatility(sym, expiration, strike, right, date)` | `vector<IvTick>` | IV on each trade |
 
 #### Option - At-Time (2)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `option_at_time_trade(sym, exp, strike, right, start, end, time)` | `vector<TradeTick>` | Trade at a specific time for an option |
-| `option_at_time_quote(sym, exp, strike, right, start, end, time)` | `vector<QuoteTick>` | Quote at a specific time for an option |
+| `option_at_time_trade(sym, expiration, strike, right, start_date, end_date, time)` | `vector<TradeTick>` | Trade at a specific time for an option |
+| `option_at_time_quote(sym, expiration, strike, right, start_date, end_date, time)` | `vector<QuoteTick>` | Quote at a specific time for an option |
 
 #### Index - List (2)
 
@@ -203,15 +203,15 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `index_history_eod(sym, start, end)` | `vector<EodTick>` | EOD index data |
-| `index_history_ohlc(sym, start, end, interval)` | `vector<OhlcTick>` | Intraday OHLC for an index |
+| `index_history_eod(sym, start_date, end_date)` | `vector<EodTick>` | EOD index data |
+| `index_history_ohlc(sym, start_date, end_date, interval)` | `vector<OhlcTick>` | Intraday OHLC for an index |
 | `index_history_price(sym, date, interval)` | `vector<PriceTick>` | Intraday price history |
 
 #### Index - At-Time (1)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `index_at_time_price(sym, start, end, time)` | `vector<PriceTick>` | Index price at a specific time |
+| `index_at_time_price(sym, start_date, end_date, time)` | `vector<PriceTick>` | Index price at a specific time |
 
 #### Calendar (3)
 
@@ -225,7 +225,7 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `interest_rate_history_eod(sym, start, end)` | `vector<InterestRateTick>` | EOD interest rate history |
+| `interest_rate_history_eod(sym, start_date, end_date)` | `vector<InterestRateTick>` | EOD interest rate history |
 
 ### Standalone Functions
 

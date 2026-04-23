@@ -2848,11 +2848,18 @@ df = tdx.stock_history_trade("AAPL", "20240315").to_pandas()
 df = tdx.stock_history_quote("AAPL", "20240315", "60000").to_pandas()
 ```
 
-Call any endpoint, chain `.to_pandas()` / `.to_polars()` /
-`.to_arrow()` / `.to_list()` on the returned list wrapper. One
-path, one schema, one generator (`tick_schema.toml`). Requires
-`pip install thetadatadx[pandas]` / `[polars]` / `[arrow]` for
-the matching terminal.
+Historical / list-returning endpoints wrap their result in a
+typed `<TickName>List` (e.g. `EodTickList`, `QuoteTickList`);
+chain `.to_pandas()` / `.to_polars()` / `.to_arrow()` / `.to_list()`
+on that wrapper. One path, one schema, one generator
+(`tick_schema.toml`). Requires `pip install thetadatadx[pandas]` /
+`[polars]` / `[arrow]` for the matching terminal.
+
+Snapshot-kind endpoints (`*_snapshot_*`) and calendar endpoints
+take the fast path and return a plain `list[TickClass]` rather
+than a list wrapper, so the chainable DataFrame terminals are not
+available on those return values. Build a DataFrame from the raw
+list directly if needed (e.g. `pandas.DataFrame([vars(t) for t in rows])`).
 
 ### `<TickName>List.to_pandas() -> pandas.DataFrame`
 

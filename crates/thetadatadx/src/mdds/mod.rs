@@ -3,8 +3,8 @@
 //! [`MddsClient`] authenticates against the Nexus HTTP API, opens a gRPC
 //! channel to the MDDS server, and exposes typed methods for every historical
 //! data endpoint. Macro-driven builder patterns (`list_endpoint!`,
-//! `parsed_endpoint!`) live in [`crate::macros`] and are applied here via
-//! generated code (`include!`) from `endpoint_surface.toml`.
+//! `parsed_endpoint!`) live in the in-crate `macros` module and are applied
+//! here via generated code (`include!`) from `endpoint_surface.toml`.
 //!
 //! # Architecture
 //!
@@ -27,14 +27,14 @@
 //! This module mirrors the [`crate::fpss`] layout for symmetry between the two
 //! upstream services:
 //!
-//! - [`client`] — `MddsClient` struct, `connect`, transport/session state
-//! - [`stream`] — gRPC response stream helpers (`collect_stream`, `for_each_chunk`)
-//! - [`validate`] — runtime parameter validators invoked by generated macros
-//! - [`endpoints`] — generated endpoint method bodies (`include!` sites);
+//! - `client` — [`MddsClient`] struct, `connect`, transport/session state
+//! - `stream` — gRPC response stream helpers (`collect_stream`, `for_each_chunk`)
+//! - `validate` — runtime parameter validators invoked by generated macros
+//! - `endpoints` — generated endpoint method bodies (`include!` sites);
 //!   wire-format canonicalizers (`normalize_interval`, `normalize_time_of_day`,
 //!   `contract_spec!`) live at the top of that file. The cross-cutting wire
 //!   helpers (`normalize_expiration`, `wire_strike_opt`, `wire_right_opt`)
-//!   live in [`crate::wire_semantics`].
+//!   live in the in-crate `wire_semantics` module.
 
 mod client;
 mod endpoints;

@@ -417,8 +417,8 @@ pub(crate) fn is_binary_payload(payload: &[u8]) -> bool {
 /// # Unknown message codes
 ///
 /// Frames with unrecognized codes are silently skipped (payload consumed
-/// to keep the stream aligned). After [`MAX_CONSECUTIVE_UNKNOWN_CODES`]
-/// consecutive unknown codes, returns an error to trigger reconnection.
+/// to keep the stream aligned). After 5 consecutive unknown codes, returns
+/// an error to trigger reconnection.
 /// # Errors
 ///
 /// Returns an error on network, authentication, or parsing failure.

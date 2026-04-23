@@ -88,7 +88,7 @@ pub struct ThetaDataDx {
 impl ThetaDataDx {
     /// Connect to `ThetaData`. Authenticates once, opens gRPC channel.
     ///
-    /// FPSS streaming is NOT connected yet -- call [`start_streaming`]
+    /// FPSS streaming is NOT connected yet -- call [`ThetaDataDx::start_streaming`]
     /// when you need real-time data.
     /// # Errors
     ///

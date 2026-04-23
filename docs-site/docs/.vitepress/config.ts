@@ -7,6 +7,17 @@ export default withMermaid(defineConfig({
   base: '/ThetaDataDx/',
   cleanUrls: true,
 
+  // The docs site vendors Mermaid and Vue chunks that legitimately
+  // exceed Vite's 500 kB default threshold. Raise the warning limit so
+  // the build output stays free of non-actionable chunk-size warnings;
+  // real regressions (e.g. a new dep inflating the bundle further)
+  // still trip the bumped threshold.
+  vite: {
+    build: {
+      chunkSizeWarningLimit: 1500,
+    },
+  },
+
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
     ['meta', { name: 'theme-color', content: '#3b82f6' }],

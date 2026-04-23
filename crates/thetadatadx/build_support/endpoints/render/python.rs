@@ -1,4 +1,4 @@
-//! Python SDK #[pymethods] emitter.
+//! Python SDK `#[pymethods]` emitter.
 //!
 //! Renders `sdks/python/src/historical_methods.rs` — the `ThetaDataDx` impl
 //! block that PyO3 compiles into the Python extension.
@@ -636,7 +636,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     out
 }
 
-/// Async variants take owned `String` / Option<String> so the future owns
+/// Async variants take owned `String` / `Option<String>` so the future owns
 /// its captures (future_into_py requires `'static + Send`). This mirrors
 /// `python_optional_type` but substitutes String for &str on the owned
 /// path.
@@ -668,7 +668,7 @@ fn async_setter_arg(param: &GeneratedParam) -> &'static str {
 // configuration. State captured at builder construction time: required
 // args + accumulated optional kwargs + timeout_ms.
 
-/// The name of the #[pyclass] builder emitted for this endpoint.
+/// The name of the `#[pyclass]` builder emitted for this endpoint.
 fn endpoint_builder_struct(name: &str) -> String {
     format!("{}Builder", to_pascal_case(name))
 }

@@ -134,7 +134,7 @@ pub fn decode_fit_buffer_bulk(buf: &[u8], fields_per_row: usize) -> FitRows {
 /// Stateful FIT stream reader.
 ///
 /// Holds a position cursor into a byte buffer and decodes one row at a time
-/// via [`read_changes`]. The caller is responsible for delta-accumulation
+/// via [`FitReader::read_changes`]. The caller is responsible for delta-accumulation
 /// across rows (see module-level docs).
 pub struct FitReader<'a> {
     buf: &'a [u8],

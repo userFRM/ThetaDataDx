@@ -112,53 +112,53 @@ return a `CalendarDayList`.
 | `stock_snapshot_trade(symbols)` | Latest trade snapshot |
 | `stock_snapshot_quote(symbols)` | Latest NBBO quote snapshot |
 | `stock_snapshot_market_value(symbols)` | Latest market value snapshot |
-| `stock_history_eod(symbol, start, end)` | End-of-day data |
+| `stock_history_eod(symbol, start_date, end_date)` | End-of-day data |
 | `stock_history_ohlc(symbol, date, interval)` | Intraday OHLC bars. `interval` accepts ms (`"60000"`) or shorthand (`"1m"`). |
-| `stock_history_ohlc_range(symbol, start, end, interval)` | OHLC bars across date range. `interval` accepts ms or shorthand. |
+| `stock_history_ohlc_range(symbol, start_date, end_date, interval)` | OHLC bars across date range. `interval` accepts ms or shorthand. |
 | `stock_history_trade(symbol, date)` | All trades for a date |
 | `stock_history_quote(symbol, date, interval)` | NBBO quotes. `interval` accepts ms or shorthand. |
 | `stock_history_trade_quote(symbol, date)` | Combined trade+quote ticks |
-| `stock_at_time_trade(symbol, start, end, time)` | Trade at specific time across dates |
-| `stock_at_time_quote(symbol, start, end, time)` | Quote at specific time across dates |
+| `stock_at_time_trade(symbol, start_date, end_date, time)` | Trade at specific time across dates |
+| `stock_at_time_quote(symbol, start_date, end_date, time)` | Quote at specific time across dates |
 
 #### Option Methods (34)
 
 | Method | Description |
 |--------|-------------|
 | `option_list_symbols()` | Option underlying symbols |
-| `option_list_dates(request_type, symbol, exp, strike, right)` | Available dates for a contract |
+| `option_list_dates(request_type, symbol, expiration, strike, right)` | Available dates for a contract |
 | `option_list_expirations(symbol)` | Expiration dates |
-| `option_list_strikes(symbol, exp)` | Strike prices |
+| `option_list_strikes(symbol, expiration)` | Strike prices |
 | `option_list_contracts(request_type, symbol, date)` | All contracts for a date |
-| `option_snapshot_ohlc(symbol, exp, strike, right)` | Latest OHLC snapshot |
-| `option_snapshot_trade(symbol, exp, strike, right)` | Latest trade snapshot |
-| `option_snapshot_quote(symbol, exp, strike, right)` | Latest quote snapshot |
-| `option_snapshot_open_interest(symbol, exp, strike, right)` | Latest open interest |
-| `option_snapshot_market_value(symbol, exp, strike, right)` | Latest market value |
-| `option_snapshot_greeks_implied_volatility(symbol, exp, strike, right)` | IV snapshot |
-| `option_snapshot_greeks_all(symbol, exp, strike, right)` | All Greeks snapshot |
-| `option_snapshot_greeks_first_order(symbol, exp, strike, right)` | First-order Greeks |
-| `option_snapshot_greeks_second_order(symbol, exp, strike, right)` | Second-order Greeks |
-| `option_snapshot_greeks_third_order(symbol, exp, strike, right)` | Third-order Greeks |
-| `option_history_eod(symbol, exp, strike, right, start, end)` | EOD option data |
-| `option_history_ohlc(symbol, exp, strike, right, date, interval)` | Intraday OHLC bars |
-| `option_history_trade(symbol, exp, strike, right, date)` | All trades |
-| `option_history_quote(symbol, exp, strike, right, date, interval)` | NBBO quotes |
-| `option_history_trade_quote(symbol, exp, strike, right, date)` | Combined trade+quote |
-| `option_history_open_interest(symbol, exp, strike, right, date)` | Open interest history |
-| `option_history_greeks_eod(symbol, exp, strike, right, start, end, *, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None)` | EOD Greeks |
-| `option_history_greeks_all(symbol, exp, strike, right, date, interval)` | All Greeks history |
-| `option_history_trade_greeks_all(symbol, exp, strike, right, date)` | Greeks on each trade |
-| `option_history_greeks_first_order(symbol, exp, strike, right, date, interval)` | First-order Greeks history |
-| `option_history_trade_greeks_first_order(symbol, exp, strike, right, date)` | First-order on each trade |
-| `option_history_greeks_second_order(symbol, exp, strike, right, date, interval)` | Second-order Greeks history |
-| `option_history_trade_greeks_second_order(symbol, exp, strike, right, date)` | Second-order on each trade |
-| `option_history_greeks_third_order(symbol, exp, strike, right, date, interval)` | Third-order Greeks history |
-| `option_history_trade_greeks_third_order(symbol, exp, strike, right, date)` | Third-order on each trade |
-| `option_history_greeks_implied_volatility(symbol, exp, strike, right, date, interval)` | IV history |
-| `option_history_trade_greeks_implied_volatility(symbol, exp, strike, right, date)` | IV on each trade |
-| `option_at_time_trade(symbol, exp, strike, right, start, end, time)` | Trade at specific time |
-| `option_at_time_quote(symbol, exp, strike, right, start, end, time)` | Quote at specific time |
+| `option_snapshot_ohlc(symbol, expiration, strike, right)` | Latest OHLC snapshot |
+| `option_snapshot_trade(symbol, expiration, strike, right)` | Latest trade snapshot |
+| `option_snapshot_quote(symbol, expiration, strike, right)` | Latest quote snapshot |
+| `option_snapshot_open_interest(symbol, expiration, strike, right)` | Latest open interest |
+| `option_snapshot_market_value(symbol, expiration, strike, right)` | Latest market value |
+| `option_snapshot_greeks_implied_volatility(symbol, expiration, strike, right)` | IV snapshot |
+| `option_snapshot_greeks_all(symbol, expiration, strike, right)` | All Greeks snapshot |
+| `option_snapshot_greeks_first_order(symbol, expiration, strike, right)` | First-order Greeks |
+| `option_snapshot_greeks_second_order(symbol, expiration, strike, right)` | Second-order Greeks |
+| `option_snapshot_greeks_third_order(symbol, expiration, strike, right)` | Third-order Greeks |
+| `option_history_eod(symbol, expiration, strike, right, start_date, end_date)` | EOD option data |
+| `option_history_ohlc(symbol, expiration, strike, right, date, interval)` | Intraday OHLC bars |
+| `option_history_trade(symbol, expiration, strike, right, date)` | All trades |
+| `option_history_quote(symbol, expiration, strike, right, date, interval)` | NBBO quotes |
+| `option_history_trade_quote(symbol, expiration, strike, right, date)` | Combined trade+quote |
+| `option_history_open_interest(symbol, expiration, strike, right, date)` | Open interest history |
+| `option_history_greeks_eod(symbol, expiration, strike, right, start_date, end_date, *, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None)` | EOD Greeks |
+| `option_history_greeks_all(symbol, expiration, strike, right, date, interval)` | All Greeks history |
+| `option_history_trade_greeks_all(symbol, expiration, strike, right, date)` | Greeks on each trade |
+| `option_history_greeks_first_order(symbol, expiration, strike, right, date, interval)` | First-order Greeks history |
+| `option_history_trade_greeks_first_order(symbol, expiration, strike, right, date)` | First-order on each trade |
+| `option_history_greeks_second_order(symbol, expiration, strike, right, date, interval)` | Second-order Greeks history |
+| `option_history_trade_greeks_second_order(symbol, expiration, strike, right, date)` | Second-order on each trade |
+| `option_history_greeks_third_order(symbol, expiration, strike, right, date, interval)` | Third-order Greeks history |
+| `option_history_trade_greeks_third_order(symbol, expiration, strike, right, date)` | Third-order on each trade |
+| `option_history_greeks_implied_volatility(symbol, expiration, strike, right, date, interval)` | IV history |
+| `option_history_trade_greeks_implied_volatility(symbol, expiration, strike, right, date)` | IV on each trade |
+| `option_at_time_trade(symbol, expiration, strike, right, start_date, end_date, time)` | Trade at specific time |
+| `option_at_time_quote(symbol, expiration, strike, right, start_date, end_date, time)` | Quote at specific time |
 
 #### Index Methods (9)
 
@@ -169,10 +169,10 @@ return a `CalendarDayList`.
 | `index_snapshot_ohlc(symbols)` | Latest OHLC snapshot |
 | `index_snapshot_price(symbols)` | Latest price snapshot |
 | `index_snapshot_market_value(symbols)` | Latest market value snapshot |
-| `index_history_eod(symbol, start, end)` | End-of-day index data |
-| `index_history_ohlc(symbol, start, end, interval)` | Intraday OHLC bars |
+| `index_history_eod(symbol, start_date, end_date)` | End-of-day index data |
+| `index_history_ohlc(symbol, start_date, end_date, interval)` | Intraday OHLC bars |
 | `index_history_price(symbol, date, interval)` | Intraday price history |
-| `index_at_time_price(symbol, start, end, time)` | Price at specific time |
+| `index_at_time_price(symbol, start_date, end_date, time)` | Price at specific time |
 
 #### Calendar Methods (3)
 
@@ -186,7 +186,7 @@ return a `CalendarDayList`.
 
 | Method | Description |
 |--------|-------------|
-| `interest_rate_history_eod(symbol, start, end)` | Interest rate EOD history |
+| `interest_rate_history_eod(symbol, start_date, end_date)` | Interest rate EOD history |
 
 ### Streaming (via `ThetaDataDx`)
 Real-time streaming is accessed through the same `ThetaDataDx` instance.

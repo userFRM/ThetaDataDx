@@ -1,4 +1,4 @@
-//! Rust emitters for the MDDS gRPC [`MddsClient`] surface.
+//! Rust emitters for the MDDS gRPC `MddsClient` surface.
 //!
 //! Emits per-endpoint `list_endpoint!`, `parsed_endpoint!`, and streaming
 //! builder macro invocations into the `OUT_DIR`. Shared naming/type helpers
