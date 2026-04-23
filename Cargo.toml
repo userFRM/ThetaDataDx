@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/tdbe", "crates/thetadatadx", "tools/cli", "ffi", "sdks/python"]
-exclude = ["sdks/typescript", "tools/mcp", "tools/server"]
+members = ["crates/tdbe", "crates/thetadatadx", "tools/cli", "ffi"]
+exclude = ["sdks/python", "sdks/typescript", "tools/mcp", "tools/server"]
 resolver = "2"
 
 # Shared package metadata. Member crates inherit individual fields via
