@@ -139,12 +139,49 @@ pub(super) fn optional_getter_name(param_type: &str) -> &'static str {
 /// Compose the full doc body for an endpoint: native description first,
 /// vendor block (if any) appended with a blank separator line.
 pub(super) fn compose_endpoint_doc(endpoint: &GeneratedEndpoint) -> String {
-    match endpoint.vendor_docstring.as_deref() {
+    let mut body = match endpoint.vendor_docstring.as_deref() {
         Some(vendor) if !vendor.is_empty() => {
             format!("{}\n\n{vendor}", endpoint.description)
         }
         _ => endpoint.description.clone(),
+    };
+    let defaults_block = render_param_defaults_block(endpoint);
+    if !defaults_block.is_empty() {
+        if !body.ends_with('\n') {
+            body.push('\n');
+        }
+        body.push('\n');
+        body.push_str(&defaults_block);
     }
+    body
+}
+
+/// Render the "Defaults (upstream)" block surfacing every param whose
+/// `default` is set in `endpoint_surface.toml`. Single SSOT origin so
+/// `help()` (Python), JSDoc hover (TypeScript), and `cargo doc` (Rust)
+/// all agree. String defaults render with quotes; numeric / bool
+/// defaults render bare. Empty output when no param has a default.
+fn render_param_defaults_block(endpoint: &GeneratedEndpoint) -> String {
+    use std::fmt::Write as _;
+    let mut rows: Vec<(String, String)> = Vec::new();
+    for param in &endpoint.params {
+        let Some(default) = param.default.as_deref() else {
+            continue;
+        };
+        let value = match param.param_type.as_str() {
+            "Bool" | "Int" | "Float" => default.to_string(),
+            _ => format!("\"{default}\""),
+        };
+        rows.push((param.name.clone(), value));
+    }
+    if rows.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("Defaults (upstream):\n");
+    for (name, value) in rows {
+        writeln!(out, "- `{name}`: `{value}`").unwrap();
+    }
+    out
 }
 
 /// Format an endpoint doc body as a sequence of Rust `///` lines with the
@@ -896,11 +933,14 @@ pub(super) fn python_arg_literal(param: &GeneratedParam, value: &str) -> String 
 }
 
 /// Render a single arg string as a Go literal expression.
-pub(super) fn go_arg_literal(param: &GeneratedParam, value: &str) -> String {
-    match param.param_type.as_str() {
-        "Symbols" => format!("[]string{{\"{value}\"}}"),
-        _ => format!("\"{value}\""),
-    }
+pub(super) fn go_arg_literal(_param: &GeneratedParam, value: &str) -> String {
+    // The Go SDK keeps scalar signatures (`StockSnapshotOHLC(symbol string, ...)`)
+    // and exposes bulk variants via a `*Bulk` suffix (`StockSnapshotOHLCBulk(
+    // symbols []string, ...)`). Generated validator cells use single-value
+    // fixtures and therefore must target the scalar form — passing a
+    // `[]string{...}` literal tripwires the Go type checker on every
+    // `Symbols`-param endpoint and turns SDK Bindings CI red.
+    format!("\"{value}\"")
 }
 
 /// Render a single arg string as a C++ literal expression.

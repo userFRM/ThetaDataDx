@@ -136,6 +136,9 @@ impl StockListDatesBuilder {
 /// * Returns a real-time session OHLC from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
 /// * Returns a 15-minute delayed session OHLC from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the stocks value subscription.
 /// * Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+///
+/// Defaults (upstream):
+/// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotOhlcBuilder")]
 pub struct StockSnapshotOhlcBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -227,6 +230,9 @@ impl StockSnapshotOhlcBuilder {
 /// Returns a real-time last trade from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
 ///
 /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+///
+/// Defaults (upstream):
+/// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotTradeBuilder")]
 pub struct StockSnapshotTradeBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -318,6 +324,9 @@ impl StockSnapshotTradeBuilder {
 /// * Returns a real-time last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
 /// * Returns a 15-minute delayed NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
 /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+///
+/// Defaults (upstream):
+/// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotQuoteBuilder")]
 pub struct StockSnapshotQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -409,6 +418,9 @@ impl StockSnapshotQuoteBuilder {
 /// * Returns a real-time market value derived from the last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
 /// * Returns a 15-minute delayed market value derived from an NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
 /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+///
+/// Defaults (upstream):
+/// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotMarketValueBuilder")]
 pub struct StockSnapshotMarketValueBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -575,6 +587,12 @@ impl StockHistoryEodBuilder {
 /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds. 
 /// - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
 /// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryOhlcBuilder")]
 pub struct StockHistoryOhlcBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -732,6 +750,11 @@ impl StockHistoryOhlcBuilder {
 ///
 /// Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs). Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
 /// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryTradeBuilder")]
 pub struct StockHistoryTradeBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -876,6 +899,12 @@ impl StockHistoryTradeBuilder {
 /// - If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp. 
 /// - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
 /// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryQuoteBuilder")]
 pub struct StockHistoryQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -1033,6 +1062,12 @@ impl StockHistoryQuoteBuilder {
 ///
 /// Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs) paired with the last BBO quote reported by [UTP or CTA](/Articles/Data-And-Requests/The-SIPs) at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
 /// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `exclusive`: `true`
+/// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryTradeQuoteBuilder")]
 pub struct StockHistoryTradeQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -1195,6 +1230,9 @@ impl StockHistoryTradeQuoteBuilder {
 /// #### Historical request:
 /// Returns the last trade reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
 /// Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
+///
+/// Defaults (upstream):
+/// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockAtTimeTradeBuilder")]
 pub struct StockAtTimeTradeBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -1300,6 +1338,9 @@ impl StockAtTimeTradeBuilder {
 ///
 /// #### Historical request:
 ///   Returns the last NBBO quote reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
+///
+/// Defaults (upstream):
+/// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockAtTimeQuoteBuilder")]
 pub struct StockAtTimeQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -1456,6 +1497,10 @@ impl OptionListSymbolsBuilder {
 ///
 /// Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
 /// This endpoint is updated overnight.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionListDatesBuilder")]
 pub struct OptionListDatesBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -1775,6 +1820,10 @@ impl OptionListContractsBuilder {
 ///
 /// - Retrieve a real-time last ohlc of an option contract for the trading day.
 /// - You might need to change the default expiration date to a different date if it is past the current date.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotOhlcBuilder")]
 pub struct OptionSnapshotOhlcBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -1918,6 +1967,10 @@ impl OptionSnapshotOhlcBuilder {
 /// - Retrieve the real-time last trade of an option contract.
 /// - You might need to change the default expiration date to a different date if it is past the current date.
 /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotTradeBuilder")]
 pub struct OptionSnapshotTradeBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -2046,6 +2099,10 @@ impl OptionSnapshotTradeBuilder {
 /// - Retrieve a real-time last NBBO quote of an option contract.
 /// - You might need to change the default expiration date to a different date if it is past the current date.
 /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotQuoteBuilder")]
 pub struct OptionSnapshotQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -2190,6 +2247,10 @@ impl OptionSnapshotQuoteBuilder {
 /// - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the of the previous trading day. 
 /// - You might need to change the default expiration date to a different date if it is past the current date.
 /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotOpenInterestBuilder")]
 pub struct OptionSnapshotOpenInterestBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -2331,6 +2392,10 @@ impl OptionSnapshotOpenInterestBuilder {
 /// Get the latest market value snapshot for an option contract.
 ///
 /// * Returns a real-time market value derived from the last NBBO quote of an option contract.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotMarketValueBuilder")]
 pub struct OptionSnapshotMarketValueBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -2475,6 +2540,13 @@ impl OptionSnapshotMarketValueBuilder {
 /// of the option respectively. The underlying price represents whatever the last underlying price was at the
 /// ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks 
 /// [here](/Articles/Data-And-Requests/Option-Greeks.html).
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
+/// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksImpliedVolatilityBuilder")]
 pub struct OptionSnapshotGreeksImpliedVolatilityBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -2709,6 +2781,13 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
 /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
 /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
 /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
+/// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksAllBuilder")]
 pub struct OptionSnapshotGreeksAllBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -2943,6 +3022,13 @@ impl OptionSnapshotGreeksAllBuilder {
 /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
 /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
 /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
+/// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksFirstOrderBuilder")]
 pub struct OptionSnapshotGreeksFirstOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -3177,6 +3263,13 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
 /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
 /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
 /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
+/// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksSecondOrderBuilder")]
 pub struct OptionSnapshotGreeksSecondOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -3411,6 +3504,13 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
 /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
 /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
 /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
+/// - `use_market_value`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksThirdOrderBuilder")]
 pub struct OptionSnapshotGreeksThirdOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -3645,6 +3745,10 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
 /// - ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. 
 /// - The quote in the response represents the last NBBO reported by OPRA at the time of report generation. 
 /// - You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html).
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryEodBuilder")]
 pub struct OptionHistoryEodBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -3791,6 +3895,13 @@ impl OptionHistoryEodBuilder {
 /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. 
 /// - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
 /// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryOhlcBuilder")]
 pub struct OptionHistoryOhlcBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -3989,6 +4100,12 @@ impl OptionHistoryOhlcBuilder {
 /// - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
 /// - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
 /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeBuilder")]
 pub struct OptionHistoryTradeBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -4186,6 +4303,13 @@ impl OptionHistoryTradeBuilder {
 /// - Returns every NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
 /// - If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
 /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryQuoteBuilder")]
 pub struct OptionHistoryQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -4399,6 +4523,13 @@ impl OptionHistoryQuoteBuilder {
 /// - A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. 
 /// - To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
 /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `exclusive`: `true`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeQuoteBuilder")]
 pub struct OptionHistoryTradeQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -4611,6 +4742,10 @@ impl OptionHistoryTradeQuoteBuilder {
 /// - Open Interest is normally reported once per day by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at approximately 06:30 ET.
 /// - A new open interest message might not be sent by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) if there is no open interest for the option contract.
 /// - The reported open interest represents the open interest at the end of the previous trading day.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryOpenInterestBuilder")]
 pub struct OptionHistoryOpenInterestBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -4778,6 +4913,13 @@ impl OptionHistoryOpenInterestBuilder {
 /// - Returns the data for all contracts that share the same provided symbol and expiration. 
 /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
 /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
+/// - `underlyer_use_nbbo`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksEodBuilder")]
 pub struct OptionHistoryGreeksEodBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -5000,6 +5142,15 @@ impl OptionHistoryGreeksEodBuilder {
 /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
 /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
 /// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksAllBuilder")]
 pub struct OptionHistoryGreeksAllBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -5258,6 +5409,14 @@ impl OptionHistoryGreeksAllBuilder {
 /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
 /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
 /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksAllBuilder")]
 pub struct OptionHistoryTradeGreeksAllBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -5516,6 +5675,15 @@ impl OptionHistoryTradeGreeksAllBuilder {
 /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
 /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
 /// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksFirstOrderBuilder")]
 pub struct OptionHistoryGreeksFirstOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -5774,6 +5942,14 @@ impl OptionHistoryGreeksFirstOrderBuilder {
 /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
 /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
 /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksFirstOrderBuilder")]
 pub struct OptionHistoryTradeGreeksFirstOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -6032,6 +6208,15 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
 /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
 /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
 /// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksSecondOrderBuilder")]
 pub struct OptionHistoryGreeksSecondOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -6290,6 +6475,14 @@ impl OptionHistoryGreeksSecondOrderBuilder {
 /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
 /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
 /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksSecondOrderBuilder")]
 pub struct OptionHistoryTradeGreeksSecondOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -6548,6 +6741,15 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
 /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
 /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
 /// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksThirdOrderBuilder")]
 pub struct OptionHistoryGreeksThirdOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -6806,6 +7008,14 @@ impl OptionHistoryGreeksThirdOrderBuilder {
 /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
 /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
 /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksThirdOrderBuilder")]
 pub struct OptionHistoryTradeGreeksThirdOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -7063,6 +7273,15 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
 /// - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively. 
 /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
 /// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksImpliedVolatilityBuilder")]
 pub struct OptionHistoryGreeksImpliedVolatilityBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -7320,6 +7539,14 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
 /// - Returns implied volatilies calculated using the trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
 /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
 /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `version`: `"latest"`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksImpliedVolatilityBuilder")]
 pub struct OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -7578,6 +7805,10 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
 /// - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
 /// - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
 /// - The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionAtTimeTradeBuilder")]
 pub struct OptionAtTimeTradeBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -7732,6 +7963,10 @@ impl OptionAtTimeTradeBuilder {
 ///
 /// - Returns the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
 /// - The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
 #[pyclass(module = "thetadatadx", name = "OptionAtTimeQuoteBuilder")]
 pub struct OptionAtTimeQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -8308,6 +8543,11 @@ impl IndexHistoryEodBuilder {
 /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
 /// - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
 /// - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+///
+/// Defaults (upstream):
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "IndexHistoryOhlcBuilder")]
 pub struct IndexHistoryOhlcBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -8431,6 +8671,11 @@ impl IndexHistoryOhlcBuilder {
 /// - When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
 /// - A price update from the exchange is omitted if the price remained the same from the previous update.
 /// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
 #[pyclass(module = "thetadatadx", name = "IndexHistoryPriceBuilder")]
 pub struct IndexHistoryPriceBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -8900,6 +9145,12 @@ impl InterestRateHistoryEodBuilder {
 }
 
 /// Fetch intraday OHLC bars across a date range.
+///
+/// Defaults (upstream):
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryOhlcRangeBuilder")]
 pub struct StockHistoryOhlcRangeBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
@@ -9247,6 +9498,9 @@ impl ThetaDataDx {
     /// * Returns a real-time session OHLC from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// * Returns a 15-minute delayed session OHLC from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the stocks value subscription.
     /// * Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
     fn stock_snapshot_ohlc(
         &self,
@@ -9277,6 +9531,9 @@ impl ThetaDataDx {
     /// * Returns a real-time session OHLC from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// * Returns a 15-minute delayed session OHLC from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the stocks value subscription.
     /// * Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -9333,6 +9590,9 @@ impl ThetaDataDx {
     /// Returns a real-time last trade from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     ///
     /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
     fn stock_snapshot_trade(
         &self,
@@ -9362,6 +9622,9 @@ impl ThetaDataDx {
     /// Returns a real-time last trade from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     ///
     /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -9418,6 +9681,9 @@ impl ThetaDataDx {
     /// * Returns a real-time last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// * Returns a 15-minute delayed NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
     /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
     fn stock_snapshot_quote(
         &self,
@@ -9447,6 +9713,9 @@ impl ThetaDataDx {
     /// * Returns a real-time last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// * Returns a 15-minute delayed NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
     /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -9503,6 +9772,9 @@ impl ThetaDataDx {
     /// * Returns a real-time market value derived from the last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// * Returns a 15-minute delayed market value derived from an NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
     /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
     fn stock_snapshot_market_value(
         &self,
@@ -9532,6 +9804,9 @@ impl ThetaDataDx {
     /// * Returns a real-time market value derived from the last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// * Returns a 15-minute delayed market value derived from an NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
     /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -9657,6 +9932,12 @@ impl ThetaDataDx {
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds. 
     /// - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
     #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_ohlc(
         &self,
@@ -9702,6 +9983,12 @@ impl ThetaDataDx {
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds. 
     /// - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -9779,6 +10066,11 @@ impl ThetaDataDx {
     ///
     /// Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs). Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
     #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_trade(
         &self,
@@ -9819,6 +10111,11 @@ impl ThetaDataDx {
     ///
     /// Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs). Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -9893,6 +10190,12 @@ impl ThetaDataDx {
     /// - If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp. 
     /// - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
     #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_quote(
         &self,
@@ -9939,6 +10242,12 @@ impl ThetaDataDx {
     /// - If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp. 
     /// - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -10016,6 +10325,12 @@ impl ThetaDataDx {
     ///
     /// Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs) paired with the last BBO quote reported by [UTP or CTA](/Articles/Data-And-Requests/The-SIPs) at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `exclusive`: `true`
+    /// - `venue`: `"nqb"`
     #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, exclusive=true, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_trade_quote(
         &self,
@@ -10060,6 +10375,12 @@ impl ThetaDataDx {
     ///
     /// Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs) paired with the last BBO quote reported by [UTP or CTA](/Articles/Data-And-Requests/The-SIPs) at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `exclusive`: `true`
+    /// - `venue`: `"nqb"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -10142,6 +10463,9 @@ impl ThetaDataDx {
     /// #### Historical request:
     /// Returns the last trade reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
     /// Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[pyo3(signature = (symbol, start_date, end_date, time_of_day, *, venue=None, timeout_ms=None))]
     fn stock_at_time_trade(
         &self,
@@ -10173,6 +10497,9 @@ impl ThetaDataDx {
     /// #### Historical request:
     /// Returns the last trade reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
     /// Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -10236,6 +10563,9 @@ impl ThetaDataDx {
     ///
     /// #### Historical request:
     ///   Returns the last NBBO quote reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[pyo3(signature = (symbol, start_date, end_date, time_of_day, *, venue=None, timeout_ms=None))]
     fn stock_at_time_quote(
         &self,
@@ -10267,6 +10597,9 @@ impl ThetaDataDx {
     ///
     /// #### Historical request:
     ///   Returns the last NBBO quote reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -10392,6 +10725,10 @@ impl ThetaDataDx {
     ///
     /// Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
     /// This endpoint is updated overnight.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[pyo3(signature = (request_type, symbol, expiration, *, timeout_ms=None))]
     fn option_list_dates(
         &self,
@@ -10419,6 +10756,10 @@ impl ThetaDataDx {
     ///
     /// Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
     /// This endpoint is updated overnight.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -10709,6 +11050,10 @@ impl ThetaDataDx {
     ///
     /// - Retrieve a real-time last ohlc of an option contract for the trading day.
     /// - You might need to change the default expiration date to a different date if it is past the current date.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_ohlc(
         &self,
@@ -10749,6 +11094,10 @@ impl ThetaDataDx {
     ///
     /// - Retrieve a real-time last ohlc of an option contract for the trading day.
     /// - You might need to change the default expiration date to a different date if it is past the current date.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -10822,6 +11171,10 @@ impl ThetaDataDx {
     /// - Retrieve the real-time last trade of an option contract.
     /// - You might need to change the default expiration date to a different date if it is past the current date.
     /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_trade(
         &self,
@@ -10859,6 +11212,10 @@ impl ThetaDataDx {
     /// - Retrieve the real-time last trade of an option contract.
     /// - You might need to change the default expiration date to a different date if it is past the current date.
     /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -10927,6 +11284,10 @@ impl ThetaDataDx {
     /// - Retrieve a real-time last NBBO quote of an option contract.
     /// - You might need to change the default expiration date to a different date if it is past the current date.
     /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_quote(
         &self,
@@ -10968,6 +11329,10 @@ impl ThetaDataDx {
     /// - Retrieve a real-time last NBBO quote of an option contract.
     /// - You might need to change the default expiration date to a different date if it is past the current date.
     /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -11042,6 +11407,10 @@ impl ThetaDataDx {
     /// - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the of the previous trading day. 
     /// - You might need to change the default expiration date to a different date if it is past the current date.
     /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_open_interest(
         &self,
@@ -11084,6 +11453,10 @@ impl ThetaDataDx {
     /// - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the of the previous trading day. 
     /// - You might need to change the default expiration date to a different date if it is past the current date.
     /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -11155,6 +11528,10 @@ impl ThetaDataDx {
     /// Get the latest market value snapshot for an option contract.
     ///
     /// * Returns a real-time market value derived from the last NBBO quote of an option contract.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_market_value(
         &self,
@@ -11194,6 +11571,10 @@ impl ThetaDataDx {
     /// Get the latest market value snapshot for an option contract.
     ///
     /// * Returns a real-time market value derived from the last NBBO quote of an option contract.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -11268,6 +11649,13 @@ impl ThetaDataDx {
     /// of the option respectively. The underlying price represents whatever the last underlying price was at the
     /// ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks 
     /// [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
     fn option_snapshot_greeks_implied_volatility(
         &self,
@@ -11334,6 +11722,13 @@ impl ThetaDataDx {
     /// of the option respectively. The underlying price represents whatever the last underlying price was at the
     /// ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks 
     /// [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -11438,6 +11833,13 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
     fn option_snapshot_greeks_all(
         &self,
@@ -11504,6 +11906,13 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -11608,6 +12017,13 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
     fn option_snapshot_greeks_first_order(
         &self,
@@ -11674,6 +12090,13 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -11778,6 +12201,13 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
     fn option_snapshot_greeks_second_order(
         &self,
@@ -11844,6 +12274,13 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -11948,6 +12385,13 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
     fn option_snapshot_greeks_third_order(
         &self,
@@ -12014,6 +12458,13 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -12118,6 +12569,10 @@ impl ThetaDataDx {
     /// - ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. 
     /// - The quote in the response represents the last NBBO reported by OPRA at the time of report generation. 
     /// - You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html).
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_eod(
         &self,
@@ -12158,6 +12613,10 @@ impl ThetaDataDx {
     /// - ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. 
     /// - The quote in the response represents the last NBBO reported by OPRA at the time of report generation. 
     /// - You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html).
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -12232,6 +12691,13 @@ impl ThetaDataDx {
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. 
     /// - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_ohlc(
         &self,
@@ -12286,6 +12752,13 @@ impl ThetaDataDx {
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. 
     /// - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -12378,6 +12851,12 @@ impl ThetaDataDx {
     /// - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
     /// - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade(
         &self,
@@ -12433,6 +12912,12 @@ impl ThetaDataDx {
     /// - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
     /// - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -12524,6 +13009,13 @@ impl ThetaDataDx {
     /// - Returns every NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
     /// - If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_quote(
         &self,
@@ -12582,6 +13074,13 @@ impl ThetaDataDx {
     /// - Returns every NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
     /// - If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -12679,6 +13178,13 @@ impl ThetaDataDx {
     /// - A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. 
     /// - To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `exclusive`: `true`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, exclusive=true, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_quote(
         &self,
@@ -12738,6 +13244,13 @@ impl ThetaDataDx {
     /// - A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. 
     /// - To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `exclusive`: `true`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -12834,6 +13347,10 @@ impl ThetaDataDx {
     /// - Open Interest is normally reported once per day by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at approximately 06:30 ET.
     /// - A new open interest message might not be sent by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) if there is no open interest for the option contract.
     /// - The reported open interest represents the open interest at the end of the previous trading day.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_open_interest(
         &self,
@@ -12880,6 +13397,10 @@ impl ThetaDataDx {
     /// - Open Interest is normally reported once per day by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at approximately 06:30 ET.
     /// - A new open interest message might not be sent by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) if there is no open interest for the option contract.
     /// - The reported open interest represents the open interest at the end of the previous trading day.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -12961,6 +13482,13 @@ impl ThetaDataDx {
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
     /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
     /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `underlyer_use_nbbo`: `false`
     #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=false, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_greeks_eod(
         &self,
@@ -13020,6 +13548,13 @@ impl ThetaDataDx {
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
     /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
     /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `underlyer_use_nbbo`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -13120,6 +13655,15 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_all(
         &self,
@@ -13191,6 +13735,15 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -13303,6 +13856,14 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_all(
         &self,
@@ -13374,6 +13935,14 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -13486,6 +14055,15 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_first_order(
         &self,
@@ -13557,6 +14135,15 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -13669,6 +14256,14 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_first_order(
         &self,
@@ -13740,6 +14335,14 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -13852,6 +14455,15 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_second_order(
         &self,
@@ -13923,6 +14535,15 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -14035,6 +14656,14 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_second_order(
         &self,
@@ -14106,6 +14735,14 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -14218,6 +14855,15 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_third_order(
         &self,
@@ -14289,6 +14935,15 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -14401,6 +15056,14 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_third_order(
         &self,
@@ -14472,6 +15135,14 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -14583,6 +15254,15 @@ impl ThetaDataDx {
     /// - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_implied_volatility(
         &self,
@@ -14653,6 +15333,15 @@ impl ThetaDataDx {
     /// - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -14764,6 +15453,14 @@ impl ThetaDataDx {
     /// - Returns implied volatilies calculated using the trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_implied_volatility(
         &self,
@@ -14834,6 +15531,14 @@ impl ThetaDataDx {
     /// - Returns implied volatilies calculated using the trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -14946,6 +15651,10 @@ impl ThetaDataDx {
     /// - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
     /// - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
     /// - The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[pyo3(signature = (symbol, expiration, start_date, end_date, time_of_day, *, strike=None, right=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_at_time_trade(
         &self,
@@ -14987,6 +15696,10 @@ impl ThetaDataDx {
     /// - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
     /// - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
     /// - The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -15063,6 +15776,10 @@ impl ThetaDataDx {
     ///
     /// - Returns the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
     /// - The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[pyo3(signature = (symbol, expiration, start_date, end_date, time_of_day, *, strike=None, right=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_at_time_quote(
         &self,
@@ -15102,6 +15819,10 @@ impl ThetaDataDx {
     ///
     /// - Returns the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
     /// - The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -15608,6 +16329,11 @@ impl ThetaDataDx {
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
     /// - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
     /// - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     #[pyo3(signature = (symbol, start_date, end_date, *, interval=None, start_time=None, end_time=None, timeout_ms=None))]
     fn index_history_ohlc(
         &self,
@@ -15642,6 +16368,11 @@ impl ThetaDataDx {
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
     /// - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
     /// - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -15709,6 +16440,11 @@ impl ThetaDataDx {
     /// - When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
     /// - A price update from the exchange is omitted if the price remained the same from the previous update.
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, start_date=None, end_date=None, timeout_ms=None))]
     fn index_history_price(
         &self,
@@ -15751,6 +16487,11 @@ impl ThetaDataDx {
     /// - When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
     /// - A price update from the exchange is omitted if the price remained the same from the previous update.
     /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
@@ -16159,6 +16900,12 @@ impl ThetaDataDx {
     }
 
     /// Fetch intraday OHLC bars across a date range.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
     #[pyo3(signature = (symbol, start_date, end_date, *, interval=None, start_time=None, end_time=None, venue=None, timeout_ms=None))]
     fn stock_history_ohlc_range(
         &self,
@@ -16193,6 +16940,13 @@ impl ThetaDataDx {
     }
 
     /// Fetch intraday OHLC bars across a date range.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
+    ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no

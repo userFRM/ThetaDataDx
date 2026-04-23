@@ -9,6 +9,8 @@
 
 use std::fmt::Write as _;
 
+use super::super::helpers::compose_endpoint_doc;
+use super::super::helpers::render_rust_doc_block;
 use super::super::helpers::{
     builder_params, is_streaming_endpoint, is_time_arg, method_params, sdk_method_arg_name,
     to_camel_case, ts_class_name, ts_class_vec_converter,
@@ -45,7 +47,10 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     let camel_name = to_camel_case(&endpoint.name);
     let mut out = String::new();
 
-    writeln!(out, "    /// {}", endpoint.description).unwrap();
+    out.push_str(&render_rust_doc_block(
+        "    ",
+        &compose_endpoint_doc(endpoint),
+    ));
     writeln!(out, "    #[napi(js_name = \"{camel_name}\")]").unwrap();
     writeln!(out, "    pub fn {name}(", name = endpoint.name).unwrap();
     out.push_str("        &self,\n");

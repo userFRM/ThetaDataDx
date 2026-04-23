@@ -3,6 +3,8 @@
 #[napi]
 impl ThetaDataDx {
     /// List all available stock ticker symbols.
+    ///
+    /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
     #[napi(js_name = "stockListSymbols")]
     pub fn stock_list_symbols(
         &self,
@@ -22,6 +24,8 @@ impl ThetaDataDx {
     }
 
     /// List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
+    ///
+    /// Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
     #[napi(js_name = "stockListDates")]
     pub fn stock_list_dates(
         &self,
@@ -43,6 +47,14 @@ impl ThetaDataDx {
     }
 
     /// Get the latest OHLC snapshot for one or more stocks.
+    ///
+    /// Provides a real-time Open, High, Low, Close for the current day.
+    /// * Returns a real-time session OHLC from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+    /// * Returns a 15-minute delayed session OHLC from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the stocks value subscription.
+    /// * Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[napi(js_name = "stockSnapshotOHLC")]
     pub fn stock_snapshot_ohlc(
         &self,
@@ -69,6 +81,13 @@ impl ThetaDataDx {
     }
 
     /// Get the latest trade snapshot for one or more stocks.
+    ///
+    /// Returns a real-time last trade from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+    ///
+    /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[napi(js_name = "stockSnapshotTrade")]
     pub fn stock_snapshot_trade(
         &self,
@@ -95,6 +114,13 @@ impl ThetaDataDx {
     }
 
     /// Get the latest NBBO quote snapshot for one or more stocks.
+    ///
+    /// * Returns a real-time last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+    /// * Returns a 15-minute delayed NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+    /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[napi(js_name = "stockSnapshotQuote")]
     pub fn stock_snapshot_quote(
         &self,
@@ -121,6 +147,13 @@ impl ThetaDataDx {
     }
 
     /// Get the latest market value snapshot for one or more stocks.
+    ///
+    /// * Returns a real-time market value derived from the last BBO quote from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+    /// * Returns a 15-minute delayed market value derived from an NBBO quote from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs) if the account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+    /// - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[napi(js_name = "stockSnapshotMarketValue")]
     pub fn stock_snapshot_market_value(
         &self,
@@ -147,6 +180,8 @@ impl ThetaDataDx {
     }
 
     /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
+    ///
+    /// Since [the equity SIPs](/Articles/Data-And-Requests/The-SIPs.html) only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by [CTA or UTP](/Articles/Data-And-Requests/The-SIPs.html) at the time of report generation. You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html). Theta Data plans to avail SIP EOD reports in the near future.
     #[napi(js_name = "stockHistoryEOD")]
     pub fn stock_history_eod(
         &self,
@@ -166,6 +201,16 @@ impl ThetaDataDx {
     }
 
     /// Fetch intraday OHLC bars for a stock on a single date.
+    ///
+    /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds. 
+    /// - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryOHLC")]
     pub fn stock_history_ohlc(
         &self,
@@ -211,6 +256,14 @@ impl ThetaDataDx {
     }
 
     /// Fetch all trades for a stock on a given date.
+    ///
+    /// Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs). Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryTrade")]
     pub fn stock_history_trade(
         &self,
@@ -252,6 +305,17 @@ impl ThetaDataDx {
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
+    ///
+    /// - Returns every NBBO quote reported by [UTP and CTA](/Articles/Data-And-Requests/The-SIPs). 
+    /// - If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp. 
+    /// - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryQuote")]
     pub fn stock_history_quote(
         &self,
@@ -297,6 +361,15 @@ impl ThetaDataDx {
     }
 
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
+    ///
+    /// Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs) paired with the last BBO quote reported by [UTP or CTA](/Articles/Data-And-Requests/The-SIPs) at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `exclusive`: `true`
+    /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryTradeQuote")]
     pub fn stock_history_trade_quote(
         &self,
@@ -342,6 +415,17 @@ impl ThetaDataDx {
     }
 
     /// Fetch the trade at a specific time of day across a date range.
+    ///
+    /// #### Real-time request:
+    /// - Returns a real-time session from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs.html#nasdaq-basic) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+    /// - Returns a 15-minute delayed session from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+    ///
+    /// #### Historical request:
+    /// Returns the last trade reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
+    /// Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[napi(js_name = "stockAtTimeTrade")]
     pub fn stock_at_time_trade(
         &self,
@@ -367,6 +451,17 @@ impl ThetaDataDx {
     }
 
     /// Fetch the quote at a specific time of day across a date range.
+    ///
+    /// #### Real-time request:
+    ///   - Subscription tier standard or higher will default to NQB.
+    ///   - Real-time last BBO quote at-time_of_day-time from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs.html#nasdaq-basic) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
+    ///   - 15-minute delayed NBBO quote at-time_of_day-time from the [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) account has the [stocks value subscription](https://www.thetadata.net/subscribe.html#stocks) subscription.
+    ///
+    /// #### Historical request:
+    ///   Returns the last NBBO quote reported by [UTP & CTA feeds](/Articles/Data-And-Requests/The-SIPs.html#equities-cta-utp) at a specified millisecond of the day.
+    ///
+    /// Defaults (upstream):
+    /// - `venue`: `"nqb"`
     #[napi(js_name = "stockAtTimeQuote")]
     pub fn stock_at_time_quote(
         &self,
@@ -392,6 +487,8 @@ impl ThetaDataDx {
     }
 
     /// List all available option underlying symbols.
+    ///
+    /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
     #[napi(js_name = "optionListSymbols")]
     pub fn option_list_symbols(
         &self,
@@ -411,6 +508,13 @@ impl ThetaDataDx {
     }
 
     /// List available dates for an option contract by request type.
+    ///
+    /// Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
+    /// This endpoint is updated overnight.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[napi(js_name = "optionListDates")]
     pub fn option_list_dates(
         &self,
@@ -434,6 +538,9 @@ impl ThetaDataDx {
     }
 
     /// List available expiration dates for an option underlying.
+    ///
+    /// Lists all dates of expirations that are available for an option with a given symbol.
+    /// This endpoint is updated overnight.
     #[napi(js_name = "optionListExpirations")]
     pub fn option_list_expirations(
         &self,
@@ -454,6 +561,9 @@ impl ThetaDataDx {
     }
 
     /// List available strike prices for an option at a given expiration.
+    ///
+    /// Lists all strikes that are available for an option with a given symbol and expiration date.
+    /// This endpoint is updated overnight.
     #[napi(js_name = "optionListStrikes")]
     pub fn option_list_strikes(
         &self,
@@ -476,6 +586,12 @@ impl ThetaDataDx {
     }
 
     /// List all option contracts for a symbol on a given date.
+    ///
+    /// Lists all contracts that were traded or quoted on a particular date.
+    ///
+    /// If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
+    /// Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+    /// This endpoint is updated real-time.
     #[napi(js_name = "optionListContracts")]
     pub fn option_list_contracts(
         &self,
@@ -498,6 +614,13 @@ impl ThetaDataDx {
     }
 
     /// Get the latest OHLC snapshot for an option contract.
+    ///
+    /// - Retrieve a real-time last ohlc of an option contract for the trading day.
+    /// - You might need to change the default expiration date to a different date if it is past the current date.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[napi(js_name = "optionSnapshotOHLC")]
     pub fn option_snapshot_ohlc(
         &self,
@@ -536,6 +659,14 @@ impl ThetaDataDx {
     }
 
     /// Get the latest trade snapshot for an option contract.
+    ///
+    /// - Retrieve the real-time last trade of an option contract.
+    /// - You might need to change the default expiration date to a different date if it is past the current date.
+    /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[napi(js_name = "optionSnapshotTrade")]
     pub fn option_snapshot_trade(
         &self,
@@ -570,6 +701,14 @@ impl ThetaDataDx {
     }
 
     /// Get the latest NBBO quote snapshot for an option contract.
+    ///
+    /// - Retrieve a real-time last NBBO quote of an option contract.
+    /// - You might need to change the default expiration date to a different date if it is past the current date.
+    /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[napi(js_name = "optionSnapshotQuote")]
     pub fn option_snapshot_quote(
         &self,
@@ -608,6 +747,15 @@ impl ThetaDataDx {
     }
 
     /// Get the latest open interest snapshot for an option contract.
+    ///
+    /// - Retrieve the last open interest message of an option contract.
+    /// - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the of the previous trading day. 
+    /// - You might need to change the default expiration date to a different date if it is past the current date.
+    /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[napi(js_name = "optionSnapshotOpenInterest")]
     pub fn option_snapshot_open_interest(
         &self,
@@ -646,6 +794,12 @@ impl ThetaDataDx {
     }
 
     /// Get the latest market value snapshot for an option contract.
+    ///
+    /// * Returns a real-time market value derived from the last NBBO quote of an option contract.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[napi(js_name = "optionSnapshotMarketValue")]
     pub fn option_snapshot_market_value(
         &self,
@@ -684,6 +838,18 @@ impl ThetaDataDx {
     }
 
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
+    ///
+    /// Returns implied volatilies calculated using the national best bid, mid, and ask price
+    /// of the option respectively. The underlying price represents whatever the last underlying price was at the
+    /// ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks 
+    /// [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     #[napi(js_name = "optionSnapshotGreeksImpliedVolatility")]
     pub fn option_snapshot_greeks_implied_volatility(
         &self,
@@ -746,6 +912,18 @@ impl ThetaDataDx {
     }
 
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
+    ///
+    /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+    /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+    /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     #[napi(js_name = "optionSnapshotGreeksAll")]
     pub fn option_snapshot_greeks_all(
         &self,
@@ -808,6 +986,18 @@ impl ThetaDataDx {
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
+    ///
+    /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+    /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+    /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     #[napi(js_name = "optionSnapshotGreeksFirstOrder")]
     pub fn option_snapshot_greeks_first_order(
         &self,
@@ -870,6 +1060,18 @@ impl ThetaDataDx {
     }
 
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
+    ///
+    /// - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
+    /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+    /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     #[napi(js_name = "optionSnapshotGreeksSecondOrder")]
     pub fn option_snapshot_greeks_second_order(
         &self,
@@ -932,6 +1134,18 @@ impl ThetaDataDx {
     }
 
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
+    ///
+    /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
+    /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
+    /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
     #[napi(js_name = "optionSnapshotGreeksThirdOrder")]
     pub fn option_snapshot_greeks_third_order(
         &self,
@@ -994,6 +1208,15 @@ impl ThetaDataDx {
     }
 
     /// Fetch end-of-day option data for a contract over a date range.
+    ///
+    /// - Since [OPRA](/Articles/Data-And-Requests/The-SIPs.html) does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
+    /// - ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. 
+    /// - The quote in the response represents the last NBBO reported by OPRA at the time of report generation. 
+    /// - You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html).
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[napi(js_name = "optionHistoryEOD")]
     pub fn option_history_eod(
         &self,
@@ -1031,6 +1254,17 @@ impl ThetaDataDx {
     }
 
     /// Fetch intraday OHLC bars for an option contract.
+    ///
+    /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. 
+    /// - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     #[napi(js_name = "optionHistoryOHLC")]
     pub fn option_history_ohlc(
         &self,
@@ -1086,6 +1320,17 @@ impl ThetaDataDx {
     }
 
     /// Fetch all trades for an option contract on a given date.
+    ///
+    /// - Returns every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
+    /// - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
+    /// - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     #[napi(js_name = "optionHistoryTrade")]
     pub fn option_history_trade(
         &self,
@@ -1141,6 +1386,17 @@ impl ThetaDataDx {
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
+    ///
+    /// - Returns every NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
+    /// - If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     #[napi(js_name = "optionHistoryQuote")]
     pub fn option_history_quote(
         &self,
@@ -1200,6 +1456,18 @@ impl ThetaDataDx {
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
+    ///
+    /// - Returns every [trade](/operations/option_history_trade.html) reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) paired with the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at the time of trade.
+    /// - A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. 
+    /// - To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `exclusive`: `true`
     #[napi(js_name = "optionHistoryTradeQuote")]
     pub fn option_history_trade_quote(
         &self,
@@ -1259,6 +1527,14 @@ impl ThetaDataDx {
     }
 
     /// Fetch open interest history for an option contract.
+    ///
+    /// - Open Interest is normally reported once per day by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at approximately 06:30 ET.
+    /// - A new open interest message might not be sent by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) if there is no open interest for the option contract.
+    /// - The reported open interest represents the open interest at the end of the previous trading day.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[napi(js_name = "optionHistoryOpenInterest")]
     pub fn option_history_open_interest(
         &self,
@@ -1304,6 +1580,17 @@ impl ThetaDataDx {
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+    /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
+    /// - `underlyer_use_nbbo`: `false`
     #[napi(js_name = "optionHistoryGreeksEOD")]
     pub fn option_history_greeks_eod(
         &self,
@@ -1361,6 +1648,20 @@ impl ThetaDataDx {
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryGreeksAll")]
     pub fn option_history_greeks_all(
         &self,
@@ -1432,6 +1733,19 @@ impl ThetaDataDx {
     }
 
     /// Fetch all Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryTradeGreeksAll")]
     pub fn option_history_trade_greeks_all(
         &self,
@@ -1503,6 +1817,20 @@ impl ThetaDataDx {
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryGreeksFirstOrder")]
     pub fn option_history_greeks_first_order(
         &self,
@@ -1574,6 +1902,19 @@ impl ThetaDataDx {
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryTradeGreeksFirstOrder")]
     pub fn option_history_trade_greeks_first_order(
         &self,
@@ -1645,6 +1986,20 @@ impl ThetaDataDx {
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryGreeksSecondOrder")]
     pub fn option_history_greeks_second_order(
         &self,
@@ -1716,6 +2071,19 @@ impl ThetaDataDx {
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryTradeGreeksSecondOrder")]
     pub fn option_history_trade_greeks_second_order(
         &self,
@@ -1787,6 +2155,20 @@ impl ThetaDataDx {
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryGreeksThirdOrder")]
     pub fn option_history_greeks_third_order(
         &self,
@@ -1858,6 +2240,19 @@ impl ThetaDataDx {
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryTradeGreeksThirdOrder")]
     pub fn option_history_trade_greeks_third_order(
         &self,
@@ -1929,6 +2324,19 @@ impl ThetaDataDx {
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
+    ///
+    /// - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryGreeksImpliedVolatility")]
     pub fn option_history_greeks_implied_volatility(
         &self,
@@ -2000,6 +2408,18 @@ impl ThetaDataDx {
     }
 
     /// Fetch implied volatility on each trade for an option contract.
+    ///
+    /// - Returns implied volatilies calculated using the trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `version`: `"latest"`
     #[napi(js_name = "optionHistoryTradeGreeksImpliedVolatility")]
     pub fn option_history_trade_greeks_implied_volatility(
         &self,
@@ -2071,6 +2491,15 @@ impl ThetaDataDx {
     }
 
     /// Fetch the trade at a specific time of day across a date range for an option.
+    ///
+    /// - Returns the last trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
+    /// - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
+    /// - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
+    /// - The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[napi(js_name = "optionAtTimeTrade")]
     pub fn option_at_time_trade(
         &self,
@@ -2110,6 +2539,13 @@ impl ThetaDataDx {
     }
 
     /// Fetch the quote at a specific time of day across a date range for an option.
+    ///
+    /// - Returns the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
+    /// - The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
     #[napi(js_name = "optionAtTimeQuote")]
     pub fn option_at_time_quote(
         &self,
@@ -2149,6 +2585,8 @@ impl ThetaDataDx {
     }
 
     /// List all available index symbols.
+    ///
+    /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
     #[napi(js_name = "indexListSymbols")]
     pub fn index_list_symbols(
         &self,
@@ -2168,6 +2606,8 @@ impl ThetaDataDx {
     }
 
     /// List available dates for an index symbol.
+    ///
+    /// Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
     #[napi(js_name = "indexListDates")]
     pub fn index_list_dates(
         &self,
@@ -2188,6 +2628,9 @@ impl ThetaDataDx {
     }
 
     /// Get the latest OHLC snapshot for one or more indices.
+    ///
+    /// - Retrieves the real-time current day OHLC.
+    /// - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
     #[napi(js_name = "indexSnapshotOHLC")]
     pub fn index_snapshot_ohlc(
         &self,
@@ -2210,6 +2653,9 @@ impl ThetaDataDx {
     }
 
     /// Get the latest price snapshot for one or more indices.
+    ///
+    /// - Retrieves a real-time last index price.
+    /// - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
     #[napi(js_name = "indexSnapshotPrice")]
     pub fn index_snapshot_price(
         &self,
@@ -2232,6 +2678,9 @@ impl ThetaDataDx {
     }
 
     /// Get the latest market value snapshot for one or more indices.
+    ///
+    /// - Retrieves a real-time last index market value.
+    /// - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
     #[napi(js_name = "indexSnapshotMarketValue")]
     pub fn index_snapshot_market_value(
         &self,
@@ -2254,6 +2703,8 @@ impl ThetaDataDx {
     }
 
     /// Fetch end-of-day index data for a date range.
+    ///
+    /// - Since [the indices feeds](/Articles/Data-And-Requests/The-SIPs.html) do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
     #[napi(js_name = "indexHistoryEOD")]
     pub fn index_history_eod(
         &self,
@@ -2273,6 +2724,15 @@ impl ThetaDataDx {
     }
 
     /// Fetch intraday OHLC bars for an index.
+    ///
+    /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
+    /// - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
+    /// - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     #[napi(js_name = "indexHistoryOHLC")]
     pub fn index_history_ohlc(
         &self,
@@ -2306,6 +2766,16 @@ impl ThetaDataDx {
     }
 
     /// Fetch intraday price history for an index.
+    ///
+    /// - Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+    /// - When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
+    /// - A price update from the exchange is omitted if the price remained the same from the previous update.
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
     #[napi(js_name = "indexHistoryPrice")]
     pub fn index_history_price(
         &self,
@@ -2347,6 +2817,9 @@ impl ThetaDataDx {
     }
 
     /// Fetch the index price at a specific time of day across a date range.
+    ///
+    /// - Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
+    /// - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
     #[napi(js_name = "indexAtTimePrice")]
     pub fn index_at_time_price(
         &self,
@@ -2368,6 +2841,10 @@ impl ThetaDataDx {
     }
 
     /// Check whether the market is open today.
+    ///
+    /// - Retrieves current day equity market schedule
+    /// - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+    /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
     #[napi(js_name = "calendarOpenToday")]
     pub fn calendar_open_today(
         &self,
@@ -2382,6 +2859,11 @@ impl ThetaDataDx {
     }
 
     /// Get calendar information for a specific date.
+    ///
+    /// - Retrieves equity market schedule for a given date
+    /// - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
+    /// - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+    /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
     #[napi(js_name = "calendarOnDate")]
     pub fn calendar_on_date(
         &self,
@@ -2398,6 +2880,11 @@ impl ThetaDataDx {
     }
 
     /// Get calendar information for an entire year.
+    ///
+    /// - Retrieves equity market holidays for a given year
+    /// - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
+    /// - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+    /// - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
     #[napi(js_name = "calendarYear")]
     pub fn calendar_year(
         &self,
@@ -2413,6 +2900,8 @@ impl ThetaDataDx {
     }
 
     /// Fetch end-of-day interest rate history.
+    ///
+    /// - Returns the interest rate reported. Depending on the rate, reports can occur in the morning or the afternoon.
     #[napi(js_name = "interestRateHistoryEOD")]
     pub fn interest_rate_history_eod(
         &self,
@@ -2432,6 +2921,12 @@ impl ThetaDataDx {
     }
 
     /// Fetch intraday OHLC bars across a date range.
+    ///
+    /// Defaults (upstream):
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryOHLCRange")]
     pub fn stock_history_ohlc_range(
         &self,
