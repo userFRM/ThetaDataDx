@@ -16,7 +16,6 @@
 pub mod codec;
 pub mod conditions;
 pub mod error;
-pub mod errors;
 pub mod exchange;
 pub mod flags;
 pub mod greeks;

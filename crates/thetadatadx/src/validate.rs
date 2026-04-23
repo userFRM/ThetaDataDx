@@ -5,7 +5,7 @@
 //! Both the shared endpoint runtime ([`crate::endpoint`]) and the MDDS
 //! client macros ([`crate::mdds`]) delegate to these functions.
 //!
-//! Build-time validators in `build_support/endpoints.rs` operate on the TOML
+//! Build-time validators in `build_support/endpoints/` operate on the TOML
 //! surface spec and proto schema — a fundamentally different domain — so they
 //! remain separate.
 
@@ -78,7 +78,7 @@ pub(crate) fn validate_right(value: &str, param_name: &str) -> Result<(), Endpoi
     // one place. The endpoint layer does not distinguish Call/Put/Both here
     // -- per-endpoint logic in the MDDS client decides whether `both` /
     // `*` is meaningful -- so we only care about "is this parseable at all".
-    crate::right::parse_right(value).map(|_| ()).map_err(|_| {
+    tdbe::right::parse_right(value).map(|_| ()).map_err(|_| {
         EndpointError::InvalidParams(format!(
             "'{param_name}' must be one of: 'call', 'put', 'both', 'C', 'P', '*' (case-insensitive), got: '{value}'"
         ))

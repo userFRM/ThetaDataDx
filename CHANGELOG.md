@@ -7,7 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [8.0.6] - 2026-04-23
+## [8.0.7] - 2026-04-23
+
+Code-strip release. No new features. Every item removes dead or
+near-dead code, narrows module visibility, or consolidates parallel
+FFI surfaces. `tdbe` bumps to `0.12.0` (public module removed).
+
+### Removed
+
+- `crates/thetadatadx/src/mdds/normalize.rs` — forwarding layer over
+  `crate::wire_semantics`. The three wire canonicalizers
+  (`normalize_expiration`, `wire_strike_opt`, `wire_right_opt`) stay
+  at `crate::wire_semantics`; the MDDS-scoped `normalize_interval`,
+  `normalize_time_of_day`, and `contract_spec!` macro move next to
+  their generated consumers in `crates/thetadatadx/src/mdds/endpoints.rs`.
+- `fpss::session::reconnect` — 90 LOC public function, zero callers.
+  `ThetaDataDx::reconnect_streaming` remains the reconnect entry point.
+  `reconnect_delay` is kept (used by `fpss::decode`).
+- `crates/thetadatadx/src/right.rs` — 11-line re-export shim.
+  `parse_right`, `parse_right_strict`, `ParsedRight` stay at the
+  crate root via a direct `pub use tdbe::right::*`.
+- `crates/thetadatadx/src/retry.rs` — the unreachable
+  `RetryOutcome` / `classify_status` / `retry_transient` trio and
+  the crate-level `#![allow(dead_code)]` attribute that masked them.
+  `StatusClass` moved into `macros.rs` as a private enum.
+- `crates/tdbe/src/errors.rs` — folded into `tdbe::error`. The two
+  used items (`HTTP_STATUS_CODE_KEY`, `error_from_http_code`) are now
+  reachable at `tdbe::error::*`; the unused `error_name` helper and
+  the `errors` module itself are gone.
+- 24 `FpssClient` / `ThetaDataDx` `subscribe_*_stock` / `subscribe_*_option`
+  shortcut methods (and their `unsubscribe_*` twins). Callers use the
+  `Contract`-taking `subscribe_quotes` / `subscribe_trades` /
+  `subscribe_open_interest` methods directly.
+- 61 `MddsClient::<endpoint>_with_deadline` sibling methods on every
+  list endpoint. Per-call deadlines route through
+  `EndpointArgs::with_timeout_ms` (FFI / Python / TS / Go / C++) or
+  the builder `.with_deadline(Duration)` setter on parsed endpoints.
+  SDK generators now wrap the bare call in `tokio::time::timeout`
+  locally instead of calling the deleted `_with_deadline` variant.
+- 61 `tdx_<endpoint>` (no-options) FFI entry points. The C++ SDK
+  already calls the `tdx_<endpoint>_with_options` variants, so the
+  plain-name declarations in `sdks/cpp/include/thetadx.h` and the
+  hand-written `ffi/src/historical.rs` (with its four
+  `ffi_list_endpoint!` / `ffi_typed_endpoint!` /
+  `ffi_typed_snapshot_endpoint!` / `ffi_list_endpoint_no_params!`
+  macros) are gone.
+- `pub use prost` at the `thetadatadx` crate root. Downstream
+  consumers that need `prost::Message` (`sdks/python`) now pull it
+  in as a direct dependency pinned to the same `=0.14.3` version.
+- `MddsClient::raw_query`, `MddsClient::raw_query_info`,
+  `MddsClient::channel` — zero callers anywhere in the tree.
+
+### Changed
+
+- `pub mod unified` and `pub mod registry` narrowed to `pub(crate)`.
+  The documented types (`ThetaDataDx`, `SubscriptionInfo`,
+  `ConnectionStatus`, `EndpointMeta`, `ParamMeta`, `ParamType`,
+  `ReturnType`, `ENDPOINTS`, plus `by_category`, `find`,
+  `param_type_to_json_type`, `CATEGORIES` for the CLI / MCP tools)
+  stay public via `pub use`.
+- `DirectConfig::production_defaults` narrowed to `pub(crate)`; the
+  only caller outside `config.rs` is in-crate (`observability.rs`).
+- `crates/tdbe` bumps to `0.12.0` (breaking: `pub mod errors`
+  removed). The public `ThetaDataError` struct, `error_from_http_code`
+  fn, and `HTTP_STATUS_CODE_KEY` const are still reachable at the
+  new `tdbe::error::*` path.
+- FFI surface consolidated: every SDK — C++, Go, Python,
+  TypeScript — now calls the `tdx_<endpoint>_with_options` entry
+  points. The plain-name FFI entry points are no longer exported.
 
 Snapshot-endpoint latency fast-path on the Python binding and new opt-in
 Rust `frames` module. Closes the residual 3-7 ms per-call gap vs. the

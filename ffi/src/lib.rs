@@ -72,7 +72,7 @@ mod panic;
 mod error;
 
 pub mod auth;
-pub mod historical;
+pub mod endpoints;
 pub mod streaming;
 pub mod types;
 pub mod utility;
@@ -85,8 +85,8 @@ pub mod utility;
 // keeps working after the split.
 
 pub use crate::auth::*;
+pub use crate::endpoints::*;
 pub use crate::error::*;
-pub use crate::historical::*;
 pub use crate::streaming::*;
 pub use crate::types::*;
 pub use crate::utility::*;

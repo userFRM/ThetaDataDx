@@ -48,7 +48,7 @@ use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::key_extractor::PeerIpKeyExtractor;
 use tower_governor::GovernorLayer;
 
-use thetadatadx::registry::{EndpointMeta, ENDPOINTS};
+use thetadatadx::{EndpointMeta, ENDPOINTS};
 
 use crate::handler;
 use crate::state::AppState;

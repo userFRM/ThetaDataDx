@@ -14,7 +14,7 @@ use axum::response::{IntoResponse, Response};
 use sonic_rs::prelude::*;
 
 use thetadatadx::endpoint::{invoke_endpoint, EndpointArgs, EndpointError};
-use thetadatadx::registry::EndpointMeta;
+use thetadatadx::EndpointMeta;
 
 use crate::format;
 use crate::state::AppState;
@@ -329,7 +329,7 @@ pub async fn system_shutdown(State(state): State<AppState>, headers: HeaderMap) 
 mod tests {
     use super::*;
     use axum::http::Request;
-    use thetadatadx::registry::ENDPOINTS;
+    use thetadatadx::ENDPOINTS;
 
     /// Grab any registered endpoint as a stand-in for the per-endpoint
     /// arg-building path. The param cap lives outside `ep.params` so any

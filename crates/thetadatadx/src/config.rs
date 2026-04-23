@@ -389,14 +389,16 @@ pub struct DirectConfig {
     /// Note: `config_0.properties` has `RECONNECT_WAIT=1000` but the Java code
     /// uses the constant `2000` at runtime.
     ///
-    /// NOTE: Not automatically wired — caller should pass to `fpss::reconnect()`.
+    /// NOTE: Not automatically wired — consumed by
+    /// [`crate::ThetaDataDx::reconnect_streaming`] / the FPSS auto-reconnect path.
     pub reconnect_wait_ms: u64,
 
     /// Delay before reconnecting after a `TooManyRequests` disconnect, in milliseconds.
     ///
     /// Source: `FPSSClient.handleInvoluntaryDisconnect()` — 130 second wait.
     ///
-    /// NOTE: Not automatically wired — caller should pass to `fpss::reconnect()`.
+    /// NOTE: Not automatically wired — consumed by
+    /// [`crate::ThetaDataDx::reconnect_streaming`] / the FPSS auto-reconnect path.
     pub reconnect_wait_rate_limited_ms: u64,
 
     // -- Reconnection policy --
@@ -476,7 +478,7 @@ impl DirectConfig {
     /// assert the hardcoded shape in isolation; every caller that wants
     /// env-var precedence should reach for [`DirectConfig::production`].
     #[must_use]
-    pub fn production_defaults() -> Self {
+    pub(crate) fn production_defaults() -> Self {
         Self {
             // Source: MddsConnectionManager (v3 gRPC path)
             mdds_host: "mdds-01.thetadata.us".to_string(),

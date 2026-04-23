@@ -101,10 +101,8 @@ pub mod fpss;
 #[cfg_attr(docsrs, doc(cfg(any(feature = "polars", feature = "arrow"))))]
 pub mod frames;
 pub mod observability;
-pub mod registry;
-pub(crate) mod retry;
-pub mod right;
-pub mod unified;
+pub(crate) mod registry;
+pub(crate) mod unified;
 pub(crate) mod validate;
 pub(crate) mod wire_semantics;
 
@@ -122,19 +120,16 @@ pub mod proto {
     tonic::include_proto!("beta_endpoints");
 }
 
-// Re-export `prost::Message` so downstream crates (e.g. the Python
-// bindings' `decode_response_bytes` hook) can decode `proto::ResponseData`
-// without taking a direct dep on prost. Keeps the version pin single-
-// sourced on the `thetadatadx` crate.
-pub use prost;
-
 pub use auth::Credentials;
 pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};
 pub use endpoint::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use mdds::MddsClient;
-pub use registry::{EndpointMeta, ParamMeta, ParamType, ReturnType, ENDPOINTS};
-pub use right::{parse_right, parse_right_strict, ParsedRight};
+pub use registry::{
+    by_category, find, param_type_to_json_type, EndpointMeta, ParamMeta, ParamType, ReturnType,
+    CATEGORIES, ENDPOINTS,
+};
+pub use tdbe::right::{parse_right, parse_right_strict, ParsedRight};
 pub use unified::{ConnectionStatus, SubscriptionInfo, ThetaDataDx};
 
 // Offline Black-Scholes utilities re-exported from `tdbe`. Prefer these at

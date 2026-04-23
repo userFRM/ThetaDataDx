@@ -33,8 +33,14 @@
 //!     // Runs on the Disruptor consumer thread -- keep it fast.
 //!     // Push to your own queue for heavy processing.
 //!     match event {
-//!         FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => { /* f64 prices */ }
-//!         FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => { /* f64 price */ }
+//!         FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
+//!             let _root = &contract.root; // symbol / option root
+//!             let _ = (bid, ask); // f64 prices
+//!         }
+//!         FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
+//!             let _root = &contract.root;
+//!             let _ = (price, size);
+//!         }
 //!         FpssEvent::Control(_) => { /* lifecycle */ }
 //!         _ => {}
 //!     }
@@ -95,7 +101,7 @@ mod session;
 use self::events::IoCommand;
 pub use self::events::{FpssControl, FpssData, FpssEvent};
 use self::io_loop::{io_loop, ping_loop, wait_for_login, LoginResult};
-pub use self::session::{reconnect, reconnect_delay};
+pub use self::session::reconnect_delay;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -627,167 +633,6 @@ impl FpssClient {
     /// Returns an error on network, authentication, or parsing failure.
     pub fn unsubscribe_open_interest(&self, contract: &Contract) -> Result<(), Error> {
         self.unsubscribe(SubscriptionKind::OpenInterest, contract)
-    }
-
-    // -----------------------------------------------------------------------
-    // Ergonomic stock/option shortcuts
-    //
-    // One-liners that build the `Contract` and dispatch through the typed
-    // subscribe/unsubscribe methods above. Stock contract construction is
-    // infallible; option construction goes through `Contract::option`
-    // which validates expiration / strike / right and returns
-    // `Error::Config` on bad input.
-    // -----------------------------------------------------------------------
-
-    /// Subscribe to real-time quotes for a stock symbol.
-    /// # Errors
-    ///
-    /// Returns an error on network or authentication failure.
-    pub fn subscribe_quotes_stock(&self, symbol: &str) -> Result<(), Error> {
-        self.subscribe_quotes(&Contract::stock(symbol))
-    }
-
-    /// Subscribe to real-time trades for a stock symbol.
-    /// # Errors
-    ///
-    /// Returns an error on network or authentication failure.
-    pub fn subscribe_trades_stock(&self, symbol: &str) -> Result<(), Error> {
-        self.subscribe_trades(&Contract::stock(symbol))
-    }
-
-    /// Subscribe to open interest updates for a stock symbol.
-    ///
-    /// Note: the FPSS server's handling of stock open interest is
-    /// different from options. Some subscription tiers reject this as
-    /// `InvalidPerms` via a `ReqResponse`; the SDK still issues the
-    /// subscribe — consumers should watch for the response code.
-    /// # Errors
-    ///
-    /// Returns an error on network or authentication failure.
-    pub fn subscribe_open_interest_stock(&self, symbol: &str) -> Result<(), Error> {
-        self.subscribe_open_interest(&Contract::stock(symbol))
-    }
-
-    /// Subscribe to real-time quotes for an option contract.
-    ///
-    /// See [`Contract::option`] for the accepted argument formats.
-    /// # Errors
-    ///
-    /// Returns `Error::Config` if the option arguments fail to parse,
-    /// or a network/authentication error on send failure.
-    pub fn subscribe_quotes_option(
-        &self,
-        root: &str,
-        exp: &str,
-        strike: &str,
-        right: &str,
-    ) -> Result<(), Error> {
-        let contract = Contract::option(root, exp, strike, right)?;
-        self.subscribe_quotes(&contract)
-    }
-
-    /// Subscribe to real-time trades for an option contract.
-    /// # Errors
-    ///
-    /// Returns `Error::Config` if the option arguments fail to parse,
-    /// or a network/authentication error on send failure.
-    pub fn subscribe_trades_option(
-        &self,
-        root: &str,
-        exp: &str,
-        strike: &str,
-        right: &str,
-    ) -> Result<(), Error> {
-        let contract = Contract::option(root, exp, strike, right)?;
-        self.subscribe_trades(&contract)
-    }
-
-    /// Subscribe to open interest updates for an option contract.
-    /// # Errors
-    ///
-    /// Returns `Error::Config` if the option arguments fail to parse,
-    /// or a network/authentication error on send failure.
-    pub fn subscribe_open_interest_option(
-        &self,
-        root: &str,
-        exp: &str,
-        strike: &str,
-        right: &str,
-    ) -> Result<(), Error> {
-        let contract = Contract::option(root, exp, strike, right)?;
-        self.subscribe_open_interest(&contract)
-    }
-
-    /// Unsubscribe from quote data for a stock symbol.
-    /// # Errors
-    ///
-    /// Returns an error on network or authentication failure.
-    pub fn unsubscribe_quotes_stock(&self, symbol: &str) -> Result<(), Error> {
-        self.unsubscribe_quotes(&Contract::stock(symbol))
-    }
-
-    /// Unsubscribe from trade data for a stock symbol.
-    /// # Errors
-    ///
-    /// Returns an error on network or authentication failure.
-    pub fn unsubscribe_trades_stock(&self, symbol: &str) -> Result<(), Error> {
-        self.unsubscribe_trades(&Contract::stock(symbol))
-    }
-
-    /// Unsubscribe from open interest data for a stock symbol.
-    /// # Errors
-    ///
-    /// Returns an error on network or authentication failure.
-    pub fn unsubscribe_open_interest_stock(&self, symbol: &str) -> Result<(), Error> {
-        self.unsubscribe_open_interest(&Contract::stock(symbol))
-    }
-
-    /// Unsubscribe from quote data for an option contract.
-    /// # Errors
-    ///
-    /// Returns `Error::Config` if the option arguments fail to parse,
-    /// or a network/authentication error on send failure.
-    pub fn unsubscribe_quotes_option(
-        &self,
-        root: &str,
-        exp: &str,
-        strike: &str,
-        right: &str,
-    ) -> Result<(), Error> {
-        let contract = Contract::option(root, exp, strike, right)?;
-        self.unsubscribe_quotes(&contract)
-    }
-
-    /// Unsubscribe from trade data for an option contract.
-    /// # Errors
-    ///
-    /// Returns `Error::Config` if the option arguments fail to parse,
-    /// or a network/authentication error on send failure.
-    pub fn unsubscribe_trades_option(
-        &self,
-        root: &str,
-        exp: &str,
-        strike: &str,
-        right: &str,
-    ) -> Result<(), Error> {
-        let contract = Contract::option(root, exp, strike, right)?;
-        self.unsubscribe_trades(&contract)
-    }
-
-    /// Unsubscribe from open interest data for an option contract.
-    /// # Errors
-    ///
-    /// Returns `Error::Config` if the option arguments fail to parse,
-    /// or a network/authentication error on send failure.
-    pub fn unsubscribe_open_interest_option(
-        &self,
-        root: &str,
-        exp: &str,
-        strike: &str,
-        right: &str,
-    ) -> Result<(), Error> {
-        let contract = Contract::option(root, exp, strike, right)?;
-        self.unsubscribe_open_interest(&contract)
     }
 
     /// Internal subscribe implementation.

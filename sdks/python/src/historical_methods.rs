@@ -25,10 +25,14 @@ impl StockListSymbolsBuilder {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
+            let call = tdx.stock_list_symbols();
             if let Some(ms) = timeout_ms {
-                tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.stock_list_symbols().await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -39,10 +43,14 @@ impl StockListSymbolsBuilder {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
+            let call = tdx.stock_list_symbols();
             if let Some(ms) = timeout_ms {
-                tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.stock_list_symbols().await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -89,10 +97,14 @@ impl StockListDatesBuilder {
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
+            let call = tdx.stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
-                tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.stock_list_dates(&request_type, &symbol).await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -105,10 +117,14 @@ impl StockListDatesBuilder {
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
+            let call = tdx.stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
-                tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.stock_list_dates(&request_type, &symbol).await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -1393,10 +1409,14 @@ impl OptionListSymbolsBuilder {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
+            let call = tdx.option_list_symbols();
             if let Some(ms) = timeout_ms {
-                tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_symbols().await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -1407,10 +1427,14 @@ impl OptionListSymbolsBuilder {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
+            let call = tdx.option_list_symbols();
             if let Some(ms) = timeout_ms {
-                tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_symbols().await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -1482,10 +1506,14 @@ impl OptionListDatesBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let values: Vec<String> = run_blocking(py, async move {
+            let call = tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right);
             if let Some(ms) = timeout_ms {
-                tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol, &expiration, &strike, &right).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right).await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -1501,10 +1529,14 @@ impl OptionListDatesBuilder {
         let right = self.right.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
+            let call = tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right);
             if let Some(ms) = timeout_ms {
-                tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol, &expiration, &strike, &right).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right).await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -1544,10 +1576,14 @@ impl OptionListExpirationsBuilder {
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
+            let call = tdx.option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
-                tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_expirations(&symbol).await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "expiration")
@@ -1559,10 +1595,14 @@ impl OptionListExpirationsBuilder {
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
+            let call = tdx.option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
-                tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_expirations(&symbol).await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "expiration").map(|p| p.into_any()))
     }
@@ -1610,10 +1650,14 @@ impl OptionListStrikesBuilder {
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let values: Vec<String> = run_blocking(py, async move {
+            let call = tdx.option_list_strikes(&symbol, &expiration);
             if let Some(ms) = timeout_ms {
-                tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms), &symbol, &expiration).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_strikes(&symbol, &expiration).await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "strike")
@@ -1626,10 +1670,14 @@ impl OptionListStrikesBuilder {
         let expiration = self.expiration.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
+            let call = tdx.option_list_strikes(&symbol, &expiration);
             if let Some(ms) = timeout_ms {
-                tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms), &symbol, &expiration).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_strikes(&symbol, &expiration).await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "strike").map(|p| p.into_any()))
     }
@@ -7475,10 +7523,14 @@ impl IndexListSymbolsBuilder {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
+            let call = tdx.index_list_symbols();
             if let Some(ms) = timeout_ms {
-                tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.index_list_symbols().await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -7489,10 +7541,14 @@ impl IndexListSymbolsBuilder {
         let tdx = self.tdx.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
+            let call = tdx.index_list_symbols();
             if let Some(ms) = timeout_ms {
-                tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.index_list_symbols().await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -7531,10 +7587,14 @@ impl IndexListDatesBuilder {
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
+            let call = tdx.index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
-                tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.index_list_dates(&symbol).await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -7546,10 +7606,14 @@ impl IndexListDatesBuilder {
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
+            let call = tdx.index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
-                tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.index_list_dates(&symbol).await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -8643,10 +8707,14 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
+            let call = self.tdx.stock_list_symbols();
             if let Some(ms) = timeout_ms {
-                self.tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                self.tdx.stock_list_symbols().await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -8668,10 +8736,14 @@ impl ThetaDataDx {
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
+            let call = tdx.stock_list_symbols();
             if let Some(ms) = timeout_ms {
-                tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.stock_list_symbols().await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -8704,10 +8776,14 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
+            let call = self.tdx.stock_list_dates(request_type, symbol);
             if let Some(ms) = timeout_ms {
-                self.tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms), request_type, symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                self.tdx.stock_list_dates(request_type, symbol).await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -8731,10 +8807,14 @@ impl ThetaDataDx {
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
+            let call = tdx.stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
-                tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.stock_list_dates(&request_type, &symbol).await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -9839,10 +9919,14 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
+            let call = self.tdx.option_list_symbols();
             if let Some(ms) = timeout_ms {
-                self.tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                self.tdx.option_list_symbols().await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -9864,10 +9948,14 @@ impl ThetaDataDx {
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
+            let call = tdx.option_list_symbols();
             if let Some(ms) = timeout_ms {
-                tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_symbols().await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -9904,10 +9992,14 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
+            let call = self.tdx.option_list_dates(request_type, symbol, expiration, strike, right);
             if let Some(ms) = timeout_ms {
-                self.tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms), request_type, symbol, expiration, strike, right).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                self.tdx.option_list_dates(request_type, symbol, expiration, strike, right).await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -9935,10 +10027,14 @@ impl ThetaDataDx {
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
+            let call = tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right);
             if let Some(ms) = timeout_ms {
-                tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms), &request_type, &symbol, &expiration, &strike, &right).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right).await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -9981,10 +10077,14 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
+            let call = self.tdx.option_list_expirations(symbol);
             if let Some(ms) = timeout_ms {
-                self.tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms), symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                self.tdx.option_list_expirations(symbol).await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "expiration")
@@ -10008,10 +10108,14 @@ impl ThetaDataDx {
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
+            let call = tdx.option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
-                tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_expirations(&symbol).await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "expiration").map(|p| p.into_any()))
     }
@@ -10047,10 +10151,14 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
+            let call = self.tdx.option_list_strikes(symbol, expiration);
             if let Some(ms) = timeout_ms {
-                self.tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms), symbol, expiration).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                self.tdx.option_list_strikes(symbol, expiration).await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "strike")
@@ -10075,10 +10183,14 @@ impl ThetaDataDx {
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
+            let call = tdx.option_list_strikes(&symbol, &expiration);
             if let Some(ms) = timeout_ms {
-                tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms), &symbol, &expiration).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.option_list_strikes(&symbol, &expiration).await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "strike").map(|p| p.into_any()))
     }
@@ -14343,10 +14455,14 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
+            let call = self.tdx.index_list_symbols();
             if let Some(ms) = timeout_ms {
-                self.tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                self.tdx.index_list_symbols().await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -14368,10 +14484,14 @@ impl ThetaDataDx {
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
+            let call = tdx.index_list_symbols();
             if let Some(ms) = timeout_ms {
-                tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.index_list_symbols().await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -14403,10 +14523,14 @@ impl ThetaDataDx {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
+            let call = self.tdx.index_list_dates(symbol);
             if let Some(ms) = timeout_ms {
-                self.tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms), symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                self.tdx.index_list_dates(symbol).await
+                call.await
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -14429,10 +14553,14 @@ impl ThetaDataDx {
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
+            let call = tdx.index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
-                tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms), &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                tdx.index_list_dates(&symbol).await
+                call.await
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
