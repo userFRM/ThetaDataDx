@@ -933,11 +933,14 @@ pub(super) fn python_arg_literal(param: &GeneratedParam, value: &str) -> String 
 }
 
 /// Render a single arg string as a Go literal expression.
-pub(super) fn go_arg_literal(param: &GeneratedParam, value: &str) -> String {
-    match param.param_type.as_str() {
-        "Symbols" => format!("[]string{{\"{value}\"}}"),
-        _ => format!("\"{value}\""),
-    }
+pub(super) fn go_arg_literal(_param: &GeneratedParam, value: &str) -> String {
+    // The Go SDK keeps scalar signatures (`StockSnapshotOHLC(symbol string, ...)`)
+    // and exposes bulk variants via a `*Bulk` suffix (`StockSnapshotOHLCBulk(
+    // symbols []string, ...)`). Generated validator cells use single-value
+    // fixtures and therefore must target the scalar form — passing a
+    // `[]string{...}` literal tripwires the Go type checker on every
+    // `Symbols`-param endpoint and turns SDK Bindings CI red.
+    format!("\"{value}\"")
 }
 
 /// Render a single arg string as a C++ literal expression.

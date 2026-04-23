@@ -84,14 +84,14 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
-		v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.StockSnapshotOHLC("AAPL", WithTimeoutMs(perCellTimeoutMs))
 		records = classify("stock_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_snapshot_ohlc::with_min_time
 	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
-		v, e := c.StockSnapshotOHLC([]string{"AAPL"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.StockSnapshotOHLC("AAPL", WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("stock_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
@@ -99,14 +99,14 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
-		v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.StockSnapshotTrade("AAPL", WithTimeoutMs(perCellTimeoutMs))
 		records = classify("stock_snapshot_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_snapshot_trade::with_min_time
 	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
-		v, e := c.StockSnapshotTrade([]string{"AAPL"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.StockSnapshotTrade("AAPL", WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("stock_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
@@ -114,14 +114,14 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
-		v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.StockSnapshotQuote("AAPL", WithTimeoutMs(perCellTimeoutMs))
 		records = classify("stock_snapshot_quote", "concrete", "value", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_snapshot_quote::with_min_time
 	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
-		v, e := c.StockSnapshotQuote([]string{"AAPL"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.StockSnapshotQuote("AAPL", WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("stock_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
@@ -129,14 +129,14 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
-		v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.StockSnapshotMarketValue("AAPL", WithTimeoutMs(perCellTimeoutMs))
 		records = classify("stock_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// stock_snapshot_market_value::with_min_time
 	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
-		v, e := c.StockSnapshotMarketValue([]string{"AAPL"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.StockSnapshotMarketValue("AAPL", WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("stock_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
@@ -2469,14 +2469,14 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
-		v, e := c.IndexSnapshotOHLC([]string{"SPX"}, WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.IndexSnapshotOHLC("SPX", WithTimeoutMs(perCellTimeoutMs))
 		records = classify("index_snapshot_ohlc", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// index_snapshot_ohlc::with_min_time
 	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
-		v, e := c.IndexSnapshotOHLC([]string{"SPX"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.IndexSnapshotOHLC("SPX", WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("index_snapshot_ohlc", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
@@ -2484,14 +2484,14 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
-		v, e := c.IndexSnapshotPrice([]string{"SPX"}, WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.IndexSnapshotPrice("SPX", WithTimeoutMs(perCellTimeoutMs))
 		records = classify("index_snapshot_price", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// index_snapshot_price::with_min_time
 	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
-		v, e := c.IndexSnapshotPrice([]string{"SPX"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.IndexSnapshotPrice("SPX", WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("index_snapshot_price", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
@@ -2499,14 +2499,14 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 	//   rationale: required params set, no optionals — baseline wire path
 	{
 		t0 := time.Now()
-		v, e := c.IndexSnapshotMarketValue([]string{"SPX"}, WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.IndexSnapshotMarketValue("SPX", WithTimeoutMs(perCellTimeoutMs))
 		records = classify("index_snapshot_market_value", "concrete", "standard", "required params set, no optionals — baseline wire path", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// index_snapshot_market_value::with_min_time
 	//   rationale: min_time=09:45:00 optional filter wiring
 	{
 		t0 := time.Now()
-		v, e := c.IndexSnapshotMarketValue([]string{"SPX"}, WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
+		v, e := c.IndexSnapshotMarketValue("SPX", WithMinTime("09:45:00"), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("index_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 
