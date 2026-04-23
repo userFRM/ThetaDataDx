@@ -6,11 +6,11 @@ Multi-language SDKs for ThetaDataDx. All are thin bindings over the shared Rust 
 
 | SDK | Install | Historical | Streaming | Greeks | README |
 |---|---|---|---|---|---|
-| **Python** | `pip install thetadatadx` | 61 endpoints | `ThetaDataDx` | `all_greeks()`, chainable `.to_polars()` / `.to_pandas()` / `.to_arrow()` | [sdks/python/](python/) |
-| **TypeScript/Node.js** | `npm install thetadatadx` | 61 endpoints | `ThetaDataDx` | `allGreeks()` | [sdks/typescript/](typescript/) |
-| **Go** | `go get github.com/userFRM/thetadatadx/sdks/go` | 61 endpoints | `FpssClient` | via FFI | [sdks/go/](go/) |
-| **C++** | CMake `find_library` | 61 endpoints | `FpssClient` | via FFI | [sdks/cpp/](cpp/) |
-| **C FFI** | `cargo build --release -p thetadatadx-ffi` | 61 endpoints | `TdxUnified` / `TdxFpssHandle` | `tdx_all_greeks` | [ffi/](../ffi/) |
+| **Python** | `pip install thetadatadx` | Full generated historical surface | `ThetaDataDx` | `all_greeks()`, chainable `.to_polars()` / `.to_pandas()` / `.to_arrow()` | [sdks/python/](python/) |
+| **TypeScript/Node.js** | `npm install thetadatadx` | Full generated historical surface | `ThetaDataDx` | `allGreeks()` | [sdks/typescript/](typescript/) |
+| **Go** | `go get github.com/userFRM/thetadatadx/sdks/go` | Full generated historical surface | `FpssClient` | via FFI | [sdks/go/](go/) |
+| **C++** | CMake `find_library` | Full generated historical surface | `FpssClient` | via FFI | [sdks/cpp/](cpp/) |
+| **C FFI** | `cargo build --release -p thetadatadx-ffi` | Full generated historical surface | `TdxUnified` / `TdxFpssHandle` | `tdx_all_greeks` | [ffi/](../ffi/) |
 
 ## Architecture
 

@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.11] - 2026-04-23
+
+### Added
+
+- `endpoint_surface.toml` now declares the endpoint-surface enums used by
+  `right`, `venue`, `interval`, `rate_type`, `request_type`, and
+  `version`. The generator emits the Rust `tdbe` enums, Python enum
+  pyclasses, and the TypeScript napi string enums from the same TOML
+  variant lists.
+- Go now gets generator-owned FFI drift artifacts for every checked size
+  and offset: `endpoint_ffi_sizes_generated.go`,
+  `tick_ffi_sizes_generated.go`, `fpss_ffi_sizes_generated.go`,
+  `ffi_layout_generated_test.go`, and
+  `fpss_ffi_offset_checks_generated.go`.
+- C++ now gets generator-owned layout assertion includes:
+  `tick_layout_asserts.hpp.inc` from `tick_schema.toml` and
+  `fpss_layout_asserts.hpp.inc` from `fpss_event_schema.toml`.
+- `.github/release-notes/v8.0.11.md` records the SSOT refactor and local
+  verification plan for this release.
+
+### Changed
+
+- `crates/tdbe/src/types/enums.rs` now includes generator-emitted
+  endpoint-surface enums instead of hand-maintaining `Right`, `Venue`,
+  `Interval`, `RateType`, `RequestType`, and `Version`.
+- `sdks/python/src/coerce.rs` now includes generator-emitted enum
+  pyclasses instead of hand-maintaining the `string_enum!` block.
+- `sdks/go/tick_ffi_mirrors.go` no longer embeds hand-maintained expected
+  sizes or FPSS offset literals; it consumes generator-owned constants and
+  offset tables.
+- `sdks/go/ffi_layout_test.go` has been replaced by the generated
+  `sdks/go/ffi_layout_generated_test.go`, so the Go tick-layout drift
+  detector now reads its expected values from TOML-derived generation.
+- `sdks/cpp/include/thetadx.hpp` now includes generated layout assertion
+  fragments instead of hand-maintaining `static_assert(sizeof(...))` and
+  `static_assert(offsetof(...))` blocks.
+- Live docs and READMEs no longer hardcode endpoint, tick-type, or tool
+  counts; they describe the generated surface instead.
+- Release metadata bumps `8.0.10 -> 8.0.11` across `thetadatadx`,
+  `thetadatadx-ffi`, `thetadatadx-cli`, `thetadatadx-server`,
+  `thetadatadx-mcp`, `thetadatadx-py`, and `thetadatadx-napi`. TypeScript
+  package metadata, loader version guards, and the checked-in OpenAPI
+  version now match `8.0.11`.
+- `tdbe` stays at `0.12.0`.
+
 ## [8.0.10] - 2026-04-23
 
 ### Added
@@ -1378,7 +1423,8 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.10...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.11...HEAD
+[8.0.11]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.10...v8.0.11
 [8.0.10]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.9...v8.0.10
 [8.0.9]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.8...v8.0.9
 [8.0.8]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.7...v8.0.8

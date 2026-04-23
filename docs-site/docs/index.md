@@ -32,7 +32,7 @@ features:
   - icon:
       src: /icons/terminal.svg
     title: "CLI, MCP, REST server"
-    details: "Standalone CLI for one-off queries, an MCP server that exposes the 61 endpoints plus three offline tools to any MCP-compatible client, and a REST + WebSocket server on port 25503."
+    details: "Standalone CLI for one-off queries, an MCP server that exposes every generated historical endpoint plus three offline tools to any MCP-compatible client, and a REST + WebSocket server on port 25503."
 ---
 
 <div class="install-section">
@@ -144,7 +144,7 @@ for (const auto& q : quotes) {
 | Axis | ThetaDataDx |
 |------|-------------|
 | Languages | Rust, Python, TypeScript, Go, C++ |
-| Historical endpoints | 61 typed methods (plus 4 `_stream` SDK-only variants) |
+| Historical endpoints | Full typed historical surface (plus 4 `_stream` SDK-only variants) |
 | Real-time streaming | FPSS with SPKI pinning, SPSC ring, reconnect policy |
 | Local Greeks calculator | 22 Greeks + IV solver in Rust |
 | Async Python surface | `*_async` variant of every endpoint |

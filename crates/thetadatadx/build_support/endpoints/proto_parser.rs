@@ -87,6 +87,7 @@ pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::err
                 name,
                 description,
                 param_type,
+                enum_name: None,
                 required,
                 binding: String::new(),
                 arg_name: None,
@@ -130,6 +131,7 @@ pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::err
 
     Ok(ParsedEndpoints {
         endpoints,
+        enums: Vec::new(),
         fixtures: TestFixtures::default(),
     })
 }
@@ -271,12 +273,12 @@ fn map_field(name: &str, proto_type: &str, is_repeated: bool) -> (String, String
             "Str".into(),
             "ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM; legacy 34200000 is also accepted)".into(),
         ),
-        ("string", "venue") => ("Str".into(), "Venue/exchange filter".into()),
+        ("string", "venue") => ("Venue".into(), "Venue/exchange filter".into()),
         ("string", "min_time") => ("Str".into(), "Minimum time filter".into()),
         ("string", "start_time") => ("Str".into(), "Start time filter".into()),
         ("string", "end_time") => ("Str".into(), "End time filter".into()),
-        ("string", "rate_type") => ("Str".into(), "Rate type".into()),
-        ("string", "version") => ("Str".into(), "Greeks model version".into()),
+        ("string", "rate_type") => ("RateType".into(), "Rate type".into()),
+        ("string", "version") => ("Version".into(), "Greeks model version".into()),
         ("double", _) => ("Float".into(), humanize_name(name).clone()),
         ("int32", "max_dte") => ("Int".into(), "Maximum days to expiration".into()),
         ("int32", "strike_range") => ("Int".into(), "Strike range filter".into()),

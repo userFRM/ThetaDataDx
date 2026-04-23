@@ -380,4 +380,4 @@ Streaming is real-time FPSS — no polling the historical REST endpoints. See [S
 - [DataFrames](./dataframes) — Arrow / Polars / Pandas output with the zero-copy scope
 - [Streaming (FPSS)](./streaming) — SPKI pinning, callback / polling models, lock-free ring, reconnect policy
 - [Error handling](./errors) — `ThetaDataError` hierarchy, retry policy, session refresh
-- [Historical endpoints](../historical/) — 61 endpoints, per-language examples on each
+- [Historical endpoints](../historical/) — complete generated historical surface, with per-language examples on each

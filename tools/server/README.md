@@ -43,7 +43,7 @@ The server starts:
 
 ## REST API
 
-All 61 registry endpoints are auto-generated into REST routes at startup from `ENDPOINTS`. Plus 4 system routes = 65 total HTTP routes.
+All registry endpoints are auto-generated into REST routes at startup from `ENDPOINTS`, alongside the hand-written system routes.
 
 Routes follow the current registry-driven v3 path scheme. The canonical checked-in contract is [`docs-site/public/thetadatadx.yaml`](../../docs-site/public/thetadatadx.yaml).
 SDK-only callback-based `*_stream` builders are documented in the API reference and are not exposed as HTTP routes.

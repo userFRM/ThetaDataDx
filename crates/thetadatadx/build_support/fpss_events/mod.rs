@@ -45,9 +45,11 @@ use super::ticks::GeneratedSourceFile;
 
 mod buffered;
 mod common;
+mod cpp_asserts;
 mod ffi_c;
 mod ffi_rust;
 mod go_structs;
+mod layout;
 mod python;
 mod schema;
 mod typescript;
@@ -133,6 +135,10 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             relative_path: "sdks/cpp/include/fpss_event_structs.h.inc",
             contents: ffi_c::render_c_fpss_event_header(&schema),
         },
+        GeneratedSourceFile {
+            relative_path: "sdks/cpp/include/fpss_layout_asserts.hpp.inc",
+            contents: cpp_asserts::render_cpp_fpss_layout_asserts(&schema),
+        },
         // Go-idiomatic struct definitions + kind enum + control constants
         // + `FpssEvent` wrapper. Standalone file in the `thetadatadx`
         // package, drop-in replacement for the hand-written block that
@@ -140,6 +146,14 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "sdks/go/fpss_event_structs.go",
             contents: go_structs::render_go_fpss_event_structs(&schema),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/go/fpss_ffi_sizes_generated.go",
+            contents: go_structs::render_go_fpss_ffi_sizes(&schema),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/go/fpss_ffi_offset_checks_generated.go",
+            contents: go_structs::render_go_fpss_offset_checks(&schema),
         },
     ])
 }

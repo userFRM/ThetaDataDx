@@ -13,7 +13,7 @@ use thetadatadx::fpss::protocol::Contract;
 let creds = Credentials::from_file("creds.txt")?;
 let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
-// Historical - 61 typed endpoints, available immediately
+// Historical - typed endpoints available immediately
 let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 
 // Streaming - connects lazily on first call
@@ -59,7 +59,7 @@ build_support/
 
 ## TOML Codegen
 
-All 13 tick types and their DataTable parsers are generated at compile time from `tick_schema.toml`. Adding a new column is one line in the TOML. See [docs/endpoint-schema.md](../../docs/endpoint-schema.md).
+All generated tick types and their DataTable parsers are generated at compile time from `tick_schema.toml`. Adding a new column is one line in the TOML. See [docs/endpoint-schema.md](../../docs/endpoint-schema.md).
 
 ## Endpoint Surface Spec
 

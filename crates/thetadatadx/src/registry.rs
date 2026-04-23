@@ -18,70 +18,6 @@
 //! API (`FnMut(&[T])`) that does not map to CLI/MCP output semantics. They
 //! remain available on `MddsClient` for programmatic use.
 
-/// Parameter type for endpoint arguments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParamType {
-    /// Single ticker symbol (e.g. "AAPL")
-    Symbol,
-    /// Comma-separated symbols (e.g. "AAPL,MSFT,GOOGL")
-    Symbols,
-    /// Date in YYYYMMDD format
-    Date,
-    /// Accepts milliseconds ("60000") or shorthand ("1m"). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
-    Interval,
-    /// Option right: C or P
-    Right,
-    /// Strike price as string
-    Strike,
-    /// Expiration date as string
-    Expiration,
-    /// Request type string (e.g. "TRADE", "QUOTE")
-    RequestType,
-    /// Free-form string
-    Str,
-    /// Year string (e.g. "2024")
-    Year,
-    /// Floating-point number (e.g. `annual_dividend`)
-    Float,
-    /// Integer (e.g. `max_dte`, `strike_range`)
-    Int,
-    /// Boolean flag
-    Bool,
-}
-
-/// What the endpoint returns.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReturnType {
-    /// `Vec<String>` extracted from a column
-    StringList,
-    /// `Vec<EodTick>`
-    EodTicks,
-    /// `Vec<OhlcTick>`
-    OhlcTicks,
-    /// `Vec<TradeTick>`
-    TradeTicks,
-    /// `Vec<QuoteTick>`
-    QuoteTicks,
-    /// `Vec<TradeQuoteTick>`
-    TradeQuoteTicks,
-    /// `Vec<OpenInterestTick>`
-    OpenInterestTicks,
-    /// `Vec<MarketValueTick>`
-    MarketValueTicks,
-    /// `Vec<GreeksTick>`
-    GreeksTicks,
-    /// `Vec<IvTick>`
-    IvTicks,
-    /// `Vec<PriceTick>`
-    PriceTicks,
-    /// `Vec<CalendarDay>`
-    CalendarDays,
-    /// `Vec<InterestRateTick>`
-    InterestRateTicks,
-    /// `Vec<OptionContract>`
-    OptionContracts,
-}
-
 /// Metadata for a single parameter.
 #[derive(Debug, Clone)]
 pub struct ParamMeta {
@@ -121,9 +57,6 @@ include!(concat!(env!("OUT_DIR"), "/registry_generated.rs"));
 //  Lookup helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// All category names in display order.
-pub const CATEGORIES: &[&str] = &["stock", "option", "index", "rate", "calendar"];
-
 /// Find an endpoint by its method name.
 #[must_use]
 pub fn find(name: &str) -> Option<&'static EndpointMeta> {
@@ -134,26 +67,6 @@ pub fn find(name: &str) -> Option<&'static EndpointMeta> {
 #[must_use]
 pub fn by_category(cat: &str) -> Vec<&'static EndpointMeta> {
     ENDPOINTS.iter().filter(|e| e.category == cat).collect()
-}
-
-/// Map a `ParamType` to a JSON Schema type string.
-#[must_use]
-pub fn param_type_to_json_type(pt: ParamType) -> &'static str {
-    match pt {
-        ParamType::Symbol
-        | ParamType::Symbols
-        | ParamType::Date
-        | ParamType::Interval
-        | ParamType::Right
-        | ParamType::Strike
-        | ParamType::Expiration
-        | ParamType::RequestType
-        | ParamType::Str
-        | ParamType::Year => "string",
-        ParamType::Float => "number",
-        ParamType::Int => "integer",
-        ParamType::Bool => "boolean",
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

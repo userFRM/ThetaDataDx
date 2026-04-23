@@ -222,8 +222,8 @@ flowchart TB
 | TypeScript | [`sdks/typescript`](sdks/typescript/) | napi-rs prebuilt binary |
 | Go | [`sdks/go`](sdks/go/) | CGo bindings over the FFI layer |
 | C++ | [`sdks/cpp`](sdks/cpp/) | RAII header-only wrapper |
-| CLI | [`tools/cli`](tools/cli/) | `tdx` CLI — all 61 endpoints from the command line |
-| MCP | [`tools/mcp`](tools/mcp/) | MCP server - gives LLMs access to 64 tools over JSON-RPC |
+| CLI | [`tools/cli`](tools/cli/) | `tdx` CLI — every generated historical endpoint from the command line |
+| MCP | [`tools/mcp`](tools/mcp/) | MCP server - gives clients access to every generated historical endpoint plus offline tools over JSON-RPC |
 | Server | [`tools/server`](tools/server/) | REST + WebSocket server exposing the `/v3/*` route surface |
 | Docs | [`docs/`](docs/) | API reference, architecture, Java parity checklist |
 | Website | [`docs-site/`](docs-site/) | VitePress documentation site (deployed to GitHub Pages) |
@@ -237,7 +237,7 @@ flowchart TB
 
 | Document | Description |
 |----------|-------------|
-| [API Reference](docs/api-reference.md) | All 61 typed methods (plus 4 `_stream` SDK-only variants), 13 tick types, configuration options |
+| [API Reference](docs/api-reference.md) | All typed methods, streaming builders, generated tick types, and configuration options |
 | [Architecture](docs/architecture.md) | System design, wire protocols, TOML codegen pipeline |
 | [Parity Checklist](docs/java-parity-checklist.md) | Feature-by-feature protocol and endpoint parity notes |
 | [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |

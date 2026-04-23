@@ -18,6 +18,8 @@ use serde::Deserialize;
 pub(super) struct SurfaceSpec {
     pub(super) version: u32,
     #[serde(default)]
+    pub(super) enums: Vec<SurfaceEnum>,
+    #[serde(default)]
     pub(super) param_groups: HashMap<String, SurfaceParamGroup>,
     #[serde(default)]
     pub(super) templates: HashMap<String, SurfaceTemplate>,
@@ -31,6 +33,24 @@ pub(super) struct SurfaceSpec {
     /// can read from here rather than hardcoding timeout_ms.
     #[serde(default)]
     pub(super) request_options_global: Vec<SurfaceGlobalRequestOption>,
+}
+
+/// A reusable wire string enum declared in `endpoint_surface.toml`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SurfaceEnum {
+    pub(super) name: String,
+    pub(super) rust_name: String,
+    pub(super) variants: Vec<SurfaceEnumVariant>,
+}
+
+/// A single enum variant across Rust, Python, TypeScript, and wire strings.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SurfaceEnumVariant {
+    pub(super) wire: String,
+    pub(super) rust: String,
+    pub(super) python: String,
 }
 
 /// A cross-cutting request-level option (e.g. `timeout_ms`).
@@ -158,6 +178,8 @@ pub(super) struct SurfaceParam {
     pub(super) name: String,
     pub(super) description: String,
     pub(super) param_type: String,
+    #[serde(default, rename = "enum")]
+    pub(super) enum_name: Option<String>,
     pub(super) required: bool,
     pub(super) binding: String,
     #[serde(default)]
@@ -235,10 +257,25 @@ pub(super) struct GeneratedParam {
     pub(super) name: String,
     pub(super) description: String,
     pub(super) param_type: String,
+    pub(super) enum_name: Option<String>,
     pub(super) required: bool,
     pub(super) binding: String,
     pub(super) arg_name: Option<String>,
     pub(super) default: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct GeneratedEnum {
+    pub(super) name: String,
+    pub(super) rust_name: String,
+    pub(super) variants: Vec<GeneratedEnumVariant>,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct GeneratedEnumVariant {
+    pub(super) wire: String,
+    pub(super) rust: String,
+    pub(super) python: String,
 }
 
 #[derive(Debug, Clone)]
@@ -266,6 +303,7 @@ pub(super) struct GeneratedEndpoint {
 #[derive(Debug, Clone)]
 pub(super) struct ParsedEndpoints {
     pub(super) endpoints: Vec<GeneratedEndpoint>,
+    pub(super) enums: Vec<GeneratedEnum>,
     pub(super) fixtures: TestFixtures,
 }
 

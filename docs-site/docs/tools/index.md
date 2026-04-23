@@ -5,11 +5,11 @@ description: Command-line, MCP, and drop-in REST/WebSocket server tools built on
 
 # Tools
 
-Three first-party tools built on top of the ThetaDataDx core. Every one is a thin wrapper — they all speak to the same Rust client and share the same 61 historical endpoints plus FPSS streaming.
+Three first-party tools built on top of the ThetaDataDx core. Every one is a thin wrapper — they all speak to the same Rust client and share the same generated historical surface plus FPSS streaming.
 
 ## [CLI (`tdx`)](./cli)
 
-Command-line interface for querying ThetaData market data from your terminal. All 61 endpoints, plus offline Greeks and implied volatility. Install with `cargo install thetadatadx-cli`.
+Command-line interface for querying ThetaData market data from your terminal. Covers every generated historical endpoint, plus offline Greeks and implied volatility. Install with `cargo install thetadatadx-cli`.
 
 Best for: ad-hoc queries, shell pipelines, cron jobs.
 

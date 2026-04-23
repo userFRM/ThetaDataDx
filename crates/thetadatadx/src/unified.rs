@@ -73,7 +73,7 @@ pub enum ConnectionStatus {
 /// available immediately. Streaming (FPSS TCP) connects lazily when
 /// you call [`start_streaming`](Self::start_streaming).
 ///
-/// All 61 historical endpoint methods are available via `Deref` to
+/// All historical endpoint methods are available via `Deref` to
 /// [`MddsClient`]. Streaming methods are on this struct directly.
 pub struct ThetaDataDx {
     historical: MddsClient,
@@ -458,7 +458,7 @@ impl Drop for ThetaDataDx {
     }
 }
 
-// All 61 historical methods available directly via Deref.
+// All historical methods available directly via Deref.
 impl std::ops::Deref for ThetaDataDx {
     type Target = MddsClient;
     fn deref(&self) -> &MddsClient {

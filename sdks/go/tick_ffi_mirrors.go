@@ -6,10 +6,8 @@ package thetadatadx
 // conversion across the FFI boundary. The align(64) means each struct
 // occupies a multiple of 64 bytes.
 //
-// These mirror repr(C, align(64)) Rust structs. Update when tick_schema.toml changes.
-// Generating exact padding is impractical because it depends on C ABI layout
-// rules not encoded in tick_schema.toml. The init() size assertions below
-// catch any drift at startup.
+// These mirror repr(C, align(64)) Rust structs. Layout checks are generated
+// from the TOML schemas and validated at startup/test time.
 
 /*
 #include "ffi_bridge.h"
@@ -287,11 +285,9 @@ type cOptionContract struct {
 // These assertions verify that Go struct layouts match the Rust #[repr(C)]
 // FFI structs. If a Rust struct changes (field added/removed/reordered),
 // these will panic at import time rather than silently reading corrupt data.
-// The expected sizes are validated against the Rust sizeof at PR review time.
-//
 // Companion offset checks:
-//   - Go mirror structs  → TestTickFieldOffsets in ffi_layout_test.go
-//   - C FPSS cgo structs → the `offsetChecks` block below (cgo + `_test.go`
+//   - Go mirror structs  → TestTickFieldOffsets in ffi_layout_generated_test.go
+//   - C FPSS cgo structs → the generated `fpssOffsetChecks` block below (cgo + `_test.go`
 //     don't mix, per Go toolchain restriction, so FPSS mirrors are
 //     validated here at package-load time instead of `go test`).
 //
@@ -307,37 +303,33 @@ func init() {
 		got  uintptr
 		want uintptr
 	}{
-		{"cEodTick", unsafe.Sizeof(cEodTick{}), 128},
-		{"cOhlcTick", unsafe.Sizeof(cOhlcTick{}), 128},
-		{"cTradeTick", unsafe.Sizeof(cTradeTick{}), 128},
-		{"cQuoteTick", unsafe.Sizeof(cQuoteTick{}), 128},
-		{"cOpenInterestTick", unsafe.Sizeof(cOpenInterestTick{}), 64},
-		{"cCalendarDay", unsafe.Sizeof(cCalendarDay{}), 64},
-		{"cInterestRateTick", unsafe.Sizeof(cInterestRateTick{}), 64},
-		{"cIvTick", unsafe.Sizeof(cIvTick{}), 64},
-		{"cPriceTick", unsafe.Sizeof(cPriceTick{}), 64},
-		{"cMarketValueTick", unsafe.Sizeof(cMarketValueTick{}), 64},
-		{"cGreeksTick", unsafe.Sizeof(cGreeksTick{}), 256},
-		{"cTradeQuoteTick", unsafe.Sizeof(cTradeQuoteTick{}), 192},
-		{"cOptionContract", unsafe.Sizeof(cOptionContract{}), 32},
-		// TdxEndpointRequestOptions: 29 builder-param fields (strike + right
-		// joined the builder-bound set in v8.0.10 alongside the existing 27)
-		// plus cross-cutting timeout_ms (uint64) + has_timeout_ms (int32) +
-		// tail-padding to align to uint64 = 192 bytes on x86_64 / aarch64.
-		{"TdxEndpointRequestOptions", unsafe.Sizeof(C.TdxEndpointRequestOptions{}), 192},
+		{"cEodTick", unsafe.Sizeof(cEodTick{}), CEodTickExpectedSize},
+		{"cOhlcTick", unsafe.Sizeof(cOhlcTick{}), COhlcTickExpectedSize},
+		{"cTradeTick", unsafe.Sizeof(cTradeTick{}), CTradeTickExpectedSize},
+		{"cQuoteTick", unsafe.Sizeof(cQuoteTick{}), CQuoteTickExpectedSize},
+		{"cOpenInterestTick", unsafe.Sizeof(cOpenInterestTick{}), COpenInterestTickExpectedSize},
+		{"cCalendarDay", unsafe.Sizeof(cCalendarDay{}), CCalendarDayExpectedSize},
+		{"cInterestRateTick", unsafe.Sizeof(cInterestRateTick{}), CInterestRateTickExpectedSize},
+		{"cIvTick", unsafe.Sizeof(cIvTick{}), CIvTickExpectedSize},
+		{"cPriceTick", unsafe.Sizeof(cPriceTick{}), CPriceTickExpectedSize},
+		{"cMarketValueTick", unsafe.Sizeof(cMarketValueTick{}), CMarketValueTickExpectedSize},
+		{"cGreeksTick", unsafe.Sizeof(cGreeksTick{}), CGreeksTickExpectedSize},
+		{"cTradeQuoteTick", unsafe.Sizeof(cTradeQuoteTick{}), CTradeQuoteTickExpectedSize},
+		{"cOptionContract", unsafe.Sizeof(cOptionContract{}), COptionContractExpectedSize},
+		{"TdxEndpointRequestOptions", unsafe.Sizeof(C.TdxEndpointRequestOptions{}), TdxEndpointRequestOptionsExpectedSize},
 		// FPSS cgo structs — schema-driven from fpss_event_schema.toml,
 		// same layout as ffi/src/fpss_event_structs.rs. Every data variant
 		// carries an embedded TdxContract (32 bytes on LP64) immediately
 		// after contract_id; sizes below recomputed from the struct under
 		// -O2 on an LP64 host and cross-validated against the C++
 		// static_assert block in sdks/cpp/include/thetadx.hpp.
-		{"C.TdxFpssOhlcvc", unsafe.Sizeof(C.TdxFpssOhlcvc{}), 112},
-		{"C.TdxFpssOpenInterest", unsafe.Sizeof(C.TdxFpssOpenInterest{}), 64},
-		{"C.TdxFpssQuote", unsafe.Sizeof(C.TdxFpssQuote{}), 104},
-		{"C.TdxFpssTrade", unsafe.Sizeof(C.TdxFpssTrade{}), 120},
-		{"C.TdxFpssControl", unsafe.Sizeof(C.TdxFpssControl{}), 16},
-		{"C.TdxFpssRawData", unsafe.Sizeof(C.TdxFpssRawData{}), 24},
-		{"C.TdxFpssEvent", unsafe.Sizeof(C.TdxFpssEvent{}), 448},
+		{"C.TdxFpssOhlcvc", unsafe.Sizeof(C.TdxFpssOhlcvc{}), CTdxFpssOhlcvcExpectedSize},
+		{"C.TdxFpssOpenInterest", unsafe.Sizeof(C.TdxFpssOpenInterest{}), CTdxFpssOpenInterestExpectedSize},
+		{"C.TdxFpssQuote", unsafe.Sizeof(C.TdxFpssQuote{}), CTdxFpssQuoteExpectedSize},
+		{"C.TdxFpssTrade", unsafe.Sizeof(C.TdxFpssTrade{}), CTdxFpssTradeExpectedSize},
+		{"C.TdxFpssControl", unsafe.Sizeof(C.TdxFpssControl{}), CTdxFpssControlExpectedSize},
+		{"C.TdxFpssRawData", unsafe.Sizeof(C.TdxFpssRawData{}), CTdxFpssRawDataExpectedSize},
+		{"C.TdxFpssEvent", unsafe.Sizeof(C.TdxFpssEvent{}), CTdxFpssEventExpectedSize},
 	}
 	for _, c := range sizeChecks {
 		if c.got != c.want {
@@ -345,85 +337,7 @@ func init() {
 		}
 	}
 
-	// FPSS field-offset checks — mirrors the static_assert(offsetof) block
-	// in sdks/cpp/include/thetadx.hpp. Field order in the wrapped Event
-	// struct is { kind, ohlcvc, open_interest, quote, trade, control,
-	// raw_data } per the Rust #[repr(C)] ground truth.
-	offsetChecks := []struct {
-		name string
-		got  uintptr
-		want uintptr
-	}{
-		// C.TdxFpssOhlcvc
-		{"C.TdxFpssOhlcvc.contract_id", unsafe.Offsetof(C.TdxFpssOhlcvc{}.contract_id), 0},
-		{"C.TdxFpssOhlcvc.contract", unsafe.Offsetof(C.TdxFpssOhlcvc{}.contract), 8},
-		{"C.TdxFpssOhlcvc.ms_of_day", unsafe.Offsetof(C.TdxFpssOhlcvc{}.ms_of_day), 40},
-		{"C.TdxFpssOhlcvc.open", unsafe.Offsetof(C.TdxFpssOhlcvc{}.open), 48},
-		{"C.TdxFpssOhlcvc.high", unsafe.Offsetof(C.TdxFpssOhlcvc{}.high), 56},
-		{"C.TdxFpssOhlcvc.low", unsafe.Offsetof(C.TdxFpssOhlcvc{}.low), 64},
-		{"C.TdxFpssOhlcvc.close", unsafe.Offsetof(C.TdxFpssOhlcvc{}.close), 72},
-		{"C.TdxFpssOhlcvc.volume", unsafe.Offsetof(C.TdxFpssOhlcvc{}.volume), 80},
-		{"C.TdxFpssOhlcvc.count", unsafe.Offsetof(C.TdxFpssOhlcvc{}.count), 88},
-		{"C.TdxFpssOhlcvc.date", unsafe.Offsetof(C.TdxFpssOhlcvc{}.date), 96},
-		{"C.TdxFpssOhlcvc.received_at_ns", unsafe.Offsetof(C.TdxFpssOhlcvc{}.received_at_ns), 104},
-		// C.TdxFpssOpenInterest
-		{"C.TdxFpssOpenInterest.contract_id", unsafe.Offsetof(C.TdxFpssOpenInterest{}.contract_id), 0},
-		{"C.TdxFpssOpenInterest.contract", unsafe.Offsetof(C.TdxFpssOpenInterest{}.contract), 8},
-		{"C.TdxFpssOpenInterest.ms_of_day", unsafe.Offsetof(C.TdxFpssOpenInterest{}.ms_of_day), 40},
-		{"C.TdxFpssOpenInterest.open_interest", unsafe.Offsetof(C.TdxFpssOpenInterest{}.open_interest), 44},
-		{"C.TdxFpssOpenInterest.date", unsafe.Offsetof(C.TdxFpssOpenInterest{}.date), 48},
-		{"C.TdxFpssOpenInterest.received_at_ns", unsafe.Offsetof(C.TdxFpssOpenInterest{}.received_at_ns), 56},
-		// C.TdxFpssQuote
-		{"C.TdxFpssQuote.contract_id", unsafe.Offsetof(C.TdxFpssQuote{}.contract_id), 0},
-		{"C.TdxFpssQuote.contract", unsafe.Offsetof(C.TdxFpssQuote{}.contract), 8},
-		{"C.TdxFpssQuote.ms_of_day", unsafe.Offsetof(C.TdxFpssQuote{}.ms_of_day), 40},
-		{"C.TdxFpssQuote.bid_size", unsafe.Offsetof(C.TdxFpssQuote{}.bid_size), 44},
-		{"C.TdxFpssQuote.bid_exchange", unsafe.Offsetof(C.TdxFpssQuote{}.bid_exchange), 48},
-		{"C.TdxFpssQuote.bid", unsafe.Offsetof(C.TdxFpssQuote{}.bid), 56},
-		{"C.TdxFpssQuote.bid_condition", unsafe.Offsetof(C.TdxFpssQuote{}.bid_condition), 64},
-		{"C.TdxFpssQuote.ask_size", unsafe.Offsetof(C.TdxFpssQuote{}.ask_size), 68},
-		{"C.TdxFpssQuote.ask_exchange", unsafe.Offsetof(C.TdxFpssQuote{}.ask_exchange), 72},
-		{"C.TdxFpssQuote.ask", unsafe.Offsetof(C.TdxFpssQuote{}.ask), 80},
-		{"C.TdxFpssQuote.ask_condition", unsafe.Offsetof(C.TdxFpssQuote{}.ask_condition), 88},
-		{"C.TdxFpssQuote.date", unsafe.Offsetof(C.TdxFpssQuote{}.date), 92},
-		{"C.TdxFpssQuote.received_at_ns", unsafe.Offsetof(C.TdxFpssQuote{}.received_at_ns), 96},
-		// C.TdxFpssTrade
-		{"C.TdxFpssTrade.contract_id", unsafe.Offsetof(C.TdxFpssTrade{}.contract_id), 0},
-		{"C.TdxFpssTrade.contract", unsafe.Offsetof(C.TdxFpssTrade{}.contract), 8},
-		{"C.TdxFpssTrade.ms_of_day", unsafe.Offsetof(C.TdxFpssTrade{}.ms_of_day), 40},
-		{"C.TdxFpssTrade.sequence", unsafe.Offsetof(C.TdxFpssTrade{}.sequence), 44},
-		{"C.TdxFpssTrade.ext_condition1", unsafe.Offsetof(C.TdxFpssTrade{}.ext_condition1), 48},
-		{"C.TdxFpssTrade.ext_condition2", unsafe.Offsetof(C.TdxFpssTrade{}.ext_condition2), 52},
-		{"C.TdxFpssTrade.ext_condition3", unsafe.Offsetof(C.TdxFpssTrade{}.ext_condition3), 56},
-		{"C.TdxFpssTrade.ext_condition4", unsafe.Offsetof(C.TdxFpssTrade{}.ext_condition4), 60},
-		{"C.TdxFpssTrade.condition", unsafe.Offsetof(C.TdxFpssTrade{}.condition), 64},
-		{"C.TdxFpssTrade.size", unsafe.Offsetof(C.TdxFpssTrade{}.size), 68},
-		{"C.TdxFpssTrade.exchange", unsafe.Offsetof(C.TdxFpssTrade{}.exchange), 72},
-		{"C.TdxFpssTrade.price", unsafe.Offsetof(C.TdxFpssTrade{}.price), 80},
-		{"C.TdxFpssTrade.condition_flags", unsafe.Offsetof(C.TdxFpssTrade{}.condition_flags), 88},
-		{"C.TdxFpssTrade.price_flags", unsafe.Offsetof(C.TdxFpssTrade{}.price_flags), 92},
-		{"C.TdxFpssTrade.volume_type", unsafe.Offsetof(C.TdxFpssTrade{}.volume_type), 96},
-		{"C.TdxFpssTrade.records_back", unsafe.Offsetof(C.TdxFpssTrade{}.records_back), 100},
-		{"C.TdxFpssTrade.date", unsafe.Offsetof(C.TdxFpssTrade{}.date), 104},
-		{"C.TdxFpssTrade.received_at_ns", unsafe.Offsetof(C.TdxFpssTrade{}.received_at_ns), 112},
-		// C.TdxFpssControl
-		{"C.TdxFpssControl.kind", unsafe.Offsetof(C.TdxFpssControl{}.kind), 0},
-		{"C.TdxFpssControl.id", unsafe.Offsetof(C.TdxFpssControl{}.id), 4},
-		{"C.TdxFpssControl.detail", unsafe.Offsetof(C.TdxFpssControl{}.detail), 8},
-		// C.TdxFpssRawData
-		{"C.TdxFpssRawData.code", unsafe.Offsetof(C.TdxFpssRawData{}.code), 0},
-		{"C.TdxFpssRawData.payload", unsafe.Offsetof(C.TdxFpssRawData{}.payload), 8},
-		{"C.TdxFpssRawData.payload_len", unsafe.Offsetof(C.TdxFpssRawData{}.payload_len), 16},
-		// C.TdxFpssEvent — the motivating case.
-		{"C.TdxFpssEvent.kind", unsafe.Offsetof(C.TdxFpssEvent{}.kind), 0},
-		{"C.TdxFpssEvent.ohlcvc", unsafe.Offsetof(C.TdxFpssEvent{}.ohlcvc), 8},
-		{"C.TdxFpssEvent.open_interest", unsafe.Offsetof(C.TdxFpssEvent{}.open_interest), 120},
-		{"C.TdxFpssEvent.quote", unsafe.Offsetof(C.TdxFpssEvent{}.quote), 184},
-		{"C.TdxFpssEvent.trade", unsafe.Offsetof(C.TdxFpssEvent{}.trade), 288},
-		{"C.TdxFpssEvent.control", unsafe.Offsetof(C.TdxFpssEvent{}.control), 408},
-		{"C.TdxFpssEvent.raw_data", unsafe.Offsetof(C.TdxFpssEvent{}.raw_data), 424},
-	}
-	for _, c := range offsetChecks {
+	for _, c := range fpssOffsetChecks {
 		if c.got != c.want {
 			panic(fmt.Sprintf("thetadatadx: %s offset mismatch: Go=%d, expected=%d (Rust FFI layout changed)", c.name, c.got, c.want))
 		}

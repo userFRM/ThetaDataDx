@@ -57,7 +57,7 @@ MDDS is a standard gRPC service over TLS, operating on port 443.
 
 - **Package**: `BetaEndpoints`
 - **Service**: `BetaThetaTerminal`
-- **Methods**: 60 RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps all 60 gRPC RPCs plus 1 convenience range-query variant = **61 methods** on `ThetaDataDx`, generated from the checked-in endpoint surface spec (`endpoint_surface.toml`) validated against `mdds.proto`. The internal `MddsClient` still uses macro-generated builders, but endpoint declarations are no longer hand-maintained.
+- **Methods**: current gRPC RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps the full current gRPC surface plus the convenience range-query variant on `ThetaDataDx`, generated from the checked-in endpoint surface spec (`endpoint_surface.toml`) validated against `mdds.proto`. The internal `MddsClient` still uses macro-generated builders, but endpoint declarations are no longer hand-maintained.
 - **Categories**: Stock, Option, Index, Interest Rate, Calendar - each with List, History, Snapshot, AtTime, and Greeks sub-categories
 
 ### Request Structure
@@ -160,7 +160,7 @@ ThetaDataDx has two generation pipelines at build time:
 
 ```mermaid
 flowchart LR
-    TOML["tick_schema.toml<br/><i>13 tick type definitions<br/>with column schemas</i>"]
+    TOML["tick_schema.toml<br/><i>generated tick type definitions<br/>with column schemas</i>"]
     SURFACE["endpoint_surface.toml<br/><i>endpoint spec<br/>groups + templates</i>"]
     PROTO["mdds.proto<br/><i>official wire contract</i>"]
     BUILD["build.rs<br/><i>delegates to build_support/</i>"]
@@ -190,7 +190,7 @@ flowchart LR
     DIRECT_GEN --> DIRECT
 ```
 
-The 13 tick layouts are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. 9 of these (all except `CalendarDay`, `InterestRateTick`, `PriceTick`, `OptionContract`) carry contract identification fields (`expiration`, `strike`, `right`) populated by the server on wildcard queries.
+The generated tick layouts are: `TradeTick`, `QuoteTick`, `OhlcTick`, `EodTick`, `OpenInterestTick`, `TradeQuoteTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. The contract-identifying variants (all except `CalendarDay`, `InterestRateTick`, `PriceTick`, and `OptionContract`) carry `expiration`, `strike`, and `right`, populated by the server on wildcard queries.
 
 Adding a new endpoint now means updating the explicit endpoint surface spec rather than hand-wiring matches across multiple transports. See `crates/thetadatadx/proto/MAINTENANCE.md` for the current maintenance flow.
 
@@ -522,7 +522,7 @@ graph TD
         subgraph tdbe_types["types/"]
             T_ENUM["enums.rs<br/><i>91 DataType codes</i>"]
             T_PRICE["price.rs<br/><i>fixed-point Price</i>"]
-            T_TICK["tick.rs<br/><i>13 tick types (generated)<br/>TradeTick, QuoteTick, OhlcTick,<br/>EodTick, OpenInterestTick,<br/>TradeQuoteTick,<br/>MarketValueTick, GreeksTick,<br/>IvTick, PriceTick, CalendarDay,<br/>InterestRateTick,<br/>OptionContract</i>"]
+            T_TICK["tick.rs<br/><i>generated tick types<br/>TradeTick, QuoteTick, OhlcTick,<br/>EodTick, OpenInterestTick,<br/>TradeQuoteTick,<br/>MarketValueTick, GreeksTick,<br/>IvTick, PriceTick, CalendarDay,<br/>InterestRateTick,<br/>OptionContract</i>"]
         end
 
         TDBE_GREEKS["greeks.rs<br/><i>22 Greeks + IV</i>"]
@@ -557,7 +557,7 @@ graph TD
         REGISTRY["registry.rs<br/><i>EndpointMeta, ENDPOINTS static</i>"]
 
         subgraph codegen["Build-time Generation"]
-            SCHEMA["tick_schema.toml<br/><i>13 tick type definitions</i>"]
+            SCHEMA["tick_schema.toml<br/><i>generated tick type definitions</i>"]
             SURFACE["endpoint_surface.toml<br/><i>endpoint surface spec<br/>groups + templates</i>"]
             BUILD["build.rs<br/><i>delegates to build_support/</i>"]
             SUPPORT["build_support/<br/><i>endpoints/ + ticks/</i>"]

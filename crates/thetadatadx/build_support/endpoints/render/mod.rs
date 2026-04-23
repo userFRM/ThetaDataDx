@@ -10,6 +10,7 @@ mod build_out;
 mod cli_validate;
 mod cpp;
 mod cpp_validate;
+mod enums;
 mod ffi;
 mod go;
 mod go_validate;
