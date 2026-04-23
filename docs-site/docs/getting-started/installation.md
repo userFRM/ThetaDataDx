@@ -1,11 +1,11 @@
 ---
 title: Installation
-description: Install ThetaDataDx for Rust, Python, TypeScript/Node.js, Go, or C++ — the ThetaData Python SDK is Python-only; ThetaDataDx ships five languages.
+description: Install ThetaDataDx for Rust, Python, TypeScript/Node.js, Go, or C++.
 ---
 
 # Installation
 
-The ThetaData Python SDK is Python-only. ThetaDataDx ships five native SDKs from one Rust core; pick your language and the one-liner below.
+ThetaDataDx ships five language surfaces from one Rust core. Pick your language and use the one-liner below.
 
 ## SDK installation
 

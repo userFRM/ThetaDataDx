@@ -42,7 +42,7 @@ import { ThetaDataDx } from 'thetadatadx';
 
 const tdx = await ThetaDataDx.connectFromFile('creds.txt');
 
-const eod = tdx.stockHistoryEod('AAPL', '20240101', '20240301');
+const eod = tdx.stockHistoryEOD('AAPL', '20240101', '20240301');
 for (const tick of eod) {
     console.log(`${tick.date}: O=${tick.open} H=${tick.high} L=${tick.low} C=${tick.close} V=${tick.volume}`);
 }

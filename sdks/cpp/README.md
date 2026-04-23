@@ -1,8 +1,8 @@
 # thetadatadx (C++)
 
-C++ SDK for ThetaData market data, powered by the `thetadatadx` Rust crate via C FFI.
+C++ SDK for ThetaData market data. Header-only RAII wrappers over the `thetadatadx` Rust crate via the shared C FFI layer.
 
-**This is NOT a C++ reimplementation.** Every call goes through compiled Rust via a C FFI layer. gRPC communication, protobuf parsing, zstd decompression, and TCP streaming all happen at native Rust speed. C++ is just the interface.
+Every call crosses the C ABI boundary into compiled Rust: gRPC communication, protobuf parsing, zstd decompression, and TCP streaming run inside the `thetadatadx` crate.
 
 ## Prerequisites
 

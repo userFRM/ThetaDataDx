@@ -5,7 +5,7 @@ description: Real-time market data via FPSS with SPKI pinning, callback / pollin
 
 # Streaming (FPSS)
 
-The ThetaData Python SDK has no streaming surface. ThetaDataDx ships a full FPSS (Feed Processing Streaming Server) client: persistent TLS/TCP connection, SPKI certificate pinning, delta-decompressed FIT frames, and a lock-free SPSC ring buffer for event dispatch.
+ThetaDataDx ships an FPSS (Feed Processing Streaming Server) client: persistent TLS/TCP connection, SPKI certificate pinning, delta-decompressed FIT frames, and an SPSC ring buffer for event dispatch.
 
 This page covers the streaming model at the Getting Started level. For event shapes, reconnection semantics, latency measurement, and per-SDK method references, see the dedicated [Real-Time Streaming section](../streaming/).
 

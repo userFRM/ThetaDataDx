@@ -1,6 +1,6 @@
 # tdx - ThetaDataDx CLI
 
-Command-line interface for querying ThetaData market data. No JVM required.
+Command-line interface for querying ThetaData market data.
 
 ## Install
 
@@ -130,7 +130,7 @@ tdx stock history_eod AAPL 20240101 20240301 --format csv      # CSV
 
 ## Endpoint coverage
 
-All 61 ThetaDataDx endpoints are exposed, plus 2 offline commands, organized by category:
+The 61 ThetaDataDx endpoints are organized by category (Stock + Option + Index + Rate + Calendar = 14 + 34 + 9 + 1 + 3 = 61). Two additional offline commands (`greeks`, `iv`) are not ThetaData endpoints — they call the in-process Black-Scholes calculator:
 
 | Category | Count | Subcommands |
 |----------|-------|-------------|
@@ -139,4 +139,4 @@ All 61 ThetaDataDx endpoints are exposed, plus 2 offline commands, organized by 
 | Index | 9 | `list_symbols`, `list_dates`, `history_eod`, `history_ohlc`, `history_price`, `snapshot_ohlc`, `snapshot_price`, `snapshot_market_value`, `at_time_price` |
 | Rate | 1 | `history_eod` |
 | Calendar | 3 | `open_today`, `on_date`, `year` |
-| Offline | 2 | `greeks`, `iv` |
+| Offline (not endpoints) | 2 | `greeks`, `iv` — local Black-Scholes calculator, maps to MCP tools `all_greeks` and `implied_volatility` respectively |

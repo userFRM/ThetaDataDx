@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: "ThetaDataDx"
-  text: "Direct-wire SDK for ThetaData"
-  tagline: "Up to 9× faster and 75× less RAM than the ThetaData Python SDK, across Rust, Python, TypeScript, Go, and C++."
+  text: "Rust SDK for ThetaData market data"
+  tagline: "Historical (MDDS gRPC) and real-time (FPSS) surfaces plus a local Greeks calculator, exposed in Rust, Python, TypeScript, Go, and C++ from a single Rust core."
   actions:
     - theme: brand
       text: Get Started
@@ -19,20 +19,20 @@ hero:
 features:
   - icon:
       src: /icons/globe.svg
-    title: "Five native SDKs"
-    details: "One Rust core, five native bindings: Rust, Python (PyO3, abi3), TypeScript/Node.js (napi-rs), Go (CGo), C++ (RAII). Same API shape, typed results in each language's idiom."
+    title: "Five language surfaces"
+    details: "One Rust core, five bindings: Rust, Python (PyO3, abi3), TypeScript/Node.js (napi-rs), Go (CGo), C++ (RAII header-only). Same API shape, typed results in each language's idiom."
   - icon:
       src: /icons/bolt.svg
     title: "Real-time streaming"
-    details: "FPSS client with SPKI certificate pinning, LMAX Disruptor SPSC ring (131,072 slots), configurable reconnect policy. The ThetaData Python SDK has no streaming at all."
+    details: "FPSS client with SPKI certificate pinning, SPSC ring buffer (131,072 slots), configurable reconnect policy. Subscribes to quotes, trades, open interest, and full-stream firehoses."
   - icon:
       src: /icons/chart.svg
     title: "Local Greeks"
-    details: "22 Black-Scholes Greeks plus an IV solver, computed in Rust with no server round-trip. ThetaData routes Greeks through the server; ThetaDataDx also ships the server-computed endpoints."
+    details: "22 Black-Scholes Greeks plus an IV solver, computed in Rust with no server round-trip. The server-computed Greeks endpoints are also exposed."
   - icon:
       src: /icons/terminal.svg
     title: "CLI, MCP, REST server"
-    details: "Standalone CLI for quick queries, an MCP server for AI-assisted workflows, and a REST+WS server that drop-in replaces the Java terminal on port 25503."
+    details: "Standalone CLI for one-off queries, an MCP server that exposes the 61 endpoints plus three offline tools to any MCP-compatible client, and a REST + WebSocket server on port 25503."
 ---
 
 <div class="install-section">
@@ -139,17 +139,17 @@ for (const auto& q : quotes) {
 
 :::
 
-### What you get
+### What ships
 
-| Axis | ThetaData Python SDK | ThetaDataDx |
-|------|----------------------|-------------|
-| Languages | Python only | Rust, Python, TypeScript, Go, C++ |
-| Historical endpoints | 61 | 61 (same coverage) |
-| Real-time streaming | Not available | FPSS with SPKI pinning, SPSC ring, reconnect policy |
-| Local Greeks calculator | Server round-trip | 22 Greeks + IV solver in Rust |
-| Async Python surface | None | `*_async` variant of every endpoint |
-| DataFrame output | polars default | Arrow / polars / pandas via explicit conversion |
+| Axis | ThetaDataDx |
+|------|-------------|
+| Languages | Rust, Python, TypeScript, Go, C++ |
+| Historical endpoints | 61 typed methods (plus 4 `_stream` SDK-only variants) |
+| Real-time streaming | FPSS with SPKI pinning, SPSC ring, reconnect policy |
+| Local Greeks calculator | 22 Greeks + IV solver in Rust |
+| Async Python surface | `*_async` variant of every endpoint |
+| DataFrame output | Arrow / polars / pandas via explicit conversion |
 
-The Rust decode core, typed-struct SDK surface, and Arrow-backed DataFrame path are designed to keep decode cost off the GIL and out of Python-object churn, which matters most on dense Greeks endpoints at 176k+ rows.
+Historical decode runs in Rust and materialises typed structs (or an Arrow `RecordBatch`, zero-copy at the PyO3 boundary).
 
 </div>

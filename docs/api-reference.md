@@ -699,7 +699,7 @@ All 61 endpoints are available in the Python SDK via PyO3 bindings (e.g., `tdx.s
 
 ### TypeScript/Node.js SDK Coverage
 
-All 61 endpoints are available in the TypeScript/Node.js SDK via napi-rs bindings as camelCase methods (e.g., `tdx.stockHistoryEod(...)`). Streaming is available via `tdx.startStreaming()` / `tdx.nextEvent()`. Returns columnar objects with typed fields.
+All 61 endpoints are available in the TypeScript/Node.js SDK via napi-rs bindings as camelCase methods (e.g., `tdx.stockHistoryEOD(...)`). Streaming is available via `tdx.startStreaming()` / `tdx.nextEvent()`. Returns columnar objects with typed fields.
 
 ### Python SDK: Streaming
 
@@ -953,8 +953,6 @@ pub enum FpssControl {
     Error { message: String },
 }
 ```
-
-**Migration from v2.x**: Replace `FpssClient::connect()` with `tdx.start_streaming(handler)`. Replace `fpss.subscribe_quotes(...)` with `tdx.subscribe_quotes(...)`. Replace `fpss.shutdown()` with `tdx.stop_streaming()`.
 
 ### OhlcvcAccumulator
 

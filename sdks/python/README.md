@@ -1,14 +1,6 @@
 # thetadatadx (Python)
 
-Python SDK for ThetaData market data, powered by the `thetadatadx` Rust crate via PyO3.
-
-**This is NOT a Python reimplementation.** Every call goes through compiled Rust - gRPC communication, protobuf parsing, zstd decompression, FIT tick decoding, and TCP streaming all happen at native speed. Python is just the interface.
-
-## Performance
-
-On bulk options-data pulls against the vendor's official Python client: **5-6× faster wall-clock** and **~10× lower peak RSS**. Best measured wall-clock speedup is `option_history_ohlc` at 6.08× (117 691 rows); largest peak-RSS advantage is `option_history_greeks_all` at 10.5× less peak (731 MB vendor → 70 MB DX arrow on 176 732 × 31). Median across the 10 largest bulk endpoints is 4.5× wall.
-
-Snapshot / calendar calls land ≤ vendor wall time post-v8.0.6 — the snapshot fast-path skips the `<TickName>List` wrapper and replaces the `run_blocking` signal-check ticker with a bounded `tokio::time::timeout`, closing the residual 3-7 ms per-call gap. Bulk-pull wins come from the Rust decode pipeline + direct-to-Arrow buffer path.
+Python bindings over the Rust core. Every call crosses the PyO3 boundary into Rust: gRPC communication, protobuf parsing, zstd decompression, FIT tick decoding, and TCP streaming run inside the `thetadatadx` crate.
 
 ## Installation
 
@@ -349,7 +341,7 @@ graph TD
     B - "tonic gRPC / TLS TCP" --> C["ThetaData servers"]
 ```
 
-No HTTP middleware, no Java terminal, no subprocess. Direct wire protocol access at Rust speed.
+No HTTP middleware, no Java terminal, no subprocess. Direct wire-protocol access from the Rust core.
 
 ## FPSS Streaming
 

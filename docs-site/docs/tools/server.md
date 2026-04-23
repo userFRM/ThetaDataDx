@@ -77,7 +77,7 @@ Response envelope matches the Java terminal:
 ```
 
 ::: tip
-The REST server uses sonic-rs (SIMD-accelerated JSON) for serialization, providing faster response times than the Java terminal on large payloads.
+The REST server uses sonic-rs (SIMD-accelerated JSON) for response serialization.
 :::
 
 ## WebSocket API

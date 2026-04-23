@@ -1,8 +1,8 @@
 # thetadatadx (Go)
 
-Go SDK for ThetaData market data, powered by the `thetadatadx` Rust crate via CGo FFI.
+Go SDK for ThetaData market data. CGo bindings over the `thetadatadx` Rust crate via the shared C FFI layer.
 
-**This is NOT a Go reimplementation.** Every call goes through compiled Rust via a C FFI layer. gRPC communication, protobuf parsing, zstd decompression, and TCP streaming all happen at native Rust speed. Go is just the interface.
+Every call crosses the CGo boundary into compiled Rust: gRPC communication, protobuf parsing, zstd decompression, and TCP streaming run inside the `thetadatadx` crate.
 
 ## Prerequisites
 
