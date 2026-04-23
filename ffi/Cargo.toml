@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-ffi"
-version = "8.0.13"
+version = "8.0.14"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true

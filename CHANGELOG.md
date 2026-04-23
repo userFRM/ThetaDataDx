@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.14] - 2026-04-23
+
+### Fixed
+
+- Re-publish the v8.0.13 chain to crates.io and GitHub Releases. The
+  v8.0.13 tag CI failed on the `Extended Surfaces` docs-consistency
+  gate because the squash merge of #412 captured an intermediate
+  branch state (top-level `CHANGELOG.md` had the final wording while
+  the mirrored `docs-site/docs/changelog.md` still had the pre-cp
+  wording). PyPI and npm published v8.0.13 successfully; crates.io
+  and the GitHub Release did not. v8.0.14 re-publishes everything
+  from the synced main tip. No behavior change vs v8.0.13.
+
 ## [8.0.13] - 2026-04-23
 
 ### Fixed
