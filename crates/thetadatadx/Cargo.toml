@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx"
-version = "8.0.5"
+version = "8.0.6"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -28,6 +28,13 @@ config-file = ["dep:toml"]
 # HTTP listener binds to `DirectConfig::metrics_port` (see the
 # `observability` module) and serves recorder state on `/metrics`.
 metrics-prometheus = ["dep:metrics-exporter-prometheus"]
+# DataFrame ergonomics for Rust consumers — `.to_polars()` / `.to_arrow()`
+# extension traits on slices of tick rows (see `crates/thetadatadx/src/frames.rs`).
+# Opt-in: polars and arrow stay behind feature flags so the default dep graph
+# is unchanged. `frames` is a convenience alias pulling both in at once.
+polars = ["dep:polars"]
+arrow = ["dep:arrow-array", "dep:arrow-schema"]
+frames = ["polars", "arrow"]
 
 [dependencies]
 tdbe = { version = "0.11.0", path = "../tdbe" }
@@ -85,6 +92,22 @@ regex = "1.12.3"
 
 # Lock-free ring buffer (LMAX Disruptor pattern) for FPSS event dispatch
 disruptor = "4.0.0"
+
+# Optional DataFrame / Arrow extension traits (`frames` module).
+# polars: minimal feature set — just enough to build `DataFrame::new(vec![Series::new(...).into()])`.
+# No lazy, no I/O, no parquet, no SQL, no compute kernels. `default-features = false`
+# avoids pulling the polars-plan / polars-sql / polars-parquet graph into dependents
+# that only want row-to-frame materialization.
+polars = { version = "0.46", optional = true, default-features = false }
+# arrow-array + arrow-schema cover RecordBatch construction and the
+# `Int32Array` / `Int64Array` / `Float64Array` / `StringArray` primitives
+# the generator emits. Pulling the full `arrow` umbrella crate would also
+# drag in parquet, compute kernels, and CSV / JSON readers we do not need.
+# Version pinned to 58.x — matches `sdks/python/Cargo.toml` (which depends on
+# `arrow = "58.1.0"`) so every crate in the repo sees a single major-version
+# of the arrow family at link time.
+arrow-array = { version = "58.1.0", optional = true }
+arrow-schema = { version = "58.1.0", optional = true }
 
 # Secret-wiping wrapper for password in `Credentials`. Zeroizes the backing
 # buffer on drop so the plaintext is not recoverable from a core dump or

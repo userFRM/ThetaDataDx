@@ -51,6 +51,31 @@ pub(super) fn is_streaming_endpoint(endpoint: &GeneratedEndpoint) -> bool {
     endpoint.kind == "stream"
 }
 
+/// Return `true` if the endpoint is a latency-sensitive single-row (or
+/// ≤10-row) snapshot/calendar lookup. Triggers the Python fast path:
+/// no `<T>List` wrapper, no `run_blocking` signal-check ticker, bounded
+/// `tokio::time::timeout` instead.
+///
+/// Classification lives in `endpoint_surface.toml`:
+///   * `subcategory = "snapshot"` — stock/option/index snapshot variants.
+///   * `subcategory = "snapshot_greeks"` — option_snapshot_greeks_*.
+///   * `category = "calendar"` + `kind = "parsed"` — calendar_* endpoints
+///     (the TOML groups both `calendar_status` and `calendar_query` under
+///     the `calendar` category; both fit the ≤1-row lookup shape).
+///
+/// No hand-curated allowlist. Adding a new snapshot / calendar endpoint to
+/// the TOML with the right template automatically opts it into the fast
+/// path on the next generator run.
+pub(super) fn is_snapshot_endpoint(endpoint: &GeneratedEndpoint) -> bool {
+    if endpoint.kind != "parsed" {
+        return false;
+    }
+    matches!(
+        endpoint.subcategory.as_str(),
+        "snapshot" | "snapshot_greeks"
+    ) || endpoint.category == "calendar"
+}
+
 pub(super) fn is_method_call_param(param: &GeneratedParam) -> bool {
     param.binding == "method"
 }
@@ -637,6 +662,33 @@ pub(super) fn python_pyclass_list_class(return_type: &str) -> &'static str {
         "InterestRateTicks" => "InterestRateTickList",
         "OptionContracts" => "OptionContractList",
         other => panic!("unsupported Python pyclass-list class: {other}"),
+    }
+}
+
+/// Map a collection return type (e.g. `CalendarDays`) to the generated
+/// `<tick>_vec_to_pylist` converter in `tick_classes.rs`. This is the
+/// snapshot-endpoint fast path: takes a decoder-owned `Vec<tick::T>` and
+/// materialises a plain `Py<PyList>` of typed pyclass instances, skipping
+/// the `<TickName>List` wrapper allocation. Used only for snapshot- and
+/// calendar-kind endpoints (see `is_snapshot_endpoint`). Parsed list
+/// endpoints keep the wrapper because users chain `.to_polars()` on bulk
+/// results.
+pub(super) fn python_vec_to_pylist_converter(return_type: &str) -> &'static str {
+    match return_type {
+        "EodTicks" => "eod_ticks_vec_to_pylist",
+        "OhlcTicks" => "ohlc_ticks_vec_to_pylist",
+        "TradeTicks" => "trade_ticks_vec_to_pylist",
+        "QuoteTicks" => "quote_ticks_vec_to_pylist",
+        "TradeQuoteTicks" => "trade_quote_ticks_vec_to_pylist",
+        "OpenInterestTicks" => "open_interest_ticks_vec_to_pylist",
+        "MarketValueTicks" => "market_value_ticks_vec_to_pylist",
+        "GreeksTicks" => "greeks_ticks_vec_to_pylist",
+        "IvTicks" => "iv_ticks_vec_to_pylist",
+        "PriceTicks" => "price_ticks_vec_to_pylist",
+        "CalendarDays" => "calendar_days_vec_to_pylist",
+        "InterestRateTicks" => "interest_rate_ticks_vec_to_pylist",
+        "OptionContracts" => "option_contracts_vec_to_pylist",
+        other => panic!("unsupported Python vec-to-pylist converter: {other}"),
     }
 }
 

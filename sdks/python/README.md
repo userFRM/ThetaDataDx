@@ -8,7 +8,7 @@ Python SDK for ThetaData market data, powered by the `thetadatadx` Rust crate vi
 
 On bulk options-data pulls against the vendor's official Python client: **5-6× faster wall-clock** and **~10× lower peak RSS**. Best measured wall-clock speedup is `option_history_ohlc` at 6.08× (117 691 rows); largest peak-RSS advantage is `option_history_greeks_all` at 10.5× less peak (731 MB vendor → 70 MB DX arrow on 176 732 × 31). Median across the 10 largest bulk endpoints is 4.5× wall.
 
-Small snapshot / calendar calls (≤100 rows) run within ±5 % of the vendor — both libraries hit the same gRPC wire and neither can beat network RTT on those shapes. The bulk-pull wins come from the Rust decode pipeline + direct-to-Arrow buffer path.
+Snapshot / calendar calls land ≤ vendor wall time post-v8.0.6 — the snapshot fast-path skips the `<TickName>List` wrapper and replaces the `run_blocking` signal-check ticker with a bounded `tokio::time::timeout`, closing the residual 3-7 ms per-call gap. Bulk-pull wins come from the Rust decode pipeline + direct-to-Arrow buffer path.
 
 ## Installation
 

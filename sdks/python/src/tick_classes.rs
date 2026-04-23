@@ -2870,6 +2870,240 @@ pub(crate) fn trade_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::Trade
     Py::new(py, TradeTickList::new(ticks))
 }
 
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `CalendarDay` pyclass instances without allocating a
+/// `CalendarDayList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn calendar_days_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::CalendarDay>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             CalendarDay {
+                date: t.date,
+                is_open: t.is_open,
+                open_time: t.open_time,
+                close_time: t.close_time,
+                status: t.status,
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `GreeksTick` pyclass instances without allocating a
+/// `GreeksTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn greeks_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::GreeksTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             GreeksTick {
+                ms_of_day: t.ms_of_day,
+                implied_volatility: t.implied_volatility,
+                delta: t.delta,
+                gamma: t.gamma,
+                theta: t.theta,
+                vega: t.vega,
+                rho: t.rho,
+                iv_error: t.iv_error,
+                vanna: t.vanna,
+                charm: t.charm,
+                vomma: t.vomma,
+                veta: t.veta,
+                speed: t.speed,
+                zomma: t.zomma,
+                color: t.color,
+                ultima: t.ultima,
+                d1: t.d1,
+                d2: t.d2,
+                dual_delta: t.dual_delta,
+                dual_gamma: t.dual_gamma,
+                epsilon: t.epsilon,
+                lambda: t.lambda,
+                vera: t.vera,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `IvTick` pyclass instances without allocating a
+/// `IvTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn iv_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::IvTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             IvTick {
+                ms_of_day: t.ms_of_day,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `MarketValueTick` pyclass instances without allocating a
+/// `MarketValueTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn market_value_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::MarketValueTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             MarketValueTick {
+                ms_of_day: t.ms_of_day,
+                market_bid: t.market_bid,
+                market_ask: t.market_ask,
+                market_price: t.market_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `OhlcTick` pyclass instances without allocating a
+/// `OhlcTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn ohlc_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::OhlcTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             OhlcTick {
+                ms_of_day: t.ms_of_day,
+                open: t.open,
+                high: t.high,
+                low: t.low,
+                close: t.close,
+                volume: t.volume,
+                count: t.count,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `OpenInterestTick` pyclass instances without allocating a
+/// `OpenInterestTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn open_interest_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::OpenInterestTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             OpenInterestTick {
+                ms_of_day: t.ms_of_day,
+                open_interest: t.open_interest,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `PriceTick` pyclass instances without allocating a
+/// `PriceTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn price_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::PriceTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             PriceTick {
+                ms_of_day: t.ms_of_day,
+                price: t.price,
+                date: t.date,
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `QuoteTick` pyclass instances without allocating a
+/// `QuoteTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn quote_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::QuoteTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             QuoteTick {
+                ms_of_day: t.ms_of_day,
+                bid_size: t.bid_size,
+                bid_exchange: t.bid_exchange,
+                bid: t.bid,
+                bid_condition: t.bid_condition,
+                ask_size: t.ask_size,
+                ask_exchange: t.ask_exchange,
+                ask: t.ask,
+                ask_condition: t.ask_condition,
+                date: t.date,
+                midpoint: t.midpoint,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `TradeTick` pyclass instances without allocating a
+/// `TradeTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn trade_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::TradeTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             TradeTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                condition_flags: t.condition_flags,
+                price_flags: t.price_flags,
+                volume_type: t.volume_type,
+                records_back: t.records_back,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
 // ─────────────── String list wrapper ───────────────
 //
 // Emitted unconditionally (not schema-driven). Shared by every

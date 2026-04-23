@@ -32,3 +32,27 @@ mod proto_parser;
 mod render;
 
 pub use render::{check_sdk_generated_files, generate_all, write_sdk_generated_files};
+
+/// Compute the set of tick return-type names (e.g. `"OhlcTicks"`,
+/// `"CalendarDays"`) that are reached by any snapshot-kind endpoint in
+/// `endpoint_surface.toml`. Consumed by the `ticks` generator to decide
+/// which tick types get a `<tick>_vec_to_pylist` fast-path converter
+/// emitted into `sdks/python/src/tick_classes.rs` — emitting for every
+/// tick type would leave dead-code fns (each `_vec_to_pylist` is only
+/// called from snapshot-endpoint pymethods, so a tick type with no
+/// snapshot endpoint has no caller).
+///
+/// Single SSOT: classification logic lives in [`helpers::is_snapshot_endpoint`]
+/// and is driven entirely by TOML `category` / `subcategory` / `kind`
+/// fields — no hand-curated allowlist, so adding a snapshot endpoint of
+/// a new tick type automatically opts its converter into emission.
+pub fn snapshot_return_types(
+) -> Result<std::collections::HashSet<String>, Box<dyn std::error::Error>> {
+    let endpoints = parser::load_endpoint_specs()?;
+    Ok(endpoints
+        .endpoints
+        .iter()
+        .filter(|e| helpers::is_snapshot_endpoint(e))
+        .map(|e| e.return_type.clone())
+        .collect())
+}

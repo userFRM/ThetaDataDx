@@ -8773,7 +8773,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<OhlcTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_ohlc(&refs);
         if let Some(value) = venue {
@@ -8785,8 +8785,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        ohlc_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        ohlc_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest OHLC snapshot for one or more stocks.
@@ -8823,7 +8823,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| ohlc_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `stock_snapshot_ohlc`. Chain setters then call `.list()`
@@ -8859,7 +8859,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<TradeTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_trade(&refs);
         if let Some(value) = venue {
@@ -8871,8 +8871,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        trade_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        trade_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest trade snapshot for one or more stocks.
@@ -8908,7 +8908,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `stock_snapshot_trade`. Chain setters then call `.list()`
@@ -8944,7 +8944,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<QuoteTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_quote(&refs);
         if let Some(value) = venue {
@@ -8956,8 +8956,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        quote_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        quote_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest NBBO quote snapshot for one or more stocks.
@@ -8993,7 +8993,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| quote_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `stock_snapshot_quote`. Chain setters then call `.list()`
@@ -9029,7 +9029,7 @@ impl ThetaDataDx {
         venue: Option<&str>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<MarketValueTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_market_value(&refs);
         if let Some(value) = venue {
@@ -9041,8 +9041,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        market_value_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        market_value_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest market value snapshot for one or more stocks.
@@ -9078,7 +9078,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| market_value_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `stock_snapshot_market_value`. Chain setters then call `.list()`
@@ -10205,7 +10205,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<OhlcTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.option_snapshot_ohlc(symbol, expiration, strike, right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -10219,8 +10219,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        ohlc_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        ohlc_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest OHLC snapshot for an option contract.
@@ -10261,7 +10261,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| ohlc_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_ohlc`. Chain setters then call `.list()`
@@ -10307,7 +10307,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<TradeTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.option_snapshot_trade(symbol, expiration, strike, right);
         if let Some(value) = strike_range {
             request = request.strike_range(value);
@@ -10318,8 +10318,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        trade_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        trade_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest trade snapshot for an option contract.
@@ -10357,7 +10357,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_trade`. Chain setters then call `.list()`
@@ -10403,7 +10403,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<QuoteTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.option_snapshot_quote(symbol, expiration, strike, right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -10417,8 +10417,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        quote_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        quote_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest NBBO quote snapshot for an option contract.
@@ -10460,7 +10460,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| quote_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_quote`. Chain setters then call `.list()`
@@ -10508,7 +10508,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<OpenInterestTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.option_snapshot_open_interest(symbol, expiration, strike, right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -10522,8 +10522,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        open_interest_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        open_interest_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest open interest snapshot for an option contract.
@@ -10566,7 +10566,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| open_interest_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_open_interest`. Chain setters then call `.list()`
@@ -10611,7 +10611,7 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<MarketValueTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.option_snapshot_market_value(symbol, expiration, strike, right);
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -10625,8 +10625,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        market_value_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        market_value_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest market value snapshot for an option contract.
@@ -10666,7 +10666,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| market_value_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_market_value`. Chain setters then call `.list()`
@@ -10720,7 +10720,7 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<IvTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.option_snapshot_greeks_implied_volatility(symbol, expiration, strike, right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -10752,8 +10752,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        iv_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        iv_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
@@ -10820,7 +10820,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| iv_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_implied_volatility`. Chain setters then call `.list()`
@@ -10880,7 +10880,7 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.option_snapshot_greeks_all(symbol, expiration, strike, right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -10912,8 +10912,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        greeks_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
@@ -10980,7 +10980,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_all`. Chain setters then call `.list()`
@@ -11040,7 +11040,7 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.option_snapshot_greeks_first_order(symbol, expiration, strike, right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -11072,8 +11072,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        greeks_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -11140,7 +11140,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_first_order`. Chain setters then call `.list()`
@@ -11200,7 +11200,7 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.option_snapshot_greeks_second_order(symbol, expiration, strike, right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -11232,8 +11232,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        greeks_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -11300,7 +11300,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_second_order`. Chain setters then call `.list()`
@@ -11360,7 +11360,7 @@ impl ThetaDataDx {
         min_time: Option<&str>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.option_snapshot_greeks_third_order(symbol, expiration, strike, right);
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
@@ -11392,8 +11392,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        greeks_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
@@ -11460,7 +11460,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_third_order`. Chain setters then call `.list()`
@@ -14466,7 +14466,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<OhlcTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_ohlc(&refs);
         if let Some(value) = min_time {
@@ -14475,8 +14475,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        ohlc_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        ohlc_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest OHLC snapshot for one or more indices.
@@ -14507,7 +14507,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| ohlc_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `index_snapshot_ohlc`. Chain setters then call `.list()`
@@ -14540,7 +14540,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PriceTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_price(&refs);
         if let Some(value) = min_time {
@@ -14549,8 +14549,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        price_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        price_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest price snapshot for one or more indices.
@@ -14581,7 +14581,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| price_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `index_snapshot_price`. Chain setters then call `.list()`
@@ -14614,7 +14614,7 @@ impl ThetaDataDx {
         symbols: Vec<String>,
         min_time: Option<&str>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<MarketValueTickList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_market_value(&refs);
         if let Some(value) = min_time {
@@ -14623,8 +14623,8 @@ impl ThetaDataDx {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        market_value_ticks_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        market_value_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get the latest market value snapshot for one or more indices.
@@ -14655,7 +14655,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| market_value_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `index_snapshot_market_value`. Chain setters then call `.list()`
@@ -15037,13 +15037,13 @@ impl ThetaDataDx {
         &self,
         py: Python<'_>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<CalendarDayList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.calendar_open_today();
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        calendar_days_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        calendar_days_vec_to_pylist(py, ticks)
     }
 
     /// Check whether the market is open today.
@@ -15069,7 +15069,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| calendar_days_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `calendar_open_today`. Chain setters then call `.list()`
@@ -15100,13 +15100,13 @@ impl ThetaDataDx {
         py: Python<'_>,
         date: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<CalendarDayList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.calendar_on_date(date);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        calendar_days_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        calendar_days_vec_to_pylist(py, ticks)
     }
 
     /// Get calendar information for a specific date.
@@ -15134,7 +15134,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| calendar_days_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `calendar_on_date`. Chain setters then call `.list()`
@@ -15167,13 +15167,13 @@ impl ThetaDataDx {
         py: Python<'_>,
         year: &str,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<CalendarDayList>> {
+    ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.tdx.calendar_year(year);
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking(py, async move { request.await })?;
-        calendar_days_to_pyclass_list(py, ticks)
+        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        calendar_days_vec_to_pylist(py, ticks)
     }
 
     /// Get calendar information for an entire year.
@@ -15201,7 +15201,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| calendar_days_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `calendar_year`. Chain setters then call `.list()`

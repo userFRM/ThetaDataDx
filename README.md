@@ -33,7 +33,7 @@ High-performance Rust SDK for ThetaData market data — single-language core, fi
 - **Median across the 10 largest bulk endpoints:** **4.5× wall**.
 - **Correctness-restored:** `stock_history_trade_quote` and `option_history_trade_quote` now return the correct row counts (silent `Ok(vec![])` on non-empty responses was fixed in v8.0.2).
 
-Small snapshot / calendar calls (≤100 rows) run within ±5 % of the vendor. Both libraries hit the same gRPC wire; neither can beat network RTT on those shapes. The bulk-pull numbers are where the decode-pipeline redesign pays off.
+Snapshot / calendar calls are now served through a generator-emitted fast path (no `<T>List` wrapper, bounded-timeout runtime dispatch, 20 ms signal-check cadence): the 5 flagged snapshot rows now land ≤ vendor wall time. Bulk-pull numbers remain where the decode-pipeline redesign pays off.
 
 ## Quick start
 
@@ -44,7 +44,7 @@ Small snapshot / calendar calls (≤100 rows) run within ±5 % of the vendor. Bo
 
 ```toml
 [dependencies]
-thetadatadx = "7.3"
+thetadatadx = "8"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -63,6 +63,22 @@ async fn main() -> Result<(), thetadatadx::Error> {
     Ok(())
 }
 ```
+
+Opt into chainable DataFrame ergonomics by enabling the `polars` and/or `arrow` features. Both stay out of the default dep graph:
+
+```toml
+[dependencies]
+thetadatadx = { version = "8", features = ["polars"] }
+```
+
+```rust
+use thetadatadx::frames::TicksPolarsExt;
+
+let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+let df = eod.as_slice().to_polars()?;
+```
+
+The `arrow` feature exposes a `TicksArrowExt::to_arrow` that materialises an `arrow_array::RecordBatch` with the same schema the Python `.to_polars()` / `.to_arrow()` terminal produces. `features = ["frames"]` pulls both in.
 
 ### Python
 

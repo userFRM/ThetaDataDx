@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.6] - 2026-04-23
+
+Snapshot-endpoint latency fast-path on the Python binding and new opt-in
+Rust `frames` module. Closes the residual 3-7 ms per-call gap vs. the
+vendor's v3 Python client on the 5 flagged snapshot / calendar
+endpoints (`stock_snapshot_ohlc`, `stock_snapshot_quote`,
+`stock_snapshot_market_value`, `calendar_on_date`, `calendar_open_today`),
+and brings chainable `.to_polars()` / `.to_arrow()` DataFrame ergonomics
+to Rust consumers behind opt-in Cargo features so polars and arrow stay
+out of the default dep graph.
+
+### Added
+
+- **Rust `frames` module — `TicksPolarsExt` / `TicksArrowExt` extension traits behind `polars` / `arrow` / `frames` Cargo features.** Chain `.to_polars()` / `.to_arrow()` off a decoder-owned `&[tick::T]` in Rust the same way Python users chain off `<TickName>List`. Per-tick-type impls are generator-emitted from `tick_schema.toml` into `crates/thetadatadx/src/frames_generated.rs` (new file), covering every entry — `CalendarDay`, `EodTick`, `GreeksTick`, `InterestRateTick`, `IvTick`, `MarketValueTick`, `OhlcTick`, `OpenInterestTick`, `OptionContract`, `PriceTick`, `QuoteTick`, `TradeQuoteTick`, `TradeTick`. Column-shape SSOT with the Python slice_arrow path: both generators read `tick_schema.toml` and apply the same field-type → Arrow-dtype mapping, so `ticks.as_slice().to_polars()?` in Rust produces the same DataFrame schema (column order, dtypes, the `QuoteTick.midpoint` virtual column, the contract-id `expiration` / `strike` / `right` tail, the `OptionContract.right` i32 → string projection) as `tdx.stock_history_eod(...).to_polars()` in Python. Dep footprint stays opt-in: `polars = ["dep:polars"]`, `arrow = ["dep:arrow-array", "dep:arrow-schema"]`, `frames = ["polars", "arrow"]`; polars pins to `0.46` with `default-features = false` (no lazy, no parquet, no SQL, no compute kernels) and `arrow-array` / `arrow-schema` pin to `58.1.0` matching `sdks/python/Cargo.toml` so the repo sees a single major version of the arrow family. Opt-in form: `thetadatadx = { version = "8", features = ["polars"] }`.
+
+### Changed
+
+- **Snapshot-kind endpoints now return plain `list[TickClass]` instead of the `<TickName>List` wrapper.** Applies to every endpoint with `subcategory = "snapshot"` or `"snapshot_greeks"` in `endpoint_surface.toml`, plus every `category = "calendar"` + `kind = "parsed"` entry — 20 endpoints total: 4 `stock_snapshot_*`, 11 `option_snapshot_*` (OHLC, trade, quote, open_interest, market_value, + 5 greeks variants + 1 IV variant), 3 `index_snapshot_*`, 3 `calendar_*`. The `<T>List` allocation cost was pure overhead on the latency-sensitive path — callers never chain `.to_polars()` on a 1-row calendar result. Classification is entirely TOML-driven via `helpers::is_snapshot_endpoint`; no hand-curated allowlist, so adding a new snapshot-kind endpoint to the TOML automatically opts it into the fast path on the next generator run. Return-type annotation changes (`list[CalendarDay]` instead of `CalendarDayList`); positional args and kwargs on the public pymethod signature are unchanged.
+- **Snapshot pymethods now dispatch via a new `run_blocking_snapshot` helper — bounded `tokio::time::timeout` instead of the 100 ms signal-check ticker.** `run_blocking`'s `tokio::select!` poll loop taxed every sub-100 ms call with 1-5 ms of first-tick jitter in the worst case. `run_blocking_snapshot` drops the ticker entirely: `py.detach { runtime().block_on(tokio::time::timeout(5s, fut)) }`. The 5-second upper bound is a liveness safeguard — every observed production snapshot call completes in <200 ms, so the bound adds zero steady-state cost. Ctrl+C is still honoured after the future resolves or the timeout fires. Emitted by the generator only when `is_snapshot_endpoint` is true; parsed / list / streaming endpoints keep the existing `run_blocking` path unchanged.
+- **`run_blocking` signal-check poll cadence reduced from 100 ms to 20 ms.** Drops the worst-case select-wait on short parsed-kind calls from ~100 ms to ~20 ms. `Python::check_signals()` is ~1 µs per call so driving the ticker 5× as often has negligible steady-state cost. Long-running endpoints see no behavioural change beyond a slightly finer-grained Ctrl+C cancellation window. One-line constant edit in `sdks/python/src/lib.rs`; the matching doc-comment is updated.
+- **`README.md` / `sdks/python/README.md` — positioning refreshed.** Dropped the "Small snapshot / calendar calls run within ±5% of the vendor" caveat now that the fast-path closes the gap on every measured endpoint. Added a feature-gated Rust DataFrame quickstart example showing `thetadatadx = { version = "8", features = ["polars"] }` plus the chained `ticks.as_slice().to_polars()?` call site.
+
+### Internal
+
+- **Generator-emitted snapshot fast-path converters (`<tick>_vec_to_pylist`) in `sdks/python/src/tick_classes.rs`.** One helper per snapshot-return tick type (9 total: `calendar_days_vec_to_pylist`, `ohlc_ticks_vec_to_pylist`, `quote_ticks_vec_to_pylist`, `trade_ticks_vec_to_pylist`, `market_value_ticks_vec_to_pylist`, `open_interest_ticks_vec_to_pylist`, `iv_ticks_vec_to_pylist`, `greeks_ticks_vec_to_pylist`, `price_ticks_vec_to_pylist`); one helper per tick type that is NOT reached by any snapshot endpoint is suppressed at generation time to avoid dead-code. Emission is gated on a TOML-derived set computed by the new `endpoints::snapshot_return_types` helper — adding a snapshot endpoint of a new tick type to `endpoint_surface.toml` automatically opts its converter into emission on the next generator run. Row-building body reuses `pyclass_from_tick_expr` from the `<TickName>List.to_list()` path so both surfaces emit byte-identical pylist contents.
+
 ## [8.0.5] - 2026-04-22
 
 Endpoint performance fixes discovered during a pre-release performance review.
