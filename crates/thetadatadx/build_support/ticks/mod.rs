@@ -42,6 +42,7 @@ mod go;
 mod parser;
 mod python_arrow;
 mod python_classes;
+mod rust_frames;
 mod schema;
 mod typescript;
 
@@ -57,7 +58,8 @@ pub fn generate() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    for file in render_sdk_generated_files()? {
+    let snapshot_return_types = super::endpoints::snapshot_return_types()?;
+    for file in render_sdk_generated_files(&snapshot_return_types)? {
         let path = repo_root.join(file.relative_path);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -68,7 +70,8 @@ pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 }
 
 pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    for file in render_sdk_generated_files()? {
+    let snapshot_return_types = super::endpoints::snapshot_return_types()?;
+    for file in render_sdk_generated_files(&snapshot_return_types)? {
         let path = repo_root.join(file.relative_path);
         let actual = std::fs::read_to_string(&path)?;
         if actual.replace("\r\n", "\n") != file.contents {
@@ -82,7 +85,9 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
+fn render_sdk_generated_files(
+    snapshot_return_types: &std::collections::HashSet<String>,
+) -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
     let schema = schema::load_schema()?;
     // Note: `tick_columnar.rs` is intentionally NOT emitted — see the
     // "Removed surfaces" block in the module doc-comment for the audit trail.
@@ -96,7 +101,16 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         },
         GeneratedSourceFile {
             relative_path: "sdks/python/src/tick_classes.rs",
-            contents: python_classes::render_python_tick_classes(&schema),
+            contents: python_classes::render_python_tick_classes(&schema, snapshot_return_types),
+        },
+        GeneratedSourceFile {
+            // Rust `frames_generated.rs` — per-tick-type `TicksPolarsExt` /
+            // `TicksArrowExt` impls. Feature-gated (`polars` / `arrow`),
+            // `include!`-ed from the hand-written `src/frames.rs` so the
+            // trait definitions and the per-type impls compile in the
+            // same unit.
+            relative_path: "crates/thetadatadx/src/frames_generated.rs",
+            contents: rust_frames::render_rust_frames(&schema),
         },
         GeneratedSourceFile {
             relative_path: "sdks/go/tick_converters.go",

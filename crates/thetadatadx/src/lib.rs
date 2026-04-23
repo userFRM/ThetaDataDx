@@ -97,6 +97,9 @@ pub mod decode;
 pub mod endpoint;
 pub mod error;
 pub mod fpss;
+#[cfg(any(feature = "polars", feature = "arrow"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "polars", feature = "arrow"))))]
+pub mod frames;
 pub mod observability;
 pub mod registry;
 pub(crate) mod retry;

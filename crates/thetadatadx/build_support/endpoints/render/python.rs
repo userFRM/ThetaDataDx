@@ -37,10 +37,10 @@
 use std::fmt::Write as _;
 
 use super::super::helpers::{
-    builder_params, compose_endpoint_doc, direct_parser_name, is_streaming_endpoint, method_params,
-    python_method_arg_decl, python_optional_type, python_pyclass_list_class,
-    python_pyclass_list_converter, python_slice_arrow_converter, render_rust_doc_block,
-    sdk_method_arg_name, to_pascal_case,
+    builder_params, compose_endpoint_doc, direct_parser_name, is_snapshot_endpoint,
+    is_streaming_endpoint, method_params, python_method_arg_decl, python_optional_type,
+    python_pyclass_list_class, python_pyclass_list_converter, python_slice_arrow_converter,
+    python_vec_to_pylist_converter, render_rust_doc_block, sdk_method_arg_name, to_pascal_case,
 };
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
 
@@ -224,6 +224,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     let builder_params = builder_params(endpoint);
     let is_string_list = endpoint.return_type == "StringList";
     let is_streaming_kind = endpoint.kind == "stream";
+    let is_snapshot = is_snapshot_endpoint(endpoint);
     let mut out = String::new();
 
     let doc = compose_endpoint_doc(endpoint);
@@ -269,6 +270,13 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         // carries both the `Vec<String>` payload and the DataFrame
         // column name pulled from `endpoint_surface.toml::list_column`.
         out.push_str("Py<StringList>> {\n");
+    } else if is_snapshot {
+        // Snapshot fast-path: return a plain `Py<PyList>` of typed
+        // pyclass rows. Snapshots are ≤ 10 small rows; callers never
+        // chain `.to_polars()` on a 1-row calendar result, so we skip
+        // the `<TickName>List` wrapper allocation to close the latency
+        // gap on <100 ms calls.
+        out.push_str("Py<pyo3::types::PyList>> {\n");
     } else {
         // Chained return: `endpoint(...).to_polars()` — typed list
         // wrapper per tick type, holds the decoder-owned `Vec<tick::T>`
@@ -376,6 +384,24 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         out.push_str("    }\n");
         return out;
     }
+    if is_snapshot {
+        // Snapshot fast-path: bounded-timeout future on the shared
+        // runtime, no signal-check polling ticker. Materialises a plain
+        // `Py<PyList>` of typed pyclass rows directly — no `<T>List`
+        // wrapper. See `run_blocking_snapshot` in `sdks/python/src/lib.rs`
+        // for the +1-5 ms first-tick-jitter elimination rationale.
+        out.push_str(
+            "        let ticks = run_blocking_snapshot(py, async move { request.await })?;\n",
+        );
+        writeln!(
+            out,
+            "        {}(py, ticks)",
+            python_vec_to_pylist_converter(&endpoint.return_type)
+        )
+        .unwrap();
+        out.push_str("    }\n");
+        return out;
+    }
     out.push_str("        let ticks = run_blocking(py, async move { request.await })?;\n");
     writeln!(
         out,
@@ -394,6 +420,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     let builder_params = builder_params(endpoint);
     let is_string_list = endpoint.return_type == "StringList";
     let is_streaming_kind = endpoint.kind == "stream";
+    let is_snapshot = is_snapshot_endpoint(endpoint);
     let mut out = String::new();
 
     // Same composed doc as sync — readers of `name_async` see the same
@@ -581,17 +608,26 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     } else {
         out.push_str("            request.await\n");
     }
-    // Convert back on the Python thread with GIL held. The result is
-    // `Py<<TickName>List>`; `.into_any()` coerces it up to `Py<PyAny>`
-    // so the `spawn_awaitable` convert closure signature is satisfied.
-    // The asyncio caller receives the typed list wrapper directly and
-    // can chain `.to_polars()` off the awaited value.
-    writeln!(
-        out,
-        "        }}, |py, ticks| {}(py, ticks).map(|p| p.into_any()))",
-        python_pyclass_list_converter(&endpoint.return_type)
-    )
-    .unwrap();
+    // Convert back on the Python thread with GIL held. Snapshot
+    // endpoints materialise a plain `Py<PyList>` of typed pyclass rows
+    // (no `<T>List` wrapper); parsed list endpoints keep the wrapper so
+    // callers can chain `.to_polars()` off the awaited value. `.into_any()`
+    // coerces either return type up to `Py<PyAny>` for the helper signature.
+    if is_snapshot {
+        writeln!(
+            out,
+            "        }}, |py, ticks| {}(py, ticks).map(|p| p.into_any()))",
+            python_vec_to_pylist_converter(&endpoint.return_type)
+        )
+        .unwrap();
+    } else {
+        writeln!(
+            out,
+            "        }}, |py, ticks| {}(py, ticks).map(|p| p.into_any()))",
+            python_pyclass_list_converter(&endpoint.return_type)
+        )
+        .unwrap();
+    }
     out.push_str("    }\n");
     out
 }
