@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.13] - 2026-04-23
+
+### Fixed
+
+- Mid-stream chunk header drift in the MDDS response accumulator was
+  silently masked: `MddsClient::collect_stream` / `for_each_chunk` would
+  keep the first chunk's `headers` and pile subsequent chunks' rows
+  underneath, even if a later chunk carried a different non-empty
+  header set. A server-side schema change mid-response would therefore
+  surface as silent data corruption instead of an error. Both paths
+  now compare the saved first-chunk schema against every non-empty
+  chunk header set and raise a new `DecodeError::ChunkHeaderDrift`
+  on mismatch (P13 from the external bench handoff).
+
+### Added
+
+- `decode::DecodeError::ChunkHeaderDrift { chunk_index, first, chunk }`
+  variant.
+
+### Known
+
+- **`option_at_time_quote` 0.67× vs vendor** (bench handoff §8 #1).
+  The v8.0.5 uniform `mdds_query_field_expr` rule that empties the
+  top-level `expiration` field on any option query carrying a
+  `ContractSpec` may have flipped this specific endpoint into a
+  slower server-side path. Needs a bench-validated per-endpoint
+  override in `endpoint_surface.toml`. Not fixed in this release
+  because a speculative generator carve-out without bench
+  re-validation would risk regressing the other option endpoints
+  that benefit from the current rule.
+- **`option_history_greeks_eod` 0.704× vs vendor** (bench handoff §8
+  #2). Persistent across v8.0.0 / v8.0.4 / v8.0.10. Likely server-
+  side per-contract aggregation path rather than a wire-shape
+  issue; needs proto-level diff against the other
+  `option_history_greeks_*` endpoints (which are DX wins at
+  4-6× faster).
+
 ## [8.0.12] - 2026-04-23
 
 ### Removed
