@@ -320,10 +320,11 @@ func init() {
 		{"cGreeksTick", unsafe.Sizeof(cGreeksTick{}), 256},
 		{"cTradeQuoteTick", unsafe.Sizeof(cTradeQuoteTick{}), 192},
 		{"cOptionContract", unsafe.Sizeof(cOptionContract{}), 32},
-		// TdxEndpointRequestOptions: 27 builder-param fields + cross-cutting
-		// timeout_ms (uint64) + has_timeout_ms (int32) + tail-padding to align
-		// to the uint64 = 168 bytes on x86_64 / aarch64.
-		{"TdxEndpointRequestOptions", unsafe.Sizeof(C.TdxEndpointRequestOptions{}), 168},
+		// TdxEndpointRequestOptions: 29 builder-param fields (strike + right
+		// joined the builder-bound set in v8.0.10 alongside the existing 27)
+		// plus cross-cutting timeout_ms (uint64) + has_timeout_ms (int32) +
+		// tail-padding to align to uint64 = 192 bytes on x86_64 / aarch64.
+		{"TdxEndpointRequestOptions", unsafe.Sizeof(C.TdxEndpointRequestOptions{}), 192},
 		// FPSS cgo structs — schema-driven from fpss_event_schema.toml,
 		// same layout as ffi/src/fpss_event_structs.rs. Every data variant
 		// carries an embedded TdxContract (32 bytes on LP64) immediately
