@@ -40,7 +40,8 @@ use super::super::helpers::{
     builder_params, compose_endpoint_doc, direct_parser_name, is_snapshot_endpoint,
     is_streaming_endpoint, method_params, python_method_arg_decl, python_optional_type,
     python_pyclass_list_class, python_pyclass_list_converter, python_slice_arrow_converter,
-    python_vec_to_pylist_converter, render_rust_doc_block, sdk_method_arg_name, to_pascal_case,
+    python_string_arg_type, python_vec_to_pylist_converter, render_rust_doc_block,
+    sdk_method_arg_name, to_pascal_case,
 };
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
 
@@ -221,8 +222,12 @@ pub(super) fn render_python_historical_methods(endpoints: &[GeneratedEndpoint]) 
 
 fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
-    let builder_params = builder_params(endpoint);
     let is_string_list = endpoint.return_type == "StringList";
+    let builder_params = if is_string_list {
+        Vec::new()
+    } else {
+        builder_params(endpoint)
+    };
     let is_streaming_kind = endpoint.kind == "stream";
     let is_snapshot = is_snapshot_endpoint(endpoint);
     let mut out = String::new();
@@ -238,7 +243,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     signature_parts.extend(
         builder_params
             .iter()
-            .map(|param| format!("{}=None", param.name)),
+            .map(|param| python_signature_kwarg(param)),
     );
     signature_parts.push("timeout_ms=None".into());
     writeln!(
@@ -306,7 +311,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
                 if param.param_type == "Symbols" {
                     "&refs".into()
                 } else {
-                    sdk_method_arg_name(param)
+                    format!("{}.as_str()", sdk_method_arg_name(param))
                 }
             })
             .collect::<Vec<_>>()
@@ -354,7 +359,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
             if param.param_type == "Symbols" {
                 "&refs".into()
             } else {
-                sdk_method_arg_name(param)
+                format!("{}.as_str()", sdk_method_arg_name(param))
             }
         })
         .collect::<Vec<_>>()
@@ -367,7 +372,13 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     .unwrap();
     for param in &builder_params {
         writeln!(out, "        if let Some(value) = {} {{", param.name).unwrap();
-        writeln!(out, "            request = request.{}(value);", param.name).unwrap();
+        writeln!(
+            out,
+            "            request = request.{}({});",
+            param.name,
+            sync_setter_arg_expr(param)
+        )
+        .unwrap();
         out.push_str("        }\n");
     }
     out.push_str("        if let Some(ms) = timeout_ms {\n");
@@ -419,8 +430,12 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
 
 fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
-    let builder_params = builder_params(endpoint);
     let is_string_list = endpoint.return_type == "StringList";
+    let builder_params = if is_string_list {
+        Vec::new()
+    } else {
+        builder_params(endpoint)
+    };
     let is_streaming_kind = endpoint.kind == "stream";
     let is_snapshot = is_snapshot_endpoint(endpoint);
     let mut out = String::new();
@@ -456,17 +471,8 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     writeln!(out, "    fn {}_async<'py>(", endpoint.name).unwrap();
     out.push_str("        &self,\n");
     out.push_str("        py: Python<'py>,\n");
-    // Async variants take owned values (String, not &str) because the
-    // future outlives the pymethod call. This is the pyo3-async-runtimes
-    // canonical pattern — the closure we pass to `future_into_py` must
-    // be `'static + Send`, so references to the GIL-bound args would not
-    // survive.
     for param in &method_params {
-        if param.param_type == "Symbols" {
-            out.push_str("        symbols: Vec<String>,\n");
-        } else {
-            writeln!(out, "        {}: String,", param.name).unwrap();
-        }
+        writeln!(out, "        {},", python_method_arg_decl(param)).unwrap();
     }
     for param in &builder_params {
         writeln!(
@@ -512,7 +518,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
                 if param.param_type == "Symbols" {
                     "&refs".into()
                 } else {
-                    format!("&{}", param.name)
+                    format!("{}.as_str()", param.name)
                 }
             })
             .collect::<Vec<_>>()
@@ -572,7 +578,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
             if param.param_type == "Symbols" {
                 "&refs".into()
             } else {
-                format!("&{}", param.name)
+                format!("{}.as_str()", param.name)
             }
         })
         .collect::<Vec<_>>()
@@ -589,7 +595,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
             out,
             "                request = request.{}({});",
             param.name,
-            async_setter_arg(param)
+            async_setter_arg_expr(param)
         )
         .unwrap();
         out.push_str("            }\n");
@@ -636,24 +642,46 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     out
 }
 
-/// Async variants take owned `String` / `Option<String>` so the future owns
-/// its captures (future_into_py requires `'static + Send`). This mirrors
-/// `python_optional_type` but substitutes String for &str on the owned
-/// path.
 fn python_async_optional_type(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Int" => "Option<i32>",
         "Float" => "Option<f64>",
         "Bool" => "Option<bool>",
-        _ => "Option<String>",
+        "Date" | "Expiration" => "Option<PyDateArg>",
+        _ if matches!(
+            param.name.as_str(),
+            "start_time" | "end_time" | "min_time" | "time_of_day"
+        ) =>
+        {
+            "Option<PyTimeArg>"
+        }
+        _ => "Option<PyStringArg>",
     }
 }
 
-/// For the async path we need `&value` when the builder setter expects `&str`.
-fn async_setter_arg(param: &GeneratedParam) -> &'static str {
+fn python_signature_kwarg(param: &GeneratedParam) -> String {
+    let Some(default) = param.default.as_deref() else {
+        return format!("{}=None", param.name);
+    };
+    let value = match param.param_type.as_str() {
+        "Bool" => default.to_string(),
+        "Int" | "Float" => default.to_string(),
+        _ => return format!("{}=None", param.name),
+    };
+    format!("{}={value}", param.name)
+}
+
+fn sync_setter_arg_expr(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Int" | "Float" | "Bool" => "value",
-        _ => "&value",
+        _ => "value.as_str()",
+    }
+}
+
+fn async_setter_arg_expr(param: &GeneratedParam) -> &'static str {
+    match param.param_type.as_str() {
+        "Int" | "Float" | "Bool" => "value",
+        _ => "value.as_str()",
     }
 }
 
@@ -689,7 +717,15 @@ fn builder_setter_arg_type(param: &GeneratedParam) -> &'static str {
         "Int" => "i32",
         "Float" => "f64",
         "Bool" => "bool",
-        _ => "&str",
+        "Date" | "Expiration" => "PyDateArg",
+        _ if matches!(
+            param.name.as_str(),
+            "start_time" | "end_time" | "min_time" | "time_of_day"
+        ) =>
+        {
+            "PyTimeArg"
+        }
+        _ => "PyStringArg",
     }
 }
 
@@ -697,7 +733,7 @@ fn builder_setter_arg_type(param: &GeneratedParam) -> &'static str {
 fn builder_setter_store_expr(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Int" | "Float" | "Bool" => "Some(value)",
-        _ => "Some(value.to_string())",
+        _ => "Some(value.into_string())",
     }
 }
 
@@ -706,8 +742,12 @@ fn builder_setter_store_expr(param: &GeneratedParam) -> &'static str {
 fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
     let struct_name = endpoint_builder_struct(&endpoint.name);
     let method_params = method_params(endpoint);
-    let builder_params = builder_params(endpoint);
     let is_string_list = endpoint.return_type == "StringList";
+    let builder_params = if is_string_list {
+        Vec::new()
+    } else {
+        builder_params(endpoint)
+    };
     let is_streaming_kind = endpoint.kind == "stream";
     let mut out = String::new();
 
@@ -781,20 +821,21 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
         if param.param_type == "Symbols" {
             writeln!(
                 out,
-                "    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: Vec<String>) -> PyRefMut<'py, Self> {{"
+                "    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: PySymbols) -> PyRefMut<'py, Self> {{"
             )
             .unwrap();
-            out.push_str("        slf.symbols = value;\n");
+            out.push_str("        slf.symbols = value.into_vec();\n");
             out.push_str("        slf\n");
             out.push_str("    }\n\n");
         } else {
             writeln!(
                 out,
-                "    fn {}<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {{",
-                param.name
+                "    fn {}<'py>(mut slf: PyRefMut<'py, Self>, value: {}) -> PyRefMut<'py, Self> {{",
+                param.name,
+                python_string_arg_type(param)
             )
             .unwrap();
-            writeln!(out, "        slf.{} = value.to_string();", param.name).unwrap();
+            writeln!(out, "        slf.{} = value.into_string();", param.name).unwrap();
             out.push_str("        slf\n");
             out.push_str("    }\n\n");
         }
@@ -906,7 +947,11 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
 fn render_python_builder_constructor(endpoint: &GeneratedEndpoint) -> String {
     let struct_name = endpoint_builder_struct(&endpoint.name);
     let method_params = method_params(endpoint);
-    let builder_params = builder_params(endpoint);
+    let builder_params = if endpoint.return_type == "StringList" {
+        Vec::new()
+    } else {
+        builder_params(endpoint)
+    };
     let mut out = String::new();
 
     let mut doc = format!(
@@ -937,20 +982,21 @@ fn render_python_builder_constructor(endpoint: &GeneratedEndpoint) -> String {
     writeln!(out, "    fn {}_builder(", endpoint.name).unwrap();
     out.push_str("        &self,\n");
     for param in &method_params {
-        if param.param_type == "Symbols" {
-            out.push_str("        symbols: Vec<String>,\n");
-        } else {
-            writeln!(out, "        {}: String,", param.name).unwrap();
-        }
+        writeln!(out, "        {},", python_method_arg_decl(param)).unwrap();
     }
     writeln!(out, "    ) -> {} {{", struct_name).unwrap();
     writeln!(out, "        {} {{", struct_name).unwrap();
     out.push_str("            tdx: self.tdx.clone(),\n");
     for param in &method_params {
         if param.param_type == "Symbols" {
-            out.push_str("            symbols,\n");
+            out.push_str("            symbols: symbols.into_vec(),\n");
         } else {
-            writeln!(out, "            {},", param.name).unwrap();
+            writeln!(
+                out,
+                "            {}: {}.into_string(),",
+                param.name, param.name
+            )
+            .unwrap();
         }
     }
     for param in &builder_params {

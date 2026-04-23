@@ -434,8 +434,6 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
 ,
     date: *const c_char
 ,
-    interval: *const c_char
-,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
     ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
@@ -475,21 +473,6 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
-        );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -605,8 +588,6 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
 ,
     date: *const c_char
 ,
-    interval: *const c_char
-,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxQuoteTickArray {
     ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
@@ -646,21 +627,6 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
-        );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1043,10 +1009,6 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
@@ -1101,36 +1063,6 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1400,10 +1332,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
     ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
@@ -1444,36 +1372,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             set_error(&message);
@@ -1510,10 +1408,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
     symbol: *const c_char
 ,
     expiration: *const c_char
-,
-    strike: *const c_char
-,
-    right: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxTradeTickArray {
@@ -1555,36 +1449,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             set_error(&message);
@@ -1621,10 +1485,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
     symbol: *const c_char
 ,
     expiration: *const c_char
-,
-    strike: *const c_char
-,
-    right: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxQuoteTickArray {
@@ -1666,36 +1526,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             set_error(&message);
@@ -1732,10 +1562,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
     symbol: *const c_char
 ,
     expiration: *const c_char
-,
-    strike: *const c_char
-,
-    right: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOpenInterestTickArray {
@@ -1777,36 +1603,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             set_error(&message);
@@ -1843,10 +1639,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
     symbol: *const c_char
 ,
     expiration: *const c_char
-,
-    strike: *const c_char
-,
-    right: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxMarketValueTickArray {
@@ -1888,36 +1680,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             set_error(&message);
@@ -1954,10 +1716,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
     symbol: *const c_char
 ,
     expiration: *const c_char
-,
-    strike: *const c_char
-,
-    right: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxIvTickArray {
@@ -1999,36 +1757,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             set_error(&message);
@@ -2065,10 +1793,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
     symbol: *const c_char
 ,
     expiration: *const c_char
-,
-    strike: *const c_char
-,
-    right: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
@@ -2109,36 +1833,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -2177,10 +1871,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
     ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
@@ -2220,36 +1910,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -2288,10 +1948,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
     ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
@@ -2331,36 +1987,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -2399,10 +2025,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
     ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
@@ -2443,36 +2065,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             set_error(&message);
@@ -2509,10 +2101,6 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
     symbol: *const c_char
 ,
     expiration: *const c_char
-,
-    strike: *const c_char
-,
-    right: *const c_char
 ,
     start_date: *const c_char
 ,
@@ -2557,36 +2145,6 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
@@ -2655,13 +2213,7 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
-,
-    interval: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
@@ -2703,36 +2255,6 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2747,21 +2269,6 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
-        );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -2799,10 +2306,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
     symbol: *const c_char
 ,
     expiration: *const c_char
-,
-    strike: *const c_char
-,
-    right: *const c_char
 ,
     date: *const c_char
 ,
@@ -2845,36 +2348,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
@@ -2928,13 +2401,7 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
-,
-    interval: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxQuoteTickArray {
@@ -2976,36 +2443,6 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3020,21 +2457,6 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
-        );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -3072,10 +2494,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
     symbol: *const c_char
 ,
     expiration: *const c_char
-,
-    strike: *const c_char
-,
-    right: *const c_char
 ,
     date: *const c_char
 ,
@@ -3118,36 +2536,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
@@ -3201,10 +2589,6 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
@@ -3246,36 +2630,6 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
@@ -3329,10 +2683,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     start_date: *const c_char
 ,
     end_date: *const c_char
@@ -3376,36 +2726,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
@@ -3474,13 +2794,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
-,
-    interval: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
@@ -3522,36 +2836,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3566,21 +2850,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
-        );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -3619,10 +2888,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
@@ -3664,36 +2929,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
@@ -3747,13 +2982,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
-,
-    interval: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
@@ -3795,36 +3024,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3839,21 +3038,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
-        );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -3892,10 +3076,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
@@ -3937,36 +3117,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
@@ -4020,13 +3170,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
-,
-    interval: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
@@ -4068,36 +3212,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4112,21 +3226,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
-        );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -4165,10 +3264,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
@@ -4210,36 +3305,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
@@ -4293,13 +3358,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
-,
-    interval: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxGreeksTickArray {
@@ -4341,36 +3400,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4385,21 +3414,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
-        );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -4438,10 +3452,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
@@ -4483,36 +3493,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
@@ -4566,13 +3546,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
-,
-    interval: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxIvTickArray {
@@ -4614,36 +3588,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
-        );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4658,21 +3602,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
-        );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -4711,10 +3640,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
@@ -4756,36 +3681,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
@@ -4839,10 +3734,6 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     start_date: *const c_char
 ,
     end_date: *const c_char
@@ -4888,36 +3779,6 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
@@ -5001,10 +3862,6 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
 ,
     expiration: *const c_char
 ,
-    strike: *const c_char
-,
-    right: *const c_char
-,
     start_date: *const c_char
 ,
     end_date: *const c_char
@@ -5050,36 +3907,6 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let strike = match unsafe { cstr_to_str(strike) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("strike is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("strike is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "strike".to_string(),
-            thetadatadx::EndpointArgValue::Str(strike.to_string()),
-        );
-        let right = match unsafe { cstr_to_str(right) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("right is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("right is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "right".to_string(),
-            thetadatadx::EndpointArgValue::Str(right.to_string()),
         );
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
@@ -5521,8 +4348,6 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
 ,
     end_date: *const c_char
 ,
-    interval: *const c_char
-,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
     ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
@@ -5578,21 +4403,6 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
-        );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             set_error(&message);
@@ -5629,8 +4439,6 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
     symbol: *const c_char
 ,
     date: *const c_char
-,
-    interval: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxPriceTickArray {
@@ -5671,21 +4479,6 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
-        );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -6094,8 +4887,6 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
 ,
     end_date: *const c_char
 ,
-    interval: *const c_char
-,
     options: *const TdxEndpointRequestOptions,
 ) -> TdxOhlcTickArray {
     ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
@@ -6150,21 +4941,6 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-        );
-        let interval = match unsafe { cstr_to_str(interval) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("interval is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("interval is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
-        args.insert(
-            "interval".to_string(),
-            thetadatadx::EndpointArgValue::Str(interval.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {

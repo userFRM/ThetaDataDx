@@ -13,12 +13,15 @@
 pub struct TdxEndpointRequestOptions {
     pub venue: *const c_char,
     pub min_time: *const c_char,
+    pub interval: *const c_char,
     pub start_time: *const c_char,
     pub end_time: *const c_char,
     pub start_date: *const c_char,
     pub end_date: *const c_char,
     pub exclusive: i32,
     pub has_exclusive: i32,
+    pub strike: *const c_char,
+    pub right: *const c_char,
     pub max_dte: i32,
     pub has_max_dte: i32,
     pub strike_range: i32,
@@ -50,6 +53,7 @@ fn apply_endpoint_request_options(
     let options = unsafe { &*options };
     insert_optional_str_arg(args, "venue", options.venue)?;
     insert_optional_str_arg(args, "min_time", options.min_time)?;
+    insert_optional_str_arg(args, "interval", options.interval)?;
     insert_optional_str_arg(args, "start_time", options.start_time)?;
     insert_optional_str_arg(args, "end_time", options.end_time)?;
     insert_optional_str_arg(args, "start_date", options.start_date)?;
@@ -57,6 +61,8 @@ fn apply_endpoint_request_options(
     if options.has_exclusive != 0 {
         insert_bool_arg(args, "exclusive", options.exclusive)?;
     }
+    insert_optional_str_arg(args, "strike", options.strike)?;
+    insert_optional_str_arg(args, "right", options.right)?;
     if options.has_max_dte != 0 {
         insert_int_arg(args, "max_dte", options.max_dte);
     }

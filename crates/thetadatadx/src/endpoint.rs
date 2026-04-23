@@ -217,11 +217,29 @@ impl EndpointArgs {
         Ok(value)
     }
 
+    /// Read an optional interval argument.
+    pub fn optional_interval(&self, key: &str) -> Result<Option<&str>, EndpointError> {
+        let Some(value) = self.optional_str(key)? else {
+            return Ok(None);
+        };
+        validate_interval(value, key)?;
+        Ok(Some(value))
+    }
+
     /// Read a required option right argument.
     pub fn required_right(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_right(value, key)?;
         Ok(value)
+    }
+
+    /// Read an optional option right argument.
+    pub fn optional_right(&self, key: &str) -> Result<Option<&str>, EndpointError> {
+        let Some(value) = self.optional_str(key)? else {
+            return Ok(None);
+        };
+        validate_right(value, key)?;
+        Ok(Some(value))
     }
 
     /// Read a required `YYYY` year argument.

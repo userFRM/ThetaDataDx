@@ -8,6 +8,7 @@ extern crate napi_derive;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, OnceLock};
 
+use napi::Either;
 use tdbe::types::tick;
 use thetadatadx::auth;
 use thetadatadx::config;
@@ -26,6 +27,39 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 
 fn to_napi_err(e: thetadatadx::Error) -> napi::Error {
     napi::Error::from_reason(e.to_string())
+}
+
+fn normalize_symbols(symbols: Either<String, Vec<String>>) -> Vec<String> {
+    match symbols {
+        Either::A(symbol) => vec![symbol],
+        Either::B(symbols) => symbols,
+    }
+}
+
+fn normalize_date(value: Either<String, chrono::DateTime<chrono::Utc>>) -> String {
+    match value {
+        Either::A(value) => value,
+        Either::B(value) => value.format("%Y%m%d").to_string(),
+    }
+}
+
+fn normalize_time(value: Either<String, chrono::DateTime<chrono::Utc>>) -> String {
+    match value {
+        Either::A(value) => value,
+        Either::B(value) => value.format("%H:%M:%S").to_string(),
+    }
+}
+
+fn normalize_optional_date(
+    value: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+) -> Option<String> {
+    value.map(normalize_date)
+}
+
+fn normalize_optional_time(
+    value: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+) -> Option<String> {
+    value.map(normalize_time)
 }
 
 fn parse_sec_type(sec_type: &str) -> napi::Result<tdbe::types::enums::SecType> {

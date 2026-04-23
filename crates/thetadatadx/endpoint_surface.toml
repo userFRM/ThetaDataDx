@@ -64,19 +64,21 @@ binding = "method"
 
 [[param_groups.strike_param.params]]
 name = "strike"
-description = "Strike price in dollars as a string (e.g. 500 or 17.5)"
+description = "Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."
 param_type = "Strike"
-required = true
-binding = "method"
+required = false
+binding = "builder"
+default = "*"
 
 [param_groups.right_param]
 
 [[param_groups.right_param.params]]
 name = "right"
-description = "C for call, P for put"
+description = "Option side. Accepts `call`, `put`, or `both`."
 param_type = "Right"
-required = true
-binding = "method"
+required = false
+binding = "builder"
+default = "both"
 
 [param_groups.contract_identity]
 
@@ -105,10 +107,11 @@ binding = "method"
 
 [[param_groups.interval.params]]
 name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h."
+description = "Accepts milliseconds (60000) or shorthand (1m). Presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h. Defaults to `1s` when omitted — matching the upstream ThetaData Python library."
 param_type = "Interval"
-required = true
-binding = "method"
+required = false
+binding = "builder"
+default = "1s"
 
 [param_groups.start_time_filter]
 
@@ -142,10 +145,11 @@ use = "end_time_filter"
 
 [[param_groups.stock_venue_filter.params]]
 name = "venue"
-description = "Venue/exchange filter"
+description = "Venue/exchange filter. Accepts `nqb` (Nasdaq Basic) or `utp_cta` (UTP & CTA)."
 param_type = "Str"
 required = false
 binding = "builder"
+default = "nqb"
 
 [param_groups.min_time_filter]
 
@@ -221,10 +225,11 @@ binding = "method"
 
 [[param_groups.exclusive_flag.params]]
 name = "exclusive"
-description = "Exclusive time boundary"
+description = "When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired."
 param_type = "Bool"
 required = false
 binding = "builder"
+default = "true"
 
 [param_groups.max_dte_filter]
 
@@ -257,10 +262,11 @@ binding = "builder"
 
 [[param_groups.rate_type_input.params]]
 name = "rate_type"
-description = "Rate type"
+description = "Risk-free-rate source used in the Greeks calculation. Accepts `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."
 param_type = "Str"
 required = false
 binding = "builder"
+default = "sofr"
 
 [param_groups.rate_value_input]
 
@@ -295,10 +301,11 @@ binding = "builder"
 
 [[param_groups.version_input.params]]
 name = "version"
-description = "Greeks model version"
+description = "Greeks model version. Accepts `latest` (newest DG3-family revision) or `1` (pinned original)."
 param_type = "Str"
 required = false
 binding = "builder"
+default = "latest"
 
 [param_groups.option_snapshot_greeks_inputs]
 
@@ -323,19 +330,21 @@ use = "version_input"
 
 [[param_groups.use_market_value_flag.params]]
 name = "use_market_value"
-description = "Use market value for Greeks"
+description = "When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair."
 param_type = "Bool"
 required = false
 binding = "builder"
+default = "false"
 
 [param_groups.underlyer_use_nbbo_flag]
 
 [[param_groups.underlyer_use_nbbo_flag.params]]
 name = "underlyer_use_nbbo"
-description = "Use NBBO for underlyer price"
+description = "When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade."
 param_type = "Bool"
 required = false
 binding = "builder"
+default = "false"
 
 [param_groups.year_param]
 
@@ -1828,6 +1837,9 @@ concrete_overrides = { end_date = "20250303" }
 # without one, the corresponding `with_<name>` cell would silently drop
 # from the matrix.
 max_dte = "30"
+strike = "570"
+right = "call"
+interval = "1m"
 strike_range = "10"
 min_time = "09:45:00"
 venue = "nqb"

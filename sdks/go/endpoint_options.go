@@ -15,10 +15,12 @@ import (
 // EndpointRequestOptions contains the shared optional request fields projected from endpoint_surface.toml.
 // TimeoutMs is the cross-cutting per-call deadline (W3); see WithTimeoutMs.
 type EndpointRequestOptions struct {
-	// Venue/exchange filter
+	// Venue/exchange filter. Accepts `nqb` (Nasdaq Basic) or `utp_cta` (UTP & CTA).
 	Venue *string
 	// Minimum time filter
 	MinTime *string
+	// Accepts milliseconds (60000) or shorthand (1m). Presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h. Defaults to `1s` when omitted — matching the upstream ThetaData Python library.
+	Interval *string
 	// Start time filter
 	StartTime *string
 	// End time filter
@@ -27,25 +29,29 @@ type EndpointRequestOptions struct {
 	StartDate *string
 	// End date YYYYMMDD
 	EndDate *string
-	// Exclusive time boundary
+	// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
 	Exclusive *bool
+	// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+	Strike *string
+	// Option side. Accepts `call`, `put`, or `both`.
+	Right *string
 	// Maximum days to expiration
 	MaxDTE *int32
 	// Strike range filter
 	StrikeRange *int32
 	// Annual dividend
 	AnnualDividend *float64
-	// Rate type
+	// Risk-free-rate source used in the Greeks calculation. Accepts `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
 	RateType *string
 	// Rate value
 	RateValue *float64
 	// Stock price
 	StockPrice *float64
-	// Greeks model version
+	// Greeks model version. Accepts `latest` (newest DG3-family revision) or `1` (pinned original).
 	Version *string
-	// Use market value for Greeks
+	// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
 	UseMarketValue *bool
-	// Use NBBO for underlyer price
+	// When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade.
 	UnderlyerUseNBBO *bool
 	// TimeoutMs is the per-call deadline in milliseconds. When set, on
 	// expiry the in-flight gRPC call is cancelled and the returned error
@@ -86,6 +92,14 @@ func WithMinTime(value string) EndpointOption {
 	}
 }
 
+// WithInterval sets interval.
+func WithInterval(value string) EndpointOption {
+	return func(options *EndpointRequestOptions) {
+		valueCopy := value
+		options.Interval = &valueCopy
+	}
+}
+
 // WithStartTime sets start_time.
 func WithStartTime(value string) EndpointOption {
 	return func(options *EndpointRequestOptions) {
@@ -123,6 +137,22 @@ func WithExclusive(value bool) EndpointOption {
 	return func(options *EndpointRequestOptions) {
 		valueCopy := value
 		options.Exclusive = &valueCopy
+	}
+}
+
+// WithStrike sets strike.
+func WithStrike(value string) EndpointOption {
+	return func(options *EndpointRequestOptions) {
+		valueCopy := value
+		options.Strike = &valueCopy
+	}
+}
+
+// WithRight sets right.
+func WithRight(value string) EndpointOption {
+	return func(options *EndpointRequestOptions) {
+		valueCopy := value
+		options.Right = &valueCopy
 	}
 }
 
@@ -251,6 +281,11 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 		cOpts.min_time = value
 		allocations = append(allocations, unsafe.Pointer(value))
 	}
+	if opts.Interval != nil {
+		value := C.CString(*opts.Interval)
+		cOpts.interval = value
+		allocations = append(allocations, unsafe.Pointer(value))
+	}
 	if opts.StartTime != nil {
 		value := C.CString(*opts.StartTime)
 		cOpts.start_time = value
@@ -278,6 +313,16 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 			cOpts.exclusive = 0
 		}
 		cOpts.has_exclusive = 1
+	}
+	if opts.Strike != nil {
+		value := C.CString(*opts.Strike)
+		cOpts.strike = value
+		allocations = append(allocations, unsafe.Pointer(value))
+	}
+	if opts.Right != nil {
+		value := C.CString(*opts.Right)
+		cOpts.right = value
+		allocations = append(allocations, unsafe.Pointer(value))
 	}
 	if opts.MaxDTE != nil {
 		cOpts.max_dte = C.int32_t(*opts.MaxDTE)

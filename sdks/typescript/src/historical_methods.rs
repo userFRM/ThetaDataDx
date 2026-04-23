@@ -46,12 +46,14 @@ impl ThetaDataDx {
     #[napi(js_name = "stockSnapshotOHLC")]
     pub fn stock_snapshot_ohlc(
         &self,
-        symbols: Vec<String>,
+        symbols: Either<String, Vec<String>>,
         venue: Option<String>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<OhlcTick>> {
+        let symbols = normalize_symbols(symbols);
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+        let min_time = normalize_optional_time(min_time);
         let mut request = self.tdx.stock_snapshot_ohlc(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
@@ -70,12 +72,14 @@ impl ThetaDataDx {
     #[napi(js_name = "stockSnapshotTrade")]
     pub fn stock_snapshot_trade(
         &self,
-        symbols: Vec<String>,
+        symbols: Either<String, Vec<String>>,
         venue: Option<String>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<TradeTick>> {
+        let symbols = normalize_symbols(symbols);
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+        let min_time = normalize_optional_time(min_time);
         let mut request = self.tdx.stock_snapshot_trade(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
@@ -94,12 +98,14 @@ impl ThetaDataDx {
     #[napi(js_name = "stockSnapshotQuote")]
     pub fn stock_snapshot_quote(
         &self,
-        symbols: Vec<String>,
+        symbols: Either<String, Vec<String>>,
         venue: Option<String>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<QuoteTick>> {
+        let symbols = normalize_symbols(symbols);
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+        let min_time = normalize_optional_time(min_time);
         let mut request = self.tdx.stock_snapshot_quote(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
@@ -118,12 +124,14 @@ impl ThetaDataDx {
     #[napi(js_name = "stockSnapshotMarketValue")]
     pub fn stock_snapshot_market_value(
         &self,
-        symbols: Vec<String>,
+        symbols: Either<String, Vec<String>>,
         venue: Option<String>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<MarketValueTick>> {
+        let symbols = normalize_symbols(symbols);
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+        let min_time = normalize_optional_time(min_time);
         let mut request = self.tdx.stock_snapshot_market_value(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
@@ -143,11 +151,13 @@ impl ThetaDataDx {
     pub fn stock_history_eod(
         &self,
         symbol: String,
-        start_date: String,
-        end_date: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<EodTick>> {
-        let mut request = self.tdx.stock_history_eod(&symbol, &start_date, &end_date);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let mut request = self.tdx.stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
@@ -160,16 +170,24 @@ impl ThetaDataDx {
     pub fn stock_history_ohlc(
         &self,
         symbol: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         venue: Option<String>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<OhlcTick>> {
-        let mut request = self.tdx.stock_history_ohlc(&symbol, &date, &interval);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.stock_history_ohlc(&symbol, date.as_str());
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -197,15 +215,20 @@ impl ThetaDataDx {
     pub fn stock_history_trade(
         &self,
         symbol: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         venue: Option<String>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<TradeTick>> {
-        let mut request = self.tdx.stock_history_trade(&symbol, &date);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.stock_history_trade(&symbol, date.as_str());
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -233,16 +256,24 @@ impl ThetaDataDx {
     pub fn stock_history_quote(
         &self,
         symbol: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         venue: Option<String>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<QuoteTick>> {
-        let mut request = self.tdx.stock_history_quote(&symbol, &date, &interval);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.stock_history_quote(&symbol, date.as_str());
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -270,16 +301,21 @@ impl ThetaDataDx {
     pub fn stock_history_trade_quote(
         &self,
         symbol: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         exclusive: Option<bool>,
         venue: Option<String>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<TradeQuoteTick>> {
-        let mut request = self.tdx.stock_history_trade_quote(&symbol, &date);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.stock_history_trade_quote(&symbol, date.as_str());
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -310,13 +346,16 @@ impl ThetaDataDx {
     pub fn stock_at_time_trade(
         &self,
         symbol: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
         venue: Option<String>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<TradeTick>> {
-        let mut request = self.tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let mut request = self.tdx.stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -332,13 +371,16 @@ impl ThetaDataDx {
     pub fn stock_at_time_quote(
         &self,
         symbol: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
         venue: Option<String>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<QuoteTick>> {
-        let mut request = self.tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let mut request = self.tdx.stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -374,13 +416,12 @@ impl ThetaDataDx {
         &self,
         request_type: String,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<String>> {
+        let expiration = normalize_date(expiration);
         runtime().block_on(async {
-            let call = self.tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right);
+            let call = self.tdx.option_list_dates(&request_type, &symbol, expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
                     Ok(inner) => inner,
@@ -417,11 +458,12 @@ impl ThetaDataDx {
     pub fn option_list_strikes(
         &self,
         symbol: String,
-        expiration: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<String>> {
+        let expiration = normalize_date(expiration);
         runtime().block_on(async {
-            let call = self.tdx.option_list_strikes(&symbol, &expiration);
+            let call = self.tdx.option_list_strikes(&symbol, expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
                     Ok(inner) => inner,
@@ -439,11 +481,12 @@ impl ThetaDataDx {
         &self,
         request_type: String,
         symbol: String,
-        date: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
         max_dte: Option<i32>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<OptionContract>> {
-        let mut request = self.tdx.option_list_contracts(&request_type, &symbol, &date);
+        let date = normalize_date(date);
+        let mut request = self.tdx.option_list_contracts(&request_type, &symbol, date.as_str());
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -459,15 +502,23 @@ impl ThetaDataDx {
     pub fn option_snapshot_ohlc(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<OhlcTick>> {
-        let mut request = self.tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
+        let expiration = normalize_date(expiration);
+        let min_time = normalize_optional_time(min_time);
+        let mut request = self.tdx.option_snapshot_ohlc(&symbol, expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -489,14 +540,22 @@ impl ThetaDataDx {
     pub fn option_snapshot_trade(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<TradeTick>> {
-        let mut request = self.tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
+        let expiration = normalize_date(expiration);
+        let min_time = normalize_optional_time(min_time);
+        let mut request = self.tdx.option_snapshot_trade(&symbol, expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = strike_range {
             request = request.strike_range(value);
         }
@@ -515,15 +574,23 @@ impl ThetaDataDx {
     pub fn option_snapshot_quote(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<QuoteTick>> {
-        let mut request = self.tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
+        let expiration = normalize_date(expiration);
+        let min_time = normalize_optional_time(min_time);
+        let mut request = self.tdx.option_snapshot_quote(&symbol, expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -545,15 +612,23 @@ impl ThetaDataDx {
     pub fn option_snapshot_open_interest(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<OpenInterestTick>> {
-        let mut request = self.tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
+        let expiration = normalize_date(expiration);
+        let min_time = normalize_optional_time(min_time);
+        let mut request = self.tdx.option_snapshot_open_interest(&symbol, expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -575,15 +650,23 @@ impl ThetaDataDx {
     pub fn option_snapshot_market_value(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<MarketValueTick>> {
-        let mut request = self.tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
+        let expiration = normalize_date(expiration);
+        let min_time = normalize_optional_time(min_time);
+        let mut request = self.tdx.option_snapshot_market_value(&symbol, expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -605,9 +688,9 @@ impl ThetaDataDx {
     pub fn option_snapshot_greeks_implied_volatility(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
@@ -615,11 +698,19 @@ impl ThetaDataDx {
         version: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<IvTick>> {
-        let mut request = self.tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
+        let expiration = normalize_date(expiration);
+        let min_time = normalize_optional_time(min_time);
+        let mut request = self.tdx.option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
@@ -659,9 +750,9 @@ impl ThetaDataDx {
     pub fn option_snapshot_greeks_all(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
@@ -669,11 +760,19 @@ impl ThetaDataDx {
         version: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
+        let expiration = normalize_date(expiration);
+        let min_time = normalize_optional_time(min_time);
+        let mut request = self.tdx.option_snapshot_greeks_all(&symbol, expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
@@ -713,9 +812,9 @@ impl ThetaDataDx {
     pub fn option_snapshot_greeks_first_order(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
@@ -723,11 +822,19 @@ impl ThetaDataDx {
         version: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
+        let expiration = normalize_date(expiration);
+        let min_time = normalize_optional_time(min_time);
+        let mut request = self.tdx.option_snapshot_greeks_first_order(&symbol, expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
@@ -767,9 +874,9 @@ impl ThetaDataDx {
     pub fn option_snapshot_greeks_second_order(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
@@ -777,11 +884,19 @@ impl ThetaDataDx {
         version: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
+        let expiration = normalize_date(expiration);
+        let min_time = normalize_optional_time(min_time);
+        let mut request = self.tdx.option_snapshot_greeks_second_order(&symbol, expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
@@ -821,9 +936,9 @@ impl ThetaDataDx {
     pub fn option_snapshot_greeks_third_order(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
@@ -831,11 +946,19 @@ impl ThetaDataDx {
         version: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
+        let expiration = normalize_date(expiration);
+        let min_time = normalize_optional_time(min_time);
+        let mut request = self.tdx.option_snapshot_greeks_third_order(&symbol, expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
@@ -875,16 +998,25 @@ impl ThetaDataDx {
     pub fn option_history_eod(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<EodTick>> {
-        let mut request = self.tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let mut request = self.tdx.option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -903,19 +1035,34 @@ impl ThetaDataDx {
     pub fn option_history_ohlc(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<OhlcTick>> {
-        let mut request = self.tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -943,19 +1090,31 @@ impl ThetaDataDx {
     pub fn option_history_trade(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<TradeTick>> {
-        let mut request = self.tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_trade(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -986,20 +1145,35 @@ impl ThetaDataDx {
     pub fn option_history_quote(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<QuoteTick>> {
-        let mut request = self.tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_quote(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1030,20 +1204,32 @@ impl ThetaDataDx {
     pub fn option_history_trade_quote(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         exclusive: Option<bool>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<TradeQuoteTick>> {
-        let mut request = self.tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1077,17 +1263,27 @@ impl ThetaDataDx {
     pub fn option_history_open_interest(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<OpenInterestTick>> {
-        let mut request = self.tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -1112,11 +1308,11 @@ impl ThetaDataDx {
     pub fn option_history_greeks_eod(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
@@ -1126,7 +1322,16 @@ impl ThetaDataDx {
         strike_range: Option<i32>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let mut request = self.tdx.option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
@@ -1160,23 +1365,38 @@ impl ThetaDataDx {
     pub fn option_history_greeks_all(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
         version: Option<String>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1216,23 +1436,35 @@ impl ThetaDataDx {
     pub fn option_history_trade_greeks_all(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
         version: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1275,23 +1507,38 @@ impl ThetaDataDx {
     pub fn option_history_greeks_first_order(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
         version: Option<String>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1331,23 +1578,35 @@ impl ThetaDataDx {
     pub fn option_history_trade_greeks_first_order(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
         version: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1390,23 +1649,38 @@ impl ThetaDataDx {
     pub fn option_history_greeks_second_order(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
         version: Option<String>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1446,23 +1720,35 @@ impl ThetaDataDx {
     pub fn option_history_trade_greeks_second_order(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
         version: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1505,23 +1791,38 @@ impl ThetaDataDx {
     pub fn option_history_greeks_third_order(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
         version: Option<String>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1561,23 +1862,35 @@ impl ThetaDataDx {
     pub fn option_history_trade_greeks_third_order(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
         version: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<GreeksTick>> {
-        let mut request = self.tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1620,23 +1933,38 @@ impl ThetaDataDx {
     pub fn option_history_greeks_implied_volatility(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
         version: Option<String>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<IvTick>> {
-        let mut request = self.tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1676,23 +2004,35 @@ impl ThetaDataDx {
     pub fn option_history_trade_greeks_implied_volatility(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         annual_dividend: Option<f64>,
         rate_type: Option<String>,
         rate_value: Option<f64>,
         version: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<IvTick>> {
-        let mut request = self.tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1735,17 +2075,27 @@ impl ThetaDataDx {
     pub fn option_at_time_trade(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<TradeTick>> {
-        let mut request = self.tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let mut request = self.tdx.option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -1764,17 +2114,27 @@ impl ThetaDataDx {
     pub fn option_at_time_quote(
         &self,
         symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        strike: Option<String>,
+        right: Option<String>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<QuoteTick>> {
-        let mut request = self.tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let mut request = self.tdx.option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -1831,11 +2191,13 @@ impl ThetaDataDx {
     #[napi(js_name = "indexSnapshotOHLC")]
     pub fn index_snapshot_ohlc(
         &self,
-        symbols: Vec<String>,
-        min_time: Option<String>,
+        symbols: Either<String, Vec<String>>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<OhlcTick>> {
+        let symbols = normalize_symbols(symbols);
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+        let min_time = normalize_optional_time(min_time);
         let mut request = self.tdx.index_snapshot_ohlc(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
@@ -1851,11 +2213,13 @@ impl ThetaDataDx {
     #[napi(js_name = "indexSnapshotPrice")]
     pub fn index_snapshot_price(
         &self,
-        symbols: Vec<String>,
-        min_time: Option<String>,
+        symbols: Either<String, Vec<String>>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<PriceTick>> {
+        let symbols = normalize_symbols(symbols);
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+        let min_time = normalize_optional_time(min_time);
         let mut request = self.tdx.index_snapshot_price(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
@@ -1871,11 +2235,13 @@ impl ThetaDataDx {
     #[napi(js_name = "indexSnapshotMarketValue")]
     pub fn index_snapshot_market_value(
         &self,
-        symbols: Vec<String>,
-        min_time: Option<String>,
+        symbols: Either<String, Vec<String>>,
+        min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<MarketValueTick>> {
+        let symbols = normalize_symbols(symbols);
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+        let min_time = normalize_optional_time(min_time);
         let mut request = self.tdx.index_snapshot_market_value(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
@@ -1892,11 +2258,13 @@ impl ThetaDataDx {
     pub fn index_history_eod(
         &self,
         symbol: String,
-        start_date: String,
-        end_date: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<EodTick>> {
-        let mut request = self.tdx.index_history_eod(&symbol, &start_date, &end_date);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let mut request = self.tdx.index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
@@ -1909,14 +2277,21 @@ impl ThetaDataDx {
     pub fn index_history_ohlc(
         &self,
         symbol: String,
-        start_date: String,
-        end_date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<OhlcTick>> {
-        let mut request = self.tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let mut request = self.tdx.index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1935,15 +2310,23 @@ impl ThetaDataDx {
     pub fn index_history_price(
         &self,
         symbol: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<PriceTick>> {
-        let mut request = self.tdx.index_history_price(&symbol, &date, &interval);
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let start_date = normalize_optional_date(start_date);
+        let end_date = normalize_optional_date(end_date);
+        let mut request = self.tdx.index_history_price(&symbol, date.as_str());
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -1968,12 +2351,15 @@ impl ThetaDataDx {
     pub fn index_at_time_price(
         &self,
         symbol: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<PriceTick>> {
-        let mut request = self.tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let mut request = self.tdx.index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
@@ -1999,10 +2385,11 @@ impl ThetaDataDx {
     #[napi(js_name = "calendarOnDate")]
     pub fn calendar_on_date(
         &self,
-        date: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<CalendarDay>> {
-        let mut request = self.tdx.calendar_on_date(&date);
+        let date = normalize_date(date);
+        let mut request = self.tdx.calendar_on_date(date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
@@ -2030,11 +2417,13 @@ impl ThetaDataDx {
     pub fn interest_rate_history_eod(
         &self,
         symbol: String,
-        start_date: String,
-        end_date: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<InterestRateTick>> {
-        let mut request = self.tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let mut request = self.tdx.interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
@@ -2047,15 +2436,22 @@ impl ThetaDataDx {
     pub fn stock_history_ohlc_range(
         &self,
         symbol: String,
-        start_date: String,
-        end_date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        interval: Option<String>,
+        start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
+        end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         venue: Option<String>,
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<OhlcTick>> {
-        let mut request = self.tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let start_time = normalize_optional_time(start_time);
+        let end_time = normalize_optional_time(end_time);
+        let mut request = self.tdx.stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }

@@ -5,10 +5,12 @@
 /// and `with_deadline`. On expiry the in-flight gRPC call is cancelled and a
 /// `tdx::Error` carrying "Request deadline exceeded" is thrown.
 struct EndpointRequestOptions {
-    /// Venue/exchange filter
+    /// Venue/exchange filter. Accepts `nqb` (Nasdaq Basic) or `utp_cta` (UTP & CTA).
     std::optional<std::string> venue;
     /// Minimum time filter
     std::optional<std::string> min_time;
+    /// Accepts milliseconds (60000) or shorthand (1m). Presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h. Defaults to `1s` when omitted — matching the upstream ThetaData Python library.
+    std::optional<std::string> interval;
     /// Start time filter
     std::optional<std::string> start_time;
     /// End time filter
@@ -17,25 +19,29 @@ struct EndpointRequestOptions {
     std::optional<std::string> start_date;
     /// End date YYYYMMDD
     std::optional<std::string> end_date;
-    /// Exclusive time boundary
+    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
     std::optional<bool> exclusive;
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    std::optional<std::string> strike;
+    /// Option side. Accepts `call`, `put`, or `both`.
+    std::optional<std::string> right;
     /// Maximum days to expiration
     std::optional<int32_t> max_dte;
     /// Strike range filter
     std::optional<int32_t> strike_range;
     /// Annual dividend
     std::optional<double> annual_dividend;
-    /// Rate type
+    /// Risk-free-rate source used in the Greeks calculation. Accepts `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     std::optional<std::string> rate_type;
     /// Rate value
     std::optional<double> rate_value;
     /// Stock price
     std::optional<double> stock_price;
-    /// Greeks model version
+    /// Greeks model version. Accepts `latest` (newest DG3-family revision) or `1` (pinned original).
     std::optional<std::string> version;
-    /// Use market value for Greeks
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     std::optional<bool> use_market_value;
-    /// Use NBBO for underlyer price
+    /// When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade.
     std::optional<bool> underlyer_use_nbbo;
     /// Per-call deadline in milliseconds (W3).
     std::optional<uint64_t> timeout_ms;
@@ -46,6 +52,10 @@ struct EndpointRequestOptions {
     }
     EndpointRequestOptions& with_min_time(std::string value) {
         min_time = std::move(value);
+        return *this;
+    }
+    EndpointRequestOptions& with_interval(std::string value) {
+        interval = std::move(value);
         return *this;
     }
     EndpointRequestOptions& with_start_time(std::string value) {
@@ -66,6 +76,14 @@ struct EndpointRequestOptions {
     }
     EndpointRequestOptions& with_exclusive(bool value) {
         exclusive = value;
+        return *this;
+    }
+    EndpointRequestOptions& with_strike(std::string value) {
+        strike = std::move(value);
+        return *this;
+    }
+    EndpointRequestOptions& with_right(std::string value) {
+        right = std::move(value);
         return *this;
     }
     EndpointRequestOptions& with_max_dte(int32_t value) {
@@ -120,10 +138,13 @@ struct FfiEndpointRequestOptions {
     TdxEndpointRequestOptions raw{};
     std::string venue_storage;
     std::string min_time_storage;
+    std::string interval_storage;
     std::string start_time_storage;
     std::string end_time_storage;
     std::string start_date_storage;
     std::string end_date_storage;
+    std::string strike_storage;
+    std::string right_storage;
     std::string rate_type_storage;
     std::string version_storage;
 
@@ -135,6 +156,10 @@ struct FfiEndpointRequestOptions {
         if (options.min_time) {
             min_time_storage = *options.min_time;
             raw.min_time = min_time_storage.c_str();
+        }
+        if (options.interval) {
+            interval_storage = *options.interval;
+            raw.interval = interval_storage.c_str();
         }
         if (options.start_time) {
             start_time_storage = *options.start_time;
@@ -155,6 +180,14 @@ struct FfiEndpointRequestOptions {
         if (options.exclusive) {
             raw.exclusive = *options.exclusive ? 1 : 0;
             raw.has_exclusive = 1;
+        }
+        if (options.strike) {
+            strike_storage = *options.strike;
+            raw.strike = strike_storage.c_str();
+        }
+        if (options.right) {
+            right_storage = *options.right;
+            raw.right = right_storage.c_str();
         }
         if (options.max_dte) {
             raw.max_dte = *options.max_dte;

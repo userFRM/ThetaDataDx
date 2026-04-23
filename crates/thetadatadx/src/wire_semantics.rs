@@ -5,8 +5,11 @@
 //! - build-time mode collapsing in `build_support/endpoints/modes.rs` (via
 //!   `#[path]` reuse of this file)
 
-/// Stock endpoints default an omitted `venue` to NQB.
-pub(crate) const DEFAULT_STOCK_VENUE: &str = "nqb";
+// The `venue=nqb` default used to live here as a runtime constant applied
+// at query-assembly time. In v8.0.10 the default moved into the SSOT
+// (`endpoint_surface.toml` -> `stock_venue_filter.default = "nqb"`) so it
+// flows through every emitted SDK builder uniformly. `modes.rs` now reads
+// `param.default` directly; no runtime bridge needed.
 
 /// Canonicalize the `expiration` parameter for the MDDS server.
 ///

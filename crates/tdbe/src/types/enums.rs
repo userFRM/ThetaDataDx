@@ -478,6 +478,7 @@ pub enum RemoveReason {
 pub enum Right {
     Call,
     Put,
+    Both,
 }
 
 impl Right {
@@ -495,6 +496,16 @@ impl Right {
         match self {
             Self::Call => 'C',
             Self::Put => 'P',
+            Self::Both => '*',
+        }
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Call => "call",
+            Self::Put => "put",
+            Self::Both => "both",
         }
     }
 }
@@ -549,6 +560,87 @@ impl RateType {
             Self::TreasuryY10 => "TREASURY_Y10",
             Self::TreasuryY20 => "TREASURY_Y20",
             Self::TreasuryY30 => "TREASURY_Y30",
+        }
+    }
+}
+
+/// Historical request type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RequestType {
+    Trade,
+    Quote,
+    Eod,
+    Ohlc,
+}
+
+impl RequestType {
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Trade => "trade",
+            Self::Quote => "quote",
+            Self::Eod => "eod",
+            Self::Ohlc => "ohlc",
+        }
+    }
+}
+
+/// Historical interval preset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Interval {
+    Tick,
+    Ms10,
+    Ms100,
+    Ms500,
+    S1,
+    S5,
+    S10,
+    S15,
+    S30,
+    M1,
+    M5,
+    M10,
+    M15,
+    M30,
+    H1,
+}
+
+impl Interval {
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Tick => "tick",
+            Self::Ms10 => "10ms",
+            Self::Ms100 => "100ms",
+            Self::Ms500 => "500ms",
+            Self::S1 => "1s",
+            Self::S5 => "5s",
+            Self::S10 => "10s",
+            Self::S15 => "15s",
+            Self::S30 => "30s",
+            Self::M1 => "1m",
+            Self::M5 => "5m",
+            Self::M10 => "10m",
+            Self::M15 => "15m",
+            Self::M30 => "30m",
+            Self::H1 => "1h",
+        }
+    }
+}
+
+/// Endpoint version selector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Version {
+    Latest,
+    V1,
+}
+
+impl Version {
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Latest => "latest",
+            Self::V1 => "1",
         }
     }
 }

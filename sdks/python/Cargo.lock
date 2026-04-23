@@ -2321,7 +2321,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.9"
+version = "8.0.10"
 dependencies = [
  "disruptor",
  "metrics",
@@ -2354,7 +2354,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-py"
-version = "8.0.9"
+version = "8.0.10"
 dependencies = [
  "arrow",
  "arrow-array",

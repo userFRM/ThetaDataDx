@@ -10,8 +10,8 @@
 use std::fmt::Write as _;
 
 use super::super::helpers::{
-    builder_params, is_streaming_endpoint, method_params, sdk_method_arg_name, to_camel_case,
-    ts_class_name, ts_class_vec_converter,
+    builder_params, is_streaming_endpoint, is_time_arg, method_params, sdk_method_arg_name,
+    to_camel_case, ts_class_name, ts_class_vec_converter,
 };
 use super::super::model::GeneratedEndpoint;
 
@@ -35,8 +35,12 @@ pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoin
 
 fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
-    let builder_params = builder_params(endpoint);
     let is_string_list = endpoint.return_type == "StringList";
+    let builder_params = if is_string_list {
+        Vec::new()
+    } else {
+        builder_params(endpoint)
+    };
     let is_streaming_kind = endpoint.kind == "stream";
     let camel_name = to_camel_case(&endpoint.name);
     let mut out = String::new();
@@ -80,9 +84,43 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         .iter()
         .any(|param| param.param_type == "Symbols");
     if has_symbols {
+        out.push_str("        let symbols = normalize_symbols(symbols);\n");
         out.push_str(
             "        let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();\n",
         );
+    }
+    for param in &method_params {
+        let arg_name = sdk_method_arg_name(param);
+        match param.param_type.as_str() {
+            "Date" | "Expiration" => {
+                writeln!(out, "        let {arg_name} = normalize_date({arg_name});").unwrap();
+            }
+            _ if is_time_arg(param) => {
+                writeln!(out, "        let {arg_name} = normalize_time({arg_name});").unwrap();
+            }
+            _ => {}
+        }
+    }
+    for param in &builder_params {
+        match param.param_type.as_str() {
+            "Date" | "Expiration" => {
+                writeln!(
+                    out,
+                    "        let {} = normalize_optional_date({});",
+                    param.name, param.name
+                )
+                .unwrap();
+            }
+            _ if is_time_arg(param) => {
+                writeln!(
+                    out,
+                    "        let {} = normalize_optional_time({});",
+                    param.name, param.name
+                )
+                .unwrap();
+            }
+            _ => {}
+        }
     }
 
     if is_string_list {
@@ -91,6 +129,10 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             .map(|param| {
                 if param.param_type == "Symbols" {
                     "&refs".into()
+                } else if matches!(param.param_type.as_str(), "Date" | "Expiration")
+                    || is_time_arg(param)
+                {
+                    format!("{}.as_str()", sdk_method_arg_name(param))
                 } else {
                     format!("&{}", sdk_method_arg_name(param))
                 }
@@ -129,6 +171,10 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         .map(|param| {
             if param.param_type == "Symbols" {
                 "&refs".into()
+            } else if matches!(param.param_type.as_str(), "Date" | "Expiration")
+                || is_time_arg(param)
+            {
+                format!("{}.as_str()", sdk_method_arg_name(param))
             } else {
                 format!("&{}", sdk_method_arg_name(param))
             }
@@ -193,7 +239,9 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
 
 fn ts_napi_arg_type(param: &super::super::model::GeneratedParam) -> &'static str {
     if param.param_type == "Symbols" {
-        "Vec<String>"
+        "Either<String, Vec<String>>"
+    } else if matches!(param.param_type.as_str(), "Date" | "Expiration") || is_time_arg(param) {
+        "Either<String, chrono::DateTime<chrono::Utc>>"
     } else {
         "String"
     }
@@ -204,6 +252,8 @@ fn ts_napi_optional_type(param: &super::super::model::GeneratedParam) -> &'stati
         "Int" => "Option<i32>",
         "Float" => "Option<f64>",
         "Bool" => "Option<bool>",
+        "Date" | "Expiration" => "Option<Either<String, chrono::DateTime<chrono::Utc>>>",
+        _ if is_time_arg(param) => "Option<Either<String, chrono::DateTime<chrono::Utc>>>",
         _ => "Option<String>",
     }
 }

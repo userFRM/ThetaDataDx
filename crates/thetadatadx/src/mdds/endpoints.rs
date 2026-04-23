@@ -29,6 +29,64 @@ use super::client::MddsClient;
 use super::validate::validate_date;
 use crate::wire_semantics::{normalize_expiration, wire_right_opt, wire_strike_opt};
 
+/// Accepted symbol input for endpoints whose MDDS wire field is
+/// `repeated string symbol`.
+pub struct SymbolInput(Vec<String>);
+
+impl SymbolInput {
+    fn into_vec(self) -> Vec<String> {
+        self.0
+    }
+}
+
+impl From<&str> for SymbolInput {
+    fn from(value: &str) -> Self {
+        Self(vec![value.to_string()])
+    }
+}
+
+impl From<String> for SymbolInput {
+    fn from(value: String) -> Self {
+        Self(vec![value])
+    }
+}
+
+impl From<&[&str]> for SymbolInput {
+    fn from(values: &[&str]) -> Self {
+        Self(values.iter().map(|value| (*value).to_string()).collect())
+    }
+}
+
+impl<const N: usize> From<&[&str; N]> for SymbolInput {
+    fn from(values: &[&str; N]) -> Self {
+        Self::from(values.as_slice())
+    }
+}
+
+impl From<Vec<&str>> for SymbolInput {
+    fn from(values: Vec<&str>) -> Self {
+        Self(values.into_iter().map(str::to_string).collect())
+    }
+}
+
+impl From<&Vec<&str>> for SymbolInput {
+    fn from(values: &Vec<&str>) -> Self {
+        Self::from(values.as_slice())
+    }
+}
+
+impl From<Vec<String>> for SymbolInput {
+    fn from(values: Vec<String>) -> Self {
+        Self(values)
+    }
+}
+
+impl From<&[String]> for SymbolInput {
+    fn from(values: &[String]) -> Self {
+        Self(values.to_vec())
+    }
+}
+
 // ─── MDDS-scoped wire canonicalizers ────────────────────────────────────
 //
 // These helpers are only meaningful for MDDS request construction, so
@@ -149,10 +207,9 @@ fn normalize_time_of_day(time_of_day: &str) -> String {
 /// Helper: build a `proto::ContractSpec` from the four standard option params.
 ///
 /// `symbol` and `expiration` are required by the v3 server. `strike` and
-/// `right` are optional at the wire level (server applies wildcard defaults
-/// when unset); our SDK surface promotes them to required positional args
-/// and reinterprets wildcard sentinels as proto-unset via `wire_strike_opt`
-/// and `wire_right_opt`.
+/// `right` are optional at the wire level and use builder defaults that
+/// preserve the server wildcard behavior via `wire_strike_opt` and
+/// `wire_right_opt`.
 macro_rules! contract_spec {
     ($symbol:expr, $expiration:expr, $strike:expr, $right:expr) => {
         Some(proto::ContractSpec {

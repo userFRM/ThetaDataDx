@@ -116,6 +116,8 @@ pub(super) fn optional_getter_name(param_type: &str) -> &'static str {
         "Date" => "optional_date",
         "Expiration" => "optional_expiration",
         "Strike" => "optional_strike",
+        "Interval" => "optional_interval",
+        "Right" => "optional_right",
         "Int" => "optional_int32",
         "Float" => "optional_float64",
         "Bool" => "optional_bool",
@@ -242,7 +244,9 @@ pub(super) fn direct_required_kind(param: &GeneratedParam) -> &'static str {
 pub(super) fn direct_optional_kind_and_default(param: &GeneratedParam) -> (&'static str, String) {
     if let Some(default) = param.default.as_deref() {
         return match param.param_type.as_str() {
-            "Str" => ("string", format!("{default:?}.to_string()")),
+            "Str" | "Strike" | "Right" | "Interval" => {
+                ("string", format!("{default:?}.to_string()"))
+            }
             "Int" => {
                 let value = default.parse::<i32>().unwrap_or_else(|_| {
                     panic!(
@@ -322,7 +326,7 @@ pub(super) fn direct_required_field_type(param: &GeneratedParam) -> &'static str
 
 pub(super) fn direct_required_param_type(param: &GeneratedParam) -> &'static str {
     if param.param_type == "Symbols" {
-        "&[&str]"
+        "impl Into<SymbolInput>"
     } else {
         "&str"
     }
@@ -334,7 +338,7 @@ pub(super) fn direct_required_store_expr(
 ) -> String {
     let arg_name = direct_method_arg_name(endpoint, param);
     if param.param_type == "Symbols" {
-        format!("{arg_name}.iter().map(|s| s.to_string()).collect()")
+        format!("{arg_name}.into().into_vec()")
     } else {
         format!("{arg_name}.to_string()")
     }
@@ -395,8 +399,26 @@ pub(super) fn python_optional_type(param: &GeneratedParam) -> &'static str {
         "Int" => "Option<i32>",
         "Float" => "Option<f64>",
         "Bool" => "Option<bool>",
-        _ => "Option<&str>",
+        "Date" | "Expiration" => "Option<PyDateArg>",
+        _ if is_time_arg(param) => "Option<PyTimeArg>",
+        _ => "Option<PyStringArg>",
     }
+}
+
+pub(super) fn python_string_arg_type(param: &GeneratedParam) -> &'static str {
+    match param.param_type.as_str() {
+        "Symbols" => "PySymbols",
+        "Date" | "Expiration" => "PyDateArg",
+        _ if is_time_arg(param) => "PyTimeArg",
+        _ => "PyStringArg",
+    }
+}
+
+pub(super) fn is_time_arg(param: &GeneratedParam) -> bool {
+    matches!(
+        param.name.as_str(),
+        "start_time" | "end_time" | "min_time" | "time_of_day"
+    )
 }
 
 pub(super) fn go_result_type(return_type: &str) -> &'static str {
@@ -846,11 +868,7 @@ pub(super) fn go_method_arg_decl(param: &GeneratedParam) -> String {
 
 pub(super) fn python_method_arg_decl(param: &GeneratedParam) -> String {
     let name = sdk_method_arg_name(param);
-    if param.param_type == "Symbols" {
-        format!("{name}: Vec<String>")
-    } else {
-        format!("{name}: &str")
-    }
+    format!("{name}: {}", python_string_arg_type(param))
 }
 
 pub(super) fn cpp_method_arg_decl(param: &GeneratedParam) -> String {

@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.10] - 2026-04-23
+
+### Added
+
+- `endpoint_surface.toml` now carries upstream-verified defaults for
+  every builder-bound optional param that the ThetaData OpenAPI spec
+  documents as optional with a server-side fallback: `venue = "nqb"`,
+  `rate_type = "sofr"`, `version = "latest"`, `exclusive = true`,
+  `use_market_value = false`, `underlyer_use_nbbo = false`. These flow
+  through the `parsed_endpoint!` macro as the initial builder value, so
+  callers that omit the field hit the same wire payload the official
+  Python library produces — no per-endpoint runtime fallback needed.
+- Parameter descriptions in the SSOT now enumerate accepted values for
+  `venue`, `rate_type`, `version`, `exclusive`, `use_market_value`, and
+  `underlyer_use_nbbo`, which propagates into the per-language generator
+  outputs (Rust docstrings, Go `endpoint_options.go`, C++
+  `endpoint_options.hpp.inc`, Python builder docstrings).
+- SSOT defaults now cover `right = "both"`, `strike = "*"`, and
+  `interval = "1s"`. The option contract endpoints no longer require
+  `right` and `strike` as positional Rust method arguments; callers set
+  concrete values through the existing options builder fields when they
+  need to override the server defaults.
+- Python bindings expose module-level `Right`, `Venue`, `Interval`,
+  `RateType`, `RequestType`, and `Version` string enum classes. Enum
+  constrained parameters accept either plain strings or those enum
+  objects.
+- TypeScript declarations expose matching literal-union types and const
+  companions for `Right`, `Venue`, `Interval`, `RateType`, `RequestType`,
+  and `Version`.
+
+### Changed
+
+- The `venue=nqb` default moved from a runtime constant
+  (`wire_semantics::DEFAULT_STOCK_VENUE`) into the SSOT, making
+  `endpoint_surface.toml` the single source of truth for every
+  parameter default across every emitter. The generator's query-
+  assembly path now wraps default-bearing `Str` fields in `Some(...)`
+  when marshalling into the proto request, keeping the wire shape
+  identical to the previous release.
+- `collapse_redundant_wires` in the build-time mode matrix now reads
+  per-endpoint SSOT defaults instead of the hardcoded `venue=nqb`
+  branch, so future additions to the default set automatically collapse
+  their redundant `with_<name>` validator cells.
+- Release metadata bumps 8.0.9 -> 8.0.10 across every Rust crate
+  (`thetadatadx`, `thetadatadx-ffi`, `thetadatadx-cli`,
+  `thetadatadx-server`, `thetadatadx-mcp`, `thetadatadx-py`,
+  `thetadatadx-napi`), every TypeScript package (`sdks/typescript` root
+  plus the three platform subpackages under `sdks/typescript/npm/`),
+  the TypeScript native binding version guard in
+  `sdks/typescript/index.js`, and the OpenAPI contract in
+  `docs-site/public/thetadatadx.yaml`.
+- `tdbe` stays at `0.12.0`; the encoding crate is untouched.
+- Rust, Python, TypeScript, Go, and C++ endpoint surfaces now project
+  proto `repeated string symbol` endpoints as bulk-capable symbol inputs.
+  Singular-symbol wire endpoints remain singular.
+- Python historical date parameters (`date`, `expiration`, `start_date`,
+  `end_date`) accept `str`, `datetime.date`, or `datetime.datetime`.
+  Python time parameters (`start_time`, `end_time`, `min_time`,
+  `time_of_day`) accept `str` or `datetime.time`.
+- TypeScript historical date and time parameters accept either `string`
+  or JavaScript `Date` values at the native binding boundary.
+
 ## [8.0.9] - 2026-04-23
 
 ### Fixed
@@ -1316,7 +1378,8 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.9...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.10...HEAD
+[8.0.10]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.9...v8.0.10
 [8.0.9]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.8...v8.0.9
 [8.0.8]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.7...v8.0.8
 [8.0.7]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.6...v8.0.7

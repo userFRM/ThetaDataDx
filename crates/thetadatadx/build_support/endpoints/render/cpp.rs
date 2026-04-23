@@ -92,6 +92,30 @@ pub(super) fn render_cpp_historical_decls(endpoints: &[GeneratedEndpoint]) -> St
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
         writeln!(out, "    /** {} */", endpoint.description).unwrap();
+        let has_symbols = method_params(endpoint)
+            .iter()
+            .any(|param| param.param_type == "Symbols");
+        if has_symbols {
+            let mut params = method_params(endpoint)
+                .iter()
+                .map(|param| {
+                    if param.param_type == "Symbols" {
+                        "const std::string& symbol".to_string()
+                    } else {
+                        cpp_method_arg_decl(param)
+                    }
+                })
+                .collect::<Vec<_>>();
+            params.push("const EndpointRequestOptions& options = {}".into());
+            writeln!(
+                out,
+                "    std::vector<{}> {}({}) const;\n",
+                cpp_value_type(&endpoint.return_type),
+                endpoint.name,
+                params.join(", ")
+            )
+            .unwrap();
+        }
         let mut params = method_params(endpoint)
             .iter()
             .map(|param| cpp_method_arg_decl(param))
@@ -128,6 +152,9 @@ pub(super) fn render_cpp_historical_defs(endpoints: &[GeneratedEndpoint]) -> Str
 
 fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
+    let has_symbols = method_params
+        .iter()
+        .any(|param| param.param_type == "Symbols");
     let mut signature_parts = method_params
         .iter()
         .map(|param| cpp_method_arg_decl(param))
@@ -137,6 +164,40 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint) -> String {
     signature_parts.push("const EndpointRequestOptions& options".into());
 
     let mut out = String::new();
+    if has_symbols {
+        let mut singular_parts = method_params
+            .iter()
+            .map(|param| {
+                if param.param_type == "Symbols" {
+                    "const std::string& symbol".to_string()
+                } else {
+                    cpp_method_arg_decl(param)
+                }
+            })
+            .collect::<Vec<_>>();
+        singular_parts.push("const EndpointRequestOptions& options".into());
+        writeln!(
+            out,
+            "std::vector<{}> Client::{}({}) const {{",
+            cpp_value_type(&endpoint.return_type),
+            endpoint.name,
+            singular_parts.join(", ")
+        )
+        .unwrap();
+        let forwarded = method_params
+            .iter()
+            .map(|param| {
+                if param.param_type == "Symbols" {
+                    "std::vector<std::string>{symbol}".to_string()
+                } else {
+                    sdk_method_arg_name(param)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(out, "    return {}({}, options);", endpoint.name, forwarded).unwrap();
+        out.push_str("}\n\n");
+    }
     writeln!(
         out,
         "std::vector<{}> Client::{}({}) const {{",
@@ -146,9 +207,6 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint) -> String {
     )
     .unwrap();
 
-    let has_symbols = method_params
-        .iter()
-        .any(|param| param.param_type == "Symbols");
     if has_symbols {
         out.push_str("    auto symbol_ptrs = detail::string_ptrs(symbols);\n");
     }

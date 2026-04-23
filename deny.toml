@@ -72,6 +72,12 @@ allow = [
     # Reason: unicode-ident (required by syn / proc-macro2 / every
     # derive-macro consumer) moved to Unicode-3.0 in recent releases.
     "Unicode-3.0",
+    # Reason: keep prior Unicode license identifiers allowed for transitive
+    # dependency graph differences across feature sets and target platforms.
+    "Unicode-DFS-2016",
+    # Reason: weak-copyleft dependency licenses accepted for SDK distribution
+    # when crates keep source modifications in their own package boundary.
+    "MPL-2.0",
     # Reason: webpki-roots 1.x is CDLA-Permissive-2.0 (Linux Foundation
     # data-sharing license); used only for the static Mozilla CA bundle
     # bundled into rustls.

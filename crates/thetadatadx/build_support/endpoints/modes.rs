@@ -104,8 +104,8 @@ fn rationale_for_mode(name: &str) -> &'static str {
 /// [`optional_fixture_value`] table so the two can never drift.
 fn with_optional_rationale(param_name: &str, literal: &str) -> String {
     let label = match param_name {
-        "max_dte" | "strike_range" | "min_time" | "exclusive" | "start_time" | "end_time"
-        | "start_date" | "end_date" => "optional filter wiring",
+        "max_dte" | "strike" | "right" | "interval" | "strike_range" | "min_time" | "exclusive"
+        | "start_time" | "end_time" | "start_date" | "end_date" => "optional filter wiring",
         "venue" => "optional venue selector wiring",
         "annual_dividend" | "rate_type" | "rate_value" | "stock_price" => {
             "optional Greeks-input wiring"
@@ -263,6 +263,30 @@ fn args_for_mode(
         .collect()
 }
 
+/// Build builder overrides for a named wildcard mode. Method-bound params
+/// stay positional; builder-bound params such as strike/right are applied via
+/// the request builder.
+fn builder_overrides_for_mode(
+    endpoint: &GeneratedEndpoint,
+    fixtures: &TestFixtures,
+    mode_name: &str,
+) -> Vec<(String, String)> {
+    let overrides = fixtures.mode_overrides.get(mode_name).unwrap_or_else(|| {
+        panic!(
+            "test_fixtures.mode_overrides is missing an entry for mode '{mode_name}'; \
+             add one in endpoint_surface.toml"
+        )
+    });
+    builder_params(endpoint)
+        .iter()
+        .filter_map(|param| {
+            overrides
+                .get(&param.name)
+                .map(|value| (param.name.clone(), value.clone()))
+        })
+        .collect()
+}
+
 /// Whether the endpoint's method-call params include the full ContractSpec
 /// quartet (symbol, expiration, strike, right). Drives wildcard mode
 /// generation for option snapshot / history / at-time endpoints.
@@ -275,10 +299,14 @@ pub(super) fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
         .iter()
         .map(|p| p.name.as_str())
         .collect();
+    let builder_names: HashSet<&str> = builder_params(endpoint)
+        .iter()
+        .map(|p| p.name.as_str())
+        .collect();
     names.contains("symbol")
         && names.contains("expiration")
-        && names.contains("strike")
-        && names.contains("right")
+        && builder_names.contains("strike")
+        && builder_names.contains("right")
 }
 
 /// Whether an option endpoint accepts `expiration=*` at the v3 server.
@@ -360,13 +388,17 @@ pub(super) fn test_modes_for(
                 "basic" | "concrete" => concrete_args(endpoint, fixtures),
                 other => args_for_mode(endpoint, fixtures, other),
             };
+            let builder_overrides = match mode_name {
+                "basic" | "concrete" => Vec::new(),
+                other => builder_overrides_for_mode(endpoint, fixtures, other),
+            };
             TestMode {
                 name: mode_name.to_string(),
                 rationale: rationale_for_mode(mode_name),
                 args,
                 min_tier: endpoint_tier,
                 expect: "non_empty",
-                builder_overrides: Vec::new(),
+                builder_overrides,
             }
         })
         .collect();
@@ -546,24 +578,29 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
         .iter()
         .map(|param| param.name.clone())
         .collect();
-    let has_stock_venue_default = endpoint.category == "stock"
-        && builder_params(endpoint)
-            .iter()
-            .any(|param| param.name == "venue");
+    // Per-param SSOT defaults for the builder-bound params on this endpoint.
+    // Applied at runtime in the generated `parsed_endpoint!` query block;
+    // synthesized here too so modes that omit the param don't look distinct
+    // from modes that set it to the SSOT default.
+    let builder_defaults: Vec<(String, String)> = builder_params(endpoint)
+        .iter()
+        .filter_map(|param| {
+            param
+                .default
+                .as_ref()
+                .map(|v| (param.name.clone(), v.clone()))
+        })
+        .collect();
 
     let canonical_overrides = |overrides: &[(String, String)]| -> Vec<(String, String)> {
         let mut pairs: Vec<(String, String)> = overrides
             .iter()
             .map(|(k, v)| (k.clone(), canonicalize_wire_arg(k, v)))
             .collect();
-        // Stock endpoints default `venue=nqb` at the runtime call site
-        // (`render/mdds.rs`). Synthesize it here so modes that omit
-        // `venue` don't look distinct from modes that set it to `nqb`.
-        if has_stock_venue_default && !pairs.iter().any(|(k, _)| k == "venue") {
-            pairs.push((
-                "venue".to_string(),
-                super::super::wire_semantics::DEFAULT_STOCK_VENUE.to_string(),
-            ));
+        for (name, value) in &builder_defaults {
+            if !pairs.iter().any(|(k, _)| k == name) {
+                pairs.push((name.clone(), canonicalize_wire_arg(name, value)));
+            }
         }
         pairs.sort();
         pairs
