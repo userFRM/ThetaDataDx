@@ -107,10 +107,11 @@ The server speaks standard MCP over stdio:
 
 61 registry endpoints + 3 offline tools (ping, all_greeks, implied_volatility) = 64 total.
 
-### Meta (1)
-- `ping` - server status (works offline)
+### Offline (3 total: `ping`, `all_greeks`, `implied_volatility`)
 
-### Offline Greeks (2, no ThetaData account needed)
+These tools do not require a ThetaData account or a network round-trip; they are available even when the server is started in offline mode.
+
+- `ping` - server status
 - `all_greeks` - compute all 22 Black-Scholes Greeks
 - `implied_volatility` - IV solver via bisection
 

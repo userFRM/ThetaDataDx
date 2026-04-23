@@ -123,7 +123,7 @@
 ## Running
 
 ```bash
-# Run all 44 benchmarks
+# Run all 43 benchmarks
 cargo bench -p thetadatadx --bench bench
 
 # Run a specific group

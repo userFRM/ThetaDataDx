@@ -162,7 +162,7 @@ The build expands that metadata into the registry, shared endpoint runtime, and
 
 4. **Review the generated mdds/runtime surfaces**
    - Most endpoint additions should not require hand-editing files under `mdds/`
-   - Only change `build_support/endpoints.rs` or the macro layer if the new endpoint shape cannot be expressed by the existing surface spec
+   - Only change files under `build_support/endpoints/` or the macro layer if the new endpoint shape cannot be expressed by the existing surface spec
 
 5. **Regenerate downstream SDK/tool surfaces**
    - Endpoint wrappers project from `crates/thetadatadx/endpoint_surface.toml`

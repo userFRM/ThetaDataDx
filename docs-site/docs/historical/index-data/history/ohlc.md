@@ -26,7 +26,7 @@ for t in data:
           f"high={t.high:.2f} low={t.low:.2f} close={t.close:.2f}")
 ```
 ```typescript [TypeScript]
-const data = tdx.indexHistoryOhlc('SPX', '20260101', '20260301', '60000');
+const data = tdx.indexHistoryOHLC('SPX', '20260101', '20260301', '60000');
 for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} open=${t.open} high=${t.high} low=${t.low} close=${t.close}`);
 }

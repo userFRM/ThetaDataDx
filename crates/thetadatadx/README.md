@@ -8,6 +8,7 @@ This is the engine that powers all ThetaDataDx SDKs (Python, TypeScript/Node.js,
 
 ```rust
 use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::fpss::protocol::Contract;
 
 let creds = Credentials::from_file("creds.txt")?;
 let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
@@ -47,7 +48,13 @@ proto/
 tick_schema.toml   - single source of truth for tick type definitions
 endpoint_surface.toml  - explicit endpoint surface spec for registry/mdds/runtime generation
 build.rs               - small build entrypoint
-build_support/         - build-time generators for tick decoding and endpoint surfaces
+build_support/
+  mod.rs               - orchestration entry for build-time code generation
+  upstream_openapi.rs  - pinned upstream OpenAPI snapshot loader
+  endpoints/           - endpoint surface parser + render passes for registry, MDDS runtime, REST surface
+  ticks/               - tick-schema parser + Rust / Python / TypeScript / Go render passes
+  fpss_events/         - FPSS event-schema parser + Rust / Python / TypeScript / Go / C render passes
+  sdk_surface/         - SDK surface parser + CLI / MCP / Python / TypeScript / Go / C++ render passes
 ```
 
 ## TOML Codegen

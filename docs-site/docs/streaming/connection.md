@@ -34,11 +34,13 @@ let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
 tdx.start_streaming(|event: &FpssEvent| {
     match event {
-        FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, received_at_ns, .. }) => {
-            println!("Quote: contract={contract_id} bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns");
+        // Every data event carries an `Arc<Contract>` — read the root ticker
+        // directly, no contract-ID map lookup required.
+        FpssEvent::Data(FpssData::Quote { contract, bid, ask, received_at_ns, .. }) => {
+            println!("Quote: {} bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns", contract.root);
         }
-        FpssEvent::Data(FpssData::Trade { contract_id, price, size, received_at_ns, .. }) => {
-            println!("Trade: contract={contract_id} price={price:.2} size={size} rx={received_at_ns}ns");
+        FpssEvent::Data(FpssData::Trade { contract, price, size, received_at_ns, .. }) => {
+            println!("Trade: {} price={price:.2} size={size} rx={received_at_ns}ns", contract.root);
         }
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
             println!("Contract {id} = {contract}");
@@ -373,19 +375,18 @@ let contracts_clone = contracts.clone();
 tdx.start_streaming(move |event: &FpssEvent| {
     match event {
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
-            contracts_clone.lock().unwrap().insert(*id, contract.clone());
+            contracts_clone.lock().unwrap().insert(*id, (**contract).clone());
         }
-        FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
-            if let Some(contract) = contracts_clone.lock().unwrap().get(contract_id) {
-                println!("{}: bid={bid:.2} ask={ask:.2}", contract.root);
-            }
+        // Preferred: read `contract.root` directly off the data event.
+        FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
+            println!("{}: bid={bid:.2} ask={ask:.2}", contract.root);
         }
         _ => {}
     }
 })?;
 
-// Or use the built-in method:
-let map: HashMap<i32, Contract> = tdx.contract_map()?;
+// Or use the built-in method (returns `Arc<Contract>`):
+let map = tdx.contract_map()?;
 ```
 ```python [Python]
 # Build a mapping as events arrive

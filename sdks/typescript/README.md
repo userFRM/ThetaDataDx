@@ -1,8 +1,8 @@
 # thetadatadx (Node.js / TypeScript)
 
-Node.js SDK for ThetaData market data, powered by compiled Rust via napi-rs. Pre-built native binaries for Linux x64, macOS Apple Silicon, and Windows x64 — no Rust toolchain required.
+Node.js SDK for ThetaData market data. napi-rs bindings over the `thetadatadx` Rust crate, shipped as pre-built native addons for Linux x64, macOS Apple Silicon, and Windows x64 (no Rust toolchain required on the consumer).
 
-Every call goes through compiled Rust — gRPC, protobuf, zstd, FIT decoding, and TCP streaming all happen at native speed. Node.js is just the interface.
+Every call crosses the napi boundary into compiled Rust: gRPC, protobuf, zstd, FIT decoding, and TCP streaming run inside the `thetadatadx` crate.
 
 ## Install
 

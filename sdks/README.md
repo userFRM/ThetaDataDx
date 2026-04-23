@@ -1,6 +1,6 @@
 # SDKs
 
-Multi-language SDKs for ThetaDataDx. All powered by the Rust core via FFI - these are **not** reimplementations. Every SDK call goes through compiled Rust: gRPC communication, protobuf parsing, zstd decompression, FIT tick decoding, and TCP streaming all happen at native speed. The language binding is just the interface.
+Multi-language SDKs for ThetaDataDx. All are thin bindings over the shared Rust core; gRPC communication, protobuf parsing, zstd decompression, FIT tick decoding, and TCP streaming run inside the `thetadatadx` crate. The language binding is the interface surface.
 
 ## Overview
 
@@ -59,8 +59,8 @@ The Python SDK uses [PyO3](https://pyo3.rs/) with [Maturin](https://www.maturin.
 
 ## Validation Matrix
 
-- Python: wheel builds and import smoke are validated on Linux, macOS, and Windows. The package now targets the CPython stable ABI (`abi3`) with a minimum version of Python 3.9, so one wheel per platform covers Python 3.9+.
-- TypeScript/Node.js: validated on Linux, macOS, and Windows with Node.js 18+. The napi-rs native addon is built per-platform.
+- Python: wheel builds and import smoke are validated on Linux x64, macOS arm64 (Apple Silicon), and Windows x64. The package targets the CPython stable ABI (`abi3`) with a minimum version of Python 3.9, so one wheel per platform covers Python 3.9+.
+- TypeScript/Node.js: pre-built napi-rs addons are shipped for Linux x64 (glibc), macOS arm64 (Apple Silicon), and Windows x64 (MSVC), on Node.js 18+.
 - Go: validated on Linux and macOS with the default `target/release` FFI build. Windows is validated with the GNU Rust target (`x86_64-pc-windows-gnu`), because CGo links through MinGW rather than the MSVC import library used by the C++ SDK.
 - C++: validated with CMake builds on Linux, macOS, and Windows against the generated FFI library.
 
@@ -118,7 +118,7 @@ import { ThetaDataDx } from 'thetadatadx';
 
 const tdx = await ThetaDataDx.connectFromFile('creds.txt');
 
-const eod = tdx.stockHistoryEod('AAPL', '20240101', '20240315');
+const eod = tdx.stockHistoryEOD('AAPL', '20240101', '20240315');
 ```
 
 Requires Node.js 18+. See [sdks/typescript/README.md](typescript/README.md) for full documentation.

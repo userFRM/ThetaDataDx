@@ -1,6 +1,6 @@
 # ThetaDataDx
 
-High-performance Rust SDK for ThetaData market data — single-language core, five language bindings, zero-allocation streaming hot path.
+Rust SDK for ThetaData market data — single Rust core, five language surfaces (Rust, Python, TypeScript, Go, C++).
 
 [![build](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
@@ -17,23 +17,12 @@ High-performance Rust SDK for ThetaData market data — single-language core, fi
 
 ## Highlights
 
-- **Typed everywhere.** 61 ThetaData endpoints exposed as typed methods across all five SDKs; zero raw JSON or protobuf on the public surface.
-- **Arrow-backed DataFrames.** Python `to_arrow()` / `to_pandas()` / `to_polars()` pipe through zero-copy Arrow buffers.
-- **SPKI-pinned FPSS TLS.** Public-key pinning on the FPSS streaming handshake (stricter than a system-CA trust flow).
-- **Zero-allocation streaming.** Nibble-packed FIT decoder and lock-free ring buffer on the FPSS path; no JVM warmup, no GC pauses. Measured decode cost is on the nanosecond scale per tick (bench harness in `crates/thetadatadx/benches/`).
-- **Zero-copy FFI.** Go, C++, and Node.js go through the same `extern "C"` layer; Python wheel ships via PyO3 ABI3.
-- **Feature-complete against the Java terminal.** Same MDDS gRPC contract, same FPSS wire format, same reconnect semantics. See [Java parity checklist](docs/java-parity-checklist.md).
-
-## Performance positioning
-
-`thetadatadx` delivers **5-6× faster wall-clock and ~10× lower peak RSS** versus the vendor's official Python client on bulk options-data pulls (historical greeks, quotes, trades, OHLC on dense option chains). Rust decode + direct-to-Arrow pipeline, async + sync surfaces, five language bindings from one shared implementation.
-
-- **Best wall-clock speedup:** `option_history_ohlc` at **6.08×** (117 691 rows; 15.6 s vendor → 2.6 s DX).
-- **Largest peak-RSS advantage:** `option_history_greeks_all` at **10.5× less peak** (176 732 × 31: 731 MB vendor → 70 MB DX arrow).
-- **Median across the 10 largest bulk endpoints:** **4.5× wall**.
-- **Correctness-restored:** `stock_history_trade_quote` and `option_history_trade_quote` now return the correct row counts (silent `Ok(vec![])` on non-empty responses was fixed in v8.0.2).
-
-Snapshot / calendar calls are now served through a generator-emitted fast path (no `<T>List` wrapper, bounded-timeout runtime dispatch, 20 ms signal-check cadence): the 5 flagged snapshot rows now land ≤ vendor wall time. Bulk-pull numbers remain where the decode-pipeline redesign pays off.
+- **Typed everywhere.** 61 ThetaData endpoints exposed as typed methods across all five SDKs; no raw JSON or protobuf on the public surface.
+- **Arrow-backed DataFrames.** Python `to_arrow()` / `to_pandas()` / `to_polars()` pipe through shared Arrow buffers.
+- **SPKI-pinned FPSS TLS.** Public-key pinning on the FPSS streaming handshake.
+- **FIT decoder + SPSC ring buffer** on the FPSS path. Decode cost is measured in the benchmarks under `crates/thetadatadx/benches/`.
+- **Shared FFI layer.** Go, C++, and Node.js go through the same `extern "C"` layer; the Python wheel uses PyO3 ABI3 directly.
+- **Supports the same MDDS gRPC endpoints and FPSS wire format as the Java terminal.** Reconnect semantics mirror the Java client. See the [Java parity checklist](docs/java-parity-checklist.md).
 
 ## Quick start
 
@@ -105,7 +94,7 @@ npm install thetadatadx
 import { ThetaDataDx } from 'thetadatadx';
 
 const tdx = await ThetaDataDx.connectFromFile('creds.txt');
-for (const t of tdx.stockHistoryEod('AAPL', '20240101', '20240301')) {
+for (const t of tdx.stockHistoryEOD('AAPL', '20240101', '20240301')) {
     console.log(`${t.date}: O=${t.open} H=${t.high} L=${t.low} C=${t.close} V=${t.volume}`);
 }
 ```
@@ -191,10 +180,10 @@ All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64`, de
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holiday schedule |
 | Interest Rate | 1 | EOD rate history |
-| Streaming | 7 | Quotes, trades, OI, full-trades (per-contract or firehose) |
-| Greeks | 14 | All 22 Greeks + IV solver, individually or batched |
 
 All endpoints return fully typed data in every language. See the [API Reference](docs/api-reference.md) for the complete method list.
+
+**Additional surfaces** (not REST/gRPC endpoints): FPSS real-time streaming (7 subscribe/unsubscribe methods per contract and per firehose type) and a local Greeks calculator (22 Black-Scholes Greeks plus an IV solver, callable individually or batched).
 
 ## Architecture
 
@@ -210,7 +199,7 @@ flowchart TB
     ffi["<b>ffi</b><br/>stable C ABI · panic boundary"]
     core --> ffi
 
-    ffi -->|PyO3 / maturin| python["Python SDK<br/>(pyo3 · Arrow)"]
+    core -->|PyO3 / maturin| python["Python SDK<br/>(pyo3 · Arrow)"]
     ffi -->|napi-rs| ts["TypeScript SDK<br/>(N-API · BigInt)"]
     ffi -->|cgo| go["Go SDK"]
     ffi -->|extern C| cpp["C++ SDK<br/>(RAII header-only)"]
@@ -235,7 +224,7 @@ flowchart TB
 | C++ | [`sdks/cpp`](sdks/cpp/) | RAII header-only wrapper |
 | CLI | [`tools/cli`](tools/cli/) | `tdx` CLI — all 61 endpoints from the command line |
 | MCP | [`tools/mcp`](tools/mcp/) | MCP server - gives LLMs access to 64 tools over JSON-RPC |
-| Server | [`tools/server`](tools/server/) | REST + WebSocket server, feature-compatible with the Java terminal |
+| Server | [`tools/server`](tools/server/) | REST + WebSocket server exposing the same `/v3/*` route surface as the Java terminal |
 | Docs | [`docs/`](docs/) | API reference, architecture, Java parity checklist |
 | Website | [`docs-site/`](docs-site/) | VitePress documentation site (deployed to GitHub Pages) |
 | Notebooks | [`notebooks/`](notebooks/) | 7 Jupyter notebooks (101-107) |
@@ -248,7 +237,7 @@ flowchart TB
 
 | Document | Description |
 |----------|-------------|
-| [API Reference](docs/api-reference.md) | All 65 methods, 13 tick types, configuration options |
+| [API Reference](docs/api-reference.md) | All 61 typed methods (plus 4 `_stream` SDK-only variants), 13 tick types, configuration options |
 | [Architecture](docs/architecture.md) | System design, wire protocols, TOML codegen pipeline |
 | [Java Parity Checklist](docs/java-parity-checklist.md) | Feature-by-feature comparison with the Java terminal |
 | [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |

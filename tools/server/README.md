@@ -1,8 +1,8 @@
 # thetadatadx-server
 
-Drop-in replacement for the ThetaData Java Terminal. Runs a local HTTP REST server and WebSocket server that expose the same API as the Java terminal, backed by native Rust gRPC (MDDS) and TCP (FPSS) connections to ThetaData's upstream servers.
+Runs a local HTTP REST server and WebSocket server that expose the same `/v3/*` route surface as the ThetaData Java Terminal, backed by Rust gRPC (MDDS) and TCP (FPSS) connections to ThetaData's upstream servers.
 
-Existing clients (Python SDK, Excel add-ins, curl scripts, browsers) work without any code changes - just swap the JAR for this binary.
+Existing clients targeting the Java terminal (Python SDK, Excel add-ins, curl scripts, browsers) can point at this binary by swapping the JAR for `thetadatadx-server` at the same port.
 
 ## Quick start
 
@@ -66,9 +66,9 @@ Endpoint query parameters follow the registry names (`symbol`, `expiration`, `st
 ### System Routes (4)
 
 ```
-GET  /v3/system/status          # {"status":"CONNECTED","version":"8.0.0"}
+GET  /v3/system/status          # {"status":"CONNECTED","version":"<crate version>"}
 GET  /v3/system/mdds/status
-GET  /v3/system/fpss/status     # {"status":"CONNECTED","version":"8.0.0"}
+GET  /v3/system/fpss/status     # {"status":"CONNECTED","version":"<crate version>"}
 POST /v3/system/shutdown        # requires X-Shutdown-Token header
 ```
 

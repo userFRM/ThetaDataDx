@@ -25,7 +25,7 @@ let rates = tdx.interest_rate_history_eod(
 result = tdx.interest_rate_history_eod("SOFR", "20240101", "20240301")
 ```
 ```typescript [TypeScript]
-const result = tdx.interestRateHistoryEod('SOFR', '20240101', '20240301');
+const result = tdx.interestRateHistoryEOD('SOFR', '20240101', '20240301');
 ```
 ```go [Go]
 result, _ := client.InterestRateHistoryEOD("SOFR", "20240101", "20240301")
