@@ -1,8 +1,8 @@
 # thetadatadx-server
 
-Runs a local HTTP REST server and WebSocket server that expose the same `/v3/*` route surface as the ThetaData Java Terminal, backed by Rust gRPC (MDDS) and TCP (FPSS) connections to ThetaData's upstream servers.
+Runs a local HTTP REST server and WebSocket server that expose the ThetaData `/v3/*` route surface, backed by Rust gRPC (MDDS) and TCP (FPSS) connections to ThetaData's upstream servers.
 
-Existing clients targeting the Java terminal (Python SDK, Excel add-ins, curl scripts, browsers) can point at this binary by swapping the JAR for `thetadatadx-server` at the same port.
+Existing clients using the current `/v3/*` local terminal routes can point at this binary on the same port.
 
 ## Quick start
 
@@ -10,12 +10,12 @@ Existing clients targeting the Java terminal (Python SDK, Excel add-ins, curl sc
 # With email/password directly (no creds file needed)
 thetadatadx-server --email you@example.com --password YOUR_PASSWORD
 
-# With credentials file (same format as the Java terminal)
+# With credentials file
 echo "your@email.com" > creds.txt
 echo "your_password" >> creds.txt
 thetadatadx-server --creds creds.txt
 
-# With a TOML config file (same format as Java terminal's config.toml)
+# With a TOML config file
 thetadatadx-server --email you@example.com --password YOUR_PASSWORD --config config.toml
 
 # With a specific FPSS region
@@ -23,8 +23,8 @@ thetadatadx-server --email you@example.com --password YOUR_PASSWORD --fpss-regio
 ```
 
 The server starts:
-- HTTP REST API on `http://127.0.0.1:25503` (same as Java terminal)
-- WebSocket server on `ws://127.0.0.1:25520/v1/events` (same as Java terminal)
+- HTTP REST API on `http://127.0.0.1:25503`
+- WebSocket server on `ws://127.0.0.1:25520/v1/events`
 
 ## Configuration
 
@@ -33,7 +33,7 @@ The server starts:
 | `--email` | | ThetaData email (alternative to `--creds`) |
 | `--password` | | ThetaData password (alternative to `--creds`) |
 | `--creds` | `creds.txt` | Path to credentials file |
-| `--config` | | Path to TOML config file (same format as Java terminal) |
+| `--config` | | Path to TOML config file |
 | `--fpss-region` | `production` | FPSS region: `production`, `dev`, `stage` |
 | `--http-port` | `25503` | HTTP REST API port |
 | `--ws-port` | `25520` | WebSocket server port |
@@ -74,7 +74,7 @@ POST /v3/system/shutdown        # requires X-Shutdown-Token header
 
 ### Response format
 
-Responses match the Java terminal exactly:
+Responses use the terminal JSON envelope:
 
 ```json
 {
@@ -142,14 +142,3 @@ thetadatadx-server (Rust binary)
     |
 ThetaData upstream servers (NJ datacenter)
 ```
-
-## Differences from the Java terminal
-
-| | Java terminal | thetadatadx-server |
-|---|---|---|
-| Runtime | JVM (200+ MB) | Native binary (~10 MB) |
-| Startup | 3-5 seconds | < 0.5 seconds |
-| Memory | 400+ MB baseline | ~20 MB baseline |
-| API | Same | Same |
-| CORS | No | Yes (enabled by default) |
-| Protocol | Same gRPC/TCP | Same gRPC/TCP |

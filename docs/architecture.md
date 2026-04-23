@@ -497,7 +497,7 @@ All tick-returning historical endpoints return a typed `<TickName>List` wrapper 
 
 ### Arrow columnar adapter (Python)
 
-Every `<...>List` wrapper exposes four chainable terminals — `.to_list()` (plain `list[TickClass]`), `.to_arrow()` (`pyarrow.Table`), `.to_pandas()` (`pandas.DataFrame`), `.to_polars()` (`polars.DataFrame`). The Arrow terminal walks the wrapper's owned `Vec<Tick>` directly through a generator-emitted `arrow::RecordBatch` builder (driven by `tick_schema.toml`) and hands the batch to pyarrow via the Arrow C Data Interface — zero-copy at the pyo3 boundary. pandas 2.x aliases the numeric columns in place; polars consumes via `polars.from_arrow`. 100k x 20 `EodTick` rows converts in ~8 ms (vs ~300-500 ms on the pre-#379 dict-of-lists path).
+Every `<...>List` wrapper exposes four chainable terminals — `.to_list()` (plain `list[TickClass]`), `.to_arrow()` (`pyarrow.Table`), `.to_pandas()` (`pandas.DataFrame`), `.to_polars()` (`polars.DataFrame`). The Arrow terminal walks the wrapper's owned `Vec<Tick>` directly through a generator-emitted `arrow::RecordBatch` builder (driven by `tick_schema.toml`) and hands the batch to pyarrow via the Arrow C Data Interface — zero-copy at the pyo3 boundary. pandas 2.x aliases the numeric columns in place; polars consumes via `polars.from_arrow`. 100k x 20 `EodTick` rows converts in ~8 ms.
 
 Empty wrappers still emit a typed schema on `.to_arrow()` — the list wrapper knows its tick type at construction, so the full column layout is preserved at zero rows and downstream pipelines that assert a fixed schema survive empty market-hours windows without branching on length.
 

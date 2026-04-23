@@ -255,7 +255,8 @@ macro_rules! list_endpoint {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
+/// # async fn example(client: thetadatadx::MddsClient) -> Result<(), thetadatadx::Error> {
 /// // Simple -- just .await the builder directly
 /// let ticks = client.stock_history_ohlc("AAPL", "20260401", "1m").await?;
 ///
@@ -265,6 +266,8 @@ macro_rules! list_endpoint {
 ///     .start_time("04:00:00")
 ///     .with_deadline(std::time::Duration::from_secs(60))
 ///     .await?;
+/// # Ok(())
+/// # }
 /// ```
 macro_rules! parsed_endpoint {
     (

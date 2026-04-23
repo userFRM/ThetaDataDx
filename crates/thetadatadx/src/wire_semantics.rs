@@ -1,7 +1,7 @@
 //! Shared wire-level canonicalization rules.
 //!
 //! Consumed by:
-//! - runtime request building in `mdds/endpoints.rs` (via `mdds/normalize.rs`)
+//! - runtime request building in `mdds/endpoints.rs`
 //! - build-time mode collapsing in `build_support/endpoints/modes.rs` (via
 //!   `#[path]` reuse of this file)
 
@@ -23,13 +23,11 @@ pub(crate) fn normalize_expiration(expiration: &str) -> String {
 /// Map the SDK `strike` vocabulary to the wire representation.
 ///
 /// The MDDS v3 server differentiates between an **absent** optional
-/// `ContractSpec.strike` (per-strike enumeration — slow path) and an
-/// **explicit wildcard** `"*"` (chain-wide lookup — fast path). The
-/// vendor v3 client always populates the field literally (`"*"` when
-/// unspecified), which keeps every request on the fast path. Mirror
-/// that shape: the SDK-surface wildcard sentinels (`""`, `"*"`, `"0"`)
-/// all canonicalize to the literal `"*"` string on the wire. Any
-/// other value forwards verbatim.
+/// `ContractSpec.strike` (per-strike enumeration -- slow path) and an
+/// **explicit wildcard** `"*"` (chain-wide lookup -- fast path). The
+/// request contract expects wildcard values to be populated literally:
+/// the SDK-surface sentinels (`""`, `"*"`, `"0"`) all canonicalize to
+/// the literal `"*"` string on the wire. Any other value forwards verbatim.
 pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
     if strike.is_empty() || strike == "*" || strike == "0" {
         Some("*".to_string())

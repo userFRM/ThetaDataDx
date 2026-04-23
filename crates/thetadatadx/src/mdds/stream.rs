@@ -76,7 +76,7 @@ impl MddsClient {
     ///
     /// # Example
     ///
-    /// ```rust,ignore
+    /// ```text
     /// let request = /* build your gRPC request */;
     /// let stream = client.stub().get_stock_history_trade(request).await?.into_inner();
     ///

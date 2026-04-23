@@ -28,7 +28,7 @@
 //! The recommended entry point is [`ThetaDataDx`], which authenticates once and
 //! provides both historical and streaming through a single object:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 //! use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 //! use thetadatadx::fpss::protocol::Contract;
@@ -65,13 +65,16 @@
 //! For historical-only usage, just skip `start_streaming()` -- all 61 historical
 //! methods are available directly on `ThetaDataDx` via `Deref<Target = MddsClient>`:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
 //!
+//! # async fn example() -> Result<(), thetadatadx::Error> {
 //! let creds = Credentials::from_file("creds.txt")?;
 //! // Or inline: let creds = Credentials::new("user@example.com", "your-password");
 //! let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 //! let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Wire protocol
