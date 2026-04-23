@@ -76,6 +76,11 @@ allow = [
     # data-sharing license); used only for the static Mozilla CA bundle
     # bundled into rustls.
     "CDLA-Permissive-2.0",
+    # Reason: xxhash-rust is BSL-1.0 (Boost Software License). Permissive,
+    # OSI-approved, no copyleft on derivative works -- effectively identical
+    # to MIT for SDK consumers. Pulled in transitively by polars through
+    # polars-schema; only reachable with the `polars` feature flag enabled.
+    "BSL-1.0",
 ]
 confidence-threshold = 0.8
 exceptions = []
