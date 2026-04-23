@@ -21,7 +21,7 @@
 //! - `"both"`, `"BOTH"`, `"*"` — wildcard; only valid where the endpoint
 //!   supports it (e.g. snapshot / history endpoints taking `strike="0"`)
 //!
-//! Anything else returns [`Error::Config`](crate::error::Error::Config) with
+//! Anything else returns [`Error::Config`] with
 //! a descriptive message. No silent defaults.
 //!
 //! # Upstream vs ours
@@ -102,11 +102,11 @@ impl ParsedRight {
 /// Parse a user-supplied `right` string.
 ///
 /// Accepts `call`/`put`/`both`/`C`/`P`/`*` in any case. Returns
-/// [`Error::Config`](crate::error::Error::Config) for anything else.
+/// [`Error::Config`] for anything else.
 ///
 /// # Errors
 ///
-/// Returns [`Error::Config`](crate::error::Error::Config) if the input does
+/// Returns [`Error::Config`] if the input does
 /// not match any of the accepted forms.
 ///
 /// # Examples
@@ -139,13 +139,13 @@ pub fn parse_right(input: &str) -> Result<ParsedRight, Error> {
 
 /// Parse a `right` that must resolve to a single side (call or put).
 ///
-/// Returns [`Error::Config`](crate::error::Error::Config) if the input parses
+/// Returns [`Error::Config`] if the input parses
 /// to [`ParsedRight::Both`]. Use this for endpoints where the wildcard is not
 /// meaningful (e.g. FPSS per-contract subscriptions, Greeks utilities).
 ///
 /// # Errors
 ///
-/// Returns [`Error::Config`](crate::error::Error::Config) for invalid inputs
+/// Returns [`Error::Config`] for invalid inputs
 /// and for the `both` / `*` wildcards.
 pub fn parse_right_strict(input: &str) -> Result<ParsedRight, Error> {
     let parsed = parse_right(input)?;

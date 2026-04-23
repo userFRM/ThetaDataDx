@@ -123,7 +123,7 @@ fn with_optional_rationale(param_name: &str, literal: &str) -> String {
 /// Minimum subscription tier each endpoint requires.
 ///
 /// Derived at generator-run-time from the pinned upstream OpenAPI snapshot at
-/// `scripts/upstream_openapi.yaml` (see [`super::upstream_openapi`]), keyed
+/// `scripts/upstream_openapi.yaml` (parsed by the `upstream_openapi` helper), keyed
 /// on the endpoint's `operationId`. Upstream is the sole source of truth for
 /// `x-min-subscription`, so docs-site `<TierBadge>` and this function agree
 /// as long as the snapshot is fresh.
@@ -288,7 +288,7 @@ pub(super) fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
 /// wildcards to its `expiration_no_star` component parameter (they return
 /// `InvalidArgument -- Cannot specify '*' for the date` if we send `*`),
 /// and wildcard-accepting endpoints to `expiration`. See
-/// [`super::upstream_openapi::UpstreamEndpoint::supports_expiration_wildcard`].
+/// the `UpstreamEndpoint::supports_expiration_wildcard` helper.
 ///
 /// Endpoints absent from upstream (streaming, SDK-only clones) fall back to
 /// `true` — they don't participate in the wildcard matrix anyway (streaming

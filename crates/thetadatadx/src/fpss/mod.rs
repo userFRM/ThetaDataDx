@@ -190,7 +190,7 @@ impl FpssClient {
     /// Source: `FPSSClient.connect()` and `FPSSClient.sendCredentials()`.
     /// Connect to FPSS streaming servers.
     ///
-    /// `hosts` is the FPSS server list from [`DirectConfig::fpss_hosts`].
+    /// `hosts` is the FPSS server list from [`crate::config::DirectConfig::fpss_hosts`].
     /// Servers are tried in order until one connects.
     ///
     /// `policy` controls auto-reconnect behavior after involuntary disconnect.
@@ -457,7 +457,7 @@ impl FpssClient {
     ///
     /// If OHLCVC derivation is enabled (default), you will also
     /// receive locally-derived [`FpssData::Ohlcvc`] after each trade. Pass
-    /// `derive_ohlcvc: false` to [`connect`] to disable this and reduce throughput overhead.
+    /// `derive_ohlcvc: false` to [`FpssClient::connect`] to disable this and reduce throughput overhead.
     ///
     /// # Wire protocol (from `PacketStream.java`)
     ///
@@ -496,7 +496,7 @@ impl FpssClient {
 
     /// Subscribe to all open interest data for a security type (full OI stream).
     ///
-    /// Same pattern as [`subscribe_full_trades`] but for open interest.
+    /// Same pattern as [`FpssClient::subscribe_full_trades`] but for open interest.
     ///
     /// # Wire protocol
     ///
@@ -538,7 +538,7 @@ impl FpssClient {
     /// # Wire protocol
     ///
     /// Sends code 52 (`REMOVE_TRADE`) with 5-byte payload `[req_id: i32 BE] [sec_type: u8]`.
-    /// Same format as [`subscribe_full_trades`] but with the REMOVE code.
+    /// Same format as [`FpssClient::subscribe_full_trades`] but with the REMOVE code.
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
@@ -574,7 +574,7 @@ impl FpssClient {
     /// # Wire protocol
     ///
     /// Sends code 53 (`REMOVE_OPEN_INTEREST`) with 5-byte payload `[req_id: i32 BE] [sec_type: u8]`.
-    /// Same format as [`subscribe_full_open_interest`] but with the REMOVE code.
+    /// Same format as [`FpssClient::subscribe_full_open_interest`] but with the REMOVE code.
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.

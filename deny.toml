@@ -45,26 +45,39 @@ ignore = []
 [licenses]
 # Workspace crates (tdbe, thetadatadx, FFI shim, SDK shims, tools) are
 # Apache-2.0. The allowlist below determines which *dependency* licenses
-# we accept in the tree. Anything unlisted fails.
+# we accept in the tree. Anything unlisted fails. Every entry below is
+# present in the current lock file's license surface; unused allowances
+# are deleted so the list stays an accurate record of what we actually
+# ship.
 allow = [
+    # Reason: the dominant permissive license across the Rust ecosystem.
     "MIT",
+    # Reason: the project's own license; also widely reused by deps.
     "Apache-2.0",
+    # Reason: the LLVM-exception variant covers rustc-internal crates we
+    # pick up transitively (e.g. via the compiler-builtins path).
     "Apache-2.0 WITH LLVM-exception",
+    # Reason: permissive BSD family; pulled in by several small utility
+    # crates (pkg-config, libloading, etc.).
     "BSD-2-Clause",
     "BSD-3-Clause",
+    # Reason: permissive, no attribution clause quirks; appears on
+    # hashbrown and a few networking primitives.
     "ISC",
+    # Reason: zlib-style permissive; required by miniz_oxide / adler.
     "Zlib",
+    # Reason: public-domain-equivalent dedication on tiny-keccak and a
+    # handful of hash-family crates.
     "CC0-1.0",
-    "Unicode-DFS-2016",
+    # Reason: unicode-ident (required by syn / proc-macro2 / every
+    # derive-macro consumer) moved to Unicode-3.0 in recent releases.
     "Unicode-3.0",
-    "MPL-2.0",
-    # Reason: webpki-roots 1.x is CDLA-Permissive-2.0. The Community
-    # Data License Agreement - Permissive 2.0 is a data-sharing license
-    # (Linux Foundation) with effectively no copyleft on output; rustls
-    # uses it only for the static Mozilla CA bundle.
+    # Reason: webpki-roots 1.x is CDLA-Permissive-2.0 (Linux Foundation
+    # data-sharing license); used only for the static Mozilla CA bundle
+    # bundled into rustls.
     "CDLA-Permissive-2.0",
     # Reason: xxhash-rust is BSL-1.0 (Boost Software License). Permissive,
-    # OSI-approved, no copyleft on derivative works — effectively identical
+    # OSI-approved, no copyleft on derivative works -- effectively identical
     # to MIT for SDK consumers. Pulled in transitively by polars through
     # polars-schema; only reachable with the `polars` feature flag enabled.
     "BSL-1.0",
@@ -84,7 +97,22 @@ highlight = "all"
 # Allow cargo-deny to skip duplicate-version noise rooted at these
 # trees when it is unavoidable (e.g. `syn 1.x` vs `syn 2.x`). Add
 # entries here only after confirming the duplication is upstream.
-skip-tree = []
+skip-tree = [
+    # Reason: disruptor v4 still depends on thiserror 1.x while the rest
+    # of the tree is on thiserror 2.x. The duplicate is rooted upstream
+    # in the disruptor crate and clears itself once disruptor updates.
+    { name = "disruptor", version = "4" },
+    # Reason: ring pins getrandom 0.2 while the ahash / jobserver side
+    # of the tree is on getrandom 0.3 (and the uuid side on 0.4). The
+    # duplicates are forced by upstream version-choice decisions in the
+    # TLS stack and clear themselves once ring releases against a
+    # unified getrandom line.
+    { name = "ring", version = "0.17" },
+    # Reason: petgraph (pulled in by prost-build at build time only) is
+    # still on hashbrown 0.15 while the rest of the tree is on 0.17.
+    # Duplicate is upstream-rooted and resolves once petgraph updates.
+    { name = "petgraph", version = "0.8" },
+]
 
 [sources]
 unknown-registry = "warn"

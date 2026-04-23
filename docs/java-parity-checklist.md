@@ -184,7 +184,7 @@ empty forms.
 |---------|:------:|-------|
 | `start_time="09:30:00"` / `end_time="16:00:00"` on interval endpoints | [✓] | Matches Java (added v4.2.0). |
 | `venue="nqb"` on stock snapshot + intraday history endpoints | [✓] | NASDAQ Basic / UTP SIP — matches Java (added v4.2.0). |
-| Interval shorthand normalization (`"60000"` -> `"1m"`) | [✗] | Server accepts both; wire value differs (`normalize_interval()` in `mdds/normalize.rs`). |
+| Interval shorthand normalization (`"60000"` -> `"1m"`) | [✗] | Server accepts both; wire value differs (`normalize_interval()` in `mdds/endpoints.rs`). |
 
 ## Response streaming
 
@@ -224,10 +224,10 @@ either v2-style or v3-style parameter values.
 
 | v2 (ms) | v3 | Where |
 |---------|----|-------|
-| `"60000"` | `"1m"` | `normalize_interval()` in `mdds/normalize.rs` |
-| `"1000"` | `"1s"` | `normalize_interval()` in `mdds/normalize.rs` |
-| `"300000"` | `"5m"` | `normalize_interval()` in `mdds/normalize.rs` |
-| already shorthand | pass-through | `normalize_interval()` in `mdds/normalize.rs` |
+| `"60000"` | `"1m"` | `normalize_interval()` in `mdds/endpoints.rs` |
+| `"1000"` | `"1s"` | `normalize_interval()` in `mdds/endpoints.rs` |
+| `"300000"` | `"5m"` | `normalize_interval()` in `mdds/endpoints.rs` |
+| already shorthand | pass-through | `normalize_interval()` in `mdds/endpoints.rs` |
 
 ### Symbol field
 

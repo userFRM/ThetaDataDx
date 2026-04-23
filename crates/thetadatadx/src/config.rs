@@ -125,8 +125,8 @@ pub enum FpssFlushMode {
 ///
 /// Only wired on status codes `Unavailable`, `DeadlineExceeded`, and
 /// `ResourceExhausted`. Permission / credential failures route through
-/// the separate auto-refresh path (see [`MddsClient`] wrappers) and are
-/// never retried by this policy.
+/// the separate auto-refresh path (see the in-crate `MddsClient` wrappers)
+/// and are never retried by this policy.
 ///
 /// # Jitter
 ///

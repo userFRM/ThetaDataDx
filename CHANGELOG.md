@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.8] - 2026-04-23
+
+Follow-up patch to v8.0.7. Addresses the audit findings surfaced against
+the code-strip release: rustdoc breakage inside `tdbe`, TypeScript loader
+and subpackage versions drifting from the root package, a `[8.0.7]`
+changelog section that accidentally absorbed v8.0.6 content, dead
+references to modules that v8.0.7 removed, and a handful of doc
+inaccuracies around DataFrame terminals and SDK parameter names. No
+behaviour changes; every item is documentation, packaging metadata, or
+tooling hygiene.
+
+### Fixed
+
+- `crates/tdbe/src/codec/fit.rs` — broken intra-doc link on
+  `FitReader`'s module-level docstring now resolves via
+  `[FitReader::read_changes]`.
+- `crates/tdbe/src/right.rs` — five redundant explicit link targets on
+  `[Error::Config]` references dropped; rustdoc resolves the bare path
+  against the in-scope `use crate::error::Error`.
+- `sdks/typescript/index.js` — native-binding version guard now compares
+  against `'8.0.8'` (was stale sentinel `'8.0.0'`). Mismatched binaries
+  are caught when `NAPI_RS_ENFORCE_VERSION_CHECK` is set.
+- `sdks/typescript/package.json` — `optionalDependencies` pin each
+  platform subpackage to `8.0.8` (was `8.0.4`). The three published
+  subpackages (`thetadatadx-linux-x64-gnu`, `thetadatadx-darwin-arm64`,
+  `thetadatadx-win32-x64-msvc`) bump from `8.0.7` to `8.0.8` in lockstep.
+- `CHANGELOG.md` / `docs-site/docs/changelog.md` — v8.0.6 content
+  (snapshot fast-path, Rust `frames` module) split back out of the
+  v8.0.7 section into a standalone `[8.0.6]` entry; the `### Internal`
+  bucket on v8.0.6 was renamed `### Changed` to stay within the Keep a
+  Changelog vocabulary.
+- `docs/api-reference.md` — two references to `tdbe::errors` (removed
+  in v8.0.7) repointed to `tdbe::error`.
+- `docs/java-parity-checklist.md` — stale `mdds/normalize.rs` path
+  updated to `mdds/endpoints.rs`, the current home of
+  `normalize_interval` after the v8.0.7 fold.
+- `crates/thetadatadx/src/wire_semantics.rs` — stale
+  "(via `mdds/normalize.rs`)" parenthetical removed from the module
+  docstring.
+- `docs-site/docs/api-reference.md` — DataFrame-terminals section
+  narrowed: `.to_pandas()` / `.to_polars()` / `.to_arrow()` are
+  available on the `<TickName>List` list-wrapper return types;
+  snapshot-fast-path endpoints return a plain `list[TickClass]` and do
+  not carry the chainable terminals.
+- `sdks/python/README.md`, `sdks/go/README.md`, `sdks/cpp/README.md` —
+  parameter-name tables now use the canonical SSOT names
+  (`expiration`, `start_date`, `end_date`) instead of the `exp`,
+  `start`, `end` shorthand.
+
+### Changed
+
+- `docs-site/docs/.vitepress/config.ts` — `vite.build.chunkSizeWarningLimit`
+  raised to `1500` kB. The docs site vendors Mermaid and Vue chunks that
+  exceed the default 500 kB threshold; the warning was non-actionable.
+- `deny.toml` — unused license allowances pruned from `[licenses].allow`;
+  remaining entries carry a short comment explaining why each is there.
+  `cargo deny check` now produces zero warnings.
+
 ## [8.0.7] - 2026-04-23
 
 Code-strip release. No new features. Every item removes dead or
@@ -76,6 +134,8 @@ FFI surfaces. `tdbe` bumps to `0.12.0` (public module removed).
   TypeScript — now calls the `tdx_<endpoint>_with_options` entry
   points. The plain-name FFI entry points are no longer exported.
 
+## [8.0.6] - 2026-04-23
+
 Snapshot-endpoint latency fast-path on the Python binding and new opt-in
 Rust `frames` module. Closes the residual 3-7 ms per-call gap vs. the
 vendor's v3 Python client on the 5 flagged snapshot / calendar
@@ -95,9 +155,6 @@ out of the default dep graph.
 - **Snapshot pymethods now dispatch via a new `run_blocking_snapshot` helper — bounded `tokio::time::timeout` instead of the 100 ms signal-check ticker.** `run_blocking`'s `tokio::select!` poll loop taxed every sub-100 ms call with 1-5 ms of first-tick jitter in the worst case. `run_blocking_snapshot` drops the ticker entirely: `py.detach { runtime().block_on(tokio::time::timeout(5s, fut)) }`. The 5-second upper bound is a liveness safeguard — every observed production snapshot call completes in <200 ms, so the bound adds zero steady-state cost. Ctrl+C is still honoured after the future resolves or the timeout fires. Emitted by the generator only when `is_snapshot_endpoint` is true; parsed / list / streaming endpoints keep the existing `run_blocking` path unchanged.
 - **`run_blocking` signal-check poll cadence reduced from 100 ms to 20 ms.** Drops the worst-case select-wait on short parsed-kind calls from ~100 ms to ~20 ms. `Python::check_signals()` is ~1 µs per call so driving the ticker 5× as often has negligible steady-state cost. Long-running endpoints see no behavioural change beyond a slightly finer-grained Ctrl+C cancellation window. One-line constant edit in `sdks/python/src/lib.rs`; the matching doc-comment is updated.
 - **`README.md` / `sdks/python/README.md` — positioning refreshed.** Dropped the "Small snapshot / calendar calls run within ±5% of the vendor" caveat now that the fast-path closes the gap on every measured endpoint. Added a feature-gated Rust DataFrame quickstart example showing `thetadatadx = { version = "8", features = ["polars"] }` plus the chained `ticks.as_slice().to_polars()?` call site.
-
-### Internal
-
 - **Generator-emitted snapshot fast-path converters (`<tick>_vec_to_pylist`) in `sdks/python/src/tick_classes.rs`.** One helper per snapshot-return tick type (9 total: `calendar_days_vec_to_pylist`, `ohlc_ticks_vec_to_pylist`, `quote_ticks_vec_to_pylist`, `trade_ticks_vec_to_pylist`, `market_value_ticks_vec_to_pylist`, `open_interest_ticks_vec_to_pylist`, `iv_ticks_vec_to_pylist`, `greeks_ticks_vec_to_pylist`, `price_ticks_vec_to_pylist`); one helper per tick type that is NOT reached by any snapshot endpoint is suppressed at generation time to avoid dead-code. Emission is gated on a TOML-derived set computed by the new `endpoints::snapshot_return_types` helper — adding a snapshot endpoint of a new tick type to `endpoint_surface.toml` automatically opts its converter into emission on the next generator run. Row-building body reuses `pyclass_from_tick_expr` from the `<TickName>List.to_list()` path so both surfaces emit byte-identical pylist contents.
 
 ## [8.0.5] - 2026-04-22

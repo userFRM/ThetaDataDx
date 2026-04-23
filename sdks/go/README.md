@@ -124,9 +124,9 @@ defer client.Close()
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `StockHistoryEOD(symbol, start, end)` | `([]EodTick, error)` | EOD data |
+| `StockHistoryEOD(symbol, startDate, endDate)` | `([]EodTick, error)` | EOD data |
 | `StockHistoryOHLC(symbol, date, interval)` | `([]OhlcTick, error)` | Intraday OHLC. `interval` accepts ms (`"60000"`) or shorthand (`"1m"`). |
-| `StockHistoryOHLCRange(symbol, start, end, interval)` | `([]OhlcTick, error)` | OHLC over date range. `interval` accepts ms or shorthand. |
+| `StockHistoryOHLCRange(symbol, startDate, endDate, interval)` | `([]OhlcTick, error)` | OHLC over date range. `interval` accepts ms or shorthand. |
 | `StockHistoryTrade(symbol, date)` | `([]TradeTick, error)` | All trades |
 | `StockHistoryQuote(symbol, date, interval)` | `([]QuoteTick, error)` | NBBO quotes. `interval` accepts ms or shorthand. |
 | `StockHistoryTradeQuote(symbol, date)` | `([]TradeQuoteTick, error)` | Trade+quote combined |
@@ -135,68 +135,68 @@ defer client.Close()
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `StockAtTimeTrade(symbol, start, end, time)` | `([]TradeTick, error)` | Trade at specific time across dates |
-| `StockAtTimeQuote(symbol, start, end, time)` | `([]QuoteTick, error)` | Quote at specific time across dates |
+| `StockAtTimeTrade(symbol, startDate, endDate, time)` | `([]TradeTick, error)` | Trade at specific time across dates |
+| `StockAtTimeQuote(symbol, startDate, endDate, time)` | `([]QuoteTick, error)` | Quote at specific time across dates |
 
 #### Option - List (5)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `OptionListSymbols()` | `([]string, error)` | Option underlyings |
-| `OptionListDates(reqType, sym, exp, strike, right)` | `([]string, error)` | Available dates |
+| `OptionListDates(reqType, sym, expiration, strike, right)` | `([]string, error)` | Available dates |
 | `OptionListExpirations(symbol)` | `([]string, error)` | Expiration dates |
-| `OptionListStrikes(symbol, exp)` | `([]string, error)` | Strike prices |
+| `OptionListStrikes(symbol, expiration)` | `([]string, error)` | Strike prices |
 | `OptionListContracts(reqType, symbol, date)` | `([]Contract, error)` | All contracts |
 
 #### Option - Snapshot (10)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `OptionSnapshotOHLC(sym, exp, strike, right)` | `([]OhlcTick, error)` | Latest OHLC |
-| `OptionSnapshotTrade(sym, exp, strike, right)` | `([]TradeTick, error)` | Latest trade |
-| `OptionSnapshotQuote(sym, exp, strike, right)` | `([]QuoteTick, error)` | Latest quote |
-| `OptionSnapshotOpenInterest(sym, exp, strike, right)` | `([]OpenInterestTick, error)` | Latest OI |
-| `OptionSnapshotMarketValue(sym, exp, strike, right)` | `([]MarketValueTick, error)` | Latest market value |
-| `OptionSnapshotGreeksImpliedVolatility(sym, exp, strike, right)` | `([]IVTick, error)` | IV snapshot |
-| `OptionSnapshotGreeksAll(sym, exp, strike, right)` | `([]GreeksTick, error)` | All Greeks snapshot |
-| `OptionSnapshotGreeksFirstOrder(sym, exp, strike, right)` | `([]GreeksTick, error)` | First-order Greeks |
-| `OptionSnapshotGreeksSecondOrder(sym, exp, strike, right)` | `([]GreeksTick, error)` | Second-order Greeks |
-| `OptionSnapshotGreeksThirdOrder(sym, exp, strike, right)` | `([]GreeksTick, error)` | Third-order Greeks |
+| `OptionSnapshotOHLC(sym, expiration, strike, right)` | `([]OhlcTick, error)` | Latest OHLC |
+| `OptionSnapshotTrade(sym, expiration, strike, right)` | `([]TradeTick, error)` | Latest trade |
+| `OptionSnapshotQuote(sym, expiration, strike, right)` | `([]QuoteTick, error)` | Latest quote |
+| `OptionSnapshotOpenInterest(sym, expiration, strike, right)` | `([]OpenInterestTick, error)` | Latest OI |
+| `OptionSnapshotMarketValue(sym, expiration, strike, right)` | `([]MarketValueTick, error)` | Latest market value |
+| `OptionSnapshotGreeksImpliedVolatility(sym, expiration, strike, right)` | `([]IVTick, error)` | IV snapshot |
+| `OptionSnapshotGreeksAll(sym, expiration, strike, right)` | `([]GreeksTick, error)` | All Greeks snapshot |
+| `OptionSnapshotGreeksFirstOrder(sym, expiration, strike, right)` | `([]GreeksTick, error)` | First-order Greeks |
+| `OptionSnapshotGreeksSecondOrder(sym, expiration, strike, right)` | `([]GreeksTick, error)` | Second-order Greeks |
+| `OptionSnapshotGreeksThirdOrder(sym, expiration, strike, right)` | `([]GreeksTick, error)` | Third-order Greeks |
 
 #### Option - History (6)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `OptionHistoryEOD(sym, exp, strike, right, start, end)` | `([]EodTick, error)` | EOD data |
-| `OptionHistoryOHLC(sym, exp, strike, right, date, interval)` | `([]OhlcTick, error)` | OHLC bars |
-| `OptionHistoryTrade(sym, exp, strike, right, date)` | `([]TradeTick, error)` | Trades |
-| `OptionHistoryQuote(sym, exp, strike, right, date, interval)` | `([]QuoteTick, error)` | Quotes |
-| `OptionHistoryTradeQuote(sym, exp, strike, right, date)` | `([]TradeQuoteTick, error)` | Trade+quote combined |
-| `OptionHistoryOpenInterest(sym, exp, strike, right, date)` | `([]OpenInterestTick, error)` | Open interest history |
+| `OptionHistoryEOD(sym, expiration, strike, right, startDate, endDate)` | `([]EodTick, error)` | EOD data |
+| `OptionHistoryOHLC(sym, expiration, strike, right, date, interval)` | `([]OhlcTick, error)` | OHLC bars |
+| `OptionHistoryTrade(sym, expiration, strike, right, date)` | `([]TradeTick, error)` | Trades |
+| `OptionHistoryQuote(sym, expiration, strike, right, date, interval)` | `([]QuoteTick, error)` | Quotes |
+| `OptionHistoryTradeQuote(sym, expiration, strike, right, date)` | `([]TradeQuoteTick, error)` | Trade+quote combined |
+| `OptionHistoryOpenInterest(sym, expiration, strike, right, date)` | `([]OpenInterestTick, error)` | Open interest history |
 
 #### Option - History Greeks (11)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `OptionHistoryGreeksEOD(sym, exp, strike, right, start, end)` | `([]GreeksTick, error)` | EOD Greeks |
-| `OptionHistoryGreeksEODWithOptions(sym, exp, strike, right, start, end, opts)` | `([]GreeksTick, error)` | EOD Greeks with `EndpointRequestOptions`, including builder parameters such as `StrikeRange` |
-| `OptionHistoryGreeksAll(sym, exp, strike, right, date, interval)` | `([]GreeksTick, error)` | All Greeks history |
-| `OptionHistoryTradeGreeksAll(sym, exp, strike, right, date)` | `([]GreeksTick, error)` | Greeks on each trade |
-| `OptionHistoryGreeksFirstOrder(sym, exp, strike, right, date, interval)` | `([]GreeksTick, error)` | First-order Greeks history |
-| `OptionHistoryTradeGreeksFirstOrder(sym, exp, strike, right, date)` | `([]GreeksTick, error)` | First-order on each trade |
-| `OptionHistoryGreeksSecondOrder(sym, exp, strike, right, date, interval)` | `([]GreeksTick, error)` | Second-order Greeks history |
-| `OptionHistoryTradeGreeksSecondOrder(sym, exp, strike, right, date)` | `([]GreeksTick, error)` | Second-order on each trade |
-| `OptionHistoryGreeksThirdOrder(sym, exp, strike, right, date, interval)` | `([]GreeksTick, error)` | Third-order Greeks history |
-| `OptionHistoryTradeGreeksThirdOrder(sym, exp, strike, right, date)` | `([]GreeksTick, error)` | Third-order on each trade |
-| `OptionHistoryGreeksImpliedVolatility(sym, exp, strike, right, date, interval)` | `([]IVTick, error)` | IV history |
-| `OptionHistoryTradeGreeksImpliedVolatility(sym, exp, strike, right, date)` | `([]IVTick, error)` | IV on each trade |
+| `OptionHistoryGreeksEOD(sym, expiration, strike, right, startDate, endDate)` | `([]GreeksTick, error)` | EOD Greeks |
+| `OptionHistoryGreeksEODWithOptions(sym, expiration, strike, right, startDate, endDate, opts)` | `([]GreeksTick, error)` | EOD Greeks with `EndpointRequestOptions`, including builder parameters such as `StrikeRange` |
+| `OptionHistoryGreeksAll(sym, expiration, strike, right, date, interval)` | `([]GreeksTick, error)` | All Greeks history |
+| `OptionHistoryTradeGreeksAll(sym, expiration, strike, right, date)` | `([]GreeksTick, error)` | Greeks on each trade |
+| `OptionHistoryGreeksFirstOrder(sym, expiration, strike, right, date, interval)` | `([]GreeksTick, error)` | First-order Greeks history |
+| `OptionHistoryTradeGreeksFirstOrder(sym, expiration, strike, right, date)` | `([]GreeksTick, error)` | First-order on each trade |
+| `OptionHistoryGreeksSecondOrder(sym, expiration, strike, right, date, interval)` | `([]GreeksTick, error)` | Second-order Greeks history |
+| `OptionHistoryTradeGreeksSecondOrder(sym, expiration, strike, right, date)` | `([]GreeksTick, error)` | Second-order on each trade |
+| `OptionHistoryGreeksThirdOrder(sym, expiration, strike, right, date, interval)` | `([]GreeksTick, error)` | Third-order Greeks history |
+| `OptionHistoryTradeGreeksThirdOrder(sym, expiration, strike, right, date)` | `([]GreeksTick, error)` | Third-order on each trade |
+| `OptionHistoryGreeksImpliedVolatility(sym, expiration, strike, right, date, interval)` | `([]IVTick, error)` | IV history |
+| `OptionHistoryTradeGreeksImpliedVolatility(sym, expiration, strike, right, date)` | `([]IVTick, error)` | IV on each trade |
 
 #### Option - At-Time (2)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `OptionAtTimeTrade(sym, exp, strike, right, start, end, time)` | `([]TradeTick, error)` | Trade at specific time across dates |
-| `OptionAtTimeQuote(sym, exp, strike, right, start, end, time)` | `([]QuoteTick, error)` | Quote at specific time across dates |
+| `OptionAtTimeTrade(sym, expiration, strike, right, startDate, endDate, time)` | `([]TradeTick, error)` | Trade at specific time across dates |
+| `OptionAtTimeQuote(sym, expiration, strike, right, startDate, endDate, time)` | `([]QuoteTick, error)` | Quote at specific time across dates |
 
 #### Index - List (2)
 
@@ -217,15 +217,15 @@ defer client.Close()
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `IndexHistoryEOD(symbol, start, end)` | `([]EodTick, error)` | EOD data |
-| `IndexHistoryOHLC(symbol, start, end, interval)` | `([]OhlcTick, error)` | OHLC bars |
+| `IndexHistoryEOD(symbol, startDate, endDate)` | `([]EodTick, error)` | EOD data |
+| `IndexHistoryOHLC(symbol, startDate, endDate, interval)` | `([]OhlcTick, error)` | OHLC bars |
 | `IndexHistoryPrice(symbol, date, interval)` | `([]PriceTick, error)` | Price history |
 
 #### Index - At-Time (1)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `IndexAtTimePrice(symbol, start, end, time)` | `([]PriceTick, error)` | Price at specific time across dates |
+| `IndexAtTimePrice(symbol, startDate, endDate, time)` | `([]PriceTick, error)` | Price at specific time across dates |
 
 #### Calendar (3)
 
@@ -239,7 +239,7 @@ defer client.Close()
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `InterestRateHistoryEOD(symbol, start, end)` | `([]InterestRate, error)` | Interest rate EOD history |
+| `InterestRateHistoryEOD(symbol, startDate, endDate)` | `([]InterestRate, error)` | Interest rate EOD history |
 
 ### Greeks (Standalone Functions)
 - `AllGreeks(spot, strike, rate, divYield, tte, price, right)` - returns `(*Greeks, error)` with 22 fields. `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively.

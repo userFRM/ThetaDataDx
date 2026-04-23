@@ -2,7 +2,7 @@
 //!
 //! These feed the crate's `include!()` sites for the endpoint registry, the
 //! shared endpoint dispatch runtime, and the three per-kind MDDS
-//! [`MddsClient`] extension impls (list, parsed, streaming), consumed by
+//! `MddsClient` extension impls (list, parsed, streaming), consumed by
 //! `crates/thetadatadx/src/mdds/endpoints.rs`. The [`generate_all`] entry
 //! point is wired from `build_support::run()`.
 
