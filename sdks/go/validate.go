@@ -256,13 +256,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithStartDate("20250303"), WithEndDate("20250303"), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("stock_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
-	// stock_history_trade_quote::with_exclusive
-	//   rationale: exclusive=true optional filter wiring
-	{
-		t0 := time.Now()
-		v, e := c.StockHistoryTradeQuote("AAPL", "20250303", WithExclusive(true), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("stock_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
 	// stock_history_trade_quote::all_optionals
 	//   rationale: every applicable optional set at once — proves multi-optional wiring
 	{
@@ -633,13 +626,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_snapshot_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
-	// option_snapshot_greeks_implied_volatility::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksImpliedVolatility("SPY", "20250321", "570", "C", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_implied_volatility", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
 	// option_snapshot_greeks_implied_volatility::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
 	{
@@ -731,13 +717,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_snapshot_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
-	// option_snapshot_greeks_all::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksAll("SPY", "20250321", "570", "C", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_all", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_all::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
@@ -831,13 +810,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_snapshot_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
-	// option_snapshot_greeks_first_order::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksFirstOrder("SPY", "20250321", "570", "C", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_first_order", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
 	// option_snapshot_greeks_first_order::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
 	{
@@ -930,13 +902,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_snapshot_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
-	// option_snapshot_greeks_second_order::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksSecondOrder("SPY", "20250321", "570", "C", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_second_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
 	// option_snapshot_greeks_second_order::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
 	{
@@ -1028,13 +993,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		t0 := time.Now()
 		v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_snapshot_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
-	// option_snapshot_greeks_third_order::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionSnapshotGreeksThirdOrder("SPY", "20250321", "570", "C", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_snapshot_greeks_third_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_snapshot_greeks_third_order::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
@@ -1356,13 +1314,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithStartDate("20250303"), WithEndDate("20250303"), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
-	// option_history_trade_quote::with_exclusive
-	//   rationale: exclusive=true optional filter wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryTradeQuote("SPY", "20250321", "570", "C", "20250303", WithExclusive(true), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
 	// option_history_trade_quote::with_max_dte
 	//   rationale: max_dte=30 optional filter wiring
 	{
@@ -1477,13 +1428,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_greeks_eod", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
-	// option_history_greeks_eod::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksEOD("SPY", "20250321", "570", "C", "20250303", "20250303", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_eod", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
 	// option_history_greeks_eod::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
 	{
@@ -1561,13 +1505,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
-	// option_history_greeks_all::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksAll("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_all", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_all::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
@@ -1647,13 +1584,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_trade_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
-	// option_history_trade_greeks_all::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksAll("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_all", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
 	// option_history_trade_greeks_all::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
 	{
@@ -1724,13 +1654,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
-	// option_history_greeks_first_order::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_first_order", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_first_order::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
@@ -1810,13 +1733,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_trade_greeks_first_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
-	// option_history_trade_greeks_first_order::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksFirstOrder("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_first_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
 	// option_history_trade_greeks_first_order::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
 	{
@@ -1887,13 +1803,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
-	// option_history_greeks_second_order::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_second_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_second_order::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
@@ -1973,13 +1882,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_trade_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
-	// option_history_trade_greeks_second_order::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksSecondOrder("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_second_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
 	// option_history_trade_greeks_second_order::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
 	{
@@ -2050,13 +1952,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
-	// option_history_greeks_third_order::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_third_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_third_order::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
@@ -2136,13 +2031,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_trade_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
-	// option_history_trade_greeks_third_order::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksThirdOrder("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_third_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
 	// option_history_trade_greeks_third_order::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
 	{
@@ -2213,13 +2101,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		t0 := time.Now()
 		v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
-	// option_history_greeks_implied_volatility::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", "60000", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_greeks_implied_volatility", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_greeks_implied_volatility::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring
@@ -2298,13 +2179,6 @@ func ValidateAllEndpoints(c *Client) (int, int, int, []CellRecord) {
 		t0 := time.Now()
 		v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithAnnualDividend(0.015), WithTimeoutMs(perCellTimeoutMs))
 		records = classify("option_history_trade_greeks_implied_volatility", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
-	}
-	// option_history_trade_greeks_implied_volatility::with_rate_type
-	//   rationale: rate_type=sofr optional Greeks-input wiring
-	{
-		t0 := time.Now()
-		v, e := c.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20250321", "570", "C", "20250303", WithRateType("sofr"), WithTimeoutMs(perCellTimeoutMs))
-		records = classify("option_history_trade_greeks_implied_volatility", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", v, e, time.Since(t0), &pass, &skip, &fail, records)
 	}
 	// option_history_trade_greeks_implied_volatility::with_rate_value
 	//   rationale: rate_value=0.05 optional Greeks-input wiring

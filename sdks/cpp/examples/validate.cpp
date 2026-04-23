@@ -216,9 +216,6 @@ int main(int argc, char** argv) {
         // stock_history_trade_quote::with_date_range
         //   rationale: start_date + end_date pair — date range optional wiring
         cell("stock_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
-        // stock_history_trade_quote::with_exclusive
-        //   rationale: exclusive=true optional filter wiring
-        cell("stock_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_exclusive(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade_quote::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_trade_quote("AAPL", "20250303", tdx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -372,9 +369,6 @@ int main(int argc, char** argv) {
         // option_snapshot_greeks_implied_volatility::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_snapshot_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_snapshot_greeks_implied_volatility::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_snapshot_greeks_implied_volatility", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_implied_volatility::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_snapshot_greeks_implied_volatility", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -414,9 +408,6 @@ int main(int argc, char** argv) {
         // option_snapshot_greeks_all::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_snapshot_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_snapshot_greeks_all::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_snapshot_greeks_all", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_all::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_snapshot_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -456,9 +447,6 @@ int main(int argc, char** argv) {
         // option_snapshot_greeks_first_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_snapshot_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_snapshot_greeks_first_order::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_snapshot_greeks_first_order", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_first_order::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_snapshot_greeks_first_order", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -498,9 +486,6 @@ int main(int argc, char** argv) {
         // option_snapshot_greeks_second_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_snapshot_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_snapshot_greeks_second_order::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_snapshot_greeks_second_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_second_order::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_snapshot_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -540,9 +525,6 @@ int main(int argc, char** argv) {
         // option_snapshot_greeks_third_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_snapshot_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_snapshot_greeks_third_order::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_snapshot_greeks_third_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_third_order::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_snapshot_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -678,9 +660,6 @@ int main(int argc, char** argv) {
         // option_history_trade_quote::with_date_range
         //   rationale: start_date + end_date pair — date range optional wiring
         cell("option_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_trade_quote::with_exclusive
-        //   rationale: exclusive=true optional filter wiring
-        cell("option_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_exclusive(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::with_max_dte
         //   rationale: max_dte=30 optional filter wiring
         cell("option_history_trade_quote", "with_max_dte", "standard", "max_dte=30 optional filter wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -729,9 +708,6 @@ int main(int argc, char** argv) {
         // option_history_greeks_eod::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_greeks_eod", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_greeks_eod::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_history_greeks_eod", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_eod::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_history_greeks_eod", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -765,9 +741,6 @@ int main(int argc, char** argv) {
         // option_history_greeks_all::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_greeks_all::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_history_greeks_all", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_all::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_history_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -801,9 +774,6 @@ int main(int argc, char** argv) {
         // option_history_trade_greeks_all::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_trade_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_trade_greeks_all::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_history_trade_greeks_all", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_history_trade_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -834,9 +804,6 @@ int main(int argc, char** argv) {
         // option_history_greeks_first_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_greeks_first_order::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_history_greeks_first_order", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_first_order::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_history_greeks_first_order", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -870,9 +837,6 @@ int main(int argc, char** argv) {
         // option_history_trade_greeks_first_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_trade_greeks_first_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_trade_greeks_first_order::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_history_trade_greeks_first_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_history_trade_greeks_first_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -903,9 +867,6 @@ int main(int argc, char** argv) {
         // option_history_greeks_second_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_greeks_second_order::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_history_greeks_second_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_second_order::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_history_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -939,9 +900,6 @@ int main(int argc, char** argv) {
         // option_history_trade_greeks_second_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_trade_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_trade_greeks_second_order::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_history_trade_greeks_second_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_history_trade_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -972,9 +930,6 @@ int main(int argc, char** argv) {
         // option_history_greeks_third_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_greeks_third_order::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_history_greeks_third_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_third_order::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_history_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1008,9 +963,6 @@ int main(int argc, char** argv) {
         // option_history_trade_greeks_third_order::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_trade_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_trade_greeks_third_order::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_history_trade_greeks_third_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_history_trade_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1041,9 +993,6 @@ int main(int argc, char** argv) {
         // option_history_greeks_implied_volatility::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_greeks_implied_volatility::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_history_greeks_implied_volatility", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_implied_volatility::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_history_greeks_implied_volatility", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1077,9 +1026,6 @@ int main(int argc, char** argv) {
         // option_history_trade_greeks_implied_volatility::with_annual_dividend
         //   rationale: annual_dividend=0.015 optional Greeks-input wiring
         cell("option_history_trade_greeks_implied_volatility", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_annual_dividend(0.015).with_timeout_ms(kPerCellTimeoutMs)); });
-        // option_history_trade_greeks_implied_volatility::with_rate_type
-        //   rationale: rate_type=sofr optional Greeks-input wiring
-        cell("option_history_trade_greeks_implied_volatility", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_type("sofr").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::with_rate_value
         //   rationale: rate_value=0.05 optional Greeks-input wiring
         cell("option_history_trade_greeks_implied_volatility", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", tdx::EndpointRequestOptions{}.with_rate_value(0.05).with_timeout_ms(kPerCellTimeoutMs)); });

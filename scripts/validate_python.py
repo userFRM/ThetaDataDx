@@ -119,9 +119,6 @@ CELLS = [
     # stock_history_trade_quote::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
     ("stock_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # stock_history_trade_quote::with_exclusive
-    #   rationale: exclusive=true optional filter wiring
-    ("stock_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", exclusive=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade_quote::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -275,9 +272,6 @@ CELLS = [
     # option_snapshot_greeks_implied_volatility::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_snapshot_greeks_implied_volatility::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_snapshot_greeks_implied_volatility", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_greeks_implied_volatility", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_implied_volatility("SPY", "20250321", "570", "C", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -317,9 +311,6 @@ CELLS = [
     # option_snapshot_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_snapshot_greeks_all::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_snapshot_greeks_all", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_all("SPY", "20250321", "570", "C", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -359,9 +350,6 @@ CELLS = [
     # option_snapshot_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_snapshot_greeks_first_order::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_snapshot_greeks_first_order", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_greeks_first_order", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_first_order("SPY", "20250321", "570", "C", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -401,9 +389,6 @@ CELLS = [
     # option_snapshot_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_snapshot_greeks_second_order::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_snapshot_greeks_second_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_second_order("SPY", "20250321", "570", "C", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -443,9 +428,6 @@ CELLS = [
     # option_snapshot_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_snapshot_greeks_third_order::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_snapshot_greeks_third_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_snapshot_greeks_third_order("SPY", "20250321", "570", "C", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -581,9 +563,6 @@ CELLS = [
     # option_history_trade_quote::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
     ("option_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_trade_quote::with_exclusive
-    #   rationale: exclusive=true optional filter wiring
-    ("option_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", exclusive=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_trade_quote", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "570", "C", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -632,9 +611,6 @@ CELLS = [
     # option_history_greeks_eod::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_eod", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_greeks_eod::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_history_greeks_eod", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_eod", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_eod("SPY", "20250321", "570", "C", "20250303", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -668,9 +644,6 @@ CELLS = [
     # option_history_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_greeks_all::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_history_greeks_all", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "570", "C", "20250303", "60000", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -704,9 +677,6 @@ CELLS = [
     # option_history_trade_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_trade_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_trade_greeks_all::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_history_trade_greeks_all", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "570", "C", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -737,9 +707,6 @@ CELLS = [
     # option_history_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_greeks_first_order::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_history_greeks_first_order", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_first_order", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "570", "C", "20250303", "60000", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -773,9 +740,6 @@ CELLS = [
     # option_history_trade_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_trade_greeks_first_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_trade_greeks_first_order::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_history_trade_greeks_first_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_first_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "570", "C", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -806,9 +770,6 @@ CELLS = [
     # option_history_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_greeks_second_order::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_history_greeks_second_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "570", "C", "20250303", "60000", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -842,9 +803,6 @@ CELLS = [
     # option_history_trade_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_trade_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_trade_greeks_second_order::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_history_trade_greeks_second_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "570", "C", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -875,9 +833,6 @@ CELLS = [
     # option_history_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_greeks_third_order::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_history_greeks_third_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "570", "C", "20250303", "60000", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -911,9 +866,6 @@ CELLS = [
     # option_history_trade_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_trade_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_trade_greeks_third_order::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_history_trade_greeks_third_order", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "570", "C", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -944,9 +896,6 @@ CELLS = [
     # option_history_greeks_implied_volatility::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_greeks_implied_volatility::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_history_greeks_implied_volatility", "with_rate_type", "standard", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_implied_volatility", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", "60000", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -980,9 +929,6 @@ CELLS = [
     # option_history_trade_greeks_implied_volatility::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_trade_greeks_implied_volatility", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_trade_greeks_implied_volatility::with_rate_type
-    #   rationale: rate_type=sofr optional Greeks-input wiring
-    ("option_history_trade_greeks_implied_volatility", "with_rate_type", "professional", "rate_type=sofr optional Greeks-input wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", rate_type="sofr", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_implied_volatility", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "570", "C", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),

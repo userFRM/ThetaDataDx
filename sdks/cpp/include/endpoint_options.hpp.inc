@@ -5,7 +5,7 @@
 /// and `with_deadline`. On expiry the in-flight gRPC call is cancelled and a
 /// `tdx::Error` carrying "Request deadline exceeded" is thrown.
 struct EndpointRequestOptions {
-    /// Venue/exchange filter
+    /// Venue/exchange filter. Accepts `nqb` (Nasdaq Basic) or `utp_cta` (UTP & CTA).
     std::optional<std::string> venue;
     /// Minimum time filter
     std::optional<std::string> min_time;
@@ -17,7 +17,7 @@ struct EndpointRequestOptions {
     std::optional<std::string> start_date;
     /// End date YYYYMMDD
     std::optional<std::string> end_date;
-    /// Exclusive time boundary
+    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
     std::optional<bool> exclusive;
     /// Maximum days to expiration
     std::optional<int32_t> max_dte;
@@ -25,17 +25,17 @@ struct EndpointRequestOptions {
     std::optional<int32_t> strike_range;
     /// Annual dividend
     std::optional<double> annual_dividend;
-    /// Rate type
+    /// Risk-free-rate source used in the Greeks calculation. Accepts `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     std::optional<std::string> rate_type;
     /// Rate value
     std::optional<double> rate_value;
     /// Stock price
     std::optional<double> stock_price;
-    /// Greeks model version
+    /// Greeks model version. Accepts `latest` (newest DG3-family revision) or `1` (pinned original).
     std::optional<std::string> version;
-    /// Use market value for Greeks
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     std::optional<bool> use_market_value;
-    /// Use NBBO for underlyer price
+    /// When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade.
     std::optional<bool> underlyer_use_nbbo;
     /// Per-call deadline in milliseconds (W3).
     std::optional<uint64_t> timeout_ms;

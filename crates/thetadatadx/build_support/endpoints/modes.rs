@@ -546,24 +546,29 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
         .iter()
         .map(|param| param.name.clone())
         .collect();
-    let has_stock_venue_default = endpoint.category == "stock"
-        && builder_params(endpoint)
-            .iter()
-            .any(|param| param.name == "venue");
+    // Per-param SSOT defaults for the builder-bound params on this endpoint.
+    // Applied at runtime in the generated `parsed_endpoint!` query block;
+    // synthesized here too so modes that omit the param don't look distinct
+    // from modes that set it to the SSOT default.
+    let builder_defaults: Vec<(String, String)> = builder_params(endpoint)
+        .iter()
+        .filter_map(|param| {
+            param
+                .default
+                .as_ref()
+                .map(|v| (param.name.clone(), v.clone()))
+        })
+        .collect();
 
     let canonical_overrides = |overrides: &[(String, String)]| -> Vec<(String, String)> {
         let mut pairs: Vec<(String, String)> = overrides
             .iter()
             .map(|(k, v)| (k.clone(), canonicalize_wire_arg(k, v)))
             .collect();
-        // Stock endpoints default `venue=nqb` at the runtime call site
-        // (`render/mdds.rs`). Synthesize it here so modes that omit
-        // `venue` don't look distinct from modes that set it to `nqb`.
-        if has_stock_venue_default && !pairs.iter().any(|(k, _)| k == "venue") {
-            pairs.push((
-                "venue".to_string(),
-                super::super::wire_semantics::DEFAULT_STOCK_VENUE.to_string(),
-            ));
+        for (name, value) in &builder_defaults {
+            if !pairs.iter().any(|(k, _)| k == name) {
+                pairs.push((name.clone(), canonicalize_wire_arg(name, value)));
+            }
         }
         pairs.sort();
         pairs

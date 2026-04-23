@@ -408,13 +408,14 @@ pub(super) fn mdds_query_field_expr(
             }
         }
         "start_time" | "end_time" => format!("Some({arg_name}.clone())"),
-        "venue" if endpoint.category == "stock" => {
-            "venue.clone().or_else(|| Some(crate::wire_semantics::DEFAULT_STOCK_VENUE.to_string()))"
-                .into()
-        }
         _ if field.proto_type == "string" => {
             if field.is_optional {
                 if is_method_param {
+                    format!("Some({arg_name}.clone())")
+                } else if param.default.is_some() {
+                    // Builder field carries an SSOT-supplied default, so it is
+                    // stored as bare `String` (never `None`). The proto field
+                    // stays `Option<String>`, so wrap on the way in.
                     format!("Some({arg_name}.clone())")
                 } else {
                     format!("{arg_name}.clone()")

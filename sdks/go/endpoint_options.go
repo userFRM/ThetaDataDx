@@ -15,7 +15,7 @@ import (
 // EndpointRequestOptions contains the shared optional request fields projected from endpoint_surface.toml.
 // TimeoutMs is the cross-cutting per-call deadline (W3); see WithTimeoutMs.
 type EndpointRequestOptions struct {
-	// Venue/exchange filter
+	// Venue/exchange filter. Accepts `nqb` (Nasdaq Basic) or `utp_cta` (UTP & CTA).
 	Venue *string
 	// Minimum time filter
 	MinTime *string
@@ -27,7 +27,7 @@ type EndpointRequestOptions struct {
 	StartDate *string
 	// End date YYYYMMDD
 	EndDate *string
-	// Exclusive time boundary
+	// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
 	Exclusive *bool
 	// Maximum days to expiration
 	MaxDTE *int32
@@ -35,17 +35,17 @@ type EndpointRequestOptions struct {
 	StrikeRange *int32
 	// Annual dividend
 	AnnualDividend *float64
-	// Rate type
+	// Risk-free-rate source used in the Greeks calculation. Accepts `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
 	RateType *string
 	// Rate value
 	RateValue *float64
 	// Stock price
 	StockPrice *float64
-	// Greeks model version
+	// Greeks model version. Accepts `latest` (newest DG3-family revision) or `1` (pinned original).
 	Version *string
-	// Use market value for Greeks
+	// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
 	UseMarketValue *bool
-	// Use NBBO for underlyer price
+	// When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade.
 	UnderlyerUseNBBO *bool
 	// TimeoutMs is the per-call deadline in milliseconds. When set, on
 	// expiry the in-flight gRPC call is cancelled and the returned error
