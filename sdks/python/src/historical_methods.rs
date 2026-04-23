@@ -70,14 +70,14 @@ pub struct StockListDatesBuilder {
 #[pymethods]
 impl StockListDatesBuilder {
     /// Replace the required `request_type` on the pending request.
-    fn request_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.request_type = value.to_string();
+    fn request_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.request_type = value.into_string();
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
@@ -148,20 +148,20 @@ pub struct StockSnapshotOhlcBuilder {
 #[pymethods]
 impl StockSnapshotOhlcBuilder {
     /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.to_string());
+    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.venue = Some(value.into_string());
         slf
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: Vec<String>) -> PyRefMut<'py, Self> {
-        slf.symbols = value;
+    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: PySymbols) -> PyRefMut<'py, Self> {
+        slf.symbols = value.into_vec();
         slf
     }
 
@@ -239,20 +239,20 @@ pub struct StockSnapshotTradeBuilder {
 #[pymethods]
 impl StockSnapshotTradeBuilder {
     /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.to_string());
+    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.venue = Some(value.into_string());
         slf
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: Vec<String>) -> PyRefMut<'py, Self> {
-        slf.symbols = value;
+    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: PySymbols) -> PyRefMut<'py, Self> {
+        slf.symbols = value.into_vec();
         slf
     }
 
@@ -330,20 +330,20 @@ pub struct StockSnapshotQuoteBuilder {
 #[pymethods]
 impl StockSnapshotQuoteBuilder {
     /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.to_string());
+    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.venue = Some(value.into_string());
         slf
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: Vec<String>) -> PyRefMut<'py, Self> {
-        slf.symbols = value;
+    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: PySymbols) -> PyRefMut<'py, Self> {
+        slf.symbols = value.into_vec();
         slf
     }
 
@@ -421,20 +421,20 @@ pub struct StockSnapshotMarketValueBuilder {
 #[pymethods]
 impl StockSnapshotMarketValueBuilder {
     /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.to_string());
+    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.venue = Some(value.into_string());
         slf
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: Vec<String>) -> PyRefMut<'py, Self> {
-        slf.symbols = value;
+    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: PySymbols) -> PyRefMut<'py, Self> {
+        slf.symbols = value.into_vec();
         slf
     }
 
@@ -510,20 +510,20 @@ pub struct StockHistoryEodBuilder {
 #[pymethods]
 impl StockHistoryEodBuilder {
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
@@ -580,7 +580,7 @@ pub struct StockHistoryOhlcBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     date: String,
-    interval: String,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     venue: Option<String>,
@@ -591,51 +591,51 @@ pub struct StockHistoryOhlcBuilder {
 
 #[pymethods]
 impl StockHistoryOhlcBuilder {
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
     /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.to_string());
+    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.venue = Some(value.into_string());
         slf
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -661,7 +661,10 @@ impl StockHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
+            let mut request = tdx.stock_history_ohlc(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -698,7 +701,10 @@ impl StockHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
+            let mut request = tdx.stock_history_ohlc(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -742,44 +748,44 @@ pub struct StockHistoryTradeBuilder {
 #[pymethods]
 impl StockHistoryTradeBuilder {
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
     /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.to_string());
+    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.venue = Some(value.into_string());
         slf
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -875,7 +881,7 @@ pub struct StockHistoryQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     date: String,
-    interval: String,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     venue: Option<String>,
@@ -886,51 +892,51 @@ pub struct StockHistoryQuoteBuilder {
 
 #[pymethods]
 impl StockHistoryQuoteBuilder {
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
     /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.to_string());
+    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.venue = Some(value.into_string());
         slf
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -956,7 +962,10 @@ impl StockHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
+            let mut request = tdx.stock_history_quote(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -993,7 +1002,10 @@ impl StockHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
+            let mut request = tdx.stock_history_quote(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1038,14 +1050,14 @@ pub struct StockHistoryTradeQuoteBuilder {
 #[pymethods]
 impl StockHistoryTradeQuoteBuilder {
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -1056,32 +1068,32 @@ impl StockHistoryTradeQuoteBuilder {
     }
 
     /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.to_string());
+    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.venue = Some(value.into_string());
         slf
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -1197,32 +1209,32 @@ pub struct StockAtTimeTradeBuilder {
 #[pymethods]
 impl StockAtTimeTradeBuilder {
     /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.to_string());
+    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.venue = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
     /// Replace the required `time_of_day` on the pending request.
-    fn time_of_day<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.time_of_day = value.to_string();
+    fn time_of_day<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.time_of_day = value.into_string();
         slf
     }
 
@@ -1302,32 +1314,32 @@ pub struct StockAtTimeQuoteBuilder {
 #[pymethods]
 impl StockAtTimeQuoteBuilder {
     /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.to_string());
+    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.venue = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
     /// Replace the required `time_of_day` on the pending request.
-    fn time_of_day<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.time_of_day = value.to_string();
+    fn time_of_day<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.time_of_day = value.into_string();
         slf
     }
 
@@ -1450,40 +1462,26 @@ pub struct OptionListDatesBuilder {
     request_type: String,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     timeout_ms: Option<u64>,
 }
 
 #[pymethods]
 impl OptionListDatesBuilder {
     /// Replace the required `request_type` on the pending request.
-    fn request_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.request_type = value.to_string();
+    fn request_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.request_type = value.into_string();
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -1503,10 +1501,8 @@ impl OptionListDatesBuilder {
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right);
+            let call = tdx.option_list_dates(&request_type, &symbol, &expiration);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -1525,11 +1521,9 @@ impl OptionListDatesBuilder {
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right);
+            let call = tdx.option_list_dates(&request_type, &symbol, &expiration);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -1556,8 +1550,8 @@ pub struct OptionListExpirationsBuilder {
 #[pymethods]
 impl OptionListExpirationsBuilder {
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
@@ -1623,14 +1617,14 @@ pub struct OptionListStrikesBuilder {
 #[pymethods]
 impl OptionListStrikesBuilder {
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -1709,20 +1703,20 @@ impl OptionListContractsBuilder {
     }
 
     /// Replace the required `request_type` on the pending request.
-    fn request_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.request_type = value.to_string();
+    fn request_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.request_type = value.into_string();
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -1786,8 +1780,8 @@ pub struct OptionSnapshotOhlcBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
+    strike: Option<String>,
+    right: Option<String>,
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     min_time: Option<String>,
@@ -1796,6 +1790,18 @@ pub struct OptionSnapshotOhlcBuilder {
 
 #[pymethods]
 impl OptionSnapshotOhlcBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `max_dte` on the pending request.
     fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
         slf.max_dte = Some(value);
@@ -1809,32 +1815,20 @@ impl OptionSnapshotOhlcBuilder {
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -1859,7 +1853,13 @@ impl OptionSnapshotOhlcBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -1889,7 +1889,13 @@ impl OptionSnapshotOhlcBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -1917,8 +1923,8 @@ pub struct OptionSnapshotTradeBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
+    strike: Option<String>,
+    right: Option<String>,
     strike_range: Option<i32>,
     min_time: Option<String>,
     timeout_ms: Option<u64>,
@@ -1926,6 +1932,18 @@ pub struct OptionSnapshotTradeBuilder {
 
 #[pymethods]
 impl OptionSnapshotTradeBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `strike_range` on the pending request.
     fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
         slf.strike_range = Some(value);
@@ -1933,32 +1951,20 @@ impl OptionSnapshotTradeBuilder {
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -1982,7 +1988,13 @@ impl OptionSnapshotTradeBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_trade(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
             }
@@ -2008,7 +2020,13 @@ impl OptionSnapshotTradeBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_trade(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
             }
@@ -2033,8 +2051,8 @@ pub struct OptionSnapshotQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
+    strike: Option<String>,
+    right: Option<String>,
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     min_time: Option<String>,
@@ -2043,6 +2061,18 @@ pub struct OptionSnapshotQuoteBuilder {
 
 #[pymethods]
 impl OptionSnapshotQuoteBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `max_dte` on the pending request.
     fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
         slf.max_dte = Some(value);
@@ -2056,32 +2086,20 @@ impl OptionSnapshotQuoteBuilder {
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -2106,7 +2124,13 @@ impl OptionSnapshotQuoteBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_quote(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2136,7 +2160,13 @@ impl OptionSnapshotQuoteBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_quote(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2165,8 +2195,8 @@ pub struct OptionSnapshotOpenInterestBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
+    strike: Option<String>,
+    right: Option<String>,
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     min_time: Option<String>,
@@ -2175,6 +2205,18 @@ pub struct OptionSnapshotOpenInterestBuilder {
 
 #[pymethods]
 impl OptionSnapshotOpenInterestBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `max_dte` on the pending request.
     fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
         slf.max_dte = Some(value);
@@ -2188,32 +2230,20 @@ impl OptionSnapshotOpenInterestBuilder {
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -2238,7 +2268,13 @@ impl OptionSnapshotOpenInterestBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2268,7 +2304,13 @@ impl OptionSnapshotOpenInterestBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2294,8 +2336,8 @@ pub struct OptionSnapshotMarketValueBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
+    strike: Option<String>,
+    right: Option<String>,
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     min_time: Option<String>,
@@ -2304,6 +2346,18 @@ pub struct OptionSnapshotMarketValueBuilder {
 
 #[pymethods]
 impl OptionSnapshotMarketValueBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `max_dte` on the pending request.
     fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
         slf.max_dte = Some(value);
@@ -2317,32 +2371,20 @@ impl OptionSnapshotMarketValueBuilder {
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -2367,7 +2409,13 @@ impl OptionSnapshotMarketValueBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_market_value(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2397,7 +2445,13 @@ impl OptionSnapshotMarketValueBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_market_value(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2426,8 +2480,8 @@ pub struct OptionSnapshotGreeksImpliedVolatilityBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
+    strike: Option<String>,
+    right: Option<String>,
     annual_dividend: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
@@ -2442,6 +2496,18 @@ pub struct OptionSnapshotGreeksImpliedVolatilityBuilder {
 
 #[pymethods]
 impl OptionSnapshotGreeksImpliedVolatilityBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
@@ -2449,8 +2515,8 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -2467,8 +2533,8 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -2485,8 +2551,8 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
@@ -2497,26 +2563,14 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -2547,7 +2601,13 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -2601,7 +2661,13 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -2648,8 +2714,8 @@ pub struct OptionSnapshotGreeksAllBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
+    strike: Option<String>,
+    right: Option<String>,
     annual_dividend: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
@@ -2664,6 +2730,18 @@ pub struct OptionSnapshotGreeksAllBuilder {
 
 #[pymethods]
 impl OptionSnapshotGreeksAllBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
@@ -2671,8 +2749,8 @@ impl OptionSnapshotGreeksAllBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -2689,8 +2767,8 @@ impl OptionSnapshotGreeksAllBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -2707,8 +2785,8 @@ impl OptionSnapshotGreeksAllBuilder {
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
@@ -2719,26 +2797,14 @@ impl OptionSnapshotGreeksAllBuilder {
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -2769,7 +2835,13 @@ impl OptionSnapshotGreeksAllBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -2823,7 +2895,13 @@ impl OptionSnapshotGreeksAllBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -2870,8 +2948,8 @@ pub struct OptionSnapshotGreeksFirstOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
+    strike: Option<String>,
+    right: Option<String>,
     annual_dividend: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
@@ -2886,6 +2964,18 @@ pub struct OptionSnapshotGreeksFirstOrderBuilder {
 
 #[pymethods]
 impl OptionSnapshotGreeksFirstOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
@@ -2893,8 +2983,8 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -2911,8 +3001,8 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -2929,8 +3019,8 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
@@ -2941,26 +3031,14 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -2991,7 +3069,13 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -3045,7 +3129,13 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -3092,8 +3182,8 @@ pub struct OptionSnapshotGreeksSecondOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
+    strike: Option<String>,
+    right: Option<String>,
     annual_dividend: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
@@ -3108,6 +3198,18 @@ pub struct OptionSnapshotGreeksSecondOrderBuilder {
 
 #[pymethods]
 impl OptionSnapshotGreeksSecondOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
@@ -3115,8 +3217,8 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -3133,8 +3235,8 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -3151,8 +3253,8 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
@@ -3163,26 +3265,14 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -3213,7 +3303,13 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -3267,7 +3363,13 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -3314,8 +3416,8 @@ pub struct OptionSnapshotGreeksThirdOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
+    strike: Option<String>,
+    right: Option<String>,
     annual_dividend: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
@@ -3330,6 +3432,18 @@ pub struct OptionSnapshotGreeksThirdOrderBuilder {
 
 #[pymethods]
 impl OptionSnapshotGreeksThirdOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
@@ -3337,8 +3451,8 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -3355,8 +3469,8 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -3373,8 +3487,8 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
     }
 
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
@@ -3385,26 +3499,14 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
@@ -3435,7 +3537,13 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -3489,7 +3597,13 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -3536,10 +3650,10 @@ pub struct OptionHistoryEodBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     start_date: String,
     end_date: String,
+    strike: Option<String>,
+    right: Option<String>,
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     timeout_ms: Option<u64>,
@@ -3547,6 +3661,18 @@ pub struct OptionHistoryEodBuilder {
 
 #[pymethods]
 impl OptionHistoryEodBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `max_dte` on the pending request.
     fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
         slf.max_dte = Some(value);
@@ -3560,38 +3686,26 @@ impl OptionHistoryEodBuilder {
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
@@ -3609,15 +3723,21 @@ impl OptionHistoryEodBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
+            let mut request = tdx.option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -3637,15 +3757,21 @@ impl OptionHistoryEodBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
+            let mut request = tdx.option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -3670,10 +3796,10 @@ pub struct OptionHistoryOhlcBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
-    interval: String,
+    strike: Option<String>,
+    right: Option<String>,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     strike_range: Option<i32>,
@@ -3684,15 +3810,33 @@ pub struct OptionHistoryOhlcBuilder {
 
 #[pymethods]
 impl OptionHistoryOhlcBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -3703,50 +3847,32 @@ impl OptionHistoryOhlcBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -3764,9 +3890,9 @@ impl OptionHistoryOhlcBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -3775,7 +3901,16 @@ impl OptionHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_ohlc(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -3804,9 +3939,9 @@ impl OptionHistoryOhlcBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -3815,7 +3950,16 @@ impl OptionHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_ohlc(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -3850,9 +3994,9 @@ pub struct OptionHistoryTradeBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
+    strike: Option<String>,
+    right: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     max_dte: Option<i32>,
@@ -3864,15 +4008,27 @@ pub struct OptionHistoryTradeBuilder {
 
 #[pymethods]
 impl OptionHistoryTradeBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -3889,44 +4045,32 @@ impl OptionHistoryTradeBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -3944,9 +4088,9 @@ impl OptionHistoryTradeBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let max_dte = self.max_dte;
@@ -3955,7 +4099,13 @@ impl OptionHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -3987,9 +4137,9 @@ impl OptionHistoryTradeBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let max_dte = self.max_dte;
@@ -3998,7 +4148,13 @@ impl OptionHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -4035,10 +4191,10 @@ pub struct OptionHistoryQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
-    interval: String,
+    strike: Option<String>,
+    right: Option<String>,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     max_dte: Option<i32>,
@@ -4050,15 +4206,33 @@ pub struct OptionHistoryQuoteBuilder {
 
 #[pymethods]
 impl OptionHistoryQuoteBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -4075,50 +4249,32 @@ impl OptionHistoryQuoteBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -4136,9 +4292,9 @@ impl OptionHistoryQuoteBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -4148,7 +4304,16 @@ impl OptionHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_quote(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -4180,9 +4345,9 @@ impl OptionHistoryQuoteBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -4192,7 +4357,16 @@ impl OptionHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_quote(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -4230,9 +4404,9 @@ pub struct OptionHistoryTradeQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
+    strike: Option<String>,
+    right: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     exclusive: Option<bool>,
@@ -4245,15 +4419,27 @@ pub struct OptionHistoryTradeQuoteBuilder {
 
 #[pymethods]
 impl OptionHistoryTradeQuoteBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -4276,44 +4462,32 @@ impl OptionHistoryTradeQuoteBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -4331,9 +4505,9 @@ impl OptionHistoryTradeQuoteBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let exclusive = self.exclusive;
@@ -4343,7 +4517,13 @@ impl OptionHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -4378,9 +4558,9 @@ impl OptionHistoryTradeQuoteBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let exclusive = self.exclusive;
@@ -4390,7 +4570,13 @@ impl OptionHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -4430,9 +4616,9 @@ pub struct OptionHistoryOpenInterestBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
+    strike: Option<String>,
+    right: Option<String>,
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     start_date: Option<String>,
@@ -4442,6 +4628,18 @@ pub struct OptionHistoryOpenInterestBuilder {
 
 #[pymethods]
 impl OptionHistoryOpenInterestBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `max_dte` on the pending request.
     fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
         slf.max_dte = Some(value);
@@ -4455,44 +4653,32 @@ impl OptionHistoryOpenInterestBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -4510,16 +4696,22 @@ impl OptionHistoryOpenInterestBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_open_interest(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -4545,16 +4737,22 @@ impl OptionHistoryOpenInterestBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_open_interest(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -4585,10 +4783,10 @@ pub struct OptionHistoryGreeksEodBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     start_date: String,
     end_date: String,
+    strike: Option<String>,
+    right: Option<String>,
     annual_dividend: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
@@ -4601,6 +4799,18 @@ pub struct OptionHistoryGreeksEodBuilder {
 
 #[pymethods]
 impl OptionHistoryGreeksEodBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
@@ -4608,8 +4818,8 @@ impl OptionHistoryGreeksEodBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -4620,8 +4830,8 @@ impl OptionHistoryGreeksEodBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -4644,38 +4854,26 @@ impl OptionHistoryGreeksEodBuilder {
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
@@ -4693,10 +4891,10 @@ impl OptionHistoryGreeksEodBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
@@ -4706,7 +4904,13 @@ impl OptionHistoryGreeksEodBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
+            let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -4741,10 +4945,10 @@ impl OptionHistoryGreeksEodBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
@@ -4754,7 +4958,13 @@ impl OptionHistoryGreeksEodBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
+            let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
             }
@@ -4795,10 +5005,10 @@ pub struct OptionHistoryGreeksAllBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
-    interval: String,
+    strike: Option<String>,
+    right: Option<String>,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -4813,15 +5023,33 @@ pub struct OptionHistoryGreeksAllBuilder {
 
 #[pymethods]
 impl OptionHistoryGreeksAllBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -4832,8 +5060,8 @@ impl OptionHistoryGreeksAllBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -4844,8 +5072,8 @@ impl OptionHistoryGreeksAllBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -4856,50 +5084,32 @@ impl OptionHistoryGreeksAllBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -4917,9 +5127,9 @@ impl OptionHistoryGreeksAllBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -4932,7 +5142,16 @@ impl OptionHistoryGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -4973,9 +5192,9 @@ impl OptionHistoryGreeksAllBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -4988,7 +5207,16 @@ impl OptionHistoryGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -5035,9 +5263,9 @@ pub struct OptionHistoryTradeGreeksAllBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
+    strike: Option<String>,
+    right: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -5053,15 +5281,27 @@ pub struct OptionHistoryTradeGreeksAllBuilder {
 
 #[pymethods]
 impl OptionHistoryTradeGreeksAllBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -5072,8 +5312,8 @@ impl OptionHistoryTradeGreeksAllBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -5084,8 +5324,8 @@ impl OptionHistoryTradeGreeksAllBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -5102,44 +5342,32 @@ impl OptionHistoryTradeGreeksAllBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -5157,9 +5385,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -5172,7 +5400,13 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -5216,9 +5450,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -5231,7 +5465,13 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -5281,10 +5521,10 @@ pub struct OptionHistoryGreeksFirstOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
-    interval: String,
+    strike: Option<String>,
+    right: Option<String>,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -5299,15 +5539,33 @@ pub struct OptionHistoryGreeksFirstOrderBuilder {
 
 #[pymethods]
 impl OptionHistoryGreeksFirstOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -5318,8 +5576,8 @@ impl OptionHistoryGreeksFirstOrderBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -5330,8 +5588,8 @@ impl OptionHistoryGreeksFirstOrderBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -5342,50 +5600,32 @@ impl OptionHistoryGreeksFirstOrderBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -5403,9 +5643,9 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -5418,7 +5658,16 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -5459,9 +5708,9 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -5474,7 +5723,16 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -5521,9 +5779,9 @@ pub struct OptionHistoryTradeGreeksFirstOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
+    strike: Option<String>,
+    right: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -5539,15 +5797,27 @@ pub struct OptionHistoryTradeGreeksFirstOrderBuilder {
 
 #[pymethods]
 impl OptionHistoryTradeGreeksFirstOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -5558,8 +5828,8 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -5570,8 +5840,8 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -5588,44 +5858,32 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -5643,9 +5901,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -5658,7 +5916,13 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -5702,9 +5966,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -5717,7 +5981,13 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -5767,10 +6037,10 @@ pub struct OptionHistoryGreeksSecondOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
-    interval: String,
+    strike: Option<String>,
+    right: Option<String>,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -5785,15 +6055,33 @@ pub struct OptionHistoryGreeksSecondOrderBuilder {
 
 #[pymethods]
 impl OptionHistoryGreeksSecondOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -5804,8 +6092,8 @@ impl OptionHistoryGreeksSecondOrderBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -5816,8 +6104,8 @@ impl OptionHistoryGreeksSecondOrderBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -5828,50 +6116,32 @@ impl OptionHistoryGreeksSecondOrderBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -5889,9 +6159,9 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -5904,7 +6174,16 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -5945,9 +6224,9 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -5960,7 +6239,16 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -6007,9 +6295,9 @@ pub struct OptionHistoryTradeGreeksSecondOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
+    strike: Option<String>,
+    right: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -6025,15 +6313,27 @@ pub struct OptionHistoryTradeGreeksSecondOrderBuilder {
 
 #[pymethods]
 impl OptionHistoryTradeGreeksSecondOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -6044,8 +6344,8 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -6056,8 +6356,8 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -6074,44 +6374,32 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -6129,9 +6417,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -6144,7 +6432,13 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -6188,9 +6482,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -6203,7 +6497,13 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -6253,10 +6553,10 @@ pub struct OptionHistoryGreeksThirdOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
-    interval: String,
+    strike: Option<String>,
+    right: Option<String>,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -6271,15 +6571,33 @@ pub struct OptionHistoryGreeksThirdOrderBuilder {
 
 #[pymethods]
 impl OptionHistoryGreeksThirdOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -6290,8 +6608,8 @@ impl OptionHistoryGreeksThirdOrderBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -6302,8 +6620,8 @@ impl OptionHistoryGreeksThirdOrderBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -6314,50 +6632,32 @@ impl OptionHistoryGreeksThirdOrderBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -6375,9 +6675,9 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -6390,7 +6690,16 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -6431,9 +6740,9 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -6446,7 +6755,16 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -6493,9 +6811,9 @@ pub struct OptionHistoryTradeGreeksThirdOrderBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
+    strike: Option<String>,
+    right: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -6511,15 +6829,27 @@ pub struct OptionHistoryTradeGreeksThirdOrderBuilder {
 
 #[pymethods]
 impl OptionHistoryTradeGreeksThirdOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -6530,8 +6860,8 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -6542,8 +6872,8 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -6560,44 +6890,32 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -6615,9 +6933,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -6630,7 +6948,13 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -6674,9 +6998,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -6689,7 +7013,13 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -6738,10 +7068,10 @@ pub struct OptionHistoryGreeksImpliedVolatilityBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
-    interval: String,
+    strike: Option<String>,
+    right: Option<String>,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -6756,15 +7086,33 @@ pub struct OptionHistoryGreeksImpliedVolatilityBuilder {
 
 #[pymethods]
 impl OptionHistoryGreeksImpliedVolatilityBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -6775,8 +7123,8 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -6787,8 +7135,8 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -6799,50 +7147,32 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -6860,9 +7190,9 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -6875,7 +7205,16 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -6916,9 +7255,9 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -6931,7 +7270,16 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -6977,9 +7325,9 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     date: String,
+    strike: Option<String>,
+    right: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -6995,15 +7343,27 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityBuilder {
 
 #[pymethods]
 impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
@@ -7014,8 +7374,8 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     }
 
     /// Set `rate_type` on the pending request.
-    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.rate_type = Some(value.to_string());
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
         slf
     }
 
@@ -7026,8 +7386,8 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     }
 
     /// Set `version` on the pending request.
-    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.version = Some(value.to_string());
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
         slf
     }
 
@@ -7044,44 +7404,32 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -7099,9 +7447,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -7114,7 +7462,13 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -7158,9 +7512,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
+        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
-        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -7173,7 +7527,13 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -7223,11 +7583,11 @@ pub struct OptionAtTimeTradeBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     start_date: String,
     end_date: String,
     time_of_day: String,
+    strike: Option<String>,
+    right: Option<String>,
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     timeout_ms: Option<u64>,
@@ -7235,6 +7595,18 @@ pub struct OptionAtTimeTradeBuilder {
 
 #[pymethods]
 impl OptionAtTimeTradeBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `max_dte` on the pending request.
     fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
         slf.max_dte = Some(value);
@@ -7248,44 +7620,32 @@ impl OptionAtTimeTradeBuilder {
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
     /// Replace the required `time_of_day` on the pending request.
-    fn time_of_day<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.time_of_day = value.to_string();
+    fn time_of_day<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.time_of_day = value.into_string();
         slf
     }
 
@@ -7303,16 +7663,22 @@ impl OptionAtTimeTradeBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let time_of_day = self.time_of_day.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
+            let mut request = tdx.option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -7332,16 +7698,22 @@ impl OptionAtTimeTradeBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let time_of_day = self.time_of_day.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
+            let mut request = tdx.option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -7365,11 +7737,11 @@ pub struct OptionAtTimeQuoteBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     expiration: String,
-    strike: String,
-    right: String,
     start_date: String,
     end_date: String,
     time_of_day: String,
+    strike: Option<String>,
+    right: Option<String>,
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     timeout_ms: Option<u64>,
@@ -7377,6 +7749,18 @@ pub struct OptionAtTimeQuoteBuilder {
 
 #[pymethods]
 impl OptionAtTimeQuoteBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
     /// Set `max_dte` on the pending request.
     fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
         slf.max_dte = Some(value);
@@ -7390,44 +7774,32 @@ impl OptionAtTimeQuoteBuilder {
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `expiration` on the pending request.
-    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.expiration = value.to_string();
-        slf
-    }
-
-    /// Replace the required `strike` on the pending request.
-    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.strike = value.to_string();
-        slf
-    }
-
-    /// Replace the required `right` on the pending request.
-    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.right = value.to_string();
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
     /// Replace the required `time_of_day` on the pending request.
-    fn time_of_day<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.time_of_day = value.to_string();
+    fn time_of_day<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.time_of_day = value.into_string();
         slf
     }
 
@@ -7445,16 +7817,22 @@ impl OptionAtTimeQuoteBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let time_of_day = self.time_of_day.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
+            let mut request = tdx.option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -7474,16 +7852,22 @@ impl OptionAtTimeQuoteBuilder {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let strike = self.strike.clone();
-        let right = self.right.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let time_of_day = self.time_of_day.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
+            let mut request = tdx.option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -7567,8 +7951,8 @@ pub struct IndexListDatesBuilder {
 #[pymethods]
 impl IndexListDatesBuilder {
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
@@ -7634,14 +8018,14 @@ pub struct IndexSnapshotOhlcBuilder {
 #[pymethods]
 impl IndexSnapshotOhlcBuilder {
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: Vec<String>) -> PyRefMut<'py, Self> {
-        slf.symbols = value;
+    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: PySymbols) -> PyRefMut<'py, Self> {
+        slf.symbols = value.into_vec();
         slf
     }
 
@@ -7709,14 +8093,14 @@ pub struct IndexSnapshotPriceBuilder {
 #[pymethods]
 impl IndexSnapshotPriceBuilder {
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: Vec<String>) -> PyRefMut<'py, Self> {
-        slf.symbols = value;
+    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: PySymbols) -> PyRefMut<'py, Self> {
+        slf.symbols = value.into_vec();
         slf
     }
 
@@ -7784,14 +8168,14 @@ pub struct IndexSnapshotMarketValueBuilder {
 #[pymethods]
 impl IndexSnapshotMarketValueBuilder {
     /// Set `min_time` on the pending request.
-    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.min_time = Some(value.to_string());
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: Vec<String>) -> PyRefMut<'py, Self> {
-        slf.symbols = value;
+    fn symbols<'py>(mut slf: PyRefMut<'py, Self>, value: PySymbols) -> PyRefMut<'py, Self> {
+        slf.symbols = value.into_vec();
         slf
     }
 
@@ -7859,20 +8243,20 @@ pub struct IndexHistoryEodBuilder {
 #[pymethods]
 impl IndexHistoryEodBuilder {
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
@@ -7930,7 +8314,7 @@ pub struct IndexHistoryOhlcBuilder {
     symbol: String,
     start_date: String,
     end_date: String,
-    interval: String,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     timeout_ms: Option<u64>,
@@ -7938,39 +8322,39 @@ pub struct IndexHistoryOhlcBuilder {
 
 #[pymethods]
 impl IndexHistoryOhlcBuilder {
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
@@ -7994,7 +8378,10 @@ impl IndexHistoryOhlcBuilder {
         let end_time = self.end_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
+            let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -8020,7 +8407,10 @@ impl IndexHistoryOhlcBuilder {
         let end_time = self.end_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
+            let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -8046,7 +8436,7 @@ pub struct IndexHistoryPriceBuilder {
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
     symbol: String,
     date: String,
-    interval: String,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     start_date: Option<String>,
@@ -8056,45 +8446,45 @@ pub struct IndexHistoryPriceBuilder {
 
 #[pymethods]
 impl IndexHistoryPriceBuilder {
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
     /// Set `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = Some(value.to_string());
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
         slf
     }
 
     /// Set `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = Some(value.to_string());
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -8119,7 +8509,10 @@ impl IndexHistoryPriceBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.index_history_price(&symbol, &date, &interval);
+            let mut request = tdx.index_history_price(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -8152,7 +8545,10 @@ impl IndexHistoryPriceBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_price(&symbol, &date, &interval);
+            let mut request = tdx.index_history_price(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -8190,26 +8586,26 @@ pub struct IndexAtTimePriceBuilder {
 #[pymethods]
 impl IndexAtTimePriceBuilder {
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
     /// Replace the required `time_of_day` on the pending request.
-    fn time_of_day<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.time_of_day = value.to_string();
+    fn time_of_day<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.time_of_day = value.into_string();
         slf
     }
 
@@ -8324,8 +8720,8 @@ pub struct CalendarOnDateBuilder {
 #[pymethods]
 impl CalendarOnDateBuilder {
     /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.date = value.to_string();
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
         slf
     }
 
@@ -8384,8 +8780,8 @@ pub struct CalendarYearBuilder {
 #[pymethods]
 impl CalendarYearBuilder {
     /// Replace the required `year` on the pending request.
-    fn year<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.year = value.to_string();
+    fn year<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.year = value.into_string();
         slf
     }
 
@@ -8443,20 +8839,20 @@ pub struct InterestRateHistoryEodBuilder {
 #[pymethods]
 impl InterestRateHistoryEodBuilder {
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
@@ -8510,7 +8906,7 @@ pub struct StockHistoryOhlcRangeBuilder {
     symbol: String,
     start_date: String,
     end_date: String,
-    interval: String,
+    interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     venue: Option<String>,
@@ -8519,45 +8915,45 @@ pub struct StockHistoryOhlcRangeBuilder {
 
 #[pymethods]
 impl StockHistoryOhlcRangeBuilder {
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.to_string());
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
         slf
     }
 
     /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.to_string());
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
         slf
     }
 
     /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.to_string());
+    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.venue = Some(value.into_string());
         slf
     }
 
     /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.symbol = value.to_string();
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
         slf
     }
 
     /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.start_date = value.to_string();
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
         slf
     }
 
     /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.end_date = value.to_string();
-        slf
-    }
-
-    /// Replace the required `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyRefMut<'py, Self> {
-        slf.interval = value.to_string();
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
         slf
     }
 
@@ -8582,7 +8978,10 @@ impl StockHistoryOhlcRangeBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
+            let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -8612,7 +9011,10 @@ impl StockHistoryOhlcRangeBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
+            let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -8771,12 +9173,12 @@ impl ThetaDataDx {
     fn stock_list_dates(
         &self,
         py: Python<'_>,
-        request_type: &str,
-        symbol: &str,
+        request_type: PyStringArg,
+        symbol: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.stock_list_dates(request_type, symbol);
+            let call = self.tdx.stock_list_dates(request_type.as_str(), symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -8801,13 +9203,13 @@ impl ThetaDataDx {
     fn stock_list_dates_async<'py>(
         &self,
         py: Python<'py>,
-        request_type: String,
-        symbol: String,
+        request_type: PyStringArg,
+        symbol: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.stock_list_dates(&request_type, &symbol);
+            let call = tdx.stock_list_dates(request_type.as_str(), symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -8828,13 +9230,13 @@ impl ThetaDataDx {
     #[pyo3(signature = (request_type, symbol))]
     fn stock_list_dates_builder(
         &self,
-        request_type: String,
-        symbol: String,
+        request_type: PyStringArg,
+        symbol: PyStringArg,
     ) -> StockListDatesBuilder {
         StockListDatesBuilder {
             tdx: self.tdx.clone(),
-            request_type,
-            symbol,
+            request_type: request_type.into_string(),
+            symbol: symbol.into_string(),
             timeout_ms: None,
         }
     }
@@ -8849,18 +9251,18 @@ impl ThetaDataDx {
     fn stock_snapshot_ohlc(
         &self,
         py: Python<'_>,
-        symbols: Vec<String>,
-        venue: Option<&str>,
-        min_time: Option<&str>,
+        symbols: PySymbols,
+        venue: Option<PyStringArg>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_ohlc(&refs);
         if let Some(value) = venue {
-            request = request.venue(value);
+            request = request.venue(value.as_str());
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8884,9 +9286,9 @@ impl ThetaDataDx {
     fn stock_snapshot_ohlc_async<'py>(
         &self,
         py: Python<'py>,
-        symbols: Vec<String>,
-        venue: Option<String>,
-        min_time: Option<String>,
+        symbols: PySymbols,
+        venue: Option<PyStringArg>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
@@ -8894,10 +9296,10 @@ impl ThetaDataDx {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_ohlc(&refs);
             if let Some(value) = venue {
-                request = request.venue(&value);
+                request = request.venue(value.as_str());
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8915,11 +9317,11 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbols))]
     fn stock_snapshot_ohlc_builder(
         &self,
-        symbols: Vec<String>,
+        symbols: PySymbols,
     ) -> StockSnapshotOhlcBuilder {
         StockSnapshotOhlcBuilder {
             tdx: self.tdx.clone(),
-            symbols,
+            symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
             timeout_ms: None,
@@ -8935,18 +9337,18 @@ impl ThetaDataDx {
     fn stock_snapshot_trade(
         &self,
         py: Python<'_>,
-        symbols: Vec<String>,
-        venue: Option<&str>,
-        min_time: Option<&str>,
+        symbols: PySymbols,
+        venue: Option<PyStringArg>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_trade(&refs);
         if let Some(value) = venue {
-            request = request.venue(value);
+            request = request.venue(value.as_str());
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8969,9 +9371,9 @@ impl ThetaDataDx {
     fn stock_snapshot_trade_async<'py>(
         &self,
         py: Python<'py>,
-        symbols: Vec<String>,
-        venue: Option<String>,
-        min_time: Option<String>,
+        symbols: PySymbols,
+        venue: Option<PyStringArg>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
@@ -8979,10 +9381,10 @@ impl ThetaDataDx {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_trade(&refs);
             if let Some(value) = venue {
-                request = request.venue(&value);
+                request = request.venue(value.as_str());
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9000,11 +9402,11 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbols))]
     fn stock_snapshot_trade_builder(
         &self,
-        symbols: Vec<String>,
+        symbols: PySymbols,
     ) -> StockSnapshotTradeBuilder {
         StockSnapshotTradeBuilder {
             tdx: self.tdx.clone(),
-            symbols,
+            symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
             timeout_ms: None,
@@ -9020,18 +9422,18 @@ impl ThetaDataDx {
     fn stock_snapshot_quote(
         &self,
         py: Python<'_>,
-        symbols: Vec<String>,
-        venue: Option<&str>,
-        min_time: Option<&str>,
+        symbols: PySymbols,
+        venue: Option<PyStringArg>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_quote(&refs);
         if let Some(value) = venue {
-            request = request.venue(value);
+            request = request.venue(value.as_str());
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9054,9 +9456,9 @@ impl ThetaDataDx {
     fn stock_snapshot_quote_async<'py>(
         &self,
         py: Python<'py>,
-        symbols: Vec<String>,
-        venue: Option<String>,
-        min_time: Option<String>,
+        symbols: PySymbols,
+        venue: Option<PyStringArg>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
@@ -9064,10 +9466,10 @@ impl ThetaDataDx {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_quote(&refs);
             if let Some(value) = venue {
-                request = request.venue(&value);
+                request = request.venue(value.as_str());
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9085,11 +9487,11 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbols))]
     fn stock_snapshot_quote_builder(
         &self,
-        symbols: Vec<String>,
+        symbols: PySymbols,
     ) -> StockSnapshotQuoteBuilder {
         StockSnapshotQuoteBuilder {
             tdx: self.tdx.clone(),
-            symbols,
+            symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
             timeout_ms: None,
@@ -9105,18 +9507,18 @@ impl ThetaDataDx {
     fn stock_snapshot_market_value(
         &self,
         py: Python<'_>,
-        symbols: Vec<String>,
-        venue: Option<&str>,
-        min_time: Option<&str>,
+        symbols: PySymbols,
+        venue: Option<PyStringArg>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.stock_snapshot_market_value(&refs);
         if let Some(value) = venue {
-            request = request.venue(value);
+            request = request.venue(value.as_str());
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9139,9 +9541,9 @@ impl ThetaDataDx {
     fn stock_snapshot_market_value_async<'py>(
         &self,
         py: Python<'py>,
-        symbols: Vec<String>,
-        venue: Option<String>,
-        min_time: Option<String>,
+        symbols: PySymbols,
+        venue: Option<PyStringArg>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
@@ -9149,10 +9551,10 @@ impl ThetaDataDx {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.stock_snapshot_market_value(&refs);
             if let Some(value) = venue {
-                request = request.venue(&value);
+                request = request.venue(value.as_str());
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9170,11 +9572,11 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbols))]
     fn stock_snapshot_market_value_builder(
         &self,
-        symbols: Vec<String>,
+        symbols: PySymbols,
     ) -> StockSnapshotMarketValueBuilder {
         StockSnapshotMarketValueBuilder {
             tdx: self.tdx.clone(),
-            symbols,
+            symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
             timeout_ms: None,
@@ -9188,12 +9590,12 @@ impl ThetaDataDx {
     fn stock_history_eod(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        start_date: &str,
-        end_date: &str,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<EodTickList>> {
-        let mut request = self.tdx.stock_history_eod(symbol, start_date, end_date);
+        let mut request = self.tdx.stock_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -9213,14 +9615,14 @@ impl ThetaDataDx {
     fn stock_history_eod_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        start_date: String,
-        end_date: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
+            let mut request = tdx.stock_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -9237,15 +9639,15 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbol, start_date, end_date))]
     fn stock_history_eod_builder(
         &self,
-        symbol: String,
-        start_date: String,
-        end_date: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
     ) -> StockHistoryEodBuilder {
         StockHistoryEodBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            start_date,
-            end_date,
+            symbol: symbol.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
             timeout_ms: None,
         }
     }
@@ -9255,35 +9657,38 @@ impl ThetaDataDx {
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds. 
     /// - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// - Multi-day requests are limited to 1 month of data.
-    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_ohlc(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
-        venue: Option<&str>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        symbol: PyStringArg,
+        date: PyDateArg,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        venue: Option<PyStringArg>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.tdx.stock_history_ohlc(symbol, date, interval);
+        let mut request = self.tdx.stock_history_ohlc(symbol.as_str(), date.as_str());
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = venue {
-            request = request.venue(value);
+            request = request.venue(value.as_str());
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9302,37 +9707,40 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_ohlc_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
-        venue: Option<String>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        symbol: PyStringArg,
+        date: PyDateArg,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        venue: Option<PyStringArg>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_ohlc(&symbol, &date, &interval);
+            let mut request = tdx.stock_history_ohlc(symbol.as_str(), date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = venue {
-                request = request.venue(&value);
+                request = request.venue(value.as_str());
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9347,18 +9755,17 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_ohlc()` for the sync signature; `stock_history_ohlc_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, date, interval))]
+    #[pyo3(signature = (symbol, date))]
     fn stock_history_ohlc_builder(
         &self,
-        symbol: String,
-        date: String,
-        interval: String,
+        symbol: PyStringArg,
+        date: PyDateArg,
     ) -> StockHistoryOhlcBuilder {
         StockHistoryOhlcBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            date,
-            interval,
+            symbol: symbol.into_string(),
+            date: date.into_string(),
+            interval: None,
             start_time: None,
             end_time: None,
             venue: None,
@@ -9376,30 +9783,30 @@ impl ThetaDataDx {
     fn stock_history_trade(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        date: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
-        venue: Option<&str>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        symbol: PyStringArg,
+        date: PyDateArg,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        venue: Option<PyStringArg>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.tdx.stock_history_trade(symbol, date);
+        let mut request = self.tdx.stock_history_trade(symbol.as_str(), date.as_str());
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = venue {
-            request = request.venue(value);
+            request = request.venue(value.as_str());
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9421,32 +9828,32 @@ impl ThetaDataDx {
     fn stock_history_trade_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
-        venue: Option<String>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        symbol: PyStringArg,
+        date: PyDateArg,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        venue: Option<PyStringArg>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_trade(&symbol, &date);
+            let mut request = tdx.stock_history_trade(symbol.as_str(), date.as_str());
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = venue {
-                request = request.venue(&value);
+                request = request.venue(value.as_str());
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9464,13 +9871,13 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbol, date))]
     fn stock_history_trade_builder(
         &self,
-        symbol: String,
-        date: String,
+        symbol: PyStringArg,
+        date: PyDateArg,
     ) -> StockHistoryTradeBuilder {
         StockHistoryTradeBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            date,
+            symbol: symbol.into_string(),
+            date: date.into_string(),
             start_time: None,
             end_time: None,
             venue: None,
@@ -9486,35 +9893,38 @@ impl ThetaDataDx {
     /// - If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp. 
     /// - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// - Multi-day requests are limited to 1 month of data.
-    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_quote(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
-        venue: Option<&str>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        symbol: PyStringArg,
+        date: PyDateArg,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        venue: Option<PyStringArg>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.tdx.stock_history_quote(symbol, date, interval);
+        let mut request = self.tdx.stock_history_quote(symbol.as_str(), date.as_str());
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = venue {
-            request = request.venue(value);
+            request = request.venue(value.as_str());
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9534,37 +9944,40 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_quote_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
-        venue: Option<String>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        symbol: PyStringArg,
+        date: PyDateArg,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        venue: Option<PyStringArg>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_quote(&symbol, &date, &interval);
+            let mut request = tdx.stock_history_quote(symbol.as_str(), date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = venue {
-                request = request.venue(&value);
+                request = request.venue(value.as_str());
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9579,18 +9992,17 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_quote()` for the sync signature; `stock_history_quote_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, date, interval))]
+    #[pyo3(signature = (symbol, date))]
     fn stock_history_quote_builder(
         &self,
-        symbol: String,
-        date: String,
-        interval: String,
+        symbol: PyStringArg,
+        date: PyDateArg,
     ) -> StockHistoryQuoteBuilder {
         StockHistoryQuoteBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            date,
-            interval,
+            symbol: symbol.into_string(),
+            date: date.into_string(),
+            interval: None,
             start_time: None,
             end_time: None,
             venue: None,
@@ -9604,38 +10016,38 @@ impl ThetaDataDx {
     ///
     /// Returns every trade reported by [UTP & CTA](/Articles/Data-And-Requests/The-SIPs) paired with the last BBO quote reported by [UTP or CTA](/Articles/Data-And-Requests/The-SIPs) at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the [Nasdaq Basic feed](/Articles/Data-And-Requests/The-SIPs) if the account has a [stocks standard or pro subscription](https://www.thetadata.net/subscribe.html#stocks).
     /// - Multi-day requests are limited to 1 month of data.
-    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, exclusive=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, exclusive=true, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_trade_quote(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        date: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        date: PyDateArg,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         exclusive: Option<bool>,
-        venue: Option<&str>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        venue: Option<PyStringArg>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeQuoteTickList>> {
-        let mut request = self.tdx.stock_history_trade_quote(symbol, date);
+        let mut request = self.tdx.stock_history_trade_quote(symbol.as_str(), date.as_str());
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = exclusive {
             request = request.exclusive(value);
         }
         if let Some(value) = venue {
-            request = request.venue(value);
+            request = request.venue(value.as_str());
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9657,36 +10069,36 @@ impl ThetaDataDx {
     fn stock_history_trade_quote_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        date: PyDateArg,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         exclusive: Option<bool>,
-        venue: Option<String>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        venue: Option<PyStringArg>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_trade_quote(&symbol, &date);
+            let mut request = tdx.stock_history_trade_quote(symbol.as_str(), date.as_str());
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = exclusive {
                 request = request.exclusive(value);
             }
             if let Some(value) = venue {
-                request = request.venue(&value);
+                request = request.venue(value.as_str());
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9704,13 +10116,13 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbol, date))]
     fn stock_history_trade_quote_builder(
         &self,
-        symbol: String,
-        date: String,
+        symbol: PyStringArg,
+        date: PyDateArg,
     ) -> StockHistoryTradeQuoteBuilder {
         StockHistoryTradeQuoteBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            date,
+            symbol: symbol.into_string(),
+            date: date.into_string(),
             start_time: None,
             end_time: None,
             exclusive: None,
@@ -9734,16 +10146,16 @@ impl ThetaDataDx {
     fn stock_at_time_trade(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        start_date: &str,
-        end_date: &str,
-        time_of_day: &str,
-        venue: Option<&str>,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
+        venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.tdx.stock_at_time_trade(symbol, start_date, end_date, time_of_day);
+        let mut request = self.tdx.stock_at_time_trade(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = venue {
-            request = request.venue(value);
+            request = request.venue(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9770,18 +10182,18 @@ impl ThetaDataDx {
     fn stock_at_time_trade_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
-        venue: Option<String>,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
+        venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = tdx.stock_at_time_trade(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
-                request = request.venue(&value);
+                request = request.venue(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9799,17 +10211,17 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbol, start_date, end_date, time_of_day))]
     fn stock_at_time_trade_builder(
         &self,
-        symbol: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
     ) -> StockAtTimeTradeBuilder {
         StockAtTimeTradeBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            start_date,
-            end_date,
-            time_of_day,
+            symbol: symbol.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
+            time_of_day: time_of_day.into_string(),
             venue: None,
             timeout_ms: None,
         }
@@ -9828,16 +10240,16 @@ impl ThetaDataDx {
     fn stock_at_time_quote(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        start_date: &str,
-        end_date: &str,
-        time_of_day: &str,
-        venue: Option<&str>,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
+        venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.tdx.stock_at_time_quote(symbol, start_date, end_date, time_of_day);
+        let mut request = self.tdx.stock_at_time_quote(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = venue {
-            request = request.venue(value);
+            request = request.venue(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9864,18 +10276,18 @@ impl ThetaDataDx {
     fn stock_at_time_quote_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
-        venue: Option<String>,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
+        venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = tdx.stock_at_time_quote(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
-                request = request.venue(&value);
+                request = request.venue(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9893,17 +10305,17 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbol, start_date, end_date, time_of_day))]
     fn stock_at_time_quote_builder(
         &self,
-        symbol: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
     ) -> StockAtTimeQuoteBuilder {
         StockAtTimeQuoteBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            start_date,
-            end_date,
-            time_of_day,
+            symbol: symbol.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
+            time_of_day: time_of_day.into_string(),
             venue: None,
             timeout_ms: None,
         }
@@ -9980,19 +10392,17 @@ impl ThetaDataDx {
     ///
     /// Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
     /// This endpoint is updated overnight.
-    #[pyo3(signature = (request_type, symbol, expiration, strike, right, *, timeout_ms=None))]
+    #[pyo3(signature = (request_type, symbol, expiration, *, timeout_ms=None))]
     fn option_list_dates(
         &self,
         py: Python<'_>,
-        request_type: &str,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
+        request_type: PyStringArg,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.option_list_dates(request_type, symbol, expiration, strike, right);
+            let call = self.tdx.option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -10014,20 +10424,18 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (request_type, symbol, expiration, strike, right, *, timeout_ms=None))]
+    #[pyo3(signature = (request_type, symbol, expiration, *, timeout_ms=None))]
     fn option_list_dates_async<'py>(
         &self,
         py: Python<'py>,
-        request_type: String,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        request_type: PyStringArg,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right);
+            let call = tdx.option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -10045,22 +10453,18 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_list_dates()` for the sync signature; `option_list_dates_async()` for the awaitable companion.
-    #[pyo3(signature = (request_type, symbol, expiration, strike, right))]
+    #[pyo3(signature = (request_type, symbol, expiration))]
     fn option_list_dates_builder(
         &self,
-        request_type: String,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        request_type: PyStringArg,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionListDatesBuilder {
         OptionListDatesBuilder {
             tdx: self.tdx.clone(),
-            request_type,
-            symbol,
-            expiration,
-            strike,
-            right,
+            request_type: request_type.into_string(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
             timeout_ms: None,
         }
     }
@@ -10073,11 +10477,11 @@ impl ThetaDataDx {
     fn option_list_expirations(
         &self,
         py: Python<'_>,
-        symbol: &str,
+        symbol: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.option_list_expirations(symbol);
+            let call = self.tdx.option_list_expirations(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -10103,12 +10507,12 @@ impl ThetaDataDx {
     fn option_list_expirations_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
+        symbol: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.option_list_expirations(&symbol);
+            let call = tdx.option_list_expirations(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -10129,11 +10533,11 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbol))]
     fn option_list_expirations_builder(
         &self,
-        symbol: String,
+        symbol: PyStringArg,
     ) -> OptionListExpirationsBuilder {
         OptionListExpirationsBuilder {
             tdx: self.tdx.clone(),
-            symbol,
+            symbol: symbol.into_string(),
             timeout_ms: None,
         }
     }
@@ -10146,12 +10550,12 @@ impl ThetaDataDx {
     fn option_list_strikes(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.option_list_strikes(symbol, expiration);
+            let call = self.tdx.option_list_strikes(symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -10177,13 +10581,13 @@ impl ThetaDataDx {
     fn option_list_strikes_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.option_list_strikes(&symbol, &expiration);
+            let call = tdx.option_list_strikes(symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -10204,13 +10608,13 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbol, expiration))]
     fn option_list_strikes_builder(
         &self,
-        symbol: String,
-        expiration: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionListStrikesBuilder {
         OptionListStrikesBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
             timeout_ms: None,
         }
     }
@@ -10226,13 +10630,13 @@ impl ThetaDataDx {
     fn option_list_contracts(
         &self,
         py: Python<'_>,
-        request_type: &str,
-        symbol: &str,
-        date: &str,
+        request_type: PyStringArg,
+        symbol: PyStringArg,
+        date: PyDateArg,
         max_dte: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OptionContractList>> {
-        let mut request = self.tdx.option_list_contracts(request_type, symbol, date);
+        let mut request = self.tdx.option_list_contracts(request_type.as_str(), symbol.as_str(), date.as_str());
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -10259,15 +10663,15 @@ impl ThetaDataDx {
     fn option_list_contracts_async<'py>(
         &self,
         py: Python<'py>,
-        request_type: String,
-        symbol: String,
-        date: String,
+        request_type: PyStringArg,
+        symbol: PyStringArg,
+        date: PyDateArg,
         max_dte: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
+            let mut request = tdx.option_list_contracts(request_type.as_str(), symbol.as_str(), date.as_str());
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -10287,15 +10691,15 @@ impl ThetaDataDx {
     #[pyo3(signature = (request_type, symbol, date))]
     fn option_list_contracts_builder(
         &self,
-        request_type: String,
-        symbol: String,
-        date: String,
+        request_type: PyStringArg,
+        symbol: PyStringArg,
+        date: PyDateArg,
     ) -> OptionListContractsBuilder {
         OptionListContractsBuilder {
             tdx: self.tdx.clone(),
-            request_type,
-            symbol,
-            date,
+            request_type: request_type.into_string(),
+            symbol: symbol.into_string(),
+            date: date.into_string(),
             max_dte: None,
             timeout_ms: None,
         }
@@ -10305,20 +10709,26 @@ impl ThetaDataDx {
     ///
     /// - Retrieve a real-time last ohlc of an option contract for the trading day.
     /// - You might need to change the default expiration date to a different date if it is past the current date.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_ohlc(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<&str>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.option_snapshot_ohlc(symbol, expiration, strike, right);
+        let mut request = self.tdx.option_snapshot_ohlc(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -10326,7 +10736,7 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -10344,22 +10754,28 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_ohlc_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_ohlc(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_ohlc(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -10367,7 +10783,7 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -10382,20 +10798,18 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_ohlc()` for the sync signature; `option_snapshot_ohlc_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_snapshot_ohlc_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionSnapshotOhlcBuilder {
         OptionSnapshotOhlcBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
             max_dte: None,
             strike_range: None,
             min_time: None,
@@ -10408,24 +10822,30 @@ impl ThetaDataDx {
     /// - Retrieve the real-time last trade of an option contract.
     /// - You might need to change the default expiration date to a different date if it is past the current date.
     /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_trade(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         strike_range: Option<i32>,
-        min_time: Option<&str>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.option_snapshot_trade(symbol, expiration, strike, right);
+        let mut request = self.tdx.option_snapshot_trade(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = strike_range {
             request = request.strike_range(value);
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -10444,26 +10864,32 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_trade_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_trade(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_trade(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -10478,20 +10904,18 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_trade()` for the sync signature; `option_snapshot_trade_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_snapshot_trade_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionSnapshotTradeBuilder {
         OptionSnapshotTradeBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
             strike_range: None,
             min_time: None,
             timeout_ms: None,
@@ -10503,20 +10927,26 @@ impl ThetaDataDx {
     /// - Retrieve a real-time last NBBO quote of an option contract.
     /// - You might need to change the default expiration date to a different date if it is past the current date.
     /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_quote(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<&str>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.option_snapshot_quote(symbol, expiration, strike, right);
+        let mut request = self.tdx.option_snapshot_quote(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -10524,7 +10954,7 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -10543,22 +10973,28 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_quote_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_quote(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_quote(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -10566,7 +11002,7 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -10581,20 +11017,18 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_quote()` for the sync signature; `option_snapshot_quote_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_snapshot_quote_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionSnapshotQuoteBuilder {
         OptionSnapshotQuoteBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
             max_dte: None,
             strike_range: None,
             min_time: None,
@@ -10608,20 +11042,26 @@ impl ThetaDataDx {
     /// - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the of the previous trading day. 
     /// - You might need to change the default expiration date to a different date if it is past the current date.
     /// - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_open_interest(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<&str>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.option_snapshot_open_interest(symbol, expiration, strike, right);
+        let mut request = self.tdx.option_snapshot_open_interest(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -10629,7 +11069,7 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -10649,22 +11089,28 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_open_interest_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_open_interest(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_open_interest(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -10672,7 +11118,7 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -10687,20 +11133,18 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_open_interest()` for the sync signature; `option_snapshot_open_interest_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_snapshot_open_interest_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionSnapshotOpenInterestBuilder {
         OptionSnapshotOpenInterestBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
             max_dte: None,
             strike_range: None,
             min_time: None,
@@ -10711,20 +11155,26 @@ impl ThetaDataDx {
     /// Get the latest market value snapshot for an option contract.
     ///
     /// * Returns a real-time market value derived from the last NBBO quote of an option contract.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_market_value(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<&str>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.option_snapshot_market_value(symbol, expiration, strike, right);
+        let mut request = self.tdx.option_snapshot_market_value(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -10732,7 +11182,7 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -10749,22 +11199,28 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
     fn option_snapshot_market_value_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_market_value(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_market_value(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -10772,7 +11228,7 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -10787,20 +11243,18 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_market_value()` for the sync signature; `option_snapshot_market_value_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_snapshot_market_value_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionSnapshotMarketValueBuilder {
         OptionSnapshotMarketValueBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
             max_dte: None,
             strike_range: None,
             min_time: None,
@@ -10814,31 +11268,37 @@ impl ThetaDataDx {
     /// of the option respectively. The underlying price represents whatever the last underlying price was at the
     /// ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks 
     /// [here](/Articles/Data-And-Requests/Option-Greeks.html).
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
     fn option_snapshot_greeks_implied_volatility(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<&str>,
+        min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.option_snapshot_greeks_implied_volatility(symbol, expiration, strike, right);
+        let mut request = self.tdx.option_snapshot_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
@@ -10847,7 +11307,7 @@ impl ThetaDataDx {
             request = request.stock_price(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -10856,7 +11316,7 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
@@ -10879,33 +11339,39 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
     fn option_snapshot_greeks_implied_volatility_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_implied_volatility(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
@@ -10914,7 +11380,7 @@ impl ThetaDataDx {
                 request = request.stock_price(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -10923,7 +11389,7 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
@@ -10941,20 +11407,18 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_greeks_implied_volatility()` for the sync signature; `option_snapshot_greeks_implied_volatility_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_snapshot_greeks_implied_volatility_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionSnapshotGreeksImpliedVolatilityBuilder {
         OptionSnapshotGreeksImpliedVolatilityBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
             annual_dividend: None,
             rate_type: None,
             rate_value: None,
@@ -10974,31 +11438,37 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
     fn option_snapshot_greeks_all(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<&str>,
+        min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.option_snapshot_greeks_all(symbol, expiration, strike, right);
+        let mut request = self.tdx.option_snapshot_greeks_all(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
@@ -11007,7 +11477,7 @@ impl ThetaDataDx {
             request = request.stock_price(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -11016,7 +11486,7 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
@@ -11039,33 +11509,39 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
     fn option_snapshot_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_all(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_all(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
@@ -11074,7 +11550,7 @@ impl ThetaDataDx {
                 request = request.stock_price(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -11083,7 +11559,7 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
@@ -11101,20 +11577,18 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_greeks_all()` for the sync signature; `option_snapshot_greeks_all_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_snapshot_greeks_all_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionSnapshotGreeksAllBuilder {
         OptionSnapshotGreeksAllBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
             annual_dividend: None,
             rate_type: None,
             rate_value: None,
@@ -11134,31 +11608,37 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
     fn option_snapshot_greeks_first_order(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<&str>,
+        min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.option_snapshot_greeks_first_order(symbol, expiration, strike, right);
+        let mut request = self.tdx.option_snapshot_greeks_first_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
@@ -11167,7 +11647,7 @@ impl ThetaDataDx {
             request = request.stock_price(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -11176,7 +11656,7 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
@@ -11199,33 +11679,39 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
     fn option_snapshot_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_first_order(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_first_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
@@ -11234,7 +11720,7 @@ impl ThetaDataDx {
                 request = request.stock_price(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -11243,7 +11729,7 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
@@ -11261,20 +11747,18 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_greeks_first_order()` for the sync signature; `option_snapshot_greeks_first_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_snapshot_greeks_first_order_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionSnapshotGreeksFirstOrderBuilder {
         OptionSnapshotGreeksFirstOrderBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
             annual_dividend: None,
             rate_type: None,
             rate_value: None,
@@ -11294,31 +11778,37 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
     fn option_snapshot_greeks_second_order(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<&str>,
+        min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.option_snapshot_greeks_second_order(symbol, expiration, strike, right);
+        let mut request = self.tdx.option_snapshot_greeks_second_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
@@ -11327,7 +11817,7 @@ impl ThetaDataDx {
             request = request.stock_price(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -11336,7 +11826,7 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
@@ -11359,33 +11849,39 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
     fn option_snapshot_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_second_order(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_second_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
@@ -11394,7 +11890,7 @@ impl ThetaDataDx {
                 request = request.stock_price(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -11403,7 +11899,7 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
@@ -11421,20 +11917,18 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_greeks_second_order()` for the sync signature; `option_snapshot_greeks_second_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_snapshot_greeks_second_order_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionSnapshotGreeksSecondOrderBuilder {
         OptionSnapshotGreeksSecondOrderBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
             annual_dividend: None,
             rate_type: None,
             rate_value: None,
@@ -11454,31 +11948,37 @@ impl ThetaDataDx {
     /// - You might need to change the default expiration date to a different date if it is past the current date. Some quotes are omitted in the example to reduce the space of the sample output.
     /// - Make `expiration` * if you want to get the snapshot for every expiration chain for the underlying.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
     fn option_snapshot_greeks_third_order(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<&str>,
+        min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.option_snapshot_greeks_third_order(symbol, expiration, strike, right);
+        let mut request = self.tdx.option_snapshot_greeks_third_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
@@ -11487,7 +11987,7 @@ impl ThetaDataDx {
             request = request.stock_price(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -11496,7 +11996,7 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
@@ -11519,33 +12019,39 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, *, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
     fn option_snapshot_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        min_time: Option<String>,
+        min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_snapshot_greeks_third_order(&symbol, &expiration, &strike, &right);
+            let mut request = tdx.option_snapshot_greeks_third_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
@@ -11554,7 +12060,7 @@ impl ThetaDataDx {
                 request = request.stock_price(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -11563,7 +12069,7 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
@@ -11581,20 +12087,18 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_snapshot_greeks_third_order()` for the sync signature; `option_snapshot_greeks_third_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_snapshot_greeks_third_order_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
     ) -> OptionSnapshotGreeksThirdOrderBuilder {
         OptionSnapshotGreeksThirdOrderBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
             annual_dividend: None,
             rate_type: None,
             rate_value: None,
@@ -11614,21 +12118,27 @@ impl ThetaDataDx {
     /// - ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. 
     /// - The quote in the response represents the last NBBO reported by OPRA at the time of report generation. 
     /// - You can read more about EOD & OHLC data [here](/Articles/Data-And-Requests/OHLC-EOD.html).
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, *, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_eod(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        start_date: &str,
-        end_date: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<EodTickList>> {
-        let mut request = self.tdx.option_history_eod(symbol, expiration, strike, right, start_date, end_date);
+        let mut request = self.tdx.option_history_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -11653,23 +12163,29 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, *, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_eod_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
+            let mut request = tdx.option_history_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -11689,24 +12205,22 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_eod()` for the sync signature; `option_history_eod_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date))]
     fn option_history_eod_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
     ) -> OptionHistoryEodBuilder {
         OptionHistoryEodBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            start_date,
-            end_date,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
+            strike: None,
+            right: None,
             max_dte: None,
             strike_range: None,
             timeout_ms: None,
@@ -11718,38 +12232,47 @@ impl ThetaDataDx {
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar. 
     /// - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
     /// - Multi-day requests are limited to 1 month of data.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_ohlc(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.tdx.option_history_ohlc(symbol, expiration, strike, right, date, interval);
+        let mut request = self.tdx.option_history_ohlc(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = strike_range {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -11768,40 +12291,49 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_ohlc_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_ohlc(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_ohlc(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -11816,24 +12348,21 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_ohlc()` for the sync signature; `option_history_ohlc_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_ohlc_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryOhlcBuilder {
         OptionHistoryOhlcBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
-            interval,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
+            interval: None,
             start_time: None,
             end_time: None,
             strike_range: None,
@@ -11849,29 +12378,35 @@ impl ThetaDataDx {
     /// - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
     /// - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.tdx.option_history_trade(symbol, expiration, strike, right, date);
+        let mut request = self.tdx.option_history_trade(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -11880,10 +12415,10 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -11903,31 +12438,37 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -11936,10 +12477,10 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -11954,22 +12495,20 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade()` for the sync signature; `option_history_trade_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_trade_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryTradeBuilder {
         OptionHistoryTradeBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
             start_time: None,
             end_time: None,
             max_dte: None,
@@ -11985,30 +12524,39 @@ impl ThetaDataDx {
     /// - Returns every NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
     /// - If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_quote(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.tdx.option_history_quote(symbol, expiration, strike, right, date, interval);
+        let mut request = self.tdx.option_history_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -12017,10 +12565,10 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12039,32 +12587,41 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_quote_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_quote(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -12073,10 +12630,10 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12091,24 +12648,21 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_quote()` for the sync signature; `option_history_quote_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_quote_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryQuoteBuilder {
         OptionHistoryQuoteBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
-            interval,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
+            interval: None,
             start_time: None,
             end_time: None,
             max_dte: None,
@@ -12125,30 +12679,36 @@ impl ThetaDataDx {
     /// - A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. 
     /// - To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, exclusive=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, exclusive=true, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_quote(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         exclusive: Option<bool>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeQuoteTickList>> {
-        let mut request = self.tdx.option_history_trade_quote(symbol, expiration, strike, right, date);
+        let mut request = self.tdx.option_history_trade_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = exclusive {
             request = request.exclusive(value);
@@ -12160,10 +12720,10 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12183,32 +12743,38 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, exclusive=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, exclusive=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_quote_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         exclusive: Option<bool>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = exclusive {
                 request = request.exclusive(value);
@@ -12220,10 +12786,10 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12238,22 +12804,20 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_quote()` for the sync signature; `option_history_trade_quote_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_trade_quote_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryTradeQuoteBuilder {
         OptionHistoryTradeQuoteBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
             start_time: None,
             end_time: None,
             exclusive: None,
@@ -12270,22 +12834,28 @@ impl ThetaDataDx {
     /// - Open Interest is normally reported once per day by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at approximately 06:30 ET.
     /// - A new open interest message might not be sent by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) if there is no open interest for the option contract.
     /// - The reported open interest represents the open interest at the end of the previous trading day.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_open_interest(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OpenInterestTickList>> {
-        let mut request = self.tdx.option_history_open_interest(symbol, expiration, strike, right, date);
+        let mut request = self.tdx.option_history_open_interest(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -12293,10 +12863,10 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12315,24 +12885,30 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_open_interest_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_open_interest(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_open_interest(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -12340,10 +12916,10 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12358,22 +12934,20 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_open_interest()` for the sync signature; `option_history_open_interest_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_open_interest_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryOpenInterestBuilder {
         OptionHistoryOpenInterestBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
             max_dte: None,
             strike_range: None,
             start_date: None,
@@ -12387,37 +12961,43 @@ impl ThetaDataDx {
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
     /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
     /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, *, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=false, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_greeks_eod(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        start_date: &str,
-        end_date: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         underlyer_use_nbbo: Option<bool>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksTickList>> {
-        let mut request = self.tdx.option_history_greeks_eod(symbol, expiration, strike, right, start_date, end_date);
+        let mut request = self.tdx.option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = underlyer_use_nbbo {
             request = request.underlyer_use_nbbo(value);
@@ -12445,20 +13025,20 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, *, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_greeks_eod_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         underlyer_use_nbbo: Option<bool>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
@@ -12466,18 +13046,24 @@ impl ThetaDataDx {
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &strike, &right, &start_date, &end_date);
+            let mut request = tdx.option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = underlyer_use_nbbo {
                 request = request.underlyer_use_nbbo(value);
@@ -12501,24 +13087,22 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_eod()` for the sync signature; `option_history_greeks_eod_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date))]
     fn option_history_greeks_eod_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
     ) -> OptionHistoryGreeksEodBuilder {
         OptionHistoryGreeksEodBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            start_date,
-            end_date,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
+            strike: None,
+            right: None,
             annual_dividend: None,
             rate_type: None,
             rate_value: None,
@@ -12536,54 +13120,63 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_all(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksTickList>> {
-        let mut request = self.tdx.option_history_greeks_all(symbol, expiration, strike, right, date, interval);
+        let mut request = self.tdx.option_history_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = strike_range {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12603,56 +13196,65 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12667,24 +13269,21 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_all()` for the sync signature; `option_history_greeks_all_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_greeks_all_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryGreeksAllBuilder {
         OptionHistoryGreeksAllBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
-            interval,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
+            interval: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -12704,45 +13303,51 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_all(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksTickList>> {
-        let mut request = self.tdx.option_history_trade_greeks_all(symbol, expiration, strike, right, date);
+        let mut request = self.tdx.option_history_trade_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -12751,10 +13356,10 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12774,47 +13379,53 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -12823,10 +13434,10 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12841,22 +13452,20 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_all()` for the sync signature; `option_history_trade_greeks_all_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_trade_greeks_all_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryTradeGreeksAllBuilder {
         OptionHistoryTradeGreeksAllBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -12877,54 +13486,63 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_first_order(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksTickList>> {
-        let mut request = self.tdx.option_history_greeks_first_order(symbol, expiration, strike, right, date, interval);
+        let mut request = self.tdx.option_history_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = strike_range {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12944,56 +13562,65 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13008,24 +13635,21 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_first_order()` for the sync signature; `option_history_greeks_first_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_greeks_first_order_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryGreeksFirstOrderBuilder {
         OptionHistoryGreeksFirstOrderBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
-            interval,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
+            interval: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -13045,45 +13669,51 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_first_order(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksTickList>> {
-        let mut request = self.tdx.option_history_trade_greeks_first_order(symbol, expiration, strike, right, date);
+        let mut request = self.tdx.option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -13092,10 +13722,10 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13115,47 +13745,53 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -13164,10 +13800,10 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13182,22 +13818,20 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_first_order()` for the sync signature; `option_history_trade_greeks_first_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_trade_greeks_first_order_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryTradeGreeksFirstOrderBuilder {
         OptionHistoryTradeGreeksFirstOrderBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -13218,54 +13852,63 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_second_order(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksTickList>> {
-        let mut request = self.tdx.option_history_greeks_second_order(symbol, expiration, strike, right, date, interval);
+        let mut request = self.tdx.option_history_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = strike_range {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13285,56 +13928,65 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13349,24 +14001,21 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_second_order()` for the sync signature; `option_history_greeks_second_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_greeks_second_order_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryGreeksSecondOrderBuilder {
         OptionHistoryGreeksSecondOrderBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
-            interval,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
+            interval: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -13386,45 +14035,51 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_second_order(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksTickList>> {
-        let mut request = self.tdx.option_history_trade_greeks_second_order(symbol, expiration, strike, right, date);
+        let mut request = self.tdx.option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -13433,10 +14088,10 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13456,47 +14111,53 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -13505,10 +14166,10 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13523,22 +14184,20 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_second_order()` for the sync signature; `option_history_trade_greeks_second_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_trade_greeks_second_order_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryTradeGreeksSecondOrderBuilder {
         OptionHistoryTradeGreeksSecondOrderBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -13559,54 +14218,63 @@ impl ThetaDataDx {
     /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the [quote](/operations/option_history_quote.html) endpoint. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_third_order(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksTickList>> {
-        let mut request = self.tdx.option_history_greeks_third_order(symbol, expiration, strike, right, date, interval);
+        let mut request = self.tdx.option_history_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = strike_range {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13626,56 +14294,65 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13690,24 +14367,21 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_third_order()` for the sync signature; `option_history_greeks_third_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_greeks_third_order_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryGreeksThirdOrderBuilder {
         OptionHistoryGreeksThirdOrderBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
-            interval,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
+            interval: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -13727,45 +14401,51 @@ impl ThetaDataDx {
     /// - Calculates greeks for every trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html).
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_third_order(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksTickList>> {
-        let mut request = self.tdx.option_history_trade_greeks_third_order(symbol, expiration, strike, right, date);
+        let mut request = self.tdx.option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -13774,10 +14454,10 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13797,47 +14477,53 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -13846,10 +14532,10 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13864,22 +14550,20 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_third_order()` for the sync signature; `option_history_trade_greeks_third_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_trade_greeks_third_order_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryTradeGreeksThirdOrderBuilder {
         OptionHistoryTradeGreeksThirdOrderBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -13899,54 +14583,63 @@ impl ThetaDataDx {
     /// - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively. 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_implied_volatility(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<IvTickList>> {
-        let mut request = self.tdx.option_history_greeks_implied_volatility(symbol, expiration, strike, right, date, interval);
+        let mut request = self.tdx.option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = strike_range {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13965,56 +14658,65 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_implied_volatility_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date, &interval);
+            let mut request = tdx.option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14029,24 +14731,21 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_implied_volatility()` for the sync signature; `option_history_greeks_implied_volatility_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, interval))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_greeks_implied_volatility_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        interval: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryGreeksImpliedVolatilityBuilder {
         OptionHistoryGreeksImpliedVolatilityBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
-            interval,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
+            interval: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -14065,45 +14764,51 @@ impl ThetaDataDx {
     /// - Returns implied volatilies calculated using the trade reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html). 
     /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/Articles/Data-And-Requests/Option-Greeks.html).
     /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_implied_volatility(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        date: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<&str>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<&str>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<IvTickList>> {
-        let mut request = self.tdx.option_history_trade_greeks_implied_volatility(symbol, expiration, strike, right, date);
+        let mut request = self.tdx.option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
         }
         if let Some(value) = rate_type {
-            request = request.rate_type(value);
+            request = request.rate_type(value.as_str());
         }
         if let Some(value) = rate_value {
             request = request.rate_value(value);
         }
         if let Some(value) = version {
-            request = request.version(value);
+            request = request.version(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -14112,10 +14817,10 @@ impl ThetaDataDx {
             request = request.strike_range(value);
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14134,47 +14839,53 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, date, *, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_implied_volatility_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
-        rate_type: Option<String>,
+        rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
-        version: Option<String>,
+        version: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &strike, &right, &date);
+            let mut request = tdx.option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
             }
             if let Some(value) = rate_type {
-                request = request.rate_type(&value);
+                request = request.rate_type(value.as_str());
             }
             if let Some(value) = rate_value {
                 request = request.rate_value(value);
             }
             if let Some(value) = version {
-                request = request.version(&value);
+                request = request.version(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -14183,10 +14894,10 @@ impl ThetaDataDx {
                 request = request.strike_range(value);
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14201,22 +14912,20 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_implied_volatility()` for the sync signature; `option_history_trade_greeks_implied_volatility_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, date))]
+    #[pyo3(signature = (symbol, expiration, date))]
     fn option_history_trade_greeks_implied_volatility_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        date: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        date: PyDateArg,
     ) -> OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            date,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            date: date.into_string(),
+            strike: None,
+            right: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -14237,22 +14946,28 @@ impl ThetaDataDx {
     /// - Trade condition mappings can be found [here](/Articles/Errors-Exchanges-Conditions/Trade-Conditions.html).
     /// - Extended trade conditions are not reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) for options, so they can be ignored.
     /// - The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day, *, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, time_of_day, *, strike=None, right=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_at_time_trade(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        start_date: &str,
-        end_date: &str,
-        time_of_day: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.tdx.option_at_time_trade(symbol, expiration, strike, right, start_date, end_date, time_of_day);
+        let mut request = self.tdx.option_at_time_trade(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -14277,24 +14992,30 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day, *, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, time_of_day, *, strike=None, right=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_at_time_trade_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_at_time_trade(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
+            let mut request = tdx.option_at_time_trade(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -14314,26 +15035,24 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_at_time_trade()` for the sync signature; `option_at_time_trade_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, time_of_day))]
     fn option_at_time_trade_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
     ) -> OptionAtTimeTradeBuilder {
         OptionAtTimeTradeBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            start_date,
-            end_date,
-            time_of_day,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
+            time_of_day: time_of_day.into_string(),
+            strike: None,
+            right: None,
             max_dte: None,
             strike_range: None,
             timeout_ms: None,
@@ -14344,22 +15063,28 @@ impl ThetaDataDx {
     ///
     /// - Returns the last NBBO quote reported by [OPRA](/Articles/Data-And-Requests/The-SIPs.html) at a specified millisecond of the day.
     /// - The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day, *, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, time_of_day, *, strike=None, right=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_at_time_quote(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-        start_date: &str,
-        end_date: &str,
-        time_of_day: &str,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.tdx.option_at_time_quote(symbol, expiration, strike, right, start_date, end_date, time_of_day);
+        let mut request = self.tdx.option_at_time_quote(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -14382,24 +15107,30 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day, *, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, time_of_day, *, strike=None, right=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_at_time_quote_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.option_at_time_quote(&symbol, &expiration, &strike, &right, &start_date, &end_date, &time_of_day);
+            let mut request = tdx.option_at_time_quote(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -14419,26 +15150,24 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_at_time_quote()` for the sync signature; `option_at_time_quote_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, strike, right, start_date, end_date, time_of_day))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, time_of_day))]
     fn option_at_time_quote_builder(
         &self,
-        symbol: String,
-        expiration: String,
-        strike: String,
-        right: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
     ) -> OptionAtTimeQuoteBuilder {
         OptionAtTimeQuoteBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            expiration,
-            strike,
-            right,
-            start_date,
-            end_date,
-            time_of_day,
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
+            time_of_day: time_of_day.into_string(),
+            strike: None,
+            right: None,
             max_dte: None,
             strike_range: None,
             timeout_ms: None,
@@ -14519,11 +15248,11 @@ impl ThetaDataDx {
     fn index_list_dates(
         &self,
         py: Python<'_>,
-        symbol: &str,
+        symbol: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.tdx.index_list_dates(symbol);
+            let call = self.tdx.index_list_dates(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -14548,12 +15277,12 @@ impl ThetaDataDx {
     fn index_list_dates_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
+        symbol: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let call = tdx.index_list_dates(&symbol);
+            let call = tdx.index_list_dates(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -14574,11 +15303,11 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbol))]
     fn index_list_dates_builder(
         &self,
-        symbol: String,
+        symbol: PyStringArg,
     ) -> IndexListDatesBuilder {
         IndexListDatesBuilder {
             tdx: self.tdx.clone(),
-            symbol,
+            symbol: symbol.into_string(),
             timeout_ms: None,
         }
     }
@@ -14591,14 +15320,14 @@ impl ThetaDataDx {
     fn index_snapshot_ohlc(
         &self,
         py: Python<'_>,
-        symbols: Vec<String>,
-        min_time: Option<&str>,
+        symbols: PySymbols,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_ohlc(&refs);
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14620,8 +15349,8 @@ impl ThetaDataDx {
     fn index_snapshot_ohlc_async<'py>(
         &self,
         py: Python<'py>,
-        symbols: Vec<String>,
-        min_time: Option<String>,
+        symbols: PySymbols,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
@@ -14629,7 +15358,7 @@ impl ThetaDataDx {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14647,11 +15376,11 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbols))]
     fn index_snapshot_ohlc_builder(
         &self,
-        symbols: Vec<String>,
+        symbols: PySymbols,
     ) -> IndexSnapshotOhlcBuilder {
         IndexSnapshotOhlcBuilder {
             tdx: self.tdx.clone(),
-            symbols,
+            symbols: symbols.into_vec(),
             min_time: None,
             timeout_ms: None,
         }
@@ -14665,14 +15394,14 @@ impl ThetaDataDx {
     fn index_snapshot_price(
         &self,
         py: Python<'_>,
-        symbols: Vec<String>,
-        min_time: Option<&str>,
+        symbols: PySymbols,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_price(&refs);
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14694,8 +15423,8 @@ impl ThetaDataDx {
     fn index_snapshot_price_async<'py>(
         &self,
         py: Python<'py>,
-        symbols: Vec<String>,
-        min_time: Option<String>,
+        symbols: PySymbols,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
@@ -14703,7 +15432,7 @@ impl ThetaDataDx {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_price(&refs);
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14721,11 +15450,11 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbols))]
     fn index_snapshot_price_builder(
         &self,
-        symbols: Vec<String>,
+        symbols: PySymbols,
     ) -> IndexSnapshotPriceBuilder {
         IndexSnapshotPriceBuilder {
             tdx: self.tdx.clone(),
-            symbols,
+            symbols: symbols.into_vec(),
             min_time: None,
             timeout_ms: None,
         }
@@ -14739,14 +15468,14 @@ impl ThetaDataDx {
     fn index_snapshot_market_value(
         &self,
         py: Python<'_>,
-        symbols: Vec<String>,
-        min_time: Option<&str>,
+        symbols: PySymbols,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.tdx.index_snapshot_market_value(&refs);
         if let Some(value) = min_time {
-            request = request.min_time(value);
+            request = request.min_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14768,8 +15497,8 @@ impl ThetaDataDx {
     fn index_snapshot_market_value_async<'py>(
         &self,
         py: Python<'py>,
-        symbols: Vec<String>,
-        min_time: Option<String>,
+        symbols: PySymbols,
+        min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
@@ -14777,7 +15506,7 @@ impl ThetaDataDx {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = tdx.index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
-                request = request.min_time(&value);
+                request = request.min_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14795,11 +15524,11 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbols))]
     fn index_snapshot_market_value_builder(
         &self,
-        symbols: Vec<String>,
+        symbols: PySymbols,
     ) -> IndexSnapshotMarketValueBuilder {
         IndexSnapshotMarketValueBuilder {
             tdx: self.tdx.clone(),
-            symbols,
+            symbols: symbols.into_vec(),
             min_time: None,
             timeout_ms: None,
         }
@@ -14812,12 +15541,12 @@ impl ThetaDataDx {
     fn index_history_eod(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        start_date: &str,
-        end_date: &str,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<EodTickList>> {
-        let mut request = self.tdx.index_history_eod(symbol, start_date, end_date);
+        let mut request = self.tdx.index_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -14837,14 +15566,14 @@ impl ThetaDataDx {
     fn index_history_eod_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        start_date: String,
-        end_date: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
+            let mut request = tdx.index_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14861,15 +15590,15 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbol, start_date, end_date))]
     fn index_history_eod_builder(
         &self,
-        symbol: String,
-        start_date: String,
-        end_date: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
     ) -> IndexHistoryEodBuilder {
         IndexHistoryEodBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            start_date,
-            end_date,
+            symbol: symbol.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
             timeout_ms: None,
         }
     }
@@ -14879,24 +15608,27 @@ impl ThetaDataDx {
     /// - Aggregated OHLC bars that use [SIP rules](/Articles/Data-And-Requests/OHLC-EOD.html) for each bar.
     /// - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
     /// - [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
-    #[pyo3(signature = (symbol, start_date, end_date, interval, *, start_time=None, end_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, start_date, end_date, *, interval=None, start_time=None, end_time=None, timeout_ms=None))]
     fn index_history_ohlc(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        start_date: &str,
-        end_date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.tdx.index_history_ohlc(symbol, start_date, end_date, interval);
+        let mut request = self.tdx.index_history_ohlc(symbol.as_str(), start_date.as_str(), end_date.as_str());
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14915,26 +15647,29 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, start_date, end_date, interval, *, start_time=None, end_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, start_date, end_date, *, interval=None, start_time=None, end_time=None, timeout_ms=None))]
     fn index_history_ohlc_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        start_date: String,
-        end_date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date, &interval);
+            let mut request = tdx.index_history_ohlc(symbol.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14949,20 +15684,19 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_history_ohlc()` for the sync signature; `index_history_ohlc_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, start_date, end_date, interval))]
+    #[pyo3(signature = (symbol, start_date, end_date))]
     fn index_history_ohlc_builder(
         &self,
-        symbol: String,
-        start_date: String,
-        end_date: String,
-        interval: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
     ) -> IndexHistoryOhlcBuilder {
         IndexHistoryOhlcBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            start_date,
-            end_date,
-            interval,
+            symbol: symbol.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
+            interval: None,
             start_time: None,
             end_time: None,
             timeout_ms: None,
@@ -14975,31 +15709,34 @@ impl ThetaDataDx {
     /// - When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
     /// - A price update from the exchange is omitted if the price remained the same from the previous update.
     /// - Multi-day requests are limited to 1 month of data.
-    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, start_date=None, end_date=None, timeout_ms=None))]
     fn index_history_price(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
+        symbol: PyStringArg,
+        date: PyDateArg,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PriceTickList>> {
-        let mut request = self.tdx.index_history_price(symbol, date, interval);
+        let mut request = self.tdx.index_history_price(symbol.as_str(), date.as_str());
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = start_date {
-            request = request.start_date(value);
+            request = request.start_date(value.as_str());
         }
         if let Some(value) = end_date {
-            request = request.end_date(value);
+            request = request.end_date(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -15019,33 +15756,36 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, date, interval, *, start_time=None, end_time=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, start_date=None, end_date=None, timeout_ms=None))]
     fn index_history_price_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
-        start_date: Option<String>,
-        end_date: Option<String>,
+        symbol: PyStringArg,
+        date: PyDateArg,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.index_history_price(&symbol, &date, &interval);
+            let mut request = tdx.index_history_price(symbol.as_str(), date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = start_date {
-                request = request.start_date(&value);
+                request = request.start_date(value.as_str());
             }
             if let Some(value) = end_date {
-                request = request.end_date(&value);
+                request = request.end_date(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -15060,18 +15800,17 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_history_price()` for the sync signature; `index_history_price_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, date, interval))]
+    #[pyo3(signature = (symbol, date))]
     fn index_history_price_builder(
         &self,
-        symbol: String,
-        date: String,
-        interval: String,
+        symbol: PyStringArg,
+        date: PyDateArg,
     ) -> IndexHistoryPriceBuilder {
         IndexHistoryPriceBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            date,
-            interval,
+            symbol: symbol.into_string(),
+            date: date.into_string(),
+            interval: None,
             start_time: None,
             end_time: None,
             start_date: None,
@@ -15088,13 +15827,13 @@ impl ThetaDataDx {
     fn index_at_time_price(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        start_date: &str,
-        end_date: &str,
-        time_of_day: &str,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PriceTickList>> {
-        let mut request = self.tdx.index_at_time_price(symbol, start_date, end_date, time_of_day);
+        let mut request = self.tdx.index_at_time_price(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -15115,15 +15854,15 @@ impl ThetaDataDx {
     fn index_at_time_price_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = tdx.index_at_time_price(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -15140,17 +15879,17 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbol, start_date, end_date, time_of_day))]
     fn index_at_time_price_builder(
         &self,
-        symbol: String,
-        start_date: String,
-        end_date: String,
-        time_of_day: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        time_of_day: PyTimeArg,
     ) -> IndexAtTimePriceBuilder {
         IndexAtTimePriceBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            start_date,
-            end_date,
-            time_of_day,
+            symbol: symbol.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
+            time_of_day: time_of_day.into_string(),
             timeout_ms: None,
         }
     }
@@ -15226,10 +15965,10 @@ impl ThetaDataDx {
     fn calendar_on_date(
         &self,
         py: Python<'_>,
-        date: &str,
+        date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.calendar_on_date(date);
+        let mut request = self.tdx.calendar_on_date(date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -15252,12 +15991,12 @@ impl ThetaDataDx {
     fn calendar_on_date_async<'py>(
         &self,
         py: Python<'py>,
-        date: String,
+        date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.calendar_on_date(&date);
+            let mut request = tdx.calendar_on_date(date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -15274,11 +16013,11 @@ impl ThetaDataDx {
     #[pyo3(signature = (date))]
     fn calendar_on_date_builder(
         &self,
-        date: String,
+        date: PyDateArg,
     ) -> CalendarOnDateBuilder {
         CalendarOnDateBuilder {
             tdx: self.tdx.clone(),
-            date,
+            date: date.into_string(),
             timeout_ms: None,
         }
     }
@@ -15293,10 +16032,10 @@ impl ThetaDataDx {
     fn calendar_year(
         &self,
         py: Python<'_>,
-        year: &str,
+        year: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.tdx.calendar_year(year);
+        let mut request = self.tdx.calendar_year(year.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -15319,12 +16058,12 @@ impl ThetaDataDx {
     fn calendar_year_async<'py>(
         &self,
         py: Python<'py>,
-        year: String,
+        year: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.calendar_year(&year);
+            let mut request = tdx.calendar_year(year.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -15341,11 +16080,11 @@ impl ThetaDataDx {
     #[pyo3(signature = (year))]
     fn calendar_year_builder(
         &self,
-        year: String,
+        year: PyStringArg,
     ) -> CalendarYearBuilder {
         CalendarYearBuilder {
             tdx: self.tdx.clone(),
-            year,
+            year: year.into_string(),
             timeout_ms: None,
         }
     }
@@ -15357,12 +16096,12 @@ impl ThetaDataDx {
     fn interest_rate_history_eod(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        start_date: &str,
-        end_date: &str,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<InterestRateTickList>> {
-        let mut request = self.tdx.interest_rate_history_eod(symbol, start_date, end_date);
+        let mut request = self.tdx.interest_rate_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -15382,14 +16121,14 @@ impl ThetaDataDx {
     fn interest_rate_history_eod_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        start_date: String,
-        end_date: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
+            let mut request = tdx.interest_rate_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -15406,42 +16145,45 @@ impl ThetaDataDx {
     #[pyo3(signature = (symbol, start_date, end_date))]
     fn interest_rate_history_eod_builder(
         &self,
-        symbol: String,
-        start_date: String,
-        end_date: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
     ) -> InterestRateHistoryEodBuilder {
         InterestRateHistoryEodBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            start_date,
-            end_date,
+            symbol: symbol.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
             timeout_ms: None,
         }
     }
 
     /// Fetch intraday OHLC bars across a date range.
-    #[pyo3(signature = (symbol, start_date, end_date, interval, *, start_time=None, end_time=None, venue=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, start_date, end_date, *, interval=None, start_time=None, end_time=None, venue=None, timeout_ms=None))]
     fn stock_history_ohlc_range(
         &self,
         py: Python<'_>,
-        symbol: &str,
-        start_date: &str,
-        end_date: &str,
-        interval: &str,
-        start_time: Option<&str>,
-        end_time: Option<&str>,
-        venue: Option<&str>,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.tdx.stock_history_ohlc_range(symbol, start_date, end_date, interval);
+        let mut request = self.tdx.stock_history_ohlc_range(symbol.as_str(), start_date.as_str(), end_date.as_str());
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
         if let Some(value) = start_time {
-            request = request.start_time(value);
+            request = request.start_time(value.as_str());
         }
         if let Some(value) = end_time {
-            request = request.end_time(value);
+            request = request.end_time(value.as_str());
         }
         if let Some(value) = venue {
-            request = request.venue(value);
+            request = request.venue(value.as_str());
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -15455,30 +16197,33 @@ impl ThetaDataDx {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, start_date, end_date, interval, *, start_time=None, end_time=None, venue=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, start_date, end_date, *, interval=None, start_time=None, end_time=None, venue=None, timeout_ms=None))]
     fn stock_history_ohlc_range_async<'py>(
         &self,
         py: Python<'py>,
-        symbol: String,
-        start_date: String,
-        end_date: String,
-        interval: String,
-        start_time: Option<String>,
-        end_time: Option<String>,
-        venue: Option<String>,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tdx = self.tdx.clone();
         spawn_awaitable(py, async move {
-            let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date, &interval);
+            let mut request = tdx.stock_history_ohlc_range(symbol.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
             if let Some(value) = start_time {
-                request = request.start_time(&value);
+                request = request.start_time(value.as_str());
             }
             if let Some(value) = end_time {
-                request = request.end_time(&value);
+                request = request.end_time(value.as_str());
             }
             if let Some(value) = venue {
-                request = request.venue(&value);
+                request = request.venue(value.as_str());
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -15493,20 +16238,19 @@ impl ThetaDataDx {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_ohlc_range()` for the sync signature; `stock_history_ohlc_range_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, start_date, end_date, interval))]
+    #[pyo3(signature = (symbol, start_date, end_date))]
     fn stock_history_ohlc_range_builder(
         &self,
-        symbol: String,
-        start_date: String,
-        end_date: String,
-        interval: String,
+        symbol: PyStringArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
     ) -> StockHistoryOhlcRangeBuilder {
         StockHistoryOhlcRangeBuilder {
             tdx: self.tdx.clone(),
-            symbol,
-            start_date,
-            end_date,
-            interval,
+            symbol: symbol.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
+            interval: None,
             start_time: None,
             end_time: None,
             venue: None,

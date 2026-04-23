@@ -209,13 +209,17 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
     writeln!(out, "        \"{}\" => {{", endpoint.name).unwrap();
 
     if is_simple_list_endpoint(endpoint) {
-        for param in &endpoint.params {
-            emit_required_arg(out, endpoint, param);
-        }
-        let args = endpoint
+        let method_params = endpoint
             .params
             .iter()
-            .map(call_arg_name)
+            .filter(|param| is_method_call_param(param))
+            .collect::<Vec<_>>();
+        for param in &method_params {
+            emit_required_arg(out, endpoint, param);
+        }
+        let args = method_params
+            .iter()
+            .map(|param| call_arg_name(param))
             .collect::<Vec<_>>()
             .join(", ");
         writeln!(

@@ -13,10 +13,12 @@ use thetadatadx::fpss;
 
 mod async_runtime;
 mod chunking;
+mod coerce;
 mod errors;
 mod logging_bridge;
 
 use async_runtime::spawn_awaitable;
+use coerce::{PyDateArg, PyStringArg, PySymbols, PyTimeArg};
 use errors::to_py_err;
 
 /// Shared tokio runtime for running async Rust from sync Python.
@@ -575,6 +577,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_tick_classes(m)?;
     register_generated_utility_functions(m)?;
     register_generated_historical_builders(m)?;
+    coerce::register_string_enums(m)?;
 
     // Typed exception hierarchy — exports `thetadatadx.ThetaDataError`,
     // `thetadatadx.AuthenticationError`, etc. See [`errors`] for the

@@ -2,12 +2,15 @@
 typedef struct {
     const char* venue;
     const char* min_time;
+    const char* interval;
     const char* start_time;
     const char* end_time;
     const char* start_date;
     const char* end_date;
     int32_t exclusive;
     int32_t has_exclusive;
+    const char* strike;
+    const char* right;
     int32_t max_dte;
     int32_t has_max_dte;
     int32_t strike_range;

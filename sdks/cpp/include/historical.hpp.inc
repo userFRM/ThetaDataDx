@@ -7,28 +7,36 @@
     std::vector<std::string> stock_list_dates(const std::string& request_type, const std::string& symbol, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest OHLC snapshot for one or more stocks. */
+    std::vector<OhlcTick> stock_snapshot_ohlc(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+
     std::vector<OhlcTick> stock_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest trade snapshot for one or more stocks. */
+    std::vector<TradeTick> stock_snapshot_trade(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+
     std::vector<TradeTick> stock_snapshot_trade(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest NBBO quote snapshot for one or more stocks. */
+    std::vector<QuoteTick> stock_snapshot_quote(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+
     std::vector<QuoteTick> stock_snapshot_quote(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest market value snapshot for one or more stocks. */
+    std::vector<MarketValueTick> stock_snapshot_market_value(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+
     std::vector<MarketValueTick> stock_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day. */
     std::vector<EodTick> stock_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch intraday OHLC bars for a stock on a single date. */
-    std::vector<OhlcTick> stock_history_ohlc(const std::string& symbol, const std::string& date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> stock_history_ohlc(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch all trades for a stock on a given date. */
     std::vector<TradeTick> stock_history_trade(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch NBBO quotes for a stock on a given date at a given interval. */
-    std::vector<QuoteTick> stock_history_quote(const std::string& symbol, const std::string& date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<QuoteTick> stock_history_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable. */
     std::vector<TradeQuoteTick> stock_history_trade_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
@@ -43,7 +51,7 @@
     std::vector<std::string> option_list_symbols(const EndpointRequestOptions& options = {}) const;
 
     /** List available dates for an option contract by request type. */
-    std::vector<std::string> option_list_dates(const std::string& request_type, const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options = {}) const;
+    std::vector<std::string> option_list_dates(const std::string& request_type, const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
     /** List available expiration dates for an option underlying. */
     std::vector<std::string> option_list_expirations(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
@@ -55,91 +63,91 @@
     std::vector<OptionContract> option_list_contracts(const std::string& request_type, const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest OHLC snapshot for an option contract. */
-    std::vector<OhlcTick> option_snapshot_ohlc(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> option_snapshot_ohlc(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest trade snapshot for an option contract. */
-    std::vector<TradeTick> option_snapshot_trade(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeTick> option_snapshot_trade(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest NBBO quote snapshot for an option contract. */
-    std::vector<QuoteTick> option_snapshot_quote(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options = {}) const;
+    std::vector<QuoteTick> option_snapshot_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest open interest snapshot for an option contract. */
-    std::vector<OpenInterestTick> option_snapshot_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options = {}) const;
+    std::vector<OpenInterestTick> option_snapshot_open_interest(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest market value snapshot for an option contract. */
-    std::vector<MarketValueTick> option_snapshot_market_value(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options = {}) const;
+    std::vector<MarketValueTick> option_snapshot_market_value(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
     /** Get implied volatility snapshot for an option contract (from ThetaData server). */
-    std::vector<IvTick> option_snapshot_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options = {}) const;
+    std::vector<IvTick> option_snapshot_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
     /** Get all Greeks snapshot for an option contract (from ThetaData server). */
-    std::vector<GreeksTick> option_snapshot_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_snapshot_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
     /** Get first-order Greeks snapshot (delta, theta, rho) for an option contract. */
-    std::vector<GreeksTick> option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
     /** Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract. */
-    std::vector<GreeksTick> option_snapshot_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_snapshot_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
     /** Get third-order Greeks snapshot (speed, color, ultima) for an option contract. */
-    std::vector<GreeksTick> option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch end-of-day option data for a contract over a date range. */
-    std::vector<EodTick> option_history_eod(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
+    std::vector<EodTick> option_history_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch intraday OHLC bars for an option contract. */
-    std::vector<OhlcTick> option_history_ohlc(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> option_history_ohlc(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch all trades for an option contract on a given date. */
-    std::vector<TradeTick> option_history_trade(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeTick> option_history_trade(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch NBBO quotes for an option contract on a given date. */
-    std::vector<QuoteTick> option_history_quote(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<QuoteTick> option_history_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch combined trade + quote ticks for an option contract. */
-    std::vector<TradeQuoteTick> option_history_trade_quote(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeQuoteTick> option_history_trade_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch open interest history for an option contract. */
-    std::vector<OpenInterestTick> option_history_open_interest(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<OpenInterestTick> option_history_open_interest(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch end-of-day Greeks history for an option contract. */
-    std::vector<GreeksTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch all Greeks history for an option contract (intraday, sampled by interval). */
-    std::vector<GreeksTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch all Greeks on each trade for an option contract. */
-    std::vector<GreeksTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch first-order Greeks history (intraday, sampled by interval). */
-    std::vector<GreeksTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch first-order Greeks on each trade for an option contract. */
-    std::vector<GreeksTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch second-order Greeks history (intraday, sampled by interval). */
-    std::vector<GreeksTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch second-order Greeks on each trade for an option contract. */
-    std::vector<GreeksTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch third-order Greeks history (intraday, sampled by interval). */
-    std::vector<GreeksTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch third-order Greeks on each trade for an option contract. */
-    std::vector<GreeksTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch implied volatility history (intraday, sampled by interval). */
-    std::vector<IvTick> option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<IvTick> option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch implied volatility on each trade for an option contract. */
-    std::vector<IvTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<IvTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch the trade at a specific time of day across a date range for an option. */
-    std::vector<TradeTick> option_at_time_trade(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeTick> option_at_time_trade(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch the quote at a specific time of day across a date range for an option. */
-    std::vector<QuoteTick> option_at_time_quote(const std::string& symbol, const std::string& expiration, const std::string& strike, const std::string& right, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
+    std::vector<QuoteTick> option_at_time_quote(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
 
     /** List all available index symbols. */
     std::vector<std::string> index_list_symbols(const EndpointRequestOptions& options = {}) const;
@@ -148,22 +156,28 @@
     std::vector<std::string> index_list_dates(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest OHLC snapshot for one or more indices. */
+    std::vector<OhlcTick> index_snapshot_ohlc(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+
     std::vector<OhlcTick> index_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest price snapshot for one or more indices. */
+    std::vector<PriceTick> index_snapshot_price(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+
     std::vector<PriceTick> index_snapshot_price(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
     /** Get the latest market value snapshot for one or more indices. */
+    std::vector<MarketValueTick> index_snapshot_market_value(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+
     std::vector<MarketValueTick> index_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch end-of-day index data for a date range. */
     std::vector<EodTick> index_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch intraday OHLC bars for an index. */
-    std::vector<OhlcTick> index_history_ohlc(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> index_history_ohlc(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch intraday price history for an index. */
-    std::vector<PriceTick> index_history_price(const std::string& symbol, const std::string& date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<PriceTick> index_history_price(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch the index price at a specific time of day across a date range. */
     std::vector<PriceTick> index_at_time_price(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
@@ -181,5 +195,5 @@
     std::vector<InterestRateTick> interest_rate_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
     /** Fetch intraday OHLC bars across a date range. */
-    std::vector<OhlcTick> stock_history_ohlc_range(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& interval, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> stock_history_ohlc_range(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 

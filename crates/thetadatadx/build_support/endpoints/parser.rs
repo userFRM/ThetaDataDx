@@ -459,7 +459,6 @@ fn mode_override_valid_keys<'a>(
         .iter()
         .filter(|ep| super::modes::emitted_mode_names(ep).contains(&mode))
         .flat_map(|ep| ep.params.iter())
-        .filter(|p| p.binding == "method")
         .map(|p| p.name.as_str())
         .collect()
 }
@@ -833,7 +832,19 @@ fn validate_surface_endpoint(
             )
             .into());
         }
-        if wire_param.required && !param.required {
+        let has_ssot_default = matches!(
+            param.name.as_str(),
+            "right"
+                | "strike"
+                | "interval"
+                | "venue"
+                | "rate_type"
+                | "version"
+                | "exclusive"
+                | "use_market_value"
+                | "underlyer_use_nbbo"
+        ) && param.default.is_some();
+        if wire_param.required && !param.required && !has_ssot_default {
             return Err(format!(
                 "endpoint '{}.{}' relaxes a required wire parameter",
                 surface.name, param.name

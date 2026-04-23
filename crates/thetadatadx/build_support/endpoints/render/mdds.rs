@@ -28,8 +28,12 @@ pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &Generated
     )
     .unwrap();
 
-    let signature = endpoint
+    let method_params = endpoint
         .params
+        .iter()
+        .filter(|param| is_method_call_param(param))
+        .collect::<Vec<_>>();
+    let signature = method_params
         .iter()
         .map(|param| format!("{}: &str", direct_method_arg_name(endpoint, param)))
         .collect::<Vec<_>>()
@@ -348,6 +352,23 @@ pub(super) fn mdds_query_field_expr(
     list_context: bool,
 ) -> String {
     if field.proto_type == "ContractSpec" {
+        if list_context {
+            let has_strike_method = endpoint
+                .params
+                .iter()
+                .any(|p| p.name == "strike" && is_method_call_param(p));
+            let has_right_method = endpoint
+                .params
+                .iter()
+                .any(|p| p.name == "right" && is_method_call_param(p));
+            let strike = if has_strike_method { "strike" } else { "\"*\"" };
+            let right = if has_right_method {
+                "right"
+            } else {
+                "\"both\""
+            };
+            return format!("contract_spec!(symbol, expiration, {strike}, {right})");
+        }
         return "contract_spec!(symbol, expiration, strike, right)".into();
     }
     if field.name == "date" && endpoint.name == "stock_history_ohlc_range" {

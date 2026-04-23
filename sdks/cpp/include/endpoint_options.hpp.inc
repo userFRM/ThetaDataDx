@@ -9,6 +9,8 @@ struct EndpointRequestOptions {
     std::optional<std::string> venue;
     /// Minimum time filter
     std::optional<std::string> min_time;
+    /// Accepts milliseconds (60000) or shorthand (1m). Presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h. Defaults to `1s` when omitted — matching the upstream ThetaData Python library.
+    std::optional<std::string> interval;
     /// Start time filter
     std::optional<std::string> start_time;
     /// End time filter
@@ -19,6 +21,10 @@ struct EndpointRequestOptions {
     std::optional<std::string> end_date;
     /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
     std::optional<bool> exclusive;
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    std::optional<std::string> strike;
+    /// Option side. Accepts `call`, `put`, or `both`.
+    std::optional<std::string> right;
     /// Maximum days to expiration
     std::optional<int32_t> max_dte;
     /// Strike range filter
@@ -48,6 +54,10 @@ struct EndpointRequestOptions {
         min_time = std::move(value);
         return *this;
     }
+    EndpointRequestOptions& with_interval(std::string value) {
+        interval = std::move(value);
+        return *this;
+    }
     EndpointRequestOptions& with_start_time(std::string value) {
         start_time = std::move(value);
         return *this;
@@ -66,6 +76,14 @@ struct EndpointRequestOptions {
     }
     EndpointRequestOptions& with_exclusive(bool value) {
         exclusive = value;
+        return *this;
+    }
+    EndpointRequestOptions& with_strike(std::string value) {
+        strike = std::move(value);
+        return *this;
+    }
+    EndpointRequestOptions& with_right(std::string value) {
+        right = std::move(value);
         return *this;
     }
     EndpointRequestOptions& with_max_dte(int32_t value) {
@@ -120,10 +138,13 @@ struct FfiEndpointRequestOptions {
     TdxEndpointRequestOptions raw{};
     std::string venue_storage;
     std::string min_time_storage;
+    std::string interval_storage;
     std::string start_time_storage;
     std::string end_time_storage;
     std::string start_date_storage;
     std::string end_date_storage;
+    std::string strike_storage;
+    std::string right_storage;
     std::string rate_type_storage;
     std::string version_storage;
 
@@ -135,6 +156,10 @@ struct FfiEndpointRequestOptions {
         if (options.min_time) {
             min_time_storage = *options.min_time;
             raw.min_time = min_time_storage.c_str();
+        }
+        if (options.interval) {
+            interval_storage = *options.interval;
+            raw.interval = interval_storage.c_str();
         }
         if (options.start_time) {
             start_time_storage = *options.start_time;
@@ -155,6 +180,14 @@ struct FfiEndpointRequestOptions {
         if (options.exclusive) {
             raw.exclusive = *options.exclusive ? 1 : 0;
             raw.has_exclusive = 1;
+        }
+        if (options.strike) {
+            strike_storage = *options.strike;
+            raw.strike = strike_storage.c_str();
+        }
+        if (options.right) {
+            right_storage = *options.right;
+            raw.right = right_storage.c_str();
         }
         if (options.max_dte) {
             raw.max_dte = *options.max_dte;

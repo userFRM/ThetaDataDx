@@ -191,7 +191,45 @@ pub(super) fn render_go_historical(endpoints: &[GeneratedEndpoint]) -> String {
 fn render_go_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     let method_name = to_go_exported_name(&endpoint.name);
     let method_params = method_params(endpoint);
+    let has_symbols = method_params
+        .iter()
+        .any(|param| param.param_type == "Symbols");
     let mut out = String::new();
+
+    if has_symbols {
+        let mut singular_parts = method_params
+            .iter()
+            .map(|param| {
+                if param.param_type == "Symbols" {
+                    "symbol string".to_string()
+                } else {
+                    go_method_arg_decl(param)
+                }
+            })
+            .collect::<Vec<_>>();
+        singular_parts.push("opts ...EndpointOption".into());
+        writeln!(
+            out,
+            "func (c *Client) {}({}) ({}, error) {{",
+            method_name,
+            singular_parts.join(", "),
+            go_result_type(&endpoint.return_type)
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "\treturn c.{}Bulk([]string{{symbol}}, opts...)",
+            method_name
+        )
+        .unwrap();
+        out.push_str("}\n\n");
+    }
+
+    let emitted_method_name = if has_symbols {
+        format!("{method_name}Bulk")
+    } else {
+        method_name
+    };
 
     let mut signature_parts = method_params
         .iter()
@@ -203,7 +241,7 @@ fn render_go_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     writeln!(
         out,
         "func (c *Client) {}({}) ({}, error) {{",
-        method_name,
+        emitted_method_name,
         signature_parts.join(", "),
         go_result_type(&endpoint.return_type)
     )
@@ -216,9 +254,6 @@ fn render_go_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("\truntime.LockOSThread()\n");
     out.push_str("\tdefer runtime.UnlockOSThread()\n");
 
-    let has_symbols = method_params
-        .iter()
-        .any(|param| param.param_type == "Symbols");
     if has_symbols {
         out.push_str("\tcSymbols, cSymbolsLen := symbolsToCArray(symbols)\n");
         out.push_str("\tdefer freeSymbolArray(cSymbols, cSymbolsLen)\n");

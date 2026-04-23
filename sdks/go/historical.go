@@ -37,7 +37,11 @@ func (c *Client) StockListDates(requestType string, symbol string, opts ...Endpo
 	return stringArrayToGo(arr)
 }
 
-func (c *Client) StockSnapshotOHLC(symbols []string, opts ...EndpointOption) ([]OhlcTick, error) {
+func (c *Client) StockSnapshotOHLC(symbol string, opts ...EndpointOption) ([]OhlcTick, error) {
+	return c.StockSnapshotOHLCBulk([]string{symbol}, opts...)
+}
+
+func (c *Client) StockSnapshotOHLCBulk(symbols []string, opts ...EndpointOption) ([]OhlcTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
@@ -55,7 +59,11 @@ func (c *Client) StockSnapshotOHLC(symbols []string, opts ...EndpointOption) ([]
 	return result, nil
 }
 
-func (c *Client) StockSnapshotTrade(symbols []string, opts ...EndpointOption) ([]TradeTick, error) {
+func (c *Client) StockSnapshotTrade(symbol string, opts ...EndpointOption) ([]TradeTick, error) {
+	return c.StockSnapshotTradeBulk([]string{symbol}, opts...)
+}
+
+func (c *Client) StockSnapshotTradeBulk(symbols []string, opts ...EndpointOption) ([]TradeTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
@@ -73,7 +81,11 @@ func (c *Client) StockSnapshotTrade(symbols []string, opts ...EndpointOption) ([
 	return result, nil
 }
 
-func (c *Client) StockSnapshotQuote(symbols []string, opts ...EndpointOption) ([]QuoteTick, error) {
+func (c *Client) StockSnapshotQuote(symbol string, opts ...EndpointOption) ([]QuoteTick, error) {
+	return c.StockSnapshotQuoteBulk([]string{symbol}, opts...)
+}
+
+func (c *Client) StockSnapshotQuoteBulk(symbols []string, opts ...EndpointOption) ([]QuoteTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
@@ -91,7 +103,11 @@ func (c *Client) StockSnapshotQuote(symbols []string, opts ...EndpointOption) ([
 	return result, nil
 }
 
-func (c *Client) StockSnapshotMarketValue(symbols []string, opts ...EndpointOption) ([]MarketValueTick, error) {
+func (c *Client) StockSnapshotMarketValue(symbol string, opts ...EndpointOption) ([]MarketValueTick, error) {
+	return c.StockSnapshotMarketValueBulk([]string{symbol}, opts...)
+}
+
+func (c *Client) StockSnapshotMarketValueBulk(symbols []string, opts ...EndpointOption) ([]MarketValueTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
@@ -131,19 +147,17 @@ func (c *Client) StockHistoryEOD(symbol string, startDate string, endDate string
 	return result, nil
 }
 
-func (c *Client) StockHistoryOHLC(symbol string, date string, interval string, opts ...EndpointOption) ([]OhlcTick, error) {
+func (c *Client) StockHistoryOHLC(symbol string, date string, opts ...EndpointOption) ([]OhlcTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_stock_history_ohlc_with_options(c.handle, cSymbol, cDate, cInterval, cOpts)
+	arr := C.tdx_stock_history_ohlc_with_options(c.handle, cSymbol, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_ohlc_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -173,19 +187,17 @@ func (c *Client) StockHistoryTrade(symbol string, date string, opts ...EndpointO
 	return result, nil
 }
 
-func (c *Client) StockHistoryQuote(symbol string, date string, interval string, opts ...EndpointOption) ([]QuoteTick, error) {
+func (c *Client) StockHistoryQuote(symbol string, date string, opts ...EndpointOption) ([]QuoteTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_stock_history_quote_with_options(c.handle, cSymbol, cDate, cInterval, cOpts)
+	arr := C.tdx_stock_history_quote_with_options(c.handle, cSymbol, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_quote_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -273,7 +285,7 @@ func (c *Client) OptionListSymbols(opts ...EndpointOption) ([]string, error) {
 	return stringArrayToGo(arr)
 }
 
-func (c *Client) OptionListDates(requestType string, symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]string, error) {
+func (c *Client) OptionListDates(requestType string, symbol string, expiration string, opts ...EndpointOption) ([]string, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cRequestType := C.CString(requestType)
@@ -282,14 +294,10 @@ func (c *Client) OptionListDates(requestType string, symbol string, expiration s
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_list_dates_with_options(c.handle, cRequestType, cSymbol, cExpiration, cStrike, cRight, cOpts)
+	arr := C.tdx_option_list_dates_with_options(c.handle, cRequestType, cSymbol, cExpiration, cOpts)
 	return stringArrayToGo(arr)
 }
 
@@ -341,21 +349,17 @@ func (c *Client) OptionListContracts(requestType string, symbol string, date str
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotOHLC(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]OhlcTick, error) {
+func (c *Client) OptionSnapshotOHLC(symbol string, expiration string, opts ...EndpointOption) ([]OhlcTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_snapshot_ohlc_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cOpts)
+	arr := C.tdx_option_snapshot_ohlc_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_ohlc_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -365,21 +369,17 @@ func (c *Client) OptionSnapshotOHLC(symbol string, expiration string, strike str
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotTrade(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]TradeTick, error) {
+func (c *Client) OptionSnapshotTrade(symbol string, expiration string, opts ...EndpointOption) ([]TradeTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_snapshot_trade_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cOpts)
+	arr := C.tdx_option_snapshot_trade_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_trade_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -389,21 +389,17 @@ func (c *Client) OptionSnapshotTrade(symbol string, expiration string, strike st
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotQuote(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]QuoteTick, error) {
+func (c *Client) OptionSnapshotQuote(symbol string, expiration string, opts ...EndpointOption) ([]QuoteTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_snapshot_quote_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cOpts)
+	arr := C.tdx_option_snapshot_quote_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_quote_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -413,21 +409,17 @@ func (c *Client) OptionSnapshotQuote(symbol string, expiration string, strike st
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotOpenInterest(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]OpenInterestTick, error) {
+func (c *Client) OptionSnapshotOpenInterest(symbol string, expiration string, opts ...EndpointOption) ([]OpenInterestTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_snapshot_open_interest_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cOpts)
+	arr := C.tdx_option_snapshot_open_interest_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_open_interest_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -437,21 +429,17 @@ func (c *Client) OptionSnapshotOpenInterest(symbol string, expiration string, st
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotMarketValue(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]MarketValueTick, error) {
+func (c *Client) OptionSnapshotMarketValue(symbol string, expiration string, opts ...EndpointOption) ([]MarketValueTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_snapshot_market_value_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cOpts)
+	arr := C.tdx_option_snapshot_market_value_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_market_value_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -461,21 +449,17 @@ func (c *Client) OptionSnapshotMarketValue(symbol string, expiration string, str
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotGreeksImpliedVolatility(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]IVTick, error) {
+func (c *Client) OptionSnapshotGreeksImpliedVolatility(symbol string, expiration string, opts ...EndpointOption) ([]IVTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_snapshot_greeks_implied_volatility_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cOpts)
+	arr := C.tdx_option_snapshot_greeks_implied_volatility_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_iv_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -485,21 +469,17 @@ func (c *Client) OptionSnapshotGreeksImpliedVolatility(symbol string, expiration
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotGreeksAll(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionSnapshotGreeksAll(symbol string, expiration string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_snapshot_greeks_all_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cOpts)
+	arr := C.tdx_option_snapshot_greeks_all_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -509,21 +489,17 @@ func (c *Client) OptionSnapshotGreeksAll(symbol string, expiration string, strik
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotGreeksFirstOrder(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionSnapshotGreeksFirstOrder(symbol string, expiration string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_snapshot_greeks_first_order_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cOpts)
+	arr := C.tdx_option_snapshot_greeks_first_order_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -533,21 +509,17 @@ func (c *Client) OptionSnapshotGreeksFirstOrder(symbol string, expiration string
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotGreeksSecondOrder(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionSnapshotGreeksSecondOrder(symbol string, expiration string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_snapshot_greeks_second_order_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cOpts)
+	arr := C.tdx_option_snapshot_greeks_second_order_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -557,21 +529,17 @@ func (c *Client) OptionSnapshotGreeksSecondOrder(symbol string, expiration strin
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotGreeksThirdOrder(symbol string, expiration string, strike string, right string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionSnapshotGreeksThirdOrder(symbol string, expiration string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_snapshot_greeks_third_order_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cOpts)
+	arr := C.tdx_option_snapshot_greeks_third_order_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -581,17 +549,13 @@ func (c *Client) OptionSnapshotGreeksThirdOrder(symbol string, expiration string
 	return result, nil
 }
 
-func (c *Client) OptionHistoryEOD(symbol string, expiration string, strike string, right string, startDate string, endDate string, opts ...EndpointOption) ([]EodTick, error) {
+func (c *Client) OptionHistoryEOD(symbol string, expiration string, startDate string, endDate string, opts ...EndpointOption) ([]EodTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cStartDate := C.CString(startDate)
 	defer C.free(unsafe.Pointer(cStartDate))
 	cEndDate := C.CString(endDate)
@@ -599,7 +563,7 @@ func (c *Client) OptionHistoryEOD(symbol string, expiration string, strike strin
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_eod_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cStartDate, cEndDate, cOpts)
+	arr := C.tdx_option_history_eod_with_options(c.handle, cSymbol, cExpiration, cStartDate, cEndDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_eod_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -609,25 +573,19 @@ func (c *Client) OptionHistoryEOD(symbol string, expiration string, strike strin
 	return result, nil
 }
 
-func (c *Client) OptionHistoryOHLC(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]OhlcTick, error) {
+func (c *Client) OptionHistoryOHLC(symbol string, expiration string, date string, opts ...EndpointOption) ([]OhlcTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_ohlc_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cInterval, cOpts)
+	arr := C.tdx_option_history_ohlc_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_ohlc_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -637,23 +595,19 @@ func (c *Client) OptionHistoryOHLC(symbol string, expiration string, strike stri
 	return result, nil
 }
 
-func (c *Client) OptionHistoryTrade(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]TradeTick, error) {
+func (c *Client) OptionHistoryTrade(symbol string, expiration string, date string, opts ...EndpointOption) ([]TradeTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_trade_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cOpts)
+	arr := C.tdx_option_history_trade_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_trade_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -663,25 +617,19 @@ func (c *Client) OptionHistoryTrade(symbol string, expiration string, strike str
 	return result, nil
 }
 
-func (c *Client) OptionHistoryQuote(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]QuoteTick, error) {
+func (c *Client) OptionHistoryQuote(symbol string, expiration string, date string, opts ...EndpointOption) ([]QuoteTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_quote_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cInterval, cOpts)
+	arr := C.tdx_option_history_quote_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_quote_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -691,23 +639,19 @@ func (c *Client) OptionHistoryQuote(symbol string, expiration string, strike str
 	return result, nil
 }
 
-func (c *Client) OptionHistoryTradeQuote(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]TradeQuoteTick, error) {
+func (c *Client) OptionHistoryTradeQuote(symbol string, expiration string, date string, opts ...EndpointOption) ([]TradeQuoteTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_trade_quote_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cOpts)
+	arr := C.tdx_option_history_trade_quote_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_trade_quote_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -717,23 +661,19 @@ func (c *Client) OptionHistoryTradeQuote(symbol string, expiration string, strik
 	return result, nil
 }
 
-func (c *Client) OptionHistoryOpenInterest(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]OpenInterestTick, error) {
+func (c *Client) OptionHistoryOpenInterest(symbol string, expiration string, date string, opts ...EndpointOption) ([]OpenInterestTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_open_interest_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cOpts)
+	arr := C.tdx_option_history_open_interest_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_open_interest_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -743,17 +683,13 @@ func (c *Client) OptionHistoryOpenInterest(symbol string, expiration string, str
 	return result, nil
 }
 
-func (c *Client) OptionHistoryGreeksEOD(symbol string, expiration string, strike string, right string, startDate string, endDate string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryGreeksEOD(symbol string, expiration string, startDate string, endDate string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cStartDate := C.CString(startDate)
 	defer C.free(unsafe.Pointer(cStartDate))
 	cEndDate := C.CString(endDate)
@@ -761,7 +697,7 @@ func (c *Client) OptionHistoryGreeksEOD(symbol string, expiration string, strike
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_greeks_eod_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cStartDate, cEndDate, cOpts)
+	arr := C.tdx_option_history_greeks_eod_with_options(c.handle, cSymbol, cExpiration, cStartDate, cEndDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -771,25 +707,19 @@ func (c *Client) OptionHistoryGreeksEOD(symbol string, expiration string, strike
 	return result, nil
 }
 
-func (c *Client) OptionHistoryGreeksAll(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryGreeksAll(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_greeks_all_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cInterval, cOpts)
+	arr := C.tdx_option_history_greeks_all_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -799,23 +729,19 @@ func (c *Client) OptionHistoryGreeksAll(symbol string, expiration string, strike
 	return result, nil
 }
 
-func (c *Client) OptionHistoryTradeGreeksAll(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryTradeGreeksAll(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_trade_greeks_all_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cOpts)
+	arr := C.tdx_option_history_trade_greeks_all_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -825,25 +751,19 @@ func (c *Client) OptionHistoryTradeGreeksAll(symbol string, expiration string, s
 	return result, nil
 }
 
-func (c *Client) OptionHistoryGreeksFirstOrder(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryGreeksFirstOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_greeks_first_order_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cInterval, cOpts)
+	arr := C.tdx_option_history_greeks_first_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -853,23 +773,19 @@ func (c *Client) OptionHistoryGreeksFirstOrder(symbol string, expiration string,
 	return result, nil
 }
 
-func (c *Client) OptionHistoryTradeGreeksFirstOrder(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryTradeGreeksFirstOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_trade_greeks_first_order_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cOpts)
+	arr := C.tdx_option_history_trade_greeks_first_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -879,25 +795,19 @@ func (c *Client) OptionHistoryTradeGreeksFirstOrder(symbol string, expiration st
 	return result, nil
 }
 
-func (c *Client) OptionHistoryGreeksSecondOrder(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryGreeksSecondOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_greeks_second_order_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cInterval, cOpts)
+	arr := C.tdx_option_history_greeks_second_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -907,23 +817,19 @@ func (c *Client) OptionHistoryGreeksSecondOrder(symbol string, expiration string
 	return result, nil
 }
 
-func (c *Client) OptionHistoryTradeGreeksSecondOrder(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryTradeGreeksSecondOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_trade_greeks_second_order_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cOpts)
+	arr := C.tdx_option_history_trade_greeks_second_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -933,25 +839,19 @@ func (c *Client) OptionHistoryTradeGreeksSecondOrder(symbol string, expiration s
 	return result, nil
 }
 
-func (c *Client) OptionHistoryGreeksThirdOrder(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryGreeksThirdOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_greeks_third_order_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cInterval, cOpts)
+	arr := C.tdx_option_history_greeks_third_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -961,23 +861,19 @@ func (c *Client) OptionHistoryGreeksThirdOrder(symbol string, expiration string,
 	return result, nil
 }
 
-func (c *Client) OptionHistoryTradeGreeksThirdOrder(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryTradeGreeksThirdOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_trade_greeks_third_order_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cOpts)
+	arr := C.tdx_option_history_trade_greeks_third_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_greeks_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -987,25 +883,19 @@ func (c *Client) OptionHistoryTradeGreeksThirdOrder(symbol string, expiration st
 	return result, nil
 }
 
-func (c *Client) OptionHistoryGreeksImpliedVolatility(symbol string, expiration string, strike string, right string, date string, interval string, opts ...EndpointOption) ([]IVTick, error) {
+func (c *Client) OptionHistoryGreeksImpliedVolatility(symbol string, expiration string, date string, opts ...EndpointOption) ([]IVTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_greeks_implied_volatility_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cInterval, cOpts)
+	arr := C.tdx_option_history_greeks_implied_volatility_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_iv_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -1015,23 +905,19 @@ func (c *Client) OptionHistoryGreeksImpliedVolatility(symbol string, expiration 
 	return result, nil
 }
 
-func (c *Client) OptionHistoryTradeGreeksImpliedVolatility(symbol string, expiration string, strike string, right string, date string, opts ...EndpointOption) ([]IVTick, error) {
+func (c *Client) OptionHistoryTradeGreeksImpliedVolatility(symbol string, expiration string, date string, opts ...EndpointOption) ([]IVTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_history_trade_greeks_implied_volatility_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cDate, cOpts)
+	arr := C.tdx_option_history_trade_greeks_implied_volatility_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_iv_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -1041,17 +927,13 @@ func (c *Client) OptionHistoryTradeGreeksImpliedVolatility(symbol string, expira
 	return result, nil
 }
 
-func (c *Client) OptionAtTimeTrade(symbol string, expiration string, strike string, right string, startDate string, endDate string, timeOfDay string, opts ...EndpointOption) ([]TradeTick, error) {
+func (c *Client) OptionAtTimeTrade(symbol string, expiration string, startDate string, endDate string, timeOfDay string, opts ...EndpointOption) ([]TradeTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cStartDate := C.CString(startDate)
 	defer C.free(unsafe.Pointer(cStartDate))
 	cEndDate := C.CString(endDate)
@@ -1061,7 +943,7 @@ func (c *Client) OptionAtTimeTrade(symbol string, expiration string, strike stri
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_at_time_trade_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cStartDate, cEndDate, cTimeOfDay, cOpts)
+	arr := C.tdx_option_at_time_trade_with_options(c.handle, cSymbol, cExpiration, cStartDate, cEndDate, cTimeOfDay, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_trade_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -1071,17 +953,13 @@ func (c *Client) OptionAtTimeTrade(symbol string, expiration string, strike stri
 	return result, nil
 }
 
-func (c *Client) OptionAtTimeQuote(symbol string, expiration string, strike string, right string, startDate string, endDate string, timeOfDay string, opts ...EndpointOption) ([]QuoteTick, error) {
+func (c *Client) OptionAtTimeQuote(symbol string, expiration string, startDate string, endDate string, timeOfDay string, opts ...EndpointOption) ([]QuoteTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cExpiration := C.CString(expiration)
 	defer C.free(unsafe.Pointer(cExpiration))
-	cStrike := C.CString(strike)
-	defer C.free(unsafe.Pointer(cStrike))
-	cRight := C.CString(right)
-	defer C.free(unsafe.Pointer(cRight))
 	cStartDate := C.CString(startDate)
 	defer C.free(unsafe.Pointer(cStartDate))
 	cEndDate := C.CString(endDate)
@@ -1091,7 +969,7 @@ func (c *Client) OptionAtTimeQuote(symbol string, expiration string, strike stri
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_option_at_time_quote_with_options(c.handle, cSymbol, cExpiration, cStrike, cRight, cStartDate, cEndDate, cTimeOfDay, cOpts)
+	arr := C.tdx_option_at_time_quote_with_options(c.handle, cSymbol, cExpiration, cStartDate, cEndDate, cTimeOfDay, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_quote_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -1123,7 +1001,11 @@ func (c *Client) IndexListDates(symbol string, opts ...EndpointOption) ([]string
 	return stringArrayToGo(arr)
 }
 
-func (c *Client) IndexSnapshotOHLC(symbols []string, opts ...EndpointOption) ([]OhlcTick, error) {
+func (c *Client) IndexSnapshotOHLC(symbol string, opts ...EndpointOption) ([]OhlcTick, error) {
+	return c.IndexSnapshotOHLCBulk([]string{symbol}, opts...)
+}
+
+func (c *Client) IndexSnapshotOHLCBulk(symbols []string, opts ...EndpointOption) ([]OhlcTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
@@ -1141,7 +1023,11 @@ func (c *Client) IndexSnapshotOHLC(symbols []string, opts ...EndpointOption) ([]
 	return result, nil
 }
 
-func (c *Client) IndexSnapshotPrice(symbols []string, opts ...EndpointOption) ([]PriceTick, error) {
+func (c *Client) IndexSnapshotPrice(symbol string, opts ...EndpointOption) ([]PriceTick, error) {
+	return c.IndexSnapshotPriceBulk([]string{symbol}, opts...)
+}
+
+func (c *Client) IndexSnapshotPriceBulk(symbols []string, opts ...EndpointOption) ([]PriceTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
@@ -1159,7 +1045,11 @@ func (c *Client) IndexSnapshotPrice(symbols []string, opts ...EndpointOption) ([
 	return result, nil
 }
 
-func (c *Client) IndexSnapshotMarketValue(symbols []string, opts ...EndpointOption) ([]MarketValueTick, error) {
+func (c *Client) IndexSnapshotMarketValue(symbol string, opts ...EndpointOption) ([]MarketValueTick, error) {
+	return c.IndexSnapshotMarketValueBulk([]string{symbol}, opts...)
+}
+
+func (c *Client) IndexSnapshotMarketValueBulk(symbols []string, opts ...EndpointOption) ([]MarketValueTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbols, cSymbolsLen := symbolsToCArray(symbols)
@@ -1199,7 +1089,7 @@ func (c *Client) IndexHistoryEOD(symbol string, startDate string, endDate string
 	return result, nil
 }
 
-func (c *Client) IndexHistoryOHLC(symbol string, startDate string, endDate string, interval string, opts ...EndpointOption) ([]OhlcTick, error) {
+func (c *Client) IndexHistoryOHLC(symbol string, startDate string, endDate string, opts ...EndpointOption) ([]OhlcTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -1208,12 +1098,10 @@ func (c *Client) IndexHistoryOHLC(symbol string, startDate string, endDate strin
 	defer C.free(unsafe.Pointer(cStartDate))
 	cEndDate := C.CString(endDate)
 	defer C.free(unsafe.Pointer(cEndDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_index_history_ohlc_with_options(c.handle, cSymbol, cStartDate, cEndDate, cInterval, cOpts)
+	arr := C.tdx_index_history_ohlc_with_options(c.handle, cSymbol, cStartDate, cEndDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_ohlc_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -1223,19 +1111,17 @@ func (c *Client) IndexHistoryOHLC(symbol string, startDate string, endDate strin
 	return result, nil
 }
 
-func (c *Client) IndexHistoryPrice(symbol string, date string, interval string, opts ...EndpointOption) ([]PriceTick, error) {
+func (c *Client) IndexHistoryPrice(symbol string, date string, opts ...EndpointOption) ([]PriceTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
 	defer C.free(unsafe.Pointer(cSymbol))
 	cDate := C.CString(date)
 	defer C.free(unsafe.Pointer(cDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_index_history_price_with_options(c.handle, cSymbol, cDate, cInterval, cOpts)
+	arr := C.tdx_index_history_price_with_options(c.handle, cSymbol, cDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_price_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
@@ -1343,7 +1229,7 @@ func (c *Client) InterestRateHistoryEOD(symbol string, startDate string, endDate
 	return result, nil
 }
 
-func (c *Client) StockHistoryOHLCRange(symbol string, startDate string, endDate string, interval string, opts ...EndpointOption) ([]OhlcTick, error) {
+func (c *Client) StockHistoryOHLCRange(symbol string, startDate string, endDate string, opts ...EndpointOption) ([]OhlcTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -1352,12 +1238,10 @@ func (c *Client) StockHistoryOHLCRange(symbol string, startDate string, endDate 
 	defer C.free(unsafe.Pointer(cStartDate))
 	cEndDate := C.CString(endDate)
 	defer C.free(unsafe.Pointer(cEndDate))
-	cInterval := C.CString(interval)
-	defer C.free(unsafe.Pointer(cInterval))
 	cOpts, freeOpts := endpointRequestOptionsToC(collectEndpointRequestOptions(opts))
 	defer freeOpts()
 	C.tdx_clear_error()
-	arr := C.tdx_stock_history_ohlc_range_with_options(c.handle, cSymbol, cStartDate, cEndDate, cInterval, cOpts)
+	arr := C.tdx_stock_history_ohlc_range_with_options(c.handle, cSymbol, cStartDate, cEndDate, cOpts)
 	if e := lastError(); e != "" {
 		C.tdx_ohlc_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)

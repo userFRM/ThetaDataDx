@@ -19,6 +19,8 @@ type EndpointRequestOptions struct {
 	Venue *string
 	// Minimum time filter
 	MinTime *string
+	// Accepts milliseconds (60000) or shorthand (1m). Presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h. Defaults to `1s` when omitted — matching the upstream ThetaData Python library.
+	Interval *string
 	// Start time filter
 	StartTime *string
 	// End time filter
@@ -29,6 +31,10 @@ type EndpointRequestOptions struct {
 	EndDate *string
 	// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
 	Exclusive *bool
+	// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+	Strike *string
+	// Option side. Accepts `call`, `put`, or `both`.
+	Right *string
 	// Maximum days to expiration
 	MaxDTE *int32
 	// Strike range filter
@@ -86,6 +92,14 @@ func WithMinTime(value string) EndpointOption {
 	}
 }
 
+// WithInterval sets interval.
+func WithInterval(value string) EndpointOption {
+	return func(options *EndpointRequestOptions) {
+		valueCopy := value
+		options.Interval = &valueCopy
+	}
+}
+
 // WithStartTime sets start_time.
 func WithStartTime(value string) EndpointOption {
 	return func(options *EndpointRequestOptions) {
@@ -123,6 +137,22 @@ func WithExclusive(value bool) EndpointOption {
 	return func(options *EndpointRequestOptions) {
 		valueCopy := value
 		options.Exclusive = &valueCopy
+	}
+}
+
+// WithStrike sets strike.
+func WithStrike(value string) EndpointOption {
+	return func(options *EndpointRequestOptions) {
+		valueCopy := value
+		options.Strike = &valueCopy
+	}
+}
+
+// WithRight sets right.
+func WithRight(value string) EndpointOption {
+	return func(options *EndpointRequestOptions) {
+		valueCopy := value
+		options.Right = &valueCopy
 	}
 }
 
@@ -251,6 +281,11 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 		cOpts.min_time = value
 		allocations = append(allocations, unsafe.Pointer(value))
 	}
+	if opts.Interval != nil {
+		value := C.CString(*opts.Interval)
+		cOpts.interval = value
+		allocations = append(allocations, unsafe.Pointer(value))
+	}
 	if opts.StartTime != nil {
 		value := C.CString(*opts.StartTime)
 		cOpts.start_time = value
@@ -278,6 +313,16 @@ func endpointRequestOptionsToC(opts *EndpointRequestOptions) (*C.TdxEndpointRequ
 			cOpts.exclusive = 0
 		}
 		cOpts.has_exclusive = 1
+	}
+	if opts.Strike != nil {
+		value := C.CString(*opts.Strike)
+		cOpts.strike = value
+		allocations = append(allocations, unsafe.Pointer(value))
+	}
+	if opts.Right != nil {
+		value := C.CString(*opts.Right)
+		cOpts.right = value
+		allocations = append(allocations, unsafe.Pointer(value))
 	}
 	if opts.MaxDTE != nil {
 		cOpts.max_dte = C.int32_t(*opts.MaxDTE)

@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `underlyer_use_nbbo`, which propagates into the per-language generator
   outputs (Rust docstrings, Go `endpoint_options.go`, C++
   `endpoint_options.hpp.inc`, Python builder docstrings).
+- SSOT defaults now cover `right = "both"`, `strike = "*"`, and
+  `interval = "1s"`. The option contract endpoints no longer require
+  `right` and `strike` as positional Rust method arguments; callers set
+  concrete values through the existing options builder fields when they
+  need to override the server defaults.
+- Python bindings expose module-level `Right`, `Venue`, `Interval`,
+  `RateType`, `RequestType`, and `Version` string enum classes. Enum
+  constrained parameters accept either plain strings or those enum
+  objects.
+- TypeScript declarations expose matching literal-union types and const
+  companions for `Right`, `Venue`, `Interval`, `RateType`, `RequestType`,
+  and `Version`.
 
 ### Changed
 
@@ -47,6 +59,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sdks/typescript/index.js`, and the OpenAPI contract in
   `docs-site/public/thetadatadx.yaml`.
 - `tdbe` stays at `0.12.0`; the encoding crate is untouched.
+- Rust, Python, TypeScript, Go, and C++ endpoint surfaces now project
+  proto `repeated string symbol` endpoints as bulk-capable symbol inputs.
+  Singular-symbol wire endpoints remain singular.
+- Python historical date parameters (`date`, `expiration`, `start_date`,
+  `end_date`) accept `str`, `datetime.date`, or `datetime.datetime`.
+  Python time parameters (`start_time`, `end_time`, `min_time`,
+  `time_of_day`) accept `str` or `datetime.time`.
+- TypeScript historical date and time parameters accept either `string`
+  or JavaScript `Date` values at the native binding boundary.
 
 ## [8.0.9] - 2026-04-23
 

@@ -64,19 +64,21 @@ binding = "method"
 
 [[param_groups.strike_param.params]]
 name = "strike"
-description = "Strike price in dollars as a string (e.g. 500 or 17.5)"
+description = "Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."
 param_type = "Strike"
-required = true
-binding = "method"
+required = false
+binding = "builder"
+default = "*"
 
 [param_groups.right_param]
 
 [[param_groups.right_param.params]]
 name = "right"
-description = "C for call, P for put"
+description = "Option side. Accepts `call`, `put`, or `both`."
 param_type = "Right"
-required = true
-binding = "method"
+required = false
+binding = "builder"
+default = "both"
 
 [param_groups.contract_identity]
 
@@ -107,8 +109,9 @@ binding = "method"
 name = "interval"
 description = "Accepts milliseconds (60000) or shorthand (1m). Presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h. Defaults to `1s` when omitted — matching the upstream ThetaData Python library."
 param_type = "Interval"
-required = true
-binding = "method"
+required = false
+binding = "builder"
+default = "1s"
 
 [param_groups.start_time_filter]
 
@@ -1834,6 +1837,9 @@ concrete_overrides = { end_date = "20250303" }
 # without one, the corresponding `with_<name>` cell would silently drop
 # from the matrix.
 max_dte = "30"
+strike = "570"
+right = "call"
+interval = "1m"
 strike_range = "10"
 min_time = "09:45:00"
 venue = "nqb"

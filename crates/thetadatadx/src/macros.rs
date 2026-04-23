@@ -257,10 +257,11 @@ macro_rules! list_endpoint {
 ///
 /// ```rust,ignore
 /// // Simple -- just .await the builder directly
-/// let ticks = client.stock_history_ohlc("AAPL", "20260401", "1m").await?;
+/// let ticks = client.stock_history_ohlc("AAPL", "20260401").await?;
 ///
 /// // With options -- chain setters before .await
-/// let ticks = client.stock_history_ohlc("AAPL", "20260401", "1m")
+/// let ticks = client.stock_history_ohlc("AAPL", "20260401")
+///     .interval("1m")
 ///     .venue("arca")
 ///     .start_time("04:00:00")
 ///     .with_deadline(std::time::Duration::from_secs(60))
@@ -408,7 +409,7 @@ macro_rules! req_param_type {
         &str
     };
     (str_vec) => {
-        &[&str]
+        impl Into<SymbolInput>
     };
 }
 
@@ -418,7 +419,7 @@ macro_rules! req_convert {
         $v.to_string()
     };
     (str_vec, $v:ident) => {
-        $v.iter().map(|s| s.to_string()).collect()
+        $v.into().into_vec()
     };
 }
 

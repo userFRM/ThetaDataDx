@@ -26,6 +26,6 @@ pub mod types;
 
 // Convenience re-exports at crate root
 pub use error::Error;
-pub use types::enums::{DataType, SecType};
+pub use types::enums::{DataType, Interval, RateType, RequestType, Right, SecType, Venue, Version};
 pub use types::price::Price;
 pub use types::tick::*;
