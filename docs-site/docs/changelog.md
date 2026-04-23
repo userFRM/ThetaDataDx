@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.12] - 2026-04-23
+
+### Removed
+
+- `scripts/test_drift_injection.sh` + the `FPSS drift injection` CI job
+  (`.github/workflows/ci.yml`). The test was designed when the C++
+  `static_assert(offsetof)` guards in `thetadx.hpp` were hand-maintained
+  against a Rust-generated C struct layout. v8.0.11 moved both sides
+  under the same SSOT generator, so swapping a field in
+  `fpss_event_schema.toml` regenerates the C struct and the assert
+  value in lockstep and the assertion can no longer fail. Removed
+  rather than kept as a misleading safety net; `regen_byte_identical`
+  covers generator consistency and the assertions still fire at C++
+  compile time against hand-committed C header corruption.
+
 ## [8.0.11] - 2026-04-23
 
 ### Added
