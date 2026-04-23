@@ -30,13 +30,14 @@
 //! - [`client`] — `MddsClient` struct, `connect`, transport/session state
 //! - [`stream`] — gRPC response stream helpers (`collect_stream`, `for_each_chunk`)
 //! - [`validate`] — runtime parameter validators invoked by generated macros
-//! - [`normalize`] — wire-format canonicalizers (`normalize_interval`,
-//!   `normalize_expiration`, `wire_strike_opt`, `wire_right_opt`, ...)
-//! - [`endpoints`] — generated endpoint method bodies (`include!` sites)
+//! - [`endpoints`] — generated endpoint method bodies (`include!` sites);
+//!   wire-format canonicalizers (`normalize_interval`, `normalize_time_of_day`,
+//!   `contract_spec!`) live at the top of that file. The cross-cutting wire
+//!   helpers (`normalize_expiration`, `wire_strike_opt`, `wire_right_opt`)
+//!   live in [`crate::wire_semantics`].
 
 mod client;
 mod endpoints;
-mod normalize;
 mod stream;
 mod validate;
 

@@ -1,7 +1,11 @@
         run_blocking(py, async move {
+            let call = self.tdx.__NAME__(__POSITIONAL_ARGS__);
             if let Some(ms) = timeout_ms {
-                self.tdx.__NAME___with_deadline(std::time::Duration::from_millis(ms)__LEADING_COMMA_ARGS__).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
+                }
             } else {
-                self.tdx.__NAME__(__POSITIONAL_ARGS__).await
+                call.await
             }
         })

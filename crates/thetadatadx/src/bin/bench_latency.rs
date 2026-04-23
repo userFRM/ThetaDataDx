@@ -14,7 +14,7 @@ use tdbe::types::enums::SecType;
 use thetadatadx::auth::Credentials;
 use thetadatadx::config::DirectConfig;
 use thetadatadx::fpss::{FpssData, FpssEvent};
-use thetadatadx::unified::ThetaDataDx;
+use thetadatadx::ThetaDataDx;
 
 fn now_ns() -> u64 {
     SystemTime::now()

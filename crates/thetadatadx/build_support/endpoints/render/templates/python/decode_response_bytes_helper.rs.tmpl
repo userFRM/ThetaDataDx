@@ -11,7 +11,7 @@ fn decode_chunks_into_table(
     let mut headers: Vec<String> = Vec::new();
     let mut rows: Vec<thetadatadx::proto::DataValueList> = Vec::new();
     for (idx, chunk) in chunks.iter().enumerate() {
-        let response = <thetadatadx::proto::ResponseData as thetadatadx::prost::Message>::decode(*chunk)
+        let response = <thetadatadx::proto::ResponseData as prost::Message>::decode(*chunk)
             .map_err(|e| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "decode_response_bytes: chunk {idx} is not a valid proto::ResponseData: {e}"

@@ -320,21 +320,23 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
             .list_column
             .as_deref()
             .expect("list endpoint must declare list_column");
+        let _ = leading_comma_args;
         out.push_str("        let values: Vec<String> = run_blocking(py, async move {\n");
-        out.push_str("            if let Some(ms) = timeout_ms {\n");
         writeln!(
             out,
-            "                self.tdx.{}_with_deadline(std::time::Duration::from_millis(ms){}).await",
-            endpoint.name, leading_comma_args
-        )
-        .unwrap();
-        out.push_str("            } else {\n");
-        writeln!(
-            out,
-            "                self.tdx.{}({}).await",
+            "            let call = self.tdx.{}({});",
             endpoint.name, positional_args
         )
         .unwrap();
+        out.push_str("            if let Some(ms) = timeout_ms {\n");
+        out.push_str("                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {\n");
+        out.push_str("                    Ok(inner) => inner,\n");
+        out.push_str(
+            "                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),\n",
+        );
+        out.push_str("                }\n");
+        out.push_str("            } else {\n");
+        out.push_str("                call.await\n");
         out.push_str("            }\n");
         out.push_str("        })?;\n");
         writeln!(
@@ -524,20 +526,22 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
             .list_column
             .as_deref()
             .expect("list endpoint must declare list_column");
-        out.push_str("            if let Some(ms) = timeout_ms {\n");
+        let _ = leading_comma_args;
         writeln!(
             out,
-            "                tdx.{}_with_deadline(std::time::Duration::from_millis(ms){}).await",
-            endpoint.name, leading_comma_args
-        )
-        .unwrap();
-        out.push_str("            } else {\n");
-        writeln!(
-            out,
-            "                tdx.{}({}).await",
+            "            let call = tdx.{}({});",
             endpoint.name, positional_args
         )
         .unwrap();
+        out.push_str("            if let Some(ms) = timeout_ms {\n");
+        out.push_str("                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {\n");
+        out.push_str("                    Ok(inner) => inner,\n");
+        out.push_str(
+            "                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),\n",
+        );
+        out.push_str("                }\n");
+        out.push_str("            } else {\n");
+        out.push_str("                call.await\n");
         out.push_str("            }\n");
         // Wrap the returned `Vec<String>` in a typed `StringList` with
         // the semantic column name so the caller can chain `.to_polars()`
@@ -1048,20 +1052,28 @@ fn write_sync_list_dispatch(
     };
     let _ = leading_comma_args;
     let _ = positional_args;
-    writeln!(out, "{indent}    if let Some(ms) = timeout_ms {{").unwrap();
+    let _ = leading_comma_args_closure;
     writeln!(
         out,
-        "{indent}        tdx.{}_with_deadline(std::time::Duration::from_millis(ms){}).await",
-        endpoint.name, leading_comma_args_closure
-    )
-    .unwrap();
-    writeln!(out, "{indent}    }} else {{").unwrap();
-    writeln!(
-        out,
-        "{indent}        tdx.{}({}).await",
+        "{indent}    let call = tdx.{}({});",
         endpoint.name, positional_args_closure
     )
     .unwrap();
+    writeln!(out, "{indent}    if let Some(ms) = timeout_ms {{").unwrap();
+    writeln!(
+        out,
+        "{indent}        match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {{"
+    )
+    .unwrap();
+    writeln!(out, "{indent}            Ok(inner) => inner,").unwrap();
+    writeln!(
+        out,
+        "{indent}            Err(_) => Err(thetadatadx::Error::Timeout {{ duration_ms: ms }}),"
+    )
+    .unwrap();
+    writeln!(out, "{indent}        }}").unwrap();
+    writeln!(out, "{indent}    }} else {{").unwrap();
+    writeln!(out, "{indent}        call.await").unwrap();
     writeln!(out, "{indent}    }}").unwrap();
     write!(out, "{indent}}})").unwrap();
 }
@@ -1118,20 +1130,28 @@ fn write_async_list_dispatch(
     } else {
         format!(", {positional_args}")
     };
-    writeln!(out, "{indent}    if let Some(ms) = timeout_ms {{").unwrap();
+    let _ = leading_comma_args;
     writeln!(
         out,
-        "{indent}        tdx.{}_with_deadline(std::time::Duration::from_millis(ms){}).await",
-        endpoint.name, leading_comma_args
-    )
-    .unwrap();
-    writeln!(out, "{indent}    }} else {{").unwrap();
-    writeln!(
-        out,
-        "{indent}        tdx.{}({}).await",
+        "{indent}    let call = tdx.{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
+    writeln!(out, "{indent}    if let Some(ms) = timeout_ms {{").unwrap();
+    writeln!(
+        out,
+        "{indent}        match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {{"
+    )
+    .unwrap();
+    writeln!(out, "{indent}            Ok(inner) => inner,").unwrap();
+    writeln!(
+        out,
+        "{indent}            Err(_) => Err(thetadatadx::Error::Timeout {{ duration_ms: ms }}),"
+    )
+    .unwrap();
+    writeln!(out, "{indent}        }}").unwrap();
+    writeln!(out, "{indent}    }} else {{").unwrap();
+    writeln!(out, "{indent}        call.await").unwrap();
     writeln!(out, "{indent}    }}").unwrap();
     // Convert the resolved `Vec<String>` into the typed `StringList` and
     // coerce up to `Py<PyAny>` to satisfy the helper's convert signature.

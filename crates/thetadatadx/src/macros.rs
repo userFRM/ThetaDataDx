@@ -1,4 +1,4 @@
-//! Macros invoked by generated endpoint code from `build_support/endpoints.rs`.
+//! Macros invoked by generated endpoint code from `build_support/endpoints/`.
 //!
 //! These macro_rules drive the builder-pattern gRPC wrappers emitted at build
 //! time as well as the handwritten streaming endpoints in [`crate::mdds`].
@@ -53,6 +53,20 @@ pub(crate) enum AttemptStep<T> {
     Terminal(crate::error::Error),
 }
 
+/// Verdict produced by [`classify_error`] on a failed RPC attempt.
+///
+/// | Variant | Meaning |
+/// |---|---|
+/// | `Transient` | `Unavailable` / `DeadlineExceeded` / `ResourceExhausted` — retry with backoff |
+/// | `NeedsRefresh` | `Unauthenticated` — refresh session then retry once |
+/// | `Terminal` | Every other error — surface to caller unchanged |
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StatusClass {
+    Transient,
+    NeedsRefresh,
+    Terminal,
+}
+
 /// Single step evaluated by the macro-driven retry loop.
 ///
 /// `out` is the result of the last attempt (future already awaited).
@@ -71,7 +85,6 @@ pub(crate) async fn classify_attempt<T>(
     endpoint: &'static str,
     out: Result<T, crate::error::Error>,
 ) -> AttemptStep<T> {
-    use crate::retry::StatusClass;
     match out {
         Ok(v) => AttemptStep::Ok(v),
         Err(err) => match classify_error(&err) {
@@ -146,8 +159,7 @@ pub(crate) async fn sleep_for_retry(
 /// that string so the macro-emitted call path stays unchanged. The
 /// other `Error` variants are terminal — a `Decode` or `Decompress`
 /// failure won't fix itself on retry.
-fn classify_error(err: &crate::error::Error) -> crate::retry::StatusClass {
-    use crate::retry::StatusClass;
+fn classify_error(err: &crate::error::Error) -> StatusClass {
     match err {
         crate::error::Error::Grpc { status, .. } => match status.as_str() {
             "Unavailable" | "DeadlineExceeded" | "ResourceExhausted" => StatusClass::Transient,
@@ -162,9 +174,9 @@ fn classify_error(err: &crate::error::Error) -> crate::retry::StatusClass {
 /// column from the response `DataTable`.
 ///
 /// Pattern: build request -> gRPC call -> collect stream -> extract text column.
-/// Emits two methods on `MddsClient`:
-/// - `pub async fn <name>(...)` — no deadline.
-/// - `pub async fn <name>_with_deadline(deadline, ...)` — caps the call.
+/// Emits one method on `MddsClient`:
+/// - `pub async fn <name>(...)` — per-call deadline routed through
+///   [`EndpointArgs::with_timeout_ms`] + the builder-style APIs.
 macro_rules! list_endpoint {
     (
         $(#[$meta:meta])*
@@ -180,81 +192,55 @@ macro_rules! list_endpoint {
             ///
             /// Returns an error on network, authentication, or parsing failure.
             pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
-                self.[<__ $name _impl>](None, $($arg),*).await
-            }
-
-            #[allow(clippy::too_many_arguments)] // Reason: forwarding to ThetaData endpoint with cross-cutting deadline.
-            $(#[$meta])*
-            #[doc = "Variant with a per-call deadline. On expiry the in-flight gRPC"]
-            #[doc = "call is cancelled and `Err(Error::Timeout)` is returned; the"]
-            #[doc = "`MddsClient` is left intact for subsequent calls."]
-            #[doc = ""]
-            #[doc = "`Duration::ZERO` is normalized to \"no deadline\" for parity with"]
-            #[doc = "the builder-style endpoints; pass a positive `Duration` for"]
-            #[doc = "near-instant expiration."]
-            /// # Errors
-            ///
-            /// Returns `Error::Timeout` if `deadline` elapses, otherwise the same
-            /// errors as the deadline-less variant.
-            pub async fn [<$name _with_deadline>](&self, deadline: std::time::Duration, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
-                let normalized = if deadline.is_zero() { None } else { Some(deadline) };
-                self.[<__ $name _impl>](normalized, $($arg),*).await
-            }
-
-            #[allow(non_snake_case, clippy::too_many_arguments)] // Reason: synthetic-name impl shared between deadline / no-deadline entry points.
-            async fn [<__ $name _impl>](&self, __deadline: Option<std::time::Duration>, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
-                let inner = async move {
-                    tracing::debug!(endpoint = stringify!($name), "gRPC request");
-                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-                    let _metrics_start = std::time::Instant::now();
-                    let _permit = self.request_semaphore.acquire().await
-                        .map_err(|_| Error::Config("request semaphore closed".into()))?;
-                    let policy = self.config().retry_policy;
-                    let budget = policy.max_attempts.max(1);
-                    let mut refreshed_already = false;
-                    let mut last_err: Option<Error> = None;
-                    let table: proto::DataTable = 'retry: loop {
-                        for attempt in 1..=budget {
-                            let snap = self.session().snapshot().await;
-                            let qi = self.build_query_info(snap.uuid.clone());
-                            let request = proto::$req {
-                                query_info: Some(qi),
-                                params: Some(proto::$query { $($field : $val),* }),
-                            };
-                            let attempt_result: Result<proto::DataTable, Error> = async {
-                                let stream = self.stub().$grpc(request).await
-                                    .map_err(|e| -> Error { e.into() })?;
-                                self.collect_stream(stream.into_inner()).await
-                            }.await;
-                            match $crate::macros::classify_attempt(
-                                self.session(),
-                                &snap,
-                                &mut refreshed_already,
-                                stringify!($name),
-                                attempt_result,
-                            ).await {
-                                $crate::macros::AttemptStep::Ok(t) => break 'retry t,
-                                $crate::macros::AttemptStep::Terminal(err) => return Err::<Vec<String>, Error>(err),
-                                $crate::macros::AttemptStep::Retry(err) => {
-                                    if attempt == budget {
-                                        last_err = Some(err);
-                                        break;
-                                    }
-                                    $crate::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
+                tracing::debug!(endpoint = stringify!($name), "gRPC request");
+                metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
+                let _metrics_start = std::time::Instant::now();
+                let _permit = self.request_semaphore.acquire().await
+                    .map_err(|_| Error::Config("request semaphore closed".into()))?;
+                let policy = self.config().retry_policy;
+                let budget = policy.max_attempts.max(1);
+                let mut refreshed_already = false;
+                let mut last_err: Option<Error> = None;
+                let table: proto::DataTable = 'retry: loop {
+                    for attempt in 1..=budget {
+                        let snap = self.session().snapshot().await;
+                        let qi = self.build_query_info(snap.uuid.clone());
+                        let request = proto::$req {
+                            query_info: Some(qi),
+                            params: Some(proto::$query { $($field : $val),* }),
+                        };
+                        let attempt_result: Result<proto::DataTable, Error> = async {
+                            let stream = self.stub().$grpc(request).await
+                                .map_err(|e| -> Error { e.into() })?;
+                            self.collect_stream(stream.into_inner()).await
+                        }.await;
+                        match $crate::macros::classify_attempt(
+                            self.session(),
+                            &snap,
+                            &mut refreshed_already,
+                            stringify!($name),
+                            attempt_result,
+                        ).await {
+                            $crate::macros::AttemptStep::Ok(t) => break 'retry t,
+                            $crate::macros::AttemptStep::Terminal(err) => return Err::<Vec<String>, Error>(err),
+                            $crate::macros::AttemptStep::Retry(err) => {
+                                if attempt == budget {
                                     last_err = Some(err);
+                                    break;
                                 }
+                                $crate::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
+                                last_err = Some(err);
                             }
                         }
-                        return Err(last_err.unwrap_or_else(|| Error::Config("retry loop exited without result".into())));
-                    };
-                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                    Ok(decode::extract_text_column(&table, $col)
-                        .into_iter()
-                        .flatten()
-                        .collect())
+                    }
+                    return Err(last_err.unwrap_or_else(|| Error::Config("retry loop exited without result".into())));
                 };
-                $crate::macros::run_with_optional_deadline(__deadline, inner).await
+                metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
+                    .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
+                Ok(decode::extract_text_column(&table, $col)
+                    .into_iter()
+                    .flatten()
+                    .collect())
             }
         }
     };
@@ -489,9 +475,8 @@ macro_rules! opt_setter {
 // forbids items after a `#[cfg(test)] mod tests`.
 #[cfg(test)]
 mod classify_error_tests {
-    use super::classify_error;
+    use super::{classify_error, StatusClass};
     use crate::error::Error;
-    use crate::retry::StatusClass;
 
     fn grpc(status: &str) -> Error {
         Error::Grpc {

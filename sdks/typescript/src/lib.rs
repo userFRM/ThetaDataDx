@@ -1,7 +1,6 @@
-//! TypeScript/Node.js bindings for `thetadatadx` — wraps the Rust SDK via napi-rs.
-//!
-//! This is NOT a reimplementation. Every call goes through the Rust crate,
-//! giving Node.js users native performance for ThetaData market data access.
+//! TypeScript / Node.js bindings over the Rust `thetadatadx` core. Every call
+//! crosses the napi-rs boundary into the same Rust code path used by the CLI
+//! and FFI.
 
 #[macro_use]
 extern crate napi_derive;
