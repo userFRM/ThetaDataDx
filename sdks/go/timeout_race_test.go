@@ -51,7 +51,7 @@ import (
 //     in that window.
 //  3. Amplify the sample: each goroutine issues N=100 calls in a tight
 //     loop (10 goroutines × 100 calls = 1000 cgo call sequences). Volume
-//     alone does not make the detection bulletproof — on a 1-CPU runner
+//     alone does not make the detection reliable — on a 1-CPU runner
 //     or with a scheduler that keeps the goroutines on one OS thread,
 //     the per-call migration probability p can be effectively zero and
 //     a broken implementation still passes. This test is a BEHAVIORAL

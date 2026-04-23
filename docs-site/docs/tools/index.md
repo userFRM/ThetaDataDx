@@ -23,4 +23,4 @@ Best for: giving LLMs live access to ThetaData without writing an integration la
 
 Drop-in HTTP/WebSocket replacement for the ThetaData Java Terminal v3 surface. Existing scripts that target the terminal's v3 routes can point at this binary with no code change. Install with `cargo install thetadatadx-server`.
 
-Best for: migrating away from the JVM terminal with zero client-side churn.
+Best for: serving the local v3 REST and WebSocket route surface.

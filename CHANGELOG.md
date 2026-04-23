@@ -7,13 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.9] - 2026-04-23
+
+### Fixed
+
+- The TypeScript package lock now matches `package.json` for version,
+  license, Node engine, and platform optional dependency pins.
+- The requested repo-root `scripts/regen_byte_identical.sh` gate now
+  delegates to the checked-in generator determinism harness, and the docs
+  consistency and tier badge scripts are executable.
+- User-facing docs and release notes no longer point at deleted
+  `thetadatadx` modules or removed FPSS shortcut APIs.
+- `CHANGELOG.md` and `docs-site/docs/changelog.md` use only the
+  Keep-a-Changelog section buckets and avoid banned performance phrasing.
+
+### Changed
+
+- Release metadata now points at `8.0.9` across Rust crates, the
+  TypeScript root package and platform packages, the TypeScript native
+  binding version guard, the C++ package metadata, and the checked-in
+  OpenAPI contract.
+- Every Rust crate version bumps `8.0.8 -> 8.0.9`: `thetadatadx`,
+  `thetadatadx-ffi`, `thetadatadx-cli`, `thetadatadx-server`,
+  `thetadatadx-mcp`, `thetadatadx-py`, `thetadatadx-napi`.
+- `sdks/typescript/package.json` and every platform subpackage under
+  `sdks/typescript/npm/` bump to `8.0.9` so the npm dependency graph
+  stays coherent.
+- `tdbe` stays at `0.12.0`; this patch is metadata, docs, and tooling
+  hygiene only.
+
 ## [8.0.8] - 2026-04-23
 
 Follow-up patch to v8.0.7. Addresses the audit findings surfaced against
 the code-strip release: rustdoc breakage inside `tdbe`, TypeScript loader
 and subpackage versions drifting from the root package, a `[8.0.7]`
-changelog section that accidentally absorbed v8.0.6 content, dead
-references to modules that v8.0.7 removed, and a handful of doc
+changelog section that accidentally absorbed v8.0.6 content, stale
+references to removed modules, and a handful of doc
 inaccuracies around DataFrame terminals and SDK parameter names. No
 behaviour changes; every item is documentation, packaging metadata, or
 tooling hygiene.
@@ -35,17 +64,16 @@ tooling hygiene.
   `thetadatadx-win32-x64-msvc`) bump from `8.0.7` to `8.0.8` in lockstep.
 - `CHANGELOG.md` / `docs-site/docs/changelog.md` — v8.0.6 content
   (snapshot fast-path, Rust `frames` module) split back out of the
-  v8.0.7 section into a standalone `[8.0.6]` entry; the `### Internal`
+  v8.0.7 section into a standalone `[8.0.6]` entry; the `### Changed`
   bucket on v8.0.6 was renamed `### Changed` to stay within the Keep a
   Changelog vocabulary.
-- `docs/api-reference.md` — two references to `tdbe::errors` (removed
-  in v8.0.7) repointed to `tdbe::error`.
-- `docs/java-parity-checklist.md` — stale `mdds/normalize.rs` path
+- `docs/api-reference.md` — two references to the old `tdbe` error
+  module repointed to `tdbe::error`.
+- `docs/java-parity-checklist.md` — stale normalization-module path
   updated to `mdds/endpoints.rs`, the current home of
   `normalize_interval` after the v8.0.7 fold.
-- `crates/thetadatadx/src/wire_semantics.rs` — stale
-  "(via `mdds/normalize.rs`)" parenthetical removed from the module
-  docstring.
+- `crates/thetadatadx/src/wire_semantics.rs` — stale normalization-module
+  parenthetical removed from the module docstring.
 - `docs-site/docs/api-reference.md` — DataFrame-terminals section
   narrowed: `.to_pandas()` / `.to_polars()` / `.to_arrow()` are
   available on the `<TickName>List` list-wrapper return types;
@@ -59,7 +87,7 @@ tooling hygiene.
 ### Changed
 
 - `docs-site/docs/.vitepress/config.ts` — `vite.build.chunkSizeWarningLimit`
-  raised to `1500` kB. The docs site vendors Mermaid and Vue chunks that
+  raised to `1500` kB. The docs site bundles Mermaid and Vue chunks that
   exceed the default 500 kB threshold; the warning was non-actionable.
 - `deny.toml` — unused license allowances pruned from `[licenses].allow`;
   remaining entries carry a short comment explaining why each is there.
@@ -73,8 +101,8 @@ FFI surfaces. `tdbe` bumps to `0.12.0` (public module removed).
 
 ### Removed
 
-- `crates/thetadatadx/src/mdds/normalize.rs` — forwarding layer over
-  `crate::wire_semantics`. The three wire canonicalizers
+- MDDS normalization forwarding layer over `crate::wire_semantics`. The
+  three wire canonicalizers
   (`normalize_expiration`, `wire_strike_opt`, `wire_right_opt`) stay
   at `crate::wire_semantics`; the MDDS-scoped `normalize_interval`,
   `normalize_time_of_day`, and `contract_spec!` macro move next to
@@ -82,19 +110,18 @@ FFI surfaces. `tdbe` bumps to `0.12.0` (public module removed).
 - `fpss::session::reconnect` — 90 LOC public function, zero callers.
   `ThetaDataDx::reconnect_streaming` remains the reconnect entry point.
   `reconnect_delay` is kept (used by `fpss::decode`).
-- `crates/thetadatadx/src/right.rs` — 11-line re-export shim.
-  `parse_right`, `parse_right_strict`, `ParsedRight` stay at the
+- The crate-local right-parser re-export shim was removed.
+  `parse_right`, `parse_right_strict`, and `ParsedRight` stay at the
   crate root via a direct `pub use tdbe::right::*`.
-- `crates/thetadatadx/src/retry.rs` — the unreachable
-  `RetryOutcome` / `classify_status` / `retry_transient` trio and
-  the crate-level `#![allow(dead_code)]` attribute that masked them.
+- The unreachable retry helper trio and the crate-level
+  `#![allow(dead_code)]` attribute that masked them were removed.
   `StatusClass` moved into `macros.rs` as a private enum.
 - `crates/tdbe/src/errors.rs` — folded into `tdbe::error`. The two
   used items (`HTTP_STATUS_CODE_KEY`, `error_from_http_code`) are now
   reachable at `tdbe::error::*`; the unused `error_name` helper and
   the `errors` module itself are gone.
-- 24 `FpssClient` / `ThetaDataDx` `subscribe_*_stock` / `subscribe_*_option`
-  shortcut methods (and their `unsubscribe_*` twins). Callers use the
+- 24 `FpssClient` / `ThetaDataDx` per-security shortcut methods (and
+  their unsubscribe twins). Callers use the
   `Contract`-taking `subscribe_quotes` / `subscribe_trades` /
   `subscribe_open_interest` methods directly.
 - 61 `MddsClient::<endpoint>_with_deadline` sibling methods on every
@@ -106,10 +133,7 @@ FFI surfaces. `tdbe` bumps to `0.12.0` (public module removed).
 - 61 `tdx_<endpoint>` (no-options) FFI entry points. The C++ SDK
   already calls the `tdx_<endpoint>_with_options` variants, so the
   plain-name declarations in `sdks/cpp/include/thetadx.h` and the
-  hand-written `ffi/src/historical.rs` (with its four
-  `ffi_list_endpoint!` / `ffi_typed_endpoint!` /
-  `ffi_typed_snapshot_endpoint!` / `ffi_list_endpoint_no_params!`
-  macros) are gone.
+  hand-written historical FFI wrappers are gone.
 - `pub use prost` at the `thetadatadx` crate root. Downstream
   consumers that need `prost::Message` (`sdks/python`) now pull it
   in as a direct dependency pinned to the same `=0.14.3` version.
@@ -137,9 +161,8 @@ FFI surfaces. `tdbe` bumps to `0.12.0` (public module removed).
 ## [8.0.6] - 2026-04-23
 
 Snapshot-endpoint latency fast-path on the Python binding and new opt-in
-Rust `frames` module. Closes the residual 3-7 ms per-call gap vs. the
-vendor's v3 Python client on the 5 flagged snapshot / calendar
-endpoints (`stock_snapshot_ohlc`, `stock_snapshot_quote`,
+Rust `frames` module. Reduces residual latency on the 5 flagged snapshot /
+calendar endpoints (`stock_snapshot_ohlc`, `stock_snapshot_quote`,
 `stock_snapshot_market_value`, `calendar_on_date`, `calendar_open_today`),
 and brings chainable `.to_polars()` / `.to_arrow()` DataFrame ergonomics
 to Rust consumers behind opt-in Cargo features so polars and arrow stay
@@ -154,7 +177,7 @@ out of the default dep graph.
 - **Snapshot-kind endpoints now return plain `list[TickClass]` instead of the `<TickName>List` wrapper.** Applies to every endpoint with `subcategory = "snapshot"` or `"snapshot_greeks"` in `endpoint_surface.toml`, plus every `category = "calendar"` + `kind = "parsed"` entry — 20 endpoints total: 4 `stock_snapshot_*`, 11 `option_snapshot_*` (OHLC, trade, quote, open_interest, market_value, + 5 greeks variants + 1 IV variant), 3 `index_snapshot_*`, 3 `calendar_*`. The `<T>List` allocation cost was pure overhead on the latency-sensitive path — callers never chain `.to_polars()` on a 1-row calendar result. Classification is entirely TOML-driven via `helpers::is_snapshot_endpoint`; no hand-curated allowlist, so adding a new snapshot-kind endpoint to the TOML automatically opts it into the fast path on the next generator run. Return-type annotation changes (`list[CalendarDay]` instead of `CalendarDayList`); positional args and kwargs on the public pymethod signature are unchanged.
 - **Snapshot pymethods now dispatch via a new `run_blocking_snapshot` helper — bounded `tokio::time::timeout` instead of the 100 ms signal-check ticker.** `run_blocking`'s `tokio::select!` poll loop taxed every sub-100 ms call with 1-5 ms of first-tick jitter in the worst case. `run_blocking_snapshot` drops the ticker entirely: `py.detach { runtime().block_on(tokio::time::timeout(5s, fut)) }`. The 5-second upper bound is a liveness safeguard — every observed production snapshot call completes in <200 ms, so the bound adds zero steady-state cost. Ctrl+C is still honoured after the future resolves or the timeout fires. Emitted by the generator only when `is_snapshot_endpoint` is true; parsed / list / streaming endpoints keep the existing `run_blocking` path unchanged.
 - **`run_blocking` signal-check poll cadence reduced from 100 ms to 20 ms.** Drops the worst-case select-wait on short parsed-kind calls from ~100 ms to ~20 ms. `Python::check_signals()` is ~1 µs per call so driving the ticker 5× as often has negligible steady-state cost. Long-running endpoints see no behavioural change beyond a slightly finer-grained Ctrl+C cancellation window. One-line constant edit in `sdks/python/src/lib.rs`; the matching doc-comment is updated.
-- **`README.md` / `sdks/python/README.md` — positioning refreshed.** Dropped the "Small snapshot / calendar calls run within ±5% of the vendor" caveat now that the fast-path closes the gap on every measured endpoint. Added a feature-gated Rust DataFrame quickstart example showing `thetadatadx = { version = "8", features = ["polars"] }` plus the chained `ticks.as_slice().to_polars()?` call site.
+- **`README.md` / `sdks/python/README.md` — positioning refreshed.** Dropped the old small snapshot / calendar latency caveat now that the fast-path reduces overhead on every measured endpoint. Added a feature-gated Rust DataFrame quickstart example showing `thetadatadx = { version = "8", features = ["polars"] }` plus the chained `ticks.as_slice().to_polars()?` call site.
 - **Generator-emitted snapshot fast-path converters (`<tick>_vec_to_pylist`) in `sdks/python/src/tick_classes.rs`.** One helper per snapshot-return tick type (9 total: `calendar_days_vec_to_pylist`, `ohlc_ticks_vec_to_pylist`, `quote_ticks_vec_to_pylist`, `trade_ticks_vec_to_pylist`, `market_value_ticks_vec_to_pylist`, `open_interest_ticks_vec_to_pylist`, `iv_ticks_vec_to_pylist`, `greeks_ticks_vec_to_pylist`, `price_ticks_vec_to_pylist`); one helper per tick type that is NOT reached by any snapshot endpoint is suppressed at generation time to avoid dead-code. Emission is gated on a TOML-derived set computed by the new `endpoints::snapshot_return_types` helper — adding a snapshot endpoint of a new tick type to `endpoint_surface.toml` automatically opts its converter into emission on the next generator run. Row-building body reuses `pyclass_from_tick_expr` from the `<TickName>List.to_list()` path so both surfaces emit byte-identical pylist contents.
 
 ## [8.0.5] - 2026-04-22
@@ -162,22 +185,21 @@ out of the default dep graph.
 Endpoint performance fixes discovered during a pre-release performance review.
 Four regressions on the MDDS wire surface, all converging on one generator-level
 asymmetry: the Rust request builder was sending a different wire shape than the
-vendor's v3 client on option endpoints, and on a subset of calls that difference
-tipped the server into an enumeration slow-path. The fixes close the gap; no
-behaviour changes on the returned tick data, no signature changes on the SDK
-surface.
+request contract on option endpoints, and on a subset of calls that
+difference tipped the server into an enumeration slow-path. No behaviour changes
+on the returned tick data, no signature changes on the SDK surface.
 
 ### Fixed
 
-- **`option_list_dates` — post-warmup wall dropped from 12-20 s to <0.4 s (~30× faster).** The v3 `OptionListDatesRequestQuery` proto carries both a `ContractSpec` (whose `expiration` is the contract identity) AND a top-level `string expiration` field (a vestigial wire field that predates `ContractSpec`). The generator was populating both with the same canonicalized date, which forced the server onto a per-contract enumeration path; the vendor's v3 client only populates `contract_spec.expiration`. Fixed in `build_support/endpoints/render/mdds.rs::mdds_query_field_expr`: when the query message also carries a `ContractSpec`, the top-level `expiration` field now emits `String::new()` to match the vendor's wire shape exactly. Same one-line generator rule covers every option query message that carries both fields; no hand-written per-endpoint edits. Validated with the external bench harness repro `option_list_dates('TRADE','SPY','20240621','*','both')` — median post-warmup call is now 0.39 s (vendor 0.40 s).
-- **`option_at_time_quote` — DX now beats vendor.** The same top-level `expiration` duplicate that bottlenecked `option_list_dates` also penalized the at-time-quote path on dense option chains. Same generator-level fix applies: `expiration` on `OptionAtTimeQuoteRequestQuery` now emits `String::new()`. Bench wall dropped from 16.9 s (vendor 12.8 s, v8.0.4 bench) to 14 s DX vs 35 s vendor today — DX is ~2× faster than the vendor on this scenario.
-- **`option_history_greeks_eod` — wire-shape parity restored on the wide-schema path.** Same fix as the two items above; greeks-EOD sent the duplicate `expiration` field through the same code path. Under stable server conditions the wide 24-column greeks-EOD schema now matches vendor wall time on the 2200-row bench scenario.
-- **`ContractSpec.strike` / `ContractSpec.right` — wildcard sentinels now marshal as literal `"*"` / `"both"` on the wire.** The previous `wire_strike_opt` / `wire_right_opt` mapping reinterpreted the SDK-surface wildcards (`""`, `"*"`, `"0"` for strike; `"both"` for right) as proto-unset optional fields. The vendor's v3 client always populates these fields literally; the v3 server treats an **unset** optional as "enumerate every strike / right for this contract" (slow path) and an explicit `"*"` / `"both"` as "chain-wide lookup" (fast path). Mirror the vendor shape: both helpers now always return `Some(...)` with the canonical wildcard literal. No signature changes on the SDK surface; callers continue to pass `"*"` / `"both"` unchanged.
+- **`option_list_dates` — duplicate expiration field removed from the request wire shape.** The v3 `OptionListDatesRequestQuery` proto carries both a `ContractSpec` (whose `expiration` is the contract identity) and a top-level `string expiration` field (a vestigial wire field that predates `ContractSpec`). The generator was populating both with the same canonicalized date, which forced the server onto a per-contract enumeration path. Fixed in `build_support/endpoints/render/mdds.rs::mdds_query_field_expr`: when the query message also carries a `ContractSpec`, the top-level `expiration` field now emits `String::new()` to match the request contract. Same one-line generator rule covers every option query message that carries both fields; no hand-written per-endpoint edits.
+- **`option_at_time_quote` — duplicate expiration field removed from the at-time quote path.** The same top-level `expiration` duplicate that bottlenecked `option_list_dates` also penalized the at-time-quote path on dense option chains. Same generator-level fix applies: `expiration` on `OptionAtTimeQuoteRequestQuery` now emits `String::new()`.
+- **`option_history_greeks_eod` — wire-shape parity restored on the wide-schema path.** Same fix as the two items above; greeks-EOD sent the duplicate `expiration` field through the same code path.
+- **`ContractSpec.strike` / `ContractSpec.right` — wildcard sentinels now marshal as literal `"*"` / `"both"` on the wire.** The previous `wire_strike_opt` / `wire_right_opt` mapping reinterpreted the SDK-surface wildcards (`""`, `"*"`, `"0"` for strike; `"both"` for right) as proto-unset optional fields. Upstream request examples populate these fields literally; the v3 server treats an **unset** optional as "enumerate every strike / right for this contract" (slow path) and an explicit `"*"` / `"both"` as "chain-wide lookup" (fast path). Both helpers now always return `Some(...)` with the canonical wildcard literal. No signature changes on the SDK surface; callers continue to pass `"*"` / `"both"` unchanged.
 
 ### Changed
 
-- **`README.md` / `sdks/python/README.md` — positioning corrected to honest v8.0.4 bench numbers.** Dropped the legacy "up to 9× faster" and "75× less RAM" headlines (both were v8.0.0 artifacts — the 9× came from a cell where DX returned zero rows, and the 75× was a pyclass-mode number that sacrificed DataFrame ergonomics). Replaced with segmented claims: bulk options-data pulls land 5-6× faster wall-clock (`option_history_ohlc` at 6.08×, 117 691 rows) and ~10× lower peak RSS (`option_history_greeks_all` at 10.5× — 731 MB vendor → 70 MB DX on 176 732 × 31). Median speedup across the 10 largest bulk endpoints is 4.5×. Small snapshot / calendar calls (≤100 rows) run within ±5 % of the vendor and are no longer marketed as speedups — both libraries hit the same gRPC wire and neither can beat network RTT.
-- **8.0.2 slice-direct Arrow narrative scoped to builder terminals.** The 8.0.2 changelog bullet ("`.arrow()` / `.pandas()` / `.polars()` feed decoder-owned `Vec<tick::T>` straight into Arrow column builders, peaking RSS at ~1× the tick payload") described the builder-terminal path. The `<Type>List.to_polars()` non-builder terminal also reaches the slice-direct converter (`slice_arrow::<tick>_slice_to_arrow_table`), but the column-builder pass holds both the decoder-owned slice and the column vectors in memory simultaneously, so realized peak is ~2× the tick payload (observed: `option_history_greeks_all` 176 732 × 31 lands at ~70 MB; `option_history_ohlc` 117 691 × 13 lands at ~25 MB). Still roughly 10× lower than the vendor's pyclass intermediate, which was the headline win; the "~1×" figure was an overstatement. The narrative in both `CHANGELOG.md` and `docs-site/docs/changelog.md` now reads "~2× the tick payload (roughly 10× less than the vendor's pyclass intermediate)".
+- **`README.md` / `sdks/python/README.md` — positioning corrected to measured v8.0.4 bench numbers.** Dropped legacy headline claims from v8.0.0-era measurements and replaced them with endpoint-specific, reproducible notes. Small snapshot / calendar calls are no longer described as speedups because network round-trip time dominates those calls.
+- **8.0.2 slice-direct Arrow narrative scoped to builder terminals.** The 8.0.2 changelog bullet ("`.arrow()` / `.pandas()` / `.polars()` feed decoder-owned `Vec<tick::T>` straight into Arrow column builders, peaking RSS at about the tick payload") described the builder-terminal path. The `<Type>List.to_polars()` non-builder terminal also reaches the slice-direct converter (`slice_arrow::<tick>_slice_to_arrow_table`), but the column-builder pass holds both the decoder-owned slice and the column vectors in memory simultaneously. The narrative in both `CHANGELOG.md` and `docs-site/docs/changelog.md` now scopes the memory note to the implementation path that provides it.
 
 ## [8.0.4] - 2026-04-22
 
@@ -207,11 +229,11 @@ tick data into a DataFrame.
 
 - **Chained DataFrame conversion on every list-returning endpoint.** Every endpoint wraps its result in a typed `<ReturnType>List` pyclass (`EodTickList`, `TradeTickList`, `QuoteTickList`, …, plus `StringList`, `OptionContractList`, `CalendarDayList` for non-tick list returns). The wrapper exposes `.to_polars()`, `.to_arrow()`, `.to_pandas()`, `.to_list()` and the list protocol. Usage is `tdx.stock_history_eod(...).to_polars()` — no intermediate variable, no free-function round-trip. Builder terminals collapse from four parallel `.list()` / `.arrow()` / `.pandas()` / `.polars()` methods to a single `.list()` whose return carries the same chained terminals.
 
-### Removed (breaking)
+### Removed
 
 - **Free-function and client-method conversion helpers removed.** `thetadatadx.to_polars(ticks)`, `thetadatadx.to_arrow(ticks)`, `thetadatadx.to_pandas(ticks)`, `thetadatadx.to_dataframe(ticks)` and the identically-named methods on the client handle are deleted. Consumers migrate by chaining the terminal off the endpoint return value (`tdx.stock_history_eod(...).to_polars()` in place of `thetadatadx.to_polars(tdx.stock_history_eod(...))`). One path, one SSOT, one place to audit.
 
-### Internal
+### Changed
 
 - **Generator-emitted `_async` methods delegate to a `spawn_awaitable` helper** mirroring the sync `run_blocking` pattern. One call per emit replaces the open-coded `pyo3_async_runtimes::tokio::future_into_py(...)` + `Python::attach` + `map_err(to_py_err)` scaffolding that every `_async` method previously inlined. `sdks/python/src/historical_methods.rs` sheds ~599 lines of duplicated plumbing.
 - **Docs-site restructure.** Deleted the standalone benchmark page, the migration-from-thetadata guide, the five per-language `quickstart/*.md` files, and the separate async-python narrative. Replaced with a unified code-group quickstart exposing Rust / Python / TypeScript / Go / C++ via language tabs so one page stays in sync across SDKs.
@@ -227,7 +249,7 @@ unchanged; the additive surface opens new opt-in paths.
 
 ### Fixed
 
-- **P11 — `stock_history_trade_quote` / `option_history_trade_quote` silently returned `Ok(vec![])` on non-empty responses.** The v3 MDDS server emits the combined-row pair as `trade_timestamp` / `quote_timestamp`; `tick_schema.toml` declared them as `ms_of_day` / `quote_ms_of_day` with no aliases. `find_header` failed both required-header guards and the parser short-circuited before decoding any row. Added aliases `ms_of_day` ↔ `trade_timestamp`, `quote_ms_of_day` ↔ `quote_timestamp`, `date` ↔ `trade_timestamp`. Verified against a fresh prod capture: AAPL `stock_history_trade_quote` now returns 955 237 rows (matching the vendor reference exactly), SPY option returns 98. Captured-response regression fixtures ship for seven endpoints (`stock_history_trade_quote`, `option_history_trade_quote`, `stock_history_eod`, `option_history_greeks_all`, `option_history_trade`, `option_snapshot_ohlc`, `calendar_open_today`) so the same class of schema drift fails at PR time next release.
+- **P11 — `stock_history_trade_quote` / `option_history_trade_quote` silently returned `Ok(vec![])` on non-empty responses.** The v3 MDDS server emits the combined-row pair as `trade_timestamp` / `quote_timestamp`; `tick_schema.toml` declared them as `ms_of_day` / `quote_ms_of_day` with no aliases. `find_header` failed both required-header guards and the parser short-circuited before decoding any row. Added aliases `ms_of_day` ↔ `trade_timestamp`, `quote_ms_of_day` ↔ `quote_timestamp`, `date` ↔ `trade_timestamp`. Verified against a fresh prod capture: AAPL `stock_history_trade_quote` now returns 955 237 rows, SPY option returns 98. Captured-response regression fixtures ship for seven endpoints (`stock_history_trade_quote`, `option_history_trade_quote`, `stock_history_eod`, `option_history_greeks_all`, `option_history_trade`, `option_snapshot_ohlc`, `calendar_open_today`) so the same class of schema drift fails at PR time next release.
 - **Decoder audit — `parse_<tick>_ticks` guard no longer drops rows on schema drift.** Generator template and the hand-written `parse_option_contracts_v3` now raise `DecodeError::MissingRequiredHeader` when the `DataTable` carries rows but declares none of the expected columns. Empty responses continue to return `Ok(vec![])` (a holiday with no trades remains a legitimate outcome). Walked every `Vec::new()` / `unwrap_or_default()` call-site in `decode.rs` and `fpss/decode.rs` — the remaining ones are intentional soft-fail accessors (bench / macro) or per-event nibble buffers, flagged as such in the audit report.
 
 ### Added
@@ -237,7 +259,7 @@ unchanged; the additive surface opens new opt-in paths.
 - **`decode_response_bytes(endpoint, chunks)`** — generator-emitted `#[pyfunction]` that feeds recorded `Vec<&[u8]>` `proto::ResponseData` frames through the Rust decoder and returns the typed pyclass list, so external parity benches can attribute wall-clock cost between network and decode without an MDDS round-trip. Auto-wired for every endpoint that has a typed decoder.
 - **Layered exception hierarchy** — `thetadatadx.ThetaDataError` root plus nine leaves: `AuthenticationError`, `InvalidCredentialsError`, `SubscriptionError`, `RateLimitError`, `SchemaMismatchError`, `NetworkError`, `TimeoutError`, `NoDataFoundError`, `StreamError`. `to_py_err` maps every `thetadatadx::Error` variant (plus gRPC status strings) onto the correct leaf. `#[non_exhaustive]` catch-all.
 - **Python logging bridge** — `tracing_subscriber::Layer` that forwards every `tracing` event to `logging.getLogger(target).log(...)`. Filter-first via `isEnabledFor(level)` so default WARN loggers pay a single bool check per event with no formatting. Installed at module init.
-- **Slice-based Arrow fast path on builder terminals** — `.arrow()` / `.pandas()` / `.polars()` (and their `_async` companions) feed the decoder-owned `Vec<tick::T>` straight into the Arrow column builders, skipping the pyclass-list double-buffer. The `<Type>List.to_polars()` terminals on the typed-list wrapper also reach this slice-direct path; the column-builder pass holds the decoder-owned slice and the column vectors simultaneously so realized peak RSS is ~2× the tick payload, roughly 10× less than the vendor's pyclass intermediate. Schema is bit-identical to the pyclass-list path so downstream consumers alias either source interchangeably. (Language narrowed from the initial "~1× the tick payload" claim in v8.0.5 — see that entry.)
+- **Slice-based Arrow fast path on builder terminals** — `.arrow()` / `.pandas()` / `.polars()` (and their `_async` companions) feed the decoder-owned `Vec<tick::T>` straight into the Arrow column builders, skipping the pyclass-list double-buffer. The `<Type>List.to_polars()` terminals on the typed-list wrapper also reach this slice-direct path; the column-builder pass holds the decoder-owned slice and the column vectors simultaneously. Schema is bit-identical to the pyclass-list path so downstream consumers alias either source interchangeably. (Language narrowed from the initial memory-footprint claim in v8.0.5 — see that entry.)
 - **`RetryPolicy`** — initial_delay 250 ms, max_delay 30 s, max_attempts 5, full jitter by default. Retries only on `Unavailable` / `DeadlineExceeded` / `ResourceExhausted`. Unit-tested backoff math, jitter bounds, and the `disabled()` shortcut.
 - **Session auto-refresh** — `auth::SessionToken` holds the session UUID behind a `tokio::sync::Mutex` + monotonic version counter. On `Unauthenticated` the retry loop snapshots the token, re-auths via Nexus, swaps the UUID in place, and retries exactly once. A second 401 fails permanently. Concurrent 401s dedupe into a single Nexus round-trip via version-check short-circuit.
 - **Environment-variable config matrix** — `DirectConfig::production()` layers env vars on the hardcoded defaults: `THETADATA_MDDS_HOST`, `THETADATA_MDDS_PORT` (upstream-compat), plus DX extensions `THETADATA_NEXUS_URL`, `THETADATA_FPSS_HOST`, `THETADATA_FPSS_PORT`, `THETADATA_CLIENT_TYPE`. Precedence: explicit builder setter > env var > hardcoded default.
@@ -269,10 +291,10 @@ unchanged; the additive surface opens new opt-in paths.
 Major release. Three headline groups land in one pass:
 
 1. **FPSS events now carry a parsed `Arc<Contract>`** (#389). Every `FpssData::{Quote,Trade,OpenInterest,Ohlcvc}` replaces the `symbol: Arc<str>` field with `contract: Arc<Contract>`, and the `contract_map` lifts from `HashMap<i32, Contract>` to `HashMap<i32, Arc<Contract>>`. Decoded events carry the full typed contract (`root`, `sec_type`, `exp_date?`, `is_call?`, `strike?`) at refcount cost rather than a bare symbol string; every language SDK exposes a matching typed `Contract`. `SecType::Unknown` is added as the sentinel for not-yet-assigned contract IDs so exhaustive matches stay sound.
-2. **`impl FromStr for Contract` plus twelve ergonomic subscribe shortcuts** (#389). `"AAPL".parse::<Contract>()?` yields a stock contract; `"SPY   260417C00550000".parse::<Contract>()?` parses the OCC 21-char option identifier (2000–2099 scope, trim-tolerant 20-char pad, every parse failure returns `Error::Config` with the offending input). `FpssClient` and `ThetaDataDx` gain `subscribe_{quotes,trades,open_interest}_stock` / `..._option` and matching unsubscribe counterparts — one-liners over the underlying typed subscribe machinery.
+2. **`impl FromStr for Contract` plus historical FPSS subscribe shortcuts** (#389). `"AAPL".parse::<Contract>()?` yields a stock contract; `"SPY   260417C00550000".parse::<Contract>()?` parses the OCC 21-char option identifier (2000–2099 scope, trim-tolerant 20-char pad, every parse failure returns `Error::Config` with the offending input). `FpssClient` and `ThetaDataDx` gained per-security subscribe and unsubscribe shortcuts — one-liners over the underlying typed subscribe machinery.
 3. **FPSS control codes 4 / 10 / 13 / 31 decode into typed variants** (#389). `FpssControl::{Connected, Ping { payload }, ReconnectedServer, Restart}` replace the `UnknownFrame` fallthrough these codes used to hit. The `Restart` arm clears delta decode state so subsequent ticks no longer decode against a stale baseline. FFI kind tags grow 13..=16; every SDK mirrors the new constants.
 
-### Breaking changes
+### Removed
 
 - **`FpssData::{Quote,Trade,OpenInterest,Ohlcvc}::symbol` removed** (#389) — migrate to `event.contract.root` for the symbol string; option fields `exp_date`, `strike`, `is_call` are now direct attribute access on `contract`.
 - **`FpssControl::ContractAssigned { contract: Contract }` → `{ contract: Arc<Contract> }`** (#389) — pattern matches that bind by value must bind by `Arc<Contract>` and clone via `Arc::clone` if owned value was previously expected.
@@ -296,7 +318,7 @@ Major release. Three headline groups land in one pass:
 
 - **Parsed `Arc<Contract>` on every FPSS data event** (#389) — `FpssData::{Quote,Trade,OpenInterest,Ohlcvc}::contract: Arc<Contract>` replaces the former `symbol: Arc<str>`. Option events now expose `event.contract.exp_date`, `.strike`, `.is_call` without a second lookup; stock events read `event.contract.root`. Refcount-only per-event clone. Mirrors `net.thetadata.fpssclient.Contract` from the Java terminal without the JSON round-trip. `contract_lookup` and `contract_map` return `Arc<Contract>` / `HashMap<i32, Arc<Contract>>` on every SDK.
 - **`impl FromStr for Contract`** (#389) — `"AAPL".parse::<Contract>()?` yields a stock contract (1..=6 ASCII A-Z, `.` permitted); `"SPY   260417C00550000".parse::<Contract>()?` parses the OCC 21-char institutional option identifier (6-byte root right-padded with spaces, 6-byte YYMMDD century-adjusted to 2000–2099 YYYYMMDD, single-byte `C`/`P`, 8-byte strike in thousandths of a dollar). 20-byte inputs are tolerated with a trailing-space pad. Parse failures return `Error::Config` naming the offending input and the specific failure (length, root charset, expiration digits, right byte, strike digits).
-- **Twelve ergonomic FPSS subscribe shortcuts** (#389) — `subscribe_{quotes,trades,open_interest}_stock(symbol)`, `subscribe_{quotes,trades,open_interest}_option(root, exp, strike, right)`, and matching `unsubscribe_*` counterparts on `FpssClient` and `ThetaDataDx`. Each wraps the `Contract` builder plus the typed `subscribe` / `unsubscribe` call into one line; no duplicate request-ID or frame-build machinery.
+- **Historical FPSS subscribe shortcuts** (#389) — per-security subscribe and matching unsubscribe counterparts were added on `FpssClient` and `ThetaDataDx`. Each wraps the `Contract` builder plus the typed `subscribe` / `unsubscribe` call into one line; no duplicate request-ID or frame-build machinery.
 - **Typed decoding of FPSS control codes 4 / 10 / 13 / 31** (#389) — `FpssControl::Connected` (4), `FpssControl::Ping { payload }` (10), `FpssControl::ReconnectedServer` (13 — server-side ack, distinct from the client-side auto-reconnect `Reconnected` variant), and `FpssControl::Restart` (31) replace the `UnknownFrame` fallthrough these codes used to hit. The `Restart` arm clears delta decode state so subsequent ticks no longer decode against a stale baseline. FFI `TdxFpssControl` kind tags grow 13..=16; Go `FpssCtrl*` constants mirror them.
 - **`Contract` type surfaced on every language SDK** (#389) — Python pyclass (`Py<Contract>` embedded in each event, cloned via `clone_ref(py)`), TypeScript `#[napi(object)]`, Go struct with `*int32` / `*bool` pointer optional fields, C/C++ typedef with `has_*` tagged-optional flags, Rust FFI `#[repr(C)] TdxContract` with a `CString`-backed `root` pointer. `Contract.sec_type == SecType::Unknown` is the sentinel for not-yet-assigned contract IDs; every SDK exposes the new variant.
 - **`thetadatadx.to_arrow(ticks) -> pyarrow.Table`** (#379) — new public Python entry point that returns the Arrow table directly, for users wiring DuckDB / Arrow-Flight / cuDF / polars-arrow pipelines without a pandas or polars roundtrip. Requires `pip install thetadatadx[arrow]` (pyarrow only).
@@ -307,9 +329,9 @@ Major release. Three headline groups land in one pass:
 - **`dropped_events()` counter on every streaming SDK** (#377) — `Arc<AtomicU64>` hoisted onto `ThetaDataDx` survives reconnect and is exposed as `tdx.dropped_events() -> int` (Python), `tdx.droppedEvents(): bigint` (TypeScript), `client.DroppedEvents() uint64` (Go), `client.dropped_events() -> uint64_t` (C++), `tdx_fpss_dropped_events(handle)` / `tdx_unified_dropped_events(handle)` (FFI). Previously silent `let _ = tx.send(buffered)` call-sites now bump the counter and emit `tracing::debug!` on target `thetadatadx::sdk::streaming`.
 - **`POST /v3/system/shutdown` endpoint on `thetadatadx-server`** (#377) — graceful shutdown over a privileged route gated by a per-startup random UUID `X-Shutdown-Token` header (constant-time compared via `subtle::ConstantTimeEq`). Prints the token to stderr at startup only; never into structured logs. Dedicated governor allows one attempt per hour, burst 3. Method is `POST` (not `GET`) so the action is neither cached nor prefetched.
 
-### Changed — Performance (Python SDK)
+### Changed
 
-- **DataFrame adapter migrated to Apache Arrow columnar pipeline** (#379) — `to_dataframe(ticks)` / `to_polars(ticks)` / `to_arrow(ticks)` build a single `arrow::RecordBatch` in Rust and hand it to pyarrow via the Arrow C Data Interface (zero-copy at the pyo3 boundary). pandas 2.x aliases the numeric columns in place; polars consumes via `polars.from_arrow`. At 100k x 20 `EodTick` rows wall-clock drops from ~300-500 ms (legacy dict-of-lists) to ~8 ms — roughly 40-60x. SSOT preserved: Arrow schema + converters are generated from `tick_schema.toml`; no hand-maintained Arrow code.
+- **DataFrame adapter migrated to Apache Arrow columnar pipeline** (#379) — `to_dataframe(ticks)` / `to_polars(ticks)` / `to_arrow(ticks)` build a single `arrow::RecordBatch` in Rust and hand it to pyarrow via the Arrow C Data Interface (zero-copy at the pyo3 boundary). pandas 2.x aliases the numeric columns in place; polars consumes via `polars.from_arrow`. At 100k x 20 `EodTick` rows wall-clock drops from ~300-500 ms (legacy dict-of-lists) to ~8 ms — substantially. SSOT preserved: Arrow schema + converters are generated from `tick_schema.toml`; no hand-maintained Arrow code.
 - **Per-endpoint DataFrame convenience wrappers removed** (#379) — the four per-endpoint `stock_history_{eod,ohlc,trade,quote}` Rust-tick-slice fast-path helpers on `ThetaDataDx` were deleted. The unified recipe is one extra line with identical performance:
 
   ```python
@@ -322,7 +344,7 @@ Major release. Three headline groups land in one pass:
   Single code path, single generator, single test surface — 100% SSOT restored on the Python DataFrame surface.
 - **Deleted** `sdks/python/src/tick_columnar.rs` (the old PyDict-based emission) (#379) — replaced end-to-end by the generator-emitted `sdks/python/src/tick_arrow.rs`. `pip install thetadatadx[pandas]` / `[polars]` now pull `pyarrow>=14.0` alongside the DataFrame library; `pip install thetadatadx[arrow]` is the pyarrow-only extras bundle.
 
-### Changed — BREAKING (Python SDK)
+### Changed
 
 - **Historical endpoints now return `list[TickClass]` instead of a columnar `dict[str, list]`** (#364 / #365). The 53 tick-returning historical methods (list endpoints returning scalar `Vec<String>` — symbols, dates, expirations, strikes — are unchanged) in the Python SDK (`stock_history_eod`, `option_history_trade`, `calendar_*`, ...) now return a Python list of typed pyclass objects — `EodTick`, `TradeTick`, `QuoteTick`, `OhlcTick`, `TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`. Brings the Python SDK into line with Rust core, TypeScript, Go, and C++ FFI. Migration:
 
@@ -338,12 +360,12 @@ Major release. Three headline groups land in one pass:
 
   `to_dataframe(ticks)`, `to_polars(ticks)`, and `to_arrow(ticks)` transparently pivot the new shape into a pandas / polars frame or a `pyarrow.Table`.
 
-### Changed — BREAKING (FFI / Go / C++)
+### Changed
 
 - **C++ `TdxFpssEvent` field order realigned with Rust + Go** (#376) — the hand-written `TdxFpssEvent` in `sdks/cpp/include/thetadx.h` declared `{ kind, quote, trade, open_interest, ohlcvc, control, raw_data }` while the Rust generator (and the Go C header) emits `{ kind, ohlcvc, open_interest, quote, trade, control, raw_data }`. Every `event->quote.*` / `event->trade.*` / `event->ohlcvc.*` access in existing C++ consumers was reading from the wrong offset — data corruption with no compile-time signal. `thetadx.h` now `#include`s the generator-emitted `fpss_event_structs.h.inc` (byte-identical to the Go C header) and `thetadx.hpp` gains `static_assert(offsetof / sizeof)` covering every field of every `TdxFpss*` struct. Any future drift is compile-fatal.
 - **Go `FpssControlData` renamed to `FpssControl`, `FpssOpenInterest*` → `FpssOpenInterest`** (#376) — Go-idiomatic naming on the mirror struct set. Callers referencing the old names will fail to compile; rename one-for-one. The nested field names on `FpssEvent` (`ev.RawData.Code`, `ev.RawData.Payload`) are unchanged.
 
-### Changed — BREAKING (Rust crate)
+### Changed
 
 - **`thetadatadx::direct` module removed; replaced by `thetadatadx::mdds`** — the 732-line flat `src/direct.rs` is split into a concern-separated `src/mdds/` module that mirrors the existing `fpss/` layout: `client.rs` (struct + connect), `stream.rs` (gRPC response helpers), `validate.rs` (param validators), `normalize.rs` (wire-format canonicalizers + `contract_spec!` macro), `endpoints.rs` (generated `include!` sites). The generator module `build_support/endpoints/render/direct.rs` is renamed to `render/mdds.rs` and now emits `mdds_*_generated.rs` into `OUT_DIR`; the template directory `templates/direct/` is renamed to `templates/mdds/`. "MDDS" is the actual upstream gRPC service name — "direct" conveyed nothing.
 - **`DirectClient` renamed to `MddsClient`** — the struct inside the (now) `mdds/` module takes its module's name. Re-exported at the crate root as `thetadatadx::MddsClient`. `ThetaDataDx` still `Deref<Target = MddsClient>`s, so every historical endpoint method is reached unchanged via the unified client.
@@ -386,7 +408,7 @@ Major release. Three headline groups land in one pass:
 - **FPSS TLS authenticity anchored on captured SPKI pin, no longer trust-on-first-use** (#377) — see `Fixed` above. Cert rotation tolerated as long as the keypair stays; expiry sidestepped entirely (current ThetaData leaf expired 2024-01-12). Six new tests cover captured-leaf positive, hostname mismatch rejection, malformed-cert rejection, and openssl fingerprint reproducibility.
 - **Cargo-deny advisory / licence / drift gates in CI** (#377) — new `.github/workflows/security-audit.yml` runs RustSec `audit-check` on PR + push + weekly Monday 03:00 UTC cron + manual dispatch. New `cargo-deny` job reads policy from `deny.toml` (advisories deny, licences allowlist, bans duplicates warn, sources crates.io only). New `drift-injection` job runs `scripts/test_drift_injection.sh` which flips `bid` ↔ `ask` in the FPSS schema, regenerates, and verifies the C++ `static_assert(offsetof)` guards fail the cmake build.
 
-### Internal
+### Changed
 
 - **Generator audit cleanup** (#380) — `PYTHON_TICK_ARROW_DIRECT_TYPES` constant + `render_python_tick_arrow_batch_fn` (~70-line emitter) were orphaned by the `*_df` removal in #379 and survived only because of the module-level `#![allow(dead_code)]` umbrella. Deleted. The trait-driven `pyclass_list_to_arrow_table` path is the sole public DataFrame entry point, backed by `<T as ArrowFromPyclassList>::read_batch`. `render_python_tick_arrow` doc rewritten to describe the two still-emitted surfaces (`arrow_schema_for_qualname` + `pyclass_list_to_arrow_table`). `clippy::type_complexity` on a 4-tuple in `sdk_surface.rs` cleared via a `MethodShape<'a>` alias.
 - **Go layout regression: `TestTickFieldOffsets` covers every tick mirror field** (#376) — the previous `ffi_layout_test.go` only asserted total struct `sizeof`; same-size field reorders (e.g. swapping two i32 slots) passed the test while silently corrupting data. FPSS mirror types were not tested at all. cgo-typed FPSS offset asserts moved into `tick_ffi_mirrors.go::init()` (Go forbids cgo in `_test.go`).
@@ -493,7 +515,7 @@ Major release. Three headline groups land in one pass:
 
 - **Session token no longer leaks via `Debug`** (#324) -- `AuthResponse`'s `session_token` field is now redacted in its `Debug` impl. Previously a `tracing::debug!("{auth:?}")` would write the bearer token into logs. Credentials were already redacted; this closes the parallel leak on the response side.
 
-### Internal
+### Changed
 
 - **Generator bloat cleanup** (#302) -- stripped roughly 1,500 lines of ceremony, over-abstraction, and redundant tests across `build_support/` and the SDK layers. Behavior identical, surface identical, just less to read.
 - **`fpss/mod.rs` split into focused submodules** (#327) -- what was a 2,143-line single file is now `accumulator`, `decode`, `delta`, `events`, `io_loop`, `session`, and a slim `mod.rs` under `src/fpss/`. Each submodule owns one responsibility; public behavior is unchanged.
@@ -503,7 +525,7 @@ Major release. Three headline groups land in one pass:
 
 ## [7.1.0] - 2026-04-14
 
-### Breaking Changes
+### Removed
 
 - **Greeks utilities now take `right: &str` instead of `is_call: bool`** (#278) -- `tdbe::greeks::all_greeks` and `tdbe::greeks::implied_volatility` accept the same permissive vocabulary as the rest of the SDK (`"C"`/`"P"`, `"call"`/`"put"`, case-insensitive) via the canonical `parse_right_strict`. Panics with a descriptive message on unrecognised input or the `both`/`*` wildcards. The signature change cascades to the Python SDK (`right: str`), Go SDK (`right string`), C++ SDK (`const std::string& right`), C FFI ABI (`tdx_all_greeks` / `tdx_implied_volatility` take `const char* right`), the `tdx greeks` / `tdx iv` CLI subcommands, and the MCP `all_greeks` / `implied_volatility` tool input schemas. The low-level per-Greek primitives (`value`, `delta`, `theta`, ...) continue to take raw `bool` — they are pure-math helpers not in scope. Motivation: consistency with `Contract::option`, `normalize_right`, and `validate_right` so callers stop flipping between `"C"` strings and `true` bools in the same session.
 - **`tdbe` bumped to 0.9.0** -- breaking public signature change in `greeks`.
@@ -520,7 +542,7 @@ Major release. Three headline groups land in one pass:
 
 - **Silent put-default on invalid `right` in `Contract::option`** (#270) -- previously `Contract::option(..., "xyz")` silently constructed a put contract because the parser only checked for call forms. Now panics with a descriptive message, consistent with the existing strike/expiration panic style.
 
-### Docs
+### Changed
 
 - Every Greeks example in the docs-site, READMEs, Python example, and notebooks updated to pass `right: "C"` / `right="C"` / `right: "C"` instead of `is_call: true`.
 - Note added to `docs-site/docs/api-reference.md` and `docs/api-reference.md` clarifying that the low-level per-Greek primitives still take `is_call: bool`, while the user-facing aggregates take `right: &str`.
@@ -532,7 +554,7 @@ Major release. Three headline groups land in one pass:
 
 ## [7.0.0] - 2026-04-14
 
-### Breaking Changes
+### Removed
 
 - **`SnapshotTradeTick` deleted from all layers** -- removed from Rust core, FFI, Python, Go, and C++ SDKs. Dead type that was never returned by any endpoint.
 - **FFI options use explicit `has_*` flags** -- replaced NaN/`-1` sentinel-based optional fields with `has_exclusive`, `has_max_dte`, `has_strike_range`, `has_annual_dividend`, etc. C, Go, and C++ consumers must check the companion `has_*` i32 flag (0 = unset, 1 = set) before reading the value.
@@ -573,7 +595,7 @@ Major release. Three headline groups land in one pass:
 
 ## [6.0.1] - 2026-04-06
 
-### Breaking Changes
+### Removed
 
 - **All tick price fields changed from `i32` to `f64`** -- prices are decoded during parsing. Users access `tick.bid`, `tick.price`, `tick.open` directly as `f64`. No more `price_type` or `_f64()` helpers.
 - **`price_type` removed from all public APIs** -- historical ticks, FPSS streaming events, FFI, Python, Go, C++.
@@ -602,7 +624,7 @@ Major release. Three headline groups land in one pass:
 - **`OptionContract` missing `Debug + Clone` derives** -- accidentally removed during refactor.
 - **Server dead match arm** -- removed v2 parameter fallback code.
 
-### Documentation
+### Changed
 
 - All 60+ endpoint pages updated: f64 fields, no `price_type`, no `_f64()` helpers.
 - All SDK READMEs updated (Rust, Python, Go, C++).
@@ -614,7 +636,7 @@ Major release. Three headline groups land in one pass:
 
 ## [5.4.0] - 2026-04-05
 
-### Breaking Changes
+### Removed
 
 - **`start_streaming_no_ohlcvc()` removed** -- use `DirectConfig::derive_ohlcvc(false)` instead. (#129)
 - **Go SDK**: `SnapshotTradeTick` type removed (was dead code after FFI cleanup).
@@ -655,7 +677,7 @@ Major release. Three headline groups land in one pass:
 
 ## [5.3.0] - 2026-04-04
 
-### Breaking Changes
+### Removed
 
 - **Go SDK**: `EodTick`, `OhlcTick`, `TradeTick`, `QuoteTick`, `TradeQuoteTick`, `PriceTick`, `SnapshotTradeTick` gain additional fields (raw prices, ext_conditions, price_type). `Right` is now `string` ("C"/"P") with `RightRaw int32` for raw access.
 - **Python SDK**: trade dicts gain `ext_condition1..4`. Quote/OHLC/EOD/TradeQuote dicts gain raw price and detail fields.
@@ -666,7 +688,7 @@ Major release. Three headline groups land in one pass:
 - **`tdbe::exchange`** -- 78 exchange codes with O(1) lookup: `exchange_name()`, `exchange_symbol()`. (#112)
 - **`tdbe::conditions`** -- 149 trade conditions + 75 quote conditions with semantic flags (cancel, volume, high, low, last). (#112)
 - **`tdbe::sequences`** -- FPSS sequence tracking with wrapping-aware gap detection. (#112)
-- **`tdbe::errors`** -- 14 ThetaData HTTP error codes mapped to human-readable names. gRPC errors now include the ThetaData error name. (#113)
+- **`tdbe::error`** -- 14 ThetaData HTTP error codes mapped to human-readable names. gRPC errors now include the ThetaData error name. (#113)
 - **OHLC price normalization** -- `row_price_value_normalized()` and `change_price_type()` handle mixed price_types across OHLC fields. (#106)
 - **Greeks from Price cells** -- `row_float()` decodes Price-typed cells. `implied_vol` header alias. (#106)
 - **Calendar v3 parser** -- handles text dates, text times, and type codes from v3 server. (#109)
@@ -684,7 +706,7 @@ Major release. Three headline groups land in one pass:
 - **`PriceToF64` Go formula wrong** -- was `value / 10^pt`, corrected to `value * 10^(pt-10)`.
 - **Python `greeks_tick_to_dict` missing 15 fields** -- now has all 24.
 
-### Documentation
+### Changed
 
 - 14 documentation fixes across 13 files
 - Mermaid diagrams replacing ASCII art in VitePress docs
@@ -701,7 +723,7 @@ Major release. Three headline groups land in one pass:
 
 ## [5.2.0] - 2026-04-04
 
-### Breaking Changes
+### Removed
 
 - **Go SDK**: price fields on public structs are now `float64` (decoded). Raw `int32` values available as `*Raw` fields. `PriceType` removed from public structs.
 - **Go FPSS events**: `FpssQuote.Bid`/`Ask`, `FpssTrade.Price`, `FpssOhlcvc.Open`/`High`/`Low`/`Close` are now `float64`. Raw values as `*Raw` fields.
@@ -726,7 +748,7 @@ Major release. Three headline groups land in one pass:
 
 ## [5.1.0] - 2026-04-03
 
-### Breaking Changes
+### Removed
 
 - **FPSS FFI events now use `#[repr(C)]` typed structs** instead of JSON serialization. `tdx_fpss_next_event` and `tdx_unified_next_event` return `*mut TdxFpssEvent` (a flat tagged struct with quote, trade, open interest, OHLCVC, control, and raw_data variants). Free with `tdx_fpss_event_free`. (#82)
 - C++ SDK: `FpssClient::next_event()` returns `FpssEventPtr` (RAII unique_ptr to `TdxFpssEvent`).
@@ -767,7 +789,7 @@ Major release. Three headline groups land in one pass:
 
 ## [5.0.0] - 2026-04-02
 
-### Breaking Changes
+### Removed
 
 - **Builder pattern on all 61 endpoints** -- methods return builders with `IntoFuture`. `start_time`/`end_time` are now builder methods, not positional params. All optional proto params exposed as chainable setters.
 - `received_at_ns: u64` added to every `FpssData` variant (Quote, Trade, OpenInterest, Ohlcvc)
@@ -798,7 +820,7 @@ Major release. Three headline groups land in one pass:
 
 ## [4.5.0] - 2026-04-02
 
-### Breaking Changes
+### Removed
 
 - **FFI: `#[repr(C)]` typed struct arrays replace JSON** -- all 60 data endpoints now return native struct arrays across the FFI boundary. C++ and Go SDKs read fields directly, zero JSON serialization. FPSS streaming events remain JSON (variable schemas).
 - C++ `OptionContract` now uses `std::string root` (was `const char*`)
@@ -824,7 +846,7 @@ Major release. Three headline groups land in one pass:
 - **Active subscriptions not cleared on explicit shutdown** -- `shutdown()` clears, involuntary disconnect preserves for reconnect. (#38)
 - Mermaid diagram syntax in architecture.md (#30)
 
-### Documented
+### Changed
 
 - Price type per-row variation as known limitation in jvm-deviations.md (#37)
 - FPSS ring buffer capacity monitoring as known limitation
@@ -846,14 +868,14 @@ v3 MDDS DataTable parsing (Timestamp cells), DST-aware timezone, gRPC flow contr
 
 ## [4.2.0] - 2026-04-01
 
-### Fixed (battle-tested against live MDDS -- all 61 endpoints verified)
+### Fixed
 
 - **Interval conversion**: MDDS server accepts preset shorthand (`1m`, `5m`, `1h`), not raw milliseconds. `normalize_interval()` now converts `"60000"` -> `"1m"`, `"300000"` -> `"5m"`, etc. Sub-second presets supported: `"100"` -> `"100ms"`, `"500"` -> `"500ms"`. Users can pass either milliseconds or shorthand directly.
 - **Default start_time/end_time**: the Java terminal defaults these to `"09:30:00"` and `"16:00:00"`. Our SDK left them as None, causing `"Invalid time format: Expected hh:mm:ss.SSS"` on trade/quote/greeks endpoints. Now defaults to RTH.
 - **extract_text_column**: now handles Number and Price DataTable values. `option_list_strikes` was returning 0 results because strikes come as Number values, not Text.
 - **FPSS TLS certificate**: ThetaData's FPSS servers have certificates expired since Jan 2024. Skip certificate verification for FPSS connections (matching Java terminal behavior).
 
-### Supported interval presets
+### Added
 
 `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`
 
@@ -882,14 +904,14 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 - DNS hostname resolution in FPSS connection -- `SocketAddr::parse()` replaced with `ToSocketAddrs` to resolve hostnames like `nj-a.thetadata.us` (was silently failing)
 
-### Documented
+### Changed
 
 - Greeks operator precedence (veta, speed, zomma, color, dual_gamma) -- Java decompiler may have lost parenthesization, Rust follows textbook Black-Scholes formulas
 - FPSS ring buffer capacity monitoring -- documented as known limitation (disruptor-rs v4 has no fill-level API)
 
 ## [4.0.0] - 2026-04-01
 
-### Breaking Changes
+### Removed
 
 - **`tdbe` crate extracted** -- all data types, codecs, greeks, price, enums, and flags moved to standalone `tdbe` crate with zero networking dependencies. Users must add `tdbe` as a dependency and change imports: `use tdbe::{Price, TradeTick, EodTick}`.
 - `thetadatadx` no longer exports `types/`, `codec/`, `greeks.rs`. These modules live in `tdbe`.
@@ -963,7 +985,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 ## [3.0.0] - 2026-03-27
 
-### Breaking Changes
+### Removed
 
 - **Unified `ThetaDataDx` client** — single entry point replacing `DirectClient` + `FpssClient`.
   Connect once, auth once. Historical available immediately, streaming connects lazily.
@@ -989,7 +1011,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 ## [2.0.0] - 2026-03-27
 
-### New Products
+### Added
 
 - **`tdx` CLI** (`tools/cli/`) — command-line tool with all 61 endpoints + Greeks + IV.
   Dynamically generated from endpoint registry. `cargo install thetadatadx-cli`
@@ -1001,7 +1023,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 - **VitePress documentation site** (`docs-site/`) — 33 pages covering API reference,
   guides, SDK docs, wire protocol internals. Deployed to GitHub Pages.
 
-### Breaking Changes
+### Removed
 
 - **FpssEvent split** — `FpssEvent::Quote { .. }` is now `FpssEvent::Data(FpssData::Quote { .. })`.
   Control events are `FpssEvent::Control(FpssControl::*)`. Migration: wrap your match arms.
@@ -1035,7 +1057,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
   JSON-RPC validation, stale docs
 - **Auth response parsing** — subscription fields are integers not strings
 
-### Performance
+### Changed
 
 - FPSS frame read: zero-alloc (reusable buffer)
 - FPSS decode: zero-alloc (tuple return, pre-allocated tick buffer)
@@ -1068,7 +1090,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 ## [1.2.0] - 2026-03-26
 
-### Added (PR #13)
+### Added
 
 - **OHLCVC-from-trade derivation** — `OhlcvcAccumulator` derives OHLCVC bars from trade
   ticks in real time. Only emits `FpssEvent::Data(FpssData::Ohlcvc { .. })` after a
@@ -1089,7 +1111,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 - **148 tests** — new tests for OHLCVC accumulator, FpssEvent split, and
   streaming endpoints.
 
-### Fixed (PR #12)
+### Fixed
 
 18 correctness and protocol-conformance fixes from a full audit against the Java terminal:
 
@@ -1168,7 +1190,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
   subscription failures or wrong contract assignments. This was a **protocol-level bug**;
   upgrading to 1.2.x is strongly recommended.
 
-### Performance
+### Changed
 
 - **Slab-recycled zstd** — thread-local decompressor reuses its working buffer, eliminating
   per-chunk allocation overhead.
@@ -1204,10 +1226,10 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 
 - Version bump for crates.io/PyPI publish (v1.1.0 tag was re-pushed during history restore)
 
-### Performance
+### Changed
 
 - All TODO performance items now complete: streaming iterator (`for_each_chunk`),
-  faster `norm_cdf` (Horner-form), concurrent request semaphore (`mdds_concurrent_requests`)
+  optimized `norm_cdf` (Horner-form), concurrent request semaphore (`mdds_concurrent_requests`)
 
 ## [1.1.0] - 2026-03-26
 
@@ -1227,7 +1249,7 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - **Criterion benchmarks** — fit_decode, price_to_f64, price_compare, all_greeks, fie_encode
 - **AdaptiveWaitStrategy** — 3-phase spin/yield/hint tuned for ~100us FPSS tick intervals
 
-### Verified
+### Changed
 
 - Authenticated against real Nexus API (session established)
 - Retrieved 25,341 stock symbols from MDDS
@@ -1294,7 +1316,16 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.9...HEAD
+[8.0.9]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.8...v8.0.9
+[8.0.8]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.7...v8.0.8
+[8.0.7]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.6...v8.0.7
+[8.0.6]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.5...v8.0.6
+[8.0.5]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.4...v8.0.5
+[8.0.4]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.3...v8.0.4
+[8.0.3]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.2...v8.0.3
+[8.0.2]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.1...v8.0.2
+[8.0.1]: https://github.com/userFRM/ThetaDataDx/compare/v8.0.0...v8.0.1
 [8.0.0]: https://github.com/userFRM/ThetaDataDx/compare/v7.3.1...v8.0.0
 [7.3.1]: https://github.com/userFRM/ThetaDataDx/compare/v7.3.0...v7.3.1
 [7.3.0]: https://github.com/userFRM/ThetaDataDx/compare/v7.2.1...v7.3.0

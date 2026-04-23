@@ -22,7 +22,7 @@ Rust SDK for ThetaData market data — single Rust core, five language surfaces 
 - **SPKI-pinned FPSS TLS.** Public-key pinning on the FPSS streaming handshake.
 - **FIT decoder + SPSC ring buffer** on the FPSS path. Decode cost is measured in the benchmarks under `crates/thetadatadx/benches/`.
 - **Shared FFI layer.** Go, C++, and Node.js go through the same `extern "C"` layer; the Python wheel uses PyO3 ABI3 directly.
-- **Supports the same MDDS gRPC endpoints and FPSS wire format as the Java terminal.** Reconnect semantics mirror the Java client. See the [Java parity checklist](docs/java-parity-checklist.md).
+- **Covers the MDDS gRPC endpoints and FPSS wire format.** Reconnect semantics follow the terminal protocol. See the [parity checklist](docs/java-parity-checklist.md).
 
 ## Quick start
 
@@ -224,14 +224,14 @@ flowchart TB
 | C++ | [`sdks/cpp`](sdks/cpp/) | RAII header-only wrapper |
 | CLI | [`tools/cli`](tools/cli/) | `tdx` CLI — all 61 endpoints from the command line |
 | MCP | [`tools/mcp`](tools/mcp/) | MCP server - gives LLMs access to 64 tools over JSON-RPC |
-| Server | [`tools/server`](tools/server/) | REST + WebSocket server exposing the same `/v3/*` route surface as the Java terminal |
+| Server | [`tools/server`](tools/server/) | REST + WebSocket server exposing the `/v3/*` route surface |
 | Docs | [`docs/`](docs/) | API reference, architecture, Java parity checklist |
 | Website | [`docs-site/`](docs-site/) | VitePress documentation site (deployed to GitHub Pages) |
 | Notebooks | [`notebooks/`](notebooks/) | 7 Jupyter notebooks (101-107) |
 
-## Java terminal parity
+## Protocol parity
 
-`thetadatadx` implements the ThetaData MDDS and FPSS wire protocols and covers the same endpoint surface as the Java terminal. Feature-by-feature parity, intentional deviations, and value-adds are tracked in [`docs/java-parity-checklist.md`](docs/java-parity-checklist.md).
+`thetadatadx` implements the ThetaData MDDS and FPSS wire protocols and covers the terminal endpoint surface. Feature-by-feature parity and intentional deviations are tracked in [`docs/java-parity-checklist.md`](docs/java-parity-checklist.md).
 
 ## Documentation
 
@@ -239,7 +239,7 @@ flowchart TB
 |----------|-------------|
 | [API Reference](docs/api-reference.md) | All 61 typed methods (plus 4 `_stream` SDK-only variants), 13 tick types, configuration options |
 | [Architecture](docs/architecture.md) | System design, wire protocols, TOML codegen pipeline |
-| [Java Parity Checklist](docs/java-parity-checklist.md) | Feature-by-feature comparison with the Java terminal |
+| [Parity Checklist](docs/java-parity-checklist.md) | Feature-by-feature protocol and endpoint parity notes |
 | [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |
 | [Proto Maintenance](crates/thetadatadx/proto/MAINTENANCE.md) | Guide for updating proto files |
 | [Changelog](CHANGELOG.md) | Release notes with breaking changes, features, and fixes |
