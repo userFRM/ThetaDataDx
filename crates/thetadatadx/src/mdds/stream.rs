@@ -39,7 +39,8 @@ impl MddsClient {
         mut stream: tonic::Streaming<proto::ResponseData>,
     ) -> Result<proto::DataTable, Error> {
         let mut all_rows = Vec::new();
-        let mut headers = Vec::new();
+        let mut headers: Vec<String> = Vec::new();
+        let mut chunk_index: usize = 0;
 
         while let Some(response) = stream.next().await {
             let response = response?;
@@ -54,8 +55,20 @@ impl MddsClient {
             let table = decode::decode_data_table(&response)?;
             if headers.is_empty() {
                 headers = table.headers;
+            } else if !table.headers.is_empty() && table.headers != headers {
+                // Mid-stream schema drift. The old accumulator silently kept
+                // the first chunk's headers and piled rows under them; surface
+                // the mismatch instead so downstream decoders do not read
+                // columns under the wrong names.
+                return Err(decode::DecodeError::ChunkHeaderDrift {
+                    chunk_index,
+                    first: headers.join(","),
+                    chunk: table.headers.join(","),
+                }
+                .into());
             }
             all_rows.extend(table.data_table);
+            chunk_index += 1;
         }
 
         // An empty stream is valid (e.g. no trades on a holiday) — return an
@@ -97,13 +110,27 @@ impl MddsClient {
     where
         F: FnMut(&[String], &[proto::DataValueList]),
     {
-        // Preserve first-chunk headers across all chunks, matching collect_stream behavior.
+        // Preserve first-chunk headers across all chunks, matching
+        // collect_stream behavior. Reject any mid-stream chunk whose
+        // non-empty headers disagree with the first-chunk schema: accepting
+        // them silently would let the callback read columns under the wrong
+        // names, which is the exact failure mode P13 asked to close.
         let mut saved_headers: Option<Vec<String>> = None;
+        let mut chunk_index: usize = 0;
         while let Some(response) = stream.next().await {
             let response = response?;
             let table = decode::decode_data_table(&response)?;
             if saved_headers.is_none() && !table.headers.is_empty() {
                 saved_headers = Some(table.headers.clone());
+            } else if let Some(first) = saved_headers.as_deref() {
+                if !table.headers.is_empty() && table.headers.as_slice() != first {
+                    return Err(decode::DecodeError::ChunkHeaderDrift {
+                        chunk_index,
+                        first: first.join(","),
+                        chunk: table.headers.join(","),
+                    }
+                    .into());
+                }
             }
             let headers = if table.headers.is_empty() {
                 saved_headers.as_deref().unwrap_or(&[])
@@ -111,6 +138,7 @@ impl MddsClient {
                 &table.headers
             };
             f(headers, &table.data_table);
+            chunk_index += 1;
         }
         Ok(())
     }

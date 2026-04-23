@@ -41,6 +41,21 @@ pub enum DecodeError {
         rows: usize,
         available: String,
     },
+    /// A mid-stream gRPC chunk carries a header set that does not match the
+    /// header set established by the first chunk. The stream accumulator
+    /// used to silently retain the first header set and accumulate rows
+    /// from every chunk underneath it, which would transparently corrupt
+    /// a row set if the server's wire schema changed mid-response. This
+    /// variant surfaces the drift instead of hiding it.
+    #[error(
+        "chunk {chunk_index} headers drifted from first-chunk schema; \
+         first: [{first}]; chunk: [{chunk}]"
+    )]
+    ChunkHeaderDrift {
+        chunk_index: usize,
+        first: String,
+        chunk: String,
+    },
 }
 
 /// Name the `DataType` variant for error messages. `None` is treated as a

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.13] - 2026-04-23
+
+### Fixed
+
+- Mid-stream chunk header drift in the MDDS response accumulator was
+  silently masked: `MddsClient::collect_stream` / `for_each_chunk` kept
+  the first chunk's `headers` and accumulated subsequent chunks'
+  rows underneath even if a later chunk carried a different
+  non-empty header set. Both paths now raise
+  `DecodeError::ChunkHeaderDrift` on mismatch (P13 from the external
+  bench handoff).
+
+### Added
+
+- `decode::DecodeError::ChunkHeaderDrift { chunk_index, first, chunk }`
+  variant.
+
+### Known
+
+- **`option_at_time_quote` 0.67× vs vendor.** The v8.0.5
+  `mdds_query_field_expr` rule may have flipped this endpoint to a
+  slower server path. Needs bench-validated per-endpoint override;
+  not speculatively fixed to avoid regressing the other option
+  endpoints that currently benefit from the uniform rule.
+- **`option_history_greeks_eod` 0.704× vs vendor.** Persistent across
+  v8.0.0 / v8.0.4 / v8.0.10. Likely server-side per-contract
+  aggregation; needs proto-level diff against the other
+  `option_history_greeks_*` endpoints.
+
 ## [8.0.12] - 2026-04-23
 
 ### Removed
