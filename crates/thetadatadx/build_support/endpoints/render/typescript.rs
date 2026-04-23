@@ -47,7 +47,10 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     let camel_name = to_camel_case(&endpoint.name);
     let mut out = String::new();
 
-    out.push_str(&render_rust_doc_block("    ", &compose_endpoint_doc(endpoint)));
+    out.push_str(&render_rust_doc_block(
+        "    ",
+        &compose_endpoint_doc(endpoint),
+    ));
     writeln!(out, "    #[napi(js_name = \"{camel_name}\")]").unwrap();
     writeln!(out, "    pub fn {name}(", name = endpoint.name).unwrap();
     out.push_str("        &self,\n");
