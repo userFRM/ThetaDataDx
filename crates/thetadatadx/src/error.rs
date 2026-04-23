@@ -144,10 +144,10 @@ impl From<tonic::Status> for Error {
         // message with the ThetaData error name when available.
         let td_err = s
             .metadata()
-            .get(tdbe::errors::HTTP_STATUS_CODE_KEY)
+            .get(tdbe::error::HTTP_STATUS_CODE_KEY)
             .and_then(|v| v.to_str().ok())
             .and_then(|s| s.parse::<u16>().ok())
-            .and_then(tdbe::errors::error_from_http_code);
+            .and_then(tdbe::error::error_from_http_code);
         let status = format!("{:?}", s.code());
         let message = match td_err {
             Some(td) => format!(

@@ -1,7 +1,5 @@
-//! Python bindings for `thetadatadx` — wraps the Rust SDK via PyO3.
-//!
-//! This is NOT a reimplementation. Every call goes through the Rust crate,
-//! giving Python users native performance for ThetaData market data access.
+//! Python bindings over the Rust `thetadatadx` core. Every call crosses the
+//! PyO3 boundary into the same Rust code path used by the CLI and FFI.
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;

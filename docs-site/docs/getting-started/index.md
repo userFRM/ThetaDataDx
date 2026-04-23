@@ -1,13 +1,11 @@
 ---
 title: Getting Started
-description: Multi-language ThetaData SDK in Rust, Python, TypeScript, Go, and C++. Install, authenticate, run a first query, stream, compute Greeks, and move from the ThetaData Python SDK.
+description: Multi-language ThetaData SDK in Rust, Python, TypeScript, Go, and C++. Install, authenticate, run a first query, stream, and compute Greeks locally.
 ---
 
 # Getting Started
 
-ThetaDataDx is a direct-wire SDK that connects to ThetaData's MDDS (historical) and FPSS (streaming) servers without a Java terminal in the loop. The entire data path — gRPC, protobuf parsing, zstd decompression, FIT decoding, Greeks math — runs in compiled Rust behind five native SDKs: Rust, Python, TypeScript/Node.js, Go, and C++.
-
-The ThetaData Python SDK (`pip install thetadata`) is Python-only, has no streaming, routes Greeks through the server, and materializes every result through a pure-Python decode loop. ThetaDataDx replaces that decode loop with a Rust core and exposes it to four additional languages.
+ThetaDataDx is a Rust SDK for ThetaData's MDDS (historical, gRPC) and FPSS (real-time, TCP) servers. The data path — gRPC, protobuf parsing, zstd decompression, FIT decoding, Greeks math — runs inside the `thetadatadx` Rust crate and is exposed in five language surfaces: Rust, Python, TypeScript/Node.js, Go, and C++.
 
 ## What's on this page
 

@@ -7,9 +7,10 @@
 //! that expose client state to callers.
 //!
 //! Per-request helpers (`collect_stream`, `for_each_chunk`) live in
-//! [`super::stream`]; parameter canonicalization (`normalize_*`, `wire_*`) in
-//! [`super::normalize`]; date validation in [`super::validate`]; generated
-//! endpoint method bodies in [`super::endpoints`].
+//! [`super::stream`]; the cross-cutting wire helpers
+//! (`normalize_expiration`, `wire_strike_opt`, `wire_right_opt`) in
+//! [`crate::wire_semantics`]; date validation in [`super::validate`];
+//! generated endpoint method bodies in [`super::endpoints`].
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -238,36 +239,5 @@ impl MddsClient {
     #[must_use]
     pub fn options_tier(&self) -> Option<i32> {
         self.options_tier
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  Raw query — escape hatch for unwrapped endpoints
-    // ═══════════════════════════════════════════════════════════════════
-
-    /// Execute a raw gRPC query and return the merged `DataTable`.
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub async fn raw_query<F, Fut>(&self, call: F) -> Result<proto::DataTable, Error>
-    where
-        F: FnOnce(BetaThetaTerminalClient<tonic::transport::Channel>) -> Fut,
-        Fut: std::future::Future<Output = Result<tonic::Streaming<proto::ResponseData>, Error>>,
-    {
-        let stream = call(self.stub()).await?;
-        self.collect_stream(stream).await
-    }
-
-    /// Get a `QueryInfo` for use with [`raw_query`](Self::raw_query).
-    ///
-    /// Async because the session UUID lives behind an `async Mutex` so
-    /// mid-session refreshes can swap it atomically.
-    pub async fn raw_query_info(&self) -> proto::QueryInfo {
-        self.query_info().await
-    }
-
-    /// Get direct access to the underlying gRPC channel.
-    #[must_use]
-    pub fn channel(&self) -> &tonic::transport::Channel {
-        &self.channel
     }
 }

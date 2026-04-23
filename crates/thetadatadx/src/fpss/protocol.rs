@@ -159,7 +159,7 @@ impl Contract {
             .replace('-', "")
             .parse()
             .map_err(|e| Error::Config(format!("invalid expiration date {exp_date:?}: {e}")))?;
-        let is_call = crate::right::parse_right_strict(right)?
+        let is_call = tdbe::right::parse_right_strict(right)?
             .as_is_call()
             .ok_or_else(|| {
                 Error::Config("parse_right_strict returned Both despite strict mode".to_string())

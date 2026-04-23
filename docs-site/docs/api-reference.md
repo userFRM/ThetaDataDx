@@ -248,7 +248,7 @@ let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 ```
 ```typescript [TypeScript]
-const eod = tdx.stockHistoryEod('AAPL', '20240101', '20240301');
+const eod = tdx.stockHistoryEOD('AAPL', '20240101', '20240301');
 ```
 ```go [Go]
 eod, err := client.StockHistoryEOD("AAPL", "20240101", "20240301")
@@ -280,7 +280,7 @@ let bars = tdx.stock_history_ohlc("AAPL", "20240315", "60000").await?;
 bars = tdx.stock_history_ohlc("AAPL", "20240315", "60000")
 ```
 ```typescript [TypeScript]
-const bars = tdx.stockHistoryOhlc('AAPL', '20240315', '60000');
+const bars = tdx.stockHistoryOHLC('AAPL', '20240315', '60000');
 ```
 ```go [Go]
 bars, err := client.StockHistoryOHLC("AAPL", "20240315", "60000")
@@ -315,7 +315,7 @@ let bars = tdx.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000")
 bars = tdx.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000")
 ```
 ```typescript [TypeScript]
-const bars = tdx.stockHistoryOhlcRange('AAPL', '20240101', '20240301', '60000');
+const bars = tdx.stockHistoryOHLCRange('AAPL', '20240101', '20240301', '60000');
 ```
 ```go [Go]
 bars, err := client.StockHistoryOHLCRange("AAPL", "20240101", "20240301", "60000")
@@ -1050,7 +1050,7 @@ let eod = tdx.option_history_eod(
 eod = tdx.option_history_eod("SPY", "20241220", "500", "C", "20240101", "20240301")
 ```
 ```typescript [TypeScript]
-const eod = tdx.optionHistoryEod('SPY', '20241220', '500', 'C', '20240101', '20240301');
+const eod = tdx.optionHistoryEOD('SPY', '20241220', '500', 'C', '20240101', '20240301');
 ```
 ```go [Go]
 eod, err := client.OptionHistoryEOD("SPY", "20241220", "500", "C", "20240101", "20240301")
@@ -1089,7 +1089,7 @@ let bars = tdx.option_history_ohlc(
 bars = tdx.option_history_ohlc("SPY", "20241220", "500", "C", "20240315", "60000")
 ```
 ```typescript [TypeScript]
-const bars = tdx.optionHistoryOhlc('SPY', '20241220', '500', 'C', '20240315', '60000');
+const bars = tdx.optionHistoryOHLC('SPY', '20241220', '500', 'C', '20240315', '60000');
 ```
 ```go [Go]
 bars, err := client.OptionHistoryOHLC("SPY", "20241220", "500", "C", "20240315", "60000")
@@ -1908,7 +1908,7 @@ let eod = tdx.index_history_eod("SPX", "20240101", "20240301").await?;
 eod = tdx.index_history_eod("SPX", "20240101", "20240301")
 ```
 ```typescript [TypeScript]
-const eod = tdx.indexHistoryEod('SPX', '20240101', '20240301');
+const eod = tdx.indexHistoryEOD('SPX', '20240101', '20240301');
 ```
 ```go [Go]
 eod, err := client.IndexHistoryEOD("SPX", "20240101", "20240301")
@@ -1940,7 +1940,7 @@ let bars = tdx.index_history_ohlc("SPX", "20240101", "20240301", "60000").await?
 bars = tdx.index_history_ohlc("SPX", "20240101", "20240301", "60000")
 ```
 ```typescript [TypeScript]
-const bars = tdx.indexHistoryOhlc('SPX', '20240101', '20240301', '60000');
+const bars = tdx.indexHistoryOHLC('SPX', '20240101', '20240301', '60000');
 ```
 ```go [Go]
 bars, err := client.IndexHistoryOHLC("SPX", "20240101", "20240301", "60000")
@@ -2134,7 +2134,7 @@ let rates = tdx.interest_rate_history_eod("SOFR", "20240101", "20240301").await?
 rates = tdx.interest_rate_history_eod("SOFR", "20240101", "20240301")
 ```
 ```typescript [TypeScript]
-const rates = tdx.interestRateHistoryEod('SOFR', '20240101', '20240301');
+const rates = tdx.interestRateHistoryEOD('SOFR', '20240101', '20240301');
 ```
 ```go [Go]
 rates, err := client.InterestRateHistoryEOD("SOFR", "20240101", "20240301")

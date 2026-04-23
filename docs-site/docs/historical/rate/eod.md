@@ -24,7 +24,7 @@ for t in data:
     print(f"date={t.date} rate={t.rate:.4f}")
 ```
 ```typescript [TypeScript]
-const data = tdx.interestRateHistoryEod('SOFR', '20260101', '20260301');
+const data = tdx.interestRateHistoryEOD('SOFR', '20260101', '20260301');
 for (const t of data) {
     console.log(`date=${t.date} rate=${t.rate}`);
 }

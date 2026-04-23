@@ -3,7 +3,7 @@ use std::process;
 use clap::{Arg, ArgMatches, Command};
 use comfy_table::{presets::UTF8_FULL_CONDENSED, Cell, ContentArrangement, Table};
 use thetadatadx::endpoint::{invoke_endpoint, EndpointArgs, EndpointOutput};
-use thetadatadx::registry::{self, EndpointMeta};
+use thetadatadx::{by_category, find, EndpointMeta, CATEGORIES};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  CLI construction from endpoint registry
@@ -63,8 +63,8 @@ fn build_cli() -> Command {
     app = add_generated_utility_commands(app);
 
     // Dynamic: build category subcommands from ENDPOINTS
-    for &cat in registry::CATEGORIES {
-        let cat_endpoints = registry::by_category(cat);
+    for &cat in CATEGORIES {
+        let cat_endpoints = by_category(cat);
         let cat_about = match cat {
             "stock" => "Stock data commands",
             "option" => "Option data commands",
@@ -1151,7 +1151,7 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
                     format!("{cat}_{sub_name}")
                 };
 
-                let ep = registry::find(&full_name).ok_or_else(|| {
+                let ep = find(&full_name).ok_or_else(|| {
                     thetadatadx::Error::Config(format!("unknown endpoint: {full_name}"))
                 })?;
 

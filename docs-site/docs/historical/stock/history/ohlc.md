@@ -29,7 +29,7 @@ for t in data:
           f"low={t.low:.2f} close={t.close:.2f} volume={t.volume} count={t.count}")
 ```
 ```typescript [TypeScript]
-const data = tdx.stockHistoryOhlc('SPY', '20260315', '60000');
+const data = tdx.stockHistoryOHLC('SPY', '20260315', '60000');
 for (const t of data) {
     console.log(`date=${t.date} open=${t.open} high=${t.high} low=${t.low} close=${t.close} volume=${t.volume}`);
 }
@@ -67,7 +67,7 @@ for t in data:
           f"low={t.low:.2f} close={t.close:.2f} volume={t.volume} count={t.count}")
 ```
 ```typescript [TypeScript]
-const data = tdx.stockHistoryOhlcRange('SPY', '20260101', '20260301', '300000');
+const data = tdx.stockHistoryOHLCRange('SPY', '20260101', '20260301', '300000');
 for (const t of data) {
     console.log(`date=${t.date} open=${t.open} high=${t.high} low=${t.low} close=${t.close} volume=${t.volume}`);
 }

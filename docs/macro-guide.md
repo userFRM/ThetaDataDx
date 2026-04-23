@@ -156,7 +156,7 @@ Run `cargo build`. The generator validates `endpoint_surface.toml` against
 `mdds.proto` and emits the registry, shared endpoint runtime, and
 `MddsClient` endpoint declarations.
 
-You only need to edit the macro layer or `build_support/endpoints.rs` if the
+You only need to edit the macro layer or files under `build_support/endpoints/` if the
 new endpoint cannot be expressed by the existing surface specification model.
 
 ### 5. Regenerate the checked-in SDK surfaces

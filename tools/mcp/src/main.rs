@@ -30,8 +30,10 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::RwLock;
 
 use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
-use thetadatadx::registry::{self, ENDPOINTS};
-use thetadatadx::{Credentials, DirectConfig, ThetaDataDx};
+use thetadatadx::{
+    param_type_to_json_type, Credentials, DirectConfig, EndpointMeta, ParamMeta, ThetaDataDx,
+    ENDPOINTS,
+};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL_VERSION: &str = "2025-11-25";
@@ -320,7 +322,7 @@ fn tool_definitions() -> Vec<Value> {
             props.insert(
                 &p.name,
                 json!({
-                    "type": registry::param_type_to_json_type(p.param_type),
+                    "type": param_type_to_json_type(p.param_type),
                     "description": mcp_param_description(ep, p),
                 }),
             );
@@ -350,7 +352,7 @@ fn tool_definitions() -> Vec<Value> {
 /// option bulk-query parameters benefit from MCP-specific clarification because
 /// the MCP transport uses `"0"` as the wildcard sentinel instead of REST's
 /// `*`, and `strike_range` only filters an already-bulk selection.
-fn mcp_param_description(ep: &registry::EndpointMeta, param: &registry::ParamMeta) -> String {
+fn mcp_param_description(ep: &EndpointMeta, param: &ParamMeta) -> String {
     if ep.category == "option" {
         match param.name {
             "strike" => {

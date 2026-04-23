@@ -26,7 +26,7 @@ for t in data:
           f"close={t.close:.2f} volume={t.volume} bid={t.bid:.2f} ask={t.ask:.2f}")
 ```
 ```typescript [TypeScript]
-const data = tdx.optionHistoryEod('SPY', '20260417', '550', 'C', '20260101', '20260301');
+const data = tdx.optionHistoryEOD('SPY', '20260417', '550', 'C', '20260101', '20260301');
 for (const t of data) {
     console.log(`date=${t.date} open=${t.open} high=${t.high} low=${t.low} close=${t.close} volume=${t.volume}`);
 }

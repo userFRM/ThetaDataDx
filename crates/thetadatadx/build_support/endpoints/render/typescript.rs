@@ -102,21 +102,21 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         } else {
             format!(", {positional_args}")
         };
+        let _ = leading_comma_args;
         out.push_str("        runtime().block_on(async {\n");
+        writeln!(
+            out,
+            "            let call = self.tdx.{name}({positional_args});",
+            name = endpoint.name,
+        )
+        .unwrap();
         out.push_str("            if let Some(ms) = timeout_ms {\n");
-        writeln!(
-            out,
-            "                self.tdx.{name}_with_deadline(std::time::Duration::from_millis(ms as u64){leading_comma_args}).await",
-            name = endpoint.name,
-        )
-        .unwrap();
+        out.push_str("                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {\n");
+        out.push_str("                    Ok(inner) => inner,\n");
+        out.push_str("                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),\n");
+        out.push_str("                }\n");
         out.push_str("            } else {\n");
-        writeln!(
-            out,
-            "                self.tdx.{name}({positional_args}).await",
-            name = endpoint.name,
-        )
-        .unwrap();
+        out.push_str("                call.await\n");
         out.push_str("            }\n");
         out.push_str("        }).map_err(to_napi_err)\n");
         out.push_str("    }\n");

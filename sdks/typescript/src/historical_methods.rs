@@ -9,10 +9,14 @@ impl ThetaDataDx {
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<String>> {
         runtime().block_on(async {
+            let call = self.tdx.stock_list_symbols();
             if let Some(ms) = timeout_ms {
-                self.tdx.stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms as u64)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                }
             } else {
-                self.tdx.stock_list_symbols().await
+                call.await
             }
         }).map_err(to_napi_err)
     }
@@ -26,10 +30,14 @@ impl ThetaDataDx {
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<String>> {
         runtime().block_on(async {
+            let call = self.tdx.stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
-                self.tdx.stock_list_dates_with_deadline(std::time::Duration::from_millis(ms as u64), &request_type, &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                }
             } else {
-                self.tdx.stock_list_dates(&request_type, &symbol).await
+                call.await
             }
         }).map_err(to_napi_err)
     }
@@ -348,10 +356,14 @@ impl ThetaDataDx {
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<String>> {
         runtime().block_on(async {
+            let call = self.tdx.option_list_symbols();
             if let Some(ms) = timeout_ms {
-                self.tdx.option_list_symbols_with_deadline(std::time::Duration::from_millis(ms as u64)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                }
             } else {
-                self.tdx.option_list_symbols().await
+                call.await
             }
         }).map_err(to_napi_err)
     }
@@ -368,10 +380,14 @@ impl ThetaDataDx {
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<String>> {
         runtime().block_on(async {
+            let call = self.tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right);
             if let Some(ms) = timeout_ms {
-                self.tdx.option_list_dates_with_deadline(std::time::Duration::from_millis(ms as u64), &request_type, &symbol, &expiration, &strike, &right).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                }
             } else {
-                self.tdx.option_list_dates(&request_type, &symbol, &expiration, &strike, &right).await
+                call.await
             }
         }).map_err(to_napi_err)
     }
@@ -384,10 +400,14 @@ impl ThetaDataDx {
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<String>> {
         runtime().block_on(async {
+            let call = self.tdx.option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
-                self.tdx.option_list_expirations_with_deadline(std::time::Duration::from_millis(ms as u64), &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                }
             } else {
-                self.tdx.option_list_expirations(&symbol).await
+                call.await
             }
         }).map_err(to_napi_err)
     }
@@ -401,10 +421,14 @@ impl ThetaDataDx {
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<String>> {
         runtime().block_on(async {
+            let call = self.tdx.option_list_strikes(&symbol, &expiration);
             if let Some(ms) = timeout_ms {
-                self.tdx.option_list_strikes_with_deadline(std::time::Duration::from_millis(ms as u64), &symbol, &expiration).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                }
             } else {
-                self.tdx.option_list_strikes(&symbol, &expiration).await
+                call.await
             }
         }).map_err(to_napi_err)
     }
@@ -1771,10 +1795,14 @@ impl ThetaDataDx {
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<String>> {
         runtime().block_on(async {
+            let call = self.tdx.index_list_symbols();
             if let Some(ms) = timeout_ms {
-                self.tdx.index_list_symbols_with_deadline(std::time::Duration::from_millis(ms as u64)).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                }
             } else {
-                self.tdx.index_list_symbols().await
+                call.await
             }
         }).map_err(to_napi_err)
     }
@@ -1787,10 +1815,14 @@ impl ThetaDataDx {
         timeout_ms: Option<f64>,
     ) -> napi::Result<Vec<String>> {
         runtime().block_on(async {
+            let call = self.tdx.index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
-                self.tdx.index_list_dates_with_deadline(std::time::Duration::from_millis(ms as u64), &symbol).await
+                match tokio::time::timeout(std::time::Duration::from_millis(ms as u64), call).await {
+                    Ok(inner) => inner,
+                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms as u64 }),
+                }
             } else {
-                self.tdx.index_list_dates(&symbol).await
+                call.await
             }
         }).map_err(to_napi_err)
     }
