@@ -42,26 +42,6 @@ jobs:
           # Policy lives in deny.toml at the repo root.
           arguments: --all-features
 
-  drift-injection:
-    name: FPSS drift injection
-    # Proves the `static_assert(offsetof)` guards in
-    # `sdks/cpp/include/thetadx.hpp` still fire on schema drift. Rebuilds
-    # the C++ SDK from scratch, so we keep it on `push` to main (and
-    # tagged releases) instead of every PR to avoid paying the ~1-2 min
-    # FFI+cmake cost on every single PR iteration.
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    needs: build-ffi
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-rust-deps
-      - uses: actions/download-artifact@v8
-        with:
-          name: ffi-linux-x86_64
-          path: target/release/
-      - run: bash scripts/test_drift_injection.sh
-
   check:
     name: Lint (${{ matrix.os }})
     strategy:

@@ -3002,7 +3002,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.11"
+version = "8.0.12"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -3040,7 +3040,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-cli"
-version = "8.0.11"
+version = "8.0.12"
 dependencies = [
  "clap",
  "comfy-table",
@@ -3052,7 +3052,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-ffi"
-version = "8.0.11"
+version = "8.0.12"
 dependencies = [
  "tdbe",
  "thetadatadx",
