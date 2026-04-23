@@ -85,7 +85,7 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, "C")
 
 ### `ThetaDataDx(creds, config)`
 
-All 61 endpoints are available. The 53 tick-returning endpoints
+Every historical endpoint is available. The tick-returning endpoints
 return typed `<TickName>List` wrappers (e.g. `EodTickList`,
 `TradeTickList`, `QuoteTickList`, ...), each implementing the
 Python sequence protocol (`len(...)`, `for tick in ...`,

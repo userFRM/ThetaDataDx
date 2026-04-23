@@ -29,7 +29,7 @@ Produces:
 
 ### Historical (via TdxClient or TdxUnified)
 
-All 61 endpoints are available as `tdx_stock_*`, `tdx_option_*`, `tdx_index_*`, `tdx_calendar_*`, `tdx_interest_rate_*` functions. Each takes a `*const TdxClient` handle and returns a typed `#[repr(C)]` struct array (e.g. `TdxEodTickArray`, `TdxOhlcTickArray`). Callers must free with the corresponding `tdx_*_array_free` function. List endpoints return `TdxStringArray` (freed with `tdx_string_array_free`).
+Every historical endpoint is available as `tdx_stock_*`, `tdx_option_*`, `tdx_index_*`, `tdx_calendar_*`, `tdx_interest_rate_*` functions. Each takes a `*const TdxClient` handle and returns a typed `#[repr(C)]` struct array (e.g. `TdxEodTickArray`, `TdxOhlcTickArray`). Callers must free with the corresponding `tdx_*_array_free` function. List endpoints return `TdxStringArray` (freed with `tdx_string_array_free`).
 
 `tdx_unified_historical()` returns a borrowed `*const TdxClient` from a unified handle - same session, no double auth.
 

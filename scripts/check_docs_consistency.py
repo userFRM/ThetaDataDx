@@ -110,25 +110,21 @@ def check_static_docs() -> None:
     expect_contains(ROOT / "README.md", "VitePress documentation site")
     expect_contains(
         ROOT / "README.md",
-        f"MCP server - gives LLMs access to {EXPECTED_TOOL_COUNT} tools over JSON-RPC",
+        "MCP server - gives clients access to every generated historical endpoint plus offline tools over JSON-RPC",
     )
 
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        f"## Available Tools ({EXPECTED_TOOL_COUNT} total)",
+        "## Available Tools",
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        f"{len(REGISTRY_ENDPOINTS)} registry endpoints + 3 offline tools (ping, all_greeks, implied_volatility) = {EXPECTED_TOOL_COUNT} total.",
+        "Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`).",
     )
 
     expect_contains(
         ROOT / "docs-site/docs/tools/mcp.md",
-        f"## Available Tools ({EXPECTED_TOOL_COUNT})",
-    )
-    expect_contains(
-        ROOT / "docs-site/docs/tools/mcp.md",
-        f"{len(REGISTRY_ENDPOINTS)} data endpoints + ping + all_greeks + implied_volatility = {EXPECTED_TOOL_COUNT} tools.",
+        "Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.",
     )
     # Version strings in getting-started docs must match the workspace version.
     expect_contains(

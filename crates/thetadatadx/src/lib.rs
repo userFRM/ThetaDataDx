@@ -41,7 +41,7 @@
 //!     // Connect -- authenticates once, historical ready immediately
 //!     let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 //!
-//!     // Historical (MDDS gRPC) -- all 61 methods via Deref
+//!     // Historical (MDDS gRPC) -- every generated method via Deref
 //!     let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
 //!     // Streaming (FPSS TCP) -- connects lazily on first call
@@ -62,7 +62,7 @@
 //! }
 //! ```
 //!
-//! For historical-only usage, just skip `start_streaming()` -- all 61 historical
+//! For historical-only usage, just skip `start_streaming()` -- every historical
 //! methods are available directly on `ThetaDataDx` via `Deref<Target = MddsClient>`:
 //!
 //! ```rust,ignore

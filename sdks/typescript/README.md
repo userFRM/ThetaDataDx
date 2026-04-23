@@ -109,7 +109,7 @@ npm run build          # requires Rust stable + protoc
 
 ## API reference
 
-All 61 endpoints from `endpoint_surface.toml` are exposed as camelCase methods on `ThetaDataDx`. See `index.d.ts` for the complete method list with JSDoc comments.
+Every historical endpoint from `endpoint_surface.toml` is exposed as a camelCase method on `ThetaDataDx`. See `index.d.ts` for the complete method list with JSDoc comments.
 
 ## Docs
 

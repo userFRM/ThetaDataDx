@@ -5,11 +5,11 @@
 /// and `with_deadline`. On expiry the in-flight gRPC call is cancelled and a
 /// `tdx::Error` carrying "Request deadline exceeded" is thrown.
 struct EndpointRequestOptions {
-    /// Venue/exchange filter. Accepts `nqb` (Nasdaq Basic) or `utp_cta` (UTP & CTA).
+    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     std::optional<std::string> venue;
     /// Minimum time filter
     std::optional<std::string> min_time;
-    /// Accepts milliseconds (60000) or shorthand (1m). Presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h. Defaults to `1s` when omitted — matching the upstream ThetaData Python library.
+    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     std::optional<std::string> interval;
     /// Start time filter
     std::optional<std::string> start_time;
@@ -23,7 +23,7 @@ struct EndpointRequestOptions {
     std::optional<bool> exclusive;
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     std::optional<std::string> strike;
-    /// Option side. Accepts `call`, `put`, or `both`.
+    /// Option side. Accepted values: `call`, `put`, `both`.
     std::optional<std::string> right;
     /// Maximum days to expiration
     std::optional<int32_t> max_dte;
@@ -31,13 +31,13 @@ struct EndpointRequestOptions {
     std::optional<int32_t> strike_range;
     /// Annual dividend
     std::optional<double> annual_dividend;
-    /// Risk-free-rate source used in the Greeks calculation. Accepts `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     std::optional<std::string> rate_type;
     /// Rate value
     std::optional<double> rate_value;
     /// Stock price
     std::optional<double> stock_price;
-    /// Greeks model version. Accepts `latest` (newest DG3-family revision) or `1` (pinned original).
+    /// Greeks model version. Accepted values: `latest`, `1`.
     std::optional<std::string> version;
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     std::optional<bool> use_market_value;

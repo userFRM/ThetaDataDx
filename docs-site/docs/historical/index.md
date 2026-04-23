@@ -5,7 +5,7 @@ description: Overview of ThetaDataDx historical data endpoints for stocks, optio
 
 # Historical Data
 
-ThetaDataDx provides 61 historical data endpoints across five asset categories. All historical data is accessed through the ThetaDataDx client, which communicates over gRPC with ThetaData's MDDS servers. gRPC, protobuf parsing, zstd decompression, and FIT decoding run inside the `thetadatadx` Rust crate, regardless of which language binding you call.
+ThetaDataDx provides a generated historical data surface across five asset categories. All historical data is accessed through the ThetaDataDx client, which communicates over gRPC with ThetaData's MDDS servers. gRPC, protobuf parsing, zstd decompression, and FIT decoding run inside the `thetadatadx` Rust crate, regardless of which language binding you call.
 
 ## Connecting
 
@@ -48,13 +48,13 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 
 ## Endpoint Categories
 
-| Category | Endpoints | Page |
-|----------|-----------|------|
-| Stocks | 14 endpoints - list, snapshots, history, at-time, streaming | [Stock Endpoints](./stock/) |
-| Options | 34 endpoints - list, snapshots, history, Greeks, trade Greeks, at-time | [Option Endpoints](./option/) |
-| Indices | 9 endpoints - list, snapshots, history, at-time | [Index Endpoints](./index-data/) |
-| Calendar | 3 endpoints - trading schedule, holidays, early closes | [Calendar](./calendar/) |
-| Rates | 1 endpoint - interest rate EOD history | [Rates](./rate/) |
+| Category | Coverage | Page |
+|----------|----------|------|
+| Stocks | list, snapshots, history, at-time, streaming | [Stock Endpoints](./stock/) |
+| Options | list, snapshots, history, Greeks, trade Greeks, at-time | [Option Endpoints](./option/) |
+| Indices | list, snapshots, history, at-time | [Index Endpoints](./index-data/) |
+| Calendar | trading schedule, holidays, early closes | [Calendar](./calendar/) |
+| Rates | interest rate EOD history | [Rates](./rate/) |
 
 ## Date Format
 

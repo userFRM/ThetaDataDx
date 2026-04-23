@@ -6,11 +6,11 @@ Multi-language SDKs for ThetaDataDx. All are thin bindings over the shared Rust 
 
 | SDK | Install | Historical | Streaming | Greeks | README |
 |---|---|---|---|---|---|
-| **Python** | `pip install thetadatadx` | 61 endpoints | `ThetaDataDx` | `all_greeks()`, chainable `.to_polars()` / `.to_pandas()` / `.to_arrow()` | [sdks/python/](python/) |
-| **TypeScript/Node.js** | `npm install thetadatadx` | 61 endpoints | `ThetaDataDx` | `allGreeks()` | [sdks/typescript/](typescript/) |
-| **Go** | `go get github.com/userFRM/thetadatadx/sdks/go` | 61 endpoints | `FpssClient` | via FFI | [sdks/go/](go/) |
-| **C++** | CMake `find_library` | 61 endpoints | `FpssClient` | via FFI | [sdks/cpp/](cpp/) |
-| **C FFI** | `cargo build --release -p thetadatadx-ffi` | 61 endpoints | `TdxUnified` / `TdxFpssHandle` | `tdx_all_greeks` | [ffi/](../ffi/) |
+| **Python** | `pip install thetadatadx` | Full generated historical surface | `ThetaDataDx` | `all_greeks()`, chainable `.to_polars()` / `.to_pandas()` / `.to_arrow()` | [sdks/python/](python/) |
+| **TypeScript/Node.js** | `npm install thetadatadx` | Full generated historical surface | `ThetaDataDx` | `allGreeks()` | [sdks/typescript/](typescript/) |
+| **Go** | `go get github.com/userFRM/thetadatadx/sdks/go` | Full generated historical surface | `FpssClient` | via FFI | [sdks/go/](go/) |
+| **C++** | CMake `find_library` | Full generated historical surface | `FpssClient` | via FFI | [sdks/cpp/](cpp/) |
+| **C FFI** | `cargo build --release -p thetadatadx-ffi` | Full generated historical surface | `TdxUnified` / `TdxFpssHandle` | `tdx_all_greeks` | [ffi/](../ffi/) |
 
 ## Architecture
 
@@ -195,7 +195,7 @@ The library exposes opaque handle types and `extern "C"` functions:
 | **Standalone FPSS** | 26 functions: `tdx_fpss_connect`, `tdx_fpss_subscribe_quotes`, `tdx_fpss_subscribe_trades`, `tdx_fpss_subscribe_open_interest`, `tdx_fpss_subscribe_option_quotes`, `tdx_fpss_subscribe_option_trades`, `tdx_fpss_subscribe_option_open_interest`, `tdx_fpss_subscribe_full_trades`, `tdx_fpss_subscribe_full_open_interest`, `tdx_fpss_unsubscribe_quotes`, `tdx_fpss_unsubscribe_trades`, `tdx_fpss_unsubscribe_open_interest`, `tdx_fpss_unsubscribe_option_quotes`, `tdx_fpss_unsubscribe_option_trades`, `tdx_fpss_unsubscribe_option_open_interest`, `tdx_fpss_unsubscribe_full_trades`, `tdx_fpss_unsubscribe_full_open_interest`, `tdx_fpss_is_authenticated`, `tdx_fpss_contract_lookup`, `tdx_fpss_contract_map`, `tdx_fpss_active_subscriptions`, `tdx_fpss_next_event`, `tdx_fpss_event_free`, `tdx_fpss_reconnect`, `tdx_fpss_shutdown`, `tdx_fpss_free` |
 | **Memory** | `tdx_*_array_free` (per tick type), `tdx_string_array_free`, `tdx_string_free`, `tdx_last_error` |
 
-All historical data endpoints (61 total) are accessed through `tdx_client_connect`. Streaming can be reached either through the unified handle (`TdxUnified`, one auth/session for historical + streaming) or the standalone FPSS handle (`TdxFpssHandle`). Results are returned as typed `#[repr(C)]` struct arrays (e.g. `TdxEodTickArray`, `TdxOhlcTickArray`) that must be freed with the corresponding `tdx_*_array_free` function. List endpoints return `TdxStringArray`. See the [FFI source](../ffi/src/lib.rs) for the full API and safety contract.
+All historical data endpoints are accessed through `tdx_client_connect`. Streaming can be reached either through the unified handle (`TdxUnified`, one auth/session for historical + streaming) or the standalone FPSS handle (`TdxFpssHandle`). Results are returned as typed `#[repr(C)]` struct arrays (e.g. `TdxEodTickArray`, `TdxOhlcTickArray`) that must be freed with the corresponding `tdx_*_array_free` function. List endpoints return `TdxStringArray`. See the [FFI source](../ffi/src/lib.rs) for the full API and safety contract.
 
 ## Building All SDKs
 

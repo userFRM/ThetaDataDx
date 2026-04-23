@@ -17,7 +17,7 @@ Rust SDK for ThetaData market data — single Rust core, five language surfaces 
 
 ## Highlights
 
-- **Typed everywhere.** 61 ThetaData endpoints exposed as typed methods across all five SDKs; no raw JSON or protobuf on the public surface.
+- **Typed everywhere.** The checked-in historical surface is exposed as typed methods across all five SDKs; no raw JSON or protobuf on the public surface.
 - **Arrow-backed DataFrames.** Python `to_arrow()` / `to_pandas()` / `to_polars()` pipe through shared Arrow buffers.
 - **SPKI-pinned FPSS TLS.** Public-key pinning on the FPSS streaming handshake.
 - **FIT decoder + SPSC ring buffer** on the FPSS path. Decode cost is measured in the benchmarks under `crates/thetadatadx/benches/`.
@@ -171,15 +171,15 @@ All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64`, de
 
 ## API coverage
 
-61 registry/REST endpoints plus 4 SDK-only historical stream variants, FPSS real-time streaming, and a full Black-Scholes Greeks calculator.
+Registry/REST historical endpoints plus SDK-only historical stream variants, FPSS real-time streaming, and a full Black-Scholes Greeks calculator.
 
-| Category | Endpoints | Examples |
-|----------|-----------|----------|
-| Stock | 14 | EOD, OHLC, trades, quotes, snapshots, at-time |
-| Option | 34 | Same as stock + 5 Greeks tiers, open interest, contracts |
-| Index | 9 | EOD, OHLC, price, snapshots |
-| Calendar | 3 | Market open/close, holiday schedule |
-| Interest Rate | 1 | EOD rate history |
+| Category | Examples |
+|----------|----------|
+| Stock | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Option | Same as stock + Greeks tiers, open interest, contracts |
+| Index | EOD, OHLC, price, snapshots |
+| Calendar | Market open/close, holiday schedule |
+| Interest Rate | EOD rate history |
 
 All endpoints return fully typed data in every language. See the [API Reference](docs/api-reference.md) for the complete method list.
 
@@ -222,8 +222,8 @@ flowchart TB
 | TypeScript | [`sdks/typescript`](sdks/typescript/) | napi-rs prebuilt binary |
 | Go | [`sdks/go`](sdks/go/) | CGo bindings over the FFI layer |
 | C++ | [`sdks/cpp`](sdks/cpp/) | RAII header-only wrapper |
-| CLI | [`tools/cli`](tools/cli/) | `tdx` CLI — all 61 endpoints from the command line |
-| MCP | [`tools/mcp`](tools/mcp/) | MCP server - gives LLMs access to 64 tools over JSON-RPC |
+| CLI | [`tools/cli`](tools/cli/) | `tdx` CLI — every generated historical endpoint from the command line |
+| MCP | [`tools/mcp`](tools/mcp/) | MCP server - gives clients access to every generated historical endpoint plus offline tools over JSON-RPC |
 | Server | [`tools/server`](tools/server/) | REST + WebSocket server exposing the `/v3/*` route surface |
 | Docs | [`docs/`](docs/) | API reference, architecture, Java parity checklist |
 | Website | [`docs-site/`](docs-site/) | VitePress documentation site (deployed to GitHub Pages) |
@@ -237,7 +237,7 @@ flowchart TB
 
 | Document | Description |
 |----------|-------------|
-| [API Reference](docs/api-reference.md) | All 61 typed methods (plus 4 `_stream` SDK-only variants), 13 tick types, configuration options |
+| [API Reference](docs/api-reference.md) | All typed methods, streaming builders, generated tick types, and configuration options |
 | [Architecture](docs/architecture.md) | System design, wire protocols, TOML codegen pipeline |
 | [Parity Checklist](docs/java-parity-checklist.md) | Feature-by-feature protocol and endpoint parity notes |
 | [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |

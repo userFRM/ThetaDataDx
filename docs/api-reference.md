@@ -681,11 +681,11 @@ Callers can use either v2-style millisecond strings or v3 shorthand presets inte
 
 ### Endpoint Count
 
-ThetaDataDx exposes **61 typed methods** (plus 4 `_stream` variants) covering all 60 gRPC RPCs in `BetaThetaTerminal` plus 1 convenience range-query variant (`stock_history_ohlc_range`). Historical methods are provided via `Deref<Target = MddsClient>` (an internal implementation detail) and are generated from the checked-in endpoint surface specification validated against the official proto.
+ThetaDataDx exposes the full typed historical surface plus 4 `_stream` variants. Historical methods are provided via `Deref<Target = MddsClient>` (an internal implementation detail) and are generated from the checked-in endpoint surface specification validated against the official proto.
 
 ### FFI Coverage
 
-All 61 endpoints are exposed through the `thetadatadx-ffi` C ABI crate. Each method has a corresponding `extern "C"` function (e.g., `thetadatadx_stock_history_eod`). The Go and C++ SDKs wrap these FFI functions 1:1.
+Every historical endpoint is exposed through the `thetadatadx-ffi` C ABI crate. Each method has a corresponding `extern "C"` function (e.g., `thetadatadx_stock_history_eod`). The Go and C++ SDKs wrap these FFI functions 1:1.
 
 **No JSON crosses the FFI boundary.** All inputs and outputs use typed `#[repr(C)]` structs -- historical endpoints, streaming events, Greeks, and subscriptions alike. `tdx_fpss_next_event` and `tdx_unified_next_event` return `*mut TdxFpssEvent` (a tagged `#[repr(C)]` struct with quote/trade/open_interest/ohlcvc/control/raw_data variants), freed with `tdx_fpss_event_free`.
 
@@ -695,11 +695,11 @@ All 61 endpoints are exposed through the `thetadatadx-ffi` C ABI crate. Each met
 
 ### Python SDK Coverage
 
-All 61 endpoints are available in the Python SDK via PyO3 bindings (e.g., `tdx.stock_history_eod(...)`). Streaming is available via `tdx.start_streaming()` / `tdx.next_event()`. Every historical endpoint returns a typed `<TickName>List` / `StringList` / `OptionContractList` / `CalendarDayList` wrapper; chain `.to_pandas()` / `.to_polars()` / `.to_arrow()` / `.to_list()` on the returned wrapper for the matching representation. The shared Rust path walks the decoder-owned `Vec<Tick>` into an `arrow::RecordBatch` and hands it to pyarrow via the Arrow C Data Interface (zero-copy at the pyo3 boundary). No free-function or per-client DataFrame surface — one unified typed path. Requires `pip install thetadatadx[pandas]` / `[polars]` / `[arrow]`.
+Every historical endpoint is available in the Python SDK via PyO3 bindings (e.g., `tdx.stock_history_eod(...)`). Streaming is available via `tdx.start_streaming()` / `tdx.next_event()`. Every historical endpoint returns a typed `<TickName>List` / `StringList` / `OptionContractList` / `CalendarDayList` wrapper; chain `.to_pandas()` / `.to_polars()` / `.to_arrow()` / `.to_list()` on the returned wrapper for the matching representation. The shared Rust path walks the decoder-owned `Vec<Tick>` into an `arrow::RecordBatch` and hands it to pyarrow via the Arrow C Data Interface (zero-copy at the pyo3 boundary). No free-function or per-client DataFrame surface — one unified typed path. Requires `pip install thetadatadx[pandas]` / `[polars]` / `[arrow]`.
 
 ### TypeScript/Node.js SDK Coverage
 
-All 61 endpoints are available in the TypeScript/Node.js SDK via napi-rs bindings as camelCase methods (e.g., `tdx.stockHistoryEOD(...)`). Streaming is available via `tdx.startStreaming()` / `tdx.nextEvent()`. Returns columnar objects with typed fields.
+Every historical endpoint is available in the TypeScript/Node.js SDK via napi-rs bindings as camelCase methods (e.g., `tdx.stockHistoryEOD(...)`). Streaming is available via `tdx.startStreaming()` / `tdx.nextEvent()`. Returns columnar objects with typed fields.
 
 ### Python SDK: Streaming
 
@@ -790,8 +790,8 @@ typedef struct { TdxFpssEventKind kind;
                  TdxFpssRawData raw_data; } TdxFpssEvent;
 ```
 
-Every `extern "C"` function across the FFI crate (145 production fns
-including the 61 generated endpoints in `endpoint_with_options.rs`) is
+Every `extern "C"` function across the FFI crate, including the
+generator-emitted endpoint entry points in `endpoint_with_options.rs`, is
 wrapped in `ffi_boundary!`, a `catch_unwind` macro that intercepts Rust
 panics, writes the payload to `LAST_ERROR`, and returns the caller's
 declared default. Host processes no longer abort on Rust 1.81+ when a
@@ -998,7 +998,7 @@ let (contract, consumed) = Contract::from_bytes(&bytes)?;  // deserialize
 
 ## Tick Types
 
-All 13 tick types are `Clone + Debug` structs generated from `tick_schema.toml`. Most are also `Copy` (except `OptionContract`, which contains a `String` field). Fields are typically `i32`, `f64` for prices/Greeks/IV, and `String` for identifiers. All price fields are `f64` -- decoded during parsing. No `price_type` in the public API.
+All generated tick types are `Clone + Debug` structs generated from `tick_schema.toml`. Most are also `Copy` (except `OptionContract`, which contains a `String` field). Fields are typically `i32`, `f64` for prices/Greeks/IV, and `String` for identifiers. All price fields are `f64` -- decoded during parsing. No `price_type` in the public API.
 
 ### Contract Identification Fields
 

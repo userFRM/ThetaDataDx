@@ -73,6 +73,9 @@ fn parse_sec_type(sec_type: &str) -> napi::Result<tdbe::types::enums::SecType> {
     }
 }
 
+// Generated string enum exports.
+include!("enums_generated.rs");
+
 // ── Typed tick classes (generated from tick_schema.toml) ──
 //
 // Emits `#[napi(object)]` structs for every tick type plus

@@ -1,11 +1,11 @@
 ---
 title: Option Endpoints
-description: 34 option data endpoints - list, snapshots, history, Greeks, trade Greeks, and at-time queries.
+description: Option data endpoints for list, snapshot, history, Greeks, trade-Greeks, and at-time queries.
 ---
 
 # Option Endpoints
 
-ThetaDataDx provides 34 typed endpoints for option market data, organized into five categories.
+ThetaDataDx provides the full typed option surface, organized into list, snapshot, history, trade-Greeks, and at-time categories.
 
 ## Contract Identification
 
@@ -22,7 +22,7 @@ Option contracts are identified by four parameters:
 
 ## Endpoint Categories
 
-### [List](./list/roots) (5 endpoints)
+### [List](./list/roots)
 
 Discover available symbols, expirations, strikes, dates, and contracts.
 
@@ -32,7 +32,7 @@ Discover available symbols, expirations, strikes, dates, and contracts.
 - [List Expirations](./list/expirations) - expiration dates for an underlying
 - [List Contracts](./list/contracts) - all contracts for a symbol on a date
 
-### [Snapshot](./snapshot/ohlc) (9 endpoints)
+### [Snapshot](./snapshot/ohlc)
 
 Latest point-in-time data for a contract.
 
@@ -46,7 +46,7 @@ Latest point-in-time data for a contract.
 - [Snapshot Greeks Second Order](./snapshot/greeks-second-order)
 - [Snapshot Greeks Third Order](./snapshot/greeks-third-order)
 
-### [History](./history/eod) (16 endpoints)
+### [History](./history/eod)
 
 Historical time series data for a contract.
 
@@ -68,7 +68,7 @@ Historical time series data for a contract.
 - [History Trade Greeks Third Order](./history/trade-greeks-third-order)
 - [History Trade Greeks IV](./history/trade-greeks-iv)
 
-### [At-Time](./at-time/trade) (2 endpoints)
+### [At-Time](./at-time/trade)
 
 Data at a specific time of day across a date range.
 

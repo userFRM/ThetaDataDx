@@ -281,7 +281,7 @@ pub(super) fn direct_required_kind(param: &GeneratedParam) -> &'static str {
 pub(super) fn direct_optional_kind_and_default(param: &GeneratedParam) -> (&'static str, String) {
     if let Some(default) = param.default.as_deref() {
         return match param.param_type.as_str() {
-            "Str" | "Strike" | "Right" | "Interval" => {
+            "Str" | "Strike" | "Right" | "Interval" | "Venue" | "RateType" | "Version" => {
                 ("string", format!("{default:?}.to_string()"))
             }
             "Int" => {

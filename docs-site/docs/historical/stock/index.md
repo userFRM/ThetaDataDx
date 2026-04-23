@@ -1,11 +1,11 @@
 ---
 title: Stock Endpoints
-description: 14 stock data endpoints for listing symbols, snapshots, historical bars, tick data, and at-time queries.
+description: Stock data endpoints for listing symbols, snapshots, historical bars, tick data, and at-time queries.
 ---
 
 # Stock Endpoints
 
-ThetaDataDx provides 14 endpoints for US equity data: listing available symbols and dates, real-time snapshots, historical OHLC/trade/quote data, and point-in-time lookups.
+ThetaDataDx provides the full typed stock surface for listing available symbols and dates, real-time snapshots, historical OHLC/trade/quote data, and point-in-time lookups.
 
 ## List
 
