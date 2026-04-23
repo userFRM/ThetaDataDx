@@ -82,6 +82,10 @@ allow = [
     # polars-schema; only reachable with the `polars` feature flag enabled.
     "BSL-1.0",
 ]
+# Keep feature-only license allowances in policy even when the default graph
+# does not currently encounter them. `BSL-1.0` is required by the polars
+# feature path and must remain allowed for release/CI parity.
+unused-allowed-license = "allow"
 confidence-threshold = 0.8
 exceptions = []
 

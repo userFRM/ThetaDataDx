@@ -5,7 +5,7 @@ description: Drop-in replacement for the ThetaData Java Terminal v3 surface. Run
 
 # REST Server
 
-Drop-in replacement for the ThetaData Java Terminal v3 surface. Runs a local HTTP REST server and WebSocket server backed by ThetaDataDx. Existing scripts that target the terminal's current v3 routes can point at this binary instead of the JVM terminal.
+Local HTTP REST and WebSocket server for the ThetaData v3 route surface, backed by ThetaDataDx. Existing scripts that target the terminal's current v3 routes can point at this binary on the same ports.
 
 ## Installation
 
@@ -67,7 +67,7 @@ curl "http://127.0.0.1:25503/v3/calendar/open_today"
 Current REST parameters use the registry names (`symbol`, `expiration`, `strike`, `interval`, etc.), not older shorthand aliases like `root`, `exp`, or `ivl`.
 :::
 
-Response envelope matches the Java terminal:
+Responses use the terminal JSON envelope:
 
 ```json
 {
@@ -82,7 +82,7 @@ The REST server uses sonic-rs (SIMD-accelerated JSON) for response serialization
 
 ## WebSocket API
 
-The WebSocket server at `/v1/events` replicates the Java terminal's streaming protocol:
+The WebSocket server at `/v1/events` uses the terminal streaming protocol:
 
 - Single client at a time
 - STATUS heartbeat every second

@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-py"
-version = "8.0.8"
+version = "8.0.9"
 edition = "2021"
 description = "Python bindings for thetadatadx — native ThetaData SDK powered by Rust"
 license = "Apache-2.0"
@@ -8,18 +8,13 @@ homepage = "https://github.com/userFRM/ThetaDataDx"
 repository = "https://github.com/userFRM/ThetaDataDx"
 documentation = "https://github.com/userFRM/ThetaDataDx/blob/main/docs/api-reference.md"
 readme = "README.md"
-
-# Standalone package — deliberately NOT a member of the parent workspace.
-# When this crate is checked out inside a nested worktree directory, cargo
-# walks up looking for a workspace root and finds the main repo's
-# `Cargo.toml`, which only excludes `sdks/python` (the repo-root-relative
-# path), not the worktree-relative path. The empty `[workspace]` marker
-# tells cargo "I am my own workspace, stop walking."
-[workspace]
+# PyPI package only; never publish this PyO3 shim to crates.io.
+publish = false
 
 [lib]
 name = "thetadatadx"
 crate-type = ["cdylib"]
+doc = false
 
 [dependencies]
 # The Rust SDK we're wrapping

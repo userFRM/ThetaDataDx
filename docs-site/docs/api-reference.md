@@ -2836,8 +2836,7 @@ The shared Rust path walks the decoder-owned `Vec<Tick>` directly
 into an `arrow::RecordBatch` and hands it to `pyarrow.Table` via
 the Arrow C Data Interface (zero-copy at the pyo3 boundary);
 pandas / polars / raw Arrow are the three terminal consumers. At
-100k x 20 ticks the wall-clock is ~8ms (vs ~300-500ms for the
-legacy dict-of-lists path).
+100k x 20 ticks the wall-clock is ~8ms.
 
 **Unified recipe** for every historical endpoint:
 

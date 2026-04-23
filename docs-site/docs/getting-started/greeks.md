@@ -5,7 +5,7 @@ description: 22 local Black-Scholes Greeks and IV solver with no server round-tr
 
 # Greeks Calculator
 
-ThetaDataDx ships a local Black-Scholes calculator in the Rust core (`tdbe/greeks.rs`) that computes 22 Greeks plus an IV solver without a server round-trip. No subscription is required for the calculator itself, which makes it usable for offline what-if analysis, batch scenario sweeps, and integration tests that must not depend on a live server. The server-computed Greeks endpoints are also exposed for callers that want the canonical vendor-produced values.
+ThetaDataDx ships a local Black-Scholes calculator in the Rust core (`tdbe/greeks.rs`) that computes 22 Greeks plus an IV solver without a server round-trip. No subscription is required for the calculator itself, which makes it usable for offline what-if analysis, batch scenario sweeps, and integration tests that must not depend on a live server. The server-computed Greeks endpoints are also exposed for callers that want the canonical upstream values.
 
 This page covers the calculator at a first-use level. For the full reference — per-Greek formula mapping, wildcard chain workflows, edge cases — see [Options & Greeks](../options).
 

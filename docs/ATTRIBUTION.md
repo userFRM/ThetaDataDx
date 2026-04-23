@@ -6,9 +6,9 @@ ThetaDataDx ships original code under the Apache License, Version 2.0.
 
 ### Per-endpoint Python docstrings
 
-Starting with v8.0.2 the `vendor_docstring` field in
+Starting with v8.0.2 the endpoint docstring field in
 `crates/thetadatadx/endpoint_surface.toml` carries prose lifted verbatim
-from the upstream vendor Python SDK distributed on PyPI as `thetadata`,
+from the upstream Python SDK distributed on PyPI as `thetadata`,
 which is also licensed under the Apache License, Version 2.0. The
 upstream project publishes the same docstrings as part of its
 `client.py` module; we consume them through our TOML SSOT so the generator
