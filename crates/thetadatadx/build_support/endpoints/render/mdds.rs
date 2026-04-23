@@ -9,6 +9,7 @@
 
 use std::fmt::Write as _;
 
+use super::super::helpers::compose_endpoint_doc;
 use super::super::helpers::{
     direct_date_arg_name, direct_method_arg_name, direct_optional_kind_and_default,
     direct_optional_rust_type, direct_optional_setter_arg_type, direct_optional_setter_assign_expr,
@@ -20,7 +21,7 @@ use super::super::model::{GeneratedEndpoint, ProtoField};
 
 pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     writeln!(out, "list_endpoint! {{").unwrap();
-    writeln!(out, "    #[doc = {:?}]", endpoint.description).unwrap();
+    writeln!(out, "    #[doc = {:?}]", compose_endpoint_doc(endpoint)).unwrap();
     writeln!(
         out,
         "    #[doc = {:?}]",
@@ -79,7 +80,7 @@ pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &Generated
 
 pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     writeln!(out, "parsed_endpoint! {{").unwrap();
-    writeln!(out, "    #[doc = {:?}]", endpoint.description).unwrap();
+    writeln!(out, "    #[doc = {:?}]", compose_endpoint_doc(endpoint)).unwrap();
     writeln!(
         out,
         "    #[doc = {:?}]",
