@@ -1,7 +1,7 @@
 //! Route generation from the endpoint registry.
 //!
-//! Iterates `ENDPOINTS` at startup and registers a handler for every one of
-//! the 61 endpoints, plus system routes. Each endpoint is mapped to a REST
+//! Iterates `ENDPOINTS` at startup and registers a handler for every
+//! registry endpoint, plus system routes. Each endpoint is mapped to a REST
 //! path following the ThetaData v3 API convention. Paths are generated in the
 //! core registry so the REST server does not re-derive them heuristically.
 //!

@@ -651,8 +651,8 @@ mod tests {
         );
     }
 
-    /// Verify registry metadata integrity: 61 endpoints, no duplicates,
-    /// all categories present, no empty descriptions or rest_paths.
+    /// Verify registry metadata integrity: no duplicates, all categories
+    /// present, and no empty descriptions or rest_paths.
     ///
     /// Note: dispatch-registry alignment (every registry name has a
     /// generated match arm) is guaranteed at build time — both are
@@ -671,11 +671,9 @@ mod tests {
             ENDPOINTS.len(),
             "duplicate names in ENDPOINTS"
         );
-        assert_eq!(
-            ENDPOINTS.len(),
-            61,
-            "expected 61 endpoints, got {}",
-            ENDPOINTS.len()
+        assert!(
+            !ENDPOINTS.is_empty(),
+            "generated registry unexpectedly contains no endpoints"
         );
         let categories: std::collections::HashSet<&str> =
             ENDPOINTS.iter().map(|e| e.category).collect();

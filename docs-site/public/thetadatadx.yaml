@@ -3,7 +3,7 @@ openapi: 3.1.0
 info:
   title: ThetaDataDx SDK
   description: |
-    Canonical checked-in REST contract for the 61 registry endpoints exposed by
+    Canonical checked-in REST contract for the registry endpoints exposed by
     ThetaDataDx's server surface. SDK-only callback-based `*_stream` history
     builders are documented in the API reference rather than this OpenAPI file.
 
@@ -13,7 +13,7 @@ info:
     All dates use YYYYMMDD format. Times use milliseconds since midnight ET.
     Intervals accept milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
     All prices are f64 (double) -- decoded during parsing.
-  version: 8.0.10
+  version: 8.0.11
   contact:
     name: ThetaDataDx
     url: https://github.com/userFRM/ThetaDataDx

@@ -90,7 +90,7 @@ All 21 `StreamMsgType` codes have byte-identical values. See
 
 | Aspect | Java | Rust |
 |--------|------|------|
-| Handler structure | Each of the 60 gRPC handlers hand-coded with per-endpoint request/response logic | 60 RPCs generated from `endpoint_surface.toml` + `mdds.proto`, plus one convenience range variant (total: 61 methods); `MddsClient` macros remain an internal expansion target |
+| Handler structure | Each of the current gRPC handlers hand-coded with per-endpoint request/response logic | The full current endpoint surface is generated from `endpoint_surface.toml` + `mdds.proto`, plus the convenience range variant; `MddsClient` macros remain an internal expansion target |
 | Source | `net.thetadata.providers.*` handler classes | `crates/thetadatadx/build_support/endpoints/`, `endpoint_surface.toml`, `mdds/endpoints.rs` macro layer |
 | Wire contract | Identical | Identical |
 

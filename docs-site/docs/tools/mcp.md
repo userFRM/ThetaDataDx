@@ -39,7 +39,7 @@ Store credentials in environment variables or a secrets manager rather than comm
 
 ## Available Tools (64)
 
-61 data endpoints + ping + all_greeks + implied_volatility = 64 tools.
+Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.
 
 | Category | Count |
 |----------|-------|

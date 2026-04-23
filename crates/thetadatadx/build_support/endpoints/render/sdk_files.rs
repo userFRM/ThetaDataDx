@@ -11,7 +11,8 @@ use std::path::Path;
 use super::super::helpers::collect_builder_params;
 use super::super::parser::{load_endpoint_specs, validate_test_fixtures};
 use super::{
-    cli_validate, cpp, cpp_validate, ffi, go, go_validate, python, python_validate, typescript,
+    cli_validate, cpp, cpp_validate, enums, ffi, go, go_validate, python, python_validate,
+    typescript,
 };
 
 struct GeneratedSourceFile {
@@ -61,6 +62,18 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
 
     Ok(vec![
         GeneratedSourceFile {
+            relative_path: "crates/tdbe/src/types/enums_endpoint_generated.rs",
+            contents: enums::render_tdbe_enums(&parsed.enums),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/python/src/enums_generated.rs",
+            contents: enums::render_python_enums(&parsed.enums),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/typescript/src/enums_generated.rs",
+            contents: enums::render_typescript_enums(&parsed.enums),
+        },
+        GeneratedSourceFile {
             relative_path: "ffi/src/endpoint_request_options.rs",
             contents: ffi::render_ffi_endpoint_request_options(&builder_params),
         },
@@ -75,6 +88,10 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "sdks/go/endpoint_options.go",
             contents: go::render_go_options(&builder_params),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/go/endpoint_ffi_sizes_generated.go",
+            contents: go::render_go_endpoint_ffi_sizes(&builder_params),
         },
         GeneratedSourceFile {
             relative_path: "sdks/go/historical.go",

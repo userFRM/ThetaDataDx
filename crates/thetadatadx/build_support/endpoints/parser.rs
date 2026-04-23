@@ -8,9 +8,9 @@
 use std::collections::{HashMap, HashSet};
 
 use super::model::{
-    GeneratedEndpoint, GeneratedParam, ParsedEndpoints, ResolvedSurfaceEndpoint, ResolvedTemplate,
-    SurfaceEndpoint, SurfaceParam, SurfaceParamEntry, SurfaceSpec, SurfaceTestFixtures,
-    TestFixtures,
+    GeneratedEndpoint, GeneratedEnum, GeneratedEnumVariant, GeneratedParam, ParsedEndpoints,
+    ResolvedSurfaceEndpoint, ResolvedTemplate, SurfaceEndpoint, SurfaceParam, SurfaceParamEntry,
+    SurfaceSpec, SurfaceTestFixtures, TestFixtures,
 };
 use super::proto_parser::load_proto_endpoints;
 
@@ -29,6 +29,7 @@ pub(super) fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::erro
     }
 
     let resolved = resolve_surface_endpoints(&spec)?;
+    let enums = into_generated_enums(&spec)?;
 
     let mut seen_names = HashSet::new();
     let mut wire_by_name = HashMap::new();
@@ -51,8 +52,8 @@ pub(super) fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::erro
         })?;
         consumed_wire_names.insert(wire_name.to_string());
 
-        validate_surface_endpoint(&surface, wire_endpoint)?;
-        endpoints.push(merge_surface_and_wire(surface, wire_endpoint));
+        validate_surface_endpoint(&surface, wire_endpoint, &enums)?;
+        endpoints.push(merge_surface_and_wire(surface, wire_endpoint, &enums));
     }
 
     // Detect proto RPCs not covered by endpoint_surface.toml. A new RPC added
@@ -86,8 +87,68 @@ pub(super) fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::erro
     // needs the fixtures — invokes [`validate_test_fixtures`] explicitly.
     Ok(ParsedEndpoints {
         endpoints,
+        enums,
         fixtures,
     })
+}
+
+fn into_generated_enums(
+    spec: &SurfaceSpec,
+) -> Result<Vec<GeneratedEnum>, Box<dyn std::error::Error>> {
+    let mut seen = HashSet::new();
+    let mut enums = Vec::with_capacity(spec.enums.len());
+    for enum_spec in &spec.enums {
+        if !seen.insert(enum_spec.name.clone()) {
+            return Err(format!("duplicate enum declaration '{}'", enum_spec.name).into());
+        }
+        if enum_spec.variants.is_empty() {
+            return Err(format!(
+                "enum '{}' must declare at least one variant",
+                enum_spec.name
+            )
+            .into());
+        }
+        let mut seen_wire = HashSet::new();
+        let mut seen_rust = HashSet::new();
+        let mut seen_python = HashSet::new();
+        for variant in &enum_spec.variants {
+            if !seen_wire.insert(variant.wire.clone()) {
+                return Err(format!(
+                    "enum '{}' has duplicate wire value '{}'",
+                    enum_spec.name, variant.wire
+                )
+                .into());
+            }
+            if !seen_rust.insert(variant.rust.clone()) {
+                return Err(format!(
+                    "enum '{}' has duplicate Rust variant '{}'",
+                    enum_spec.name, variant.rust
+                )
+                .into());
+            }
+            if !seen_python.insert(variant.python.clone()) {
+                return Err(format!(
+                    "enum '{}' has duplicate Python member '{}'",
+                    enum_spec.name, variant.python
+                )
+                .into());
+            }
+        }
+        enums.push(GeneratedEnum {
+            name: enum_spec.name.clone(),
+            rust_name: enum_spec.rust_name.clone(),
+            variants: enum_spec
+                .variants
+                .iter()
+                .map(|variant| GeneratedEnumVariant {
+                    wire: variant.wire.clone(),
+                    rust: variant.rust.clone(),
+                    python: variant.python.clone(),
+                })
+                .collect(),
+        });
+    }
+    Ok(enums)
 }
 
 /// Drop the TOML shape and expose fixtures to the rest of the generator
@@ -113,6 +174,9 @@ const KNOWN_WIRE_TYPES: &[&str] = &[
     "Strike",
     "Right",
     "Interval",
+    "Venue",
+    "RateType",
+    "Version",
     "RequestType",
     "Year",
     "Str",
@@ -768,6 +832,7 @@ fn resolve_required_surface_field(
 fn validate_surface_endpoint(
     surface: &ResolvedSurfaceEndpoint,
     wire: &GeneratedEndpoint,
+    enums: &[GeneratedEnum],
 ) -> Result<(), Box<dyn std::error::Error>> {
     match surface.kind.as_str() {
         "list" | "parsed" | "stream" => {}
@@ -832,6 +897,7 @@ fn validate_surface_endpoint(
             )
             .into());
         }
+        validate_enum_ref(&surface.name, param, enums)?;
         let has_ssot_default = matches!(
             param.name.as_str(),
             "right"
@@ -902,6 +968,46 @@ fn validate_surface_endpoint(
     Ok(())
 }
 
+fn validate_enum_ref(
+    endpoint: &str,
+    param: &SurfaceParam,
+    enums: &[GeneratedEnum],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Some(enum_name) = param.enum_name.as_deref() else {
+        return Ok(());
+    };
+    let enum_spec = enums
+        .iter()
+        .find(|candidate| candidate.name == enum_name)
+        .ok_or_else(|| {
+            format!(
+                "endpoint '{endpoint}.{}' references unknown enum '{}'",
+                param.name, enum_name
+            )
+        })?;
+    if param.param_type != enum_spec.name {
+        return Err(format!(
+            "endpoint '{endpoint}.{}' declares param_type '{}' but references enum '{}'",
+            param.name, param.param_type, enum_name
+        )
+        .into());
+    }
+    if let Some(default) = param.default.as_deref() {
+        let default_in_enum = enum_spec
+            .variants
+            .iter()
+            .any(|variant| variant.wire == default);
+        if !default_in_enum {
+            return Err(format!(
+                "endpoint '{endpoint}.{}' default '{}' is not in enum '{}'",
+                param.name, default, enum_name
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
 /// Verify a TOML default value is compatible with its declared param_type.
 fn validate_default_type(
     endpoint: &str,
@@ -917,7 +1023,7 @@ fn validate_default_type(
         "Year" => default_val.len() == 4 && default_val.chars().all(|c| c.is_ascii_digit()),
         // String-like types accept any value
         "Symbol" | "Symbols" | "Interval" | "Right" | "Strike" | "Expiration" | "RequestType"
-        | "Str" => true,
+        | "Venue" | "RateType" | "Version" | "Str" => true,
         _ => true, // unknown types pass (caught elsewhere)
     };
     if !ok {
@@ -932,6 +1038,7 @@ fn validate_default_type(
 fn merge_surface_and_wire(
     surface: ResolvedSurfaceEndpoint,
     wire: &GeneratedEndpoint,
+    enums: &[GeneratedEnum],
 ) -> GeneratedEndpoint {
     GeneratedEndpoint {
         name: surface.name,
@@ -946,14 +1053,18 @@ fn merge_surface_and_wire(
         params: surface
             .params
             .into_iter()
-            .map(|param| GeneratedParam {
-                name: param.name,
-                description: param.description,
-                param_type: param.param_type,
-                required: param.required,
-                binding: param.binding,
-                arg_name: param.arg_name,
-                default: param.default,
+            .map(|param| {
+                let description = resolved_param_description(&param, enums);
+                GeneratedParam {
+                    name: param.name,
+                    description,
+                    param_type: param.param_type,
+                    enum_name: param.enum_name,
+                    required: param.required,
+                    binding: param.binding,
+                    arg_name: param.arg_name,
+                    default: param.default,
+                }
             })
             .collect(),
         return_type: surface.returns,
@@ -961,4 +1072,20 @@ fn merge_surface_and_wire(
         list_column: surface.list_column,
         vendor_docstring: surface.vendor_docstring,
     }
+}
+
+fn resolved_param_description(param: &SurfaceParam, enums: &[GeneratedEnum]) -> String {
+    let Some(enum_name) = param.enum_name.as_deref() else {
+        return param.description.clone();
+    };
+    let Some(enum_spec) = enums.iter().find(|candidate| candidate.name == enum_name) else {
+        return param.description.clone();
+    };
+    let joined = enum_spec
+        .variants
+        .iter()
+        .map(|variant| format!("`{}`", variant.wire))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{} Accepted values: {}.", param.description, joined)
 }

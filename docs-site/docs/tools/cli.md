@@ -1,11 +1,11 @@
 ---
 title: CLI (tdx)
-description: Command-line interface for querying ThetaData market data. All 61 endpoints plus offline Greeks and IV computation.
+description: Command-line interface for querying ThetaData market data. Covers every generated historical endpoint plus offline Greeks and IV computation.
 ---
 
 # CLI (tdx)
 
-Command-line interface for querying ThetaData market data. All 61 endpoints plus offline Greeks.
+Command-line interface for querying ThetaData market data. Covers every generated historical endpoint plus offline Greeks.
 
 ## Installation
 

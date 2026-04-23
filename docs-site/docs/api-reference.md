@@ -7,7 +7,7 @@ description: Complete API reference for the ThetaDataDx SDK covering all endpoin
 
 ThetaDataDx provides a unified client for accessing ThetaData market data. Historical data flows over MDDS/gRPC; real-time streaming flows over FPSS/TCP. The SDK ships native bindings for Rust, Python, TypeScript/Node.js, Go, and C++, all backed by the same compiled Rust core.
 
-**61 typed endpoints** + 4 streaming variants + 22 Greeks functions + IV solver.
+Complete typed historical surface + 4 streaming variants + 22 Greeks functions + IV solver.
 
 ## Client Construction
 

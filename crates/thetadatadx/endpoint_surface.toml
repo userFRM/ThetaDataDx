@@ -8,6 +8,80 @@
 
 version = 2
 
+[[enums]]
+name = "Right"
+rust_name = "Right"
+variants = [
+    { wire = "call", rust = "Call", python = "CALL" },
+    { wire = "put", rust = "Put", python = "PUT" },
+    { wire = "both", rust = "Both", python = "BOTH" },
+]
+
+[[enums]]
+name = "Venue"
+rust_name = "Venue"
+variants = [
+    { wire = "nqb", rust = "Nqb", python = "NQB" },
+    { wire = "utp_cta", rust = "UtpCta", python = "UTP_CTA" },
+]
+
+[[enums]]
+name = "Interval"
+rust_name = "Interval"
+variants = [
+    { wire = "tick", rust = "Tick", python = "TICK" },
+    { wire = "10ms", rust = "Ms10", python = "MS_10" },
+    { wire = "100ms", rust = "Ms100", python = "MS_100" },
+    { wire = "500ms", rust = "Ms500", python = "MS_500" },
+    { wire = "1s", rust = "S1", python = "S_1" },
+    { wire = "5s", rust = "S5", python = "S_5" },
+    { wire = "10s", rust = "S10", python = "S_10" },
+    { wire = "15s", rust = "S15", python = "S_15" },
+    { wire = "30s", rust = "S30", python = "S_30" },
+    { wire = "1m", rust = "M1", python = "M_1" },
+    { wire = "5m", rust = "M5", python = "M_5" },
+    { wire = "10m", rust = "M10", python = "M_10" },
+    { wire = "15m", rust = "M15", python = "M_15" },
+    { wire = "30m", rust = "M30", python = "M_30" },
+    { wire = "1h", rust = "H1", python = "H_1" },
+]
+
+[[enums]]
+name = "RateType"
+rust_name = "RateType"
+variants = [
+    { wire = "sofr", rust = "Sofr", python = "SOFR" },
+    { wire = "treasury_m1", rust = "TreasuryM1", python = "TREASURY_M1" },
+    { wire = "treasury_m3", rust = "TreasuryM3", python = "TREASURY_M3" },
+    { wire = "treasury_m6", rust = "TreasuryM6", python = "TREASURY_M6" },
+    { wire = "treasury_y1", rust = "TreasuryY1", python = "TREASURY_Y1" },
+    { wire = "treasury_y2", rust = "TreasuryY2", python = "TREASURY_Y2" },
+    { wire = "treasury_y3", rust = "TreasuryY3", python = "TREASURY_Y3" },
+    { wire = "treasury_y5", rust = "TreasuryY5", python = "TREASURY_Y5" },
+    { wire = "treasury_y7", rust = "TreasuryY7", python = "TREASURY_Y7" },
+    { wire = "treasury_y10", rust = "TreasuryY10", python = "TREASURY_Y10" },
+    { wire = "treasury_y20", rust = "TreasuryY20", python = "TREASURY_Y20" },
+    { wire = "treasury_y30", rust = "TreasuryY30", python = "TREASURY_Y30" },
+]
+
+[[enums]]
+name = "RequestType"
+rust_name = "RequestType"
+variants = [
+    { wire = "trade", rust = "Trade", python = "TRADE" },
+    { wire = "quote", rust = "Quote", python = "QUOTE" },
+    { wire = "eod", rust = "Eod", python = "EOD" },
+    { wire = "ohlc", rust = "Ohlc", python = "OHLC" },
+]
+
+[[enums]]
+name = "Version"
+rust_name = "Version"
+variants = [
+    { wire = "latest", rust = "Latest", python = "LATEST" },
+    { wire = "1", rust = "V1", python = "V1" },
+]
+
 # Global request-level options attached to every endpoint via
 # `TdxEndpointRequestOptions` (FFI) / `EndpointOption` (Go) /
 # `with_timeout_ms` (Rust/Python/C++). These are NOT per-endpoint
@@ -27,8 +101,9 @@ type = "u64"
 
 [[param_groups.request_type.params]]
 name = "request_type"
-description = "Request type: EOD, TRADE, QUOTE, OHLC, etc."
+description = "Request type."
 param_type = "RequestType"
+enum = "RequestType"
 required = true
 binding = "method"
 
@@ -74,8 +149,9 @@ default = "*"
 
 [[param_groups.right_param.params]]
 name = "right"
-description = "Option side. Accepts `call`, `put`, or `both`."
+description = "Option side."
 param_type = "Right"
+enum = "Right"
 required = false
 binding = "builder"
 default = "both"
@@ -107,8 +183,9 @@ binding = "method"
 
 [[param_groups.interval.params]]
 name = "interval"
-description = "Accepts milliseconds (60000) or shorthand (1m). Presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h. Defaults to `1s` when omitted — matching the upstream ThetaData Python library."
+description = "Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library."
 param_type = "Interval"
+enum = "Interval"
 required = false
 binding = "builder"
 default = "1s"
@@ -145,8 +222,9 @@ use = "end_time_filter"
 
 [[param_groups.stock_venue_filter.params]]
 name = "venue"
-description = "Venue/exchange filter. Accepts `nqb` (Nasdaq Basic) or `utp_cta` (UTP & CTA)."
-param_type = "Str"
+description = "Venue/exchange filter."
+param_type = "Venue"
+enum = "Venue"
 required = false
 binding = "builder"
 default = "nqb"
@@ -262,8 +340,9 @@ binding = "builder"
 
 [[param_groups.rate_type_input.params]]
 name = "rate_type"
-description = "Risk-free-rate source used in the Greeks calculation. Accepts `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."
-param_type = "Str"
+description = "Risk-free-rate source used in the Greeks calculation."
+param_type = "RateType"
+enum = "RateType"
 required = false
 binding = "builder"
 default = "sofr"
@@ -301,8 +380,9 @@ binding = "builder"
 
 [[param_groups.version_input.params]]
 name = "version"
-description = "Greeks model version. Accepts `latest` (newest DG3-family revision) or `1` (pinned original)."
-param_type = "Str"
+description = "Greeks model version."
+param_type = "Version"
+enum = "Version"
 required = false
 binding = "builder"
 default = "latest"

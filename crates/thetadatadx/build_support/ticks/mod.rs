@@ -38,6 +38,7 @@ use std::path::Path;
 use schema::Schema;
 
 mod cli_headers;
+mod cpp;
 mod go;
 mod parser;
 mod python_arrow;
@@ -115,6 +116,18 @@ fn render_sdk_generated_files(
         GeneratedSourceFile {
             relative_path: "sdks/go/tick_converters.go",
             contents: go::render_go_tick_converters(&schema),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/go/tick_ffi_sizes_generated.go",
+            contents: go::render_go_tick_ffi_sizes(&schema),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/go/ffi_layout_generated_test.go",
+            contents: go::render_go_tick_ffi_layout_tests(&schema),
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/cpp/include/tick_layout_asserts.hpp.inc",
+            contents: cpp::render_cpp_tick_layout_asserts(),
         },
         GeneratedSourceFile {
             relative_path: "sdks/go/tick_structs.go",
