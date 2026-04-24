@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.15] - 2026-04-24
+
+### Fixed
+
+- Linux wheel tag moved from `manylinux_2_38` to `manylinux_2_17` so
+  the published `thetadatadx-*-manylinux_2_17_x86_64.whl` installs on
+  every glibc 2.17+ runtime (CentOS 7 / RHEL 7+ / Ubuntu 18.04+ /
+  Debian 10+ / Google Colab / Databricks). The v8.0.14 wheel was
+  built on `ubuntu-latest` (now Ubuntu 24.04 / glibc 2.38), which
+  silently gated every older environment — `pip install thetadatadx`
+  would fall through to the sdist and fail the source build because
+  Rust is not available on most hosted Python runtimes.
+
+### Changed
+
+- `.github/workflows/python.yml` Linux wheel step now uses
+  `PyO3/maturin-action@v1` with `manylinux: '2014'` (glibc 2.17
+  toolchain inside a Docker container). macOS and Windows continue
+  to build natively on their matrix runners.
+
 ## [8.0.14] - 2026-04-23
 
 ### Fixed

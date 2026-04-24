@@ -55,7 +55,22 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings -A clippy::too_many_arguments
       - shell: bash
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
-      - name: Build wheel
+      # Linux wheel uses the manylinux2014 (glibc 2.17) Docker toolchain so
+      # the published wheel is installable on every supported platform —
+      # Ubuntu 22.04 / RHEL 8 / Google Colab / Databricks / CentOS 7 all
+      # pin glibc at or below 2.34. Building on `ubuntu-latest` directly
+      # tags the wheel with the host glibc floor (currently 2.38), which
+      # silently breaks every older runtime.
+      - name: Build wheel (Linux, manylinux2014)
+        if: matrix.os == 'ubuntu-latest'
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release -m sdks/python/Cargo.toml -o dist/ --interpreter python
+          manylinux: '2014'
+          target: x86_64
+      - name: Build wheel (macOS / Windows)
+        if: matrix.os != 'ubuntu-latest'
         shell: bash
         run: python -m maturin build --release -m sdks/python/Cargo.toml -o dist/ --interpreter python
       - name: Install wheel
