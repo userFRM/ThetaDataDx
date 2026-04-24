@@ -98,7 +98,7 @@ disruptor = "4.0.0"
 # No lazy, no I/O, no parquet, no SQL, no compute kernels. `default-features = false`
 # avoids pulling the polars-plan / polars-sql / polars-parquet graph into dependents
 # that only want row-to-frame materialization.
-polars = { version = "0.46", optional = true, default-features = false }
+polars = { version = "0.52", optional = true, default-features = false }
 # arrow-array + arrow-schema cover RecordBatch construction and the
 # `Int32Array` / `Int64Array` / `Float64Array` / `StringArray` primitives
 # the generator emits. Pulling the full `arrow` umbrella crate would also
