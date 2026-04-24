@@ -65,8 +65,14 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: PyO3/maturin-action@v1
         with:
+          # `--interpreter python3.9` targets the abi3 floor declared in
+          # `sdks/python/Cargo.toml` (pyo3/abi3-py39). The default
+          # `python` binary inside the manylinux2014 Docker image is
+          # Python 2.7, which lacks `sys.implementation` and breaks
+          # maturin's interpreter probe; `python3.9` resolves cleanly
+          # inside the image.
           command: build
-          args: --release -m sdks/python/Cargo.toml -o dist/ --interpreter python
+          args: --release -m sdks/python/Cargo.toml -o dist/ --interpreter python3.9
           manylinux: '2014'
           target: x86_64
       - name: Build wheel (macOS / Windows)
