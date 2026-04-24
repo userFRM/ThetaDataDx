@@ -75,6 +75,17 @@ jobs:
           args: --release -m sdks/python/Cargo.toml -o dist/ --interpreter python3.9
           manylinux: '2014'
           target: x86_64
+          # The manylinux2014 CentOS 7 image ships no `protoc`, which
+          # `tonic-prost-build` needs to compile `proto/mdds.proto`.
+          # Install a pinned prebuilt binary before maturin starts.
+          before-script-linux: |
+            set -euo pipefail
+            PROTOC_VERSION=29.3
+            curl -fsSL -o /tmp/protoc.zip \
+              "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+            unzip -q /tmp/protoc.zip -d /usr/local
+            chmod 0755 /usr/local/bin/protoc
+            protoc --version
       - name: Build wheel (macOS / Windows)
         if: matrix.os != 'ubuntu-latest'
         shell: bash
