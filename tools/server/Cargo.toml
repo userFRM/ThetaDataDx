@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-server"
-version = "8.0.14"
+version = "8.0.15"
 edition = "2021"
 rust-version = "1.85"
 authors = ["userFRM"]
