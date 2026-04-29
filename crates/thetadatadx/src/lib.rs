@@ -154,3 +154,14 @@ pub use tdbe::types::tick::{
     CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
     OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
 };
+
+// Enums + the `Price` wrapper appear on SDK method signatures and inside
+// every tick struct, so consumers naming method parameters or unpacking
+// tick fields need them in scope. Re-exported here for the same single-
+// dep reason as the tick types above. `tdbe::Error` is intentionally
+// NOT re-exported to avoid colliding with [`crate::Error`]; the SDK's
+// own `Error` transparently wraps codec failures from `tdbe`.
+pub use tdbe::types::enums::{
+    DataType, Interval, RateType, RequestType, Right, SecType, Venue, Version,
+};
+pub use tdbe::types::price::Price;
