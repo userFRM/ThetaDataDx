@@ -138,3 +138,19 @@ pub use unified::{ConnectionStatus, SubscriptionInfo, ThetaDataDx};
 // path. See [`tdbe::greeks`] for the full surface (per-Greek helpers,
 // `GreeksResult` struct, etc.).
 pub use tdbe::greeks::{all_greeks, implied_volatility, GreeksResult};
+
+// Re-export every tick / row type returned by the SDK's network methods.
+// These all live in `tdbe::types::tick`, but consumers of the high-level
+// `ThetaDataDx` / `MddsClient` surface should not need a second crate in
+// their `Cargo.toml` just to name a return type. `tdbe` remains a
+// standalone crate for offline use cases (Greeks math, format primitives,
+// no network); customers consuming the SDK get every type they need
+// at the `thetadatadx` crate root, fronting the same structs.
+//
+// Adding a new tick type? Mirror the addition here so `thetadatadx`
+// consumers stay on a single dep. The companion items above
+// (`ParsedRight`, `GreeksResult`, …) follow the same policy.
+pub use tdbe::types::tick::{
+    CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
+    OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
+};
