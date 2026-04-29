@@ -25,9 +25,11 @@
 //! | CREDENTIALS + VERSION login  | working (verified live 2026-04-29)  |
 //! | FLAT_FILE request            | working (verified live 2026-04-29)  |
 //! | Chunked response accumulator | working — writes raw stream to disk |
-//! | INDEX walker                 | not yet implemented                 |
-//! | FIT per-contract decoder     | not yet implemented                 |
-//! | CSV writer (vendor-format)   | not yet implemented                 |
+//! | INDEX walker                 | working (`index` submodule)         |
+//! | FIT per-contract decoder     | working (`decode` submodule)        |
+//! | CSV writer (vendor-format)   | working (`writer::CsvSink`)         |
+//! | Parquet writer (zstd, Arrow) | working (`writer::ParquetSink`)     |
+//! | JSONL writer                 | working (`writer::JsonlSink`)       |
 //!
 //! The completed layers are exercised end-to-end by [`flatfile_request_raw`],
 //! which authenticates, sends a single FLAT_FILE request, accumulates every
@@ -97,11 +99,19 @@
 //! vendor jar is **not** used: server identity is established via SPKI
 //! pinning to the production keypair (which also signs the FPSS endpoints).
 
+pub(crate) mod datatype;
+pub(crate) mod decode;
+pub(crate) mod decoded;
+pub(crate) mod format;
 pub(crate) mod framing;
+pub(crate) mod index;
 pub(crate) mod mdds_spki;
 pub(crate) mod request;
 pub(crate) mod session;
 pub(crate) mod types;
+pub(crate) mod writer;
 
+pub use decoded::{default_output_filename, flatfile_request};
+pub use format::FlatFileFormat;
 pub use request::flatfile_request_raw;
 pub use types::{FlatFilesUnavailableReason, ReqType, SecType};

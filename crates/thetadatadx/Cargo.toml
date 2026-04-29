@@ -33,8 +33,13 @@ metrics-prometheus = ["dep:metrics-exporter-prometheus"]
 # Opt-in: polars and arrow stay behind feature flags so the default dep graph
 # is unchanged. `frames` is a convenience alias pulling both in at once.
 polars = ["dep:polars"]
-arrow = ["dep:arrow-array", "dep:arrow-schema"]
+# `arrow` is now a no-op alias kept for backwards-compat: arrow-array
+# and arrow-schema are unconditionally pulled in by the FLATFILES surface.
+arrow = []
 frames = ["polars", "arrow"]
+# Opt-in gate for tests that hit live MDDS / FPSS endpoints. Default-off
+# so `cargo test` never burns a live call without the user asking for it.
+live-tests = []
 
 [dependencies]
 tdbe = { version = "0.12.0", path = "../tdbe" }
@@ -100,14 +105,22 @@ disruptor = "4.0.0"
 # that only want row-to-frame materialization.
 polars = { version = "0.46", optional = true, default-features = false }
 # arrow-array + arrow-schema cover RecordBatch construction and the
-# `Int32Array` / `Int64Array` / `Float64Array` / `StringArray` primitives
-# the generator emits. Pulling the full `arrow` umbrella crate would also
-# drag in parquet, compute kernels, and CSV / JSON readers we do not need.
-# Version pinned to 58.x — matches `sdks/python/Cargo.toml` (which depends on
-# `arrow = "58.1.0"`) so every crate in the repo sees a single major-version
-# of the arrow family at link time.
-arrow-array = { version = "58.1.0", optional = true }
-arrow-schema = { version = "58.1.0", optional = true }
+# `Int32Array` / `Int64Array` / `Float64Array` / `StringArray` primitives.
+# Originally feature-gated under `arrow`/`frames`, now required by the
+# FLATFILES surface (third public surface — overnight whole-universe
+# vendor-format files). Parquet output goes through the `parquet` crate
+# below, which depends on these as part of its `arrow` feature.
+# Version pinned to 58.x for repo-wide single-major-version linkage.
+arrow-array = "58.1.0"
+arrow-schema = "58.1.0"
+# Parquet writer used by the FLATFILES `Format::Parquet` output. Pulls in
+# zstd compression + arrow integration. The crate is small relative to
+# the wider arrow ecosystem and is the only viable Rust Parquet writer
+# with a streaming `RecordBatch` API.
+parquet = { version = "58.1.0", default-features = false, features = ["arrow", "zstd"] }
+# JSON encoder for the FLATFILES `Format::Jsonl` output. One serde_json
+# Value per row; `to_writer` emits compact form, then we append `\n`.
+serde_json = "1.0.137"
 
 # Secret-wiping wrapper for password in `Credentials`. Zeroizes the backing
 # buffer on drop so the plaintext is not recoverable from a core dump or

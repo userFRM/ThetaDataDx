@@ -463,40 +463,56 @@ impl ThetaDataDx {
     // ---------------------------------------------------------------------
 
     /// Pull a flat-file blob for `(sec_type, req_type, date)` over the legacy
-    /// MDDS port and write it to `output_path`.
+    /// MDDS port, decode it, and write the requested `format` to disk.
     ///
-    /// In this SDK build the returned bytes are the **raw INDEX + DATA
-    /// stream**, not vendor-format CSV. Callers needing CSV today should
-    /// keep using the V3 fan-out path; a future release will transparently
-    /// decode the raw stream into CSV without changing this signature.
+    /// `format` selects the on-disk encoding:
+    /// - [`FlatFileFormat::Csv`] — vendor byte-format CSV (lowercase
+    ///   headers, comma-separated, no quoting). Byte-matches the legacy
+    ///   terminal's downloads on the same input.
+    /// - [`FlatFileFormat::Parquet`] — Apache Parquet, zstd-compressed,
+    ///   Arrow-typed columns. Streamed via `parquet::arrow::ArrowWriter`
+    ///   in 4 096-row batches.
+    /// - [`FlatFileFormat::Jsonl`] — JSON Lines, one object per row.
+    ///
+    /// If `output_path` lacks a file extension, the format's canonical
+    /// extension (`csv` / `parquet` / `jsonl`) is appended automatically.
     ///
     /// # Errors
-    /// Returns [`Error::FlatFilesUnavailable`] for auth / server rejection,
-    /// or [`Error::Io`] for local I/O issues.
+    /// Returns [`Error::FlatFilesUnavailable`] for auth / server
+    /// rejection, [`Error::Config`] for malformed wire bytes, or
+    /// [`Error::Io`] for local I/O issues.
     pub async fn flatfile_request(
         &self,
         sec_type: crate::flatfiles::SecType,
         req_type: crate::flatfiles::ReqType,
         date: &str,
         output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
-        crate::flatfiles::flatfile_request_raw(&self.creds, sec_type, req_type, date, output_path)
-            .await
+        crate::flatfiles::flatfile_request(
+            &self.creds,
+            sec_type,
+            req_type,
+            date,
+            output_path,
+            format,
+        )
+        .await
     }
 
     /// Convenience: option open-interest flat file for `date`.
-    ///
-    /// See [`Self::flatfile_request`] for output-format caveats.
     pub async fn flatfile_option_open_interest(
         &self,
         date: &str,
         output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
         self.flatfile_request(
             crate::flatfiles::SecType::Option,
             crate::flatfiles::ReqType::OpenInterest,
             date,
             output_path,
+            format,
         )
         .await
     }
@@ -506,12 +522,14 @@ impl ThetaDataDx {
         &self,
         date: &str,
         output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
         self.flatfile_request(
             crate::flatfiles::SecType::Option,
             crate::flatfiles::ReqType::TradeQuote,
             date,
             output_path,
+            format,
         )
         .await
     }
@@ -521,12 +539,14 @@ impl ThetaDataDx {
         &self,
         date: &str,
         output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
         self.flatfile_request(
             crate::flatfiles::SecType::Option,
             crate::flatfiles::ReqType::Trade,
             date,
             output_path,
+            format,
         )
         .await
     }
@@ -536,12 +556,14 @@ impl ThetaDataDx {
         &self,
         date: &str,
         output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
         self.flatfile_request(
             crate::flatfiles::SecType::Option,
             crate::flatfiles::ReqType::Quote,
             date,
             output_path,
+            format,
         )
         .await
     }
@@ -551,12 +573,14 @@ impl ThetaDataDx {
         &self,
         date: &str,
         output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
         self.flatfile_request(
             crate::flatfiles::SecType::Option,
             crate::flatfiles::ReqType::Eod,
             date,
             output_path,
+            format,
         )
         .await
     }
@@ -566,12 +590,14 @@ impl ThetaDataDx {
         &self,
         date: &str,
         output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
         self.flatfile_request(
             crate::flatfiles::SecType::Stock,
             crate::flatfiles::ReqType::TradeQuote,
             date,
             output_path,
+            format,
         )
         .await
     }
@@ -581,12 +607,14 @@ impl ThetaDataDx {
         &self,
         date: &str,
         output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
         self.flatfile_request(
             crate::flatfiles::SecType::Stock,
             crate::flatfiles::ReqType::Trade,
             date,
             output_path,
+            format,
         )
         .await
     }
@@ -596,12 +624,14 @@ impl ThetaDataDx {
         &self,
         date: &str,
         output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
         self.flatfile_request(
             crate::flatfiles::SecType::Stock,
             crate::flatfiles::ReqType::Quote,
             date,
             output_path,
+            format,
         )
         .await
     }
@@ -611,12 +641,14 @@ impl ThetaDataDx {
         &self,
         date: &str,
         output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
         self.flatfile_request(
             crate::flatfiles::SecType::Stock,
             crate::flatfiles::ReqType::Eod,
             date,
             output_path,
+            format,
         )
         .await
     }

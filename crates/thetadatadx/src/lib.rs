@@ -126,7 +126,8 @@ pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};
 pub use endpoint::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use flatfiles::{
-    flatfile_request_raw, FlatFilesUnavailableReason, ReqType as FlatFileReqType,
+    default_output_filename as flatfile_default_filename, flatfile_request, flatfile_request_raw,
+    FlatFileFormat, FlatFilesUnavailableReason, ReqType as FlatFileReqType,
     SecType as FlatFileSecType,
 };
 pub use mdds::MddsClient;
