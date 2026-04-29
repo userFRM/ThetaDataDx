@@ -115,3 +115,19 @@ pub use decoded::{default_output_filename, flatfile_request};
 pub use format::FlatFileFormat;
 pub use request::flatfile_request_raw;
 pub use types::{FlatFilesUnavailableReason, ReqType, SecType};
+
+/// Decode an already-saved raw FLATFILES blob into a typed output file.
+///
+/// Test-facing helper used by the byte-match integration suite to share
+/// one live capture across CSV / Parquet / JSONL smoke tests without
+/// hitting the wire three times. Hidden from `docs.rs`; not part of the
+/// stable public API.
+#[doc(hidden)]
+pub fn decoded_decode_to_file_for_test(
+    raw_path: &std::path::Path,
+    sec: SecType,
+    output_path: &std::path::Path,
+    format: FlatFileFormat,
+) -> Result<(), crate::error::Error> {
+    decoded::decode_to_file(raw_path, sec, output_path, format)
+}

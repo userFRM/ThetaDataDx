@@ -150,7 +150,13 @@ pub fn default_output_filename(
         ReqType::Trade => "TRADE",
         ReqType::TradeQuote => "TRADE_QUOTE",
     };
-    format!("{}-{}-{}.{}", sec.as_wire(), req_name, date, format.extension())
+    format!(
+        "{}-{}-{}.{}",
+        sec.as_wire(),
+        req_name,
+        date,
+        format.extension()
+    )
 }
 
 #[cfg(test)]

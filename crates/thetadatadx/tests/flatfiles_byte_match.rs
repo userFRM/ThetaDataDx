@@ -25,8 +25,16 @@ const REFERENCE_CSV: &str =
 const TEST_DATE: &str = "20260428";
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[cfg_attr(not(feature = "live-tests"), ignore = "live MDDS — opt in with --features live-tests")]
+#[cfg_attr(
+    not(feature = "live-tests"),
+    ignore = "live MDDS — opt in with --features live-tests"
+)]
 async fn option_open_interest_csv_byte_matches_vendor() {
+    // Install rustls' ring CryptoProvider exactly once. Tests build their
+    // own binary so the provider isn't installed yet; idempotent failure
+    // (already-installed) is fine and quietly ignored.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     let reference = PathBuf::from(REFERENCE_CSV);
     if !reference.exists() {
         eprintln!(
@@ -45,19 +53,34 @@ async fn option_open_interest_csv_byte_matches_vendor() {
         let _ = std::fs::remove_file(&out);
     }
 
-    let path = thetadatadx::flatfile_request(
+    // Pull once via raw, then decode the same blob into all three
+    // formats. Server respect: a single live FLAT_FILE call covers the
+    // CSV byte-match plus the Parquet / JSONL row-count smoke tests.
+    let raw = out_dir.join("OPTION-OPEN_INTEREST-20260428.bin");
+    if raw.exists() {
+        let _ = std::fs::remove_file(&raw);
+    }
+    let raw_path = thetadatadx::flatfile_request_raw(
         &creds,
         SecType::Option,
         ReqType::OpenInterest,
         TEST_DATE,
-        &out,
-        FlatFileFormat::Csv,
+        &raw,
     )
     .await
-    .expect("flatfile_request must succeed against live MDDS");
-    assert_eq!(path, out);
+    .expect("raw flatfile pull must succeed");
+    assert_eq!(raw_path, raw);
 
-    let ours = std::fs::read(&out).expect("read SDK CSV");
+    // Decode CSV from the saved blob.
+    let csv_path = out;
+    thetadatadx::flatfiles::decoded_decode_to_file_for_test(
+        &raw,
+        SecType::Option,
+        &csv_path,
+        FlatFileFormat::Csv,
+    )
+    .expect("CSV decode");
+    let ours = std::fs::read(&csv_path).expect("read SDK CSV");
     let theirs = std::fs::read(&reference).expect("read vendor CSV");
     assert_eq!(
         ours.len(),
@@ -67,4 +90,53 @@ async fn option_open_interest_csv_byte_matches_vendor() {
         theirs.len()
     );
     assert_eq!(ours, theirs, "CSV content does not byte-match vendor");
+
+    // Smoke-test Parquet + JSONL on the same blob; assert row counts
+    // equal CSV rows minus the header.
+    let csv_rows = ours.iter().filter(|&&b| b == b'\n').count() - 1;
+
+    let jsonl_path = out_dir.join("OPTION-OPEN_INTEREST-20260428.jsonl");
+    thetadatadx::flatfiles::decoded_decode_to_file_for_test(
+        &raw,
+        SecType::Option,
+        &jsonl_path,
+        FlatFileFormat::Jsonl,
+    )
+    .expect("JSONL decode");
+    let jsonl_bytes = std::fs::read(&jsonl_path).expect("read jsonl");
+    let jsonl_rows = jsonl_bytes.iter().filter(|&&b| b == b'\n').count();
+    assert_eq!(
+        jsonl_rows, csv_rows,
+        "JSONL row count {jsonl_rows} != CSV row count {csv_rows}"
+    );
+
+    let parquet_path = out_dir.join("OPTION-OPEN_INTEREST-20260428.parquet");
+    thetadatadx::flatfiles::decoded_decode_to_file_for_test(
+        &raw,
+        SecType::Option,
+        &parquet_path,
+        FlatFileFormat::Parquet,
+    )
+    .expect("Parquet decode");
+    // Read Parquet metadata to confirm the row count.
+    use parquet::file::reader::{FileReader, SerializedFileReader};
+    let pq_file = std::fs::File::open(&parquet_path).expect("open parquet");
+    let reader = SerializedFileReader::new(pq_file).expect("parquet reader");
+    let pq_rows: i64 = reader.metadata().file_metadata().num_rows();
+    assert_eq!(
+        pq_rows as usize, csv_rows,
+        "Parquet row count {pq_rows} != CSV row count {csv_rows}"
+    );
+
+    eprintln!(
+        "byte-match OK: {csv_rows} rows, csv={} bytes, jsonl={} bytes, parquet={} bytes",
+        ours.len(),
+        jsonl_bytes.len(),
+        std::fs::metadata(&parquet_path)
+            .map(|m| m.len())
+            .unwrap_or(0),
+    );
+
+    // Cleanup raw blob — it's large.
+    let _ = std::fs::remove_file(&raw);
 }
