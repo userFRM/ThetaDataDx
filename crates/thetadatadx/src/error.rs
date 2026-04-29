@@ -113,6 +113,16 @@ pub enum Error {
         /// Configured budget in milliseconds.
         duration_ms: u64,
     },
+
+    /// FLATFILES surface could not deliver vendor-format CSV.
+    ///
+    /// Returned by [`crate::ThetaDataDx::flatfile_request`] and the
+    /// per-data-type convenience methods. Carries a structured
+    /// [`crate::FlatFilesUnavailableReason`] so the caller can decide
+    /// whether to retry, fall back to the V3 fan-out path, or surface the
+    /// underlying server error to the user.
+    #[error("FLATFILES unavailable: {0}")]
+    FlatFilesUnavailable(crate::flatfiles::FlatFilesUnavailableReason),
 }
 
 impl From<tdbe::error::Error> for Error {
