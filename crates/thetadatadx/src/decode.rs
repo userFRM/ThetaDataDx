@@ -1475,31 +1475,20 @@ mod tests {
         );
     }
 
-    /// `2^53 + 1` is the first integer that f64 cannot represent exactly.
-    /// The previous `f64`-hop decoder rounded it to `2^53`. The i64-native
-    /// path must round-trip the value bit-exact.
+    /// Lock the i64-native scaling against a representative `Price` cell
+    /// well past `2^53`. (Within the actual `Price` encoding domain —
+    /// `i32` value × `10^[0..9]` — every reachable product happens to be
+    /// f64-exact, so this test does not by itself reproduce the prior
+    /// f64-hop bug. The actual silent-loss path is the overflow case
+    /// covered by [`row_number_i64_price_overflowing_i64_returns_error`];
+    /// this test pins the bit-exact i64-native behaviour for the
+    /// large-but-fitting case so a future regression to a lossy hop is
+    /// at least detectable on the value channel.)
     #[test]
-    fn row_number_i64_price_cell_round_trips_past_2_pow_53() {
-        // 2^53 + 1 fits i32? No — 2^53 ~ 9e15, well past i32::MAX. But we
-        // can still construct a `Price` whose evaluated value is 2^53 + 1
-        // via the (value, type) factoring: 2^53 + 1 has no factor of 10,
-        // so price_type must be 10 (no scaling) and the i32 `value` must
-        // hold the full integer — which it cannot for 2^53 + 1.
-        //
-        // Instead, prove the routing via a simpler bit-exact landmark
-        // that the f64 hop *would* have collapsed: choose
-        //   value = 1_073_741_823 (just under i32::MAX),
-        //   type  = 17 (exp = 7),
-        // so the result is 1_073_741_823 * 10^7 = 10_737_418_230_000_000,
-        // which is greater than 2^53 (= 9_007_199_254_740_992) and is
-        // *not* exactly representable in f64. The i64-native path returns
-        // it bit-exact.
+    fn row_number_i64_price_cell_returns_bit_exact_i64() {
         let row = row_of(vec![dv_price(1_073_741_823, 17)]);
         let got = row_number_i64(&row, 0).unwrap().expect("Some");
         assert_eq!(got, 10_737_418_230_000_000_i64);
-        // Sanity: the previous f64-hop result would not match this exact
-        // value for at least some inputs past 2^53. Confirm here that the
-        // bit-exact landmark survives.
         assert!(got > (1_i64 << 53));
     }
 

@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-server"
-version = "8.1.0"
+version = "8.0.21"
 edition = "2021"
 rust-version = "1.85"
 authors = ["userFRM"]
@@ -21,7 +21,7 @@ path = "src/main.rs"
 [dependencies]
 thetadatadx = { path = "../../crates/thetadatadx", features = ["config-file"] }
 rustls = { version = "0.23.38", features = ["ring"] }
-tdbe = { version = "0.13.0", path = "../../crates/tdbe" }
+tdbe = { version = "0.12.2", path = "../../crates/tdbe" }
 axum = { version = "0.8.9", features = ["ws"] }
 tokio = { version = "1.52.1", features = ["full"] }
 sonic-rs = "0.5.8"

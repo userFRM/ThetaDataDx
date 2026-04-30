@@ -490,7 +490,7 @@ pub struct GreeksResult {
     pub lambda: f64,
 }
 
-/// Compute all 22 Greeks at once with maximally shared intermediates.
+/// Compute all 23 Greeks at once with maximally shared intermediates.
 ///
 /// Precomputes `d1`, `d2`, and all shared sub-expressions (exponentials,
 /// CDF values, products) once, then evaluates Greeks in dependency tiers:

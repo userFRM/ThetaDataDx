@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-ffi"
-version = "8.1.0"
+version = "8.0.21"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -31,7 +31,7 @@ testing-panic-boundary = []
 
 [dependencies]
 thetadatadx = { path = "../crates/thetadatadx" }
-tdbe = { version = "0.13.0", path = "../crates/tdbe" }
+tdbe = { version = "0.12.2", path = "../crates/tdbe" }
 tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
 # Used by the FPSS streaming callback silent-drop observability path
 # (see `tdx_fpss_dropped_events` / `tdx_unified_dropped_events`). Keep

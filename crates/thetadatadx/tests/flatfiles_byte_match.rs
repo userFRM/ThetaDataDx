@@ -26,18 +26,39 @@ const DEFAULT_REFERENCE_CSV: &str = "OPTION-OPEN_INTEREST-20260428.csv";
 const DEFAULT_REFERENCE_EOD_CSV: &str = "OPTION-EOD-20260428.csv";
 const TEST_DATE: &str = "20260428";
 
-fn reference_csv_path() -> PathBuf {
-    if let Ok(p) = std::env::var("THETADATADX_REFERENCE_CSV") {
-        return PathBuf::from(p);
-    }
-    PathBuf::from(DEFAULT_REFERENCE_CSV)
+/// Resolved reference path plus a flag telling the test whether the
+/// caller explicitly set the env var. When the env var is set but the
+/// file is missing, the test must FAIL — silently skipping would let
+/// CI report a green check while validating nothing.
+struct ReferencePath {
+    path: PathBuf,
+    explicit: bool,
 }
 
-fn reference_eod_csv_path() -> PathBuf {
-    if let Ok(p) = std::env::var("THETADATADX_REFERENCE_EOD_CSV") {
-        return PathBuf::from(p);
+fn reference_csv_path() -> ReferencePath {
+    if let Ok(p) = std::env::var("THETADATADX_REFERENCE_CSV") {
+        return ReferencePath {
+            path: PathBuf::from(p),
+            explicit: true,
+        };
     }
-    PathBuf::from(DEFAULT_REFERENCE_EOD_CSV)
+    ReferencePath {
+        path: PathBuf::from(DEFAULT_REFERENCE_CSV),
+        explicit: false,
+    }
+}
+
+fn reference_eod_csv_path() -> ReferencePath {
+    if let Ok(p) = std::env::var("THETADATADX_REFERENCE_EOD_CSV") {
+        return ReferencePath {
+            path: PathBuf::from(p),
+            explicit: true,
+        };
+    }
+    ReferencePath {
+        path: PathBuf::from(DEFAULT_REFERENCE_EOD_CSV),
+        explicit: false,
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -52,10 +73,19 @@ async fn option_open_interest_csv_byte_matches_vendor() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let reference = reference_csv_path();
-    if !reference.exists() {
+    if !reference.path.exists() {
+        if reference.explicit {
+            panic!(
+                "THETADATADX_REFERENCE_CSV={} is set but the file is missing. \
+                 Provision the vendor reference CSV at that path or unset the \
+                 env var so the test skips silently.",
+                reference.path.display()
+            );
+        }
         eprintln!(
-            "reference vendor CSV not present at {} — skipping byte-match test",
-            reference.display()
+            "reference vendor CSV not present at {} — skipping byte-match test \
+             (set THETADATADX_REFERENCE_CSV to provision)",
+            reference.path.display()
         );
         return;
     }
@@ -97,7 +127,7 @@ async fn option_open_interest_csv_byte_matches_vendor() {
     )
     .expect("CSV decode");
     let ours = std::fs::read(&csv_path).expect("read SDK CSV");
-    let theirs = std::fs::read(&reference).expect("read vendor CSV");
+    let theirs = std::fs::read(&reference.path).expect("read vendor CSV");
     assert_eq!(
         ours.len(),
         theirs.len(),
@@ -163,10 +193,19 @@ async fn option_eod_csv_byte_matches_vendor() {
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let reference = reference_eod_csv_path();
-    if !reference.exists() {
+    if !reference.path.exists() {
+        if reference.explicit {
+            panic!(
+                "THETADATADX_REFERENCE_EOD_CSV={} is set but the file is missing. \
+                 Provision the vendor reference EOD CSV at that path or unset \
+                 the env var so the test skips silently.",
+                reference.path.display()
+            );
+        }
         eprintln!(
-            "reference vendor EOD CSV not present at {} — skipping byte-match test",
-            reference.display()
+            "reference vendor EOD CSV not present at {} — skipping byte-match test \
+             (set THETADATADX_REFERENCE_EOD_CSV to provision)",
+            reference.path.display()
         );
         return;
     }
@@ -203,7 +242,7 @@ async fn option_eod_csv_byte_matches_vendor() {
     )
     .expect("CSV decode");
     let ours = std::fs::read(&csv_path).expect("read SDK CSV");
-    let theirs = std::fs::read(&reference).expect("read vendor CSV");
+    let theirs = std::fs::read(&reference.path).expect("read vendor CSV");
     assert_eq!(
         ours.len(),
         theirs.len(),

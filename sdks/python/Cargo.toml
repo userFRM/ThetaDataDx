@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-py"
-version = "8.1.0"
+version = "8.0.21"
 edition = "2021"
 description = "Python bindings for thetadatadx — native ThetaData SDK powered by Rust"
 license = "Apache-2.0"
@@ -19,7 +19,7 @@ doc = false
 [dependencies]
 # The Rust SDK we're wrapping
 thetadatadx = { path = "../../crates/thetadatadx" }
-tdbe = { version = "0.13.0", path = "../../crates/tdbe" }
+tdbe = { version = "0.12.2", path = "../../crates/tdbe" }
 
 # Direct prost dep for decoding `thetadatadx::proto::ResponseData` bytes in
 # the `decode_response_bytes` hook. The main crate no longer re-exports
