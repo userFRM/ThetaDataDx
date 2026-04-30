@@ -44,6 +44,10 @@ impl FlatFileRow {
     /// Build a row from the decoded data slice plus the schema. Callers
     /// at the decode layer use this to avoid open-coding the column
     /// projection in two places.
+    ///
+    /// `price_type` carries the row's PRICE_TYPE column value (vendor
+    /// `Price.price_type`). `None` means the schema has no PRICE_TYPE
+    /// column, so price-bearing values are emitted as raw integers.
     pub(crate) fn from_decoded(
         root: &str,
         expiration: Option<i32>,
@@ -52,15 +56,19 @@ impl FlatFileRow {
         fmt: &[DataType],
         data: &[i32],
         data_idx: &[usize],
-        divisor: Option<f64>,
+        price_type: Option<i32>,
     ) -> Self {
         let mut fields = Vec::with_capacity(data_idx.len());
         for &i in data_idx {
             let val = data.get(i).copied().unwrap_or(0);
             let dt = fmt[i];
             let cell = if dt.is_price() {
-                let d = divisor.unwrap_or(1.0);
-                FlatFileValue::Price((val as f64) / d)
+                match price_type {
+                    Some(pt) => {
+                        FlatFileValue::Price(crate::flatfiles::writer::decode_price(val, pt))
+                    }
+                    None => FlatFileValue::Int(val),
+                }
             } else {
                 FlatFileValue::Int(val)
             };

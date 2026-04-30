@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.20] - 2026-04-30
+
+### Fixed
+
+- **FLATFILES price decoding was off by powers of ten across every output
+  format.** The CSV / JSONL writers and the typed in-memory `FlatFileRow`
+  return path were dividing the wire integer by `10^N` where N was read
+  directly from the row's `PRICE_TYPE` column. The vendor convention is
+  `real_price = value * 10^(price_type - 10)` (see
+  [`tdbe::types::price::Price`]), so for `price_type = 8` (cents) the
+  correct factor is `0.01` (i.e. `value / 10^2`), not `value / 10^8` —
+  off by **10^6**. Effect: option `bid` / `ask` / `price` columns came
+  out near-zero (e.g. `1.9e-6` instead of `1.90`), and the CSV
+  `{:.4}`-formatted output rounded those to `0.0000`. Every consumer of
+  the flat-file pipeline was affected.
+- The CSV price formatter no longer hardcodes 4 fractional digits.
+  Rust's default `f64` Display now preserves the full IEEE-754
+  precision the wire decoder produced, so micro-priced contracts
+  survive the on-disk round-trip.
+
+### Changed
+
+- `flatfiles::writer::price_divisor` (private API) replaced with
+  `price_type_for_row` + `decode_price`. Both new helpers route price
+  decoding through `tdbe::types::price::Price::to_f64()`, which is the
+  authoritative implementation of the ThetaData price convention.
+- The `OPTION/OPEN_INTEREST` byte-match integration test still passes —
+  open-interest rows have no price columns, so the test never exercised
+  the broken formatter. A new unit test
+  (`decode_price_uses_vendor_semantics`) locks the corrected
+  behaviour, and `fmt_price_preserves_full_precision` asserts that
+  micro-priced rows do not round to zero.
+
 ## [8.0.19] - 2026-04-30
 
 ### Changed
