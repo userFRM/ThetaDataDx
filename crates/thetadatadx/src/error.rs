@@ -114,13 +114,18 @@ pub enum Error {
         duration_ms: u64,
     },
 
-    /// FLATFILES surface could not deliver vendor-format CSV.
+    /// FLATFILES request, stream, or decode failed for the requested
+    /// flat-file format.
     ///
     /// Returned by [`crate::ThetaDataDx::flatfile_request`] and the
-    /// per-data-type convenience methods. Carries a structured
-    /// [`crate::FlatFilesUnavailableReason`] so the caller can decide
-    /// whether to retry, fall back to the V3 fan-out path, or surface the
-    /// underlying server error to the user.
+    /// per-data-type convenience methods when the FLATFILES surface is
+    /// unavailable or cannot complete the request. This may reflect
+    /// authentication rejection, request rejection, stream interruption
+    /// or truncation, or decode failure for any supported
+    /// [`crate::flatfiles::FlatFileFormat`] (CSV, Parquet, or JSONL).
+    /// Carries a structured [`crate::flatfiles::FlatFilesUnavailableReason`]
+    /// so the caller can decide whether to retry, fall back, or surface
+    /// the underlying server error to the user.
     #[error("FLATFILES unavailable: {0}")]
     FlatFilesUnavailable(crate::flatfiles::FlatFilesUnavailableReason),
 }

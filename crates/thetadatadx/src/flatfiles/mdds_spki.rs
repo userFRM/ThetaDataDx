@@ -36,14 +36,20 @@ pub(crate) struct MddsSpkiVerifier {
 
 impl MddsSpkiVerifier {
     pub(crate) fn new() -> Arc<Self> {
-        // Install the ring provider on first use so callers don't have to
-        // remember to do it themselves. Subsequent installs are a no-op.
-        let _ = rustls::crypto::ring::default_provider().install_default();
-        let provider = rustls::crypto::CryptoProvider::get_default()
-            .expect("rustls ring provider just installed");
-        Arc::new(Self {
-            algs: provider.signature_verification_algorithms,
-        })
+        // If another component already installed a provider (FPSS does the
+        // same dance on its TLS path), reuse its signature algorithms.
+        // Otherwise fall back to ring and install it as the process
+        // default — racing with a concurrent installer is fine, since the
+        // local `algs` is captured before the install attempt.
+        let algs = if let Some(provider) = rustls::crypto::CryptoProvider::get_default() {
+            provider.signature_verification_algorithms
+        } else {
+            let provider = rustls::crypto::ring::default_provider();
+            let algs = provider.signature_verification_algorithms;
+            let _ = provider.install_default();
+            algs
+        };
+        Arc::new(Self { algs })
     }
 }
 

@@ -31,14 +31,15 @@
 //! | Parquet writer (zstd, Arrow) | working (`writer::ParquetSink`)     |
 //! | JSONL writer                 | working (`writer::JsonlSink`)       |
 //!
-//! The completed layers are exercised end-to-end by [`flatfile_request_raw`],
-//! which authenticates, sends a single FLAT_FILE request, accumulates every
-//! response chunk to a local scratch file, and returns its path on
-//! `FLAT_FILE_END`. The remaining layers (INDEX walker, FIT decoder, CSV
-//! writer) are the next phase of work; until they land,
+//! The low-level raw-stream path is exercised end-to-end by
+//! [`flatfile_request_raw`], which authenticates, sends a single FLAT_FILE
+//! request, accumulates every response chunk to a local scratch file, and
+//! returns its path on `FLAT_FILE_END`. The decoded pipeline is also
+//! implemented:
 //! [`ThetaDataDx::flatfile_request`](crate::ThetaDataDx::flatfile_request)
-//! returns the raw stream path and the convenience methods return
-//! [`Error::FlatFilesUnavailable`] with a `RawStreamOnly` reason.
+//! walks the INDEX, decodes FIT records, and writes the requested typed
+//! output format (CSV / Parquet / JSONL). The raw capture helper remains
+//! available for debugging, fixtures, and byte-level verification.
 //!
 //! # PacketStream framing (verified live)
 //!

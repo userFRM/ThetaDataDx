@@ -66,12 +66,6 @@ pub enum FlatFilesUnavailableReason {
     /// Server replied with an `ERROR` frame to the FLAT_FILE request itself
     /// (e.g. `INVALID_PARAMS:Invalid request type`).
     RequestRejected { server_message: String },
-    /// The wire bytes were retrieved successfully, but this build of the SDK
-    /// does not yet ship the FIT decoder + per-data-type CSV writer needed
-    /// to materialize the vendor-shaped CSV. The raw INDEX+DATA blob is
-    /// available at the returned `raw_path`; a future SDK release will
-    /// transparently decode it into CSV without changing the public API.
-    RawStreamOnly { raw_path: std::path::PathBuf },
     /// Connection dropped before the response completed.
     StreamTruncated { bytes_received: u64 },
 }
@@ -85,11 +79,6 @@ impl fmt::Display for FlatFilesUnavailableReason {
             Self::RequestRejected { server_message } => {
                 write!(f, "FLAT_FILE request rejected: {server_message}")
             }
-            Self::RawStreamOnly { raw_path } => write!(
-                f,
-                "raw stream captured at {} but FIT decoder is not yet wired in this SDK build",
-                raw_path.display()
-            ),
             Self::StreamTruncated { bytes_received } => {
                 write!(f, "stream truncated after {bytes_received} bytes")
             }

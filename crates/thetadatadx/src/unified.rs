@@ -458,8 +458,9 @@ impl ThetaDataDx {
     // protocol that supports a single FLAT_FILE request type. The server
     // pre-builds an INDEX + DATA blob per (sec_type, data_type, date)
     // tuple overnight and streams it back on demand. See
-    // [`crate::flatfiles`] for the wire-format details and the current
-    // status of the FIT decoder + CSV writer (both pending).
+    // [`crate::flatfiles`] for the wire-format details and the decode /
+    // writer implementation used by this surface, including CSV, Parquet,
+    // and JSONL output.
     // ---------------------------------------------------------------------
 
     /// Pull a flat-file blob for `(sec_type, req_type, date)` over the legacy

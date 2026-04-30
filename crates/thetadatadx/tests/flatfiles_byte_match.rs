@@ -20,9 +20,17 @@ use std::path::PathBuf;
 use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
 use thetadatadx::Credentials;
 
-const REFERENCE_CSV: &str =
-    "/home/theta-gamma/ThetaData/ThetaTerminal/downloads/OPTION-OPEN_INTEREST-20260428.csv";
+// Reference vendor CSV path. Override with THETADATADX_REFERENCE_CSV when
+// running on a different machine or vendor-jar layout.
+const DEFAULT_REFERENCE_CSV: &str = "OPTION-OPEN_INTEREST-20260428.csv";
 const TEST_DATE: &str = "20260428";
+
+fn reference_csv_path() -> PathBuf {
+    if let Ok(p) = std::env::var("THETADATADX_REFERENCE_CSV") {
+        return PathBuf::from(p);
+    }
+    PathBuf::from(DEFAULT_REFERENCE_CSV)
+}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[cfg_attr(
@@ -35,7 +43,7 @@ async fn option_open_interest_csv_byte_matches_vendor() {
     // (already-installed) is fine and quietly ignored.
     let _ = rustls::crypto::ring::default_provider().install_default();
 
-    let reference = PathBuf::from(REFERENCE_CSV);
+    let reference = reference_csv_path();
     if !reference.exists() {
         eprintln!(
             "reference vendor CSV not present at {} — skipping byte-match test",
@@ -93,7 +101,11 @@ async fn option_open_interest_csv_byte_matches_vendor() {
 
     // Smoke-test Parquet + JSONL on the same blob; assert row counts
     // equal CSV rows minus the header.
-    let csv_rows = ours.iter().filter(|&&b| b == b'\n').count() - 1;
+    let csv_rows = ours
+        .iter()
+        .filter(|&&b| b == b'\n')
+        .count()
+        .saturating_sub(1);
 
     let jsonl_path = out_dir.join("OPTION-OPEN_INTEREST-20260428.jsonl");
     thetadatadx::flatfiles::decoded_decode_to_file_for_test(

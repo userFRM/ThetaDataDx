@@ -37,9 +37,10 @@ impl FlatFileFormat {
         }
     }
 
-    /// Append `extension()` to `path` if `path` does not already end in
-    /// any recognised extension. Lets callers pass a bare base name and
-    /// still land on a correctly-named file.
+    /// Append `extension()` to `path` if `path` has no extension at all.
+    /// If `path` already carries any extension, it is preserved as-is.
+    /// Lets callers pass a bare base name and still land on a
+    /// correctly-named file.
     #[must_use]
     pub fn ensure_extension(self, path: &Path) -> PathBuf {
         match path.extension() {

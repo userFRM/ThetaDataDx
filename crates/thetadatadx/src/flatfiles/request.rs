@@ -9,11 +9,14 @@
 //! 4. Stream every chunk to a local file until FLAT_FILE_END.
 //! 5. Surface the local path back to the caller.
 //!
-//! The FIT decode + per-data-type CSV writer is **not** in this module yet
-//! (see [`crate::flatfiles`] for status). Callers that need vendor-format
-//! CSV today should keep using the V3 fan-out path; callers that want the
-//! raw binary stream (for a custom pipeline) can use this entry point
-//! directly.
+//! This module is responsible for the raw FLAT_FILE download step. The
+//! higher-level INDEX walking, FIT decoding, and per-format output
+//! (CSV / Parquet / JSONL) live under [`crate::flatfiles`] in the
+//! `index`, `decode`, `writer`, and `decoded` modules. Callers that want
+//! decoded vendor-format output should use the higher-level
+//! [`crate::ThetaDataDx::flatfile_request`] entry point; callers that
+//! want the raw binary stream for a custom pipeline can use this entry
+//! point directly.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicI64, Ordering};

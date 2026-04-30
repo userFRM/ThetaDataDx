@@ -465,7 +465,12 @@ impl RowSink for ParquetSink {
                 }
                 col += 1;
                 if let ColBuilder::Utf8(b) = &mut self.builders[col] {
-                    b.append_value(row.entry.right.unwrap_or('?').to_string());
+                    let right = match row.entry.right {
+                        Some('C') => "C",
+                        Some('P') => "P",
+                        _ => "?",
+                    };
+                    b.append_value(right);
                 }
                 col += 1;
             }
