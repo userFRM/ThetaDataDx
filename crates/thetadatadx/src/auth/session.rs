@@ -28,15 +28,26 @@
 
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 use super::{authenticate_at, Credentials};
 use crate::error::Error;
 
 /// Opaque handle to a shared, mutable session UUID.
+///
+/// `state` is held under an `RwLock` so [`SessionToken::snapshot`] /
+/// [`SessionToken::current_uuid`] never block on a concurrent
+/// [`SessionToken::refresh`] — the Nexus round-trip happens with only
+/// `refresh_lock` held, and the write lock is taken only for the brief
+/// UUID swap.
 #[derive(Clone)]
 pub struct SessionToken {
-    inner: Arc<Mutex<Inner>>,
+    state: Arc<RwLock<Inner>>,
+    /// Serializes concurrent refresh attempts so N tasks observing the
+    /// same stale version dedupe into a single Nexus round-trip. The
+    /// network call itself runs while holding *only* this mutex —
+    /// readers continue to get fresh `state` snapshots throughout.
+    refresh_lock: Arc<Mutex<()>>,
 }
 
 struct Inner {
@@ -72,19 +83,21 @@ impl SessionToken {
     #[must_use]
     pub fn new(uuid: String, nexus_url: String, creds: Credentials) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(Inner {
+            state: Arc::new(RwLock::new(Inner {
                 uuid,
                 version: 0,
                 nexus_url,
                 creds,
             })),
+            refresh_lock: Arc::new(Mutex::new(())),
         }
     }
 
     /// Return a snapshot of the current token. Cheap — acquires the
-    /// async mutex briefly, clones the UUID, and releases.
+    /// state read lock briefly, clones the UUID, and releases. Never
+    /// blocks behind a concurrent Nexus round-trip.
     pub async fn snapshot(&self) -> SessionSnapshot {
-        let guard = self.inner.lock().await;
+        let guard = self.state.read().await;
         SessionSnapshot {
             uuid: guard.uuid.clone(),
             version: guard.version,
@@ -95,9 +108,12 @@ impl SessionToken {
     /// place. If another task already refreshed past `stale.version`,
     /// skip the round-trip and return the already-refreshed snapshot.
     ///
-    /// This is the knob used by the auto-refresh retry path: on
-    /// `Unauthenticated`, the caller snapshots, asks us to refresh
-    /// past that snapshot, and retries once with the resulting UUID.
+    /// The Nexus round-trip runs with only [`Self::refresh_lock`] held;
+    /// concurrent [`Self::snapshot`] / [`Self::current_uuid`] callers
+    /// continue to read the previous (still-valid) UUID throughout,
+    /// and the write lock is taken only for the millisecond swap once
+    /// the new UUID is in hand. Two concurrent refresh attempts at the
+    /// same stale version dedupe to a single Nexus call.
     ///
     /// # Errors
     ///
@@ -107,16 +123,39 @@ impl SessionToken {
     /// itself and an infinite refresh loop is worse than a surfaced
     /// error.
     pub async fn refresh(&self, stale: &SessionSnapshot) -> Result<SessionSnapshot, Error> {
-        let mut guard = self.inner.lock().await;
-        if guard.version != stale.version {
-            // Another task refreshed past us — hand the fresh token
-            // back without a redundant Nexus round-trip.
-            return Ok(SessionSnapshot {
-                uuid: guard.uuid.clone(),
-                version: guard.version,
-            });
+        // Fast path: someone may have already refreshed past `stale`.
+        {
+            let guard = self.state.read().await;
+            if guard.version != stale.version {
+                return Ok(SessionSnapshot {
+                    uuid: guard.uuid.clone(),
+                    version: guard.version,
+                });
+            }
         }
-        let resp = authenticate_at(&guard.nexus_url, &guard.creds).await?;
+
+        // Serialize refresh attempts. Inside this critical section the
+        // state RwLock is NOT held, so snapshot()/current_uuid() readers
+        // proceed unimpeded.
+        let _refresh_guard = self.refresh_lock.lock().await;
+
+        // Re-check under the refresh lock — another task may have done
+        // the work while we waited at the gate.
+        let (nexus_url, creds) = {
+            let guard = self.state.read().await;
+            if guard.version != stale.version {
+                return Ok(SessionSnapshot {
+                    uuid: guard.uuid.clone(),
+                    version: guard.version,
+                });
+            }
+            (guard.nexus_url.clone(), guard.creds.clone())
+        };
+
+        let resp = authenticate_at(&nexus_url, &creds).await?;
+
+        // Briefly take the write lock to swap the UUID + bump the version.
+        let mut guard = self.state.write().await;
         guard.uuid = resp.session_id;
         guard.version = guard.version.wrapping_add(1);
         metrics::counter!("thetadatadx.auth.refresh").increment(1);
@@ -136,7 +175,7 @@ impl SessionToken {
     ///
     /// [`snapshot`]: Self::snapshot
     pub async fn current_uuid(&self) -> String {
-        self.inner.lock().await.uuid.clone()
+        self.state.read().await.uuid.clone()
     }
 }
 
@@ -185,7 +224,7 @@ mod tests {
         // Manually bump the version without network to emulate the
         // "another task already refreshed" race.
         {
-            let mut guard = t.inner.lock().await;
+            let mut guard = t.state.write().await;
             guard.uuid = "v1".to_string();
             guard.version = 1;
         }

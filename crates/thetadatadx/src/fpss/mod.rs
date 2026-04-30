@@ -637,10 +637,11 @@ impl FpssClient {
 
     /// Internal subscribe implementation.
     fn subscribe(&self, kind: SubscriptionKind, contract: &Contract) -> Result<(), Error> {
+        contract.validate()?;
         self.check_connected()?;
 
         let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
-        let payload = build_subscribe_payload(req_id, contract);
+        let payload = build_subscribe_payload(req_id, contract)?;
         let code = kind.subscribe_code();
 
         self.send_cmd(IoCommand::WriteFrame { code, payload })?;
@@ -665,10 +666,11 @@ impl FpssClient {
 
     /// Internal unsubscribe implementation.
     fn unsubscribe(&self, kind: SubscriptionKind, contract: &Contract) -> Result<(), Error> {
+        contract.validate()?;
         self.check_connected()?;
 
         let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
-        let payload = build_subscribe_payload(req_id, contract);
+        let payload = build_subscribe_payload(req_id, contract)?;
         let code = kind.unsubscribe_code();
 
         self.send_cmd(IoCommand::WriteFrame { code, payload })?;

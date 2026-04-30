@@ -603,7 +603,13 @@ pub(super) fn io_loop<F>(
 
         let writer = reader.get_mut();
         for (kind, contract) in &subs_snapshot {
-            let payload = protocol::build_subscribe_payload(-1, contract);
+            let payload = match protocol::build_subscribe_payload(-1, contract) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!(error = %e, contract = %contract, "skipping re-subscribe; contract no longer encodes");
+                    continue;
+                }
+            };
             let code = kind.subscribe_code();
             if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
                 tracing::warn!(error = %e, contract = %contract, "failed to re-subscribe on reconnect");

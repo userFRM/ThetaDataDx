@@ -376,19 +376,60 @@ impl Contract {
     ///
     /// Java's `fromBytes()` validates `len == size`, confirming the size byte
     /// counts itself.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] if the contract root exceeds 16 bytes,
+    /// which is the maximum length accepted by Java's `Contract.toBytes()`.
+    /// All FPSS subscribe / unsubscribe paths surface this error to the
+    /// caller; user input is never permitted to panic the encoder.
+    pub fn try_to_bytes(&self) -> Result<Vec<u8>, Error> {
+        self.validate()?;
+        Ok(self.encode_unchecked())
+    }
+
+    /// Encode the contract on the wire, asserting the root length invariant.
+    ///
+    /// Use [`Contract::try_to_bytes`] for paths that accept user input. This
+    /// helper exists so the encoder can be inlined into hot loops once the
+    /// caller has already validated the contract.
+    ///
     /// # Panics
     ///
-    /// Panics if the contract root symbol exceeds 16 bytes (the maximum
-    /// length accepted by Java's `Contract.toBytes()`).
+    /// Panics if the root exceeds 16 bytes. Callers must call
+    /// [`Contract::validate`] first or originate the contract from a
+    /// validated source.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
-        let root_bytes = self.root.as_bytes();
-        assert!(
-            root_bytes.len() <= 16,
-            "contract root too long: {} bytes (max 16 to match Java Contract.toBytes())",
-            root_bytes.len()
+        debug_assert!(
+            self.validate().is_ok(),
+            "Contract::to_bytes called with invalid root; use try_to_bytes for caller-supplied input"
         );
-        let root_len = u8::try_from(root_bytes.len()).expect("root length validated <= 16");
+        self.encode_unchecked()
+    }
+
+    /// Validate that the contract can be encoded on the FPSS wire.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] if the root is empty or longer than 16
+    /// bytes. The 16-byte limit matches Java's `Contract.toBytes()`.
+    pub fn validate(&self) -> Result<(), Error> {
+        let len = self.root.len();
+        if len == 0 {
+            return Err(Error::Config("contract root is empty".into()));
+        }
+        if len > 16 {
+            return Err(Error::Config(format!(
+                "contract root too long: {len} bytes (max 16 to match Java Contract.toBytes())"
+            )));
+        }
+        Ok(())
+    }
+
+    fn encode_unchecked(&self) -> Vec<u8> {
+        let root_bytes = self.root.as_bytes();
+        let root_len = u8::try_from(root_bytes.len()).expect("validate() bounds root_len to <= 16");
 
         let is_option = self.sec_type == SecType::Option;
 
@@ -704,13 +745,18 @@ pub fn build_credentials_payload(username: &str, password: &str) -> Vec<u8> {
 ///
 /// The message code (21=QUOTE, 22=TRADE, `23=OPEN_INTEREST`) is set by the caller
 /// in the frame header; this function only builds the payload.
-#[must_use]
-pub fn build_subscribe_payload(req_id: i32, contract: &Contract) -> Vec<u8> {
-    let contract_bytes = contract.to_bytes();
+///
+/// # Errors
+///
+/// Returns [`Error::Config`] if the contract root is empty or longer
+/// than 16 bytes, surfacing the Java-parity invariant from
+/// [`Contract::try_to_bytes`].
+pub fn build_subscribe_payload(req_id: i32, contract: &Contract) -> Result<Vec<u8>, Error> {
+    let contract_bytes = contract.try_to_bytes()?;
     let mut buf = Vec::with_capacity(4 + contract_bytes.len());
     buf.extend_from_slice(&req_id.to_be_bytes());
     buf.extend_from_slice(&contract_bytes);
-    buf
+    Ok(buf)
 }
 
 /// Build a full-type subscription payload (subscribe to all contracts of a security type).
@@ -975,7 +1021,7 @@ mod tests {
     #[test]
     fn subscribe_payload_with_stock() {
         let contract = Contract::stock("MSFT");
-        let payload = build_subscribe_payload(42, &contract);
+        let payload = build_subscribe_payload(42, &contract).expect("valid root");
         // req_id(4) + contract(1+1+4+1 = 7) = 11
         assert_eq!(payload.len(), 11);
         let req_id = i32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
@@ -983,6 +1029,26 @@ mod tests {
         // Rest is the contract bytes
         let (parsed, _) = Contract::from_bytes(&payload[4..]).unwrap();
         assert_eq!(parsed, contract);
+    }
+
+    #[test]
+    fn build_subscribe_payload_rejects_oversize_root() {
+        let contract = Contract::stock("ABCDEFGHIJKLMNOPQ"); // 17 chars
+        let err = build_subscribe_payload(1, &contract).expect_err("too-long root must error");
+        match err {
+            Error::Config(msg) => assert!(msg.contains("too long")),
+            other => panic!("expected Error::Config, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn build_subscribe_payload_rejects_empty_root() {
+        let contract = Contract::stock("");
+        let err = build_subscribe_payload(1, &contract).expect_err("empty root must error");
+        match err {
+            Error::Config(msg) => assert!(msg.contains("empty")),
+            other => panic!("expected Error::Config, got {other:?}"),
+        }
     }
 
     #[test]

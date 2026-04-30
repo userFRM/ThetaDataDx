@@ -1954,7 +1954,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.17"
+version = "8.0.18"
 dependencies = [
  "disruptor",
  "metrics",
@@ -1988,7 +1988,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-napi"
-version = "8.0.17"
+version = "8.0.18"
 dependencies = [
  "chrono",
  "napi",
