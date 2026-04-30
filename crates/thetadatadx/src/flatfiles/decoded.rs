@@ -70,9 +70,19 @@ pub(crate) fn decode_to_file(
     let hdr = parse_header(&blob)?;
 
     let index_start = hdr.index_offset as usize;
-    let index_end = index_start + hdr.index_byte_len as usize;
+    let index_byte_len = hdr.index_byte_len as usize;
+    let data_byte_len = hdr.data_byte_len as usize;
+    let index_end = index_start.checked_add(index_byte_len).ok_or_else(|| {
+        Error::Config(format!(
+            "flatfiles: header lengths overflow usize (index_offset={index_start}, index_byte_len={index_byte_len})"
+        ))
+    })?;
     let data_start = index_end;
-    let data_end = data_start + hdr.data_byte_len as usize;
+    let data_end = data_start.checked_add(data_byte_len).ok_or_else(|| {
+        Error::Config(format!(
+            "flatfiles: header lengths overflow usize (data_start={data_start}, data_byte_len={data_byte_len})"
+        ))
+    })?;
     if data_end > blob.len() {
         return Err(Error::Config(format!(
             "flatfiles: blob truncated — header expected {} bytes total, got {}",

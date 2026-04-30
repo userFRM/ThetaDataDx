@@ -127,6 +127,9 @@ pub(crate) async fn login(
                 // Older server builds emit this; treat as confirmation.
                 session_token_seen = true;
             }
+            msg::PING => {
+                // Server heartbeat during auth — ignore.
+            }
             msg::DISCONNECTED => {
                 let reason_code = if frame.payload.len() >= 2 {
                     u16::from_be_bytes([frame.payload[0], frame.payload[1]])
