@@ -49,7 +49,7 @@ prost = "=0.14.3"
 prost-types = "=0.14.3"
 
 # Async runtime
-tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync"] }
+tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync", "fs"] }
 tokio-stream = "0.1.18"
 tokio-rustls = "0.26.4"
 rustls = { version = "0.23.40", features = ["ring"] }
@@ -68,7 +68,7 @@ reqwest = { version = "0.13.3", features = ["json", "rustls"], default-features 
 
 # Serialization
 serde = { version = "1.0.228", features = ["derive"] }
-uuid = "1.23.1"
+uuid = { version = "1.23.1", features = ["v4"] }
 
 # Compression (responses use zstd)
 zstd = "0.13.3"

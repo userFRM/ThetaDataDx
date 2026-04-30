@@ -5,8 +5,8 @@
 //! layout. The codes are stable identifiers from the vendor's
 //! `net.thetadata.enums.DataType` enum (e.g. `MS_OF_DAY=1`, `OPEN_INTEREST=121`).
 //!
-//! For each code we need three pieces of information when emitting CSV,
-//! Parquet, or JSONL:
+//! For each code we need three pieces of information when emitting CSV
+//! or JSONL:
 //!
 //! - `name` — lowercase column header in the vendor's CSV (e.g. `ms_of_day`).
 //! - `is_price` — whether the integer field is divided by `10^price_type`

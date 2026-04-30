@@ -122,7 +122,7 @@ pub enum Error {
     /// unavailable or cannot complete the request. This may reflect
     /// authentication rejection, request rejection, stream interruption
     /// or truncation, or decode failure for any supported
-    /// [`crate::flatfiles::FlatFileFormat`] (CSV, Parquet, or JSONL).
+    /// [`crate::flatfiles::FlatFileFormat`] (CSV or JSONL).
     /// Carries a structured [`crate::flatfiles::FlatFilesUnavailableReason`]
     /// so the caller can decide whether to retry, fall back, or surface
     /// the underlying server error to the user.

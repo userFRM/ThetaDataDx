@@ -9,20 +9,19 @@
 //! 4. Stream every chunk to a local file until FLAT_FILE_END.
 //! 5. Surface the local path back to the caller.
 //!
-//! This module is responsible for the raw FLAT_FILE download step. The
-//! higher-level INDEX walking, FIT decoding, and per-format output
-//! (CSV / Parquet / JSONL) live under [`crate::flatfiles`] in the
-//! `index`, `decode`, `writer`, and `decoded` modules. Callers that want
-//! decoded vendor-format output should use the higher-level
-//! [`crate::ThetaDataDx::flatfile_request`] entry point; callers that
-//! want the raw binary stream for a custom pipeline can use this entry
-//! point directly.
+//! This module owns the raw FLAT_FILE download step. The higher-level
+//! INDEX walking, FIT decoding, and on-disk / in-memory output paths
+//! live in [`crate::flatfiles`] under the `index`, `decode`, `writer`,
+//! and `decoded` modules. Callers that want decoded vendor-format
+//! output use the higher-level [`crate::ThetaDataDx::flatfile_request`]
+//! entry point; callers that want the raw binary stream for a custom
+//! pipeline use this entry point directly.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicI64, Ordering};
 
-use std::fs::File;
-use std::io::Write;
+use tokio::fs::File;
+use tokio::io::{AsyncWriteExt, BufWriter};
 
 use crate::auth::Credentials;
 use crate::error::Error;
@@ -112,24 +111,15 @@ pub async fn flatfile_request_raw(
     .await?;
 
     let output_path = output_path.as_ref().to_path_buf();
-    // Directory creation + file open are filesystem syscalls; do them on
-    // the blocking pool so we don't stall sibling tokio tasks (FPSS,
-    // MDDS) on the same runtime.
-    let parent = output_path.parent().map(std::path::Path::to_path_buf);
-    let output_for_open = output_path.clone();
-    let file: File = tokio::task::spawn_blocking(move || -> Result<File, std::io::Error> {
-        if let Some(p) = parent {
-            if !p.as_os_str().is_empty() {
-                std::fs::create_dir_all(&p)?;
-            }
+    if let Some(parent) = output_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            tokio::fs::create_dir_all(parent).await?;
         }
-        File::create(&output_for_open)
-    })
-    .await
-    .map_err(|e| Error::Config(format!("flatfiles: file-open task panicked: {e}")))??;
+    }
+    let file = File::create(&output_path).await?;
     // 1 MB buffer — typical chunks are ~8-64 KB, so this batches many
-    // chunks per actual write syscall and keeps the hot loop in memory.
-    let mut out = std::io::BufWriter::with_capacity(1 << 20, file);
+    // chunks per actual write syscall.
+    let mut out = BufWriter::with_capacity(1 << 20, file);
     let mut total: u64 = 0;
     let mut chunks: u32 = 0;
     // Loop only exits normally on FLAT_FILE_END; every other terminator
@@ -164,7 +154,7 @@ pub async fn flatfile_request_raw(
         }
         match frame.msg {
             msg::FLAT_FILE => {
-                out.write_all(&frame.payload)?;
+                out.write_all(&frame.payload).await?;
                 total += frame.payload.len() as u64;
                 chunks += 1;
             }
@@ -197,7 +187,7 @@ pub async fn flatfile_request_raw(
             }
         }
     }
-    out.flush()?;
+    out.flush().await?;
     drop(out);
     tracing::info!(
         target: "flatfiles",

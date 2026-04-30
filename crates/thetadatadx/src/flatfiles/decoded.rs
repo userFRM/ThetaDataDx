@@ -166,13 +166,15 @@ pub async fn flatfile_request_decoded(
     req: ReqType,
     date: &str,
 ) -> Result<Vec<FlatFileRow>, Error> {
-    // Use a temp scratch path; deleted on the way out.
+    // Per-invocation unique scratch path. Two concurrent calls for the
+    // same `(sec, req, date)` must not share a file — they would race on
+    // truncation and produce corrupt rows.
     let scratch = std::env::temp_dir().join(format!(
         "thetadatadx-flatfiles-{}-{}-{}-{}.raw",
         sec.as_wire(),
         req_name(req),
         date,
-        std::process::id()
+        uuid::Uuid::new_v4().simple()
     ));
     flatfile_request_raw(creds, sec, req, date, &scratch).await?;
     let scratch_for_decode = scratch.clone();

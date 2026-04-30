@@ -459,8 +459,8 @@ impl ThetaDataDx {
     // pre-builds an INDEX + DATA blob per (sec_type, data_type, date)
     // tuple overnight and streams it back on demand. See
     // [`crate::flatfiles`] for the wire-format details and the decode /
-    // writer implementation used by this surface, including CSV, Parquet,
-    // and JSONL output.
+    // writer implementation used by this surface, covering CSV and
+    // JSONL output plus a typed in-memory return path.
     // ---------------------------------------------------------------------
 
     /// Pull a flat-file blob for `(sec_type, req_type, date)` over the legacy

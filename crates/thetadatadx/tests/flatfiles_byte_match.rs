@@ -8,8 +8,8 @@
 //!
 //! This is the load-bearing decoder regression: if our CSV byte-matches
 //! the vendor's output for every contract on a 1.8 M-row whole-universe
-//! day, the format-pluggable writer is verified for all three formats
-//! (Parquet / JSONL re-encode the same logical rows).
+//! day, the row-by-row decode is verified end-to-end. The JSONL sink
+//! re-encodes the same logical rows and is row-count smoke-tested.
 
 // Test gate sits on each #[test] via `cfg_attr(not(feature="live-tests"),
 // ignore)`. Without `--features live-tests`, the live-MDDS integration
@@ -61,9 +61,9 @@ async fn option_open_interest_csv_byte_matches_vendor() {
         let _ = std::fs::remove_file(&out);
     }
 
-    // Pull once via raw, then decode the same blob into all three
-    // formats. Server respect: a single live FLAT_FILE call covers the
-    // CSV byte-match plus the Parquet / JSONL row-count smoke tests.
+    // Pull once via raw, then decode the same blob into both formats.
+    // A single live FLAT_FILE call covers the CSV byte-match plus the
+    // JSONL row-count smoke test.
     let raw = out_dir.join("OPTION-OPEN_INTEREST-20260428.bin");
     if raw.exists() {
         let _ = std::fs::remove_file(&raw);
