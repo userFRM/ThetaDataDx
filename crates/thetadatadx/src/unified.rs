@@ -450,6 +450,233 @@ impl ThetaDataDx {
             options: tier(self.historical.options_tier()),
         }
     }
+
+    // ---------------------------------------------------------------------
+    // FLATFILES surface (third public surface, alongside FPSS and MDDS).
+    //
+    // The legacy MDDS port (12000) speaks a custom binary PacketStream
+    // protocol that supports a single FLAT_FILE request type. The server
+    // pre-builds an INDEX + DATA blob per (sec_type, data_type, date)
+    // tuple overnight and streams it back on demand. See
+    // [`crate::flatfiles`] for the wire-format details and the decode /
+    // writer implementation used by this surface, covering CSV and
+    // JSONL output plus a typed in-memory return path.
+    // ---------------------------------------------------------------------
+
+    /// Pull a flat-file blob for `(sec_type, req_type, date)` over the legacy
+    /// MDDS port, decode it, and write the requested `format` to disk.
+    ///
+    /// `format` selects the on-disk encoding:
+    /// - [`crate::flatfiles::FlatFileFormat::Csv`] — vendor byte-format CSV
+    ///   (lowercase headers, comma-separated, no quoting). Byte-matches the
+    ///   legacy terminal's downloads on the same input.
+    /// - [`crate::flatfiles::FlatFileFormat::Jsonl`] — JSON Lines, one
+    ///   object per row.
+    ///
+    /// If `output_path` lacks a file extension, the format's canonical
+    /// extension (`csv` / `jsonl`) is appended automatically.
+    ///
+    /// For columnar consumers (Parquet, Arrow IPC, polars) use
+    /// [`Self::flatfile_request_decoded`] and feed the resulting
+    /// `Vec<FlatFileRow>` into the writer of your choice — the SDK does
+    /// not pull in Parquet / Arrow itself.
+    ///
+    /// # Errors
+    /// Returns [`Error::FlatFilesUnavailable`] for auth / server
+    /// rejection, [`Error::Config`] for malformed wire bytes, or
+    /// [`Error::Io`] for local I/O issues.
+    pub async fn flatfile_request(
+        &self,
+        sec_type: crate::flatfiles::SecType,
+        req_type: crate::flatfiles::ReqType,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        crate::flatfiles::flatfile_request(
+            &self.creds,
+            sec_type,
+            req_type,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Pull a flat-file blob and return decoded rows in memory.
+    ///
+    /// Same auth and stream path as [`Self::flatfile_request`], but skips
+    /// the on-disk writer. Returns a `Vec<FlatFileRow>` ready to feed into
+    /// an algorithm (backtester, risk model, in-memory analytics) without
+    /// an intermediate file.
+    ///
+    /// The whole vector is materialised before the function returns; for
+    /// whole-universe blobs that can be hundreds of MB.
+    ///
+    /// # Errors
+    /// Same conditions as [`Self::flatfile_request`].
+    pub async fn flatfile_request_decoded(
+        &self,
+        sec_type: crate::flatfiles::SecType,
+        req_type: crate::flatfiles::ReqType,
+        date: &str,
+    ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
+        crate::flatfiles::flatfile_request_decoded(&self.creds, sec_type, req_type, date).await
+    }
+
+    /// Convenience: option open-interest flat file for `date`.
+    pub async fn flatfile_option_open_interest(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::OpenInterest,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: option trade-quote flat file for `date`.
+    pub async fn flatfile_option_trade_quote(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::TradeQuote,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: option trade flat file for `date`.
+    pub async fn flatfile_option_trade(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::Trade,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: option quote flat file for `date`.
+    pub async fn flatfile_option_quote(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::Quote,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: option end-of-day flat file for `date`.
+    pub async fn flatfile_option_eod(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::Eod,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: stock trade-quote flat file for `date`.
+    pub async fn flatfile_stock_trade_quote(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Stock,
+            crate::flatfiles::ReqType::TradeQuote,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: stock trade flat file for `date`.
+    pub async fn flatfile_stock_trade(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Stock,
+            crate::flatfiles::ReqType::Trade,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: stock quote flat file for `date`.
+    pub async fn flatfile_stock_quote(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Stock,
+            crate::flatfiles::ReqType::Quote,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: stock end-of-day flat file for `date`.
+    pub async fn flatfile_stock_eod(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Stock,
+            crate::flatfiles::ReqType::Eod,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
 }
 
 impl Drop for ThetaDataDx {

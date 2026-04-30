@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx"
-version = "8.0.16"
+version = "8.0.17"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -35,9 +35,12 @@ metrics-prometheus = ["dep:metrics-exporter-prometheus"]
 polars = ["dep:polars"]
 arrow = ["dep:arrow-array", "dep:arrow-schema"]
 frames = ["polars", "arrow"]
+# Opt-in gate for tests that hit live MDDS / FPSS endpoints. Default-off
+# so `cargo test` never burns a live call without the user asking for it.
+live-tests = []
 
 [dependencies]
-tdbe = { version = "0.12.0", path = "../tdbe" }
+tdbe = { version = "0.12.1", path = "../tdbe" }
 
 # gRPC + protobuf (tonic 0.14 extracted prost codec into tonic-prost)
 tonic = { version = "=0.14.5", features = ["tls-ring", "tls-native-roots", "channel", "transport"] }
@@ -46,7 +49,7 @@ prost = "=0.14.3"
 prost-types = "=0.14.3"
 
 # Async runtime
-tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync"] }
+tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync", "fs"] }
 tokio-stream = "0.1.18"
 tokio-rustls = "0.26.4"
 rustls = { version = "0.23.40", features = ["ring"] }
@@ -65,7 +68,7 @@ reqwest = { version = "0.13.3", features = ["json", "rustls"], default-features 
 
 # Serialization
 serde = { version = "1.0.228", features = ["derive"] }
-uuid = "1.23.1"
+uuid = { version = "1.23.1", features = ["v4"] }
 
 # Compression (responses use zstd)
 zstd = "0.13.3"
@@ -99,15 +102,14 @@ disruptor = "4.1.0"
 # avoids pulling the polars-plan / polars-sql / polars-parquet graph into dependents
 # that only want row-to-frame materialization.
 polars = { version = "0.52", optional = true, default-features = false }
-# arrow-array + arrow-schema cover RecordBatch construction and the
-# `Int32Array` / `Int64Array` / `Float64Array` / `StringArray` primitives
-# the generator emits. Pulling the full `arrow` umbrella crate would also
-# drag in parquet, compute kernels, and CSV / JSON readers we do not need.
-# Version pinned to 58.x — matches `sdks/python/Cargo.toml` (which depends on
-# `arrow = "58.1.0"`) so every crate in the repo sees a single major-version
-# of the arrow family at link time.
+# arrow-array + arrow-schema cover RecordBatch construction for the
+# optional `frames` feature only. Kept optional so the default dep
+# graph stays slim — FLATFILES does not pull in arrow.
 arrow-array = { version = "58.1.0", optional = true }
 arrow-schema = { version = "58.1.0", optional = true }
+# JSON encoder for the FLATFILES `Format::Jsonl` output. One serde_json
+# Value per row; `to_writer` emits compact form, then we append `\n`.
+serde_json = "1.0.137"
 
 # Secret-wiping wrapper for password in `Credentials`. Zeroizes the backing
 # buffer on drop so the plaintext is not recoverable from a core dump or
@@ -130,7 +132,7 @@ prost-build = "=0.14.3"
 regex = "1.12.3"
 toml = "1.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
-tdbe = { version = "0.12.0", path = "../tdbe" }
+tdbe = { version = "0.12.1", path = "../tdbe" }
 
 [[bench]]
 name = "bench_decode"

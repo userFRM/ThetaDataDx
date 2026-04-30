@@ -122,19 +122,10 @@ Wire layer: TLS PacketStream (`[u32 size][u16 msg][i64 id][payload]`) with SPKI 
 | `flatfile_option_trade(date, format)` | Standard | Verified |
 | `flatfile_option_quote(date, format)` | Standard | Verified |
 | `flatfile_option_eod(date, format)` | Standard | Verified |
-| `flatfile_option_greeks_eod(date, format)` | Standard | Verified |
-| `flatfile_option_greeks_implied_volatility(date, format)` | Standard | Verified |
-| `flatfile_option_greeks_first_order(date, format)` | Standard | Verified |
-| `flatfile_option_greeks_second_order(date, format)` | Professional | Verified |
-| `flatfile_option_greeks_third_order(date, format)` | Professional | Verified |
-| `flatfile_option_greeks_all(date, format)` | Professional | Verified |
 | `flatfile_stock_trade_quote(date, format)` | Stock-flatfile bundle | Subscription-tier-blocked |
 | `flatfile_stock_trade(date, format)` | Stock-flatfile bundle | Subscription-tier-blocked |
 | `flatfile_stock_quote(date, format)` | Stock-flatfile bundle | Subscription-tier-blocked |
 | `flatfile_stock_eod(date, format)` | Stock-flatfile bundle | Subscription-tier-blocked |
-| `flatfile_index_price(date, format)` | Indices subscription | Subscription-tier-blocked |
-| `flatfile_index_eod(date, format)` | Indices subscription | Subscription-tier-blocked |
-| `flatfile_interest_rate_eod(date, format)` | Value | Subscription-tier-blocked |
 
 Output formats: **CSV** (vendor-byte-equivalent), **Parquet** (zstd, columnar), **JSONL**. All three reproducible from `crates/thetadatadx/examples/flatfile_demo.rs`.
 

@@ -3015,7 +3015,7 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "criterion",
  "thiserror 2.0.18",
@@ -3036,7 +3036,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.16"
+version = "8.0.17"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -3053,6 +3053,7 @@ dependencies = [
  "reqwest",
  "rustls",
  "serde",
+ "serde_json",
  "sha2",
  "subtle",
  "tdbe",

@@ -96,6 +96,7 @@ pub mod config;
 pub mod decode;
 pub mod endpoint;
 pub mod error;
+pub mod flatfiles;
 pub mod fpss;
 #[cfg(any(feature = "polars", feature = "arrow"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "polars", feature = "arrow"))))]
@@ -124,6 +125,11 @@ pub use auth::Credentials;
 pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};
 pub use endpoint::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
+pub use flatfiles::{
+    default_output_filename as flatfile_default_filename, flatfile_request,
+    flatfile_request_decoded, flatfile_request_raw, FlatFileFormat, FlatFileRow, FlatFileValue,
+    FlatFilesUnavailableReason, ReqType as FlatFileReqType, SecType as FlatFileSecType,
+};
 pub use mdds::MddsClient;
 pub use registry::{
     by_category, find, param_type_to_json_type, EndpointMeta, ParamMeta, ParamType, ReturnType,
