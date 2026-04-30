@@ -11,7 +11,7 @@ use crate::error::set_error;
 //  Greeks (standalone, not client methods)
 // ═══════════════════════════════════════════════════════════════════════
 
-/// All 22 Black-Scholes Greeks + IV as a typed C struct.
+/// All 23 Black-Scholes Greeks + IV as a typed C struct.
 #[repr(C)]
 pub struct TdxGreeksResult {
     pub value: f64,
@@ -26,6 +26,7 @@ pub struct TdxGreeksResult {
     pub charm: f64,
     pub vomma: f64,
     pub veta: f64,
+    pub vera: f64,
     pub speed: f64,
     pub zomma: f64,
     pub color: f64,
@@ -90,6 +91,7 @@ pub unsafe extern "C" fn tdx_all_greeks(
             charm: g.charm,
             vomma: g.vomma,
             veta: g.veta,
+            vera: g.vera,
             speed: g.speed,
             zomma: g.zomma,
             color: g.color,

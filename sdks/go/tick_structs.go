@@ -237,6 +237,7 @@ type Greeks struct {
 	Charm     float64 `json:"charm"`
 	Vomma     float64 `json:"vomma"`
 	Veta      float64 `json:"veta"`
+	Vera      float64 `json:"vera"`
 	Speed     float64 `json:"speed"`
 	Zomma     float64 `json:"zomma"`
 	Color     float64 `json:"color"`

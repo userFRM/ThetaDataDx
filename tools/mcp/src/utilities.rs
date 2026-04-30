@@ -97,6 +97,7 @@ async fn try_execute_generated_utility(
                 "charm": g.charm,
                 "vomma": g.vomma,
                 "veta": g.veta,
+                "vera": g.vera,
                 "speed": g.speed,
                 "zomma": g.zomma,
                 "color": g.color,

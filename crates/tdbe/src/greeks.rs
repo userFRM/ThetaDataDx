@@ -469,6 +469,13 @@ pub struct GreeksResult {
     pub charm: f64,
     pub vomma: f64,
     pub veta: f64,
+    /// `vera` (a.k.a. DvegaDr) — sensitivity of vega to the risk-free
+    /// rate. Computed as the textbook `-K * exp(-r*T) * T * sqrt(T) * phi(d2)`
+    /// where `phi` is the standard-normal PDF. The vendor's exact
+    /// definition is not published; if it ever turns out to differ in
+    /// sign or scale, callers can rescale locally — the field is
+    /// internally consistent and pinned to the formula by a unit test.
+    pub vera: f64,
     // Third order
     pub speed: f64,
     pub zomma: f64,
@@ -516,7 +523,7 @@ pub struct GreeksResult {
 /// forms or resolves to `both`/`*`. Strict-parse failures from
 /// [`crate::right::parse_right_strict`] surface here directly.
 // Reason: s, x, r, q, t are standard Black-Scholes parameter names.
-// Reason: 22-Greek computation cannot be meaningfully split without duplicating intermediates.
+// Reason: 23-Greek computation cannot be meaningfully split without duplicating intermediates.
 #[allow(
     clippy::many_single_char_names,
     clippy::similar_names,
@@ -565,6 +572,7 @@ pub fn all_greeks(
             charm: 0.0,
             vomma: 0.0,
             veta: 0.0,
+            vera: 0.0,
             speed: 0.0,
             zomma: 0.0,
             color: 0.0,
@@ -658,6 +666,11 @@ pub fn all_greeks(
     let veta_val =
         -s * eqt_f1d1 * sqrt_t * (q + r_minus_q * d1_val / v_sqrt_t - (1.0 + d1_d2) / (2.0 * t));
 
+    // vera (DvegaDr): cross-sensitivity of vega to the risk-free rate.
+    // Textbook form: vera = -K * exp(-r*T) * T * sqrt(T) * phi(d2),
+    // with phi the standard-normal PDF (= ONE_ROOT2PI * exp(-d2^2 / 2)).
+    let vera_val = -x * exp_neg_rt * t * sqrt_t * f1_d2;
+
     // -- Tier 3: Third-order Greeks (speed, zomma, color, ultima) -------------
     let speed_val = -eqt_f1d1 * inv_s_v_sqrt_t / s * (d1_val / v_sqrt_t + 1.0);
 
@@ -692,6 +705,7 @@ pub fn all_greeks(
         charm: charm_val,
         vomma: vomma_val,
         veta: veta_val,
+        vera: vera_val,
         speed: speed_val,
         zomma: zomma_val,
         color: color_val,
@@ -900,8 +914,54 @@ mod tests {
         assert_finite(g.iv_error, "all_greeks(ATM, t=0).iv_error");
         assert_finite(g.vanna, "all_greeks(ATM, t=0).vanna");
         assert_finite(g.charm, "all_greeks(ATM, t=0).charm");
+        assert_finite(g.vera, "all_greeks(ATM, t=0).vera");
         assert_finite(g.d1, "all_greeks(ATM, t=0).d1");
         assert_finite(g.d2, "all_greeks(ATM, t=0).d2");
+    }
+
+    /// `vera = -K * exp(-r*T) * T * sqrt(T) * phi(d2)`.
+    ///
+    /// Pin the field to the textbook DvegaDr formula. Expected value
+    /// computed by hand with `phi(d2) = ONE_ROOT2PI * exp(-d2*d2/2)`.
+    #[test]
+    fn vera_matches_textbook_dvega_dr() {
+        let s = 100.0;
+        let x = 100.0;
+        let r = 0.05;
+        let q = 0.00;
+        let t = 1.0;
+        // True vol used to build a self-consistent option price; the IV
+        // solver inside all_greeks then recovers (approximately) the same
+        // vol, so we compute the expected vera using the recovered iv.
+        let true_vol = 0.20;
+        let price = value(s, x, true_vol, r, q, t, true);
+
+        let g = all_greeks(s, x, r, q, t, price, "C").expect("valid right");
+        let v_recovered = g.iv;
+
+        // Recompute d2 with the iv that all_greeks settled on — this
+        // mirrors the helper's own intermediates so any solver wobble
+        // does not destabilise the comparison.
+        let d2_val = d2(s, x, v_recovered, r, q, t);
+        let phi_d2 = (-d2_val * d2_val / 2.0).exp() / (2.0 * std::f64::consts::PI).sqrt();
+        let expected_vera = -x * (-r * t).exp() * t * t.sqrt() * phi_d2;
+
+        assert!(
+            (g.vera - expected_vera).abs() < 1e-10,
+            "vera mismatch: got {got}, expected {expected_vera}",
+            got = g.vera
+        );
+        // Sanity check sign and order of magnitude (call-on-stock,
+        // short-rate scenario): expected ~ -37.52 by independent
+        // longhand calculation: 100 * exp(-0.05) * 1 * 1 * phi(d2)
+        // where the IV solver lands close to but not exactly on the
+        // 0.20 vol used to build the option price.
+        assert!(g.vera < 0.0, "vera should be negative for this scenario");
+        assert!(
+            g.vera > -40.0 && g.vera < -35.0,
+            "vera order-of-magnitude check: {got}",
+            got = g.vera
+        );
     }
 
     #[test]

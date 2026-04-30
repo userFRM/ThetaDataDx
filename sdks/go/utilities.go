@@ -38,6 +38,7 @@ func AllGreeks(spot float64, strike float64, rate float64, divYield float64, tte
         Charm: float64(ptr.charm),
         Vomma: float64(ptr.vomma),
         Veta: float64(ptr.veta),
+        Vera: float64(ptr.vera),
         Speed: float64(ptr.speed),
         Zomma: float64(ptr.zomma),
         Color: float64(ptr.color),

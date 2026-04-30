@@ -31,7 +31,7 @@ use tdbe::greeks;
 let p = Price::new(15025, 8); // 150.25
 assert_eq!(p.to_f64(), 150.25);
 
-// Compute all 22 Greeks offline. Returns `Result<GreeksResult, Error>`
+// Compute all 23 Greeks offline. Returns `Result<GreeksResult, Error>`
 // — `Error::Config` for an unrecognised `right`.
 let result = greeks::all_greeks(
     450.0,        // spot

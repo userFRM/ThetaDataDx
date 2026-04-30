@@ -32,6 +32,8 @@ pub(crate) struct AllGreeks {
     #[pyo3(get)]
     pub veta: f64,
     #[pyo3(get)]
+    pub vera: f64,
+    #[pyo3(get)]
     pub speed: f64,
     #[pyo3(get)]
     pub zomma: f64,
@@ -63,7 +65,7 @@ self.value, self.iv, self.delta, self.gamma, self.theta, self.vega
     }
 }
 
-/// Compute all 22 Black-Scholes Greeks + IV in one call.
+/// Compute all 23 Black-Scholes Greeks + IV in one call.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)] // Reason: mirrors Black-Scholes parameter set expected by SDK callers
 fn all_greeks(
@@ -91,6 +93,7 @@ fn all_greeks(
         charm: g.charm,
         vomma: g.vomma,
         veta: g.veta,
+        vera: g.vera,
         speed: g.speed,
         zomma: g.zomma,
         color: g.color,
