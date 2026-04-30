@@ -60,7 +60,7 @@ pub async fn flatfile_request(
     // Step 4: scratch cleanup. A failure here is non-fatal — the user
     // gets the decoded file regardless, and the raw blob is mostly
     // useful for debugging.
-    let _ = std::fs::remove_file(&raw_path);
+    let _ = tokio::fs::remove_file(&raw_path).await;
 
     Ok(final_path)
 }
@@ -181,7 +181,7 @@ pub async fn flatfile_request_decoded(
     let rows = tokio::task::spawn_blocking(move || decode_to_memory(&scratch_for_decode, sec))
         .await
         .map_err(|e| Error::Config(format!("flatfiles: decode task panicked: {e}")))??;
-    let _ = std::fs::remove_file(&scratch);
+    let _ = tokio::fs::remove_file(&scratch).await;
     Ok(rows)
 }
 
