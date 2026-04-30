@@ -1934,7 +1934,7 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -1954,7 +1954,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.20"
+version = "8.1.0"
 dependencies = [
  "disruptor",
  "metrics",
@@ -1988,7 +1988,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-napi"
-version = "8.0.20"
+version = "8.1.0"
 dependencies = [
  "chrono",
  "napi",
