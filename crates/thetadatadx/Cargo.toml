@@ -84,7 +84,7 @@ tracing = "0.1.44"
 # Metrics
 metrics = "0.24.3"
 # Optional Prometheus exporter (enabled by the `metrics-prometheus` feature).
-metrics-exporter-prometheus = { version = "0.17", optional = true, default-features = false, features = ["http-listener"] }
+metrics-exporter-prometheus = { version = "0.18", optional = true, default-features = false, features = ["http-listener"] }
 
 # Config file loading (optional)
 toml = { version = "1.1.2", optional = true }
