@@ -38,9 +38,17 @@ no-default-features = false
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
-# No advisories ignored. If a RUSTSEC fires, fix the dependency — or
-# document the exception here with a concrete `# Reason:` comment.
-ignore = []
+# Ignore entries require a concrete `# Reason:` comment.
+ignore = [
+    # Reason: `paste` is reachable only as a transitive of the
+    # apache-arrow `parquet` crate, which the FLATFILES surface uses
+    # for columnar output. `paste` is unmaintained
+    # (RUSTSEC-2024-0436) but still functional; the ecosystem
+    # successor is `pastey`, which we already use directly.
+    # Removing `paste` from the tree requires upstream `parquet` /
+    # `arrow` to migrate. Revisit on every arrow-rs upgrade.
+    { id = "RUSTSEC-2024-0436", reason = "transitive of apache-arrow parquet; awaiting upstream pastey migration" },
+]
 
 [licenses]
 # Workspace crates (tdbe, thetadatadx, FFI shim, SDK shims, tools) are

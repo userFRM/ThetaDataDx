@@ -19,7 +19,7 @@ doc = false
 [dependencies]
 # The Rust SDK we're wrapping
 thetadatadx = { path = "../../crates/thetadatadx" }
-tdbe = { version = "0.12.0", path = "../../crates/tdbe" }
+tdbe = { version = "0.12.1", path = "../../crates/tdbe" }
 
 # Direct prost dep for decoding `thetadatadx::proto::ResponseData` bytes in
 # the `decode_response_bytes` hook. The main crate no longer re-exports

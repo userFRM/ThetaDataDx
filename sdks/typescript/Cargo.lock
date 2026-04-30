@@ -2165,7 +2165,7 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "thiserror 2.0.18",
 ]
