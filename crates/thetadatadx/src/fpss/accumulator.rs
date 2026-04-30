@@ -240,25 +240,19 @@ mod tests {
         assert_eq!(change_price_type(71_396_865, 8, 4), 71_396_865);
     }
 
-    /// Drive the accumulator with a normal trade then a price-type rescale that
-    /// would overflow `i32`. The over-wide rescale must be a no-op, so the
-    /// high/low/close values come from the unscaled fallback path, not from
-    /// i32-wrap garbage.
+    /// A second tick at a price_type whose rescale to the accumulator's
+    /// pricetype overflows i32 must be a no-op, leaving high/low/close
+    /// at the unscaled value rather than a wrapped one.
     #[test]
     fn ohlcvc_accumulator_overflow_rescale_is_no_op() {
         let mut acc = OhlcvcAccumulator::new();
-        // First tick at price_type = 4 establishes the accumulator's pricetype.
         acc.process_trade(34200000, 71_396_865, 1, 4, 20240315);
         assert_eq!(acc.price_type, 4);
         assert_eq!(acc.high, 71_396_865);
         assert_eq!(acc.low, 71_396_865);
         assert_eq!(acc.close, 71_396_865);
-        // Second tick at price_type = 8: rescale to acc.price_type = 4 needs
-        // multiplication by 10^4 — far beyond i32::MAX, so the helper falls
-        // back to returning the input price unchanged.
+        // Tick at price_type=8 needs *10^4 to rescale into pricetype=4.
         acc.process_trade(34200100, 71_396_865, 1, 8, 20240315);
-        // High/low/close stay at 71_396_865 (unscaled fallback), not at a
-        // wrapped i32 value.
         assert_eq!(acc.high, 71_396_865);
         assert_eq!(acc.low, 71_396_865);
         assert_eq!(acc.close, 71_396_865);

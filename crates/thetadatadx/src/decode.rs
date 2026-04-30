@@ -1477,15 +1477,8 @@ mod tests {
         );
     }
 
-    /// Lock the i64-native scaling against a representative `Price` cell
-    /// well past `2^53`. (Within the actual `Price` encoding domain —
-    /// `i32` value × `10^[0..9]` — every reachable product happens to be
-    /// f64-exact, so this test does not by itself reproduce the prior
-    /// f64-hop bug. The actual silent-loss path is the overflow case
-    /// covered by [`row_number_i64_price_overflowing_i64_returns_error`];
-    /// this test pins the bit-exact i64-native behaviour for the
-    /// large-but-fitting case so a future regression to a lossy hop is
-    /// at least detectable on the value channel.)
+    /// Pin a Price cell past `2^53` to the i64-native result. Overflow
+    /// is covered by `row_number_i64_price_overflowing_i64_returns_error`.
     #[test]
     fn row_number_i64_price_cell_returns_bit_exact_i64() {
         let row = row_of(vec![dv_price(1_073_741_823, 17)]);

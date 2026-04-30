@@ -469,12 +469,8 @@ pub struct GreeksResult {
     pub charm: f64,
     pub vomma: f64,
     pub veta: f64,
-    /// `vera` (a.k.a. DvegaDr) — sensitivity of vega to the risk-free
-    /// rate. Computed as the textbook `-K * exp(-r*T) * T * sqrt(T) * phi(d2)`
-    /// where `phi` is the standard-normal PDF. The vendor's exact
-    /// definition is not published; if it ever turns out to differ in
-    /// sign or scale, callers can rescale locally — the field is
-    /// internally consistent and pinned to the formula by a unit test.
+    /// DvegaDr: `-K * exp(-r*T) * T * sqrt(T) * phi(d2)`. Sensitivity of
+    /// vega to the risk-free rate.
     pub vera: f64,
     // Third order
     pub speed: f64,
@@ -930,19 +926,12 @@ mod tests {
         let r = 0.05;
         let q = 0.00;
         let t = 1.0;
-        // True vol used to build a self-consistent option price; the IV
-        // solver inside all_greeks then recovers (approximately) the same
-        // vol, so we compute the expected vera using the recovered iv.
-        let true_vol = 0.20;
-        let price = value(s, x, true_vol, r, q, t, true);
-
+        // Build a self-consistent option price at vol=0.20, recover the
+        // iv via all_greeks, then evaluate expected vera at that recovered
+        // iv to absorb any solver wobble.
+        let price = value(s, x, 0.20, r, q, t, true);
         let g = all_greeks(s, x, r, q, t, price, "C").expect("valid right");
-        let v_recovered = g.iv;
-
-        // Recompute d2 with the iv that all_greeks settled on — this
-        // mirrors the helper's own intermediates so any solver wobble
-        // does not destabilise the comparison.
-        let d2_val = d2(s, x, v_recovered, r, q, t);
+        let d2_val = d2(s, x, g.iv, r, q, t);
         let phi_d2 = (-d2_val * d2_val / 2.0).exp() / (2.0 * std::f64::consts::PI).sqrt();
         let expected_vera = -x * (-r * t).exp() * t * t.sqrt() * phi_d2;
 
@@ -951,11 +940,7 @@ mod tests {
             "vera mismatch: got {got}, expected {expected_vera}",
             got = g.vera
         );
-        // Sanity check sign and order of magnitude (call-on-stock,
-        // short-rate scenario): expected ~ -37.52 by independent
-        // longhand calculation: 100 * exp(-0.05) * 1 * 1 * phi(d2)
-        // where the IV solver lands close to but not exactly on the
-        // 0.20 vol used to build the option price.
+        // Order-of-magnitude floor: longhand expected ~ -37.52.
         assert!(g.vera < 0.0, "vera should be negative for this scenario");
         assert!(
             g.vera > -40.0 && g.vera < -35.0,
