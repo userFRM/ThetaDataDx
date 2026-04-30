@@ -61,7 +61,7 @@ fn bench_build_subscribe_payload(c: &mut Criterion) {
     let contract = Contract::option("SPY", "20261218", "60", "C").unwrap();
     c.bench_function("build_subscribe_payload", |b| {
         b.iter(|| {
-            black_box(build_subscribe_payload(black_box(42), black_box(&contract)));
+            let _ = black_box(build_subscribe_payload(black_box(42), black_box(&contract)));
         });
     });
 }

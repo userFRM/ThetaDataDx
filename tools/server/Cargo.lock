@@ -2342,7 +2342,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.17"
+version = "8.0.18"
 dependencies = [
  "disruptor",
  "metrics",
@@ -2376,7 +2376,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-server"
-version = "8.0.15"
+version = "8.0.18"
 dependencies = [
  "axum",
  "clap",
