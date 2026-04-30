@@ -3,29 +3,21 @@
 //! Each output format implements [`RowSink`], a tiny three-method
 //! interface: write the header once, accept rows one-by-one with the
 //! contract key + decoded data fields, and finalize on completion. The
-//! decoder layer (see `request_decoded.rs`) drives a single sink
-//! regardless of format — CSV, Parquet, or JSONL.
+//! decoder layer (see `decoded.rs`) drives a single sink regardless of
+//! format — CSV or JSONL.
 //!
 //! The contract key passed to each sink call carries the
 //! `(root, exp, strike, right)` columns the vendor prepends to every CSV
 //! row. For stock entries, `exp / strike / right` are `None` and only
 //! `root` is written.
 //!
-//! All four sinks must produce the **same logical rows**; only the
-//! on-disk encoding differs. This is what makes the byte-match test on
-//! `Csv` a sufficient proxy for verifying `Parquet` and `Jsonl`.
+//! Both sinks must produce the **same logical rows**; only the on-disk
+//! encoding differs. This is what makes the byte-match test on `Csv` a
+//! sufficient proxy for verifying `Jsonl`.
 
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
-use std::sync::Arc;
-
-use arrow_array::builder::{Float64Builder, Int32Builder, Int64Builder, StringBuilder};
-use arrow_array::{ArrayRef, RecordBatch};
-use arrow_schema::{DataType as ArrowDataType, Field, Schema};
-use parquet::arrow::ArrowWriter;
-use parquet::basic::{Compression, ZstdLevel};
-use parquet::file::properties::WriterProperties;
 
 use crate::error::Error;
 use crate::flatfiles::datatype::DataType;
@@ -292,228 +284,6 @@ impl RowSink for JsonlSink {
 
     fn finish(mut self: Box<Self>) -> Result<(), Error> {
         self.out.flush()?;
-        Ok(())
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Parquet sink — Arrow-typed, zstd-compressed
-// ---------------------------------------------------------------------------
-
-const PARQUET_BATCH_ROWS: usize = 4096;
-
-/// Per-column Arrow builder. We keep the decision matrix simple: every
-/// data column is `Int32` unless flagged `is_price`, in which case it
-/// becomes `Float64` (after division by `10^price_type`). The contract
-/// prefix uses `Utf8` for `root` and `right`, `Int32` for `exp` and
-/// `strike`. Stock blobs omit `exp / strike / right`.
-enum ColBuilder {
-    Int32(Int32Builder),
-    Int64(Int64Builder),
-    Float64(Float64Builder),
-    Utf8(StringBuilder),
-}
-
-impl ColBuilder {
-    fn finish(&mut self) -> ArrayRef {
-        match self {
-            Self::Int32(b) => Arc::new(b.finish()) as ArrayRef,
-            Self::Int64(b) => Arc::new(b.finish()) as ArrayRef,
-            Self::Float64(b) => Arc::new(b.finish()) as ArrayRef,
-            Self::Utf8(b) => Arc::new(b.finish()) as ArrayRef,
-        }
-    }
-}
-
-pub(crate) struct ParquetSink {
-    writer: Option<ArrowWriter<File>>,
-    schema: Arc<Schema>,
-    sec: SecType,
-    fmt: Vec<DataType>,
-    data_idx: Vec<usize>,
-    price_type_idx: Option<usize>,
-    builders: Vec<ColBuilder>,
-    rows_in_batch: usize,
-}
-
-impl ParquetSink {
-    pub(crate) fn new(
-        path: &Path,
-        sec: SecType,
-        fmt: Vec<DataType>,
-        price_type_idx: Option<usize>,
-    ) -> Result<Self, Error> {
-        let data_idx = data_indices(&fmt, price_type_idx);
-        let schema = build_schema(sec, &fmt, &data_idx);
-        let props = WriterProperties::builder()
-            .set_compression(Compression::ZSTD(
-                ZstdLevel::try_new(3).expect("zstd level 3 is valid"),
-            ))
-            .build();
-        let f = File::create(path)?;
-        let writer = ArrowWriter::try_new(f, schema.clone(), Some(props))
-            .map_err(|e| Error::Config(format!("flatfiles: parquet writer init failed: {e}")))?;
-        let builders = build_builders(sec, &fmt, &data_idx);
-        Ok(Self {
-            writer: Some(writer),
-            schema,
-            sec,
-            fmt,
-            data_idx,
-            price_type_idx,
-            builders,
-            rows_in_batch: 0,
-        })
-    }
-
-    fn flush_batch(&mut self) -> Result<(), Error> {
-        if self.rows_in_batch == 0 {
-            return Ok(());
-        }
-        let arrays: Vec<ArrayRef> = self.builders.iter_mut().map(ColBuilder::finish).collect();
-        let batch = RecordBatch::try_new(self.schema.clone(), arrays)
-            .map_err(|e| Error::Config(format!("flatfiles: parquet batch build failed: {e}")))?;
-        if let Some(w) = self.writer.as_mut() {
-            w.write(&batch)
-                .map_err(|e| Error::Config(format!("flatfiles: parquet write failed: {e}")))?;
-        }
-        // Re-create builders so the next batch starts empty.
-        self.builders = build_builders(self.sec, &self.fmt, &self.data_idx);
-        self.rows_in_batch = 0;
-        Ok(())
-    }
-}
-
-fn build_schema(sec: SecType, fmt: &[DataType], data_idx: &[usize]) -> Arc<Schema> {
-    let mut fields: Vec<Field> = Vec::with_capacity(data_idx.len() + 4);
-    match sec {
-        SecType::Option | SecType::Index => {
-            fields.push(Field::new("root", ArrowDataType::Utf8, false));
-            fields.push(Field::new("expiration", ArrowDataType::Int32, false));
-            fields.push(Field::new("strike", ArrowDataType::Int32, false));
-            fields.push(Field::new("right", ArrowDataType::Utf8, false));
-        }
-        SecType::Stock => {
-            fields.push(Field::new("root", ArrowDataType::Utf8, false));
-        }
-    }
-    for &i in data_idx {
-        let col = fmt[i];
-        let arrow_ty = if col.is_price() {
-            ArrowDataType::Float64
-        } else if matches!(col, DataType::Volume | DataType::Count) {
-            // Volume / Count can exceed i32::MAX on a high-volume root;
-            // store them as int64. The wire is i32 but we widen on write
-            // so a future server-side widening Just Works.
-            ArrowDataType::Int64
-        } else {
-            ArrowDataType::Int32
-        };
-        fields.push(Field::new(col.name().into_owned(), arrow_ty, false));
-    }
-    Arc::new(Schema::new(fields))
-}
-
-fn build_builders(sec: SecType, fmt: &[DataType], data_idx: &[usize]) -> Vec<ColBuilder> {
-    let cap = PARQUET_BATCH_ROWS;
-    let mut out = Vec::with_capacity(data_idx.len() + 4);
-    match sec {
-        SecType::Option | SecType::Index => {
-            out.push(ColBuilder::Utf8(StringBuilder::with_capacity(cap, cap * 8)));
-            out.push(ColBuilder::Int32(Int32Builder::with_capacity(cap)));
-            out.push(ColBuilder::Int32(Int32Builder::with_capacity(cap)));
-            out.push(ColBuilder::Utf8(StringBuilder::with_capacity(cap, cap)));
-        }
-        SecType::Stock => {
-            out.push(ColBuilder::Utf8(StringBuilder::with_capacity(cap, cap * 8)));
-        }
-    }
-    for &i in data_idx {
-        let col = fmt[i];
-        if col.is_price() {
-            out.push(ColBuilder::Float64(Float64Builder::with_capacity(cap)));
-        } else if matches!(col, DataType::Volume | DataType::Count) {
-            out.push(ColBuilder::Int64(Int64Builder::with_capacity(cap)));
-        } else {
-            out.push(ColBuilder::Int32(Int32Builder::with_capacity(cap)));
-        }
-    }
-    out
-}
-
-impl RowSink for ParquetSink {
-    fn write_header(&mut self) -> Result<(), Error> {
-        // Header is implicit in the Parquet schema.
-        Ok(())
-    }
-
-    fn write_row(&mut self, row: RowView<'_>) -> Result<(), Error> {
-        // Append contract prefix.
-        let mut col = 0usize;
-        match self.sec {
-            SecType::Option | SecType::Index => {
-                if let ColBuilder::Utf8(b) = &mut self.builders[col] {
-                    b.append_value(&row.entry.root);
-                }
-                col += 1;
-                if let ColBuilder::Int32(b) = &mut self.builders[col] {
-                    b.append_value(row.entry.exp.unwrap_or(0));
-                }
-                col += 1;
-                if let ColBuilder::Int32(b) = &mut self.builders[col] {
-                    b.append_value(row.entry.strike.unwrap_or(0));
-                }
-                col += 1;
-                if let ColBuilder::Utf8(b) = &mut self.builders[col] {
-                    let right = match row.entry.right {
-                        Some('C') => "C",
-                        Some('P') => "P",
-                        _ => "?",
-                    };
-                    b.append_value(right);
-                }
-                col += 1;
-            }
-            SecType::Stock => {
-                if let ColBuilder::Utf8(b) = &mut self.builders[col] {
-                    b.append_value(&row.entry.root);
-                }
-                col += 1;
-            }
-        }
-        // Append data columns.
-        let divisor = price_divisor(row.data, self.price_type_idx);
-        for &i in &self.data_idx {
-            let val = row.data.get(i).copied().unwrap_or(0);
-            let dt = self.fmt[i];
-            match &mut self.builders[col] {
-                ColBuilder::Int32(b) => b.append_value(val),
-                ColBuilder::Int64(b) => b.append_value(val as i64),
-                ColBuilder::Float64(b) => {
-                    let d = divisor.unwrap_or(1.0);
-                    b.append_value(if dt.is_price() {
-                        (val as f64) / d
-                    } else {
-                        val as f64
-                    });
-                }
-                ColBuilder::Utf8(b) => b.append_value(val.to_string()),
-            }
-            col += 1;
-        }
-        self.rows_in_batch += 1;
-        if self.rows_in_batch >= PARQUET_BATCH_ROWS {
-            self.flush_batch()?;
-        }
-        Ok(())
-    }
-
-    fn finish(mut self: Box<Self>) -> Result<(), Error> {
-        self.flush_batch()?;
-        if let Some(w) = self.writer.take() {
-            w.close()
-                .map_err(|e| Error::Config(format!("flatfiles: parquet close failed: {e}")))?;
-        }
         Ok(())
     }
 }

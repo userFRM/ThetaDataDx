@@ -154,6 +154,13 @@ pub(crate) async fn login(
 }
 
 /// Convenience: connect to the first reachable host in a list, then auth.
+///
+/// Retries only on transient connect-layer failures (TCP, TLS, I/O). A
+/// semantic server rejection — the credentials were rejected, the auth
+/// frame was malformed, the server emitted a `DISCONNECTED` — is
+/// short-circuited: replaying it across every MDDS host is pointless,
+/// risks rate-limiting the account, and the original error already
+/// describes what the server objected to.
 pub(crate) async fn connect_and_login<'a>(
     hosts: &[MddsHost<'a>],
     creds: &Credentials,
@@ -168,12 +175,19 @@ pub(crate) async fn connect_and_login<'a>(
         {
             Ok(mut stream) => match login(&mut stream, creds).await {
                 Ok(bundle) => return Ok(AuthedSession { stream, bundle }),
+                Err(e) if is_terminal_login_error(&e) => return Err(e),
                 Err(e) => last_err = Some(e),
             },
             Err(e) => last_err = Some(e),
         }
     }
     Err(last_err.unwrap_or_else(|| Error::Config("no MDDS hosts configured".into())))
+}
+
+/// A login error the server has authoritatively decided — no point
+/// retrying against another host.
+fn is_terminal_login_error(err: &Error) -> bool {
+    matches!(err, Error::FlatFilesUnavailable(_) | Error::Auth { .. })
 }
 
 #[cfg(test)]

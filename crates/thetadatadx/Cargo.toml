@@ -33,9 +33,7 @@ metrics-prometheus = ["dep:metrics-exporter-prometheus"]
 # Opt-in: polars and arrow stay behind feature flags so the default dep graph
 # is unchanged. `frames` is a convenience alias pulling both in at once.
 polars = ["dep:polars"]
-# `arrow` is now a no-op alias kept for backwards-compat: arrow-array
-# and arrow-schema are unconditionally pulled in by the FLATFILES surface.
-arrow = []
+arrow = ["dep:arrow-array", "dep:arrow-schema"]
 frames = ["polars", "arrow"]
 # Opt-in gate for tests that hit live MDDS / FPSS endpoints. Default-off
 # so `cargo test` never burns a live call without the user asking for it.
@@ -104,20 +102,11 @@ disruptor = "4.1.0"
 # avoids pulling the polars-plan / polars-sql / polars-parquet graph into dependents
 # that only want row-to-frame materialization.
 polars = { version = "0.52", optional = true, default-features = false }
-# arrow-array + arrow-schema cover RecordBatch construction and the
-# `Int32Array` / `Int64Array` / `Float64Array` / `StringArray` primitives.
-# Originally feature-gated under `arrow`/`frames`, now required by the
-# FLATFILES surface (third public surface — overnight whole-universe
-# vendor-format files). Parquet output goes through the `parquet` crate
-# below, which depends on these as part of its `arrow` feature.
-# Version pinned to 58.x for repo-wide single-major-version linkage.
-arrow-array = "58.1.0"
-arrow-schema = "58.1.0"
-# Parquet writer used by the FLATFILES `Format::Parquet` output. Pulls in
-# zstd compression + arrow integration. The crate is small relative to
-# the wider arrow ecosystem and is the only viable Rust Parquet writer
-# with a streaming `RecordBatch` API.
-parquet = { version = "58.1.0", default-features = false, features = ["arrow", "zstd"] }
+# arrow-array + arrow-schema cover RecordBatch construction for the
+# optional `frames` feature only. Kept optional so the default dep
+# graph stays slim — FLATFILES does not pull in arrow.
+arrow-array = { version = "58.1.0", optional = true }
+arrow-schema = { version = "58.1.0", optional = true }
 # JSON encoder for the FLATFILES `Format::Jsonl` output. One serde_json
 # Value per row; `to_writer` emits compact form, then we append `\n`.
 serde_json = "1.0.137"

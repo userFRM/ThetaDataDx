@@ -99,8 +99,8 @@ async fn option_open_interest_csv_byte_matches_vendor() {
     );
     assert_eq!(ours, theirs, "CSV content does not byte-match vendor");
 
-    // Smoke-test Parquet + JSONL on the same blob; assert row counts
-    // equal CSV rows minus the header.
+    // Smoke-test JSONL on the same blob; assert row count equals CSV
+    // rows minus the header.
     let csv_rows = ours
         .iter()
         .filter(|&&b| b == b'\n')
@@ -122,31 +122,10 @@ async fn option_open_interest_csv_byte_matches_vendor() {
         "JSONL row count {jsonl_rows} != CSV row count {csv_rows}"
     );
 
-    let parquet_path = out_dir.join("OPTION-OPEN_INTEREST-20260428.parquet");
-    thetadatadx::flatfiles::decoded_decode_to_file_for_test(
-        &raw,
-        SecType::Option,
-        &parquet_path,
-        FlatFileFormat::Parquet,
-    )
-    .expect("Parquet decode");
-    // Read Parquet metadata to confirm the row count.
-    use parquet::file::reader::{FileReader, SerializedFileReader};
-    let pq_file = std::fs::File::open(&parquet_path).expect("open parquet");
-    let reader = SerializedFileReader::new(pq_file).expect("parquet reader");
-    let pq_rows: i64 = reader.metadata().file_metadata().num_rows();
-    assert_eq!(
-        pq_rows as usize, csv_rows,
-        "Parquet row count {pq_rows} != CSV row count {csv_rows}"
-    );
-
     eprintln!(
-        "byte-match OK: {csv_rows} rows, csv={} bytes, jsonl={} bytes, parquet={} bytes",
+        "byte-match OK: {csv_rows} rows, csv={} bytes, jsonl={} bytes",
         ours.len(),
         jsonl_bytes.len(),
-        std::fs::metadata(&parquet_path)
-            .map(|m| m.len())
-            .unwrap_or(0),
     );
 
     // Cleanup raw blob — it's large.

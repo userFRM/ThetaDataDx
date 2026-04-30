@@ -28,8 +28,8 @@
 //! | INDEX walker                 | working (`index` submodule)         |
 //! | FIT per-contract decoder     | working (`decode` submodule)        |
 //! | CSV writer (vendor-format)   | working (`writer::CsvSink`)         |
-//! | Parquet writer (zstd, Arrow) | working (`writer::ParquetSink`)     |
 //! | JSONL writer                 | working (`writer::JsonlSink`)       |
+//! | Typed in-memory decode       | working (`flatfile_request_decoded`) |
 //!
 //! The low-level raw-stream path is exercised end-to-end by
 //! [`flatfile_request_raw`], which authenticates, sends a single FLAT_FILE
@@ -103,6 +103,7 @@
 pub(crate) mod datatype;
 pub(crate) mod decode;
 pub(crate) mod decoded;
+pub(crate) mod decoded_row;
 pub(crate) mod format;
 pub(crate) mod framing;
 pub(crate) mod index;
@@ -112,7 +113,8 @@ pub(crate) mod session;
 pub(crate) mod types;
 pub(crate) mod writer;
 
-pub use decoded::{default_output_filename, flatfile_request};
+pub use decoded::{default_output_filename, flatfile_request, flatfile_request_decoded};
+pub use decoded_row::{FlatFileRow, FlatFileValue};
 pub use format::FlatFileFormat;
 pub use request::flatfile_request_raw;
 pub use types::{FlatFilesUnavailableReason, ReqType, SecType};
@@ -120,9 +122,8 @@ pub use types::{FlatFilesUnavailableReason, ReqType, SecType};
 /// Decode an already-saved raw FLATFILES blob into a typed output file.
 ///
 /// Test-facing helper used by the byte-match integration suite to share
-/// one live capture across CSV / Parquet / JSONL smoke tests without
-/// hitting the wire three times. Hidden from `docs.rs`; not part of the
-/// stable public API.
+/// one live capture across CSV / JSONL smoke tests without hitting the
+/// wire twice. Hidden from `docs.rs`; not part of the stable public API.
 #[doc(hidden)]
 pub fn decoded_decode_to_file_for_test(
     raw_path: &std::path::Path,

@@ -12,7 +12,7 @@
 //!   data_type  EOD | QUOTE | TRADE | TRADE_QUOTE | OPEN_INTEREST | OHLC
 //!   date       YYYYMMDD (e.g. 20260428)
 //!   out_path   destination path; the format extension is appended if absent
-//!   format     CSV | PARQUET | JSONL
+//!   format     CSV | JSONL
 //!
 //! Credentials are loaded from `$CREDS` (default `./creds.txt`).
 
@@ -46,7 +46,6 @@ fn parse_req(s: &str) -> Result<ReqType, String> {
 fn parse_format(s: &str) -> Result<FlatFileFormat, String> {
     match s.to_ascii_uppercase().as_str() {
         "CSV" => Ok(FlatFileFormat::Csv),
-        "PARQUET" => Ok(FlatFileFormat::Parquet),
         "JSONL" => Ok(FlatFileFormat::Jsonl),
         other => Err(format!("unknown format {other:?}")),
     }
@@ -69,7 +68,7 @@ async fn main() -> ExitCode {
         );
         eprintln!("       sec: OPTION | STOCK | INDEX");
         eprintln!("       data_type: EOD | QUOTE | TRADE | TRADE_QUOTE | OPEN_INTEREST | OHLC");
-        eprintln!("       format: CSV | PARQUET | JSONL");
+        eprintln!("       format: CSV | JSONL");
         return ExitCode::from(2);
     }
     let sec = match parse_sec(&args[1]) {

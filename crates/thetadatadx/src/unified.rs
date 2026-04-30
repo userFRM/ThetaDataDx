@@ -467,16 +467,19 @@ impl ThetaDataDx {
     /// MDDS port, decode it, and write the requested `format` to disk.
     ///
     /// `format` selects the on-disk encoding:
-    /// - [`FlatFileFormat::Csv`] — vendor byte-format CSV (lowercase
-    ///   headers, comma-separated, no quoting). Byte-matches the legacy
-    ///   terminal's downloads on the same input.
-    /// - [`FlatFileFormat::Parquet`] — Apache Parquet, zstd-compressed,
-    ///   Arrow-typed columns. Streamed via `parquet::arrow::ArrowWriter`
-    ///   in 4 096-row batches.
-    /// - [`FlatFileFormat::Jsonl`] — JSON Lines, one object per row.
+    /// - [`crate::flatfiles::FlatFileFormat::Csv`] — vendor byte-format CSV
+    ///   (lowercase headers, comma-separated, no quoting). Byte-matches the
+    ///   legacy terminal's downloads on the same input.
+    /// - [`crate::flatfiles::FlatFileFormat::Jsonl`] — JSON Lines, one
+    ///   object per row.
     ///
     /// If `output_path` lacks a file extension, the format's canonical
-    /// extension (`csv` / `parquet` / `jsonl`) is appended automatically.
+    /// extension (`csv` / `jsonl`) is appended automatically.
+    ///
+    /// For columnar consumers (Parquet, Arrow IPC, polars) use
+    /// [`Self::flatfile_request_decoded`] and feed the resulting
+    /// `Vec<FlatFileRow>` into the writer of your choice — the SDK does
+    /// not pull in Parquet / Arrow itself.
     ///
     /// # Errors
     /// Returns [`Error::FlatFilesUnavailable`] for auth / server
@@ -499,6 +502,27 @@ impl ThetaDataDx {
             format,
         )
         .await
+    }
+
+    /// Pull a flat-file blob and return decoded rows in memory.
+    ///
+    /// Same auth and stream path as [`Self::flatfile_request`], but skips
+    /// the on-disk writer. Returns a `Vec<FlatFileRow>` ready to feed into
+    /// an algorithm (backtester, risk model, in-memory analytics) without
+    /// an intermediate file.
+    ///
+    /// The whole vector is materialised before the function returns; for
+    /// whole-universe blobs that can be hundreds of MB.
+    ///
+    /// # Errors
+    /// Same conditions as [`Self::flatfile_request`].
+    pub async fn flatfile_request_decoded(
+        &self,
+        sec_type: crate::flatfiles::SecType,
+        req_type: crate::flatfiles::ReqType,
+        date: &str,
+    ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
+        crate::flatfiles::flatfile_request_decoded(&self.creds, sec_type, req_type, date).await
     }
 
     /// Convenience: option open-interest flat file for `date`.

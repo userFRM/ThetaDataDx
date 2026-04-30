@@ -112,12 +112,24 @@ pub async fn flatfile_request_raw(
     .await?;
 
     let output_path = output_path.as_ref().to_path_buf();
-    if let Some(parent) = output_path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
+    // Directory creation + file open are filesystem syscalls; do them on
+    // the blocking pool so we don't stall sibling tokio tasks (FPSS,
+    // MDDS) on the same runtime.
+    let parent = output_path.parent().map(std::path::Path::to_path_buf);
+    let output_for_open = output_path.clone();
+    let file: File = tokio::task::spawn_blocking(move || -> Result<File, std::io::Error> {
+        if let Some(p) = parent {
+            if !p.as_os_str().is_empty() {
+                std::fs::create_dir_all(&p)?;
+            }
         }
-    }
-    let mut out = std::io::BufWriter::new(File::create(&output_path)?);
+        File::create(&output_for_open)
+    })
+    .await
+    .map_err(|e| Error::Config(format!("flatfiles: file-open task panicked: {e}")))??;
+    // 1 MB buffer — typical chunks are ~8-64 KB, so this batches many
+    // chunks per actual write syscall and keeps the hot loop in memory.
+    let mut out = std::io::BufWriter::with_capacity(1 << 20, file);
     let mut total: u64 = 0;
     let mut chunks: u32 = 0;
     // Loop only exits normally on FLAT_FILE_END; every other terminator
