@@ -31,7 +31,8 @@ use tdbe::greeks;
 let p = Price::new(15025, 8); // 150.25
 assert_eq!(p.to_f64(), 150.25);
 
-// Compute all 22 Greeks offline
+// Compute all 22 Greeks offline. Returns `Result<GreeksResult, Error>`
+// — `Error::Config` for an unrecognised `right`.
 let result = greeks::all_greeks(
     450.0,        // spot
     455.0,        // strike
@@ -40,7 +41,7 @@ let result = greeks::all_greeks(
     30.0 / 365.0, // time to expiry (years)
     8.50,         // option market price
     "C",          // right ("C"/"P" or "call"/"put", case-insensitive)
-);
+)?;
 println!("IV: {:.4}, Delta: {:.4}", result.iv, result.delta);
 ```
 

@@ -147,8 +147,7 @@ async fn try_run_generated_utility(
                 .parse()
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
             let right = get_arg(sub_m, "right");
-            thetadatadx::parse_right_strict(right)?;
-            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right);
+            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right).map_err(thetadatadx::Error::from)?;
             let mut td = TabularData::new(vec!["greek", "value"]);
             let rows = [
                 ("value", g.value),
@@ -200,8 +199,7 @@ async fn try_run_generated_utility(
                 .parse()
                 .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
             let right = get_arg(sub_m, "right");
-            thetadatadx::parse_right_strict(right)?;
-            let (iv, iv_error) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, right);
+            let (iv, iv_error) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, right).map_err(thetadatadx::Error::from)?;
             let mut td = TabularData::new(vec!["iv", "iv_error"]);
             td.push(vec![format!("{iv:.8}"), format!("{iv_error:.8}")]);
             td.render(fmt);

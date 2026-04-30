@@ -74,9 +74,11 @@ fn all_greeks(
     tte: f64,
     option_price: f64,
     right: &str,
-) -> AllGreeks {
-    let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right);
-    AllGreeks {
+) -> PyResult<AllGreeks> {
+    let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right)
+        .map_err(thetadatadx::Error::from)
+        .map_err(to_py_err)?;
+    Ok(AllGreeks {
         value: g.value,
         iv: g.iv,
         iv_error: g.iv_error,
@@ -99,7 +101,7 @@ fn all_greeks(
         dual_gamma: g.dual_gamma,
         epsilon: g.epsilon,
         lambda: g.lambda,
-    }
+    })
 }
 
 /// Compute implied volatility via bisection.
@@ -113,8 +115,10 @@ fn implied_volatility(
     tte: f64,
     option_price: f64,
     right: &str,
-) -> (f64, f64) {
+) -> PyResult<(f64, f64)> {
     tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, right)
+        .map_err(thetadatadx::Error::from)
+        .map_err(to_py_err)
 }
 
 fn register_generated_utility_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {

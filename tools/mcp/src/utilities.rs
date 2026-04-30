@@ -80,8 +80,10 @@ async fn try_execute_generated_utility(
             let tte = param_or_return!(arg_f64(args, "time_to_expiry"));
             let option_price = param_or_return!(arg_f64(args, "option_price"));
             let right = param_or_return!(arg_str(args, "right"));
-            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));
-            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right);
+            let g = match tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right) {
+                Ok(g) => g,
+                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),
+            };
             Some(Ok(json!({
                 "value": g.value,
                 "iv": g.iv,
@@ -115,8 +117,10 @@ async fn try_execute_generated_utility(
             let tte = param_or_return!(arg_f64(args, "time_to_expiry"));
             let option_price = param_or_return!(arg_f64(args, "option_price"));
             let right = param_or_return!(arg_str(args, "right"));
-            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));
-            let (iv, err) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right);
+            let (iv, err) = match tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right) {
+                Ok(pair) => pair,
+                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),
+            };
             Some(Ok(json!({
                 "implied_volatility": iv,
                 "error": err,

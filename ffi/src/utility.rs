@@ -62,12 +62,21 @@ pub unsafe extern "C" fn tdx_all_greeks(
 ) -> *mut TdxGreeksResult {
     ffi_boundary!(std::ptr::null_mut(), {
         let right_str = require_cstr!(right, std::ptr::null_mut());
-        if let Err(e) = thetadatadx::parse_right_strict(right_str) {
-            set_error(&e.to_string());
-            return std::ptr::null_mut();
-        }
-        let g =
-            tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right_str);
+        let g = match tdbe::greeks::all_greeks(
+            spot,
+            strike,
+            rate,
+            div_yield,
+            tte,
+            option_price,
+            right_str,
+        ) {
+            Ok(g) => g,
+            Err(e) => {
+                set_error(&e.to_string());
+                return std::ptr::null_mut();
+            }
+        };
         let result = TdxGreeksResult {
             value: g.value,
             delta: g.delta,
@@ -135,11 +144,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
             return -1;
         }
         let right_str = require_cstr!(right, -1);
-        if let Err(e) = thetadatadx::parse_right_strict(right_str) {
-            set_error(&e.to_string());
-            return -1;
-        }
-        let (iv, err) = tdbe::greeks::implied_volatility(
+        let (iv, err) = match tdbe::greeks::implied_volatility(
             spot,
             strike,
             rate,
@@ -147,7 +152,13 @@ pub unsafe extern "C" fn tdx_implied_volatility(
             tte,
             option_price,
             right_str,
-        );
+        ) {
+            Ok(pair) => pair,
+            Err(e) => {
+                set_error(&e.to_string());
+                return -1;
+            }
+        };
         unsafe {
             *out_iv = iv;
             *out_error = err;

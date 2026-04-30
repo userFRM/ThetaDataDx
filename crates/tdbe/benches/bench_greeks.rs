@@ -16,7 +16,9 @@ fn bench_all_greeks(c: &mut Criterion) {
             let q = black_box(0.015);
             let t = black_box(45.0 / 365.0);
             let price = greeks::value(s, x, 0.22, r, q, t, true);
-            black_box(greeks::all_greeks(s, x, r, q, t, price, "C"));
+            // "C" is a known-valid right; the bench treats failure as a hard
+            // bug rather than a measurement variable.
+            black_box(greeks::all_greeks(s, x, r, q, t, price, "C").expect("valid right"));
         });
     });
 }
@@ -76,15 +78,20 @@ fn bench_greeks_iv_solver(c: &mut Criterion) {
     let option_price = greeks::value(150.0, 155.0, 0.22, 0.05, 0.015, 45.0 / 365.0, true);
     c.bench_function("greeks_iv_solver", |b| {
         b.iter(|| {
-            black_box(greeks::implied_volatility(
-                black_box(150.0),
-                black_box(155.0),
-                black_box(0.05),
-                black_box(0.015),
-                black_box(45.0 / 365.0),
-                black_box(option_price),
-                black_box("C"),
-            ));
+            // "C" is a known-valid right; the bench treats failure as a hard
+            // bug rather than a measurement variable.
+            black_box(
+                greeks::implied_volatility(
+                    black_box(150.0),
+                    black_box(155.0),
+                    black_box(0.05),
+                    black_box(0.015),
+                    black_box(45.0 / 365.0),
+                    black_box(option_price),
+                    black_box("C"),
+                )
+                .expect("valid right"),
+            );
         });
     });
 }
