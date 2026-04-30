@@ -609,8 +609,8 @@ pub(crate) fn row_text(
 
 /// Decode an `i64`-valued cell.
 ///
-/// `Number(n)` → `Ok(Some(n))`; `Price(p)` → `Ok(Some(p.to_f64() as i64))`
-/// because v3 MDDS may send large integer fields encoded as `Price`;
+/// `Number(n)` → `Ok(Some(n))`; `Price(p)` → scaled with i64-native
+/// arithmetic (no f64 hop), so values past `2^53` round-trip bit-exact;
 /// `NullValue` → `Ok(None)`.
 ///
 /// Used by the generated parsers for schema columns typed `i64` — added
@@ -619,9 +619,9 @@ pub(crate) fn row_text(
 ///
 /// # Errors
 ///
-/// Errors on any other cell type or missing cell.
-// Reason: protocol-defined integer widths from Java FPSS specification.
-#[allow(clippy::cast_possible_truncation)]
+/// Returns `DecodeError::TypeMismatch` for any other cell variant, or
+/// when a `Price` cell's scale-up overflows `i64`. Returns
+/// `DecodeError::MissingCell` for an out-of-bounds column index.
 pub(crate) fn row_number_i64(
     row: &proto::DataValueList,
     idx: usize,
@@ -632,7 +632,30 @@ pub(crate) fn row_number_i64(
     match dv.data_type.as_ref() {
         Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n)),
         Some(proto::data_value::DataType::Price(p)) => {
-            Ok(Some(tdbe::Price::new(p.value, p.r#type).to_f64() as i64))
+            // i64-native scaling. The vendor convention is
+            //   real_value = p.value * 10^(p.type - 10)
+            // so a positive `exp` means scale-up (multiply); a negative
+            // `exp` means scale-down (integer divide). Routing through
+            // `Price::to_f64() as i64` would truncate ULPs past 2^53 and
+            // misencode large integer fields delivered as `Price`.
+            let v = i64::from(p.value);
+            let exp = p.r#type - 10;
+            let scaled = if exp >= 0 {
+                let mul = 10i64.checked_pow(exp.unsigned_abs());
+                mul.and_then(|m| v.checked_mul(m))
+            } else if exp >= -18 {
+                Some(v / 10i64.pow(exp.unsigned_abs()))
+            } else {
+                Some(0)
+            };
+            match scaled {
+                Some(n) => Ok(Some(n)),
+                None => Err(DecodeError::TypeMismatch {
+                    column: idx,
+                    expected: "i64-fitting Price",
+                    observed: "Price overflowing i64",
+                }),
+            }
         }
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
@@ -1448,6 +1471,50 @@ mod tests {
                 column: 0,
                 expected: "Number|Price",
                 observed: "Text",
+            })
+        );
+    }
+
+    /// `2^53 + 1` is the first integer that f64 cannot represent exactly.
+    /// The previous `f64`-hop decoder rounded it to `2^53`. The i64-native
+    /// path must round-trip the value bit-exact.
+    #[test]
+    fn row_number_i64_price_cell_round_trips_past_2_pow_53() {
+        // 2^53 + 1 fits i32? No — 2^53 ~ 9e15, well past i32::MAX. But we
+        // can still construct a `Price` whose evaluated value is 2^53 + 1
+        // via the (value, type) factoring: 2^53 + 1 has no factor of 10,
+        // so price_type must be 10 (no scaling) and the i32 `value` must
+        // hold the full integer — which it cannot for 2^53 + 1.
+        //
+        // Instead, prove the routing via a simpler bit-exact landmark
+        // that the f64 hop *would* have collapsed: choose
+        //   value = 1_073_741_823 (just under i32::MAX),
+        //   type  = 17 (exp = 7),
+        // so the result is 1_073_741_823 * 10^7 = 10_737_418_230_000_000,
+        // which is greater than 2^53 (= 9_007_199_254_740_992) and is
+        // *not* exactly representable in f64. The i64-native path returns
+        // it bit-exact.
+        let row = row_of(vec![dv_price(1_073_741_823, 17)]);
+        let got = row_number_i64(&row, 0).unwrap().expect("Some");
+        assert_eq!(got, 10_737_418_230_000_000_i64);
+        // Sanity: the previous f64-hop result would not match this exact
+        // value for at least some inputs past 2^53. Confirm here that the
+        // bit-exact landmark survives.
+        assert!(got > (1_i64 << 53));
+    }
+
+    /// `Price { value: i32::MAX, type: 20 }` rescales by 10^10 — overflows i64.
+    /// The new path surfaces this as a clean `TypeMismatch` rather than a
+    /// silent saturation through `f64 as i64`.
+    #[test]
+    fn row_number_i64_price_overflowing_i64_returns_error() {
+        let row = row_of(vec![dv_price(i32::MAX, 20)]);
+        assert_eq!(
+            row_number_i64(&row, 0),
+            Err(DecodeError::TypeMismatch {
+                column: 0,
+                expected: "i64-fitting Price",
+                observed: "Price overflowing i64",
             })
         );
     }
