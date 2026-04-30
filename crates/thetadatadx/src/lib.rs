@@ -166,3 +166,7 @@ pub use tdbe::types::enums::{
     StreamResponseType, Venue, Version,
 };
 pub use tdbe::types::price::Price;
+
+pub mod utils {
+    pub use tdbe::{conditions, exchange, sequences};
+}
