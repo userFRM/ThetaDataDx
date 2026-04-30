@@ -26,6 +26,7 @@ use crate::error::{AuthErrorKind, Error};
 use crate::flatfiles::framing::{msg, read_frame, write_frame, Frame};
 use crate::flatfiles::mdds_spki::MddsSpkiVerifier;
 use crate::flatfiles::types::FlatFilesUnavailableReason;
+use crate::fpss::protocol::build_credentials_payload;
 
 /// Established, authenticated MDDS connection.
 pub(crate) struct AuthedSession {
@@ -62,22 +63,6 @@ pub(crate) async fn connect_tls(target: MddsHost<'_>) -> Result<TlsStream<TcpStr
 ///
 /// Layout (verified live):
 /// ```text
-/// [u8 0x00][u16 BE userlen][user_utf8][pass_utf8]
-/// ```
-/// The leading byte is `0x00`. The password length is implicit
-/// (`payload.len() - 3 - userlen`).
-fn build_credentials_payload(user: &str, pass: &str) -> Vec<u8> {
-    let u = user.as_bytes();
-    let p = pass.as_bytes();
-    let userlen: u16 = u16::try_from(u.len()).expect("email cannot exceed 65535 bytes");
-    let mut payload = Vec::with_capacity(3 + u.len() + p.len());
-    payload.push(0x00);
-    payload.extend_from_slice(&userlen.to_be_bytes());
-    payload.extend_from_slice(u);
-    payload.extend_from_slice(p);
-    payload
-}
-
 /// Build the VERSION payload — `[u32 BE jsonlen][json_utf8]`.
 ///
 /// The vendor terminal serialises every JVM system property; the server
