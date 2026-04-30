@@ -110,10 +110,17 @@ fn build_cli() -> Command {
     app
 }
 
-/// Extract a string arg from clap matches, or panic with a clear message.
+/// Extract a clap-required string argument from the parsed matches.
+///
+/// All call sites pass a `name` that was declared with
+/// `Arg::new(name).required(true)`. Clap aborts argument parsing
+/// before `main` is invoked if a required argument is missing, so
+/// reaching the `None` branch here implies a clap configuration bug
+/// rather than user input. `unreachable!` documents that invariant
+/// and gives a clearer panic site than a chained `unwrap` would.
 fn get_arg<'a>(m: &'a ArgMatches, name: &str) -> &'a str {
     m.get_one::<String>(name).map_or_else(
-        || panic!("missing required argument: {name}"),
+        || unreachable!("clap-required argument {name:?} missing from matches; arg config bug"),
         std::string::String::as_str,
     )
 }

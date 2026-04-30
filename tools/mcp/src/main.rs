@@ -27,7 +27,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use sonic_rs::{json, JsonContainerTrait, JsonValueMutTrait, JsonValueTrait, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::sync::RwLock;
+use tokio::sync::OnceCell;
 
 use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 use thetadatadx::{
@@ -771,7 +771,7 @@ macro_rules! param {
 include!("utilities.rs");
 
 async fn execute_tool(
-    client: &Option<ThetaDataDx>,
+    client: Option<&ThetaDataDx>,
     name: &str,
     args: &Value,
     start_time: std::time::Instant,
@@ -781,7 +781,7 @@ async fn execute_tool(
     }
 
     // ── Online tools (require connected client) ─────────────────────
-    let client = client.as_ref().ok_or_else(|| {
+    let client = client.ok_or_else(|| {
         ToolError::ServerError(
             "ThetaData client not connected. Set THETA_EMAIL + THETA_PASSWORD env vars or use --creds flag.".to_string(),
         )
@@ -810,11 +810,11 @@ async fn execute_tool(
 
 async fn handle_request(
     req: &JsonRpcRequest,
-    client: &Arc<RwLock<Option<ThetaDataDx>>>,
+    client: &Arc<OnceCell<ThetaDataDx>>,
     start_time: std::time::Instant,
 ) -> JsonRpcResponse {
-    let client = client.read().await;
-    let client = &*client;
+    // OnceCell::get is lock-free; no guard is held across the awaits below.
+    let client = client.get();
     let id = req.id.clone().unwrap_or(Value::new_null());
 
     match req.method.as_str() {
@@ -987,7 +987,7 @@ async fn main() {
     // on the ThetaData gRPC handshake (~800 ms).  Wrap the client in an
     // Arc<RwLock> so the background task can populate it while the stdin loop
     // is already running.
-    let client: Arc<RwLock<Option<ThetaDataDx>>> = Arc::new(RwLock::new(None));
+    let client: Arc<OnceCell<ThetaDataDx>> = Arc::new(OnceCell::new());
 
     if let Some(creds) = creds {
         let client_bg = Arc::clone(&client);
@@ -995,7 +995,9 @@ async fn main() {
             match ThetaDataDx::connect(&creds, DirectConfig::production()).await {
                 Ok(c) => {
                     tracing::info!("connected to ThetaData MDDS");
-                    *client_bg.write().await = Some(c);
+                    if client_bg.set(c).is_err() {
+                        tracing::warn!("client already initialised; dropping duplicate connect");
+                    }
                 }
                 Err(e) => {
                     tracing::error!(error = %e, "failed to connect to ThetaData, running in offline mode");
