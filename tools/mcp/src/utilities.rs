@@ -13,7 +13,7 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
     }));
     tools.push(json!({
         "name": "all_greeks",
-        "description": "Compute all 22 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.",
+        "description": "Compute all 23 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera.",
         "inputSchema": {
             "type": "object",
             "properties": {

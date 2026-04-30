@@ -14,7 +14,7 @@ import (
 	"unsafe"
 )
 
-// AllGreeks Compute all 22 Black-Scholes Greeks + IV in one call.
+// AllGreeks Compute all 23 Black-Scholes Greeks + IV in one call.
 func AllGreeks(spot float64, strike float64, rate float64, divYield float64, tte float64, optionPrice float64, right string) (*Greeks, error) {
     runtime.LockOSThread()
     defer runtime.UnlockOSThread()
