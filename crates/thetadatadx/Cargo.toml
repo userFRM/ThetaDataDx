@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx"
-version = "8.0.15"
+version = "8.0.16"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -54,7 +54,7 @@ prost-types = "=0.14.3"
 tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync"] }
 tokio-stream = "0.1.18"
 tokio-rustls = "0.26.4"
-rustls = { version = "0.23.38", features = ["ring"] }
+rustls = { version = "0.23.40", features = ["ring"] }
 webpki-roots = "1.0.7"
 
 # FPSS SPKI certificate pinning (see `fpss::pinning`). We parse the leaf
@@ -66,7 +66,7 @@ sha2 = "0.11.0"
 subtle = "2.6.1"
 
 # HTTP (auth against nexus-api)
-reqwest = { version = "0.13.2", features = ["json", "rustls"], default-features = false }
+reqwest = { version = "0.13.3", features = ["json", "rustls"], default-features = false }
 
 # Serialization
 serde = { version = "1.0.228", features = ["derive"] }
@@ -81,29 +81,29 @@ thiserror = "2.0.18"
 # Macro utility (identifier concatenation in macros).
 # `pastey` is the actively-maintained successor of `paste` (archived
 # 2024-10-07 by dtolnay). Drop-in replacement — same `paste!` macro.
-pastey = "0.2.1"
+pastey = "0.2.2"
 
 # Logging
 tracing = "0.1.44"
 
 # Metrics
-metrics = "0.24.3"
+metrics = "0.24.5"
 # Optional Prometheus exporter (enabled by the `metrics-prometheus` feature).
-metrics-exporter-prometheus = { version = "0.17", optional = true, default-features = false, features = ["http-listener"] }
+metrics-exporter-prometheus = { version = "0.18", optional = true, default-features = false, features = ["http-listener"] }
 
 # Config file loading (optional)
 toml = { version = "1.1.2", optional = true }
 regex = "1.12.3"
 
 # Lock-free ring buffer (LMAX Disruptor pattern) for FPSS event dispatch
-disruptor = "4.0.0"
+disruptor = "4.1.0"
 
 # Optional DataFrame / Arrow extension traits (`frames` module).
 # polars: minimal feature set — just enough to build `DataFrame::new(vec![Series::new(...).into()])`.
 # No lazy, no I/O, no parquet, no SQL, no compute kernels. `default-features = false`
 # avoids pulling the polars-plan / polars-sql / polars-parquet graph into dependents
 # that only want row-to-frame materialization.
-polars = { version = "0.46", optional = true, default-features = false }
+polars = { version = "0.52", optional = true, default-features = false }
 # arrow-array + arrow-schema cover RecordBatch construction and the
 # `Int32Array` / `Int64Array` / `Float64Array` / `StringArray` primitives.
 # Originally feature-gated under `arrow`/`frames`, now required by the

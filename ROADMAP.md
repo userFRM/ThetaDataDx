@@ -1,28 +1,34 @@
 # ThetaDataDx Roadmap
 
-## Endpoint Status
+This document is a **status of what works in production today** plus a **list of unfinished work**. Anything listed under a "Verified" stamp has been exercised end-to-end against the live ThetaData backend through the Rust SDK in this repo. Anything not yet shipped or not yet verified is in **Open Work**.
 
-Last validated: 2026-04-20 against live MDDS production.
+Versioning follows semver against the v8 line: `8.0.x` patches, `8.1.x` minor additions, `9.x.x` if and when a breaking change ships.
+
+## Three Surfaces
+
+The SDK exposes three independent ways to consume data:
+
+| Surface | Purpose | Status |
+|---------|---------|--------|
+| **MDDS** | Request / response history + reference data | Verified |
+| **FPSS** | Live streaming firehose (trades, quotes, OI) | Verified |
+| **FLATFILES** | Server-pre-built whole-universe daily blobs delivered over the legacy MDDS auth path | Verified |
+
+Each surface has a separate authentication flow and a separate transport. All three are reachable from the same `ThetaDataDx` client; consumers pick which surface they need on a per-call basis.
+
+## MDDS — Endpoint Status
+
+Last validator run: **2026-04-20** against live MDDS production.
 Validator: `scripts/validate_cli.py` — full parameter-mode matrix, 134 cells.
-Result: **127 PASS / 7 SKIP / 0 FAIL**. All seven SKIPs are account-tier
-limits (this account holds Options Pro + Stock Standard; it has no
-Standard-tier Index subscription and no Value-tier interest-rate or
-market-value subscription). Every endpoint the account can reach PASSes
-on both the concrete-parameter path and every wildcard / bulk-chain
-variant covered by the matrix.
+Result: **127 PASS / 7 subscription-tier-blocked / 0 FAIL**. Every endpoint reachable on the test account passed on both the concrete-parameter path and every wildcard / bulk-chain variant covered by the matrix.
 
-Run locally with:
+Run locally:
 ```bash
 python3 scripts/validate_cli.py /path/to/creds.txt
 ```
 Artifact: `artifacts/validator_cli.json`.
 
 ### Stock
-
-Tier column mirrors the `min_tier` declarations in `scripts/validate_cli.py`
-(which in turn reflect `endpoint_surface.toml`). No stock RPC in
-`proto/mdds.proto` is gated behind `professional` — the Stock Pro
-subscription upgrades data content, not the endpoint list.
 
 | Endpoint | Tier | Status |
 |----------|------|--------|
@@ -86,32 +92,55 @@ subscription upgrades data content, not the endpoint list.
 |----------|------|--------|
 | `index_list_symbols()` | Free | Verified |
 | `index_list_dates(req, sym)` | Free | Verified |
-| `index_snapshot_ohlc(sym)` | Standard | Not tested (account lacks tier) |
-| `index_snapshot_price(sym)` | Standard | Not tested (account lacks tier) |
-| `index_snapshot_market_value(sym)` | Standard | Not tested (account lacks tier) |
 | `index_history_eod(sym, start, end)` | Free | Verified |
-| `index_history_ohlc(...)` | Standard | Not tested (account lacks tier) |
-| `index_at_time_price(...)` | Value | Not tested (account lacks tier) |
-| `index_history_price(...)` | Value | Not tested (account lacks tier) |
+| `index_snapshot_ohlc(sym)` | Standard | Subscription-tier-blocked |
+| `index_snapshot_price(sym)` | Standard | Subscription-tier-blocked |
+| `index_snapshot_market_value(sym)` | Standard | Subscription-tier-blocked |
+| `index_history_ohlc(...)` | Standard | Subscription-tier-blocked |
+| `index_at_time_price(...)` | Value | Subscription-tier-blocked |
+| `index_history_price(...)` | Value | Subscription-tier-blocked |
 
-### Calendar, Interest Rate, Utility
+### Calendar, Interest Rate
 
 | Endpoint | Tier | Status |
 |----------|------|--------|
-| `interest_rate_history_eod(sym, start, end)` | Free † | Not tested (server rejects with PermissionDenied) |
 | `calendar_year(year)` | Value | Verified |
 | `calendar_on_date(date)` | Value | Verified |
 | `calendar_open_today()` | Free | Verified |
+| `interest_rate_history_eod(sym, start, end)` | Value | Subscription-tier-blocked |
 
-† **Schema drift**: `endpoint_surface.toml` declares `interest_rate_history_eod`
-as `min_tier=free`, but the live server returns
-`PermissionDenied: requires value subscription`. One of the two is wrong.
-Follow-up: either bump the schema to `value` (if the server is authoritative)
-or ask ThetaData to clarify whether rate data should be free. Tracked
-against the `validator_cli.json` artifact so any future schema refresh
-picks this up.
+## FLATFILES — Surface Status
 
-### FPSS Streaming
+Live verified **2026-04-29 / 2026-04-30** against `nj-a.thetadata.us:12000`.
+Reference output byte-matched against the vendor terminal jar's CSV for the same date.
+Wire layer: TLS PacketStream (`[u32 size][u16 msg][i64 id][payload]`) with SPKI pinning, CREDENTIALS + VERSION login, FLAT_FILE request, chunked response, FLAT_FILE_END terminator.
+
+| Endpoint | Tier | Status |
+|----------|------|--------|
+| `flatfile_option_open_interest(date, format)` | Standard | Verified (CSV byte-match + Parquet + JSONL row-count parity) |
+| `flatfile_option_trade_quote(date, format)` | Standard | Verified |
+| `flatfile_option_trade(date, format)` | Standard | Verified |
+| `flatfile_option_quote(date, format)` | Standard | Verified |
+| `flatfile_option_eod(date, format)` | Standard | Verified |
+| `flatfile_option_greeks_eod(date, format)` | Standard | Verified |
+| `flatfile_option_greeks_implied_volatility(date, format)` | Standard | Verified |
+| `flatfile_option_greeks_first_order(date, format)` | Standard | Verified |
+| `flatfile_option_greeks_second_order(date, format)` | Professional | Verified |
+| `flatfile_option_greeks_third_order(date, format)` | Professional | Verified |
+| `flatfile_option_greeks_all(date, format)` | Professional | Verified |
+| `flatfile_stock_trade_quote(date, format)` | Stock-flatfile bundle | Subscription-tier-blocked |
+| `flatfile_stock_trade(date, format)` | Stock-flatfile bundle | Subscription-tier-blocked |
+| `flatfile_stock_quote(date, format)` | Stock-flatfile bundle | Subscription-tier-blocked |
+| `flatfile_stock_eod(date, format)` | Stock-flatfile bundle | Subscription-tier-blocked |
+| `flatfile_index_price(date, format)` | Indices subscription | Subscription-tier-blocked |
+| `flatfile_index_eod(date, format)` | Indices subscription | Subscription-tier-blocked |
+| `flatfile_interest_rate_eod(date, format)` | Value | Subscription-tier-blocked |
+
+Output formats: **CSV** (vendor-byte-equivalent), **Parquet** (zstd, columnar), **JSONL**. All three reproducible from `crates/thetadatadx/examples/flatfile_demo.rs`.
+
+Server retention window: 7 calendar days. Older history: contact ThetaData sales for a deeper-history bundle.
+
+## FPSS — Streaming Status
 
 | Feature | Tier | Status |
 |---------|------|--------|
@@ -120,35 +149,44 @@ picks this up.
 | Option quote subscription | Standard | Verified |
 | Option trade subscription | Standard | Verified |
 | Open interest subscription | Pro | Verified |
-| Full trade firehose (Option) | Pro | Verified (prod 5-minute capture, 22+ subs) |
+| Full trade firehose (Option) | Pro | Verified |
 | Full trade firehose (Stock) | Pro | Verified |
 | Full OI firehose | Pro | Verified |
-| Index price subscription | Free | Not tested (account lacks dedicated Index data) |
-| Dev server replay | -- | Verified |
-| Reconnection | -- | Verified (Java-parity per-read deadline, PR #370) |
-| Mid-frame TCP pause tolerance | -- | Verified (prod 5-min, zero fatal events) |
+| Index price subscription | Indices subscription | Subscription-tier-blocked |
+| Dev server replay | — | Verified |
+| Reconnection (per-read deadline, Java-parity) | — | Verified |
+| Mid-frame TCP pause tolerance | — | Verified |
 
-## Remaining Work
+## Open Work
 
-### Blocked by subscription tier (not a bug — account limits)
+### Cross-language parity for `utils`
 
-- [ ] Test stock/index/interest-rate endpoints that require Value or
-  dedicated-Index subscriptions. Current account profile: Options Pro +
-  Stock Standard + Indices Free.
+The Rust SDK exposes `thetadatadx::utils::{conditions, exchange, sequences}` for post-processing tick records. The Python, TypeScript, Go, and C++ SDKs do **not** currently expose any of these helpers. Tracked in issue #424.
 
-### Open
+- [ ] **Python** — bind `thetadatadx.utils.{conditions, exchange, sequences}` via PyO3.
+- [ ] **TypeScript** — bind via napi-rs under the same `utils.*` namespace.
+- [ ] **Go** — flat helper functions `thetadatadx.UtilsConditionName(code)`, etc.
+- [ ] **C++** — header at `sdks/cpp/include/thetadx_utils.h` with `extern "C"` bindings plus thin C++ wrappers.
 
-- [ ] Cross-SDK parity validation (Python, TypeScript/Node.js, Go, C++
-  return identical data for every endpoint the validator covers).
-- [ ] Split / dividend endpoints (v3: "Coming Soon" upstream).
+### MDDS endpoint coverage on subscription-tier-blocked rows
 
-### Recently closed (this cycle)
+The 7 SKIP rows in the MDDS validator are subscription-blocked on the current test account. They are exposed by the SDK, the wire calls compile, and they pass tier-rejected at the server. Verifying the success path requires either an account upgrade or a different validation account.
 
-- [x] Java-parity mid-frame retry, eliminates the reconnect-storm class
-  of issues tracked through #192 / #369 (PR #370).
-- [x] Options Pro endpoint coverage — every `option_*_greeks_*` and
-  `option_*_trade_greeks_*` variant now PASSes on prod.
-- [x] Typed SDK surface for Python and TypeScript (pyclass / napi
-  `#[napi(object)]` with `BigInt` for u64 fields). See CHANGELOG v7.3.1.
-- [x] Auto-reconnect on FPSS disconnect.
-- [x] Large data streaming via `_stream()` helpers.
+- [ ] Stock / Index / Interest-rate endpoints listed under **Subscription-tier-blocked** above, using a Value-tier or dedicated-Index account.
+
+### FLATFILES on subscription-tier-blocked surfaces
+
+- [ ] Stock flat files (`flatfile_stock_*`) — require the dedicated stock-flatfile bundle from sales. Wire path is identical to options; only the auth tier differs.
+- [ ] Index + interest-rate flat files — same gate.
+
+### Phase 2: relocate `utils` source from `tdbe` into `thetadatadx`
+
+- [ ] Move `conditions.rs`, `exchange.rs`, `sequences.rs` from `crates/tdbe/src/` to `crates/thetadatadx/src/utils/`. Public path stays `thetadatadx::utils::*` so SDK consumers don't move. `tdbe` shrinks to its actual scope (codec primitives, format spec, tick types, Greeks math) and bumps to a major version.
+
+### Cross-SDK parity validation
+
+- [ ] Run the validator matrix through the Python, TypeScript, Go, and C++ SDKs and compare row-for-row against the Rust artifact. Locks in the contract that all four bindings return identical data for every endpoint.
+
+### Upstream features
+
+- [ ] Split / dividend endpoints — listed by ThetaData as "Coming Soon" upstream. SDK-side work is gated on the wire surface landing.
