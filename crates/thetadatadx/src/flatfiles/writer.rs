@@ -61,30 +61,32 @@ pub(crate) fn data_indices(fmt: &[DataType], price_type_idx: Option<usize>) -> V
         .collect()
 }
 
-/// Per-row price divisor.
+/// Per-row PRICE_TYPE exponent for `tdbe::Price` decoding.
 ///
 /// When PRICE_TYPE is in the schema, the value at that column is the
-/// exponent N, so the price = `int_value / 10^N`. With no PRICE_TYPE
-/// column the multiplier is 1 (i.e. the integer IS the price already, in
-/// vendor convention) — the vendor's `toCSV2` does not call
-/// `PriceCalc.fmtPrice` in that branch, so emitting the integer
-/// unchanged matches the reference output.
-pub(crate) fn price_divisor(row: &[i32], price_type_idx: Option<usize>) -> Option<f64> {
-    price_type_idx.map(|idx| {
-        let n = row.get(idx).copied().unwrap_or(0);
-        let n = n.clamp(0, 18) as u32;
-        10f64.powi(n as i32)
-    })
+/// vendor `price_type` field (real price = `value * 10^(price_type - 10)`).
+/// When PRICE_TYPE is absent, the column is not a price (the vendor's
+/// `toCSV2` does not call `PriceCalc.fmtPrice` in that branch), so the
+/// integer value is emitted unchanged.
+pub(crate) fn price_type_for_row(row: &[i32], price_type_idx: Option<usize>) -> Option<i32> {
+    price_type_idx.map(|idx| row.get(idx).copied().unwrap_or(0))
 }
 
-/// Format a price value in vendor style: divide by `10^N`, render with
-/// 4 fractional digits and **no trailing-zero stripping** (the vendor's
-/// `PriceCalc.fmtPrice(builder, value, 4)` is fixed-precision).
-pub(crate) fn fmt_price_into(buf: &mut String, integer: i32, divisor: f64) {
+/// Convert a wire `(value, price_type)` pair to its real f64 price using
+/// the canonical [`tdbe::types::price::Price`] semantics. Returns 0.0 for
+/// `price_type == 0` (vendor sentinel for "no price").
+pub(crate) fn decode_price(integer: i32, price_type: i32) -> f64 {
+    tdbe::types::price::Price::new(integer, price_type).to_f64()
+}
+
+/// Render the decoded price using Rust's default `f64` Display, which
+/// preserves the full IEEE-754 precision the wire decoder produced. For
+/// micro-priced contracts (sub-cent options) this is the only viable
+/// representation — fixed-point rendering rounds those to zero.
+pub(crate) fn fmt_price_into(buf: &mut String, integer: i32, price_type: i32) {
     use std::fmt::Write;
-    let v = (integer as f64) / divisor;
-    // Match vendor: 4 decimals, no exponent, no thousands separator.
-    let _ = write!(buf, "{v:.4}");
+    let v = decode_price(integer, price_type);
+    let _ = write!(buf, "{v}");
 }
 
 /// Build the contract-prefix segment of a CSV row.
@@ -163,15 +165,15 @@ impl RowSink for CsvSink {
     fn write_row(&mut self, row: RowView<'_>) -> Result<(), Error> {
         self.line.clear();
         append_csv_prefix(&mut self.line, row.entry, self.sec);
-        let divisor = price_divisor(row.data, self.price_type_idx);
+        let pt = price_type_for_row(row.data, self.price_type_idx);
         for (n, &i) in self.data_idx.iter().enumerate() {
             if n > 0 {
                 self.line.push(',');
             }
             let val = row.data.get(i).copied().unwrap_or(0);
             if self.fmt[i].is_price() {
-                if let Some(d) = divisor {
-                    fmt_price_into(&mut self.line, val, d);
+                if let Some(t) = pt {
+                    fmt_price_into(&mut self.line, val, t);
                 } else {
                     use std::fmt::Write;
                     let _ = write!(self.line, "{val}");
@@ -258,13 +260,13 @@ impl RowSink for JsonlSink {
                 );
             }
         }
-        let divisor = price_divisor(row.data, self.price_type_idx);
+        let pt = price_type_for_row(row.data, self.price_type_idx);
         for &i in &self.data_idx {
             let val = row.data.get(i).copied().unwrap_or(0);
             let key = self.fmt[i].name().into_owned();
             let v = if self.fmt[i].is_price() {
-                if let Some(d) = divisor {
-                    let f = (val as f64) / d;
+                if let Some(t) = pt {
+                    let f = decode_price(val, t);
                     serde_json::Number::from_f64(f)
                         .map(serde_json::Value::Number)
                         .unwrap_or(serde_json::Value::Null)
@@ -312,26 +314,33 @@ mod tests {
     }
 
     #[test]
-    fn price_divisor_clamped() {
-        let row = vec![0, 0, 4, 0]; // PRICE_TYPE = 4
-        let d = price_divisor(&row, Some(2)).unwrap();
-        assert!((d - 10_000f64).abs() < 1e-9);
+    fn price_type_for_row_reads_column() {
+        let row = vec![0, 0, 8, 0]; // PRICE_TYPE = 8 (cents)
+        assert_eq!(price_type_for_row(&row, Some(2)), Some(8));
+        assert_eq!(price_type_for_row(&row, None), None);
     }
 
     #[test]
-    fn price_divisor_negative_clamped_to_zero() {
-        let row = vec![-1];
-        let d = price_divisor(&row, Some(0)).unwrap();
-        assert!((d - 1.0).abs() < 1e-9);
+    fn decode_price_uses_vendor_semantics() {
+        // PRICE_TYPE = 8 means real = value * 0.01 (cents).
+        assert!((decode_price(15025, 8) - 150.25).abs() < 1e-9);
+        // PRICE_TYPE = 10 means real = value (integer).
+        assert!((decode_price(150, 10) - 150.0).abs() < 1e-9);
+        // PRICE_TYPE = 0 is the vendor "no price" sentinel.
+        assert_eq!(decode_price(123, 0), 0.0);
+        // Sub-cent micro-pricing: PRICE_TYPE = 4 => value * 1e-6.
+        assert!((decode_price(19, 4) - 1.9e-5).abs() < 1e-12);
     }
 
     #[test]
-    fn fmt_price_four_decimals() {
+    fn fmt_price_preserves_full_precision() {
         let mut s = String::new();
-        fmt_price_into(&mut s, 15025, 10_000.0);
-        assert_eq!(s, "1.5025");
+        fmt_price_into(&mut s, 15025, 8);
+        assert_eq!(s, "150.25");
         s.clear();
-        fmt_price_into(&mut s, 0, 10_000.0);
-        assert_eq!(s, "0.0000");
+        // Micro-priced option: must NOT round to 0.
+        fmt_price_into(&mut s, 19, 4);
+        assert!(s.starts_with("0.0000") || s.contains("e-"), "got {s:?}");
+        assert_ne!(s, "0.0000");
     }
 }
