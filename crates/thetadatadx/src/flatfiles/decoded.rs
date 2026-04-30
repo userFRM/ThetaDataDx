@@ -69,9 +69,16 @@ pub(crate) fn decode_to_file(
     let blob = std::fs::read(raw_path)?;
     let hdr = parse_header(&blob)?;
 
-    let index_start = hdr.index_offset as usize;
-    let index_byte_len = hdr.index_byte_len as usize;
-    let data_byte_len = hdr.data_byte_len as usize;
+    let to_usize = |v: u64, field: &str| {
+        usize::try_from(v).map_err(|_| {
+            Error::Config(format!(
+                "flatfiles: header field {field}={v} does not fit in usize on this target"
+            ))
+        })
+    };
+    let index_start = to_usize(hdr.index_offset, "index_offset")?;
+    let index_byte_len = to_usize(hdr.index_byte_len, "index_byte_len")?;
+    let data_byte_len = to_usize(hdr.data_byte_len, "data_byte_len")?;
     let index_end = index_start.checked_add(index_byte_len).ok_or_else(|| {
         Error::Config(format!(
             "flatfiles: header lengths overflow usize (index_offset={index_start}, index_byte_len={index_byte_len})"
