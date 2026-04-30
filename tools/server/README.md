@@ -4,6 +4,8 @@ Runs a local HTTP REST server and WebSocket server that expose the ThetaData `/v
 
 Existing clients using the current `/v3/*` local terminal routes can point at this binary on the same port.
 
+> **FLATFILES coverage:** the REST/WS server currently exposes the MDDS and FPSS surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired into the route surface under issue [#432](https://github.com/userFRM/ThetaDataDx/issues/432). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+
 ## Quick start
 
 ```bash

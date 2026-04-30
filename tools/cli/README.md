@@ -1,6 +1,8 @@
-# tdx - ThetaDataDx CLI
+# tdx — ThetaDataDx CLI
 
 Command-line interface for querying ThetaData market data.
+
+> **FLATFILES coverage:** the CLI currently exposes the MDDS (historical request/response) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired into the CLI under issue [#433](https://github.com/userFRM/ThetaDataDx/issues/433). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
 
 ## Install
 

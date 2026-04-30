@@ -10,11 +10,13 @@ graph LR
         Nexus["Nexus API<br/>nexus-api.thetadata.us<br/>POST /identity/terminal/auth_user"]
         MDDS["MDDS<br/>mdds-01.thetadata.us:443<br/>gRPC server-streaming<br/>60 RPC methods"]
         FPSS["FPSS<br/>nj-a.thetadata.us:20000/20001<br/>nj-b.thetadata.us:20000/20001<br/>Custom TLS/TCP protocol"]
+        FLATFILES["FLATFILES<br/>nj-a.thetadata.us:12000/12001<br/>nj-b.thetadata.us:12000/12001<br/>TLS PacketStream<br/>Whole-universe daily blobs"]
     end
 
     App -->|"HTTPS<br/>email + password"| Nexus
     App -->|"gRPC over TLS<br/>session UUID in QueryInfo"| MDDS
     App -->|"TLS/TCP<br/>email + password<br/>FIT-encoded ticks"| FPSS
+    App -->|"TLS PacketStream<br/>email + password<br/>INDEX + DATA blob"| FLATFILES
 
     Nexus -. "session UUID" .-> App
 ```

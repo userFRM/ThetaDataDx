@@ -4,6 +4,8 @@ C++ SDK for ThetaData market data. Header-only RAII wrappers over the `thetadata
 
 Every call crosses the C ABI boundary into compiled Rust: gRPC communication, protobuf parsing, zstd decompression, and TCP streaming run inside the `thetadatadx` crate.
 
+> **FLATFILES coverage:** the C++ binding currently exposes the MDDS (historical) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired through the FFI layer (issue [#434](https://github.com/userFRM/ThetaDataDx/issues/434)) into C++ under issue [#438](https://github.com/userFRM/ThetaDataDx/issues/438). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+
 ## Prerequisites
 
 - C++17 compiler
