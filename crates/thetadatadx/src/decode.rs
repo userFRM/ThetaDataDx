@@ -632,17 +632,19 @@ pub(crate) fn row_number_i64(
     match dv.data_type.as_ref() {
         Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n)),
         Some(proto::data_value::DataType::Price(p)) => {
-            // i64-native scaling. The vendor convention is
-            //   real_value = p.value * 10^(p.type - 10)
-            // so a positive `exp` means scale-up (multiply); a negative
-            // `exp` means scale-down (integer divide). Routing through
-            // `Price::to_f64() as i64` would truncate ULPs past 2^53 and
-            // misencode large integer fields delivered as `Price`.
+            // Vendor convention: real_value = value * 10^(type - 10).
+            // Positive exp scales up; negative exp scales down. v == 0
+            // short-circuits to 0 so a zero price never trips the
+            // scale-up overflow guard.
             let v = i64::from(p.value);
+            if v == 0 {
+                return Ok(Some(0));
+            }
             let exp = p.r#type - 10;
             let scaled = if exp >= 0 {
-                let mul = 10i64.checked_pow(exp.unsigned_abs());
-                mul.and_then(|m| v.checked_mul(m))
+                10i64
+                    .checked_pow(exp.unsigned_abs())
+                    .and_then(|m| v.checked_mul(m))
             } else if exp >= -18 {
                 Some(v / 10i64.pow(exp.unsigned_abs()))
             } else {
@@ -1490,6 +1492,16 @@ mod tests {
         let got = row_number_i64(&row, 0).unwrap().expect("Some");
         assert_eq!(got, 10_737_418_230_000_000_i64);
         assert!(got > (1_i64 << 53));
+    }
+
+    /// `value == 0` decodes to 0 regardless of the exponent, even for
+    /// `price_type` values that would otherwise overflow the scale-up
+    /// guard. Mathematically the product is zero; the decoder must not
+    /// reject a zero cell.
+    #[test]
+    fn row_number_i64_price_zero_value_short_circuits() {
+        let row = row_of(vec![dv_price(0, 20)]);
+        assert_eq!(row_number_i64(&row, 0), Ok(Some(0)));
     }
 
     /// `Price { value: i32::MAX, type: 20 }` rescales by 10^10 — overflows i64.

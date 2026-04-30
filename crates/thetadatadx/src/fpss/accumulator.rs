@@ -101,18 +101,11 @@ impl OhlcvcAccumulator {
     }
 }
 
-/// Convert a price from one `price_type` to another (mirrors Java PriceCalcUtils.changePriceType).
-///
-/// The conversion widens to `i64` mid-arithmetic so common rescales (e.g.
-/// BRK.A wire integer in cents = `71_396_865` rescaled to `idx = 4`) do not
-/// silently overflow `i32`. When the widened result still does not fit back
-/// into `i32` the function returns the *original* price unchanged and emits a
-/// `tracing::warn!` event carrying `(price, price_type, new_price_type)`. The
-/// caller's accumulator high/low/close therefore stays at the unscaled value
-/// rather than receiving a wrapped garbage value, but the OHLCVC bar may go
-/// stale until the next tick arrives in the accumulator's existing
-/// `price_type` — overload-wide rescales are a no-op, not a panic, and not a
-/// silent saturation.
+/// Convert a price from one `price_type` to another (mirrors Java
+/// `PriceCalcUtils.changePriceType`). Multiplication widens through `i64`;
+/// when the widened result does not fit back in `i32` the function returns
+/// the input price unchanged and traces a warning. Result is never a
+/// wrapped value.
 // Reason: protocol-defined integer widths from Java FPSS specification.
 #[allow(clippy::cast_possible_truncation)]
 pub(super) fn change_price_type(price: i32, price_type: i32, new_price_type: i32) -> i32 {
