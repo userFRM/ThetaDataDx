@@ -4,6 +4,8 @@ Go SDK for ThetaData market data. CGo bindings over the `thetadatadx` Rust crate
 
 Every call crosses the CGo boundary into compiled Rust: gRPC communication, protobuf parsing, zstd decompression, and TCP streaming run inside the `thetadatadx` crate.
 
+> **FLATFILES coverage:** the Go binding currently exposes the MDDS (historical) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired through the FFI layer (issue [#434](https://github.com/userFRM/ThetaDataDx/issues/434)) into Go under issue [#437](https://github.com/userFRM/ThetaDataDx/issues/437). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+
 ## Prerequisites
 
 - Go 1.21+

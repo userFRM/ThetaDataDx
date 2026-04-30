@@ -1,6 +1,8 @@
 # thetadatadx-mcp
 
-MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM/ThetaDataDx) - gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
+MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM/ThetaDataDx) — gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
+
+> **FLATFILES coverage:** the MCP server currently exposes the MDDS (historical) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired into the MCP tool list under issue [#431](https://github.com/userFRM/ThetaDataDx/issues/431). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
 
 ## Architecture
 

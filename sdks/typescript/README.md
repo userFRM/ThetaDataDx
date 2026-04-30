@@ -4,6 +4,8 @@ Node.js SDK for ThetaData market data. napi-rs bindings over the `thetadatadx` R
 
 Every call crosses the napi boundary into compiled Rust: gRPC, protobuf, zstd, FIT decoding, and TCP streaming run inside the `thetadatadx` crate.
 
+> **FLATFILES coverage:** the TypeScript binding currently exposes the MDDS (historical) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired into TypeScript under issue [#436](https://github.com/userFRM/ThetaDataDx/issues/436). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+
 ## Install
 
 ```bash

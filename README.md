@@ -10,7 +10,7 @@ Rust SDK for ThetaData market data — single Rust core, five language surfaces 
 [![Docs](https://img.shields.io/docsrs/thetadatadx)](https://docs.rs/thetadatadx)
 [![Discord](https://img.shields.io/badge/Discord-community-5865F2.svg?logo=discord&logoColor=white)](https://discord.thetadata.us/)
 
-`thetadatadx` is a native Rust SDK for [ThetaData](https://thetadata.us) market data. It connects directly to ThetaData's MDDS (historical, gRPC) and FPSS (real-time, TCP) services, decodes ticks in-process, and exposes a typed surface across Rust, Python, TypeScript, Go, and C++ from a single Rust core. No JVM, no subprocess, no IPC serialization.
+`thetadatadx` is a native Rust SDK for [ThetaData](https://thetadata.us) market data. It connects directly to ThetaData's three public surfaces — MDDS (historical request/response over gRPC), FPSS (real-time streaming over TCP), and FLATFILES (whole-universe daily blobs over the legacy MDDS port) — decodes ticks in-process, and exposes a typed API across Rust, Python, TypeScript, Go, and C++ from a single Rust core. No JVM, no subprocess, no IPC serialization.
 
 > [!IMPORTANT]
 > A valid [ThetaData](https://thetadata.us) subscription is required. The SDK authenticates against ThetaData's Nexus API using your account credentials.
@@ -22,7 +22,8 @@ Rust SDK for ThetaData market data — single Rust core, five language surfaces 
 - **SPKI-pinned FPSS TLS.** Public-key pinning on the FPSS streaming handshake.
 - **FIT decoder + SPSC ring buffer** on the FPSS path. Decode cost is measured in the benchmarks under `crates/thetadatadx/benches/`.
 - **Shared FFI layer.** Go, C++, and Node.js go through the same `extern "C"` layer; the Python wheel uses PyO3 ABI3 directly.
-- **Covers the MDDS gRPC endpoints and FPSS wire format.** Reconnect semantics follow the terminal protocol. See the [parity checklist](docs/java-parity-checklist.md).
+- **Covers all three public surfaces.** MDDS gRPC endpoints, FPSS wire format with reconnect semantics, and the FLATFILES daily-blob protocol — every transport speaks directly to ThetaData's production servers from a single client. See the [parity checklist](docs/java-parity-checklist.md) and the [vendor flat-file reference](https://http-docs.thetadata.us/operations/get-v2-flat-file-getting-started.html).
+- **FLATFILES daily blobs.** Pull whole-universe `(sec_type, req_type, date)` blobs over the legacy MDDS port; decode to vendor-byte CSV, JSONL, or a typed `Vec<FlatFileRow>` in memory. Cross-language coverage is tracked under the binding issues; the Rust core is shipped today.
 
 ## Quick start
 

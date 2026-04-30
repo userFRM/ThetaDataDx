@@ -3,6 +3,14 @@
 Thank you for your interest in contributing. This guide covers everything
 you need to get started.
 
+The SDK speaks three independent ThetaData surfaces — MDDS (gRPC), FPSS
+(streaming), and FLATFILES (whole-universe daily blobs). When opening
+an issue or PR that touches any of them, name the surface in the title
+prefix: `feat(mdds): ...`, `feat(fpss): ...`, `feat(flatfiles): ...`.
+Cross-language binding parity is tracked under separate per-binding
+issues; see [`ROADMAP.md`](./ROADMAP.md#flatfiles--binding-coverage)
+for the FLATFILES coverage matrix.
+
 ## Prerequisites
 
 - **Rust stable** (see `rust-toolchain.toml` - includes rustfmt and clippy)

@@ -2,6 +2,8 @@
 
 Interactive Jupyter notebooks demonstrating the `thetadatadx` Python SDK. Each notebook is self-contained and progresses from basics to advanced real-time streaming.
 
+> **FLATFILES coverage:** the existing notebooks cover the MDDS (historical) and FPSS (streaming) surfaces. A FLATFILES notebook walking through whole-universe daily blobs is tracked alongside the Python binding work — see issue [#435](https://github.com/userFRM/ThetaDataDx/issues/435) and the per-binding flat-file demos issue [#445](https://github.com/userFRM/ThetaDataDx/issues/445). Once the Python binding ships flat-file methods, a `notebooks/flat-files/` directory will land here.
+
 ## Prerequisites
 
 ```bash

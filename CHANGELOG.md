@@ -7,6 +7,118 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.19] - 2026-04-30
+
+### Changed
+
+- `tools/mcp` replaced `Arc<RwLock<Option<ThetaDataDx>>>` with
+  `Arc<OnceCell<ThetaDataDx>>`. The JSON-RPC handler no longer holds
+  a read guard across awaited tool execution; `OnceCell::get` is
+  lock-free.
+- `tools/cli` `get_arg()` now uses `unreachable!()` with an explicit
+  invariant comment. All call sites declare the argument with clap's
+  `required(true)`, so the `None` branch indicates a clap config bug,
+  not user input.
+
+### Added
+
+- `crates/tdbe::FitRows::get()` returns `Option<&[i32]>` for
+  caller-supplied indices. The existing `FitRows::row()` keeps its
+  panic-on-OOB contract with a clearer message.
+
+## [8.0.18] - 2026-04-30
+
+### Fixed
+
+- Workspace version drift: `ffi`, `tools/cli`, `tools/server`, and
+  `tools/mcp` were pinned at 8.0.15 while the SDK crates moved
+  through 8.0.16 → 8.0.17. Every Rust crate, every npm
+  `package.json`, and the TypeScript `package-lock.json` now report
+  a single 8.0.18 surface.
+- `Contract::to_bytes()` no longer panics on caller input. New
+  `Contract::validate()` returns a typed `Result<(), Error::Config>`;
+  new `Contract::try_to_bytes()` is the fallible encoder.
+  `build_subscribe_payload()` now returns `Result<Vec<u8>, Error>`,
+  and `FpssClient::{subscribe, unsubscribe}` validate before
+  encoding. The reconnect re-subscribe loop logs and skips invalid
+  contracts instead of failing the whole reconnect. Net: malformed
+  roots flow back as `Error::Config` to every binding instead of
+  crashing the process.
+- `SessionToken::refresh` no longer holds a `tokio::Mutex` across the
+  Nexus `authenticate_at(...).await`. Replaced with
+  `tokio::RwLock<Inner>` for state plus a separate `tokio::Mutex<()>`
+  for refresh dedup. Concurrent `snapshot()` / `current_uuid()`
+  readers continue against the previous (still-valid) UUID
+  throughout.
+
+## [8.0.17] - 2026-04-30
+
+### Added
+
+- **FLATFILES** — third public surface alongside MDDS and FPSS.
+  Pulls one whole-universe INDEX + DATA blob per
+  `(SecType, ReqType, date)` tuple from
+  `nj-{a,b}.thetadata.us:12000` over a TLS PacketStream protocol
+  distinct from MDDS gRPC and FPSS streaming. Server identity pinned
+  to the production keypair via `MddsSpkiVerifier`. Login:
+  CREDENTIALS + VERSION → SESSION_TOKEN + METADATA, with PING
+  heartbeats during auth tolerated and terminal login errors
+  short-circuiting host retry. The raw download path uses async
+  `tokio::fs` with a 1 MB BufWriter; decode + write run on
+  `tokio::task::spawn_blocking` so FPSS / MDDS tasks on the same
+  runtime do not stall.
+- `crates/thetadatadx::flatfiles` module: `framing`, `mdds_spki`,
+  `session`, `request`, `index`, `decode`, `decoded`, `decoded_row`,
+  `format`, `types`, `writer`, `datatype` submodules.
+- Three free-function entry points: `flatfile_request`,
+  `flatfile_request_decoded`, `flatfile_request_raw`. Mirror methods
+  on the unified `ThetaDataDx` client. Convenience methods for the
+  option / stock × `{open_interest, trade_quote, trade, quote, eod}`
+  matrix.
+- Public types: `FlatFileFormat::{Csv, Jsonl}`, `SecType`, `ReqType`,
+  `FlatFileRow`, `FlatFileValue`, `FlatFilesUnavailableReason`.
+- `crates/thetadatadx/examples/flatfile_demo.rs` end-to-end CLI
+  example.
+- `crates/thetadatadx/tests/flatfiles_byte_match.rs` live integration
+  test (`live-tests` feature gate) that byte-matches CSV output
+  against the vendor terminal jar.
+
+### Changed
+
+- `tdbe` 0.12.0 → 0.12.1. Republishes the SSOT-generator enum surface
+  (`Interval`, `RequestType`, `Version`) so `thetadatadx` publish
+  resolves on crates.io.
+
+### Notes
+
+- Cross-language coverage of FLATFILES (CLI, MCP, REST/WS server,
+  FFI, Python, TypeScript, Go, C++) is tracked in the issue tracker;
+  the Rust core is shipped today. See `ROADMAP.md` for the binding
+  coverage matrix.
+
+## [8.0.16] - 2026-04-30
+
+### Added
+
+- `thetadatadx::utils` namespace exposes `conditions`, `exchange`,
+  `sequences` for tick post-processing without a separate `tdbe`
+  dependency.
+- Re-exports at the `thetadatadx` crate root for every tick struct
+  returned by an SDK method (`CalendarDay`, `EodTick`, `GreeksTick`,
+  `InterestRateTick`, `IvTick`, `MarketValueTick`, `OhlcTick`,
+  `OpenInterestTick`, `OptionContract`, `PriceTick`, `QuoteTick`,
+  `TradeQuoteTick`, `TradeTick`), the enums named on those structs
+  (`DataType`, `Interval`, `RateType`, `RemoveReason`, `RequestType`,
+  `Right`, `SecType`, `StreamMsgType`, `StreamResponseType`, `Venue`,
+  `Version`), `Price`, and the offline Greeks helpers (`all_greeks`,
+  `implied_volatility`, `GreeksResult`).
+
+### Changed
+
+- `ROADMAP.md` aligned with the 2026-04-20 validator run (127 PASS /
+  7 subscription-tier-blocked / 0 FAIL) and the 2026-04-29 / 04-30
+  FLATFILES live run.
+
 ## [8.0.15] - 2026-04-24
 
 ### Fixed

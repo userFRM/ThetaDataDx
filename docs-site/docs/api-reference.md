@@ -5,9 +5,9 @@ description: Complete API reference for the ThetaDataDx SDK covering all endpoin
 
 # API Reference
 
-ThetaDataDx provides a unified client for accessing ThetaData market data. Historical data flows over MDDS/gRPC; real-time streaming flows over FPSS/TCP. The SDK ships native bindings for Rust, Python, TypeScript/Node.js, Go, and C++, all backed by the same compiled Rust core.
+ThetaDataDx provides a unified client for accessing ThetaData market data across three public surfaces: historical request/response (MDDS over gRPC), real-time streaming (FPSS over TCP), and whole-universe daily blobs (FLATFILES over the legacy MDDS port). The SDK ships native bindings for Rust, Python, TypeScript/Node.js, Go, and C++, all backed by the same compiled Rust core.
 
-Complete typed historical surface + 4 streaming variants + 22 Greeks functions + IV solver.
+Complete typed historical surface + 4 streaming variants + the FLATFILES daily-blob surface (Rust today; cross-language bindings tracked under the FLATFILES roadmap section) + 22 Greeks functions + IV solver.
 
 ## Client Construction
 

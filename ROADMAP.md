@@ -127,9 +127,26 @@ Wire layer: TLS PacketStream (`[u32 size][u16 msg][i64 id][payload]`) with SPKI 
 | `flatfile_stock_quote(date, format)` | Stock-flatfile bundle | Subscription-tier-blocked |
 | `flatfile_stock_eod(date, format)` | Stock-flatfile bundle | Subscription-tier-blocked |
 
-Output formats: **CSV** (vendor-byte-equivalent), **Parquet** (zstd, columnar), **JSONL**. All three reproducible from `crates/thetadatadx/examples/flatfile_demo.rs`.
+Output formats: **CSV** (vendor-byte-equivalent), **JSONL**, plus a typed in-memory `Vec<FlatFileRow>`. All three reproducible from `crates/thetadatadx/examples/flatfile_demo.rs`. Columnar consumers (Parquet, Arrow IPC, polars) drive their own writer from the in-memory entry point — the SDK does not pull in Parquet or Arrow itself.
 
 Server retention window: 7 calendar days. Older history: contact ThetaData sales for a deeper-history bundle.
+
+### FLATFILES — Binding Coverage
+
+| Binding | Status | Tracking |
+|---------|--------|----------|
+| Rust (`crates/thetadatadx`) | Shipped | v8.0.17 |
+| FFI (`ffi/`) | Pending | #434 |
+| CLI (`tools/cli`) | Pending | #433 |
+| MCP (`tools/mcp`) | Pending | #431 |
+| REST/WS server (`tools/server`) | Pending | #432 |
+| Python (`sdks/python`) | Pending | #435 |
+| TypeScript (`sdks/typescript`) | Pending | #436 |
+| Go (`sdks/go`) | Pending | #437 |
+| C++ (`sdks/cpp`) | Pending | #438 |
+| `sdk_surface.toml` declarative spec | Pending | #439 |
+
+`#439` (extending `sdk_surface.toml` and the per-target renderers) is the upstream blocker for the binding issues — once the spec carries the flatfile method kinds, a single `cargo build` regenerates every binding.
 
 ## FPSS — Streaming Status
 
