@@ -71,11 +71,28 @@ impl FitRows {
         self.num_columns
     }
 
-    /// Borrow the row at index `i`. Panics if `i >= self.len()`.
+    /// Borrow the row at index `i`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `i >= self.len()`. Prefer [`Self::get`] in any path
+    /// that operates on caller-supplied indices.
     #[must_use]
     pub fn row(&self, i: usize) -> &[i32] {
-        let start = i * self.num_columns;
-        &self.data[start..start + self.num_columns]
+        self.get(i)
+            .unwrap_or_else(|| panic!("FitRows::row index out of bounds: {i} >= {}", self.len()))
+    }
+
+    /// Borrow the row at index `i`, returning `None` if out of bounds.
+    /// The fallible cousin of [`Self::row`].
+    #[must_use]
+    pub fn get(&self, i: usize) -> Option<&[i32]> {
+        if i >= self.len() {
+            return None;
+        }
+        let start = i.checked_mul(self.num_columns)?;
+        let end = start.checked_add(self.num_columns)?;
+        self.data.get(start..end)
     }
 
     /// Iterator over rows as slices.

@@ -48,7 +48,7 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
 }
 
 async fn try_execute_generated_utility(
-    client: &Option<ThetaDataDx>,
+    client: Option<&ThetaDataDx>,
     name: &str,
     args: &Value,
     start_time: std::time::Instant,
