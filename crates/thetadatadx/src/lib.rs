@@ -162,6 +162,7 @@ pub use tdbe::types::tick::{
 // NOT re-exported to avoid colliding with [`crate::Error`]; the SDK's
 // own `Error` transparently wraps codec failures from `tdbe`.
 pub use tdbe::types::enums::{
-    DataType, Interval, RateType, RequestType, Right, SecType, Venue, Version,
+    DataType, Interval, RateType, RemoveReason, RequestType, Right, SecType, StreamMsgType,
+    StreamResponseType, Venue, Version,
 };
 pub use tdbe::types::price::Price;
