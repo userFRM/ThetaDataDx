@@ -5,7 +5,7 @@
 //! behind `Arc` so axum can cheaply clone state into each handler.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use subtle::ConstantTimeEq;
@@ -53,6 +53,12 @@ struct Inner {
     contract_map: Arc<Mutex<HashMap<i32, Arc<Contract>>>>,
     /// Random token required by the shutdown endpoint.
     shutdown_token: String,
+    /// Monotonic count of FPSS events dropped on the bounded
+    /// callback->broadcast handoff (see `ws::start_fpss_bridge`). Mirrors the
+    /// FPSS SDK's per-handle `dropped_events()` counter so operators can
+    /// scrape one number to detect WS-side back-pressure independent of the
+    /// SDK-side disruptor overrun counter.
+    fpss_broadcast_dropped: AtomicU64,
 }
 
 impl AppState {
@@ -68,8 +74,27 @@ impl AppState {
                 ws_connected: AtomicBool::new(false),
                 contract_map: Arc::new(Mutex::new(HashMap::new())),
                 shutdown_token,
+                fpss_broadcast_dropped: AtomicU64::new(0),
             }),
         }
+    }
+
+    /// Increment the FPSS broadcast-drop counter and return the post-increment
+    /// value. Called from the Disruptor callback when the bounded
+    /// callback->broadcast channel rejects a `try_send` because the broadcast
+    /// task is lagging (back-pressure) or has exited (shutdown).
+    pub fn record_fpss_broadcast_drop(&self) -> u64 {
+        self.inner
+            .fpss_broadcast_dropped
+            .fetch_add(1, Ordering::Relaxed)
+            .wrapping_add(1)
+    }
+
+    /// Total FPSS events dropped on the bounded callback->broadcast handoff
+    /// since this `AppState` was created. Used by the WS health endpoint and
+    /// the per-1024-drop rate-limited warning log in `ws::broadcast`.
+    pub fn fpss_broadcast_dropped(&self) -> u64 {
+        self.inner.fpss_broadcast_dropped.load(Ordering::Relaxed)
     }
 
     /// Borrow the unified `ThetaDataDx` client.

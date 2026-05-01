@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/tdbe", "crates/thetadatadx", "tools/cli", "ffi"]
+members = ["crates/json_canon", "crates/tdbe", "crates/thetadatadx", "tools/cli", "ffi"]
 exclude = ["sdks/python", "sdks/typescript", "tools/mcp", "tools/server"]
 resolver = "2"
 
@@ -9,7 +9,7 @@ resolver = "2"
 #
 # `version` is intentionally NOT hoisted because the workspace ships two
 # independent semver tracks: `tdbe` (0.x encoding crate) and everything
-# else (the 7.x SDK line). Each member keeps its own `version = "..."`.
+# else (the 8.0.x SDK line). Each member keeps its own `version = "..."`.
 [workspace.package]
 edition = "2021"
 rust-version = "1.85"

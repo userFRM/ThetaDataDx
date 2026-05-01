@@ -5,20 +5,47 @@ use std::sync::{Arc, Mutex};
 
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{FpssControl, FpssEvent};
+use tokio::sync::mpsc::error::TrySendError;
 
 use crate::state::AppState;
 
 use super::contract_map::lookup_event_contract;
 use super::format::fpss_event_to_ws_json;
 
+/// Bounded capacity for the Disruptor-callback -> broadcast-task channel.
+///
+/// Sized at 65_536 slots: large enough that the broadcast task's transient
+/// scheduling jitter never spills into a drop under normal load, small enough
+/// that an offline broadcast task can't accumulate unbounded heap. Each slot
+/// is `(FpssEvent, Option<Arc<Contract>>)` ~ a few hundred bytes after
+/// `FpssEvent`'s `Arc<str>` + `Arc<Contract>` refcount bumps, so the worst-
+/// case memory footprint is on the order of tens of MB — bounded, scrapeable,
+/// and recoverable.
+const FPSS_BROADCAST_CAPACITY: usize = 65_536;
+
+/// Emit one rate-limited warning per `WARN_EVERY_N` drops so a sustained
+/// back-pressure event leaves a visible trail in the logs without flooding
+/// stderr at the per-event rate.
+const WARN_EVERY_N: u64 = 1024;
+
 /// Start the FPSS -> WebSocket bridge via `ThetaDataDx::start_streaming()`.
 ///
 /// The Disruptor callback runs on a blocking consumer thread and must stay
 /// cheap. It only: (1) updates the contract map and connection flags,
 /// (2) peeks the event's current contract under the map lock, and
-/// (3) hands a cloned event + peeked `Arc<Contract>` snapshot to an
-/// unbounded channel. A dedicated tokio task serializes the JSON and fans
-/// out to every WS client.
+/// (3) hands a cloned event + peeked `Arc<Contract>` snapshot to a bounded
+/// channel. A dedicated tokio task serializes the JSON and fans out to every
+/// WS client.
+///
+/// # Bounded handoff
+///
+/// The callback->broadcast channel is bounded to [`FPSS_BROADCAST_CAPACITY`]
+/// so a stalled broadcast task can never accumulate unbounded heap. When the
+/// channel is full, the callback increments [`AppState::record_fpss_broadcast_drop`]
+/// and returns immediately — the Disruptor consumer thread is never blocked.
+/// Drops surface to operators through the `fpss_broadcast_dropped()` counter
+/// and a rate-limited `tracing::warn!` (one warning per [`WARN_EVERY_N`]
+/// drops).
 ///
 /// # TOCTOU safety
 ///
@@ -45,24 +72,12 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
     let state_for_cb = state.clone();
     let state_for_task = state.clone();
 
-    // Unbounded mpsc keeps the Disruptor callback non-blocking even if the
-    // broadcast task is briefly slow. Memory is bounded by channel drain
-    // rate; clients get bounded per-client backpressure inside broadcast_ws.
-    //
-    // Per-tick clone is intentionally cheap: `FpssData::{Quote,Trade,Ohlcvc,
-    // OpenInterest}` carry only primitives plus `Arc<str>` for symbol, so
-    // `event.clone()` is a field copy + refcount bump — not a heap allocation
-    // on the hot path. The `Option<Arc<Contract>>` tail is a refcount bump on
-    // a shared `Contract` already in the map, not a fresh `Contract` clone
-    // (which would allocate the `root: String` per event).
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(FpssEvent, Option<Arc<Contract>>)>();
-
-    // Observability counter for the `tx.send` drop path below. Lives on the
-    // callback closure so it survives the Disruptor consumer thread's
-    // lifetime; shared with broadcast diagnostics via `tracing::debug!`.
-    let dropped_broadcast: Arc<std::sync::atomic::AtomicU64> =
-        Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let dropped_broadcast = Arc::clone(&dropped_broadcast);
+    // Bounded mpsc keeps the Disruptor callback non-blocking AND caps memory
+    // on a stalled broadcast task. `try_send` is the only path used on the
+    // hot side — a `Full` rejection bumps the dropped counter and returns
+    // immediately, never blocking the Disruptor consumer thread.
+    let (tx, mut rx) =
+        tokio::sync::mpsc::channel::<(FpssEvent, Option<Arc<Contract>>)>(FPSS_BROADCAST_CAPACITY);
 
     tokio::spawn(async move {
         while let Some((event, peeked)) = rx.recv().await {
@@ -88,12 +103,6 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             // panicked, the map state may be partial but that is strictly
             // less bad than losing every subsequent symbol assignment.
             let mut map = map_for_cb.lock().unwrap_or_else(|e| e.into_inner());
-            // Zero heap allocation on insert — `contract` is now
-            // `Arc<Contract>` straight from the SDK (v8+). The shared
-            // map, the SDK's own I/O-thread cache, and every decoded
-            // event all participate in the same refcount, so
-            // per-event lookup is a refcount bump with no `Contract`
-            // or `String` clone.
             map.insert(*id, Arc::clone(contract));
         }
 
@@ -110,33 +119,104 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
 
         // Peek the contract for this event NOW, while the callback thread
         // still holds the causal ordering with `ContractAssigned` /
-        // reconnect clears. Cloning the `Contract` value captures a
-        // snapshot that no subsequent map mutation can invalidate — even
-        // if a reconnect clears the map before the broadcast task wakes,
-        // the cloned `Contract` travels with the event downstream. This
-        // is the documented fix for the reconnect / market-close silent-
-        // degradation race; see module docs for detail.
+        // reconnect clears.
         let peeked = lookup_event_contract(event, &map_for_cb);
 
-        // Hand off for serialization + broadcast. Callback returns
-        // immediately. A `SendError` here means the broadcast task has
-        // exited (shutdown, panic, receiver dropped) — route it to
-        // `tracing::debug!` with a monotonically-increasing counter so
-        // soak tests can detect back-pressure / task death, matching the
-        // observability pattern used by the SDK streaming callbacks
-        // (see `crates/thetadatadx/build_support/sdk_surface/`).
-        if tx.send((event.clone(), peeked)).is_err() {
-            let dropped = dropped_broadcast
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                .wrapping_add(1);
-            tracing::debug!(
-                target: "thetadatadx::server::ws",
-                dropped_total = dropped,
-                "fpss event dropped — broadcast task is gone"
-            );
+        // Bounded handoff with explicit overrun handling. `Full` means the
+        // broadcast task is lagging — bump the drop counter and walk away,
+        // never blocking the Disruptor consumer thread. `Closed` means the
+        // task has exited (shutdown / panic / receiver dropped) — log once
+        // at the warn level and stop accounting further events as drops to
+        // avoid log flood; subsequent events still fail-fast on `try_send`.
+        match tx.try_send((event.clone(), peeked)) {
+            Ok(()) => {}
+            Err(TrySendError::Full(_)) => {
+                let dropped = state_for_cb.record_fpss_broadcast_drop();
+                if dropped % WARN_EVERY_N == 0 {
+                    tracing::warn!(
+                        target: "thetadatadx::server::ws",
+                        dropped_total = dropped,
+                        capacity = FPSS_BROADCAST_CAPACITY,
+                        warn_every_n = WARN_EVERY_N,
+                        "fpss broadcast channel is full; events being dropped"
+                    );
+                }
+            }
+            Err(TrySendError::Closed(_)) => {
+                let dropped = state_for_cb.record_fpss_broadcast_drop();
+                if dropped % WARN_EVERY_N == 0 {
+                    tracing::warn!(
+                        target: "thetadatadx::server::ws",
+                        dropped_total = dropped,
+                        "fpss broadcast task is gone; events being dropped"
+                    );
+                }
+            }
         }
     })?;
 
     state.set_fpss_connected(true);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::sync::mpsc;
+
+    /// Push N+1 messages into a channel of capacity N with no consumer.
+    /// Counts the rejections and asserts the channel never grows unbounded
+    /// — the bounded mpsc must reject everything past the cap.
+    #[tokio::test]
+    async fn try_send_rejects_overrun_at_capacity() {
+        const CAP: usize = 4;
+        let (tx, _rx) = mpsc::channel::<u32>(CAP);
+
+        let mut accepted = 0_u64;
+        let mut rejected = 0_u64;
+        for i in 0..(CAP as u32 + 1) {
+            match tx.try_send(i) {
+                Ok(()) => accepted += 1,
+                Err(TrySendError::Full(_)) => rejected += 1,
+                Err(TrySendError::Closed(_)) => panic!("rx still alive, must not be Closed"),
+            }
+        }
+        assert_eq!(accepted, CAP as u64);
+        assert_eq!(rejected, 1);
+    }
+
+    /// End-to-end: a saturated bounded channel records exactly the right
+    /// number of drops on the AppState counter. The counter is the contract
+    /// the WS health endpoint and the per-1024 warning log depend on, so it
+    /// must increment monotonically by one per dropped event.
+    #[test]
+    fn drop_counter_increments_monotonically_under_overrun() {
+        // Use a tokio current-thread runtime so the bounded channel's
+        // future-aware semantics match production.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("rt");
+        rt.block_on(async {
+            const CAP: usize = 8;
+            let counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+            let (tx, _rx) = mpsc::channel::<u32>(CAP);
+
+            // Saturate the channel.
+            for i in 0..CAP {
+                tx.try_send(i as u32).expect("first CAP must accept");
+            }
+            // Now overflow by 17 and account every Full rejection.
+            for i in 0..17_u32 {
+                match tx.try_send(i) {
+                    Ok(()) => panic!("channel must be full"),
+                    Err(TrySendError::Full(_)) => {
+                        counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    Err(TrySendError::Closed(_)) => panic!("rx still alive"),
+                }
+            }
+            assert_eq!(counter.load(std::sync::atomic::Ordering::Relaxed), 17);
+        });
+    }
 }

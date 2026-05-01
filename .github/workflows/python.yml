@@ -104,6 +104,17 @@ jobs:
           print(thetadatadx.__file__)
           print(round(iv, 6), round(err, 6))
           PY
+      # Run the Python pytest suite against the freshly-installed wheel. The
+      # `THETADX_TEST_CREDS`-gated tests skip cleanly without secrets so this
+      # step exercises the install path AND the public-API surface contracts
+      # that don't need a live FPSS handshake. Kept as a separate step from
+      # the import smoke above so a pytest regression points at the suite,
+      # not at the smoke output.
+      - name: Pytest suite (skipped tests stay skipped)
+        shell: bash
+        run: |
+          python -m pip install pytest
+          python -m pytest sdks/python/tests/ -v
       - uses: actions/upload-artifact@v7
         with:
           name: wheel-${{ runner.os }}

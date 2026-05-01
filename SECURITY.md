@@ -109,7 +109,7 @@ unbounded memory allocation.
 
 ### Dependencies
 
-We audit dependencies for:
+We review dependencies for:
 - Known vulnerabilities (RustSec advisory database)
 - License compliance
 - Duplicate crate versions

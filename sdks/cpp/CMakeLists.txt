@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
-project(thetadatadx-cpp VERSION 8.0.9 LANGUAGES CXX)
+# `VERSION` is a release-bump target alongside the Rust Cargo manifests
+# (`Cargo.toml`, `crates/*/Cargo.toml`, `tools/*/Cargo.toml`) and the
+# TypeScript `package.json` files. Keep all of them in lockstep when
+# cutting an 8.0.x release — see `CHANGELOG.md` for the canonical version.
+project(thetadatadx-cpp VERSION 8.0.23 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
