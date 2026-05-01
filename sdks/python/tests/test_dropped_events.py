@@ -1,8 +1,8 @@
 """
 Dropped-events counter accessibility test.
 
-Verifies the fix for audit finding `A-02` in
-`todo.md` / the security-audit branch: the per-closure `AtomicU64`
+Verifies the fix for review finding `A-02` in
+`todo.md` / the security-review branch: the per-closure `AtomicU64`
 counter used to be local to each `start_streaming` / `reconnect`
 closure, so it reset on every reconnect AND was not reachable from
 Python. The fix lifts the counter to an instance field on

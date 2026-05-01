@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.23] - 2026-05-01
+
+### Fixed
+
+- **REST + MCP no longer return empty bodies on serialisation failure.**
+  `tools/server/src/handler.rs` and `tools/mcp/src/main.rs` previously
+  swallowed `sonic_rs::to_string` errors via `unwrap_or_default()`,
+  producing a `200 OK` with `""` (REST) or a successful but empty
+  `tools/call` result (MCP) when a tick payload contained a non-finite
+  f64 cell. The REST handler now surfaces the failure as a structured
+  `500` carrying the underlying error message in the existing JSON
+  envelope, and the MCP handler returns a JSON-RPC `-32603` Internal
+  Error. The cross-language non-finite f64 -> JSON `null`
+  canonicalisation rule now lives in the new `crates/json_canon` crate
+  and is shared by CLI, REST, and MCP.
+- **FPSS WebSocket broadcast queue is now bounded** at 65_536 slots,
+  using `try_send` with explicit `Full` / `Closed` arms. Drops are
+  accounted on a new `AppState::fpss_broadcast_dropped()` counter,
+  exposed via `GET /v3/system/fpss/status` as `broadcast_dropped`,
+  and warn-logged once per 1024 drops.
+- **`ThetaDataDx::reconnect_streaming` now fails explicitly on partial
+  re-subscription**, returning the new
+  `Error::PartialReconnect { failed }` variant carrying the
+  `(SubscriptionKind, Contract)` list rather than silently logging and
+  returning `Ok(())`.
+- **Version metadata drift cleared** across `sdks/cpp/CMakeLists.txt`,
+  the workspace `Cargo.toml` comment, and the v8 `[8.0.8]` changelog
+  entry.
+
+### Added
+
+- `crates/json_canon` — a tiny shared crate for non-finite f64 -> JSON
+  `null` canonicalisation, used by `tools/cli`, `tools/server`, and
+  `tools/mcp`.
+- `Error::PartialReconnect { failed }` variant and
+  `Contract::full_type_marker(sec_type)` constructor in
+  `thetadatadx`.
+- `broadcast_dropped` field on `GET /v3/system/fpss/status`.
+- Pytest CI step in `.github/workflows/python.yml` that runs the
+  Python test suite after the wheel install.
+
+### Changed
+
+- `tools/cli/src/main.rs` `raw_f64` now delegates to
+  `json_canon::finite_or_null`.
+- `tools/server/src/format.rs` `render_csv_value` canonicalises before
+  serialising and emits a `<csv-render-error: …>` sentinel on
+  serialisation failure rather than an empty cell.
+- `tdbe` bumped to `0.12.4`.
+
 ## [8.0.22] - 2026-05-01
 
 ### Fixed
@@ -461,7 +511,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [8.0.8] - 2026-04-23
 
-Follow-up patch to v8.0.7. Addresses the audit findings surfaced against
+Follow-up patch to v8.0.7. Addresses the review findings surfaced against
 the code-strip release: rustdoc breakage inside `tdbe`, TypeScript loader
 and subpackage versions drifting from the root package, a `[8.0.7]`
 changelog section that accidentally absorbed v8.0.6 content, stale
