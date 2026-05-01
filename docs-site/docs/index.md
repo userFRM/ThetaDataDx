@@ -28,7 +28,7 @@ features:
   - icon:
       src: /icons/chart.svg
     title: "Local Greeks"
-    details: "22 Black-Scholes Greeks plus an IV solver, computed in Rust with no server round-trip. The server-computed Greeks endpoints are also exposed."
+    details: "23 Black-Scholes Greeks plus an IV solver, computed in Rust with no server round-trip. The server-computed Greeks endpoints are also exposed."
   - icon:
       src: /icons/terminal.svg
     title: "CLI, MCP, REST server"
@@ -146,7 +146,7 @@ for (const auto& q : quotes) {
 | Languages | Rust, Python, TypeScript, Go, C++ |
 | Historical endpoints | Full typed historical surface (plus 4 `_stream` SDK-only variants) |
 | Real-time streaming | FPSS with SPKI pinning, SPSC ring, reconnect policy |
-| Local Greeks calculator | 22 Greeks + IV solver in Rust |
+| Local Greeks calculator | 23 Greeks + IV solver in Rust |
 | Async Python surface | `*_async` variant of every endpoint |
 | DataFrame output | Arrow / polars / pandas via explicit conversion |
 

@@ -5,11 +5,11 @@ description: 22 local Black-Scholes Greeks and IV solver with no server round-tr
 
 # Greeks Calculator
 
-ThetaDataDx ships a local Black-Scholes calculator in the Rust core (`tdbe/greeks.rs`) that computes 22 Greeks plus an IV solver without a server round-trip. No subscription is required for the calculator itself, which makes it usable for offline what-if analysis, batch scenario sweeps, and integration tests that must not depend on a live server. The server-computed Greeks endpoints are also exposed for callers that want the canonical upstream values.
+ThetaDataDx ships a local Black-Scholes calculator in the Rust core (`tdbe/greeks.rs`) that computes 23 Greeks plus an IV solver without a server round-trip. No subscription is required for the calculator itself, which makes it usable for offline what-if analysis, batch scenario sweeps, and integration tests that must not depend on a live server. The server-computed Greeks endpoints are also exposed for callers that want the canonical upstream values.
 
 This page covers the calculator at a first-use level. For the full reference — per-Greek formula mapping, wildcard chain workflows, edge cases — see [Options & Greeks](../options).
 
-## All 22 Greeks from a market price
+## All 23 Greeks from a market price
 
 The most common call: feed in the market option price, back out IV, then derive every Greek in one pass.
 
@@ -56,7 +56,7 @@ std::cout << "IV=" << g.iv << " delta=" << g.delta << " gamma=" << g.gamma << st
 ```
 :::
 
-Result keys across the 22 Greeks: `value`, `delta`, `gamma`, `theta`, `vega`, `rho`, `iv`, `iv_error`, `vanna`, `charm`, `vomma`, `veta`, `speed`, `zomma`, `color`, `ultima`, `d1`, `d2`, `dual_delta`, `dual_gamma`, `epsilon`, `lambda`.
+Result keys across the 23 Greeks: `value`, `delta`, `gamma`, `theta`, `vega`, `rho`, `iv`, `iv_error`, `vanna`, `charm`, `vomma`, `veta`, `speed`, `zomma`, `color`, `ultima`, `d1`, `d2`, `dual_delta`, `dual_gamma`, `epsilon`, `lambda`.
 
 ## IV only
 
@@ -85,5 +85,5 @@ Pair the server endpoints with the local calculator: pull a chain with server Gr
 
 ## Next
 
-- [Options & Greeks](../options) — full reference: 22 Greeks formulas, chain workflow, wildcard queries
+- [Options & Greeks](../options) — full reference: 23 Greeks formulas, chain workflow, wildcard queries
 - [DataFrames](./dataframes) — chain `.to_polars()` on an option chain for scenario sweeps in columnar form

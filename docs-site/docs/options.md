@@ -1,6 +1,6 @@
 ---
 title: Options & Greeks
-description: Option chain workflows and local Black-Scholes Greeks calculator with 22 Greeks, IV solver, and edge-case handling.
+description: Option chain workflows and local Black-Scholes Greeks calculator with 23 Greeks, IV solver, and edge-case handling.
 ---
 
 # Options & Greeks
@@ -8,7 +8,7 @@ description: Option chain workflows and local Black-Scholes Greeks calculator wi
 ThetaDataDx provides two complementary approaches to options analytics:
 
 1. **Server-computed Greeks** - query ThetaData's servers for pre-calculated Greeks via the standard endpoints
-2. **Local Greeks calculator** - compute all 22 Black-Scholes Greeks offline with no server call and no subscription required
+2. **Local Greeks calculator** - compute all 23 Black-Scholes Greeks offline with no server call and no subscription required
 
 ## Option Chain Workflow
 
@@ -179,9 +179,9 @@ In Go and Python, the `right` field is a human-readable string: `"C"` (call), `"
 
 Compute Greeks locally without any server call using the built-in Black-Scholes calculator. Works offline, no ThetaData subscription needed.
 
-### All 22 Greeks at Once
+### All 23 Greeks at Once
 
-The most common usage: compute IV from the market price, then derive all 22 Greeks in a single call.
+The most common usage: compute IV from the market price, then derive all 23 Greeks in a single call.
 
 ::: code-group
 ```rust [Rust]
