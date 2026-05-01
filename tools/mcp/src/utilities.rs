@@ -13,7 +13,7 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
     }));
     tools.push(json!({
         "name": "all_greeks",
-        "description": "Compute all 22 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda.",
+        "description": "Compute all 23 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -80,8 +80,10 @@ async fn try_execute_generated_utility(
             let tte = param_or_return!(arg_f64(args, "time_to_expiry"));
             let option_price = param_or_return!(arg_f64(args, "option_price"));
             let right = param_or_return!(arg_str(args, "right"));
-            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));
-            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right);
+            let g = match tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right) {
+                Ok(g) => g,
+                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),
+            };
             Some(Ok(json!({
                 "value": g.value,
                 "iv": g.iv,
@@ -95,6 +97,7 @@ async fn try_execute_generated_utility(
                 "charm": g.charm,
                 "vomma": g.vomma,
                 "veta": g.veta,
+                "vera": g.vera,
                 "speed": g.speed,
                 "zomma": g.zomma,
                 "color": g.color,
@@ -115,8 +118,10 @@ async fn try_execute_generated_utility(
             let tte = param_or_return!(arg_f64(args, "time_to_expiry"));
             let option_price = param_or_return!(arg_f64(args, "option_price"));
             let right = param_or_return!(arg_str(args, "right"));
-            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));
-            let (iv, err) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right);
+            let (iv, err) = match tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right) {
+                Ok(pair) => pair,
+                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),
+            };
             Some(Ok(json!({
                 "implied_volatility": iv,
                 "error": err,

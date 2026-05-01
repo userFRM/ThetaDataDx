@@ -261,6 +261,7 @@ fn go_greeks_field_name(field: &str) -> &'static str {
         "charm" => "Charm",
         "vomma" => "Vomma",
         "veta" => "Veta",
+        "vera" => "Vera",
         "speed" => "Speed",
         "zomma" => "Zomma",
         "color" => "Color",

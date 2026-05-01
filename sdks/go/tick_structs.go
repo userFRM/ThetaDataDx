@@ -223,7 +223,7 @@ func RightStr(code int32) string {
 	}
 }
 
-// Greeks holds the 22 Black-Scholes greeks + IV from all_greeks().
+// Greeks holds the 23 Black-Scholes greeks + IV from all_greeks().
 type Greeks struct {
 	Value     float64 `json:"value"`
 	Delta     float64 `json:"delta"`
@@ -237,6 +237,7 @@ type Greeks struct {
 	Charm     float64 `json:"charm"`
 	Vomma     float64 `json:"vomma"`
 	Veta      float64 `json:"veta"`
+	Vera      float64 `json:"vera"`
 	Speed     float64 `json:"speed"`
 	Zomma     float64 `json:"zomma"`
 	Color     float64 `json:"color"`

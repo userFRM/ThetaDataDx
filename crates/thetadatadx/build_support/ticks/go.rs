@@ -559,7 +559,7 @@ pub(super) fn render_go_tick_structs(schema: &Schema) -> String {
     out.push_str("}\n\n");
 
     // Greeks struct (offline utility, not a tick type — matches tdbe::Greeks)
-    out.push_str("// Greeks holds the 22 Black-Scholes greeks + IV from all_greeks().\n");
+    out.push_str("// Greeks holds the 23 Black-Scholes greeks + IV from all_greeks().\n");
     out.push_str("type Greeks struct {\n");
     for field in &[
         ("Value", "value"),
@@ -574,6 +574,7 @@ pub(super) fn render_go_tick_structs(schema: &Schema) -> String {
         ("Charm", "charm"),
         ("Vomma", "vomma"),
         ("Veta", "veta"),
+        ("Vera", "vera"),
         ("Speed", "speed"),
         ("Zomma", "zomma"),
         ("Color", "color"),

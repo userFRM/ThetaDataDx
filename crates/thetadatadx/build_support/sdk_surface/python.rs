@@ -301,10 +301,10 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
                 )
                 .unwrap();
             }
-            out.push_str(") -> AllGreeks {\n");
+            out.push_str(") -> PyResult<AllGreeks> {\n");
             writeln!(
                 out,
-                "    let g = tdbe::greeks::all_greeks({});",
+                "    let g = tdbe::greeks::all_greeks({}).map_err(thetadatadx::Error::from).map_err(to_py_err)?;",
                 utility
                     .params
                     .iter()
@@ -313,11 +313,11 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
                     .join(", ")
             )
             .unwrap();
-            out.push_str("    AllGreeks {\n");
+            out.push_str("    Ok(AllGreeks {\n");
             for (field, rust_field) in greek_result_fields() {
                 writeln!(out, "        {field}: g.{rust_field},").unwrap();
             }
-            out.push_str("    }\n");
+            out.push_str("    })\n");
             out.push_str("}\n");
         }
         UtilityKind::ImpliedVolatility => {
@@ -331,10 +331,10 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
                 )
                 .unwrap();
             }
-            out.push_str(") -> (f64, f64) {\n");
+            out.push_str(") -> PyResult<(f64, f64)> {\n");
             writeln!(
                 out,
-                "    tdbe::greeks::implied_volatility({})",
+                "    tdbe::greeks::implied_volatility({}).map_err(thetadatadx::Error::from).map_err(to_py_err)",
                 utility
                     .params
                     .iter()

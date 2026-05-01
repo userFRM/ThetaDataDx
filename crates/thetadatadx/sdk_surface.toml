@@ -325,9 +325,9 @@ targets = ["mcp"]
 [[utilities]]
 name = "all_greeks"
 kind = "all_greeks"
-doc = "Compute all 22 Black-Scholes Greeks + IV in one call."
+doc = "Compute all 23 Black-Scholes Greeks + IV in one call."
 cli_about = "Compute Black-Scholes Greeks (offline, no server needed)"
-mcp_description = "Compute all 22 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda."
+mcp_description = "Compute all 23 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera."
 cli_name = "greeks"
 targets = ["python", "go", "cpp", "mcp", "cli"]
 params = [

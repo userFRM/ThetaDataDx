@@ -109,6 +109,7 @@ struct Greeks {
     double charm;
     double vomma;
     double veta;
+    double vera;
     double speed;
     double zomma;
     double color;

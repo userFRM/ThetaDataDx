@@ -368,20 +368,19 @@ pub fn dual_gamma(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     (-r * t).exp() * f1(d2_val) / (x * v * t.sqrt())
 }
 
-/// Implied volatility solver using bisection. Returns `(iv, error)`.
+/// Implied volatility solver using bisection. Returns `(iv, error)` on
+/// success.
 ///
 /// `right` accepts `"C"`/`"P"`/`"call"`/`"put"` case-insensitively (see
 /// [`crate::right::parse_right_strict`]).
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics with a descriptive message if `right` is not one of the accepted
-/// forms or resolves to `both`/`*`. This mirrors the panic-on-bad-right
-/// behavior of `thetadatadx::fpss::Contract::option`. For fallible parsing
-/// of untrusted input, call [`crate::right::parse_right_strict`] upstream.
+/// Returns [`crate::Error::Config`] if `right` is not one of the accepted
+/// forms or resolves to `both`/`*`. Strict-parse failures from
+/// [`crate::right::parse_right_strict`] surface here directly.
 // Reason: s, x, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names)]
-#[must_use]
 pub fn implied_volatility(
     s: f64,
     x: f64,
@@ -390,17 +389,20 @@ pub fn implied_volatility(
     t: f64,
     option_price: f64,
     right: &str,
-) -> (f64, f64) {
-    let is_call = crate::right::parse_right_strict(right)
-        .unwrap_or_else(|err| panic!("{err}"))
+) -> Result<(f64, f64), crate::Error> {
+    let is_call = crate::right::parse_right_strict(right)?
         .as_is_call()
-        .expect("parse_right_strict guarantees single-side resolution");
+        .ok_or_else(|| {
+            crate::Error::Config(format!(
+                "option right '{right}' resolves to 'both' but a single side is required"
+            ))
+        })?;
     if t <= 0.0 || option_price <= 0.0 {
-        return (0.0, 0.0);
+        return Ok((0.0, 0.0));
     }
     let mut out = [0.0f64; 2];
     iv_bisection(s, x, r, q, t, option_price, is_call, &mut out);
-    (out[0], out[1])
+    Ok((out[0], out[1]))
 }
 
 // Reason: s, x, r, q, t, o are standard Black-Scholes/IV solver parameter names.
@@ -467,6 +469,9 @@ pub struct GreeksResult {
     pub charm: f64,
     pub vomma: f64,
     pub veta: f64,
+    /// DvegaDr: `-K * exp(-r*T) * T * sqrt(T) * phi(d2)`. Sensitivity of
+    /// vega to the risk-free rate.
+    pub vera: f64,
     // Third order
     pub speed: f64,
     pub zomma: f64,
@@ -481,7 +486,7 @@ pub struct GreeksResult {
     pub lambda: f64,
 }
 
-/// Compute all 22 Greeks at once with maximally shared intermediates.
+/// Compute all 23 Greeks at once with maximally shared intermediates.
 ///
 /// Precomputes `d1`, `d2`, and all shared sub-expressions (exponentials,
 /// CDF values, products) once, then evaluates Greeks in dependency tiers:
@@ -508,20 +513,18 @@ pub struct GreeksResult {
 /// `right` accepts `"C"`/`"P"`/`"call"`/`"put"` case-insensitively (see
 /// [`crate::right::parse_right_strict`]).
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics with a descriptive message if `right` is not one of the accepted
-/// forms or resolves to `both`/`*`. This mirrors the panic-on-bad-right
-/// behavior of `thetadatadx::fpss::Contract::option`. For fallible parsing
-/// of untrusted input, call [`crate::right::parse_right_strict`] upstream.
+/// Returns [`crate::Error::Config`] if `right` is not one of the accepted
+/// forms or resolves to `both`/`*`. Strict-parse failures from
+/// [`crate::right::parse_right_strict`] surface here directly.
 // Reason: s, x, r, q, t are standard Black-Scholes parameter names.
-// Reason: 22-Greek computation cannot be meaningfully split without duplicating intermediates.
+// Reason: 23-Greek computation cannot be meaningfully split without duplicating intermediates.
 #[allow(
     clippy::many_single_char_names,
     clippy::similar_names,
     clippy::too_many_lines
 )]
-#[must_use]
 pub fn all_greeks(
     s: f64,
     x: f64,
@@ -530,11 +533,14 @@ pub fn all_greeks(
     t: f64,
     option_price: f64,
     right: &str,
-) -> GreeksResult {
-    let is_call = crate::right::parse_right_strict(right)
-        .unwrap_or_else(|err| panic!("{err}"))
+) -> Result<GreeksResult, crate::Error> {
+    let is_call = crate::right::parse_right_strict(right)?
         .as_is_call()
-        .expect("parse_right_strict guarantees single-side resolution");
+        .ok_or_else(|| {
+            crate::Error::Config(format!(
+                "option right '{right}' resolves to 'both' but a single side is required"
+            ))
+        })?;
 
     // Inline the IV solver to keep the `right` parse at this layer (avoids
     // a second parse that `implied_volatility(&str)` would otherwise do).
@@ -549,7 +555,7 @@ pub fn all_greeks(
 
     // Guard: if vol or time is degenerate, return all zeros (except value = intrinsic).
     if is_degenerate(v, t) {
-        return GreeksResult {
+        return Ok(GreeksResult {
             value: value(s, x, v, r, q, t, is_call),
             delta: 0.0,
             gamma: 0.0,
@@ -562,6 +568,7 @@ pub fn all_greeks(
             charm: 0.0,
             vomma: 0.0,
             veta: 0.0,
+            vera: 0.0,
             speed: 0.0,
             zomma: 0.0,
             color: 0.0,
@@ -572,7 +579,7 @@ pub fn all_greeks(
             dual_gamma: 0.0,
             epsilon: 0.0,
             lambda: 0.0,
-        };
+        });
     }
 
     // -- Tier 0: Shared intermediates -----------------------------------------
@@ -655,6 +662,11 @@ pub fn all_greeks(
     let veta_val =
         -s * eqt_f1d1 * sqrt_t * (q + r_minus_q * d1_val / v_sqrt_t - (1.0 + d1_d2) / (2.0 * t));
 
+    // vera (DvegaDr): cross-sensitivity of vega to the risk-free rate.
+    // Textbook form: vera = -K * exp(-r*T) * T * sqrt(T) * phi(d2),
+    // with phi the standard-normal PDF (= ONE_ROOT2PI * exp(-d2^2 / 2)).
+    let vera_val = -x * exp_neg_rt * t * sqrt_t * f1_d2;
+
     // -- Tier 3: Third-order Greeks (speed, zomma, color, ultima) -------------
     let speed_val = -eqt_f1d1 * inv_s_v_sqrt_t / s * (d1_val / v_sqrt_t + 1.0);
 
@@ -676,7 +688,7 @@ pub fn all_greeks(
 
     let dual_gamma_val = exp_neg_rt * f1_d2 / (x * v_sqrt_t);
 
-    GreeksResult {
+    Ok(GreeksResult {
         value: value_val,
         delta: delta_val,
         gamma: gamma_val,
@@ -689,6 +701,7 @@ pub fn all_greeks(
         charm: charm_val,
         vomma: vomma_val,
         veta: veta_val,
+        vera: vera_val,
         speed: speed_val,
         zomma: zomma_val,
         color: color_val,
@@ -699,7 +712,7 @@ pub fn all_greeks(
         dual_gamma: dual_gamma_val,
         epsilon: epsilon_val,
         lambda: lambda_val,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -746,7 +759,7 @@ mod tests {
         let true_vol = 0.22;
 
         let price = value(s, x, true_vol, r, q, t, true);
-        let (iv, err) = implied_volatility(s, x, r, q, t, price, "C");
+        let (iv, err) = implied_volatility(s, x, r, q, t, price, "C").expect("valid right");
         assert!(
             (iv - true_vol).abs() < 0.005,
             "IV roundtrip: expected {true_vol}, got {iv}, err={err}"
@@ -763,41 +776,44 @@ mod tests {
         let price = value(s, x, 0.2, r, q, t, true);
 
         // Every accepted `right` form must agree with the call-side result.
-        let call_ref = all_greeks(s, x, r, q, t, price, "C");
+        let call_ref = all_greeks(s, x, r, q, t, price, "C").expect("valid right");
         for form in ["call", "CALL", "Call", "c"] {
-            let g = all_greeks(s, x, r, q, t, price, form);
+            let g = all_greeks(s, x, r, q, t, price, form).expect("valid right");
             assert!((g.delta - call_ref.delta).abs() < 1e-12, "form={form}");
         }
 
         let put_price = value(s, x, 0.2, r, q, t, false);
-        let put_ref = all_greeks(s, x, r, q, t, put_price, "P");
+        let put_ref = all_greeks(s, x, r, q, t, put_price, "P").expect("valid right");
         for form in ["put", "PUT", "Put", "p"] {
-            let g = all_greeks(s, x, r, q, t, put_price, form);
+            let g = all_greeks(s, x, r, q, t, put_price, form).expect("valid right");
             assert!((g.delta - put_ref.delta).abs() < 1e-12, "form={form}");
         }
 
         // Same for `implied_volatility`.
-        let (iv_c, _) = implied_volatility(s, x, r, q, t, price, "call");
-        let (iv_short, _) = implied_volatility(s, x, r, q, t, price, "C");
+        let (iv_c, _) = implied_volatility(s, x, r, q, t, price, "call").expect("valid right");
+        let (iv_short, _) = implied_volatility(s, x, r, q, t, price, "C").expect("valid right");
         assert!((iv_c - iv_short).abs() < 1e-12);
     }
 
     #[test]
-    #[should_panic(expected = "invalid option right")]
-    fn all_greeks_panics_on_garbage_right() {
-        let _ = all_greeks(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "xyz");
+    fn all_greeks_errors_on_garbage_right() {
+        let err = all_greeks(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "xyz").unwrap_err();
+        assert!(matches!(err, crate::Error::Config(_)));
+        assert!(err.to_string().contains("invalid option right"));
     }
 
     #[test]
-    #[should_panic(expected = "resolves to 'both'")]
-    fn all_greeks_panics_on_both() {
-        let _ = all_greeks(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "both");
+    fn all_greeks_errors_on_both() {
+        let err = all_greeks(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "both").unwrap_err();
+        assert!(matches!(err, crate::Error::Config(_)));
+        assert!(err.to_string().contains("resolves to 'both'"));
     }
 
     #[test]
-    #[should_panic(expected = "invalid option right")]
-    fn implied_volatility_panics_on_garbage_right() {
-        let _ = implied_volatility(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "xyz");
+    fn implied_volatility_errors_on_garbage_right() {
+        let err = implied_volatility(100.0, 100.0, 0.05, 0.01, 0.25, 5.0, "xyz").unwrap_err();
+        assert!(matches!(err, crate::Error::Config(_)));
+        assert!(err.to_string().contains("invalid option right"));
     }
 
     // -- Edge-case tests (Fix #10 + Fix #16) --
@@ -862,12 +878,12 @@ mod tests {
         let q = 0.01;
         let t = 0.5;
 
-        let (iv, err) = implied_volatility(s, x, r, q, t, 0.0, "C");
+        let (iv, err) = implied_volatility(s, x, r, q, t, 0.0, "C").expect("valid right");
         assert_finite(iv, "iv(option_price=0)");
         assert_finite(err, "iv_err(option_price=0)");
         assert_eq!(iv, 0.0);
 
-        let g = all_greeks(s, x, r, q, t, 0.0, "C");
+        let g = all_greeks(s, x, r, q, t, 0.0, "C").expect("valid right");
         assert_finite(g.value, "all_greeks(option_price=0).value");
         assert_finite(g.delta, "all_greeks(option_price=0).delta");
         assert_finite(g.gamma, "all_greeks(option_price=0).gamma");
@@ -883,7 +899,7 @@ mod tests {
         let q = 0.01;
         let t = 0.0;
 
-        let g = all_greeks(s, x, r, q, t, 5.0, "C");
+        let g = all_greeks(s, x, r, q, t, 5.0, "C").expect("valid right");
         assert_finite(g.value, "all_greeks(ATM, t=0).value");
         assert_finite(g.delta, "all_greeks(ATM, t=0).delta");
         assert_finite(g.gamma, "all_greeks(ATM, t=0).gamma");
@@ -894,8 +910,43 @@ mod tests {
         assert_finite(g.iv_error, "all_greeks(ATM, t=0).iv_error");
         assert_finite(g.vanna, "all_greeks(ATM, t=0).vanna");
         assert_finite(g.charm, "all_greeks(ATM, t=0).charm");
+        assert_finite(g.vera, "all_greeks(ATM, t=0).vera");
         assert_finite(g.d1, "all_greeks(ATM, t=0).d1");
         assert_finite(g.d2, "all_greeks(ATM, t=0).d2");
+    }
+
+    /// `vera = -K * exp(-r*T) * T * sqrt(T) * phi(d2)`.
+    ///
+    /// Pin the field to the textbook DvegaDr formula. Expected value
+    /// computed by hand with `phi(d2) = ONE_ROOT2PI * exp(-d2*d2/2)`.
+    #[test]
+    fn vera_matches_textbook_dvega_dr() {
+        let s = 100.0;
+        let x = 100.0;
+        let r = 0.05;
+        let q = 0.00;
+        let t = 1.0;
+        // Build a self-consistent option price at vol=0.20, recover the
+        // iv via all_greeks, then evaluate expected vera at that recovered
+        // iv to absorb any solver wobble.
+        let price = value(s, x, 0.20, r, q, t, true);
+        let g = all_greeks(s, x, r, q, t, price, "C").expect("valid right");
+        let d2_val = d2(s, x, g.iv, r, q, t);
+        let phi_d2 = (-d2_val * d2_val / 2.0).exp() / (2.0 * std::f64::consts::PI).sqrt();
+        let expected_vera = -x * (-r * t).exp() * t * t.sqrt() * phi_d2;
+
+        assert!(
+            (g.vera - expected_vera).abs() < 1e-10,
+            "vera mismatch: got {got}, expected {expected_vera}",
+            got = g.vera
+        );
+        // Order-of-magnitude floor: longhand expected ~ -37.52.
+        assert!(g.vera < 0.0, "vera should be negative for this scenario");
+        assert!(
+            g.vera > -40.0 && g.vera < -35.0,
+            "vera order-of-magnitude check: {got}",
+            got = g.vera
+        );
     }
 
     #[test]
@@ -909,7 +960,7 @@ mod tests {
         let t = 45.0 / 365.0;
         let price = value(s, x, 0.22, r, q, t, true);
 
-        let g = all_greeks(s, x, r, q, t, price, "C");
+        let g = all_greeks(s, x, r, q, t, price, "C").expect("valid right");
         let v = g.iv;
 
         let eps = 1e-10;

@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.21] - 2026-04-30
+
+### Fixed
+
+- **`fpss::accumulator::change_price_type` no longer overflows `i32` on
+  rescale.** Multiplications by `10^N` (up to `10^9`) widened to `i64`
+  mid-arithmetic; rescales whose result still does not fit `i32` return
+  the original price unchanged and emit a `tracing::warn!` event with
+  `(price, price_type, new_price_type)` rather than silently saturating
+  or panicking. A live BRK.A wire integer in cents (71_396_865)
+  rescaled to `price_type=4` is the canonical trigger.
+- **`decode::row_number_i64` no longer routes `Price` cells through
+  `f64`.** Large integer fields delivered as `Price` cells now decode
+  with i64-native scaling (`checked_pow` / `checked_mul`), preserving
+  every ULP past `2^53`. Scale-ups that overflow `i64` surface as
+  `DecodeError::TypeMismatch { expected: "i64-fitting Price",
+  observed: "Price overflowing i64" }` rather than a saturated `f64 as
+  i64`.
+
+### Changed
+
+- **`tdbe::greeks::all_greeks` and `tdbe::greeks::implied_volatility`
+  now return `Result<_, tdbe::Error>`.** Both helpers previously
+  panicked when `right` did not parse as a single side. They now
+  return `tdbe::Error::Config` for unrecognised or wildcard rights.
+  Every in-repo call site (`ffi`, `tools/cli`, `tools/mcp`,
+  `sdks/python`, `crates/tdbe/benches`) was updated. Direct callers of
+  these helpers must add `?` or `.expect()`.
+- **`tdbe::greeks::GreeksResult` gained a `vera: f64` field** computed
+  inside `all_greeks`. Vera (a.k.a. DvegaDr) is the textbook
+  cross-sensitivity of vega to the risk-free rate: `-K * exp(-r*T) * T
+  * sqrt(T) * phi(d2)`. The downstream `TdxGreeksResult` C-ABI struct,
+  the C++/Go/Python SDK Greeks structs, and the CLI/MCP output objects
+  all carry the new field.
+
+### Added
+
+- `crates/thetadatadx/tests/flatfiles_byte_match.rs` gained a second
+  test, `option_eod_csv_byte_matches_vendor`, that pulls OPTION/EOD
+  for `20260428` and byte-matches against a vendor reference CSV
+  pointed to by a new env var, `THETADATADX_REFERENCE_EOD_CSV`. The
+  EOD path exercises the CSV price formatter end-to-end against
+  vendor output — the existing OPEN_INTEREST byte-match did not, since
+  OPEN_INTEREST has no price columns. The test skips when the
+  reference CSV is missing; the doc comment documents the regeneration
+  recipe.
+- `live.yml` gained a `cargo test --features live-tests --test
+  flatfiles_byte_match` step in the live `smoke` job. It skips
+  gracefully when the reference CSV is not provisioned for the runner.
+
 ## [8.0.20] - 2026-04-30
 
 ### Fixed

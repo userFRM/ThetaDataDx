@@ -101,11 +101,15 @@ impl OhlcvcAccumulator {
     }
 }
 
-/// Convert a price from one `price_type` to another (mirrors Java PriceCalcUtils.changePriceType).
+/// Convert a price from one `price_type` to another (mirrors Java
+/// `PriceCalcUtils.changePriceType`). Multiplication widens through `i64`;
+/// when the widened result does not fit back in `i32` the function returns
+/// the input price unchanged and traces a warning. Result is never a
+/// wrapped value.
 // Reason: protocol-defined integer widths from Java FPSS specification.
 #[allow(clippy::cast_possible_truncation)]
 pub(super) fn change_price_type(price: i32, price_type: i32, new_price_type: i32) -> i32 {
-    const POW10: [i32; 10] = [
+    const POW10: [i64; 10] = [
         1,
         10,
         100,
@@ -124,14 +128,30 @@ pub(super) fn change_price_type(price: i32, price_type: i32, new_price_type: i32
     if exp <= 0 {
         let idx = usize::try_from(-exp).unwrap_or(0);
         if idx < POW10.len() {
-            price * POW10[idx]
+            // Widen to i64 before multiplying. The Java reference silently
+            // wraps; we instead catch the overflow, return the original
+            // price, and trace.
+            let scaled = i64::from(price) * POW10[idx];
+            if let Ok(narrowed) = i32::try_from(scaled) {
+                narrowed
+            } else {
+                tracing::warn!(
+                    price,
+                    price_type,
+                    new_price_type,
+                    "change_price_type: rescale overflows i32; returning unscaled price (accumulator may go stale)"
+                );
+                price
+            }
         } else {
             price
         }
     } else {
         let idx = usize::try_from(exp).unwrap_or(0);
         if idx < POW10.len() {
-            price / POW10[idx]
+            // Down-scale via i64 division — never overflows for valid
+            // (price, idx) since |i32| / 10^k <= |i32|.
+            (i64::from(price) / POW10[idx]) as i32
         } else {
             0
         }
@@ -197,5 +217,44 @@ mod tests {
         assert_eq!(change_price_type(15025, 8, 7), 150250);
         assert_eq!(change_price_type(150250, 7, 8), 15025);
         assert_eq!(change_price_type(0, 8, 7), 0);
+    }
+
+    /// Rescale that fits in i32 exactly at the boundary: 2_147 * 10^6 = 2_147_000_000.
+    /// Multiply path is taken when `new_price_type < price_type` (exp <= 0).
+    #[test]
+    fn change_price_type_boundary_just_fits_i32() {
+        assert_eq!(change_price_type(2_147, 6, 0), 2_147_000_000);
+    }
+
+    /// One unit past the boundary: 2_148 * 10^6 = 2_148_000_000 > i32::MAX.
+    /// Must fall back to the original price unchanged (no panic, no wrap).
+    #[test]
+    fn change_price_type_overflow_returns_original_price() {
+        assert_eq!(change_price_type(2_148, 6, 0), 2_148);
+    }
+
+    /// BRK.A in cents: 71_396_865 rescaled by 10^4 = 7.14e11, hard-overflows i32.
+    /// Must return the original price unchanged.
+    #[test]
+    fn change_price_type_brk_a_overflow_no_op() {
+        assert_eq!(change_price_type(71_396_865, 8, 4), 71_396_865);
+    }
+
+    /// A second tick at a price_type whose rescale to the accumulator's
+    /// pricetype overflows i32 must be a no-op, leaving high/low/close
+    /// at the unscaled value rather than a wrapped one.
+    #[test]
+    fn ohlcvc_accumulator_overflow_rescale_is_no_op() {
+        let mut acc = OhlcvcAccumulator::new();
+        acc.process_trade(34200000, 71_396_865, 1, 4, 20240315);
+        assert_eq!(acc.price_type, 4);
+        assert_eq!(acc.high, 71_396_865);
+        assert_eq!(acc.low, 71_396_865);
+        assert_eq!(acc.close, 71_396_865);
+        // Tick at price_type=8 needs *10^4 to rescale into pricetype=4.
+        acc.process_trade(34200100, 71_396_865, 1, 8, 20240315);
+        assert_eq!(acc.high, 71_396_865);
+        assert_eq!(acc.low, 71_396_865);
+        assert_eq!(acc.close, 71_396_865);
     }
 }

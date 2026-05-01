@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-mcp"
-version = "8.0.20"
+version = "8.0.21"
 edition = "2021"
 description = "MCP server for ThetaDataDx — gives LLMs instant access to ThetaData market data"
 license = "Apache-2.0"
@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 thetadatadx = { path = "../../crates/thetadatadx" }
-tdbe = { version = "0.12.1", path = "../../crates/tdbe" }
+tdbe = { version = "0.12.2", path = "../../crates/tdbe" }
 tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "io-util", "io-std"] }
 serde = { version = "1.0.228", features = ["derive"] }
 sonic-rs = "0.5.8"

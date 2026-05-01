@@ -144,8 +144,10 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
                 rust_string_literal(right_key)
             )
             .unwrap();
-            out.push_str("            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));\n");
-            out.push_str("            let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right);\n");
+            out.push_str("            let g = match tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right) {\n");
+            out.push_str("                Ok(g) => g,\n");
+            out.push_str("                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),\n");
+            out.push_str("            };\n");
             out.push_str("            Some(Ok(json!({\n");
             for (field, rust_field) in greek_result_fields() {
                 writeln!(
@@ -207,8 +209,10 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
                 rust_string_literal(right_key)
             )
             .unwrap();
-            out.push_str("            param_or_return!(thetadatadx::parse_right_strict(&right).map_err(|e| e.to_string()));\n");
-            out.push_str("            let (iv, err) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right);\n");
+            out.push_str("            let (iv, err) = match tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right) {\n");
+            out.push_str("                Ok(pair) => pair,\n");
+            out.push_str("                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),\n");
+            out.push_str("            };\n");
             out.push_str("            Some(Ok(json!({\n");
             out.push_str("                \"implied_volatility\": iv,\n");
             out.push_str("                \"error\": err,\n");

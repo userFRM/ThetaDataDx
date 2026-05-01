@@ -24,7 +24,7 @@ pub(super) fn offline_greeks_param_layout() -> [(&'static str, ParamType); 7] {
     ]
 }
 
-pub(super) fn greek_result_fields() -> [(&'static str, &'static str); 22] {
+pub(super) fn greek_result_fields() -> [(&'static str, &'static str); 23] {
     [
         ("value", "value"),
         ("iv", "iv"),
@@ -38,6 +38,7 @@ pub(super) fn greek_result_fields() -> [(&'static str, &'static str); 22] {
         ("charm", "charm"),
         ("vomma", "vomma"),
         ("veta", "veta"),
+        ("vera", "vera"),
         ("speed", "speed"),
         ("zomma", "zomma"),
         ("color", "color"),

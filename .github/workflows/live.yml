@@ -102,6 +102,20 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
           CGO_LDFLAGS: -L${{ github.workspace }}/target/release
         run: cd sdks/go && go run ./cmd/fpss_smoke ../../creds.txt
+      - name: FLATFILES byte-match
+        run: |
+          # The byte-match test panics when THETADATADX_REFERENCE_CSV /
+          # THETADATADX_REFERENCE_EOD_CSV is set but the file is
+          # missing, and skips silently when neither env var is set.
+          # We do NOT set the env vars here yet — the vendor reference
+          # CSV fixture is tracked under #453. Once a fixture lands in
+          # the runner image (or is restored from cache / artefact),
+          # set the env vars below to enable byte-match validation.
+          #
+          # env:
+          #   THETADATADX_REFERENCE_CSV: ${{ runner.temp }}/OPTION-OPEN_INTEREST-20260428.csv
+          #   THETADATADX_REFERENCE_EOD_CSV: ${{ runner.temp }}/OPTION-EOD-20260428.csv
+          cargo test --features live-tests --test flatfiles_byte_match -- --nocapture
   endpoint-validation:
     name: Full Endpoint Validation (${{ matrix.os }})
     needs: smoke
