@@ -58,7 +58,7 @@ strikes = tdx.option_list_strikes("SPY", exps[0])
 
 ## Greeks Calculator
 
-Full Black-Scholes calculator with 22 Greeks, running in Rust:
+Full Black-Scholes calculator with 23 Greeks, running in Rust:
 
 ```python
 from thetadatadx import all_greeks, implied_volatility

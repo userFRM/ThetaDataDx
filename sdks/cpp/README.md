@@ -232,7 +232,7 @@ auto client = tdx::Client::connect(creds, tdx::Config::production());
 ### Standalone Functions
 
 ```cpp
-// All 22 Greeks + IV. `right` accepts "C"/"P" or "call"/"put" (case-insensitive).
+// All 23 Greeks + IV. `right` accepts "C"/"P" or "call"/"put" (case-insensitive).
 auto g = tdx::all_greeks(spot, strike, rate, div_yield, tte, price, "C");
 // g.iv, g.delta, g.gamma, g.theta, g.vega, g.rho, g.vanna, g.charm, etc.
 
