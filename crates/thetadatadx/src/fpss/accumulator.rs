@@ -102,14 +102,13 @@ impl OhlcvcAccumulator {
 }
 
 /// Convert a price from one `price_type` to another (mirrors Java
-/// `PriceCalcUtils.changePriceType`). Multiplication widens through `i64`;
-/// when the widened result does not fit back in `i32` the function returns
-/// the input price unchanged and traces a warning. Result is never a
-/// wrapped value.
-// Reason: protocol-defined integer widths from Java FPSS specification.
-#[allow(clippy::cast_possible_truncation)]
+/// `PriceCalcUtils.changePriceType`). The JVM terminal performs `int * int`
+/// which silently wraps on overflow under Java's two's-complement semantics;
+/// downstream consumers depend on that exact wire-bit pattern, so we use
+/// `wrapping_mul` to reproduce it byte-for-byte. Plain `*` would panic in
+/// debug Rust on the same inputs that the JVM accepts without comment.
 pub(super) fn change_price_type(price: i32, price_type: i32, new_price_type: i32) -> i32 {
-    const POW10: [i64; 10] = [
+    const POW10: [i32; 10] = [
         1,
         10,
         100,
@@ -128,30 +127,19 @@ pub(super) fn change_price_type(price: i32, price_type: i32, new_price_type: i32
     if exp <= 0 {
         let idx = usize::try_from(-exp).unwrap_or(0);
         if idx < POW10.len() {
-            // Widen to i64 before multiplying. The Java reference silently
-            // wraps; we instead catch the overflow, return the original
-            // price, and trace.
-            let scaled = i64::from(price) * POW10[idx];
-            if let Ok(narrowed) = i32::try_from(scaled) {
-                narrowed
-            } else {
-                tracing::warn!(
-                    price,
-                    price_type,
-                    new_price_type,
-                    "change_price_type: rescale overflows i32; returning unscaled price (accumulator may go stale)"
-                );
-                price
-            }
+            // Match Java terminal's `int * int` wrap; differs from Rust's
+            // default `*` which panics in debug. wrapping_mul makes the
+            // overflow contract explicit and debug-safe.
+            price.wrapping_mul(POW10[idx])
         } else {
             price
         }
     } else {
         let idx = usize::try_from(exp).unwrap_or(0);
         if idx < POW10.len() {
-            // Down-scale via i64 division — never overflows for valid
-            // (price, idx) since |i32| / 10^k <= |i32|.
-            (i64::from(price) / POW10[idx]) as i32
+            // Down-scale by integer division. |i32| / 10^k <= |i32|, so this
+            // never overflows; mirrors Java's `int / int` exactly.
+            price / POW10[idx]
         } else {
             0
         }
@@ -226,35 +214,47 @@ mod tests {
         assert_eq!(change_price_type(2_147, 6, 0), 2_147_000_000);
     }
 
-    /// One unit past the boundary: 2_148 * 10^6 = 2_148_000_000 > i32::MAX.
-    /// Must fall back to the original price unchanged (no panic, no wrap).
+    /// One unit past the boundary: 2_148 * 10^6 = 2_148_000_000.
+    ///
+    /// Java semantics: `int * int` wraps mod 2^32. Manual calculation:
+    ///   2_148 * 1_000_000 = 2_148_000_000 (mathematical)
+    ///   2_148_000_000 - 2^32 = 2_148_000_000 - 4_294_967_296 = -2_146_967_296
+    /// JVM terminal emits -2_146_967_296 on the wire and we mirror it.
     #[test]
-    fn change_price_type_overflow_returns_original_price() {
-        assert_eq!(change_price_type(2_148, 6, 0), 2_148);
+    fn change_price_type_wraps_like_java_at_2148() {
+        assert_eq!(change_price_type(2_148, 6, 0), -2_146_967_296);
     }
 
-    /// BRK.A in cents: 71_396_865 rescaled by 10^4 = 7.14e11, hard-overflows i32.
-    /// Must return the original price unchanged.
+    /// BRK.A in cents: 71_396_865 rescaled by 10^4.
+    ///
+    /// Manual calculation under two's-complement wrap:
+    ///   71_396_865 * 10_000 = 713_968_650_000
+    ///   713_968_650_000 mod 2^32 = 713_968_650_000 - 166 * 4_294_967_296
+    ///                            = 713_968_650_000 - 712_964_571_136
+    ///                            = 1_004_078_864
+    /// 1_004_078_864 < 2^31 so the signed result is +1_004_078_864.
+    /// This matches what `PriceCalcUtils.changePriceType` returns in the JVM.
     #[test]
-    fn change_price_type_brk_a_overflow_no_op() {
-        assert_eq!(change_price_type(71_396_865, 8, 4), 71_396_865);
+    fn change_price_type_brk_a_wraps_like_java() {
+        assert_eq!(change_price_type(71_396_865, 8, 4), 1_004_078_864);
     }
 
-    /// A second tick at a price_type whose rescale to the accumulator's
-    /// pricetype overflows i32 must be a no-op, leaving high/low/close
-    /// at the unscaled value rather than a wrapped one.
+    /// A second tick whose rescale wraps under Java semantics must produce
+    /// the same wrapped value the JVM terminal would compute, so accumulator
+    /// state stays bit-identical to the reference implementation.
+    /// 71_396_865 * 10_000 wraps to +1_004_078_864 (see test above).
     #[test]
-    fn ohlcvc_accumulator_overflow_rescale_is_no_op() {
+    fn ohlcvc_accumulator_rescale_matches_java_wrap() {
         let mut acc = OhlcvcAccumulator::new();
         acc.process_trade(34200000, 71_396_865, 1, 4, 20240315);
         assert_eq!(acc.price_type, 4);
         assert_eq!(acc.high, 71_396_865);
-        assert_eq!(acc.low, 71_396_865);
-        assert_eq!(acc.close, 71_396_865);
-        // Tick at price_type=8 needs *10^4 to rescale into pricetype=4.
+        // Tick at price_type=8 needs *10^4 to rescale into pricetype=4 and
+        // wraps to +1_004_078_864, which exceeds the prior high.
         acc.process_trade(34200100, 71_396_865, 1, 8, 20240315);
-        assert_eq!(acc.high, 71_396_865);
+        assert_eq!(acc.high, 1_004_078_864);
+        assert_eq!(acc.close, 1_004_078_864);
+        // Low stays at the original (smaller) value.
         assert_eq!(acc.low, 71_396_865);
-        assert_eq!(acc.close, 71_396_865);
     }
 }
