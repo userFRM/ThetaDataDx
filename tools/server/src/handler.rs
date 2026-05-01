@@ -25,9 +25,24 @@ use crate::validation;
 // ---------------------------------------------------------------------------
 
 /// Build a JSON error response with the Java terminal error envelope format.
+///
+/// The envelope is hand-built from string + array primitives, so
+/// serialisation cannot legitimately fail. If it does anyway, fall back to a
+/// minimal hard-coded envelope rather than an empty body so callers always
+/// see structured JSON they can parse.
 fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
-    let body = format::error_envelope(error_type, msg);
-    let json_bytes = sonic_rs::to_string(&body).unwrap_or_default();
+    let mut body = format::error_envelope(error_type, msg);
+    let json_bytes = json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
+        tracing::error!(
+            error = %err,
+            "error envelope failed to serialise; emitting minimal fallback"
+        );
+        format!(
+            "{{\"header\":{{\"error_type\":\"serialization_error\",\
+             \"error_msg\":\"failed to serialise error envelope: {err}\"}},\
+             \"response\":[]}}"
+        )
+    });
     (
         status,
         [(
@@ -40,17 +55,32 @@ fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
 }
 
 /// Serialize a `sonic_rs::Value` to an axum JSON response body.
-fn json_response(val: &sonic_rs::Value) -> Response {
-    let json_bytes = sonic_rs::to_string(val).unwrap_or_default();
-    (
-        StatusCode::OK,
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "application/json; charset=utf-8",
-        )],
-        json_bytes,
-    )
-        .into_response()
+///
+/// The value tree is canonicalised in place (non-finite f64 -> JSON `null`)
+/// before serialisation so cross-language SDK agreement holds. If
+/// serialisation still fails — a logic bug, not a data bug — surface it as a
+/// structured `500` carrying the underlying error message rather than an
+/// empty `200 OK` body.
+fn json_response(val: &mut sonic_rs::Value) -> Response {
+    match json_canon::canonicalize_and_serialize(val) {
+        Ok(json_bytes) => (
+            StatusCode::OK,
+            [(
+                axum::http::header::CONTENT_TYPE,
+                "application/json; charset=utf-8",
+            )],
+            json_bytes,
+        )
+            .into_response(),
+        Err(err) => {
+            tracing::error!(error = %err, "response serialisation failed");
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "serialization_error",
+                &err.to_string(),
+            )
+        }
+    }
 }
 
 /// Max query parameter count per request. The widest legitimate endpoint in
@@ -241,7 +271,7 @@ pub async fn generic(
         Err(error) => return endpoint_error_response(ep, error),
     };
 
-    let json_val = format::output_envelope(&output);
+    let mut json_val = format::output_envelope(&output);
     if use_csv {
         if let Some(arr) = json_val
             .get("response")
@@ -265,7 +295,7 @@ pub async fn generic(
             .into_response();
     }
 
-    json_response(&json_val)
+    json_response(&mut json_val)
 }
 
 // ---------------------------------------------------------------------------
@@ -274,26 +304,26 @@ pub async fn generic(
 
 /// GET /v3/system/status -- matches Java terminal system status.
 pub async fn system_status(State(state): State<AppState>) -> Response {
-    let body = sonic_rs::json!({
+    let mut body = sonic_rs::json!({
         "status": state.mdds_status(),
         "version": env!("CARGO_PKG_VERSION")
     });
-    json_response(&body)
+    json_response(&mut body)
 }
 
 /// GET /v3/system/mdds/status
 pub async fn system_mdds_status(State(state): State<AppState>) -> Response {
-    let body = format::ok_envelope(vec![sonic_rs::Value::from(state.mdds_status())]);
-    json_response(&body)
+    let mut body = format::ok_envelope(vec![sonic_rs::Value::from(state.mdds_status())]);
+    json_response(&mut body)
 }
 
 /// GET /v3/system/fpss/status
 pub async fn system_fpss_status(State(state): State<AppState>) -> Response {
-    let body = sonic_rs::json!({
+    let mut body = sonic_rs::json!({
         "status": state.fpss_status(),
         "version": env!("CARGO_PKG_VERSION")
     });
-    json_response(&body)
+    json_response(&mut body)
 }
 
 /// POST /v3/system/shutdown -- requires `X-Shutdown-Token` header.
@@ -317,8 +347,8 @@ pub async fn system_shutdown(State(state): State<AppState>, headers: HeaderMap) 
 
     tracing::info!("shutdown requested via REST API with valid token");
     state.shutdown();
-    let body = format::ok_envelope(vec![sonic_rs::Value::from("OK")]);
-    json_response(&body)
+    let mut body = format::ok_envelope(vec![sonic_rs::Value::from("OK")]);
+    json_response(&mut body)
 }
 
 // ---------------------------------------------------------------------------
@@ -329,6 +359,7 @@ pub async fn system_shutdown(State(state): State<AppState>, headers: HeaderMap) 
 mod tests {
     use super::*;
     use axum::http::Request;
+    use sonic_rs::Value;
     use thetadatadx::ENDPOINTS;
 
     /// Grab any registered endpoint as a stand-in for the per-endpoint
@@ -477,5 +508,71 @@ mod tests {
         );
         assert_eq!(params.get("end_date").map(String::as_str), Some("20240201"));
         assert_eq!(params.get("format").map(String::as_str), Some("json"));
+    }
+
+    // -----------------------------------------------------------------------
+    //  Issue #459 regression — non-finite f64 must not collapse to empty body
+    // -----------------------------------------------------------------------
+
+    /// Read the body of an axum `Response` to a `String` synchronously inside
+    /// a tokio runtime. Used by the NaN-cell regression tests below.
+    async fn read_body(resp: Response) -> String {
+        use axum::body::to_bytes;
+        let body = resp.into_body();
+        let bytes = to_bytes(body, usize::MAX).await.expect("body collect");
+        String::from_utf8(bytes.to_vec()).expect("body utf8")
+    }
+
+    #[tokio::test]
+    async fn json_response_emits_non_empty_body_for_nan_payload() {
+        // Construct a payload that mimics a Greeks-style row where one cell
+        // came back non-finite from the upstream solver. Before issue #459
+        // this would round-trip through `sonic_rs::to_string(...).unwrap_or_default()`
+        // and hand the client a 200 OK with an empty body.
+        let mut row = sonic_rs::json!({
+            "symbol": "AAPL",
+            "delta": 0.5_f64,
+            // `vega` slot is filled in below with a pre-collapsed NaN sentinel
+            // so the canonicaliser walk still has work to do on a real leaf.
+            "vega": Value::new_null(),
+        });
+        if let Some(o) = row.as_object_mut() {
+            o.insert(&"vega", json_canon::finite_or_null(f64::NAN));
+        }
+        let mut envelope = format::ok_envelope(vec![row]);
+
+        let resp = json_response(&mut envelope);
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = read_body(resp).await;
+        assert!(
+            !body.is_empty(),
+            "issue #459: NaN cell must not collapse the response to an empty body"
+        );
+        // Non-finite cell must serialise as JSON null — exact byte assertion.
+        assert!(
+            body.contains("\"vega\":null"),
+            "vega must canonicalise to null in the wire body, got {body}"
+        );
+        // Sibling finite cells must round-trip unchanged.
+        assert!(
+            body.contains("\"delta\":0.5"),
+            "delta must round-trip unchanged, got {body}"
+        );
+        assert!(
+            body.contains("\"symbol\":\"AAPL\""),
+            "symbol must round-trip unchanged, got {body}"
+        );
+        // The full envelope shape — `header` + `response` array — must be
+        // intact, so clients that pattern-match on `header.error_type` to
+        // distinguish success from failure still work.
+        assert!(
+            body.contains("\"header\""),
+            "envelope header missing: {body}"
+        );
+        assert!(
+            body.contains("\"response\""),
+            "envelope response missing: {body}"
+        );
     }
 }

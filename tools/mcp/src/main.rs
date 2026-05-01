@@ -1,11 +1,11 @@
 //! MCP (Model Context Protocol) server for ThetaDataDx.
 //!
-//! Gives any MCP-compatible LLM (Claude, Codex, Gemini, Cursor) instant access
-//! to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
+//! Gives any MCP-compatible LLM client instant access to ThetaData market
+//! data via structured tool calls over stdio JSON-RPC 2.0.
 //!
 //! Architecture:
 //! ```text
-//! LLM (Claude/Codex/Gemini)
+//! MCP-compatible LLM client
 //!     |  JSON-RPC 2.0 over stdio
 //!     v
 //! thetadatadx-mcp (long-running process)
@@ -857,18 +857,7 @@ async fn handle_request(
             let arguments = req.params.get("arguments").cloned().unwrap_or(json!({}));
 
             match execute_tool(client, tool_name, &arguments, start_time).await {
-                Ok(result) => {
-                    let text = sonic_rs::to_string(&result).unwrap_or_default();
-                    JsonRpcResponse::success(
-                        id,
-                        json!({
-                            "content": [{
-                                "type": "text",
-                                "text": text,
-                            }]
-                        }),
-                    )
-                }
+                Ok(mut result) => build_tool_call_response(id, &mut result),
                 Err(ToolError::InvalidParams(msg)) => {
                     JsonRpcResponse::error(id, -32602, format!("Invalid params: {msg}"))
                 }
@@ -879,6 +868,33 @@ async fn handle_request(
         }
 
         _ => JsonRpcResponse::error(id, -32601, format!("Method not found: {}", req.method)),
+    }
+}
+
+/// Build the JSON-RPC response for a successful `tools/call` invocation.
+///
+/// Canonicalises non-finite f64 leaves to JSON `null` (cross-language SDK
+/// agreement, see `json_canon`) and surfaces any residual serialisation
+/// failure as a JSON-RPC `-32603` Internal Error so the LLM client never
+/// receives a successful but empty `tools/call` result. Lifted out of the
+/// `tools/call` arm so the regression test for issue #459 can exercise the
+/// canonicalisation path without spinning up a live `ThetaDataDx` client.
+fn build_tool_call_response(id: Value, result: &mut Value) -> JsonRpcResponse {
+    match json_canon::canonicalize_and_serialize(result) {
+        Ok(text) => JsonRpcResponse::success(
+            id,
+            json!({
+                "content": [{
+                    "type": "text",
+                    "text": text,
+                }]
+            }),
+        ),
+        Err(err) => JsonRpcResponse::error(
+            id,
+            -32603,
+            format!("Internal error: failed to serialise tool result: {err}"),
+        ),
     }
 }
 
@@ -1470,5 +1486,100 @@ mod tests {
         ] {
             assert!(row.get(key).is_some(), "missing Greek: {key}");
         }
+    }
+
+    // -----------------------------------------------------------------------
+    //  Issue #459 regression — tools/call must not return a successful but
+    //  empty result when the tool output carries a non-finite f64 cell.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn tools_call_response_serialises_nan_cell_as_null_not_empty() {
+        // Mimic an `option_snapshot_greeks_*` row that came back with a
+        // non-finite vega from the upstream solver. Before the fix, the
+        // outer `sonic_rs::to_string(...).unwrap_or_default()` would have
+        // collapsed the entire serialise result to an empty string and the
+        // MCP client would have seen `result.content[0].text = ""`.
+        let mut tool_result = sonic_rs::json!({
+            "ticks": [{
+                "symbol": "AAPL",
+                "delta": 0.5_f64,
+                "vega": Value::new_null(),
+            }]
+        });
+        if let Some(ticks) = tool_result.get_mut("ticks").and_then(|v| v.as_array_mut()) {
+            if let Some(row) = ticks.first_mut().and_then(|v| v.as_object_mut()) {
+                row.insert("vega", json_canon::finite_or_null(f64::NAN));
+            }
+        }
+
+        let id = sonic_rs::json!(42);
+        let resp = build_tool_call_response(id, &mut tool_result);
+
+        // Success path — `result` must be Some, `error` must be None.
+        assert!(
+            resp.error.is_none(),
+            "expected success, got error: {:?}",
+            resp.error.as_ref().map(|e| &e.message)
+        );
+        let result = resp.result.expect("success branch must populate result");
+
+        // Drill into `result.content[0].text` and assert the embedded JSON
+        // string is non-empty AND contains the canonicalised null.
+        let content = result.get("content").expect("content field");
+        let arr = content.as_array().expect("content is an array");
+        assert_eq!(arr.len(), 1, "exactly one content block expected");
+        let text = arr
+            .first()
+            .unwrap()
+            .get("text")
+            .and_then(|v: &Value| v.as_str())
+            .expect("text field");
+        assert!(
+            !text.is_empty(),
+            "issue #459: NaN cell must not collapse the tool result text to empty"
+        );
+        assert!(
+            text.contains("\"vega\":null"),
+            "vega must canonicalise to null, got {text}"
+        );
+        assert!(
+            text.contains("\"delta\":0.5"),
+            "delta must round-trip unchanged, got {text}"
+        );
+        assert!(
+            text.contains("\"symbol\":\"AAPL\""),
+            "symbol must round-trip unchanged, got {text}"
+        );
+    }
+
+    #[test]
+    fn tools_call_response_finite_only_round_trips_exact_values() {
+        // Sanity check: a finite-only result tree must round-trip every cell
+        // byte-for-byte. Object key order is not part of the JSON-RPC
+        // contract (sonic_rs's hash table iteration order is the source of
+        // truth on the wire), so this test re-parses the emitted text and
+        // asserts the resulting tree is `==` to the input — exact value
+        // agreement, not a containment check.
+        let original = sonic_rs::json!({
+            "ticks": [{ "symbol": "AAPL", "delta": 0.5_f64 }]
+        });
+        let mut tool_result = original.clone();
+        let id = sonic_rs::json!("call-1");
+        let resp = build_tool_call_response(id, &mut tool_result);
+        assert!(resp.error.is_none());
+        let text = resp
+            .result
+            .expect("success branch must populate result")
+            .get("content")
+            .and_then(|v| v.as_array().and_then(|a| a.first().cloned()))
+            .and_then(|v| v.get("text").map(|s| s.as_str().map(str::to_owned)))
+            .flatten()
+            .expect("text field");
+        let reparsed: Value = sonic_rs::from_str(&text).expect("emitted text must reparse");
+        assert_eq!(
+            reparsed, original,
+            "finite-only payload must round-trip with all values preserved"
+        );
     }
 }

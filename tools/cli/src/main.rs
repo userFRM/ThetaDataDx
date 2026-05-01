@@ -476,9 +476,11 @@ fn raw_ms(ms: i32) -> sonic_rs::Value {
 
 /// Non-finite f64 -> JSON null. JSON itself rejects NaN / +Inf / -Inf in
 /// standards-compliant encoders, so we must collapse here or serialization
-/// fails. Matches validator's canonicalization rule.
+/// fails. Matches the validator's canonicalisation rule and is shared with
+/// the REST and MCP frontends through the `json_canon` crate so all three
+/// produce byte-identical output for the same tick payload.
 fn raw_f64(value: f64) -> sonic_rs::Value {
-    sonic_rs::Number::from_f64(value).map_or_else(sonic_rs::Value::new_null, sonic_rs::Value::from)
+    json_canon::finite_or_null(value)
 }
 
 /// Raw integer value as JSON number.

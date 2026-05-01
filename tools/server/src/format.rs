@@ -473,8 +473,22 @@ fn render_csv_value(value: &sonic_rs::Value) -> String {
     if value.is_null() {
         return String::new();
     }
-    let rendered = sonic_rs::to_string(value).unwrap_or_default();
-    escape_csv_field(&rendered)
+    // Canonicalise into an owned tree before serialising. The non-finite f64
+    // collapse already happened upstream in the JSON envelope, but a CSV
+    // cell that was constructed independently (e.g. from a hand-built
+    // `sonic_rs::Value`) might still carry a non-finite leaf — collapse it
+    // here so the encoder cannot fail. If serialisation still errors, emit
+    // an explicit sentinel string so the CSV column is observable rather
+    // than silently empty.
+    let mut owned = value.clone();
+    json_canon::canonicalize(&mut owned);
+    match sonic_rs::to_string(&owned) {
+        Ok(rendered) => escape_csv_field(&rendered),
+        Err(err) => {
+            tracing::warn!(error = %err, "csv cell serialisation failed; emitting sentinel");
+            escape_csv_field(&format!("<csv-render-error: {err}>"))
+        }
+    }
 }
 
 /// CSV-escape a single field.
