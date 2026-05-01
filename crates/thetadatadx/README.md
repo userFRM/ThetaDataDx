@@ -96,7 +96,7 @@ endpoint declarations.
 | `TradeQuoteTick` | 26 | Combined trade + quote |
 | `OpenInterestTick` | 3 | Open interest |
 | `MarketValueTick` | 7 | Market cap, shares out, etc. |
-| `GreeksTick` | 24 | All 22 Greeks + ms_of_day + date |
+| `GreeksTick` | 25 | All 23 Greeks + ms_of_day + date |
 | `IvTick` | 4 | Implied volatility + error |
 | `PriceTick` | 4 | Index price |
 | `CalendarDay` | 5 | Market open/close schedule |

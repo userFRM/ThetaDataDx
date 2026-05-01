@@ -7,7 +7,7 @@ description: Complete API reference for the ThetaDataDx SDK covering all endpoin
 
 ThetaDataDx provides a unified client for accessing ThetaData market data across three public surfaces: historical request/response (MDDS over gRPC), real-time streaming (FPSS over TCP), and whole-universe daily blobs (FLATFILES over the legacy MDDS port). The SDK ships native bindings for Rust, Python, TypeScript/Node.js, Go, and C++, all backed by the same compiled Rust core.
 
-Complete typed historical surface + 4 streaming variants + the FLATFILES daily-blob surface (Rust today; cross-language bindings tracked under the FLATFILES roadmap section) + 22 Greeks functions + IV solver.
+Complete typed historical surface + 4 streaming variants + the FLATFILES daily-blob surface (Rust today; cross-language bindings tracked under the FLATFILES roadmap section) + 23 Greeks functions + IV solver.
 
 ## Client Construction
 
@@ -940,7 +940,7 @@ auto greeks = client.option_snapshot_greeks_all("SPY", "20241220", "500", "C");
 | `min_time` | string | No | Minimum time of day |
 | `use_market_value` | bool | No | Use market value instead of last trade |
 
-**Returns:** Array of GreeksTick records with all 22 Greeks.
+**Returns:** Array of GreeksTick records with all 23 Greeks.
 
 **Tier:** Pro
 
@@ -1357,7 +1357,7 @@ auto g = client.option_history_greeks_all("SPY", "20241220", "500", "C", "202403
 | `version` | string | No | Greeks calculation version |
 | `strike_range` | int | No | Strike range filter |
 
-**Returns:** Array of GreeksTick records with all 22 Greeks at each sampled point.
+**Returns:** Array of GreeksTick records with all 23 Greeks at each sampled point.
 
 **Tier:** Pro
 
@@ -1401,7 +1401,7 @@ auto g = client.option_history_trade_greeks_all("SPY", "20241220", "500", "C", "
 | `max_dte` | int | No | Maximum days to expiration |
 | `strike_range` | int | No | Strike range filter |
 
-**Returns:** Array of GreeksTick records with all 22 Greeks per trade.
+**Returns:** Array of GreeksTick records with all 23 Greeks per trade.
 
 **Tier:** Pro
 
@@ -2160,7 +2160,7 @@ Full Black-Scholes calculator with 20 individual Greek functions, an IV solver, 
 
 ### all_greeks
 
-Compute all 22 Greeks at once. Solves for IV first, then computes all Greeks using the solved volatility. This is much more efficient than calling individual functions because it avoids redundant `d1`/`d2`/`exp()`/`norm_cdf()` recomputation.
+Compute all 23 Greeks at once. Solves for IV first, then computes all Greeks using the solved volatility. This is much more efficient than calling individual functions because it avoids redundant `d1`/`d2`/`exp()`/`norm_cdf()` recomputation.
 
 ::: code-group
 ```rust [Rust]
@@ -2206,7 +2206,7 @@ std::cout << "IV: " << g.iv << ", Delta: " << g.delta << std::endl;
 | `option_price` | float | Yes | Market price of the option |
 | `right` | string | Yes | Option side: `"C"`/`"P"` or `"call"`/`"put"` (case-insensitive) |
 
-**Returns:** [GreeksResult](#greeksresult) containing all 22 fields.
+**Returns:** [GreeksResult](#greeksresult) containing all 23 fields.
 
 ---
 

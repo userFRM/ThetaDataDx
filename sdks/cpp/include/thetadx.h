@@ -456,7 +456,7 @@ void tdx_string_free(char* s);
 /*  Greeks (standalone)                                                   */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** Compute all 22 Greeks + IV. `right` accepts "C"/"P" or "call"/"put" (case-insensitive).
+/** Compute all 23 Greeks + IV. `right` accepts "C"/"P" or "call"/"put" (case-insensitive).
  *  Returns heap-allocated TdxGreeksResult (or NULL on error). Caller must free with tdx_greeks_result_free. */
 TdxGreeksResult* tdx_all_greeks(double spot, double strike, double rate, double div_yield,
                                 double tte, double option_price, const char* right);

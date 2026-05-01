@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.22] - 2026-05-01
+
+### Fixed
+
+- **`fpss::accumulator::change_price_type` now matches the JVM terminal's
+  `PriceCalcUtils.changePriceType` byte-for-byte.** v8.0.21 widened the
+  multiplication through `i64` and returned the unscaled input on
+  overflow, which broke parity with the Java reference (Java `int * int`
+  silently wraps under two's-complement). The rescale now uses
+  `i32::wrapping_mul`, reproducing the JVM's exact wire bits in both
+  debug and release. Tests pin the wrapping result to manually-computed
+  Java-equivalent values (e.g. `2_148 * 10^6 → -2_146_967_296`).
+- **`decode::row_number_i64` clamps `price_type` to `0..=19`** so the
+  same wire cell decodes identically through `row_number_i64` and
+  `row_price_f64` (the latter routes through `tdbe::Price::new`, which
+  has clamped to that range since it was introduced). Under the clamped
+  contract, `i32::MAX * 10^9 ≈ 2.15e18` is well below `i64::MAX`, so
+  scale-up cannot overflow and the previous `Price overflowing i64`
+  error path is no longer reachable.
+
+### Added
+
+- `crates/thetadatadx/tests/flatfiles_synthetic_golden.rs` — a
+  deterministic decoder-only golden test that builds a synthetic
+  FLATFILES blob (header + INDEX + FIT-encoded DATA) in Rust and pins
+  the CSV writer's output byte-for-byte. Runs in plain `cargo test`
+  with no live wire and no env var, giving CI a hard regression gate
+  on the FIT decoder, INDEX walker, and price formatter on every push.
+
+### Changed
+
+- Documentation references to "22 Greeks" updated to "23 Greeks" to
+  reflect the `vera` field added in v8.0.21. Touches the `tdbe`
+  README + module docs, the `thetadatadx` README tick-types table,
+  and the Python and C++ SDK READMEs.
+
 ## [8.0.21] - 2026-04-30
 
 ### Fixed
