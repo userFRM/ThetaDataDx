@@ -617,11 +617,16 @@ pub(crate) fn row_text(
 /// with the EodTick `volume`/`count` widening (where on high-volume
 /// symbols the values exceed `i32::MAX`).
 ///
+/// `price_type` is clamped to `0..=19` to match
+/// [`tdbe::types::price::Price::new`], so the same wire cell decodes
+/// identically through this function and [`row_price_f64`].
+///
 /// # Errors
 ///
-/// Returns `DecodeError::TypeMismatch` for any other cell variant, or
-/// when a `Price` cell's scale-up overflows `i64`. Returns
-/// `DecodeError::MissingCell` for an out-of-bounds column index.
+/// Returns `DecodeError::TypeMismatch` for any other cell variant. Returns
+/// `DecodeError::MissingCell` for an out-of-bounds column index. Under the
+/// clamped `0..=19` price-type contract, scale-up cannot overflow `i64`
+/// (max product is `i32::MAX * 10^9 ≈ 2.15e18`, well under `i64::MAX`).
 pub(crate) fn row_number_i64(
     row: &proto::DataValueList,
     idx: usize,
@@ -633,22 +638,26 @@ pub(crate) fn row_number_i64(
         Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n)),
         Some(proto::data_value::DataType::Price(p)) => {
             // Vendor convention: real_value = value * 10^(type - 10).
-            // Positive exp scales up; negative exp scales down. v == 0
-            // short-circuits to 0 so a zero price never trips the
-            // scale-up overflow guard.
+            // Clamp `type` to 0..=19 to match `tdbe::Price::new`, so the
+            // same wire cell decodes identically through `row_price_f64`
+            // and `row_number_i64`. Positive exp scales up; negative exp
+            // scales down. v == 0 short-circuits to 0 so a zero price
+            // never trips the scale-up overflow guard.
             let v = i64::from(p.value);
             if v == 0 {
                 return Ok(Some(0));
             }
-            let exp = p.r#type - 10;
+            let price_type = p.r#type.clamp(0, 19);
+            let exp = price_type - 10;
+            // After clamping, exp ∈ [-10, 9]. Scale-up: i32::MAX * 10^9
+            // ≈ 2.147e18 < i64::MAX (≈ 9.22e18), so checked_mul cannot
+            // overflow. checked_mul preserves the contract anyway.
             let scaled = if exp >= 0 {
                 10i64
                     .checked_pow(exp.unsigned_abs())
                     .and_then(|m| v.checked_mul(m))
-            } else if exp >= -18 {
-                Some(v / 10i64.pow(exp.unsigned_abs()))
             } else {
-                Some(0)
+                Some(v / 10i64.pow(exp.unsigned_abs()))
             };
             match scaled {
                 Some(n) => Ok(Some(n)),
@@ -1477,8 +1486,7 @@ mod tests {
         );
     }
 
-    /// Pin a Price cell past `2^53` to the i64-native result. Overflow
-    /// is covered by `row_number_i64_price_overflowing_i64_returns_error`.
+    /// Pin a Price cell past `2^53` to the i64-native result for `type=17`.
     #[test]
     fn row_number_i64_price_cell_returns_bit_exact_i64() {
         let row = row_of(vec![dv_price(1_073_741_823, 17)]);
@@ -1487,29 +1495,57 @@ mod tests {
         assert!(got > (1_i64 << 53));
     }
 
-    /// `value == 0` decodes to 0 regardless of the exponent, even for
-    /// `price_type` values that would otherwise overflow the scale-up
-    /// guard. Mathematically the product is zero; the decoder must not
-    /// reject a zero cell.
+    /// `value == 0` decodes to 0 regardless of the exponent. Mathematically
+    /// the product is zero; the decoder must not reject a zero cell, even
+    /// when `price_type` is at the clamp boundary.
     #[test]
     fn row_number_i64_price_zero_value_short_circuits() {
-        let row = row_of(vec![dv_price(0, 20)]);
+        let row = row_of(vec![dv_price(0, 19)]);
         assert_eq!(row_number_i64(&row, 0), Ok(Some(0)));
     }
 
-    /// `Price { value: i32::MAX, type: 20 }` rescales by 10^10 — overflows i64.
-    /// The new path surfaces this as a clean `TypeMismatch` rather than a
-    /// silent saturation through `f64 as i64`.
+    /// `row_number_i64` and `row_price_f64` must agree on the same wire
+    /// cell. With `type=19` (in-range) and `value=42`, `row_price_f64`
+    /// routes through `Price::new` which keeps `price_type=19`, and
+    /// `row_number_i64` produces the i64-native scale. Both should match.
+    /// Manual: 42 * 10^(19-10) = 42 * 10^9 = 42_000_000_000.
     #[test]
-    fn row_number_i64_price_overflowing_i64_returns_error() {
-        let row = row_of(vec![dv_price(i32::MAX, 20)]);
+    fn row_number_i64_matches_row_price_f64_at_type_19() {
+        let row = row_of(vec![dv_price(42, 19)]);
+        let as_int = row_number_i64(&row, 0).unwrap().expect("Some");
+        let as_float = row_price_f64(&row, 0).unwrap().expect("Some");
+        assert_eq!(as_int, 42_000_000_000_i64);
+        assert!((as_float - 42_000_000_000.0_f64).abs() < 1.0);
+    }
+
+    /// `price_type=20` is out-of-range; both decoders must clamp to 19
+    /// (matching `Price::new`). A `type=20` cell and a `type=19` cell with
+    /// the same value must therefore decode to the same i64.
+    #[test]
+    fn row_number_i64_clamps_price_type_above_19() {
+        let row_clamped = row_of(vec![dv_price(7, 20)]);
+        let row_in_range = row_of(vec![dv_price(7, 19)]);
         assert_eq!(
-            row_number_i64(&row, 0),
-            Err(DecodeError::TypeMismatch {
-                column: 0,
-                expected: "i64-fitting Price",
-                observed: "Price overflowing i64",
-            })
+            row_number_i64(&row_clamped, 0).unwrap(),
+            row_number_i64(&row_in_range, 0).unwrap(),
+        );
+        // Pin the absolute value too: 7 * 10^9 = 7_000_000_000.
+        assert_eq!(
+            row_number_i64(&row_clamped, 0).unwrap(),
+            Some(7_000_000_000_i64)
+        );
+    }
+
+    /// Maximum scale-up under the clamped contract: `value=i32::MAX,
+    /// type=19` yields `i32::MAX * 10^9 = 2_147_483_647_000_000_000`,
+    /// which is below `i64::MAX = 9_223_372_036_854_775_807`. The product
+    /// must fit and decode bit-exact (no `TypeMismatch`).
+    #[test]
+    fn row_number_i64_max_in_range_price_fits_i64() {
+        let row = row_of(vec![dv_price(i32::MAX, 19)]);
+        assert_eq!(
+            row_number_i64(&row, 0).unwrap(),
+            Some(2_147_483_647_000_000_000_i64),
         );
     }
 
