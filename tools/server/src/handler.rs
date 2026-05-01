@@ -321,7 +321,11 @@ pub async fn system_mdds_status(State(state): State<AppState>) -> Response {
 pub async fn system_fpss_status(State(state): State<AppState>) -> Response {
     let mut body = sonic_rs::json!({
         "status": state.fpss_status(),
-        "version": env!("CARGO_PKG_VERSION")
+        "version": env!("CARGO_PKG_VERSION"),
+        // Expose the bounded callback->broadcast drop counter so operators
+        // can scrape one number to detect WS-side back-pressure without
+        // tailing logs. Mirrors the FPSS SDK's `dropped_events()` surface.
+        "broadcast_dropped": state.fpss_broadcast_dropped(),
     });
     json_response(&mut body)
 }
