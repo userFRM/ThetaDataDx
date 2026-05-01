@@ -20,42 +20,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `500` carrying the underlying error message in the existing JSON
   envelope, and the MCP handler returns a JSON-RPC `-32603` Internal
   Error. The cross-language non-finite f64 -> JSON `null`
-  canonicalisation rule now lives in the new `crates/json_canon` crate
-  and is shared by CLI, REST, and MCP.
-- **FPSS WebSocket broadcast queue is now bounded** at 65_536 slots,
-  using `try_send` with explicit `Full` / `Closed` arms. Drops are
-  accounted on a new `AppState::fpss_broadcast_dropped()` counter,
-  exposed via `GET /v3/system/fpss/status` as `broadcast_dropped`,
-  and warn-logged once per 1024 drops.
+  canonicalisation rule (previously inlined in `tools/cli/src/main.rs`
+  as `raw_f64`) now lives in the new `crates/json_canon` crate and is
+  shared by CLI, REST, and MCP so all three frontends produce
+  byte-identical output for the same payload.
+- **FPSS WebSocket broadcast queue is now bounded.**
+  `tools/server/src/ws/broadcast.rs` previously used
+  `tokio::sync::mpsc::unbounded_channel`, which could grow without bound
+  if the broadcast task lagged behind the Disruptor consumer thread.
+  The channel is now bounded at 65_536 slots and the callback uses
+  `try_send` with explicit `Full` / `Closed` arms; drops are accounted
+  on a new `AppState::record_fpss_broadcast_drop` `AtomicU64` counter,
+  exposed via `GET /v3/system/fpss/status` as `broadcast_dropped`, and
+  warn-logged once per 1024 drops to surface back-pressure without
+  flooding stderr.
 - **`ThetaDataDx::reconnect_streaming` now fails explicitly on partial
-  re-subscription**, returning the new
-  `Error::PartialReconnect { failed }` variant carrying the
-  `(SubscriptionKind, Contract)` list rather than silently logging and
-  returning `Ok(())`.
-- **Version metadata drift cleared** across `sdks/cpp/CMakeLists.txt`,
-  the workspace `Cargo.toml` comment, and the v8 `[8.0.8]` changelog
-  entry.
+  re-subscription.** The re-subscribe loop in
+  `crates/thetadatadx/src/unified.rs` previously logged failures via
+  `tracing::warn!` and returned `Ok(())`, hiding partial reconnects
+  from programmatic callers. The loop now collects every failed
+  `(SubscriptionKind, Contract)` pair and, when the list is non-empty,
+  returns the new `Error::PartialReconnect { failed }` variant. The
+  per-failure `tracing::warn!` lines stay for operational visibility.
+- **Version metadata drift cleared.** `sdks/cpp/CMakeLists.txt`
+  (`8.0.9` -> `8.0.23`) and the workspace comment in `Cargo.toml`
+  (`7.x` -> `8.0.x`) now match the rest of the v8 line. Banned
+  vocabulary purged from `SECURITY.md`, the `[8.0.8]` changelog entry,
+  and the dropped-events Python test.
 
 ### Added
 
-- `crates/json_canon` — a tiny shared crate for non-finite f64 -> JSON
-  `null` canonicalisation, used by `tools/cli`, `tools/server`, and
-  `tools/mcp`.
-- `Error::PartialReconnect { failed }` variant and
-  `Contract::full_type_marker(sec_type)` constructor in
-  `thetadatadx`.
-- `broadcast_dropped` field on `GET /v3/system/fpss/status`.
-- Pytest CI step in `.github/workflows/python.yml` that runs the
-  Python test suite after the wheel install.
+- `crates/json_canon` — a tiny shared crate exposing
+  `finite_or_null`, `canonicalize`, and `canonicalize_and_serialize`
+  for non-finite f64 -> JSON `null` collapse plus surfaced
+  `sonic_rs::Error` on serialisation failure. Pulled in by
+  `tools/cli`, `tools/server`, and `tools/mcp`.
+- New `Error::PartialReconnect { failed: Vec<(SubscriptionKind, Contract)> }`
+  variant in `thetadatadx::error` and a new
+  `Contract::full_type_marker(sec_type)` constructor used to encode a
+  failed full-type subscription inside the structured failure list.
+- `AppState::record_fpss_broadcast_drop` and
+  `AppState::fpss_broadcast_dropped` on the REST server, and a new
+  `broadcast_dropped` field on `GET /v3/system/fpss/status`.
+- A pytest CI step in `.github/workflows/python.yml` that runs
+  `pytest sdks/python/tests/` after the wheel install. The existing
+  import smoke is kept as a separate step.
 
 ### Changed
 
-- `tools/cli/src/main.rs` `raw_f64` now delegates to
+- `tools/cli/src/main.rs` `raw_f64` is now a thin delegation to
   `json_canon::finite_or_null`.
 - `tools/server/src/format.rs` `render_csv_value` canonicalises before
-  serialising and emits a `<csv-render-error: …>` sentinel on
-  serialisation failure rather than an empty cell.
-- `tdbe` bumped to `0.12.4`.
+  serialising and emits a `<csv-render-error: …>` sentinel rather than
+  an empty cell on serialisation failure.
+- `tdbe` bumped to `0.12.4` to keep all member crates on a fresh
+  patch line for the 8.0.23 release.
 
 ## [8.0.22] - 2026-05-01
 
