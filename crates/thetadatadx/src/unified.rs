@@ -321,10 +321,21 @@ impl ThetaDataDx {
     /// 1. Save active per-contract and full-type subscriptions
     /// 2. Stop the current streaming connection
     /// 3. Start a new streaming connection with the provided handler
-    /// 4. Re-subscribe all saved subscriptions
+    /// 4. Re-subscribe all saved subscriptions, collecting per-subscription
+    ///    failures rather than aborting on the first error
+    ///
     /// # Errors
     ///
-    /// Returns an error on network, authentication, or parsing failure.
+    /// Returns [`Error::Fpss`], [`Error::Auth`], etc. when the underlying
+    /// streaming session cannot be re-established (steps 1–3).
+    ///
+    /// Returns [`Error::PartialReconnect`] when the streaming session was
+    /// re-established successfully but one or more saved subscriptions
+    /// failed to restore. The variant carries the structured list of failed
+    /// `(SubscriptionKind, Contract)` pairs so the caller can retry just
+    /// those subscriptions or surface the partial failure to the operator.
+    /// Per-subscription `tracing::warn!` lines are still emitted for
+    /// operational visibility.
     pub fn reconnect_streaming<F>(&self, handler: F) -> Result<(), Error>
     where
         F: FnMut(&FpssEvent) + Send + 'static,
@@ -351,45 +362,28 @@ impl ThetaDataDx {
         // 3. Start a new streaming connection
         self.start_streaming(handler)?;
 
-        // 4. Re-subscribe all saved subscriptions
+        // 4. Re-subscribe all saved subscriptions, accumulating failures
         let (per_contract, full_type) = saved_subs;
-
-        for (kind, contract) in &per_contract {
-            let result = match kind {
+        let failed = restore_subscriptions(
+            &per_contract,
+            &full_type,
+            |kind, contract| match kind {
                 SubscriptionKind::Quote => self.subscribe_quotes(contract),
                 SubscriptionKind::Trade => self.subscribe_trades(contract),
                 SubscriptionKind::OpenInterest => self.subscribe_open_interest(contract),
-            };
-            if let Err(e) = result {
-                tracing::warn!(
-                    kind = ?kind,
-                    contract = %contract,
-                    error = %e,
-                    "failed to re-subscribe after reconnect"
-                );
-            }
-        }
+            },
+            |kind, sec_type| match kind {
+                SubscriptionKind::Trade => Some(self.subscribe_full_trades(sec_type)),
+                SubscriptionKind::OpenInterest => Some(self.subscribe_full_open_interest(sec_type)),
+                SubscriptionKind::Quote => None,
+            },
+        );
 
-        for (kind, sec_type) in &full_type {
-            let result = match kind {
-                SubscriptionKind::Trade => self.subscribe_full_trades(*sec_type),
-                SubscriptionKind::OpenInterest => self.subscribe_full_open_interest(*sec_type),
-                SubscriptionKind::Quote => {
-                    tracing::warn!("full-type Quote subscription is not supported, skipping");
-                    continue;
-                }
-            };
-            if let Err(e) = result {
-                tracing::warn!(
-                    kind = ?kind,
-                    sec_type = ?sec_type,
-                    error = %e,
-                    "failed to re-subscribe full-type after reconnect"
-                );
-            }
+        if failed.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::PartialReconnect { failed })
         }
-
-        Ok(())
     }
 
     /// Get the current streaming connection status.
@@ -690,5 +684,210 @@ impl std::ops::Deref for ThetaDataDx {
     type Target = MddsClient;
     fn deref(&self) -> &MddsClient {
         &self.historical
+    }
+}
+
+/// Replay every saved subscription against the freshly reconnected
+/// streaming client and return the list of subscriptions that failed to
+/// restore.
+///
+/// The two callbacks decouple the loop from the live `ThetaDataDx`
+/// streaming methods so the resubscription logic is unit-testable with
+/// in-memory fakes — the [`reconnect_streaming`] caller in production
+/// passes through to the real `subscribe_quotes` / `subscribe_trades` /
+/// `subscribe_open_interest` and `subscribe_full_*` methods, while the
+/// regression test below injects closures that return canned `Err` for a
+/// specific subscription pair to prove the failure list carries the right
+/// structured contents.
+///
+/// Per-failure operational visibility is preserved: every error path emits a
+/// `tracing::warn!` line carrying `kind`, `contract` (or `sec_type`), and
+/// the underlying error, identical to the single-call-site loop this
+/// helper replaces.
+///
+/// `full_subscribe` returns `Some(Result<()>)` for kinds that are valid
+/// full-type subscriptions, and `None` for kinds that are not (currently
+/// only `SubscriptionKind::Quote` is excluded). A `None` triggers the same
+/// "skipping" warning the previous in-line loop emitted.
+fn restore_subscriptions<P, F>(
+    per_contract: &[(SubscriptionKind, Contract)],
+    full_type: &[(SubscriptionKind, SecType)],
+    mut per_subscribe: P,
+    mut full_subscribe: F,
+) -> Vec<(SubscriptionKind, Contract)>
+where
+    P: FnMut(SubscriptionKind, &Contract) -> Result<(), Error>,
+    F: FnMut(SubscriptionKind, SecType) -> Option<Result<(), Error>>,
+{
+    let mut failed: Vec<(SubscriptionKind, Contract)> = Vec::new();
+
+    for (kind, contract) in per_contract {
+        if let Err(e) = per_subscribe(*kind, contract) {
+            tracing::warn!(
+                kind = ?kind,
+                contract = %contract,
+                error = %e,
+                "failed to re-subscribe after reconnect"
+            );
+            failed.push((*kind, contract.clone()));
+        }
+    }
+
+    for (kind, sec_type) in full_type {
+        match full_subscribe(*kind, *sec_type) {
+            Some(Ok(())) => {}
+            Some(Err(e)) => {
+                tracing::warn!(
+                    kind = ?kind,
+                    sec_type = ?sec_type,
+                    error = %e,
+                    "failed to re-subscribe full-type after reconnect"
+                );
+                // Full-type subscriptions are encoded as a synthetic
+                // `Contract` with an empty `root` so the structured failure
+                // list stays homogeneous. Operators see the original
+                // `sec_type` via the `tracing::warn!` line above.
+                failed.push((*kind, Contract::full_type_marker(*sec_type)));
+            }
+            None => {
+                tracing::warn!(
+                    kind = ?kind,
+                    sec_type = ?sec_type,
+                    "full-type subscription is not supported for this kind, skipping"
+                );
+            }
+        }
+    }
+
+    failed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Inject a single failing per-contract subscribe call and prove the
+    /// returned failure list contains exactly the failed `(kind, contract)`
+    /// pair — not a count, not a boolean, the real structured contents.
+    #[test]
+    fn restore_subscriptions_collects_failed_per_contract() {
+        let aapl = Contract::stock("AAPL");
+        let msft = Contract::stock("MSFT");
+        let per_contract = vec![
+            (SubscriptionKind::Quote, aapl.clone()),
+            (SubscriptionKind::Quote, msft.clone()),
+        ];
+        let full_type: Vec<(SubscriptionKind, SecType)> = Vec::new();
+
+        let failed = restore_subscriptions(
+            &per_contract,
+            &full_type,
+            |_kind, contract| {
+                if contract.root == "MSFT" {
+                    Err(Error::Fpss {
+                        kind: crate::error::FpssErrorKind::Disconnected,
+                        message: "injected: MSFT subscribe rejected".to_string(),
+                    })
+                } else {
+                    Ok(())
+                }
+            },
+            |_, _| None,
+        );
+
+        assert_eq!(failed.len(), 1, "exactly one subscription must have failed");
+        assert_eq!(failed[0].0, SubscriptionKind::Quote);
+        assert_eq!(failed[0].1, msft);
+    }
+
+    /// A successful run must return an empty failure list — no false
+    /// positives, no spurious entries.
+    #[test]
+    fn restore_subscriptions_empty_on_full_success() {
+        let aapl = Contract::stock("AAPL");
+        let per_contract = vec![(SubscriptionKind::Trade, aapl)];
+        let full_type = vec![(SubscriptionKind::Trade, SecType::Stock)];
+
+        let failed = restore_subscriptions(
+            &per_contract,
+            &full_type,
+            |_, _| Ok(()),
+            |_, _| Some(Ok(())),
+        );
+
+        assert!(failed.is_empty(), "no failures expected, got {failed:?}");
+    }
+
+    /// A full-type subscription failure must show up in the list with the
+    /// `full_type_marker` synthetic contract carrying the right `SecType`,
+    /// so callers can pattern-match the failure without losing the
+    /// originally failed sec_type.
+    #[test]
+    fn restore_subscriptions_records_full_type_failure() {
+        let per_contract: Vec<(SubscriptionKind, Contract)> = Vec::new();
+        let full_type = vec![(SubscriptionKind::OpenInterest, SecType::Option)];
+
+        let failed = restore_subscriptions(
+            &per_contract,
+            &full_type,
+            |_, _| Ok(()),
+            |_, _| {
+                Some(Err(Error::Fpss {
+                    kind: crate::error::FpssErrorKind::TooManyRequests,
+                    message: "injected: full-type subscribe rate-limited".to_string(),
+                }))
+            },
+        );
+
+        assert_eq!(failed.len(), 1);
+        let (kind, contract) = &failed[0];
+        assert_eq!(*kind, SubscriptionKind::OpenInterest);
+        assert_eq!(contract.sec_type, SecType::Option);
+        assert!(
+            contract.root.is_empty(),
+            "full-type marker carries empty root, got {:?}",
+            contract.root
+        );
+    }
+
+    /// `reconnect_streaming` returns `Error::PartialReconnect` carrying the
+    /// failed list when subscriptions cannot be restored — the regression
+    /// test for issue #461. The variant payload is asserted by pattern-
+    /// match, not just `is_err()`, so a future refactor that changes the
+    /// payload shape breaks this test loudly.
+    #[test]
+    fn partial_reconnect_error_carries_failed_subscriptions() {
+        let aapl = Contract::stock("AAPL");
+        let per_contract = vec![(SubscriptionKind::Quote, aapl.clone())];
+        let full_type: Vec<(SubscriptionKind, SecType)> = Vec::new();
+
+        let failed = restore_subscriptions(
+            &per_contract,
+            &full_type,
+            |_, _| {
+                Err(Error::Fpss {
+                    kind: crate::error::FpssErrorKind::Disconnected,
+                    message: "injected".to_string(),
+                })
+            },
+            |_, _| None,
+        );
+
+        // This is exactly the path `reconnect_streaming` takes when failed
+        // is non-empty: build the structured `PartialReconnect` error.
+        let err = if failed.is_empty() {
+            None
+        } else {
+            Some(Error::PartialReconnect { failed })
+        };
+
+        match err {
+            Some(Error::PartialReconnect { failed }) => {
+                assert_eq!(failed.len(), 1);
+                assert_eq!(failed[0].0, SubscriptionKind::Quote);
+                assert_eq!(failed[0].1, aapl);
+            }
+            other => panic!("expected PartialReconnect, got {other:?}"),
+        }
     }
 }

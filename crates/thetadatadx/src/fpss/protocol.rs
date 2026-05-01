@@ -202,6 +202,27 @@ impl Contract {
         }
     }
 
+    /// Synthetic marker used by `reconnect_streaming` to represent a failed
+    /// full-type subscription inside [`crate::Error::PartialReconnect::failed`].
+    ///
+    /// Full-type subscriptions are not addressed by a real `Contract`, but the
+    /// failure list keeps a homogeneous `(SubscriptionKind, Contract)` shape
+    /// so callers can iterate the list with one match arm. `root` is empty
+    /// and option fields are `None`, which mirrors the lack of per-contract
+    /// addressability for a full-type subscription. Operators see the
+    /// original `SecType` via the per-failure `tracing::warn!` line emitted
+    /// at the call site.
+    #[must_use]
+    pub fn full_type_marker(sec_type: SecType) -> Self {
+        Self {
+            root: String::new(),
+            sec_type,
+            exp_date: None,
+            is_call: None,
+            strike: None,
+        }
+    }
+
     /// OCC-21 option identifier length (6 root + 6 YYMMDD + 1 side + 8 strike).
     const OCC21_LEN: usize = 21;
 

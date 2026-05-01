@@ -128,6 +128,27 @@ pub enum Error {
     /// the underlying server error to the user.
     #[error("FLATFILES unavailable: {0}")]
     FlatFilesUnavailable(crate::flatfiles::FlatFilesUnavailableReason),
+
+    /// `reconnect_streaming` succeeded in re-establishing the FPSS session
+    /// but failed to restore one or more of the previously active
+    /// subscriptions. The streaming connection itself is healthy; the listed
+    /// subscriptions need to be re-issued by the caller (or the caller may
+    /// choose to retry the whole `reconnect_streaming` call).
+    ///
+    /// Each entry is `(SubscriptionKind, Contract)` describing the
+    /// subscription that could not be restored. The original per-failure
+    /// error has already been logged at `warn` level via `tracing` so
+    /// operators can see the underlying cause; the caller-facing surface is
+    /// the structured list so programmatic recovery is possible without
+    /// log scraping.
+    #[error("partial reconnect: {} subscription(s) failed to restore", .failed.len())]
+    PartialReconnect {
+        /// The subscriptions that failed to restore.
+        failed: Vec<(
+            crate::fpss::protocol::SubscriptionKind,
+            crate::fpss::protocol::Contract,
+        )>,
+    },
 }
 
 impl From<tdbe::error::Error> for Error {
