@@ -271,12 +271,12 @@ columns = [
 ]
 
 [types.OptionContract]
-doc = "Option contract -- 4 fields. Contract specification.\n\nCannot be `Copy` because of the `String` root field."
+doc = "Option contract -- 4 fields. Contract specification.\n\nCannot be `Copy` because of the `String` symbol field. The vendor v3 surface renamed the underlying ticker field from `root` to `symbol`; see https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping."
 copy = false
 parser = "parse_option_contracts"
-required = ["root"]
+required = ["symbol"]
 columns = [
-    { name = "root",              field = "root",              type = "String" },
+    { name = "symbol",            field = "symbol",            type = "String" },
     { name = "expiration",        field = "expiration",        type = "i32" },
     { name = "strike",            field = "strike",            type = "price" },
     { name = "right",             field = "right",             type = "i32" },

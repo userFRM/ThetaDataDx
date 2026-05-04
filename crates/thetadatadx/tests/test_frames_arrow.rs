@@ -100,13 +100,13 @@ fn quote_tick_to_arrow_emits_midpoint() {
 fn option_contract_right_stringifies() {
     let ticks = vec![
         tick::OptionContract {
-            root: "AAPL".into(),
+            symbol: "AAPL".into(),
             expiration: 20240119,
             strike: 195.0,
             right: 67,
         },
         tick::OptionContract {
-            root: "AAPL".into(),
+            symbol: "AAPL".into(),
             expiration: 20240119,
             strike: 195.0,
             right: 80,
@@ -115,7 +115,7 @@ fn option_contract_right_stringifies() {
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 2);
     assert_eq!(dtype_of(&batch, "right"), DataType::Utf8);
-    assert_eq!(dtype_of(&batch, "root"), DataType::Utf8);
+    assert_eq!(dtype_of(&batch, "symbol"), DataType::Utf8);
 }
 
 #[test]

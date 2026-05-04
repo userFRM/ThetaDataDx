@@ -783,7 +783,7 @@ mod tests {
             &per_contract,
             &full_type,
             |_kind, contract| {
-                if contract.root == "MSFT" {
+                if contract.symbol == "MSFT" {
                     Err(Error::Fpss {
                         kind: crate::error::FpssErrorKind::Disconnected,
                         message: "injected: MSFT subscribe rejected".to_string(),
@@ -844,9 +844,9 @@ mod tests {
         assert_eq!(*kind, SubscriptionKind::OpenInterest);
         assert_eq!(contract.sec_type, SecType::Option);
         assert!(
-            contract.root.is_empty(),
-            "full-type marker carries empty root, got {:?}",
-            contract.root
+            contract.symbol.is_empty(),
+            "full-type marker carries empty symbol, got {:?}",
+            contract.symbol
         );
     }
 

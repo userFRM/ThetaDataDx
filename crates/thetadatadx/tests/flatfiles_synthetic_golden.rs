@@ -121,7 +121,10 @@ fn synthetic_option_blob() -> Vec<u8> {
 ///
 /// Manual derivation:
 /// - header columns (price_type column suppressed by the writer):
-///   `root,expiration,strike,right,ms_of_day,bid,date`.
+///   `symbol,expiration,strike,right,ms_of_day,bid,date`. The leading
+///   contract-key column was renamed from `root` to `symbol` to match
+///   the v3 vendor surface; see the migration guide:
+///   <https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping>.
 /// - row 1: contract prefix `SPY,20240315,580000,C` plus
 ///   `34200000,123.45,20240315`. Bid=12345 with price_type=8 →
 ///   `12345 / 10^(10-8) = 12345 / 100 = 123.45`.
@@ -129,7 +132,7 @@ fn synthetic_option_blob() -> Vec<u8> {
 ///   34200100; bid delta +5 → 12350 → 123.5 (Rust f64 Display drops
 ///   the trailing zero); date carried forward → 20240315.
 const EXPECTED_CSV: &str = "\
-root,expiration,strike,right,ms_of_day,bid,date
+symbol,expiration,strike,right,ms_of_day,bid,date
 SPY,20240315,580000,C,34200000,123.45,20240315
 SPY,20240315,580000,C,34200100,123.5,20240315
 ";
