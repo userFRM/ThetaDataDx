@@ -1,6 +1,6 @@
 {
   "name": "thetadatadx",
-  "version": "8.0.24",
+  "version": "8.0.25",
   "description": "Native ThetaData SDK for Node.js — powered by Rust via napi-rs",
   "license": "Apache-2.0",
   "repository": {
@@ -30,9 +30,9 @@
     "@napi-rs/cli": "^3.6.2"
   },
   "optionalDependencies": {
-    "thetadatadx-linux-x64-gnu": "8.0.24",
-    "thetadatadx-darwin-arm64": "8.0.24",
-    "thetadatadx-win32-x64-msvc": "8.0.24"
+    "thetadatadx-linux-x64-gnu": "8.0.25",
+    "thetadatadx-darwin-arm64": "8.0.25",
+    "thetadatadx-win32-x64-msvc": "8.0.25"
   },
   "engines": {
     "node": ">= 20"

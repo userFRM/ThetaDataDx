@@ -152,7 +152,7 @@ pub struct OpenInterestTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct OptionContract {
-    pub root: String,
+    pub symbol: String,
     pub expiration: i32,
     pub strike: f64,
     pub right: String,
@@ -420,7 +420,7 @@ fn option_contracts_to_class_vec(ticks: &[tick::OptionContract]) -> Vec<OptionCo
         .iter()
         .map(|t| {
             OptionContract {
-                root: t.root.clone(),
+                symbol: t.symbol.clone(),
                 expiration: t.expiration,
                 strike: t.strike,
                 right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },

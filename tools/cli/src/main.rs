@@ -1054,7 +1054,7 @@ fn render_interest_rates(ticks: &[tdbe::types::tick::InterestRateTick], fmt: &Ou
 }
 
 fn render_option_contracts(contracts: &[tdbe::types::tick::OptionContract], fmt: &OutputFormat) {
-    let mut td = TabularData::new(vec!["root", "expiration", "strike", "right"]);
+    let mut td = TabularData::new(vec!["symbol", "expiration", "strike", "right"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:220-231
     // (option_contracts_to_columnar). Note: Python emits `right` as a raw
     // i32 here (NOT the "C"/"P"/"" string mapping used for tick types),
@@ -1063,13 +1063,13 @@ fn render_option_contracts(contracts: &[tdbe::types::tick::OptionContract], fmt:
     for c in contracts {
         td.push_with_raw(
             vec![
-                c.root.clone(),
+                c.symbol.clone(),
                 format!("{}", c.expiration),
                 format_price_f64(c.strike),
                 format!("{}", c.right),
             ],
             vec![
-                raw_str(&c.root),
+                raw_str(&c.symbol),
                 raw_date(c.expiration),
                 raw_f64(c.strike),
                 raw_i32(c.right),

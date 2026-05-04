@@ -10,9 +10,9 @@
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Contract {
-#[pyo3(get)] pub root: String,
+#[pyo3(get)] pub symbol: String,
 #[pyo3(get)] pub sec_type: i32,
-#[pyo3(get)] pub exp_date: Option<i32>,
+#[pyo3(get)] pub expiration: Option<i32>,
 #[pyo3(get)] pub is_call: Option<bool>,
 #[pyo3(get)] pub strike: Option<i32>,
 }
@@ -20,8 +20,8 @@ pub(crate) struct Contract {
 impl Contract {
 fn __repr__(&self) -> String {
 format!(
-"Contract(root={:?}, sec_type={}, exp_date={:?}, is_call={:?}, strike={:?})",
-self.root, self.sec_type, self.exp_date, self.is_call, self.strike
+"Contract(symbol={:?}, sec_type={}, expiration={:?}, is_call={:?}, strike={:?})",
+self.symbol, self.sec_type, self.expiration, self.is_call, self.strike
 )
 }
 }
@@ -33,9 +33,9 @@ impl Contract {
 /// exports if they need a symbolic reading.
 pub(crate) fn from_core(c: &fpss::protocol::Contract) -> Self {
 Self {
-root: c.root.clone(),
+symbol: c.symbol.clone(),
 sec_type: c.sec_type as i32,
-exp_date: c.exp_date,
+expiration: c.expiration,
 is_call: c.is_call,
 strike: c.strike,
 }

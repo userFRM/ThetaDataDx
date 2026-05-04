@@ -112,7 +112,7 @@ pub(crate) const OPEN_INTEREST_TICK_RAW_HEADERS: &[&str] = &[
 ];
 
 pub(crate) const OPTION_CONTRACT_RAW_HEADERS: &[&str] = &[
-    "root",
+    "symbol",
     "expiration",
     "strike",
     "right",

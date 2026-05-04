@@ -247,7 +247,7 @@ std::vector<OptionContract> Client::option_list_contracts(const std::string& req
     result.reserve(arr.len);
     for (size_t i = 0; i < arr.len; ++i) {
         OptionContract c;
-        c.root = arr.data[i].root ? std::string(arr.data[i].root) : "";
+        c.symbol = arr.data[i].symbol ? std::string(arr.data[i].symbol) : "";
         c.expiration = arr.data[i].expiration;
         c.strike = arr.data[i].strike;
         c.right = arr.data[i].right;

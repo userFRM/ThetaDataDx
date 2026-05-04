@@ -285,10 +285,10 @@ typedef struct { const TdxCalendarDay* data; size_t len; } TdxCalendarDayArray;
 typedef struct { const TdxInterestRateTick* data; size_t len; } TdxInterestRateTickArray;
 typedef struct { const TdxTradeQuoteTick* data; size_t len; } TdxTradeQuoteTickArray;
 
-/* ── OptionContract (has heap-allocated root string) ── */
+/* ── OptionContract (has heap-allocated symbol string) ── */
 
 typedef struct {
-    const char* root;       /* heap-allocated, freed with tdx_option_contract_array_free */
+    const char* symbol;     /* heap-allocated, freed with tdx_option_contract_array_free */
     int32_t expiration;
     /* 4 bytes padding before f64 */
     double strike;

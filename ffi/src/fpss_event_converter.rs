@@ -20,19 +20,19 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             received_at_ns,
             ..
         }) => {
-            let contract_root_cstring = if contract.root.is_empty() {
+            let contract_symbol_cstring: Option<std::ffi::CString> = if contract.symbol.is_empty() {
                 None
             } else {
-                std::ffi::CString::new(contract.root.as_str()).ok()
+                std::ffi::CString::new(contract.symbol.as_str()).ok()
             };
-            let contract_root_ptr = contract_root_cstring
+            let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
                 .map_or(ptr::null(), |cs| cs.as_ptr());
             let tdx_contract = TdxContract {
-                root: contract_root_ptr,
+                symbol: contract_symbol_ptr,
                 sec_type: contract.sec_type as i32,
-                has_exp_date: contract.exp_date.is_some(),
-                exp_date: contract.exp_date.unwrap_or(0),
+                has_expiration: contract.expiration.is_some(),
+                expiration: contract.expiration.unwrap_or(0),
                 has_is_call: contract.is_call.is_some(),
                 is_call: contract.is_call.unwrap_or(false),
                 has_strike: contract.strike.is_some(),
@@ -60,7 +60,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 control: ZERO_CONTROL,
                 raw_data: ZERO_RAW,
             },
-            _detail_string: contract_root_cstring,
+            _detail_string: contract_symbol_cstring,
             _raw_payload: None,
         }
         }
@@ -74,19 +74,19 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             received_at_ns,
             ..
         }) => {
-            let contract_root_cstring = if contract.root.is_empty() {
+            let contract_symbol_cstring: Option<std::ffi::CString> = if contract.symbol.is_empty() {
                 None
             } else {
-                std::ffi::CString::new(contract.root.as_str()).ok()
+                std::ffi::CString::new(contract.symbol.as_str()).ok()
             };
-            let contract_root_ptr = contract_root_cstring
+            let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
                 .map_or(ptr::null(), |cs| cs.as_ptr());
             let tdx_contract = TdxContract {
-                root: contract_root_ptr,
+                symbol: contract_symbol_ptr,
                 sec_type: contract.sec_type as i32,
-                has_exp_date: contract.exp_date.is_some(),
-                exp_date: contract.exp_date.unwrap_or(0),
+                has_expiration: contract.expiration.is_some(),
+                expiration: contract.expiration.unwrap_or(0),
                 has_is_call: contract.is_call.is_some(),
                 is_call: contract.is_call.unwrap_or(false),
                 has_strike: contract.strike.is_some(),
@@ -109,7 +109,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 control: ZERO_CONTROL,
                 raw_data: ZERO_RAW,
             },
-            _detail_string: contract_root_cstring,
+            _detail_string: contract_symbol_cstring,
             _raw_payload: None,
         }
         }
@@ -130,19 +130,19 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             received_at_ns,
             ..
         }) => {
-            let contract_root_cstring = if contract.root.is_empty() {
+            let contract_symbol_cstring: Option<std::ffi::CString> = if contract.symbol.is_empty() {
                 None
             } else {
-                std::ffi::CString::new(contract.root.as_str()).ok()
+                std::ffi::CString::new(contract.symbol.as_str()).ok()
             };
-            let contract_root_ptr = contract_root_cstring
+            let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
                 .map_or(ptr::null(), |cs| cs.as_ptr());
             let tdx_contract = TdxContract {
-                root: contract_root_ptr,
+                symbol: contract_symbol_ptr,
                 sec_type: contract.sec_type as i32,
-                has_exp_date: contract.exp_date.is_some(),
-                exp_date: contract.exp_date.unwrap_or(0),
+                has_expiration: contract.expiration.is_some(),
+                expiration: contract.expiration.unwrap_or(0),
                 has_is_call: contract.is_call.is_some(),
                 is_call: contract.is_call.unwrap_or(false),
                 has_strike: contract.strike.is_some(),
@@ -172,7 +172,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 control: ZERO_CONTROL,
                 raw_data: ZERO_RAW,
             },
-            _detail_string: contract_root_cstring,
+            _detail_string: contract_symbol_cstring,
             _raw_payload: None,
         }
         }
@@ -198,19 +198,19 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
             received_at_ns,
             ..
         }) => {
-            let contract_root_cstring = if contract.root.is_empty() {
+            let contract_symbol_cstring: Option<std::ffi::CString> = if contract.symbol.is_empty() {
                 None
             } else {
-                std::ffi::CString::new(contract.root.as_str()).ok()
+                std::ffi::CString::new(contract.symbol.as_str()).ok()
             };
-            let contract_root_ptr = contract_root_cstring
+            let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
                 .map_or(ptr::null(), |cs| cs.as_ptr());
             let tdx_contract = TdxContract {
-                root: contract_root_ptr,
+                symbol: contract_symbol_ptr,
                 sec_type: contract.sec_type as i32,
-                has_exp_date: contract.exp_date.is_some(),
-                exp_date: contract.exp_date.unwrap_or(0),
+                has_expiration: contract.expiration.is_some(),
+                expiration: contract.expiration.unwrap_or(0),
                 has_is_call: contract.is_call.is_some(),
                 is_call: contract.is_call.unwrap_or(false),
                 has_strike: contract.strike.is_some(),
@@ -245,7 +245,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 control: ZERO_CONTROL,
                 raw_data: ZERO_RAW,
             },
-            _detail_string: contract_root_cstring,
+            _detail_string: contract_symbol_cstring,
             _raw_payload: None,
         }
         }

@@ -1043,7 +1043,7 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
                     target: "thetadatadx::ffi::reconnect",
                     error = %e,
                     kind = ?kind,
-                    root = %contract.root,
+                    symbol = %contract.symbol,
                     "resubscribe failed after reconnect"
                 );
             }
@@ -2354,7 +2354,7 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
                     target: "thetadatadx::ffi::reconnect",
                     error = %e,
                     kind = ?kind,
-                    root = %contract.root,
+                    symbol = %contract.symbol,
                     "resubscribe failed after reconnect"
                 );
             }

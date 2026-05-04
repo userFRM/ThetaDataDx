@@ -195,11 +195,13 @@ tick_array_free!(tdx_trade_quote_tick_array_free, TdxTradeQuoteTickArray);
 
 /// FFI-safe option contract descriptor.
 ///
-/// The `root` field is a heap-allocated C string. Freed when the array is freed.
+/// The `symbol` field is a heap-allocated C string. Freed when the array is freed.
+/// Renamed from `root` to match the v3 vendor surface; see
+/// <https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping>.
 #[repr(C)]
 pub struct TdxOptionContract {
     /// Heap-allocated NUL-terminated C string. Freed with the array.
-    pub root: *const c_char,
+    pub symbol: *const c_char,
     pub expiration: i32,
     pub strike: f64,
     pub right: i32,
@@ -227,7 +229,7 @@ impl TdxOptionContractArray {
             .into_iter()
             .map(|c| {
                 Ok(TdxOptionContract {
-                    root: CString::new(c.root)?.into_raw().cast_const(),
+                    symbol: CString::new(c.symbol)?.into_raw().cast_const(),
                     expiration: c.expiration,
                     strike: c.strike,
                     right: c.right,
@@ -240,16 +242,16 @@ impl TdxOptionContractArray {
     }
 }
 
-/// Free an option contract array, including all heap-allocated root strings.
+/// Free an option contract array, including all heap-allocated symbol strings.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_option_contract_array_free(arr: TdxOptionContractArray) {
     ffi_boundary!((), {
         if !arr.data.is_null() && arr.len > 0 {
-            // First free each root C string
+            // First free each symbol C string
             let slice = unsafe { std::slice::from_raw_parts(arr.data, arr.len) };
             for contract in slice {
-                if !contract.root.is_null() {
-                    drop(unsafe { CString::from_raw(contract.root.cast_mut()) });
+                if !contract.symbol.is_null() {
+                    drop(unsafe { CString::from_raw(contract.symbol.cast_mut()) });
                 }
             }
             // Then free the array itself
