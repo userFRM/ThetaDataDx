@@ -296,6 +296,27 @@ pub fn veta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
 // Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 #[must_use]
+/// `vera` (DvegaDr) — sensitivity of vega to the risk-free rate.
+///
+/// `vera = -K * exp(-r*T) * T * sqrt(T) * phi(d2)` where `phi` is
+/// the standard-normal PDF. Mirrors the inline computation in
+/// [`all_greeks`] so consumers building IV-cache fast paths can
+/// recompute the full Greek bundle via per-Greek closed forms
+/// without re-deriving vera locally.
+///
+/// Returns `0.0` when `is_degenerate(v, t)` matches every other
+/// Greek's behaviour on zero-IV / zero-tenor inputs.
+pub fn vera(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
+    if is_degenerate(v, t) {
+        return 0.0;
+    }
+    let (_, d2_val) = d1_d2(s, x, v, r, q, t);
+    -x * (-r * t).exp() * t * t.sqrt() * f1(d2_val)
+}
+
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(clippy::many_single_char_names, clippy::similar_names)]
+#[must_use]
 pub fn speed(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
     if is_degenerate(v, t) {
         return 0.0;
@@ -551,19 +572,75 @@ pub fn all_greeks(
         iv_bisection(s, x, r, q, t, option_price, is_call, &mut out);
         (out[0], out[1])
     };
-    let v = iv_val;
 
+    // Delegate the Greek bundle computation to the shared
+    // `compute_full_bundle_with_iv` helper so consumers that have
+    // a pre-solved IV (IV-cache hot path) can call into the same
+    // code path without going through the bisection.
+    let mut bundle = compute_full_bundle_with_iv(s, x, iv_val, r, q, t, is_call);
+    // `compute_full_bundle_with_iv` does not know the residual the
+    // bisection produced; overwrite here so callers see the same
+    // `iv_error` value the prior monolithic implementation
+    // returned.
+    bundle.iv_error = iv_err;
+    Ok(bundle)
+}
+
+/// Compute the full [`GreeksResult`] bundle using a caller-supplied
+/// implied volatility `v` (skips the bisection IV solver). Takes
+/// `is_call: bool` rather than `&str right` because callers in this
+/// path have already parsed the side; the [`all_greeks`] / [`implied_volatility`]
+/// wrappers stay on `&str right` for the public surface.
+///
+/// Use this when the caller already has a recent IV and just wants
+/// the full bundle re-evaluated at new `(s, x, ...)` inputs — the
+/// typical IV-cache hot path. One Tier-0 intermediates pass is
+/// shared across every Greek in the bundle, so this is roughly 2×
+/// faster than issuing 17+ separate per-Greek calls.
+///
+/// # Returned `iv_error`
+///
+/// The returned `GreeksResult.iv_error` is set to `0.0` because no
+/// bisection ran here. Callers that need the residual against a new
+/// option price should compute it externally; a typical form is
+/// `(value(...) - option_price) / option_price`, which the caller
+/// must guard for `option_price == 0.0` (use the absolute residual
+/// `value(...) - option_price` in that branch).
+///
+/// # Degenerate inputs
+///
+/// When `is_degenerate(v, t)` is true (zero/negative IV, zero/
+/// negative tenor) every Greek field is `0.0` except `value`,
+/// which is the intrinsic value. Mirrors [`all_greeks`]'s
+/// degenerate-branch semantics.
+// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
+#[allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines,
+    clippy::too_many_arguments
+)]
+#[must_use]
+pub fn compute_full_bundle_with_iv(
+    s: f64,
+    x: f64,
+    v: f64,
+    r: f64,
+    q: f64,
+    t: f64,
+    is_call: bool,
+) -> GreeksResult {
     // Guard: if vol or time is degenerate, return all zeros (except value = intrinsic).
     if is_degenerate(v, t) {
-        return Ok(GreeksResult {
+        return GreeksResult {
             value: value(s, x, v, r, q, t, is_call),
             delta: 0.0,
             gamma: 0.0,
             theta: 0.0,
             vega: 0.0,
             rho: 0.0,
-            iv: iv_val,
-            iv_error: iv_err,
+            iv: v,
+            iv_error: 0.0,
             vanna: 0.0,
             charm: 0.0,
             vomma: 0.0,
@@ -579,7 +656,7 @@ pub fn all_greeks(
             dual_gamma: 0.0,
             epsilon: 0.0,
             lambda: 0.0,
-        });
+        };
     }
 
     // -- Tier 0: Shared intermediates -----------------------------------------
@@ -688,15 +765,15 @@ pub fn all_greeks(
 
     let dual_gamma_val = exp_neg_rt * f1_d2 / (x * v_sqrt_t);
 
-    Ok(GreeksResult {
+    GreeksResult {
         value: value_val,
         delta: delta_val,
         gamma: gamma_val,
         theta: theta_val,
         vega: vega_val,
         rho: rho_val,
-        iv: iv_val,
-        iv_error: iv_err,
+        iv: v,
+        iv_error: 0.0,
         vanna: vanna_val,
         charm: charm_val,
         vomma: vomma_val,
@@ -712,7 +789,7 @@ pub fn all_greeks(
         dual_gamma: dual_gamma_val,
         epsilon: epsilon_val,
         lambda: lambda_val,
-    })
+    }
 }
 
 #[cfg(test)]
@@ -990,5 +1067,103 @@ mod tests {
         );
         assert!((g.d1 - d1(s, x, v, r, q, t)).abs() < eps, "d1 mismatch");
         assert!((g.d2 - d2(s, x, v, r, q, t)).abs() < eps, "d2 mismatch");
+    }
+
+    #[test]
+    fn vera_free_fn_matches_inline_value_in_all_greeks() {
+        // The new public `vera` free fn must produce the exact
+        // value `all_greeks` puts in `GreeksResult.vera` for any
+        // non-degenerate input — they share the closed form.
+        let s = 100.0;
+        let x = 100.0;
+        let r = 0.05;
+        let q = 0.0;
+        let t = 1.0;
+        let price = value(s, x, 0.20, r, q, t, true);
+        let g = all_greeks(s, x, r, q, t, price, "C").expect("valid right");
+        let standalone = vera(s, x, g.iv, r, q, t);
+        assert!(
+            (standalone - g.vera).abs() < 1e-12,
+            "free-fn vera ({standalone}) must match all_greeks().vera ({}) within 1e-12 at the same IV",
+            g.vera
+        );
+
+        // Sign + magnitude checks mirror the prior textbook test.
+        assert!(standalone < 0.0);
+        assert!(standalone > -40.0 && standalone < -35.0);
+    }
+
+    #[test]
+    fn vera_free_fn_zeros_on_degenerate_inputs() {
+        // Mirror is_degenerate: zero/negative IV or tenor → 0.0.
+        assert!((vera(100.0, 100.0, 0.0, 0.05, 0.0, 1.0)).abs() < f64::EPSILON);
+        assert!((vera(100.0, 100.0, -0.1, 0.05, 0.0, 1.0)).abs() < f64::EPSILON);
+        assert!((vera(100.0, 100.0, 0.20, 0.05, 0.0, 0.0)).abs() < f64::EPSILON);
+        assert!((vera(100.0, 100.0, 0.20, 0.05, 0.0, -1.0)).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn compute_full_bundle_with_iv_matches_all_greeks_with_solved_iv() {
+        // `compute_full_bundle_with_iv(s, x, v, ...)` with the iv
+        // returned by `all_greeks` must produce a bit-stable
+        // bundle (every Greek field equal). `iv_error` is the only
+        // exception — the new helper does not run the solver and
+        // intentionally leaves it at 0.0.
+        let s = 150.0;
+        let x = 155.0;
+        let r = 0.05;
+        let q = 0.015;
+        let t = 45.0 / 365.0;
+        let price = value(s, x, 0.22, r, q, t, true);
+
+        let solved = all_greeks(s, x, r, q, t, price, "C").expect("valid right");
+        let direct = compute_full_bundle_with_iv(s, x, solved.iv, r, q, t, true);
+
+        let eps = 1e-12;
+        assert!((solved.value - direct.value).abs() < eps, "value");
+        assert!((solved.delta - direct.delta).abs() < eps, "delta");
+        assert!((solved.gamma - direct.gamma).abs() < eps, "gamma");
+        assert!((solved.theta - direct.theta).abs() < eps, "theta");
+        assert!((solved.vega - direct.vega).abs() < eps, "vega");
+        assert!((solved.rho - direct.rho).abs() < eps, "rho");
+        assert!((solved.iv - direct.iv).abs() < eps, "iv");
+        assert!((solved.vanna - direct.vanna).abs() < eps, "vanna");
+        assert!((solved.charm - direct.charm).abs() < eps, "charm");
+        assert!((solved.vomma - direct.vomma).abs() < eps, "vomma");
+        assert!((solved.veta - direct.veta).abs() < eps, "veta");
+        assert!((solved.vera - direct.vera).abs() < eps, "vera");
+        assert!((solved.speed - direct.speed).abs() < eps, "speed");
+        assert!((solved.zomma - direct.zomma).abs() < eps, "zomma");
+        assert!((solved.color - direct.color).abs() < eps, "color");
+        assert!((solved.ultima - direct.ultima).abs() < eps, "ultima");
+        assert!((solved.d1 - direct.d1).abs() < eps, "d1");
+        assert!((solved.d2 - direct.d2).abs() < eps, "d2");
+        assert!(
+            (solved.dual_delta - direct.dual_delta).abs() < eps,
+            "dual_delta"
+        );
+        assert!(
+            (solved.dual_gamma - direct.dual_gamma).abs() < eps,
+            "dual_gamma"
+        );
+        assert!((solved.epsilon - direct.epsilon).abs() < eps, "epsilon");
+        assert!((solved.lambda - direct.lambda).abs() < eps, "lambda");
+        // iv_error: solver-side residual on `solved`, 0.0 on `direct`.
+        assert!(direct.iv_error.abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn compute_full_bundle_with_iv_zeros_greeks_on_degenerate_iv() {
+        // is_degenerate guard mirrors all_greeks: every Greek 0.0
+        // except value (intrinsic).
+        let bundle = compute_full_bundle_with_iv(100.0, 95.0, 0.0, 0.05, 0.0, 1.0, true);
+        assert_eq!(bundle.delta, 0.0);
+        assert_eq!(bundle.gamma, 0.0);
+        assert_eq!(bundle.vega, 0.0);
+        assert_eq!(bundle.vera, 0.0);
+        assert_eq!(bundle.iv, 0.0);
+        // Value is the intrinsic at v=0 (deep ITM call: S*exp(-q*T) - X*exp(-r*T)).
+        // Just confirm it's finite and roughly intrinsic-ish.
+        assert!(bundle.value.is_finite());
     }
 }
