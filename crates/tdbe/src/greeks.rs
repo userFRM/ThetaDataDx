@@ -587,7 +587,10 @@ pub fn all_greeks(
 }
 
 /// Compute the full [`GreeksResult`] bundle using a caller-supplied
-/// implied volatility `v` (skips the bisection IV solver).
+/// implied volatility `v` (skips the bisection IV solver). Takes
+/// `is_call: bool` rather than `&str right` because callers in this
+/// path have already parsed the side; the [`all_greeks`] / [`implied_volatility`]
+/// wrappers stay on `&str right` for the public surface.
 ///
 /// Use this when the caller already has a recent IV and just wants
 /// the full bundle re-evaluated at new `(s, x, ...)` inputs — the
@@ -598,10 +601,11 @@ pub fn all_greeks(
 /// # Returned `iv_error`
 ///
 /// The returned `GreeksResult.iv_error` is set to `0.0` because no
-/// bisection ran here. Callers that need the residual against a
-/// new option price should compute it externally via
-/// `(value(...) - option_price) / option_price` and overwrite the
-/// field.
+/// bisection ran here. Callers that need the residual against a new
+/// option price should compute it externally; a typical form is
+/// `(value(...) - option_price) / option_price`, which the caller
+/// must guard for `option_price == 0.0` (use the absolute residual
+/// `value(...) - option_price` in that branch).
 ///
 /// # Degenerate inputs
 ///
@@ -1080,7 +1084,7 @@ mod tests {
         let standalone = vera(s, x, g.iv, r, q, t);
         assert!(
             (standalone - g.vera).abs() < 1e-12,
-            "free-fn vera ({standalone}) must match all_greeks().vera ({}) bit-for-bit at the same IV",
+            "free-fn vera ({standalone}) must match all_greeks().vera ({}) within 1e-12 at the same IV",
             g.vera
         );
 
