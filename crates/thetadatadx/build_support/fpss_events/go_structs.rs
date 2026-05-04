@@ -82,19 +82,21 @@ pub(super) fn render_go_fpss_offset_checks(schema: &Schema) -> String {
 }
 
 /// Go Contract struct — optional fields use `*int32` / `*bool` pointers
-/// so nil represents `None` (Java-style). `Root` is always present as a
-/// string (empty when not yet resolved).
+/// so nil represents `None` (Java-style). `Symbol` is always present as a
+/// string (empty when not yet resolved). Field names follow the v3 vendor
+/// surface; see
+/// <https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping>.
 fn render_contract_go() -> &'static str {
-    "// Contract identifies a subscribed instrument. Root is always present;\n\
-// option fields (ExpDate, IsCall, Strike) are non-nil only for options.\n\
+    "// Contract identifies a subscribed instrument. Symbol is always present;\n\
+// option fields (Expiration, IsCall, Strike) are non-nil only for options.\n\
 // The same Contract value is attached to every FPSS data event the SDK\n\
 // emits for the matching contract_id.\n\
 type Contract struct {\n\
-\tRoot    string\n\
-\tSecType int32\n\
-\tExpDate *int32\n\
-\tIsCall  *bool\n\
-\tStrike  *int32\n\
+\tSymbol     string\n\
+\tSecType    int32\n\
+\tExpiration *int32\n\
+\tIsCall     *bool\n\
+\tStrike     *int32\n\
 }\n\n"
 }
 

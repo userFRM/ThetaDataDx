@@ -8,8 +8,10 @@ use super::schema::{sorted_event_names, ColumnDef, EventDef, Schema};
 
 /// Emit the `Contract` pyclass + helper constructor. Every data event
 /// carries a `Py<Contract>` field so Python code can read
-/// `event.contract.root`, `event.contract.strike`, etc. through the
-/// normal pyo3 getter machinery.
+/// `event.contract.symbol`, `event.contract.strike`, etc. through the
+/// normal pyo3 getter machinery. Field names follow the v3 vendor
+/// surface; see
+/// <https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping>.
 fn render_contract_pyclass() -> &'static str {
     "/// FPSS contract identifier. Surfaced on every decoded FPSS data\n\
 /// event as `event.contract`. Matches the shape of the Rust\n\
@@ -18,9 +20,9 @@ fn render_contract_pyclass() -> &'static str {
 #[pyclass(module = \"thetadatadx\", frozen, skip_from_py_object)]\n\
 #[derive(Clone)]\n\
 pub(crate) struct Contract {\n\
-    #[pyo3(get)] pub root: String,\n\
+    #[pyo3(get)] pub symbol: String,\n\
     #[pyo3(get)] pub sec_type: i32,\n\
-    #[pyo3(get)] pub exp_date: Option<i32>,\n\
+    #[pyo3(get)] pub expiration: Option<i32>,\n\
     #[pyo3(get)] pub is_call: Option<bool>,\n\
     #[pyo3(get)] pub strike: Option<i32>,\n\
 }\n\
@@ -28,8 +30,8 @@ pub(crate) struct Contract {\n\
 impl Contract {\n\
     fn __repr__(&self) -> String {\n\
         format!(\n\
-            \"Contract(root={:?}, sec_type={}, exp_date={:?}, is_call={:?}, strike={:?})\",\n\
-            self.root, self.sec_type, self.exp_date, self.is_call, self.strike\n\
+            \"Contract(symbol={:?}, sec_type={}, expiration={:?}, is_call={:?}, strike={:?})\",\n\
+            self.symbol, self.sec_type, self.expiration, self.is_call, self.strike\n\
         )\n\
     }\n\
 }\n\
@@ -41,9 +43,9 @@ impl Contract {\n\
     /// exports if they need a symbolic reading.\n\
     pub(crate) fn from_core(c: &fpss::protocol::Contract) -> Self {\n\
         Self {\n\
-            root: c.root.clone(),\n\
+            symbol: c.symbol.clone(),\n\
             sec_type: c.sec_type as i32,\n\
-            exp_date: c.exp_date,\n\
+            expiration: c.expiration,\n\
             is_call: c.is_call,\n\
             strike: c.strike,\n\
         }\n\

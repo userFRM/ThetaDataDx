@@ -8,19 +8,19 @@
     }
 
     // contractFromC converts a C TdxContract into the Go-idiomatic *Contract.
-    // Returns nil only when root is NULL, which indicates the SDK has not yet
+    // Returns nil only when symbol is NULL, which indicates the SDK has not yet
     // resolved the contract_id to a ContractAssigned frame.
     contractFromC := func(c C.TdxContract) *Contract {
-        if c.root == nil {
+        if c.symbol == nil {
             return nil
         }
         out := &Contract{
-            Root:    C.GoString(c.root),
+            Symbol:  C.GoString(c.symbol),
             SecType: int32(c.sec_type),
         }
-        if bool(c.has_exp_date) {
-            v := int32(c.exp_date)
-            out.ExpDate = &v
+        if bool(c.has_expiration) {
+            v := int32(c.expiration)
+            out.Expiration = &v
         }
         if bool(c.has_is_call) {
             v := bool(c.is_call)
