@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.24] - 2026-05-04
+
+### Added
+
+- `tdbe::greeks::vera` — public free function exposing the DvegaDr
+  formula `-K * exp(-r*T) * T * sqrt(T) * phi(d2)` so callers can pull
+  the single Greek without computing the full bundle.
+- `tdbe::greeks::compute_full_bundle_with_iv(s, x, v, r, q, t, is_call)`
+  — full `GreeksResult` computation that skips the bisection IV solver
+  and uses a caller-supplied volatility. Tier-0 intermediates are shared
+  across every Greek in the bundle; ~2× faster than 17+ individual
+  per-Greek calls. Typical use case is the IV-cache hot path. Takes
+  `is_call: bool` rather than `&str right` because callers in this
+  path have already parsed the side; `all_greeks` and
+  `implied_volatility` keep the `&str right` surface.
+
+### Changed
+
+- `tdbe` 0.12.4 → 0.12.5.
+
 ## [8.0.23] - 2026-05-01
 
 ### Fixed
