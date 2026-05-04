@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.25] - 2026-05-04
+
+### Changed
+
+- **Renamed `Contract.root` → `Contract.symbol` and `Contract.exp_date` →
+  `Contract.expiration` to match the v3 vendor surface** (#467). The same
+  rename lands on every public type that carries those fields:
+  `tdbe::OptionContract.root` → `.symbol`, `FlatFileRow.root` → `.symbol`,
+  and the flat-file CSV / JSONL contract-prefix headers go from
+  `root,expiration,...` to `symbol,expiration,...`. Constructor and method
+  parameter names follow the field rename: `Contract::stock(symbol)`,
+  `Contract::option(symbol, expiration, ...)`, `Contract::option_raw(...)`.
+  Generated bindings (Python `Contract.symbol` / `Contract.expiration`,
+  TypeScript `contract.symbol` / `contract.expiration`, Go
+  `Contract.Symbol` / `Contract.Expiration`, C++ / C ABI
+  `TdxContract.symbol` / `TdxContract.has_expiration` /
+  `TdxContract.expiration`, `TdxOptionContract.symbol`) follow the same
+  rename. The wire format is unchanged; the rename is purely cosmetic on
+  the public API to align with the
+  [vendor v3 migration guide](https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping).
+  Migration:
+  ```rust
+  // before (v8.0.24)
+  let c = Contract::stock("AAPL");
+  let _ = c.root;
+  let opt = Contract::option("SPY", "20260417", "550", "C")?;
+  let _ = opt.exp_date;
+
+  // after (v8.0.25)
+  let c = Contract::stock("AAPL");
+  let _ = c.symbol;
+  let opt = Contract::option("SPY", "20260417", "550", "C")?;
+  let _ = opt.expiration;
+  ```
+- `tdbe` 0.12.5 → 0.12.6.
+
 ## [8.0.24] - 2026-05-04
 
 ### Added
