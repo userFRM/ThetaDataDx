@@ -294,9 +294,9 @@ fn render_go_tick_converter(type_name: &str, def: &TickTypeDef) -> String {
     writeln!(out, "    result := make([]{public_type}, n)").unwrap();
     out.push_str("    for i, t := range src {\n");
     if type_name == "OptionContract" {
-        out.push_str("        root := \"\"\n");
-        out.push_str("        if t.Root != 0 {\n");
-        out.push_str("            root = C.GoString((*C.char)(unsafe.Pointer(t.Root)))\n");
+        out.push_str("        symbol := \"\"\n");
+        out.push_str("        if t.Symbol != 0 {\n");
+        out.push_str("            symbol = C.GoString((*C.char)(unsafe.Pointer(t.Symbol)))\n");
         out.push_str("        }\n");
     }
     writeln!(out, "        result[i] = {public_type}{{").unwrap();
@@ -438,7 +438,7 @@ fn go_public_field_name(type_name: &str, field: &str) -> &'static str {
 fn go_source_expr(type_name: &str, field: &str, kind: &str) -> String {
     let ffi_field = go_ffi_field_name(field);
     match (type_name, field, kind) {
-        ("OptionContract", "root", "String") => "root".into(),
+        ("OptionContract", "symbol", "String") => "symbol".into(),
         ("OptionContract", "right", "i32") => "RightStr(t.Right)".into(),
         (_, "right", "i32") => "RightStr(t.Right)".into(),
         (_, "is_open", "i32") => "t.IsOpen != 0".into(),

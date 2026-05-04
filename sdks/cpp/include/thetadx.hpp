@@ -61,10 +61,10 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 // Every data variant gained an embedded `TdxContract contract` field
 // immediately after `contract_id`. On LP64 (x86_64 / aarch64 Linux,
 // macOS), `TdxContract` is 32 bytes {
-//   const char *root         offset  0, size 8
+//   const char *symbol       offset  0, size 8
 //   int32_t sec_type         offset  8, size 4
-//   bool has_exp_date        offset 12, size 1
-//   int32_t exp_date         offset 16, size 4 (3 bytes pad after has_exp_date)
+//   bool has_expiration      offset 12, size 1
+//   int32_t expiration       offset 16, size 4 (3 bytes pad after has_expiration)
 //   bool has_is_call         offset 20, size 1
 //   bool is_call             offset 21, size 1
 //   bool has_strike          offset 22, size 1
@@ -78,11 +78,12 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 // Generated layout guards for the FPSS event C mirror structs.
 #include "fpss_layout_asserts.hpp.inc"
 
-// OptionContract uses std::string for root to avoid use-after-free.
+// OptionContract uses std::string for symbol to avoid use-after-free.
 // The C FFI TdxOptionContract uses a raw char* that is freed with the array,
-// so we deep-copy the string during conversion.
+// so we deep-copy the string during conversion. Field name follows the v3
+// vendor surface; see https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping.
 struct OptionContract {
-    std::string root;
+    std::string symbol;
     int32_t expiration;
     double strike;
     int32_t right;

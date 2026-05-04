@@ -101,13 +101,13 @@ fn quote_tick_to_polars_emits_midpoint() {
 fn option_contract_right_stringifies() {
     let ticks = vec![
         tick::OptionContract {
-            root: "AAPL".into(),
+            symbol: "AAPL".into(),
             expiration: 20240119,
             strike: 195.0,
             right: 67, // 'C'
         },
         tick::OptionContract {
-            root: "AAPL".into(),
+            symbol: "AAPL".into(),
             expiration: 20240119,
             strike: 195.0,
             right: 80, // 'P'
@@ -116,7 +116,7 @@ fn option_contract_right_stringifies() {
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 2);
     assert_eq!(dtype_of(&df, "right"), DataType::String);
-    assert_eq!(dtype_of(&df, "root"), DataType::String);
+    assert_eq!(dtype_of(&df, "symbol"), DataType::String);
 }
 
 #[test]

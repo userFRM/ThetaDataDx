@@ -847,24 +847,24 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OpenInterestTick] {
 impl crate::frames::TicksArrowExt for [tdbe::types::tick::OptionContract] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
-        let mut col_root: Vec<String> = Vec::with_capacity(n);
+        let mut col_symbol: Vec<String> = Vec::with_capacity(n);
         let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
         let mut col_strike: Vec<f64> = Vec::with_capacity(n);
         let mut col_right: Vec<String> = Vec::with_capacity(n);
         for t in self {
-            col_root.push(t.root.clone());
+            col_symbol.push(t.symbol.clone());
             col_expiration.push(t.expiration);
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
         let schema = Arc::new(ArrowSchema::new(vec![
-            Field::new("root", DataType::Utf8, false),
+            Field::new("symbol", DataType::Utf8, false),
             Field::new("expiration", DataType::Int32, false),
             Field::new("strike", DataType::Float64, false),
             Field::new("right", DataType::Utf8, false),
         ]));
         let columns: Vec<ArrayRef> = vec![
-            Arc::new(StringArray::from(col_root)) as ArrayRef,
+            Arc::new(StringArray::from(col_symbol)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -878,18 +878,18 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::OptionContract] {
 impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OptionContract] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
-        let mut col_root: Vec<String> = Vec::with_capacity(n);
+        let mut col_symbol: Vec<String> = Vec::with_capacity(n);
         let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
         let mut col_strike: Vec<f64> = Vec::with_capacity(n);
         let mut col_right: Vec<String> = Vec::with_capacity(n);
         for t in self {
-            col_root.push(t.root.clone());
+            col_symbol.push(t.symbol.clone());
             col_expiration.push(t.expiration);
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
         DataFrame::new(vec![
-            Series::new(PlSmallStr::from_static("root"), col_root).into(),
+            Series::new(PlSmallStr::from_static("symbol"), col_symbol).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),

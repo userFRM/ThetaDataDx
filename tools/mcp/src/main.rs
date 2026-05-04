@@ -667,7 +667,7 @@ fn serialize_option_contracts(contracts: &[tdbe::types::tick::OptionContract]) -
         .iter()
         .map(|c| {
             json!({
-                "root": c.root, "expiration": c.expiration,
+                "symbol": c.symbol, "expiration": c.expiration,
                 "strike": c.strike, "right": c.right,
             })
         })

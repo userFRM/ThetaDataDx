@@ -377,7 +377,7 @@ pub fn option_contracts_to_json(contracts: &[OptionContract]) -> Vec<sonic_rs::V
         .iter()
         .map(|c| {
             sonic_rs::json!({
-                "root": c.root,
+                "symbol": c.symbol,
                 "expiration": c.expiration,
                 "strike": c.strike,
                 "right": c.right,

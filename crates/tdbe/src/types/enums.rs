@@ -4,7 +4,7 @@
 /// The FPSS decoder uses it for the empty-contract placeholder that flows on
 /// data events arriving before their `ContractAssigned` frame — downstream
 /// consumers can pattern-match `sec_type == SecType::Unknown` instead of
-/// relying on `contract.root.is_empty()`. `Unknown` has no wire-protocol
+/// relying on `contract.symbol.is_empty()`. `Unknown` has no wire-protocol
 /// representation: [`SecType::from_code`] never returns it, and it is not
 /// serialized in subscribe payloads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

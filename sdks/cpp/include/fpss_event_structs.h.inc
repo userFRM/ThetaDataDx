@@ -15,16 +15,16 @@ typedef enum {
     TDX_FPSS_RAW_DATA = 5,
 } TdxFpssEventKind;
 
-/* FPSS Contract shared across every data event. `root` is a
+/* FPSS Contract shared across every data event. `symbol` is a
 * NUL-terminated C string (may be null when not yet resolved);
 * optional option fields use a tagged-present bool because C has no
 * Option<T>. Layout is byte-identical to Rust's #[repr(C)] TdxContract.
 */
 typedef struct {
-const char *root;
+const char *symbol;
 int32_t sec_type;
-bool has_exp_date;
-int32_t exp_date;
+bool has_expiration;
+int32_t expiration;
 bool has_is_call;
 bool is_call;
 bool has_strike;

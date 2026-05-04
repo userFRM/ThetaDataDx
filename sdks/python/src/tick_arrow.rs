@@ -120,7 +120,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("right", DataType::Utf8, false),
         ]))),
         "OptionContract" => Some(Arc::new(Schema::new(vec![
-            Field::new("root", DataType::Utf8, false),
+            Field::new("symbol", DataType::Utf8, false),
             Field::new("expiration", DataType::Int32, false),
             Field::new("strike", DataType::Float64, false),
             Field::new("right", DataType::Utf8, false),
@@ -634,18 +634,18 @@ pub(crate) mod slice_arrow {
     fn read_arrow_batch_from_option_contract_slice(ticks: &[tick::OptionContract]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("OptionContract").expect("generated schema must be present for OptionContract");
         let n = ticks.len();
-        let mut col_root: Vec<String> = Vec::with_capacity(n);
+        let mut col_symbol: Vec<String> = Vec::with_capacity(n);
         let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
         let mut col_strike: Vec<f64> = Vec::with_capacity(n);
         let mut col_right: Vec<String> = Vec::with_capacity(n);
         for t in ticks {
-            col_root.push(t.root.clone());
+            col_symbol.push(t.symbol.clone());
             col_expiration.push(t.expiration);
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
         let columns: Vec<ArrayRef> = vec![
-            Arc::new(StringArray::from(col_root)) as ArrayRef,
+            Arc::new(StringArray::from(col_symbol)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,

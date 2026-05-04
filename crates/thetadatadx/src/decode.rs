@@ -804,7 +804,7 @@ pub fn parse_option_contracts_v3(
             };
 
             Ok(OptionContract {
-                root,
+                symbol: root,
                 expiration,
                 strike,
                 right,

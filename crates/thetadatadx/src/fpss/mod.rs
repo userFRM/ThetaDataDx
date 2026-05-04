@@ -34,11 +34,11 @@
 //!     // Push to your own queue for heavy processing.
 //!     match event {
 //!         FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
-//!             let _root = &contract.root; // symbol / option root
+//!             let _symbol = &contract.symbol;
 //!             let _ = (bid, ask); // f64 prices
 //!         }
 //!         FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
-//!             let _root = &contract.root;
+//!             let _symbol = &contract.symbol;
 //!             let _ = (price, size);
 //!         }
 //!         FpssEvent::Control(_) => { /* lifecycle */ }

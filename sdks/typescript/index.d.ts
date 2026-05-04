@@ -826,9 +826,9 @@ export interface CalendarDay {
  * event as `event.quote.contract` / `event.trade.contract` / etc.
  */
 export interface Contract {
-  root: string
+  symbol: string
   secType: number
-  expDate?: number
+  expiration?: number
   isCall?: boolean
   strike?: number
 }
@@ -1032,7 +1032,7 @@ export interface OpenInterestTick {
 
 /** Option contract. Contract specification. */
 export interface OptionContract {
-  root: string
+  symbol: string
   expiration: number
   strike: number
   right: string

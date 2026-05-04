@@ -37,10 +37,10 @@ tdx.start_streaming(|event: &FpssEvent| {
         // Every data event carries an `Arc<Contract>` — read the root ticker
         // directly, no contract-ID map lookup required.
         FpssEvent::Data(FpssData::Quote { contract, bid, ask, received_at_ns, .. }) => {
-            println!("Quote: {} bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns", contract.root);
+            println!("Quote: {} bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns", contract.symbol);
         }
         FpssEvent::Data(FpssData::Trade { contract, price, size, received_at_ns, .. }) => {
-            println!("Trade: {} price={price:.2} size={size} rx={received_at_ns}ns", contract.root);
+            println!("Trade: {} price={price:.2} size={size} rx={received_at_ns}ns", contract.symbol);
         }
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
             println!("Contract {id} = {contract}");
@@ -377,9 +377,9 @@ tdx.start_streaming(move |event: &FpssEvent| {
         FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
             contracts_clone.lock().unwrap().insert(*id, (**contract).clone());
         }
-        // Preferred: read `contract.root` directly off the data event.
+        // Preferred: read `contract.symbol` directly off the data event.
         FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
-            println!("{}: bid={bid:.2} ask={ask:.2}", contract.root);
+            println!("{}: bid={bid:.2} ask={ask:.2}", contract.symbol);
         }
         _ => {}
     }

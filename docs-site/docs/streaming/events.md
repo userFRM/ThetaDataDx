@@ -12,31 +12,31 @@ description: Process data and control events from the FPSS streaming connection 
 tdx.start_streaming(|event: &FpssEvent| {
     match event {
         // --- Data events ---
-        // Each data variant carries an `Arc<Contract>`, so `contract.root`
-        // (plus `.exp_date` / `.strike` / `.is_call` on options) is readable
+        // Each data variant carries an `Arc<Contract>`, so `contract.symbol`
+        // (plus `.expiration` / `.strike` / `.is_call` on options) is readable
         // inline — no contract-ID map lookup required.
         FpssEvent::Data(FpssData::Quote {
             contract, ms_of_day, bid, ask, bid_size, ask_size,
             received_at_ns, ..
         }) => {
-            println!("Quote: {} bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns", contract.root);
+            println!("Quote: {} bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns", contract.symbol);
         }
         FpssEvent::Data(FpssData::Trade {
             contract, price, size, sequence, received_at_ns, ..
         }) => {
-            println!("Trade: {} price={price:.2} size={size} seq={sequence}", contract.root);
+            println!("Trade: {} price={price:.2} size={size} seq={sequence}", contract.symbol);
         }
         FpssEvent::Data(FpssData::OpenInterest {
             contract, open_interest, received_at_ns, ..
         }) => {
-            println!("OI: {} oi={open_interest} rx={received_at_ns}ns", contract.root);
+            println!("OI: {} oi={open_interest} rx={received_at_ns}ns", contract.symbol);
         }
         FpssEvent::Data(FpssData::Ohlcvc {
             contract, open, high, low, close,
             volume, count, received_at_ns, ..
         }) => {
             // volume and count are i64 to avoid overflow on high-volume symbols
-            println!("OHLCVC: {} O={open:.2} H={high:.2} L={low:.2} C={close:.2} vol={volume} n={count}", contract.root);
+            println!("OHLCVC: {} O={open:.2} H={high:.2} L={low:.2} C={close:.2} vol={volume} n={count}", contract.symbol);
         }
 
         // --- Control events ---

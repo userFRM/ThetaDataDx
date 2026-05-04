@@ -106,12 +106,19 @@ pub(crate) fn parse_header(blob: &[u8]) -> Result<BlobHeader, Error> {
 }
 
 /// One INDEX entry's contract key + DATA-section pointer.
+///
+/// Field names follow the v3 vendor surface (`symbol`, `expiration`)
+/// per the migration guide:
+/// <https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping>.
+/// The wire layout still names the same bytes `root` / `exp` and the
+/// parser locals below preserve that naming for diff-ability against
+/// the upstream binary protocol.
 #[derive(Debug, Clone)]
 pub(crate) struct IndexEntry {
-    /// UTF-8 root symbol (e.g. `"AAPL"`, `"SPY"`, `"ABBV"`).
-    pub(crate) root: String,
+    /// UTF-8 ticker symbol (e.g. `"AAPL"`, `"SPY"`, `"ABBV"`).
+    pub(crate) symbol: String,
     /// Option expiration (YYYYMMDD), or `None` for stock entries.
-    pub(crate) exp: Option<i32>,
+    pub(crate) expiration: Option<i32>,
     /// Strike price in tenths of a cent, or `None` for stocks.
     pub(crate) strike: Option<i32>,
     /// `'C'` or `'P'` for options, `None` for stocks.
@@ -194,8 +201,8 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
     let block_start = read_i64(cur)? as u64;
     let block_end = read_i64(cur)? as u64;
     Ok(IndexEntry {
-        root,
-        exp,
+        symbol: root,
+        expiration: exp,
         strike,
         right,
         block_start,
@@ -306,8 +313,8 @@ mod tests {
 
         let mut iter = IndexIter::new(&buf, SecType::Option);
         let entry = iter.next().unwrap().unwrap();
-        assert_eq!(entry.root, "AAPL");
-        assert_eq!(entry.exp, Some(20_260_117));
+        assert_eq!(entry.symbol, "AAPL");
+        assert_eq!(entry.expiration, Some(20_260_117));
         assert_eq!(entry.strike, Some(200_000));
         assert_eq!(entry.right, Some('P'));
         assert_eq!(entry.block_start, 1000);
@@ -332,8 +339,8 @@ mod tests {
 
         let mut iter = IndexIter::new(&buf, SecType::Stock);
         let entry = iter.next().unwrap().unwrap();
-        assert_eq!(entry.root, "SPY");
-        assert_eq!(entry.exp, None);
+        assert_eq!(entry.symbol, "SPY");
+        assert_eq!(entry.expiration, None);
         assert_eq!(entry.strike, None);
         assert_eq!(entry.right, None);
         assert_eq!(entry.block_start, 0);

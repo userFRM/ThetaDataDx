@@ -216,12 +216,12 @@ func convertOptionContracts(arr C.TdxOptionContractArray) []OptionContract {
     src := unsafe.Slice((*cOptionContract)(arr.data), n)
     result := make([]OptionContract, n)
     for i, t := range src {
-        root := ""
-        if t.Root != 0 {
-            root = C.GoString((*C.char)(unsafe.Pointer(t.Root)))
+        symbol := ""
+        if t.Symbol != 0 {
+            symbol = C.GoString((*C.char)(unsafe.Pointer(t.Symbol)))
         }
         result[i] = OptionContract{
-            Root: root,
+            Symbol: symbol,
             Expiration: int(t.Expiration),
             Strike: t.Strike,
             Right: RightStr(t.Right),

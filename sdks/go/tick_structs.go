@@ -126,7 +126,7 @@ type OpenInterestTick struct {
 
 // OptionContract — Option contract -- 4 fields. Contract specification.
 type OptionContract struct {
-	Root           string   `json:"root"`
+	Symbol         string   `json:"symbol"`
 	Expiration     int      `json:"expiration"`
 	Strike         float64  `json:"strike"`
 	Right          string   `json:"right"`

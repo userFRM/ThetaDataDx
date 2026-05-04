@@ -151,10 +151,14 @@ pub struct OpenInterestTick {
 }
 
 /// Option contract specification.
+///
+/// `symbol` matches the v3 vendor surface (the field was named `root`
+/// before the v3 rename). See the migration guide:
+/// <https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping>.
 #[must_use]
 #[derive(Debug, Clone)]
 pub struct OptionContract {
-    pub root: String,
+    pub symbol: String,
     pub expiration: i32,
     pub strike: f64,
     pub right: i32,

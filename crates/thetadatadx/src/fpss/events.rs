@@ -28,10 +28,10 @@ use super::protocol::Contract;
 /// placeholder. Detect it via
 /// `contract.sec_type == tdbe::types::enums::SecType::Unknown` —
 /// this is the canonical check documented in `fpss::decode`. The
-/// secondary `contract.root.is_empty()` check is kept for
+/// secondary `contract.symbol.is_empty()` check is kept for
 /// backwards-compatibility, but the `SecType::Unknown` match survives
-/// future contract-root relaxations (e.g. unicode roots, numeric-prefix
-/// tickers) where an empty root might coincidentally appear on a real
+/// future symbol relaxations (e.g. unicode tickers, numeric-prefix
+/// tickers) where an empty symbol might coincidentally appear on a real
 /// contract.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -314,7 +314,7 @@ mod tests {
                 ..
             }) => {
                 assert_eq!(*contract_id, 42);
-                assert_eq!(contract.root, "AAPL");
+                assert_eq!(contract.symbol, "AAPL");
                 assert!((*price - 150.25).abs() < f64::EPSILON);
             }
             other => panic!("expected Data(Trade), got {other:?}"),

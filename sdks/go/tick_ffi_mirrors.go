@@ -270,9 +270,9 @@ type cTradeQuoteTick struct {
 }
 
 // cOptionContract mirrors TdxOptionContract from FFI
-// Layout: root(8 ptr), exp(4), pad(4), strike(8), right(4), pad(4) = 32
+// Layout: symbol(8 ptr), expiration(4), pad(4), strike(8), right(4), pad(4) = 32
 type cOptionContract struct {
-	Root       uintptr // *const c_char
+	Symbol     uintptr // *const c_char
 	Expiration int32
 	_pad1      int32
 	Strike     float64

@@ -7,9 +7,10 @@
 //! format — CSV or JSONL.
 //!
 //! The contract key passed to each sink call carries the
-//! `(root, exp, strike, right)` columns the vendor prepends to every CSV
-//! row. For stock entries, `exp / strike / right` are `None` and only
-//! `root` is written.
+//! `(symbol, expiration, strike, right)` columns prepended to every CSV
+//! row, matching the v3 vendor surface. For stock entries, `expiration /
+//! strike / right` are `None` and only `symbol` is written. See:
+//! <https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping>.
 //!
 //! Both sinks must produce the **same logical rows**; only the on-disk
 //! encoding differs. This is what makes the byte-match test on `Csv` a
@@ -94,9 +95,9 @@ fn append_csv_prefix(buf: &mut String, entry: &IndexEntry, sec: SecType) {
     use std::fmt::Write;
     match sec {
         SecType::Option | SecType::Index => {
-            buf.push_str(&entry.root);
+            buf.push_str(&entry.symbol);
             buf.push(',');
-            let _ = write!(buf, "{}", entry.exp.unwrap_or(0));
+            let _ = write!(buf, "{}", entry.expiration.unwrap_or(0));
             buf.push(',');
             let _ = write!(buf, "{}", entry.strike.unwrap_or(0));
             buf.push(',');
@@ -104,7 +105,7 @@ fn append_csv_prefix(buf: &mut String, entry: &IndexEntry, sec: SecType) {
             buf.push(',');
         }
         SecType::Stock => {
-            buf.push_str(&entry.root);
+            buf.push_str(&entry.symbol);
             buf.push(',');
         }
     }
@@ -148,8 +149,10 @@ impl RowSink for CsvSink {
     fn write_header(&mut self) -> Result<(), Error> {
         self.line.clear();
         match self.sec {
-            SecType::Option | SecType::Index => self.line.push_str("root,expiration,strike,right,"),
-            SecType::Stock => self.line.push_str("root,"),
+            SecType::Option | SecType::Index => {
+                self.line.push_str("symbol,expiration,strike,right,");
+            }
+            SecType::Stock => self.line.push_str("symbol,"),
         }
         for (n, &i) in self.data_idx.iter().enumerate() {
             if n > 0 {
@@ -237,12 +240,12 @@ impl RowSink for JsonlSink {
         match self.sec {
             SecType::Option | SecType::Index => {
                 obj.insert(
-                    "root".into(),
-                    serde_json::Value::String(row.entry.root.clone()),
+                    "symbol".into(),
+                    serde_json::Value::String(row.entry.symbol.clone()),
                 );
                 obj.insert(
                     "expiration".into(),
-                    serde_json::Value::Number(row.entry.exp.unwrap_or(0).into()),
+                    serde_json::Value::Number(row.entry.expiration.unwrap_or(0).into()),
                 );
                 obj.insert(
                     "strike".into(),
@@ -255,8 +258,8 @@ impl RowSink for JsonlSink {
             }
             SecType::Stock => {
                 obj.insert(
-                    "root".into(),
-                    serde_json::Value::String(row.entry.root.clone()),
+                    "symbol".into(),
+                    serde_json::Value::String(row.entry.symbol.clone()),
                 );
             }
         }

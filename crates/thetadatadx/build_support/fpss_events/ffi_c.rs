@@ -9,17 +9,20 @@ use super::schema::{sorted_data_events, Schema};
 /// Emit the C `TdxContract` struct mirrored from the Rust
 /// `#[repr(C)] TdxContract`. Layout must match field-for-field with
 /// `render_contract_struct_rust` in `ffi_rust.rs`.
+///
+/// Field names follow the v3 vendor surface (`symbol`, `expiration`)
+/// per <https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping>.
 fn render_contract_struct_c() -> &'static str {
-    "/* FPSS Contract shared across every data event. `root` is a\n\
+    "/* FPSS Contract shared across every data event. `symbol` is a\n\
  * NUL-terminated C string (may be null when not yet resolved);\n\
  * optional option fields use a tagged-present bool because C has no\n\
  * Option<T>. Layout is byte-identical to Rust's #[repr(C)] TdxContract.\n\
  */\n\
 typedef struct {\n\
-    const char *root;\n\
+    const char *symbol;\n\
     int32_t sec_type;\n\
-    bool has_exp_date;\n\
-    int32_t exp_date;\n\
+    bool has_expiration;\n\
+    int32_t expiration;\n\
     bool has_is_call;\n\
     bool is_call;\n\
     bool has_strike;\n\

@@ -12,29 +12,32 @@ use super::schema::{sorted_data_events, Schema};
 /// event's `contract` field points at. Uses `#[repr(C)]` so the C header
 /// mirror gets byte-identical layout.
 ///
-/// Strings (the `root` field) cross as C strings — the field is
+/// Strings (the `symbol` field) cross as C strings — the field is
 /// `*const c_char` backed by a `CString` inside `FfiBufferedEvent` so the
 /// pointer stays valid for the lifetime of the buffered event. Optional
 /// fields use a tagged-optional pattern (`has_*: bool` + value) because
 /// `#[repr(C)]` rejects `Option<T>` for Rust->C interop.
+///
+/// Field names follow the v3 vendor surface (`symbol`, `expiration`)
+/// per <https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping>.
 fn render_contract_struct_rust() -> String {
     String::from(
         "/// FPSS `Contract` shared across every data event.\n\
 /// \n\
-/// `root` is a NUL-terminated C string; may be null when the SDK has not\n\
+/// `symbol` is a NUL-terminated C string; may be null when the SDK has not\n\
 /// yet resolved the server-assigned contract_id to a `ContractAssigned`\n\
-/// frame. Optional option fields (`exp_date`, `is_call`, `strike`) use a\n\
+/// frame. Optional option fields (`expiration`, `is_call`, `strike`) use a\n\
 /// tagged-present bool because `#[repr(C)]` cannot express `Option<T>`\n\
 /// directly.\n\
 #[repr(C)]\n\
 pub struct TdxContract {\n\
-    /// Ticker root (e.g. \"AAPL\"). Null until ContractAssigned arrives.\n\
-    pub root: *const c_char,\n\
+    /// Ticker symbol (e.g. \"AAPL\"). Null until ContractAssigned arrives.\n\
+    pub symbol: *const c_char,\n\
     /// Security type code — matches `tdbe::types::enums::SecType`.\n\
     pub sec_type: i32,\n\
-    /// Whether `exp_date` is meaningful (options only).\n\
-    pub has_exp_date: bool,\n\
-    pub exp_date: i32,\n\
+    /// Whether `expiration` is meaningful (options only).\n\
+    pub has_expiration: bool,\n\
+    pub expiration: i32,\n\
     /// Whether `is_call` is meaningful (options only).\n\
     pub has_is_call: bool,\n\
     pub is_call: bool,\n\
@@ -44,10 +47,10 @@ pub struct TdxContract {\n\
 }\n\
 \n\
 pub(crate) const ZERO_CONTRACT_STRUCT: TdxContract = TdxContract {\n\
-    root: ptr::null(),\n\
+    symbol: ptr::null(),\n\
     sec_type: 0,\n\
-    has_exp_date: false,\n\
-    exp_date: 0,\n\
+    has_expiration: false,\n\
+    expiration: 0,\n\
     has_is_call: false,\n\
     is_call: false,\n\
     has_strike: false,\n\
@@ -178,14 +181,15 @@ pub(super) fn render_ffi_fpss_event_converter(schema: &Schema) -> String {
         // cursors / auxiliary fields without breaking the FFI conversion.
         out.push_str("            ..\n");
         out.push_str("        }) => {\n");
-        // Stage the CString backing the Contract.root pointer so it
+        // Stage the CString backing the Contract.symbol pointer so it
         // outlives the TdxFpssEvent inside the FfiBufferedEvent. The
         // backing-memory wrapper already has a `_detail_string` slot we
-        // repurpose here — only one owned CString per event, and Contract
-        // .root is mutually exclusive with Control.detail on Data variants.
+        // repurpose here — only one owned CString per event, and
+        // Contract.symbol is mutually exclusive with Control.detail on
+        // Data variants.
         if has_contract {
             out.push_str(
-                "            let contract_root_cstring = if contract.root.is_empty() {\n                None\n            } else {\n                std::ffi::CString::new(contract.root.as_str()).ok()\n            };\n            let contract_root_ptr = contract_root_cstring\n                .as_ref()\n                .map_or(ptr::null(), |cs| cs.as_ptr());\n            let tdx_contract = TdxContract {\n                root: contract_root_ptr,\n                sec_type: contract.sec_type as i32,\n                has_exp_date: contract.exp_date.is_some(),\n                exp_date: contract.exp_date.unwrap_or(0),\n                has_is_call: contract.is_call.is_some(),\n                is_call: contract.is_call.unwrap_or(false),\n                has_strike: contract.strike.is_some(),\n                strike: contract.strike.unwrap_or(0),\n            };\n",
+                "            let contract_symbol_cstring: Option<std::ffi::CString> = if contract.symbol.is_empty() {\n                None\n            } else {\n                std::ffi::CString::new(contract.symbol.as_str()).ok()\n            };\n            let contract_symbol_ptr = contract_symbol_cstring\n                .as_ref()\n                .map_or(ptr::null(), |cs| cs.as_ptr());\n            let tdx_contract = TdxContract {\n                symbol: contract_symbol_ptr,\n                sec_type: contract.sec_type as i32,\n                has_expiration: contract.expiration.is_some(),\n                expiration: contract.expiration.unwrap_or(0),\n                has_is_call: contract.is_call.is_some(),\n                is_call: contract.is_call.unwrap_or(false),\n                has_strike: contract.strike.is_some(),\n                strike: contract.strike.unwrap_or(0),\n            };\n",
             );
         }
         out.push_str("            FfiBufferedEvent {\n");
@@ -225,7 +229,7 @@ pub(super) fn render_ffi_fpss_event_converter(schema: &Schema) -> String {
         out.push_str("                raw_data: ZERO_RAW,\n");
         out.push_str("            },\n");
         if has_contract {
-            out.push_str("            _detail_string: contract_root_cstring,\n");
+            out.push_str("            _detail_string: contract_symbol_cstring,\n");
         } else {
             out.push_str("            _detail_string: None,\n");
         }

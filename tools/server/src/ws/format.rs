@@ -189,9 +189,9 @@ pub(super) fn fpss_event_to_ws_json(
 fn contract_to_json(c: &Contract) -> sonic_rs::Value {
     let sec_type_str = format!("{:?}", c.sec_type).to_uppercase();
     let mut obj = sonic_rs::Object::new();
-    obj.insert("root", sonic_rs::Value::from(c.root.as_str()));
+    obj.insert("symbol", sonic_rs::Value::from(c.symbol.as_str()));
     obj.insert("sec_type", sonic_rs::Value::from(sec_type_str.as_str()));
-    if let Some(exp) = c.exp_date {
+    if let Some(exp) = c.expiration {
         obj.insert("expiration", sonic_rs::Value::from(exp));
     }
     if let Some(strike) = c.strike {
@@ -257,23 +257,23 @@ mod tests {
         // Peek under the lock — mirrors what the callback thread does.
         let peeked = lookup_event_contract(&event, &map);
         assert!(peeked.is_some(), "pre-peek must find the contract");
-        assert_eq!(peeked.as_ref().unwrap().root, "AAPL");
+        assert_eq!(peeked.as_ref().unwrap().symbol, "AAPL");
 
         // Simulate a reconnect / market-close clearing the shared map
         // AFTER the callback has peeked but BEFORE the broadcast task
         // serializes. Under the pre-fix code, a subsequent re-lookup
         // would now return None and produce `{"id": 42}` with no
-        // root/strike/right.
+        // symbol/strike/right.
         map.lock().unwrap().clear();
 
         // With the fix, the peeked snapshot still carries the full
         // contract via the Arc refcount — serialization must succeed
-        // with root = "AAPL".
+        // with symbol = "AAPL".
         let json = fpss_event_to_ws_json(&event, peeked.as_deref())
             .expect("serialization must succeed with peeked contract");
         assert!(
-            json.contains("\"root\":\"AAPL\""),
-            "serialized JSON must retain the peeked root after map clear: {json}"
+            json.contains("\"symbol\":\"AAPL\""),
+            "serialized JSON must retain the peeked symbol after map clear: {json}"
         );
     }
 

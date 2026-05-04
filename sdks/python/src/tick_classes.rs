@@ -341,12 +341,12 @@ impl OpenInterestTick {
 
 /// Option contract. Contract specification.
 /// 
-/// Cannot be `Copy` because of the `String` root field.
+/// Cannot be `Copy` because of the `String` symbol field. The vendor v3 surface renamed the underlying ticker field from `root` to `symbol`; see https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct OptionContract {
-    #[pyo3(get)] pub root: String,
+    #[pyo3(get)] pub symbol: String,
     #[pyo3(get)] pub expiration: i32,
     #[pyo3(get)] pub strike: f64,
     #[pyo3(get)] pub right: String,
@@ -354,17 +354,17 @@ pub(crate) struct OptionContract {
 #[pymethods]
 impl OptionContract {
     #[new]
-    #[pyo3(signature = (*, root = String::new(), expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(root: String, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, symbol = String::new(), expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(symbol: String, expiration: i32, strike: f64, right: String) -> Self {
         Self {
-            root,
+            symbol,
             expiration,
             strike,
             right,
         }
     }
     fn __repr__(&self) -> String {
-        format!("OptionContract(root={:?}, expiration={}, strike={}, right={:?})", self.root, self.expiration, self.strike, self.right)
+        format!("OptionContract(symbol={:?}, expiration={}, strike={}, right={:?})", self.symbol, self.expiration, self.strike, self.right)
     }
 }
 
@@ -1949,7 +1949,7 @@ impl OptionContractList {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::OptionContract {
-                root: t.root.clone(),
+                symbol: t.symbol.clone(),
                 expiration: t.expiration,
                 strike: t.strike,
                 right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
@@ -1981,7 +1981,7 @@ impl OptionContractList {
         }
         let t = &self.inner[resolved as usize];
         Ok(            OptionContract {
-                root: t.root.clone(),
+                symbol: t.symbol.clone(),
                 expiration: t.expiration,
                 strike: t.strike,
                 right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
@@ -2000,7 +2000,7 @@ impl OptionContractList {
         let list = pyo3::types::PyList::empty(py);
         for t in &self.inner {
             let obj =                 OptionContract {
-                    root: t.root.clone(),
+                    symbol: t.symbol.clone(),
                     expiration: t.expiration,
                     strike: t.strike,
                     right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
@@ -2057,7 +2057,7 @@ impl OptionContractListIter {
         let t = &self.inner[self.cursor];
         self.cursor += 1;
         Some(            OptionContract {
-                root: t.root.clone(),
+                symbol: t.symbol.clone(),
                 expiration: t.expiration,
                 strike: t.strike,
                 right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),

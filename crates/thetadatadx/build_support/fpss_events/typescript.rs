@@ -18,13 +18,16 @@ use super::schema::{load_schema, sorted_data_event_names, sorted_event_names, Ev
 fn render_contract_napi() -> &'static str {
     r#"/// FPSS contract identifier. Surfaced on every decoded FPSS data
 /// event as `event.quote.contract` / `event.trade.contract` / etc.
+///
+/// Field names follow the v3 vendor surface (`symbol`, `expiration`)
+/// per <https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping>.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Contract {
-    pub root: String,
+    pub symbol: String,
     pub sec_type: i32,
-    pub exp_date: Option<i32>,
+    pub expiration: Option<i32>,
     pub is_call: Option<bool>,
     pub strike: Option<i32>,
 }
@@ -164,11 +167,11 @@ pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
                     name = column.name
                 )
                 .unwrap(),
-                // Contract is constructed explicitly — `root` clones, the
+                // Contract is constructed explicitly — `symbol` clones, the
                 // option fields transfer by value.
                 "Contract" => writeln!(
                     out,
-                    "                {name}: Contract {{\n                    root: {name}.root.clone(),\n                    sec_type: {name}.sec_type as i32,\n                    exp_date: {name}.exp_date,\n                    is_call: {name}.is_call,\n                    strike: {name}.strike,\n                }},",
+                    "                {name}: Contract {{\n                    symbol: {name}.symbol.clone(),\n                    sec_type: {name}.sec_type as i32,\n                    expiration: {name}.expiration,\n                    is_call: {name}.is_call,\n                    strike: {name}.strike,\n                }},",
                     name = column.name
                 )
                 .unwrap(),

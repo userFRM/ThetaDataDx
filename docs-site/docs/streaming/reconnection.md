@@ -203,7 +203,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
             }) => {
                 if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
                     println!("[QUOTE] {}: bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns",
-                        c.root);
+                        c.symbol);
                 }
             }
             FpssEvent::Data(FpssData::Trade {
@@ -211,7 +211,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
             }) => {
                 if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
                     println!("[TRADE] {}: price={price:.2} size={size} rx={received_at_ns}ns",
-                        c.root);
+                        c.symbol);
                 }
             }
             FpssEvent::Control(FpssControl::Disconnected { reason }) => {

@@ -221,10 +221,10 @@ async fn main() -> Result<(), thetadatadx::Error> {
 
     tdx.start_streaming(|event: &FpssEvent| match event {
         FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
-            println!("Quote: {} {bid:.2}/{ask:.2}", contract.root);
+            println!("Quote: {} {bid:.2}/{ask:.2}", contract.symbol);
         }
         FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
-            println!("Trade: {} {price:.2} x {size}", contract.root);
+            println!("Trade: {} {price:.2} x {size}", contract.symbol);
         }
         _ => {}
     })?;
