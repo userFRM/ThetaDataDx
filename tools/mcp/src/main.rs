@@ -589,12 +589,13 @@ fn serialize_market_value_ticks(ticks: &[tdbe::types::tick::MarketValueTick]) ->
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_greeks_ticks(ticks: &[tdbe::types::tick::GreeksTick]) -> Value {
+fn serialize_greeks_all_ticks(ticks: &[tdbe::types::tick::GreeksAllTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
             let mut row = json!({
                 "date": t.date, "ms_of_day": t.ms_of_day,
+                "bid": t.bid, "ask": t.ask,
                 "implied_volatility": t.implied_volatility,
                 "delta": t.delta, "gamma": t.gamma, "theta": t.theta,
                 "vega": t.vega, "rho": t.rho, "iv_error": t.iv_error,
@@ -604,6 +605,77 @@ fn serialize_greeks_ticks(ticks: &[tdbe::types::tick::GreeksTick]) -> Value {
                 "d1": t.d1, "d2": t.d2,
                 "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
                 "epsilon": t.epsilon, "lambda": t.lambda, "vera": t.vera,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_greeks_first_order_ticks(
+    ticks: &[tdbe::types::tick::GreeksFirstOrderTick],
+) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            let mut row = json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "bid": t.bid, "ask": t.ask,
+                "delta": t.delta, "theta": t.theta, "vega": t.vega,
+                "rho": t.rho, "epsilon": t.epsilon, "lambda": t.lambda,
+                "implied_volatility": t.implied_volatility,
+                "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_greeks_second_order_ticks(
+    ticks: &[tdbe::types::tick::GreeksSecondOrderTick],
+) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            let mut row = json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "bid": t.bid, "ask": t.ask,
+                "gamma": t.gamma, "vanna": t.vanna, "charm": t.charm,
+                "vomma": t.vomma, "veta": t.veta,
+                "implied_volatility": t.implied_volatility,
+                "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_greeks_third_order_ticks(
+    ticks: &[tdbe::types::tick::GreeksThirdOrderTick],
+) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            let mut row = json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "bid": t.bid, "ask": t.ask,
+                "speed": t.speed, "zomma": t.zomma, "color": t.color,
+                "ultima": t.ultima,
+                "implied_volatility": t.implied_volatility,
+                "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -700,7 +772,10 @@ fn serialize_endpoint_output(name: &str, output: &EndpointOutput) -> Value {
         EndpointOutput::TradeQuoteTicks(ticks) => serialize_trade_quote_ticks(ticks),
         EndpointOutput::OpenInterestTicks(ticks) => serialize_open_interest_ticks(ticks),
         EndpointOutput::MarketValueTicks(ticks) => serialize_market_value_ticks(ticks),
-        EndpointOutput::GreeksTicks(ticks) => serialize_greeks_ticks(ticks),
+        EndpointOutput::GreeksAllTicks(ticks) => serialize_greeks_all_ticks(ticks),
+        EndpointOutput::GreeksFirstOrderTicks(ticks) => serialize_greeks_first_order_ticks(ticks),
+        EndpointOutput::GreeksSecondOrderTicks(ticks) => serialize_greeks_second_order_ticks(ticks),
+        EndpointOutput::GreeksThirdOrderTicks(ticks) => serialize_greeks_third_order_ticks(ticks),
         EndpointOutput::IvTicks(ticks) => serialize_iv_ticks(ticks),
         EndpointOutput::PriceTicks(ticks) => serialize_price_ticks(ticks),
         EndpointOutput::CalendarDays(days) => serialize_calendar_days(days),
