@@ -101,7 +101,7 @@ disruptor = "4.1.0"
 # No lazy, no I/O, no parquet, no SQL, no compute kernels. `default-features = false`
 # avoids pulling the polars-plan / polars-sql / polars-parquet graph into dependents
 # that only want row-to-frame materialization.
-polars = { version = "0.52", optional = true, default-features = false }
+polars = { version = "0.53", optional = true, default-features = false }
 # arrow-array + arrow-schema cover RecordBatch construction for the
 # optional `frames` feature only. Kept optional so the default dep
 # graph stays slim — FLATFILES does not pull in arrow.
