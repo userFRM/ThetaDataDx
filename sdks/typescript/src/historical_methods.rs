@@ -941,7 +941,7 @@ impl ThetaDataDx {
         min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksAllTick>> {
         let expiration = normalize_date(expiration);
         let min_time = normalize_optional_time(min_time);
         let mut request = self.tdx.option_snapshot_greeks_all(&symbol, expiration.as_str());
@@ -982,7 +982,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -1015,7 +1015,7 @@ impl ThetaDataDx {
         min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
         let expiration = normalize_date(expiration);
         let min_time = normalize_optional_time(min_time);
         let mut request = self.tdx.option_snapshot_greeks_first_order(&symbol, expiration.as_str());
@@ -1056,7 +1056,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -1089,7 +1089,7 @@ impl ThetaDataDx {
         min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
         let expiration = normalize_date(expiration);
         let min_time = normalize_optional_time(min_time);
         let mut request = self.tdx.option_snapshot_greeks_second_order(&symbol, expiration.as_str());
@@ -1130,7 +1130,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
@@ -1163,7 +1163,7 @@ impl ThetaDataDx {
         min_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         use_market_value: Option<bool>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
         let expiration = normalize_date(expiration);
         let min_time = normalize_optional_time(min_time);
         let mut request = self.tdx.option_snapshot_greeks_third_order(&symbol, expiration.as_str());
@@ -1204,7 +1204,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch end-of-day option data for a contract over a date range.
@@ -1608,7 +1608,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksAllTick>> {
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -1644,7 +1644,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
@@ -1681,7 +1681,7 @@ impl ThetaDataDx {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksAllTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -1729,7 +1729,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch all Greeks on each trade for an option contract.
@@ -1765,7 +1765,7 @@ impl ThetaDataDx {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksAllTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -1813,7 +1813,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
@@ -1850,7 +1850,7 @@ impl ThetaDataDx {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -1898,7 +1898,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
@@ -1934,7 +1934,7 @@ impl ThetaDataDx {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -1982,7 +1982,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
@@ -2019,7 +2019,7 @@ impl ThetaDataDx {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -2067,7 +2067,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
@@ -2103,7 +2103,7 @@ impl ThetaDataDx {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -2151,7 +2151,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
@@ -2188,7 +2188,7 @@ impl ThetaDataDx {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -2236,7 +2236,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
@@ -2272,7 +2272,7 @@ impl ThetaDataDx {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksTick>> {
+    ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -2320,7 +2320,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_ticks_to_class_vec(&ticks))
+        Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).

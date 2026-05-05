@@ -50,30 +50,26 @@ pub struct EodTick {
     pub right: i32,
 }
 
-/// Greeks tick -- 24 fields. Full union of every Greek the v3 server
-/// publishes across the `option_*_greeks_*` family.
+/// Full union Greeks tick -- every Greek the v3 server publishes on the
+/// `option_*_greeks_all` and `option_*_greeks_eod` endpoints.
 ///
-/// Endpoint-specific subsets reuse this struct; absent columns decode to
-/// `0.0` and the per-endpoint vendor schema is documented via the upstream
-/// OpenAPI capture (`scripts/upstream_openapi.yaml`):
+/// The vendor's per-order endpoints (`option_*_greeks_first_order`,
+/// `_second_order`, `_third_order`) emit strict subsets of these columns
+/// and bind to `GreeksFirstOrderTick`, `GreeksSecondOrderTick`,
+/// `GreeksThirdOrderTick` respectively. `option_*_greeks_implied_volatility`
+/// binds to `IvTick`.
 ///
-/// * `option_*_greeks_first_order`  -> delta / theta / vega / rho / epsilon / lambda + IV pair
-/// * `option_*_greeks_second_order` -> gamma / vanna / charm / vomma / veta + IV pair
-/// * `option_*_greeks_third_order`  -> speed / zomma / color / ultima + IV pair (no vera)
-/// * `option_*_greeks_all` / `option_*_greeks_eod` -> the full union below
-/// * `option_*_greeks_implied_volatility` -> handled by `IvTick`
-///
-/// The wire-level `timestamp` -> `ms_of_day` and `implied_vol` ->
-/// `implied_volatility` mappings are applied through `HEADER_ALIASES`
-/// in `crates/thetadatadx/src/decode.rs`. Optional columns absent from a
-/// subset response (e.g. `zomma` on the first-order endpoint) are silently
-/// defaulted to `0.0`; the parser never warns on a documented subset gap
-/// (see `find_header` for the trace-level diagnostic path).
+/// The wire-level `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
+/// `underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
+/// mappings are applied through `HEADER_ALIASES` in
+/// `crates/thetadatadx/src/decode.rs`.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
-pub struct GreeksTick {
+pub struct GreeksAllTick {
     pub ms_of_day: i32,
+    pub bid: f64,
+    pub ask: f64,
     pub implied_volatility: f64,
     pub delta: f64,
     pub gamma: f64,
@@ -96,6 +92,96 @@ pub struct GreeksTick {
     pub epsilon: f64,
     pub lambda: f64,
     pub vera: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
+/// First-order Greeks tick -- the strict column subset emitted by the
+/// vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega
+/// / rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and
+/// the underlying snapshot used to derive each Greek.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct GreeksFirstOrderTick {
+    pub ms_of_day: i32,
+    pub bid: f64,
+    pub ask: f64,
+    pub delta: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
+/// Second-order Greeks tick -- the strict column subset emitted by the
+/// vendor's `option_*_greeks_second_order` endpoints (gamma / vanna /
+/// charm / vomma / veta) plus the bid/ask quote pair, the IV pair, and the
+/// underlying snapshot.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct GreeksSecondOrderTick {
+    pub ms_of_day: i32,
+    pub bid: f64,
+    pub ask: f64,
+    pub gamma: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
+/// Third-order Greeks tick -- the strict column subset emitted by the
+/// vendor's `option_*_greeks_third_order` endpoints (speed / zomma /
+/// color / ultima) plus the bid/ask quote pair, the IV pair, and the
+/// underlying snapshot. The vendor's third-order schema does not publish
+/// `vera`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct GreeksThirdOrderTick {
+    pub ms_of_day: i32,
+    pub bid: f64,
+    pub ask: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
     pub date: i32,
     /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
     pub expiration: i32,
@@ -225,14 +311,14 @@ pub struct QuoteTick {
     pub ask: f64,
     pub ask_condition: i32,
     pub date: i32,
-    /// Pre-computed midpoint: `(bid + ask) / 2.0`.
-    pub midpoint: f64,
     /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
     pub expiration: i32,
     /// Contract strike price (decoded to `f64`).
     pub strike: f64,
     /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
     pub right: i32,
+    /// Pre-computed midpoint: `(bid + ask) / 2.0`.
+    pub midpoint: f64,
 }
 
 /// Combined trade + quote tick -- 24 fields.

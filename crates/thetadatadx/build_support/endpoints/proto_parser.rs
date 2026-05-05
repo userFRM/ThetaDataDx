@@ -343,8 +343,22 @@ fn derive_return_type(method: &str) -> String {
         return "IvTicks".into();
     }
 
+    if method.contains("greeks_first_order") {
+        return "GreeksFirstOrderTicks".into();
+    }
+
+    if method.contains("greeks_second_order") {
+        return "GreeksSecondOrderTicks".into();
+    }
+
+    if method.contains("greeks_third_order") {
+        return "GreeksThirdOrderTicks".into();
+    }
+
+    // `_greeks_all`, `_greeks_eod`, and any future un-suffixed Greeks
+    // endpoint default to the full-union type.
     if method.contains("_greeks_") {
-        return "GreeksTicks".into();
+        return "GreeksAllTicks".into();
     }
 
     if method == "index_snapshot_price"

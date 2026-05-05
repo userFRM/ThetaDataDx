@@ -62,17 +62,19 @@ func convertEodTicks(arr C.TdxTickArray) []EodTick {
     return result
 }
 
-func convertGreeksTicks(arr C.TdxTickArray) []GreeksTick {
+func convertGreeksAllTicks(arr C.TdxTickArray) []GreeksAllTick {
     if arr.data == nil || arr.len == 0 {
         return nil
     }
     n := int(arr.len)
-    src := unsafe.Slice((*cGreeksTick)(arr.data), n)
-    result := make([]GreeksTick, n)
+    src := unsafe.Slice((*cGreeksAllTick)(arr.data), n)
+    result := make([]GreeksAllTick, n)
     for i, t := range src {
-        result[i] = GreeksTick{
+        result[i] = GreeksAllTick{
             MsOfDay: int(t.MsOfDay),
-            IV: t.ImpliedVolatility,
+            Bid: t.Bid,
+            Ask: t.Ask,
+            ImpliedVolatility: t.ImpliedVolatility,
             Delta: t.Delta,
             Gamma: t.Gamma,
             Theta: t.Theta,
@@ -94,6 +96,98 @@ func convertGreeksTicks(arr C.TdxTickArray) []GreeksTick {
             Epsilon: t.Epsilon,
             Lambda: t.Lambda,
             Vera: t.Vera,
+            UnderlyingMsOfDay: int(t.UnderlyingMsOfDay),
+            UnderlyingPrice: t.UnderlyingPrice,
+            Date: int(t.Date),
+            Expiration: t.Expiration,
+            Strike: t.Strike,
+            Right: RightStr(t.Right),
+        }
+    }
+    return result
+}
+
+func convertGreeksFirstOrderTicks(arr C.TdxTickArray) []GreeksFirstOrderTick {
+    if arr.data == nil || arr.len == 0 {
+        return nil
+    }
+    n := int(arr.len)
+    src := unsafe.Slice((*cGreeksFirstOrderTick)(arr.data), n)
+    result := make([]GreeksFirstOrderTick, n)
+    for i, t := range src {
+        result[i] = GreeksFirstOrderTick{
+            MsOfDay: int(t.MsOfDay),
+            Bid: t.Bid,
+            Ask: t.Ask,
+            Delta: t.Delta,
+            Theta: t.Theta,
+            Vega: t.Vega,
+            Rho: t.Rho,
+            Epsilon: t.Epsilon,
+            Lambda: t.Lambda,
+            ImpliedVolatility: t.ImpliedVolatility,
+            IVError: t.IvError,
+            UnderlyingMsOfDay: int(t.UnderlyingMsOfDay),
+            UnderlyingPrice: t.UnderlyingPrice,
+            Date: int(t.Date),
+            Expiration: t.Expiration,
+            Strike: t.Strike,
+            Right: RightStr(t.Right),
+        }
+    }
+    return result
+}
+
+func convertGreeksSecondOrderTicks(arr C.TdxTickArray) []GreeksSecondOrderTick {
+    if arr.data == nil || arr.len == 0 {
+        return nil
+    }
+    n := int(arr.len)
+    src := unsafe.Slice((*cGreeksSecondOrderTick)(arr.data), n)
+    result := make([]GreeksSecondOrderTick, n)
+    for i, t := range src {
+        result[i] = GreeksSecondOrderTick{
+            MsOfDay: int(t.MsOfDay),
+            Bid: t.Bid,
+            Ask: t.Ask,
+            Gamma: t.Gamma,
+            Vanna: t.Vanna,
+            Charm: t.Charm,
+            Vomma: t.Vomma,
+            Veta: t.Veta,
+            ImpliedVolatility: t.ImpliedVolatility,
+            IVError: t.IvError,
+            UnderlyingMsOfDay: int(t.UnderlyingMsOfDay),
+            UnderlyingPrice: t.UnderlyingPrice,
+            Date: int(t.Date),
+            Expiration: t.Expiration,
+            Strike: t.Strike,
+            Right: RightStr(t.Right),
+        }
+    }
+    return result
+}
+
+func convertGreeksThirdOrderTicks(arr C.TdxTickArray) []GreeksThirdOrderTick {
+    if arr.data == nil || arr.len == 0 {
+        return nil
+    }
+    n := int(arr.len)
+    src := unsafe.Slice((*cGreeksThirdOrderTick)(arr.data), n)
+    result := make([]GreeksThirdOrderTick, n)
+    for i, t := range src {
+        result[i] = GreeksThirdOrderTick{
+            MsOfDay: int(t.MsOfDay),
+            Bid: t.Bid,
+            Ask: t.Ask,
+            Speed: t.Speed,
+            Zomma: t.Zomma,
+            Color: t.Color,
+            Ultima: t.Ultima,
+            ImpliedVolatility: t.ImpliedVolatility,
+            IVError: t.IvError,
+            UnderlyingMsOfDay: int(t.UnderlyingMsOfDay),
+            UnderlyingPrice: t.UnderlyingPrice,
             Date: int(t.Date),
             Expiration: t.Expiration,
             Strike: t.Strike,

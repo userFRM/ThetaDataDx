@@ -64,7 +64,10 @@ pub fn output_envelope(output: &EndpointOutput) -> sonic_rs::Value {
         EndpointOutput::TradeQuoteTicks(ticks) => trade_quote_ticks_to_json(ticks),
         EndpointOutput::OpenInterestTicks(ticks) => open_interest_ticks_to_json(ticks),
         EndpointOutput::MarketValueTicks(ticks) => market_value_ticks_to_json(ticks),
-        EndpointOutput::GreeksTicks(ticks) => greeks_ticks_to_json(ticks),
+        EndpointOutput::GreeksAllTicks(ticks) => greeks_all_ticks_to_json(ticks),
+        EndpointOutput::GreeksFirstOrderTicks(ticks) => greeks_first_order_ticks_to_json(ticks),
+        EndpointOutput::GreeksSecondOrderTicks(ticks) => greeks_second_order_ticks_to_json(ticks),
+        EndpointOutput::GreeksThirdOrderTicks(ticks) => greeks_third_order_ticks_to_json(ticks),
         EndpointOutput::IvTicks(ticks) => iv_ticks_to_json(ticks),
         EndpointOutput::PriceTicks(ticks) => price_ticks_to_json(ticks),
         EndpointOutput::CalendarDays(days) => calendar_days_to_json(days),
@@ -274,13 +277,16 @@ pub fn market_value_ticks_to_json(ticks: &[MarketValueTick]) -> Vec<sonic_rs::Va
         .collect()
 }
 
-/// Convert greeks ticks to JSON array.
-pub fn greeks_ticks_to_json(ticks: &[GreeksTick]) -> Vec<sonic_rs::Value> {
+/// Convert full-union Greeks ticks (`option_*_greeks_all`,
+/// `option_*_greeks_eod`) to JSON array.
+pub fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
             let mut row = sonic_rs::json!({
                 "ms_of_day": t.ms_of_day,
+                "bid": t.bid,
+                "ask": t.ask,
                 "implied_volatility": t.implied_volatility,
                 "delta": t.delta,
                 "gamma": t.gamma,
@@ -303,6 +309,96 @@ pub fn greeks_ticks_to_json(ticks: &[GreeksTick]) -> Vec<sonic_rs::Value> {
                 "epsilon": t.epsilon,
                 "lambda": t.lambda,
                 "vera": t.vera,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+                "date": t.date
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect()
+}
+
+/// Convert first-order Greeks subset ticks
+/// (`option_*_greeks_first_order`) to JSON array.
+pub fn greeks_first_order_ticks_to_json(
+    ticks: &[GreeksFirstOrderTick],
+) -> Vec<sonic_rs::Value> {
+    ticks
+        .iter()
+        .map(|t| {
+            let mut row = sonic_rs::json!({
+                "ms_of_day": t.ms_of_day,
+                "bid": t.bid,
+                "ask": t.ask,
+                "delta": t.delta,
+                "theta": t.theta,
+                "vega": t.vega,
+                "rho": t.rho,
+                "epsilon": t.epsilon,
+                "lambda": t.lambda,
+                "implied_volatility": t.implied_volatility,
+                "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+                "date": t.date
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect()
+}
+
+/// Convert second-order Greeks subset ticks
+/// (`option_*_greeks_second_order`) to JSON array.
+pub fn greeks_second_order_ticks_to_json(
+    ticks: &[GreeksSecondOrderTick],
+) -> Vec<sonic_rs::Value> {
+    ticks
+        .iter()
+        .map(|t| {
+            let mut row = sonic_rs::json!({
+                "ms_of_day": t.ms_of_day,
+                "bid": t.bid,
+                "ask": t.ask,
+                "gamma": t.gamma,
+                "vanna": t.vanna,
+                "charm": t.charm,
+                "vomma": t.vomma,
+                "veta": t.veta,
+                "implied_volatility": t.implied_volatility,
+                "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+                "date": t.date
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect()
+}
+
+/// Convert third-order Greeks subset ticks
+/// (`option_*_greeks_third_order`) to JSON array. The vendor's
+/// third-order schema does not publish `vera`, hence its absence here.
+pub fn greeks_third_order_ticks_to_json(
+    ticks: &[GreeksThirdOrderTick],
+) -> Vec<sonic_rs::Value> {
+    ticks
+        .iter()
+        .map(|t| {
+            let mut row = sonic_rs::json!({
+                "ms_of_day": t.ms_of_day,
+                "bid": t.bid,
+                "ask": t.ask,
+                "speed": t.speed,
+                "zomma": t.zomma,
+                "color": t.color,
+                "ultima": t.ultima,
+                "implied_volatility": t.implied_volatility,
+                "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
                 "date": t.date
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -527,7 +623,7 @@ fn escape_csv_field(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tdbe::types::tick::{GreeksTick, QuoteTick, TradeQuoteTick};
+    use tdbe::types::tick::{GreeksAllTick, QuoteTick, TradeQuoteTick};
 
     #[test]
     fn json_to_csv_formats_scalar_lists_as_single_column() {
@@ -708,8 +804,10 @@ mod tests {
     }
     #[test]
     fn greeks_ticks_has_all_greeks() {
-        let t = GreeksTick {
+        let t = GreeksAllTick {
             ms_of_day: 0,
+            bid: 0.0,
+            ask: 0.0,
             implied_volatility: 0.25,
             delta: 0.5,
             gamma: 0.1,
@@ -732,12 +830,14 @@ mod tests {
             epsilon: 0.0,
             lambda: 0.0,
             vera: 0.0,
+            underlying_ms_of_day: 0,
+            underlying_price: 0.0,
             date: 20260410,
             expiration: 20260417,
             strike: 150.0,
             right: 67,
         };
-        let r = greeks_ticks_to_json(&[t]);
+        let r = greeks_all_ticks_to_json(&[t]);
         let r = r.first().unwrap();
         for k in [
             "implied_volatility",
@@ -762,6 +862,10 @@ mod tests {
             "epsilon",
             "lambda",
             "vera",
+            "bid",
+            "ask",
+            "underlying_ms_of_day",
+            "underlying_price",
         ] {
             assert!(r.get(k).is_some(), "missing: {k}");
         }
@@ -773,8 +877,10 @@ mod tests {
     }
     #[test]
     fn greeks_ticks_omits_ids_single_contract() {
-        let t = GreeksTick {
+        let t = GreeksAllTick {
             ms_of_day: 0,
+            bid: 0.0,
+            ask: 0.0,
             implied_volatility: 0.0,
             delta: 0.0,
             gamma: 0.0,
@@ -797,12 +903,14 @@ mod tests {
             epsilon: 0.0,
             lambda: 0.0,
             vera: 0.0,
+            underlying_ms_of_day: 0,
+            underlying_price: 0.0,
             date: 20260410,
             expiration: 0,
             strike: 0.0,
             right: 0,
         };
-        let r = greeks_ticks_to_json(&[t]);
+        let r = greeks_all_ticks_to_json(&[t]);
         let r = r.first().unwrap();
         assert!(r.get("expiration").is_none());
         assert!(r.get("strike").is_none());

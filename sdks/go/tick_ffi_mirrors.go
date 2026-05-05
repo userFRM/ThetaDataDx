@@ -194,39 +194,121 @@ type cMarketValueTick struct {
 	_pad2       [64 - 52]byte
 }
 
-// cGreeksTick mirrors tdbe::GreeksTick #[repr(C, align(64))]
-// Layout: ms_of_day(4), pad(4), 22*f64(176), date(4), exp(4), strike(8), right(4), pad(4) = 208
-// rounded to 256
-type cGreeksTick struct {
+// cGreeksAllTick mirrors tdbe::GreeksAllTick #[repr(C, align(64))]
+// Full-union Greeks (option_*_greeks_all, option_*_greeks_eod). Adds
+// bid/ask, underlying snapshot pair vs the per-order subsets. Schema-
+// driven sizes are emitted in tick_ffi_sizes_generated.go.
+type cGreeksAllTick struct {
+	MsOfDay            int32
+	_pad1              int32
+	Bid                float64
+	Ask                float64
+	ImpliedVolatility  float64
+	Delta              float64
+	Gamma              float64
+	Theta              float64
+	Vega               float64
+	Rho                float64
+	IvError            float64
+	Vanna              float64
+	Charm              float64
+	Vomma              float64
+	Veta               float64
+	Speed              float64
+	Zomma              float64
+	Color              float64
+	Ultima             float64
+	D1                 float64
+	D2                 float64
+	DualDelta          float64
+	DualGamma          float64
+	Epsilon            float64
+	Lambda             float64
+	Vera               float64
+	UnderlyingMsOfDay  int32
+	_pad2              int32
+	UnderlyingPrice    float64
+	Date               int32
+	Expiration         int32
+	Strike             float64
+	Right              int32
+	_pad3              [256 - 236]byte
+}
+
+// cGreeksFirstOrderTick mirrors tdbe::GreeksFirstOrderTick #[repr(C, align(64))]
+// Subset emitted by option_*_greeks_first_order: delta/theta/vega/rho/
+// epsilon/lambda + bid/ask + IV pair + underlying snapshot.
+type cGreeksFirstOrderTick struct {
 	MsOfDay           int32
 	_pad1             int32
-	ImpliedVolatility float64
+	Bid               float64
+	Ask               float64
 	Delta             float64
-	Gamma             float64
 	Theta             float64
 	Vega              float64
 	Rho               float64
-	IvError           float64
-	Vanna             float64
-	Charm             float64
-	Vomma             float64
-	Veta              float64
-	Speed             float64
-	Zomma             float64
-	Color             float64
-	Ultima            float64
-	D1                float64
-	D2                float64
-	DualDelta         float64
-	DualGamma         float64
 	Epsilon           float64
 	Lambda            float64
-	Vera              float64
+	ImpliedVolatility float64
+	IvError           float64
+	UnderlyingMsOfDay int32
+	_pad2             int32
+	UnderlyingPrice   float64
 	Date              int32
 	Expiration        int32
 	Strike            float64
 	Right             int32
-	_pad2             [256 - 204]byte
+	_pad3             [128 - 124]byte
+}
+
+// cGreeksSecondOrderTick mirrors tdbe::GreeksSecondOrderTick #[repr(C, align(64))]
+// Subset emitted by option_*_greeks_second_order: gamma/vanna/charm/
+// vomma/veta + bid/ask + IV pair + underlying snapshot.
+type cGreeksSecondOrderTick struct {
+	MsOfDay           int32
+	_pad1             int32
+	Bid               float64
+	Ask               float64
+	Gamma             float64
+	Vanna             float64
+	Charm             float64
+	Vomma             float64
+	Veta              float64
+	ImpliedVolatility float64
+	IvError           float64
+	UnderlyingMsOfDay int32
+	_pad2             int32
+	UnderlyingPrice   float64
+	Date              int32
+	Expiration        int32
+	Strike            float64
+	Right             int32
+	_pad3             [128 - 116]byte
+}
+
+// cGreeksThirdOrderTick mirrors tdbe::GreeksThirdOrderTick #[repr(C, align(64))]
+// Subset emitted by option_*_greeks_third_order: speed/zomma/color/
+// ultima + bid/ask + IV pair + underlying snapshot. Vendor's third-
+// order schema does not publish vera.
+type cGreeksThirdOrderTick struct {
+	MsOfDay           int32
+	_pad1             int32
+	Bid               float64
+	Ask               float64
+	Speed             float64
+	Zomma             float64
+	Color             float64
+	Ultima            float64
+	ImpliedVolatility float64
+	IvError           float64
+	UnderlyingMsOfDay int32
+	_pad2             int32
+	UnderlyingPrice   float64
+	Date              int32
+	Expiration        int32
+	Strike            float64
+	Right             int32
+	_pad3             [128 - 108]byte
 }
 
 // cTradeQuoteTick mirrors tdbe::TradeQuoteTick #[repr(C, align(64))]
@@ -313,7 +395,10 @@ func init() {
 		{"cIvTick", unsafe.Sizeof(cIvTick{}), CIvTickExpectedSize},
 		{"cPriceTick", unsafe.Sizeof(cPriceTick{}), CPriceTickExpectedSize},
 		{"cMarketValueTick", unsafe.Sizeof(cMarketValueTick{}), CMarketValueTickExpectedSize},
-		{"cGreeksTick", unsafe.Sizeof(cGreeksTick{}), CGreeksTickExpectedSize},
+		{"cGreeksAllTick", unsafe.Sizeof(cGreeksAllTick{}), CGreeksAllTickExpectedSize},
+		{"cGreeksFirstOrderTick", unsafe.Sizeof(cGreeksFirstOrderTick{}), CGreeksFirstOrderTickExpectedSize},
+		{"cGreeksSecondOrderTick", unsafe.Sizeof(cGreeksSecondOrderTick{}), CGreeksSecondOrderTickExpectedSize},
+		{"cGreeksThirdOrderTick", unsafe.Sizeof(cGreeksThirdOrderTick{}), CGreeksThirdOrderTickExpectedSize},
 		{"cTradeQuoteTick", unsafe.Sizeof(cTradeQuoteTick{}), CTradeQuoteTickExpectedSize},
 		{"cOptionContract", unsafe.Sizeof(cOptionContract{}), COptionContractExpectedSize},
 		{"TdxEndpointRequestOptions", unsafe.Sizeof(C.TdxEndpointRequestOptions{}), TdxEndpointRequestOptionsExpectedSize},

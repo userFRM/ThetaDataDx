@@ -55,7 +55,6 @@ pub(crate) struct TickRenderDef {
     pub(crate) go_struct: String,
     pub(crate) go_converter: String,
     pub(crate) ffi_array: String,
-    pub(crate) ffi_array_empty: String,
     pub(crate) ffi_output_variant: String,
     pub(crate) ffi_from_vec_array: String,
     pub(crate) ffi_header_return: String,

@@ -1397,7 +1397,7 @@ vendor_docstring = """
 > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 """
 rest_path = "/v3/option/snapshot/greeks/all"
-returns = "GreeksTicks"
+returns = "GreeksAllTicks"
 
 [[endpoints]]
 name = "option_snapshot_greeks_first_order"
@@ -1410,7 +1410,7 @@ vendor_docstring = """
 > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 """
 rest_path = "/v3/option/snapshot/greeks/first_order"
-returns = "GreeksTicks"
+returns = "GreeksFirstOrderTicks"
 
 [[endpoints]]
 name = "option_snapshot_greeks_second_order"
@@ -1423,7 +1423,7 @@ vendor_docstring = """
 > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 """
 rest_path = "/v3/option/snapshot/greeks/second_order"
-returns = "GreeksTicks"
+returns = "GreeksSecondOrderTicks"
 
 [[endpoints]]
 name = "option_snapshot_greeks_third_order"
@@ -1436,7 +1436,7 @@ vendor_docstring = """
 > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 """
 rest_path = "/v3/option/snapshot/greeks/third_order"
-returns = "GreeksTicks"
+returns = "GreeksThirdOrderTicks"
 
 [[endpoints]]
 name = "option_history_eod"
@@ -1523,7 +1523,7 @@ vendor_docstring = """
 - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
 """
 rest_path = "/v3/option/history/greeks/eod"
-returns = "GreeksTicks"
+returns = "GreeksAllTicks"
 
 [[endpoints]]
 name = "option_history_greeks_all"
@@ -1536,7 +1536,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/all"
-returns = "GreeksTicks"
+returns = "GreeksAllTicks"
 
 [[endpoints]]
 name = "option_history_trade_greeks_all"
@@ -1549,7 +1549,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/all"
-returns = "GreeksTicks"
+returns = "GreeksAllTicks"
 
 [[endpoints]]
 name = "option_history_greeks_first_order"
@@ -1562,7 +1562,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/first_order"
-returns = "GreeksTicks"
+returns = "GreeksFirstOrderTicks"
 
 [[endpoints]]
 name = "option_history_trade_greeks_first_order"
@@ -1575,7 +1575,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/first_order"
-returns = "GreeksTicks"
+returns = "GreeksFirstOrderTicks"
 
 [[endpoints]]
 name = "option_history_greeks_second_order"
@@ -1588,7 +1588,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/second_order"
-returns = "GreeksTicks"
+returns = "GreeksSecondOrderTicks"
 
 [[endpoints]]
 name = "option_history_trade_greeks_second_order"
@@ -1601,7 +1601,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/second_order"
-returns = "GreeksTicks"
+returns = "GreeksSecondOrderTicks"
 
 [[endpoints]]
 name = "option_history_greeks_third_order"
@@ -1614,7 +1614,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/third_order"
-returns = "GreeksTicks"
+returns = "GreeksThirdOrderTicks"
 
 [[endpoints]]
 name = "option_history_trade_greeks_third_order"
@@ -1627,7 +1627,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/third_order"
-returns = "GreeksTicks"
+returns = "GreeksThirdOrderTicks"
 
 [[endpoints]]
 name = "option_history_greeks_implied_volatility"

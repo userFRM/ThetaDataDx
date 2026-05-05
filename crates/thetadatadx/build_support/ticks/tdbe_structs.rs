@@ -89,11 +89,10 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
         writeln!(out, "    pub {}: {rust_ty},", column.field).unwrap();
     }
 
-    if type_name == "QuoteTick" {
-        out.push_str("    /// Pre-computed midpoint: `(bid + ask) / 2.0`.\n");
-        out.push_str("    pub midpoint: f64,\n");
-    }
-
+    // Field order MUST match the legacy `tick.rs` layout for FFI ABI
+    // compatibility: `contract_id` triple comes BEFORE `QuoteTick.midpoint`.
+    // Reordering would silently shift offsets for already-compiled C / C++ /
+    // Go consumers even when total `size_of` stays the same.
     if def.contract_id {
         out.push_str("    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.\n");
         out.push_str("    pub expiration: i32,\n");
@@ -101,6 +100,11 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
         out.push_str("    pub strike: f64,\n");
         out.push_str("    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.\n");
         out.push_str("    pub right: i32,\n");
+    }
+
+    if type_name == "QuoteTick" {
+        out.push_str("    /// Pre-computed midpoint: `(bid + ask) / 2.0`.\n");
+        out.push_str("    pub midpoint: f64,\n");
     }
 
     out.push_str("}\n");

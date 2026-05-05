@@ -24,8 +24,8 @@ use super::model::{GeneratedEndpoint, GeneratedParam};
 // ─────────────────────────── Render-map loader ─────────────────────────────
 
 /// Per-tick binding-name map keyed by wire-collection plural (e.g.
-/// `"GreeksTicks"`). Loaded once from `tick_schema.toml` on the first call
-/// and shared across every renderer.
+/// `"GreeksAllTicks"`). Loaded once from `tick_schema.toml` on the first
+/// call and shared across every renderer.
 #[derive(Debug, Clone)]
 pub(super) struct TickRender {
     pub(super) direct: String,
@@ -33,7 +33,6 @@ pub(super) struct TickRender {
     pub(super) go_struct: String,
     pub(super) go_converter: String,
     pub(super) ffi_array: String,
-    pub(super) ffi_array_empty: String,
     pub(super) ffi_output_variant: String,
     pub(super) ffi_from_vec_array: String,
     pub(super) ffi_header_return: String,
@@ -67,7 +66,6 @@ struct TickRenderToml {
     go_struct: String,
     go_converter: String,
     ffi_array: String,
-    ffi_array_empty: String,
     ffi_output_variant: String,
     ffi_from_vec_array: String,
     ffi_header_return: String,
@@ -105,7 +103,6 @@ fn load_render_map() -> HashMap<String, TickRender> {
             go_struct: render.go_struct,
             go_converter: render.go_converter,
             ffi_array: render.ffi_array,
-            ffi_array_empty: render.ffi_array_empty,
             ffi_output_variant: render.ffi_output_variant,
             ffi_from_vec_array: render.ffi_from_vec_array,
             ffi_header_return: render.ffi_header_return,
@@ -574,17 +571,6 @@ pub(super) fn ffi_array_type(return_type: &str) -> String {
         return "TdxStringArray".into();
     }
     render_for(return_type).ffi_array.clone()
-}
-
-pub(super) fn ffi_array_empty_expr(return_type: &str) -> String {
-    if return_type == "OptionContracts" {
-        // OptionContractArray uses `*mut` pointers so the empty literal cannot
-        // share the generic ARRAY_EMPTY constant. Render the explicit struct
-        // literal instead, with the indentation the existing emitter expects.
-        return "TdxOptionContractArray {\n        data: ptr::null_mut(),\n        len: 0,\n    }"
-            .into();
-    }
-    render_for(return_type).ffi_array_empty.clone()
 }
 
 pub(super) fn ffi_output_variant(return_type: &str) -> String {

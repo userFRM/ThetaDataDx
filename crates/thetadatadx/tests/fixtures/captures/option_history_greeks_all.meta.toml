@@ -3,7 +3,7 @@
 # Single chunk, 79 rows (market hours / 5 min).
 
 endpoint = "option_history_greeks_all"
-tick_type = "GreeksTick"
+tick_type = "GreeksAllTick"
 expected_rows = 79
 expected_headers = [
     "symbol", "expiration", "strike", "right",

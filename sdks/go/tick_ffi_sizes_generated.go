@@ -5,7 +5,10 @@ package thetadatadx
 const (
 	CCalendarDayExpectedSize uintptr = 64
 	CEodTickExpectedSize uintptr = 128
-	CGreeksTickExpectedSize uintptr = 256
+	CGreeksAllTickExpectedSize uintptr = 256
+	CGreeksFirstOrderTickExpectedSize uintptr = 128
+	CGreeksSecondOrderTickExpectedSize uintptr = 128
+	CGreeksThirdOrderTickExpectedSize uintptr = 128
 	CInterestRateTickExpectedSize uintptr = 64
 	CIvTickExpectedSize uintptr = 64
 	CMarketValueTickExpectedSize uintptr = 64

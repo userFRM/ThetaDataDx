@@ -131,7 +131,10 @@ fn every_tick_type_has_arrow_impl() {
     fn _assert<T: ?Sized + TicksArrowExt>() {}
     _assert::<[tick::CalendarDay]>();
     _assert::<[tick::EodTick]>();
-    _assert::<[tick::GreeksTick]>();
+    _assert::<[tick::GreeksAllTick]>();
+    _assert::<[tick::GreeksFirstOrderTick]>();
+    _assert::<[tick::GreeksSecondOrderTick]>();
+    _assert::<[tick::GreeksThirdOrderTick]>();
     _assert::<[tick::InterestRateTick]>();
     _assert::<[tick::IvTick]>();
     _assert::<[tick::MarketValueTick]>();

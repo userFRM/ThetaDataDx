@@ -154,7 +154,13 @@ tick_array_type!(TdxEodTickArray, tdbe::EodTick);
 tick_array_type!(TdxOhlcTickArray, tdbe::OhlcTick);
 tick_array_type!(TdxTradeTickArray, tdbe::TradeTick);
 tick_array_type!(TdxQuoteTickArray, tdbe::QuoteTick);
-tick_array_type!(TdxGreeksTickArray, tdbe::GreeksTick);
+// Per-order Greeks subsets emitted by `option_*_greeks_first_order` /
+// `_second_order` / `_third_order`. The full union (`option_*_greeks_all`,
+// `_greeks_eod`) lands on `TdxGreeksAllTickArray`.
+tick_array_type!(TdxGreeksAllTickArray, tdbe::GreeksAllTick);
+tick_array_type!(TdxGreeksFirstOrderTickArray, tdbe::GreeksFirstOrderTick);
+tick_array_type!(TdxGreeksSecondOrderTickArray, tdbe::GreeksSecondOrderTick);
+tick_array_type!(TdxGreeksThirdOrderTickArray, tdbe::GreeksThirdOrderTick);
 tick_array_type!(TdxIvTickArray, tdbe::IvTick);
 tick_array_type!(TdxPriceTickArray, tdbe::PriceTick);
 tick_array_type!(TdxOpenInterestTickArray, tdbe::OpenInterestTick);
@@ -180,7 +186,19 @@ tick_array_free!(tdx_eod_tick_array_free, TdxEodTickArray);
 tick_array_free!(tdx_ohlc_tick_array_free, TdxOhlcTickArray);
 tick_array_free!(tdx_trade_tick_array_free, TdxTradeTickArray);
 tick_array_free!(tdx_quote_tick_array_free, TdxQuoteTickArray);
-tick_array_free!(tdx_greeks_tick_array_free, TdxGreeksTickArray);
+tick_array_free!(tdx_greeks_all_tick_array_free, TdxGreeksAllTickArray);
+tick_array_free!(
+    tdx_greeks_first_order_tick_array_free,
+    TdxGreeksFirstOrderTickArray
+);
+tick_array_free!(
+    tdx_greeks_second_order_tick_array_free,
+    TdxGreeksSecondOrderTickArray
+);
+tick_array_free!(
+    tdx_greeks_third_order_tick_array_free,
+    TdxGreeksThirdOrderTickArray
+);
 tick_array_free!(tdx_iv_tick_array_free, TdxIvTickArray);
 tick_array_free!(tdx_price_tick_array_free, TdxPriceTickArray);
 tick_array_free!(tdx_open_interest_tick_array_free, TdxOpenInterestTickArray);

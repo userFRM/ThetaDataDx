@@ -4,8 +4,14 @@ static_assert(sizeof(CalendarDay) == 64 && alignof(CalendarDay) == 64,
               "TdxCalendarDay layout drifted from Rust");
 static_assert(sizeof(EodTick) == 128 && alignof(EodTick) == 64,
               "TdxEodTick layout drifted from Rust");
-static_assert(sizeof(GreeksTick) == 256 && alignof(GreeksTick) == 64,
-              "TdxGreeksTick layout drifted from Rust");
+static_assert(sizeof(GreeksAllTick) == 256 && alignof(GreeksAllTick) == 64,
+              "TdxGreeksAllTick layout drifted from Rust");
+static_assert(sizeof(GreeksFirstOrderTick) == 128 && alignof(GreeksFirstOrderTick) == 64,
+              "TdxGreeksFirstOrderTick layout drifted from Rust");
+static_assert(sizeof(GreeksSecondOrderTick) == 128 && alignof(GreeksSecondOrderTick) == 64,
+              "TdxGreeksSecondOrderTick layout drifted from Rust");
+static_assert(sizeof(GreeksThirdOrderTick) == 128 && alignof(GreeksThirdOrderTick) == 64,
+              "TdxGreeksThirdOrderTick layout drifted from Rust");
 static_assert(sizeof(InterestRateTick) == 64 && alignof(InterestRateTick) == 64,
               "TdxInterestRateTick layout drifted from Rust");
 static_assert(sizeof(IvTick) == 64 && alignof(IvTick) == 64,

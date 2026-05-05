@@ -157,8 +157,9 @@ pub use tdbe::greeks::{all_greeks, implied_volatility, GreeksResult};
 // consumers stay on a single dep. The companion items above
 // (`ParsedRight`, `GreeksResult`, …) follow the same policy.
 pub use tdbe::types::tick::{
-    CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
-    OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
+    CalendarDay, EodTick, GreeksAllTick, GreeksFirstOrderTick, GreeksSecondOrderTick,
+    GreeksThirdOrderTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick,
+    OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
 };
 
 // Enums + the `Price` wrapper appear on SDK method signatures and inside

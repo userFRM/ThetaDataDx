@@ -45,8 +45,10 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("strike", DataType::Float64, false),
             Field::new("right", DataType::Utf8, false),
         ]))),
-        "GreeksTick" => Some(Arc::new(Schema::new(vec![
+        "GreeksAllTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("bid", DataType::Float64, false),
+            Field::new("ask", DataType::Float64, false),
             Field::new("implied_volatility", DataType::Float64, false),
             Field::new("delta", DataType::Float64, false),
             Field::new("gamma", DataType::Float64, false),
@@ -69,6 +71,62 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("epsilon", DataType::Float64, false),
             Field::new("lambda", DataType::Float64, false),
             Field::new("vera", DataType::Float64, false),
+            Field::new("underlying_ms_of_day", DataType::Int32, false),
+            Field::new("underlying_price", DataType::Float64, false),
+            Field::new("date", DataType::Int32, false),
+            Field::new("expiration", DataType::Int32, false),
+            Field::new("strike", DataType::Float64, false),
+            Field::new("right", DataType::Utf8, false),
+        ]))),
+        "GreeksFirstOrderTick" => Some(Arc::new(Schema::new(vec![
+            Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("bid", DataType::Float64, false),
+            Field::new("ask", DataType::Float64, false),
+            Field::new("delta", DataType::Float64, false),
+            Field::new("theta", DataType::Float64, false),
+            Field::new("vega", DataType::Float64, false),
+            Field::new("rho", DataType::Float64, false),
+            Field::new("epsilon", DataType::Float64, false),
+            Field::new("lambda", DataType::Float64, false),
+            Field::new("implied_volatility", DataType::Float64, false),
+            Field::new("iv_error", DataType::Float64, false),
+            Field::new("underlying_ms_of_day", DataType::Int32, false),
+            Field::new("underlying_price", DataType::Float64, false),
+            Field::new("date", DataType::Int32, false),
+            Field::new("expiration", DataType::Int32, false),
+            Field::new("strike", DataType::Float64, false),
+            Field::new("right", DataType::Utf8, false),
+        ]))),
+        "GreeksSecondOrderTick" => Some(Arc::new(Schema::new(vec![
+            Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("bid", DataType::Float64, false),
+            Field::new("ask", DataType::Float64, false),
+            Field::new("gamma", DataType::Float64, false),
+            Field::new("vanna", DataType::Float64, false),
+            Field::new("charm", DataType::Float64, false),
+            Field::new("vomma", DataType::Float64, false),
+            Field::new("veta", DataType::Float64, false),
+            Field::new("implied_volatility", DataType::Float64, false),
+            Field::new("iv_error", DataType::Float64, false),
+            Field::new("underlying_ms_of_day", DataType::Int32, false),
+            Field::new("underlying_price", DataType::Float64, false),
+            Field::new("date", DataType::Int32, false),
+            Field::new("expiration", DataType::Int32, false),
+            Field::new("strike", DataType::Float64, false),
+            Field::new("right", DataType::Utf8, false),
+        ]))),
+        "GreeksThirdOrderTick" => Some(Arc::new(Schema::new(vec![
+            Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("bid", DataType::Float64, false),
+            Field::new("ask", DataType::Float64, false),
+            Field::new("speed", DataType::Float64, false),
+            Field::new("zomma", DataType::Float64, false),
+            Field::new("color", DataType::Float64, false),
+            Field::new("ultima", DataType::Float64, false),
+            Field::new("implied_volatility", DataType::Float64, false),
+            Field::new("iv_error", DataType::Float64, false),
+            Field::new("underlying_ms_of_day", DataType::Int32, false),
+            Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, false),
             Field::new("strike", DataType::Float64, false),
@@ -331,10 +389,12 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
-    fn read_arrow_batch_from_greeks_tick_slice(ticks: &[tick::GreeksTick]) -> PyResult<RecordBatch> {
-        let schema = arrow_schema_for_qualname("GreeksTick").expect("generated schema must be present for GreeksTick");
+    fn read_arrow_batch_from_greeks_all_tick_slice(ticks: &[tick::GreeksAllTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("GreeksAllTick").expect("generated schema must be present for GreeksAllTick");
         let n = ticks.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ask: Vec<f64> = Vec::with_capacity(n);
         let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
         let mut col_delta: Vec<f64> = Vec::with_capacity(n);
         let mut col_gamma: Vec<f64> = Vec::with_capacity(n);
@@ -357,12 +417,16 @@ pub(crate) mod slice_arrow {
         let mut col_epsilon: Vec<f64> = Vec::with_capacity(n);
         let mut col_lambda: Vec<f64> = Vec::with_capacity(n);
         let mut col_vera: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
         let mut col_strike: Vec<f64> = Vec::with_capacity(n);
         let mut col_right: Vec<String> = Vec::with_capacity(n);
         for t in ticks {
             col_ms_of_day.push(t.ms_of_day);
+            col_bid.push(t.bid);
+            col_ask.push(t.ask);
             col_implied_volatility.push(t.implied_volatility);
             col_delta.push(t.delta);
             col_gamma.push(t.gamma);
@@ -385,6 +449,8 @@ pub(crate) mod slice_arrow {
             col_epsilon.push(t.epsilon);
             col_lambda.push(t.lambda);
             col_vera.push(t.vera);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
             col_expiration.push(t.expiration);
             col_strike.push(t.strike);
@@ -392,6 +458,8 @@ pub(crate) mod slice_arrow {
         }
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_bid)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ask)) as ArrayRef,
             Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
             Arc::new(Float64Array::from(col_delta)) as ArrayRef,
             Arc::new(Float64Array::from(col_gamma)) as ArrayRef,
@@ -414,6 +482,8 @@ pub(crate) mod slice_arrow {
             Arc::new(Float64Array::from(col_epsilon)) as ArrayRef,
             Arc::new(Float64Array::from(col_lambda)) as ArrayRef,
             Arc::new(Float64Array::from(col_vera)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
@@ -422,12 +492,213 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
-    /// Convert a decoder-owned `&[tick::GreeksTick]` slice into a
+    /// Convert a decoder-owned `&[tick::GreeksAllTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
     /// double-buffering RSS spike of the pyclass-list converter.
-    pub(crate) fn greeks_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::GreeksTick]) -> PyResult<Py<PyAny>> {
-        let batch = read_arrow_batch_from_greeks_tick_slice(ticks)?;
+    pub(crate) fn greeks_all_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::GreeksAllTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_greeks_all_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_greeks_first_order_tick_slice(ticks: &[tick::GreeksFirstOrderTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("GreeksFirstOrderTick").expect("generated schema must be present for GreeksFirstOrderTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ask: Vec<f64> = Vec::with_capacity(n);
+        let mut col_delta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_theta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vega: Vec<f64> = Vec::with_capacity(n);
+        let mut col_rho: Vec<f64> = Vec::with_capacity(n);
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(n);
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_bid.push(t.bid);
+            col_ask.push(t.ask);
+            col_delta.push(t.delta);
+            col_theta.push(t.theta);
+            col_vega.push(t.vega);
+            col_rho.push(t.rho);
+            col_epsilon.push(t.epsilon);
+            col_lambda.push(t.lambda);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_bid)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ask)) as ArrayRef,
+            Arc::new(Float64Array::from(col_delta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_theta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vega)) as ArrayRef,
+            Arc::new(Float64Array::from(col_rho)) as ArrayRef,
+            Arc::new(Float64Array::from(col_epsilon)) as ArrayRef,
+            Arc::new(Float64Array::from(col_lambda)) as ArrayRef,
+            Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::GreeksFirstOrderTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn greeks_first_order_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::GreeksFirstOrderTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_greeks_first_order_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_greeks_second_order_tick_slice(ticks: &[tick::GreeksSecondOrderTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("GreeksSecondOrderTick").expect("generated schema must be present for GreeksSecondOrderTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ask: Vec<f64> = Vec::with_capacity(n);
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(n);
+        let mut col_charm: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_veta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_bid.push(t.bid);
+            col_ask.push(t.ask);
+            col_gamma.push(t.gamma);
+            col_vanna.push(t.vanna);
+            col_charm.push(t.charm);
+            col_vomma.push(t.vomma);
+            col_veta.push(t.veta);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_bid)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ask)) as ArrayRef,
+            Arc::new(Float64Array::from(col_gamma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vanna)) as ArrayRef,
+            Arc::new(Float64Array::from(col_charm)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vomma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_veta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::GreeksSecondOrderTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn greeks_second_order_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::GreeksSecondOrderTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_greeks_second_order_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_greeks_third_order_tick_slice(ticks: &[tick::GreeksThirdOrderTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("GreeksThirdOrderTick").expect("generated schema must be present for GreeksThirdOrderTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ask: Vec<f64> = Vec::with_capacity(n);
+        let mut col_speed: Vec<f64> = Vec::with_capacity(n);
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_color: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_bid.push(t.bid);
+            col_ask.push(t.ask);
+            col_speed.push(t.speed);
+            col_zomma.push(t.zomma);
+            col_color.push(t.color);
+            col_ultima.push(t.ultima);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_bid)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ask)) as ArrayRef,
+            Arc::new(Float64Array::from(col_speed)) as ArrayRef,
+            Arc::new(Float64Array::from(col_zomma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_color)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ultima)) as ArrayRef,
+            Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::GreeksThirdOrderTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn greeks_third_order_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::GreeksThirdOrderTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_greeks_third_order_tick_slice(ticks)?;
         record_batch_to_pyarrow_table(py, batch)
     }
 

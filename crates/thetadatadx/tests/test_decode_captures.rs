@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 
 use prost::Message;
 use serde::Deserialize;
-use tdbe::types::tick::{CalendarDay, EodTick, GreeksTick, OhlcTick, TradeQuoteTick, TradeTick};
+use tdbe::types::tick::{CalendarDay, EodTick, GreeksAllTick, OhlcTick, TradeQuoteTick, TradeTick};
 use thetadatadx::decode::{self, DecodeError};
 use thetadatadx::proto;
 
@@ -271,7 +271,8 @@ fn decode_captures_option_history_greeks_all() {
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
 
-    let ticks: Vec<GreeksTick> = decode::parse_greeks_ticks(&table).expect("parse_greeks_ticks");
+    let ticks: Vec<GreeksAllTick> =
+        decode::parse_greeks_all_ticks(&table).expect("parse_greeks_all_ticks");
     assert_eq!(ticks.len(), table.data_table.len());
 
     let first = ticks.first().unwrap();
