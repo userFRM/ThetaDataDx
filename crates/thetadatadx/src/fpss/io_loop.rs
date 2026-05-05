@@ -684,13 +684,17 @@ pub(super) fn io_loop<F>(
     tracing::debug!("fpss-io thread exiting");
 }
 
-/// Check if an error is a read timeout (`WouldBlock` or `TimedOut`).
+/// Check if an error is a transient read condition that should drain
+/// commands and retry rather than tear the connection down.
+///
+/// Delegates to [`super::framing::is_transient_read`] for the kind
+/// classification so all three FPSS read sites (this loop, mid-header,
+/// mid-payload) share one definition. Recognises `WouldBlock`,
+/// `TimedOut`, and Windows `ERROR_IO_PENDING` (raw OS 997, surfaced as
+/// `ErrorKind::Uncategorized` by `std`) — see issue #469.
 fn is_read_timeout(e: &Error) -> bool {
     match e {
-        Error::Io(io_err) => matches!(
-            io_err.kind(),
-            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-        ),
+        Error::Io(io_err) => super::framing::is_transient_read(io_err),
         _ => false,
     }
 }
