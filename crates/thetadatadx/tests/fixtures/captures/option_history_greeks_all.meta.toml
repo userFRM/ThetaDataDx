@@ -25,3 +25,12 @@ first_row_right = 67   # ASCII 'C'
 # a clamped delta sentinel of 0.99999 (deep ITM call, no quote at open).
 first_row_delta = 0.99999
 first_row_iv_error = 100.0
+# Fixed-point fields fed through HEADER_ALIASES — the wire-level columns
+# are `implied_vol` and `underlying_timestamp`, the parser binds them to
+# `implied_volatility` and `underlying_ms_of_day` via the alias table in
+# `decode.rs`. Pinning their decoded values here catches any silent
+# regression of the alias mapping (which would zero-default the fields).
+first_row_implied_volatility = 0.0
+first_row_underlying_ms_of_day = 34200000
+first_row_underlying_price = 540.86
+first_row_date = 20240614

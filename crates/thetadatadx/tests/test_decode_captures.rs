@@ -296,6 +296,28 @@ fn decode_captures_option_history_greeks_all() {
         first.iv_error,
         meta_float(&meta, "first_row_iv_error"),
     );
+    // Alias-decoded fields. The wire columns are `implied_vol` and
+    // `underlying_timestamp`; `decode.rs::HEADER_ALIASES` rewrites them
+    // to `implied_volatility` and `underlying_ms_of_day` so the parser's
+    // `find_header` calls hit. Asserting their decoded values pins both
+    // alias mappings -- a regression that breaks either alias would
+    // silently zero-default the field, which an `is_empty()` check or
+    // header-list check could not detect.
+    assert_f64_eq(
+        "implied_volatility",
+        first.implied_volatility,
+        meta_float(&meta, "first_row_implied_volatility"),
+    );
+    assert_eq!(
+        first.underlying_ms_of_day as i64,
+        meta_int(&meta, "first_row_underlying_ms_of_day"),
+    );
+    assert_f64_eq(
+        "underlying_price",
+        first.underlying_price,
+        meta_float(&meta, "first_row_underlying_price"),
+    );
+    assert_eq!(first.date as i64, meta_int(&meta, "first_row_date"));
 }
 
 #[test]
