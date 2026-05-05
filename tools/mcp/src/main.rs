@@ -1141,7 +1141,7 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use tdbe::types::tick::{EodTick, GreeksTick, QuoteTick, TradeQuoteTick};
+    use tdbe::types::tick::{EodTick, GreeksAllTick, QuoteTick, TradeQuoteTick};
 
     fn sample_eod_tick(expiration: i32, strike: f64, right: i32) -> EodTick {
         EodTick {
@@ -1168,9 +1168,11 @@ mod tests {
         }
     }
 
-    fn sample_greeks_tick(expiration: i32, strike: f64, right: i32) -> GreeksTick {
-        GreeksTick {
+    fn sample_greeks_tick(expiration: i32, strike: f64, right: i32) -> GreeksAllTick {
+        GreeksAllTick {
             ms_of_day: 0,
+            bid: 0.0,
+            ask: 0.0,
             implied_volatility: 0.25,
             delta: 0.5,
             gamma: 0.1,
@@ -1193,6 +1195,8 @@ mod tests {
             epsilon: 0.0,
             lambda: 0.0,
             vera: 0.0,
+            underlying_ms_of_day: 0,
+            underlying_price: 0.0,
             date: 20221219,
             expiration,
             strike,
@@ -1422,7 +1426,7 @@ mod tests {
 
     #[test]
     fn serialize_option_history_greeks_eod_omits_contract_identifiers_for_single_contract_rows() {
-        let payload = serialize_greeks_ticks(&[sample_greeks_tick(0, 0.0, 0)]);
+        let payload = serialize_greeks_all_ticks(&[sample_greeks_tick(0, 0.0, 0)]);
         let tick = payload
             .get("ticks")
             .and_then(|value: &Value| value.as_array())
@@ -1533,7 +1537,7 @@ mod tests {
     #[test]
     fn serialize_greeks_ticks_includes_all_22_greeks() {
         let tick = sample_greeks_tick(0, 0.0, 0);
-        let payload = serialize_greeks_ticks(&[tick]);
+        let payload = serialize_greeks_all_ticks(&[tick]);
         let row = payload["ticks"].as_array().unwrap().first().unwrap();
         for key in [
             "implied_volatility",
