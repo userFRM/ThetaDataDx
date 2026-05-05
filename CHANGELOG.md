@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.26] - 2026-05-05
+
+### Fixed
+
+- **`option_*_greeks_*_order` no longer spams `expected column header
+  not found` warnings.** `crates/thetadatadx/src/decode.rs::find_header`
+  emitted a `tracing::warn!` every time a generated parser asked for an
+  optional column that was absent from the wire response. The Greeks
+  family splits the column set across the wire — `_greeks_first_order`
+  ships seven Greeks, `_greeks_second_order` ships five, and
+  `_greeks_third_order` ships four — but the shared `GreeksTick` schema
+  carries the full 23-Greek union. Calling
+  `option_snapshot_greeks_third_order` therefore produced eight warn
+  lines per response (zomma, color, ultima, d1, d2, dual_delta,
+  dual_gamma, vera, …) before any user-visible decoding finished. The
+  warn is now a `tracing::trace!` so the diagnostic is still reachable
+  via `RUST_LOG=thetadatadx=trace` for genuine schema-drift
+  investigations, but stays out of stderr on routine subset calls.
+  Required-column drift continues to surface as a typed
+  `Error::MissingRequiredHeader` from the generated parser. Closes #472.
+
+### Changed
+
+- Per-endpoint vendor-schema column lists for the four Greeks families
+  pinned and documented in `tick_schema.toml::GreeksTick` against the
+  upstream OpenAPI capture in `scripts/upstream_openapi.yaml`. The
+  `GreeksTick` struct itself is unchanged — every Greeks endpoint still
+  returns `Vec<GreeksTick>` and the union layout is the same — but the
+  schema doc-comment now spells out which Greeks each endpoint
+  publishes, why the others zero-default, and where the per-endpoint
+  vendor schema is captured. The codegen pickup is doc-only; no SDK
+  surface drift.
+- Three new unit tests in `crates/thetadatadx/src/decode.rs::tests`
+  drive `parse_greeks_ticks` against the `_first_order`,
+  `_second_order`, and `_third_order` wire shapes (column lists pinned
+  to upstream OpenAPI). Each test asserts bit-exact decoded values for
+  the wire-present columns and `0.0` defaults for the documented gaps,
+  so a future regression of `find_header` back to `tracing::warn!` —
+  or any column-list drift in either direction — surfaces as a
+  behavioural test failure rather than as live log spam.
+- `tdbe` 0.12.6 → 0.12.7.
+
 ## [8.0.25] - 2026-05-05
 
 ### Fixed

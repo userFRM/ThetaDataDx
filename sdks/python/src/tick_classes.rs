@@ -101,7 +101,25 @@ impl EodTick {
     }
 }
 
-/// Greeks tick. Full set of option greeks.
+/// Greeks tick. Full union of every Greek the v3 server
+/// publishes across the `option_*_greeks_*` family.
+/// 
+/// Endpoint-specific subsets reuse this struct; absent columns decode to
+/// `0.0` and the per-endpoint vendor schema is documented via the upstream
+/// OpenAPI capture (`scripts/upstream_openapi.yaml`):
+/// 
+/// * `option_*_greeks_first_order`  -> delta / theta / vega / rho / epsilon / lambda + IV pair
+/// * `option_*_greeks_second_order` -> gamma / vanna / charm / vomma / veta + IV pair
+/// * `option_*_greeks_third_order`  -> speed / zomma / color / ultima + IV pair (no vera)
+/// * `option_*_greeks_all` / `option_*_greeks_eod` -> the full union below
+/// * `option_*_greeks_implied_volatility` -> handled by `IvTick`
+/// 
+/// The wire-level `timestamp` -> `ms_of_day` and `implied_vol` ->
+/// `implied_volatility` mappings are applied through `HEADER_ALIASES`
+/// in `crates/thetadatadx/src/decode.rs`. Optional columns absent from a
+/// subset response (e.g. `zomma` on the first-order endpoint) are silently
+/// defaulted to `0.0`; the parser never warns on a documented subset gap
+/// (see `find_header` for the trace-level diagnostic path).
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]

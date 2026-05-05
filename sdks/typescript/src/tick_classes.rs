@@ -43,7 +43,7 @@ pub struct EodTick {
     pub right: String,
 }
 
-/// Greeks tick. Full set of option greeks.
+/// Greeks tick. Full union of every Greek the v3 server
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
