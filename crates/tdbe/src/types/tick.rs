@@ -1,264 +1,20 @@
-/// Calendar day. Market open/close schedule.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct CalendarDay {
-    pub date: i32,
-    pub is_open: i32,
-    pub open_time: i32,
-    pub close_time: i32,
-    pub status: i32,
-}
+//! Per-tick `#[repr(C, align(N))]` struct definitions plus the items the
+//! schema cannot (yet) express:
+//!
+//! * `impl_contract_id!` macro applications -- the `is_call` / `is_put` /
+//!   `has_contract_id` helpers shared by every tick type that injects a
+//!   `(expiration, strike, right)` triple from `contract_id = true`.
+//! * `impl TradeTick` flag helpers (`is_cancelled`, `regular_trading_hours`,
+//!   ...). These read `flags::*` constants and don't fit the schema's
+//!   field-only model.
+//! * `impl OptionContract` for `is_call` / `is_put` -- a non-`Copy` struct
+//!   so the macro doesn't apply.
+//!
+//! The structs themselves are generated at build-time from
+//! `crates/thetadatadx/tick_schema.toml` by
+//! `cargo run -p thetadatadx --bin generate_sdk_surfaces`.
 
-/// End-of-day tick. Full EOD snapshot with OHLC + quote.
-///
-/// All price fields are decoded to `f64` during parsing.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct EodTick {
-    pub ms_of_day: i32,
-    pub ms_of_day2: i32,
-    pub open: f64,
-    pub high: f64,
-    pub low: f64,
-    pub close: f64,
-    pub volume: i64,
-    pub count: i64,
-    pub bid_size: i32,
-    pub bid_exchange: i32,
-    pub bid: f64,
-    pub bid_condition: i32,
-    pub ask_size: i32,
-    pub ask_exchange: i32,
-    pub ask: f64,
-    pub ask_condition: i32,
-    pub date: i32,
-    /// Contract expiration (YYYYMMDD). Populated on wildcard queries, 0 otherwise.
-    pub expiration: i32,
-    /// Contract strike price (decoded to `f64`).
-    pub strike: f64,
-    /// Contract right (C=67, P=80 ASCII). 0 on single-contract queries.
-    pub right: i32,
-}
-
-/// Greeks tick. Full set of option greeks.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct GreeksTick {
-    pub ms_of_day: i32,
-    pub implied_volatility: f64,
-    pub delta: f64,
-    pub gamma: f64,
-    pub theta: f64,
-    pub vega: f64,
-    pub rho: f64,
-    pub iv_error: f64,
-    pub vanna: f64,
-    pub charm: f64,
-    pub vomma: f64,
-    pub veta: f64,
-    pub speed: f64,
-    pub zomma: f64,
-    pub color: f64,
-    pub ultima: f64,
-    pub d1: f64,
-    pub d2: f64,
-    pub dual_delta: f64,
-    pub dual_gamma: f64,
-    pub epsilon: f64,
-    pub lambda: f64,
-    pub vera: f64,
-    pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: i32,
-}
-
-/// Interest rate tick.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct InterestRateTick {
-    pub ms_of_day: i32,
-    pub rate: f64,
-    pub date: i32,
-}
-
-/// Implied volatility tick.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct IvTick {
-    pub ms_of_day: i32,
-    pub implied_volatility: f64,
-    pub iv_error: f64,
-    pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: i32,
-}
-
-/// Market value tick — quoted bid/ask/price for a symbol.
-///
-/// All price fields are decoded to `f64` during parsing.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct MarketValueTick {
-    pub ms_of_day: i32,
-    pub market_bid: f64,
-    pub market_ask: f64,
-    pub market_price: f64,
-    pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: i32,
-}
-
-/// OHLC tick. Aggregated bar data.
-///
-/// All price fields are decoded to `f64` during parsing.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct OhlcTick {
-    pub ms_of_day: i32,
-    pub open: f64,
-    pub high: f64,
-    pub low: f64,
-    pub close: f64,
-    pub volume: i64,
-    pub count: i64,
-    pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: i32,
-}
-
-/// Open interest tick.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct OpenInterestTick {
-    pub ms_of_day: i32,
-    pub open_interest: i32,
-    pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: i32,
-}
-
-/// Option contract specification.
-#[must_use]
-#[derive(Debug, Clone)]
-pub struct OptionContract {
-    pub root: String,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: i32,
-}
-
-/// Price tick. Generic price data point.
-///
-/// Price is decoded to `f64` during parsing.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct PriceTick {
-    pub ms_of_day: i32,
-    pub price: f64,
-    pub date: i32,
-}
-
-/// Quote tick. NBBO quote data.
-///
-/// All price fields are decoded to `f64` during parsing.
-/// `midpoint` is computed as `(bid + ask) / 2.0` at parse time.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct QuoteTick {
-    pub ms_of_day: i32,
-    pub bid_size: i32,
-    pub bid_exchange: i32,
-    pub bid: f64,
-    pub bid_condition: i32,
-    pub ask_size: i32,
-    pub ask_exchange: i32,
-    pub ask: f64,
-    pub ask_condition: i32,
-    pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: i32,
-    /// Pre-computed midpoint: `(bid + ask) / 2.0`.
-    pub midpoint: f64,
-}
-
-/// Combined trade + quote tick.
-///
-/// All price fields are decoded to `f64` during parsing.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct TradeQuoteTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub ext_condition1: i32,
-    pub ext_condition2: i32,
-    pub ext_condition3: i32,
-    pub ext_condition4: i32,
-    pub condition: i32,
-    pub size: i32,
-    pub exchange: i32,
-    pub price: f64,
-    pub condition_flags: i32,
-    pub price_flags: i32,
-    pub volume_type: i32,
-    pub records_back: i32,
-    pub quote_ms_of_day: i32,
-    pub bid_size: i32,
-    pub bid_exchange: i32,
-    pub bid: f64,
-    pub bid_condition: i32,
-    pub ask_size: i32,
-    pub ask_exchange: i32,
-    pub ask: f64,
-    pub ask_condition: i32,
-    pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: i32,
-}
-
-/// Trade tick. Core unit of trade data.
-///
-/// Price is decoded to `f64` during parsing.
-#[must_use]
-#[derive(Debug, Clone, Copy)]
-#[repr(C, align(64))]
-pub struct TradeTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub ext_condition1: i32,
-    pub ext_condition2: i32,
-    pub ext_condition3: i32,
-    pub ext_condition4: i32,
-    pub condition: i32,
-    pub size: i32,
-    pub exchange: i32,
-    pub price: f64,
-    pub condition_flags: i32,
-    pub price_flags: i32,
-    pub volume_type: i32,
-    pub records_back: i32,
-    pub date: i32,
-    pub expiration: i32,
-    pub strike: f64,
-    pub right: i32,
-}
+include!("tick_generated.rs");
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Contract identification helpers
@@ -345,5 +101,90 @@ impl OptionContract {
     #[inline]
     pub fn is_put(&self) -> bool {
         self.right == 80
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Layout asserts -- pin the generated struct sizes/alignments to the values
+//  the C / Go FFI mirrors and `tick_layout_asserts.hpp.inc` rely on. A schema
+//  edit that drifts a layout is caught here on `cargo test --workspace -p tdbe`
+//  before it lands on the FFI side.
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod layout_asserts {
+    use super::*;
+    use std::mem::{align_of, size_of};
+
+    #[test]
+    fn calendar_day_layout() {
+        assert_eq!(size_of::<CalendarDay>(), 64);
+        assert_eq!(align_of::<CalendarDay>(), 64);
+    }
+
+    #[test]
+    fn eod_tick_layout() {
+        assert_eq!(size_of::<EodTick>(), 128);
+        assert_eq!(align_of::<EodTick>(), 64);
+    }
+
+    #[test]
+    fn greeks_tick_layout() {
+        assert_eq!(size_of::<GreeksTick>(), 256);
+        assert_eq!(align_of::<GreeksTick>(), 64);
+    }
+
+    #[test]
+    fn interest_rate_tick_layout() {
+        assert_eq!(size_of::<InterestRateTick>(), 64);
+        assert_eq!(align_of::<InterestRateTick>(), 64);
+    }
+
+    #[test]
+    fn iv_tick_layout() {
+        assert_eq!(size_of::<IvTick>(), 64);
+        assert_eq!(align_of::<IvTick>(), 64);
+    }
+
+    #[test]
+    fn market_value_tick_layout() {
+        assert_eq!(size_of::<MarketValueTick>(), 64);
+        assert_eq!(align_of::<MarketValueTick>(), 64);
+    }
+
+    #[test]
+    fn ohlc_tick_layout() {
+        assert_eq!(size_of::<OhlcTick>(), 128);
+        assert_eq!(align_of::<OhlcTick>(), 64);
+    }
+
+    #[test]
+    fn open_interest_tick_layout() {
+        assert_eq!(size_of::<OpenInterestTick>(), 64);
+        assert_eq!(align_of::<OpenInterestTick>(), 64);
+    }
+
+    #[test]
+    fn price_tick_layout() {
+        assert_eq!(size_of::<PriceTick>(), 64);
+        assert_eq!(align_of::<PriceTick>(), 64);
+    }
+
+    #[test]
+    fn quote_tick_layout() {
+        assert_eq!(size_of::<QuoteTick>(), 128);
+        assert_eq!(align_of::<QuoteTick>(), 64);
+    }
+
+    #[test]
+    fn trade_quote_tick_layout() {
+        assert_eq!(size_of::<TradeQuoteTick>(), 192);
+        assert_eq!(align_of::<TradeQuoteTick>(), 64);
+    }
+
+    #[test]
+    fn trade_tick_layout() {
+        assert_eq!(size_of::<TradeTick>(), 128);
+        assert_eq!(align_of::<TradeTick>(), 64);
     }
 }

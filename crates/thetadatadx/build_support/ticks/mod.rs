@@ -46,6 +46,7 @@ mod python_arrow;
 mod python_classes;
 mod rust_frames;
 mod schema;
+mod tdbe_structs;
 mod typescript;
 
 pub struct GeneratedSourceFile {
@@ -123,6 +124,14 @@ fn render_sdk_generated_files(
         GeneratedSourceFile {
             relative_path: "sdks/go/ffi_layout_generated_test.go",
             contents: go::render_go_tick_ffi_layout_tests(&schema),
+        },
+        GeneratedSourceFile {
+            // tdbe tick structs -- `#[repr(C, align(N))]` definitions
+            // emitted from the schema. Hand-written `tick.rs` `pub use`s
+            // them and adds the macro applications + custom impls the
+            // schema cannot express.
+            relative_path: "crates/tdbe/src/types/tick_generated.rs",
+            contents: tdbe_structs::render_tdbe_tick_structs(&schema),
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/tick_layout_asserts.hpp.inc",
