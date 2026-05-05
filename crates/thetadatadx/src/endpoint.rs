@@ -7,8 +7,9 @@
 use std::collections::BTreeMap;
 
 use tdbe::types::tick::{
-    CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
-    OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
+    CalendarDay, EodTick, GreeksAllTick, GreeksFirstOrderTick, GreeksSecondOrderTick,
+    GreeksThirdOrderTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick,
+    OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
 };
 
 use crate::registry::ParamType;
@@ -402,8 +403,18 @@ pub enum EndpointOutput {
     OpenInterestTicks(Vec<OpenInterestTick>),
     /// `Vec<MarketValueTick>` result.
     MarketValueTicks(Vec<MarketValueTick>),
-    /// `Vec<GreeksTick>` result.
-    GreeksTicks(Vec<GreeksTick>),
+    /// `Vec<GreeksAllTick>` result. Returned by `option_*_greeks_all` and
+    /// `option_*_greeks_eod` endpoints.
+    GreeksAllTicks(Vec<GreeksAllTick>),
+    /// `Vec<GreeksFirstOrderTick>` result. Returned by
+    /// `option_*_greeks_first_order` endpoints.
+    GreeksFirstOrderTicks(Vec<GreeksFirstOrderTick>),
+    /// `Vec<GreeksSecondOrderTick>` result. Returned by
+    /// `option_*_greeks_second_order` endpoints.
+    GreeksSecondOrderTicks(Vec<GreeksSecondOrderTick>),
+    /// `Vec<GreeksThirdOrderTick>` result. Returned by
+    /// `option_*_greeks_third_order` endpoints.
+    GreeksThirdOrderTicks(Vec<GreeksThirdOrderTick>),
     /// `Vec<IvTick>` result.
     IvTicks(Vec<IvTick>),
     /// `Vec<PriceTick>` result.

@@ -21,8 +21,9 @@ use crate::error::Error;
 use crate::proto;
 
 use tdbe::types::tick::{
-    CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
-    OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
+    CalendarDay, EodTick, GreeksAllTick, GreeksFirstOrderTick, GreeksSecondOrderTick,
+    GreeksThirdOrderTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick,
+    OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
 };
 
 use super::client::MddsClient;

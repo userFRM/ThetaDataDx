@@ -1795,9 +1795,9 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
     expiration: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksAllTickArray {
+    ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -1844,7 +1844,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_all", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match TdxGreeksAllTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1872,9 +1872,9 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
     expiration: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksFirstOrderTickArray {
+    ffi_boundary!(TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -1921,7 +1921,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_first_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => match TdxGreeksFirstOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -1949,9 +1949,9 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
     expiration: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksSecondOrderTickArray {
+    ffi_boundary!(TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -1998,7 +1998,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_second_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => match TdxGreeksSecondOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2026,9 +2026,9 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
     expiration: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksThirdOrderTickArray {
+    ffi_boundary!(TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -2075,7 +2075,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_third_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => match TdxGreeksThirdOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2688,9 +2688,9 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
     end_date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksAllTickArray {
+    ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -2767,7 +2767,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match TdxGreeksAllTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2797,9 +2797,9 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksAllTickArray {
+    ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -2861,7 +2861,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_all", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match TdxGreeksAllTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2891,9 +2891,9 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksAllTickArray {
+    ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -2955,7 +2955,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match TdxGreeksAllTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2985,9 +2985,9 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksFirstOrderTickArray {
+    ffi_boundary!(TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -3049,7 +3049,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_first_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => match TdxGreeksFirstOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3079,9 +3079,9 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksFirstOrderTickArray {
+    ffi_boundary!(TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -3143,7 +3143,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => match TdxGreeksFirstOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3173,9 +3173,9 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksSecondOrderTickArray {
+    ffi_boundary!(TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -3237,7 +3237,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_second_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => match TdxGreeksSecondOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3267,9 +3267,9 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksSecondOrderTickArray {
+    ffi_boundary!(TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -3331,7 +3331,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => match TdxGreeksSecondOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3361,9 +3361,9 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksThirdOrderTickArray {
+    ffi_boundary!(TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -3425,7 +3425,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_third_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => match TdxGreeksThirdOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3455,9 +3455,9 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksTickArray {
-    ffi_boundary!(TdxGreeksTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksThirdOrderTickArray {
+    ffi_boundary!(TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
         if client.is_null() {
             set_error("client handle is null");
             return empty;
@@ -3519,7 +3519,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksTicks(values)) => match TdxGreeksTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => match TdxGreeksThirdOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));

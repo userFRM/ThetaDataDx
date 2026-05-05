@@ -3,8 +3,9 @@ use std::cell::RefCell;
 use crate::error::Error;
 use crate::proto;
 use tdbe::types::tick::{
-    CalendarDay, EodTick, GreeksTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick,
-    OpenInterestTick, OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
+    CalendarDay, EodTick, GreeksAllTick, GreeksFirstOrderTick, GreeksSecondOrderTick,
+    GreeksThirdOrderTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick,
+    OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
 };
 use thiserror::Error as ThisError;
 
@@ -99,6 +100,13 @@ const HEADER_ALIASES: &[(&str, &str)] = &[
     ("root", "symbol"),
     // v3 uses "implied_vol" where the schema says "implied_volatility"
     ("implied_volatility", "implied_vol"),
+    // The vendor's per-order Greeks endpoints (`option_*_greeks_*_order`)
+    // and the `_greeks_all` / `_greeks_eod` endpoints publish the
+    // underlying snapshot timestamp as `underlying_timestamp`. The tick
+    // schema models it as `underlying_ms_of_day` so the wire conversion
+    // (Timestamp -> ms-of-day) flows through the standard `row_number`
+    // path without a per-tick parser branch.
+    ("underlying_ms_of_day", "underlying_timestamp"),
 ];
 
 /// Helper: find a column index by name, with alias fallback.
@@ -1719,7 +1727,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_greeks_ticks_decodes_price_encoded_greeks() {
+    fn parse_greeks_all_ticks_decodes_price_encoded_greeks() {
         // Regression: v7.2.0 strict decode rejected Price cells for Greek
         // columns, but the v3 MDDS server sends Greeks as Price-encoded
         // values (mirroring Java's `dataValue2Object` -> BigDecimal path).
@@ -1742,21 +1750,72 @@ mod tests {
                 dv_price(5, 9),
             ])],
         };
-        let ticks = parse_greeks_ticks(&table).unwrap();
+        let ticks = parse_greeks_all_ticks(&table).unwrap();
         assert_eq!(ticks.len(), 1);
         assert!((ticks[0].implied_volatility - 0.1234).abs() < 1e-10);
         assert!((ticks[0].delta - 0.5).abs() < 1e-10);
     }
 
+    /// Pin the `implied_vol → implied_volatility` and `underlying_timestamp
+    /// → underlying_ms_of_day` aliases in `HEADER_ALIASES` (decode.rs:82) by
+    /// decoding a wire payload whose headers use ONLY the v3 server-side
+    /// names. If either alias entry is dropped or mistyped, the matching
+    /// schema field silently zero-defaults via `opt_float` / `opt_number`
+    /// (see the generated `parse_greeks_all_ticks` body), and this test
+    /// catches that regression.
+    ///
+    /// The companion fixture-driven test
+    /// `crates/thetadatadx/tests/test_decode_captures.rs::greeks_all_*`
+    /// can't catch a broken `implied_vol` alias on its own because the
+    /// captured fixture's `first_row_implied_volatility` is `0.0` — a
+    /// missing alias and a real zero IV are indistinguishable there.
     #[test]
-    fn parse_greeks_ticks_still_decodes_number_cells() {
+    fn parse_greeks_all_ticks_resolves_implied_vol_and_underlying_timestamp_aliases() {
+        // Headers use the v3 server-side names. Schema names
+        // (`implied_volatility`, `underlying_ms_of_day`) are deliberately
+        // absent so the parser MUST resolve them via `HEADER_ALIASES`.
+        let table = proto::DataTable {
+            headers: vec![
+                "ms_of_day".into(),
+                "implied_vol".into(),
+                "underlying_timestamp".into(),
+            ],
+            // IV = 0.42 encoded with price_type = 6 (value * 10^-4).
+            // underlying_timestamp epoch_ms 1_775_050_200_000 corresponds
+            // to 2026-04-01 09:30 ET, which `row_number` converts to
+            // ms-of-day 34_200_000 (matching `first_row_underlying_ms_of_day`
+            // in the option_history_greeks_all fixture meta).
+            data_table: vec![row_of(vec![
+                dv_number(34_200_000),
+                dv_price(4200, 6),
+                dv_timestamp(1_775_050_200_000),
+            ])],
+        };
+        let ticks = parse_greeks_all_ticks(&table).unwrap();
+        assert_eq!(ticks.len(), 1);
+        let t = &ticks[0];
+
+        // Non-zero IV proves the `implied_vol` alias resolved; a broken
+        // alias would produce 0.0 from the `opt_float(None)` arm.
+        assert!(
+            (t.implied_volatility - 0.42).abs() < 1e-9,
+            "implied_vol alias did not resolve: got {}",
+            t.implied_volatility,
+        );
+        // Non-zero ms-of-day proves the `underlying_timestamp` alias
+        // resolved; a broken alias would produce 0 from `opt_number(None)`.
+        assert_eq!(t.underlying_ms_of_day, 34_200_000);
+    }
+
+    #[test]
+    fn parse_greeks_all_ticks_still_decodes_number_cells() {
         // Companion to the Price-cell regression test: Number cells must
         // still decode, matching Java's dispatch-on-wire-type semantics.
         let table = proto::DataTable {
             headers: vec!["ms_of_day".into(), "implied_volatility".into()],
             data_table: vec![row_of(vec![dv_number(34_200_000), dv_number(0)])],
         };
-        let ticks = parse_greeks_ticks(&table).unwrap();
+        let ticks = parse_greeks_all_ticks(&table).unwrap();
         assert_eq!(ticks.len(), 1);
         assert!(ticks[0].implied_volatility.abs() < 1e-10);
     }
@@ -1768,7 +1827,7 @@ mod tests {
     /// Column layout pinned to `scripts/upstream_openapi.yaml` schema
     /// `items_option_snapshot_greeks_first_order`.
     #[test]
-    fn parse_greeks_ticks_decodes_first_order_subset_with_silent_gaps() {
+    fn parse_greeks_all_ticks_decodes_first_order_subset_with_silent_gaps() {
         let table = proto::DataTable {
             headers: vec![
                 "ms_of_day".into(),
@@ -1795,7 +1854,7 @@ mod tests {
                 dv_number(20_240_614),
             ])],
         };
-        let ticks = parse_greeks_ticks(&table).unwrap();
+        let ticks = parse_greeks_all_ticks(&table).unwrap();
         assert_eq!(ticks.len(), 1);
         let t = &ticks[0];
 
@@ -1837,7 +1896,7 @@ mod tests {
     /// / charm / vomma / veta plus IV pair. Column layout pinned to
     /// upstream OpenAPI schema `items_option_snapshot_greeks_second_order`.
     #[test]
-    fn parse_greeks_ticks_decodes_second_order_subset_with_silent_gaps() {
+    fn parse_greeks_all_ticks_decodes_second_order_subset_with_silent_gaps() {
         let table = proto::DataTable {
             headers: vec![
                 "ms_of_day".into(),
@@ -1862,7 +1921,7 @@ mod tests {
                 dv_number(20_240_614),
             ])],
         };
-        let ticks = parse_greeks_ticks(&table).unwrap();
+        let ticks = parse_greeks_all_ticks(&table).unwrap();
         assert_eq!(ticks.len(), 1);
         let t = &ticks[0];
 
@@ -1892,7 +1951,7 @@ mod tests {
     /// `items_option_snapshot_greeks_third_order` (notably `vera` is NOT
     /// in the third-order subset; it only ships in `_greeks_all`).
     #[test]
-    fn parse_greeks_ticks_decodes_third_order_subset_with_silent_gaps() {
+    fn parse_greeks_all_ticks_decodes_third_order_subset_with_silent_gaps() {
         let table = proto::DataTable {
             headers: vec![
                 "ms_of_day".into(),
@@ -1915,7 +1974,7 @@ mod tests {
                 dv_number(20_240_614),
             ])],
         };
-        let ticks = parse_greeks_ticks(&table).unwrap();
+        let ticks = parse_greeks_all_ticks(&table).unwrap();
         assert_eq!(ticks.len(), 1);
         let t = &ticks[0];
 
@@ -1934,5 +1993,182 @@ mod tests {
         assert_eq!(t.vanna, 0.0);
         assert_eq!(t.d1, 0.0);
         assert_eq!(t.dual_gamma, 0.0);
+    }
+
+    /// `parse_greeks_first_order_ticks` against the column subset the
+    /// vendor publishes for `option_*_greeks_first_order` -- pinned to
+    /// `items_option_snapshot_greeks_first_order` in the upstream OpenAPI.
+    /// Asserts every column the parser fills decodes to the exact value
+    /// from the input row, and that the underlying-snapshot pair is
+    /// populated (the column subset is what differs from `_greeks_all`,
+    /// not the underlying tail).
+    #[test]
+    fn parse_greeks_first_order_ticks_decodes_first_order_subset() {
+        let table = proto::DataTable {
+            headers: vec![
+                "ms_of_day".into(),
+                "bid".into(),
+                "ask".into(),
+                "delta".into(),
+                "theta".into(),
+                "vega".into(),
+                "rho".into(),
+                "epsilon".into(),
+                "lambda".into(),
+                "implied_volatility".into(),
+                "iv_error".into(),
+                "underlying_ms_of_day".into(),
+                "underlying_price".into(),
+                "date".into(),
+            ],
+            data_table: vec![row_of(vec![
+                dv_number(34_200_000),
+                dv_price(15022, 6), // bid = 1.5022
+                dv_price(15041, 6), // ask = 1.5041
+                dv_price(5023, 6),  // delta = 0.5023
+                dv_price(-114, 6),  // theta = -0.0114
+                dv_price(8741, 6),  // vega = 0.8741
+                dv_price(13598, 6), // rho = 1.3598
+                dv_price(-1976, 6), // epsilon = -0.1976
+                dv_price(32052, 6), // lambda = 3.2052
+                dv_price(2142, 6),  // implied_volatility = 0.2142
+                dv_price(-3, 6),    // iv_error = -0.0003
+                dv_number(34_200_001),
+                dv_price(580025, 6), // underlying_price = 58.0025
+                dv_number(20_240_614),
+            ])],
+        };
+        let ticks = parse_greeks_first_order_ticks(&table).unwrap();
+        assert_eq!(ticks.len(), 1);
+        let t = &ticks[0];
+
+        assert_eq!(t.ms_of_day, 34_200_000);
+        assert!((t.bid - 1.5022).abs() < 1e-9);
+        assert!((t.ask - 1.5041).abs() < 1e-9);
+        assert!((t.delta - 0.5023).abs() < 1e-9);
+        assert!((t.theta - -0.0114).abs() < 1e-9);
+        assert!((t.vega - 0.8741).abs() < 1e-9);
+        assert!((t.rho - 1.3598).abs() < 1e-9);
+        assert!((t.epsilon - -0.1976).abs() < 1e-9);
+        assert!((t.lambda - 3.2052).abs() < 1e-9);
+        assert!((t.implied_volatility - 0.2142).abs() < 1e-9);
+        assert!((t.iv_error - -0.0003).abs() < 1e-9);
+        assert_eq!(t.underlying_ms_of_day, 34_200_001);
+        assert!((t.underlying_price - 58.0025).abs() < 1e-9);
+        assert_eq!(t.date, 20_240_614);
+    }
+
+    /// `parse_greeks_second_order_ticks` against the column subset the
+    /// vendor publishes for `option_*_greeks_second_order` -- pinned to
+    /// `items_option_snapshot_greeks_second_order` in the upstream
+    /// OpenAPI. Second-order Greeks: gamma / vanna / charm / vomma /
+    /// veta plus the IV pair and the bid/ask quote pair.
+    #[test]
+    fn parse_greeks_second_order_ticks_decodes_second_order_subset() {
+        let table = proto::DataTable {
+            headers: vec![
+                "ms_of_day".into(),
+                "bid".into(),
+                "ask".into(),
+                "gamma".into(),
+                "vanna".into(),
+                "charm".into(),
+                "vomma".into(),
+                "veta".into(),
+                "implied_volatility".into(),
+                "iv_error".into(),
+                "underlying_ms_of_day".into(),
+                "underlying_price".into(),
+                "date".into(),
+            ],
+            data_table: vec![row_of(vec![
+                dv_number(34_200_000),
+                dv_price(15022, 6), // bid = 1.5022
+                dv_price(15041, 6), // ask = 1.5041
+                dv_price(120, 6),   // gamma = 0.012
+                dv_price(45, 6),    // vanna = 0.0045
+                dv_price(-12, 6),   // charm = -0.0012
+                dv_price(900, 6),   // vomma = 0.09
+                dv_price(-3, 6),    // veta = -0.0003
+                dv_price(2142, 6),  // implied_volatility = 0.2142
+                dv_price(-3, 6),    // iv_error = -0.0003
+                dv_number(34_200_001),
+                dv_price(580025, 6),
+                dv_number(20_240_614),
+            ])],
+        };
+        let ticks = parse_greeks_second_order_ticks(&table).unwrap();
+        assert_eq!(ticks.len(), 1);
+        let t = &ticks[0];
+
+        assert_eq!(t.ms_of_day, 34_200_000);
+        assert!((t.bid - 1.5022).abs() < 1e-9);
+        assert!((t.ask - 1.5041).abs() < 1e-9);
+        assert!((t.gamma - 0.012).abs() < 1e-9);
+        assert!((t.vanna - 0.0045).abs() < 1e-9);
+        assert!((t.charm - -0.0012).abs() < 1e-9);
+        assert!((t.vomma - 0.09).abs() < 1e-9);
+        assert!((t.veta - -0.0003).abs() < 1e-9);
+        assert!((t.implied_volatility - 0.2142).abs() < 1e-9);
+        assert!((t.iv_error - -0.0003).abs() < 1e-9);
+        assert_eq!(t.underlying_ms_of_day, 34_200_001);
+        assert!((t.underlying_price - 58.0025).abs() < 1e-9);
+        assert_eq!(t.date, 20_240_614);
+    }
+
+    /// `parse_greeks_third_order_ticks` against the column subset the
+    /// vendor publishes for `option_*_greeks_third_order` -- pinned to
+    /// `items_option_snapshot_greeks_third_order` in the upstream
+    /// OpenAPI. Third-order Greeks: speed / zomma / color / ultima plus
+    /// the IV pair and the bid/ask quote pair. Notably the wire schema
+    /// does NOT publish `vera`; the struct does not carry it either.
+    #[test]
+    fn parse_greeks_third_order_ticks_decodes_third_order_subset() {
+        let table = proto::DataTable {
+            headers: vec![
+                "ms_of_day".into(),
+                "bid".into(),
+                "ask".into(),
+                "speed".into(),
+                "zomma".into(),
+                "color".into(),
+                "ultima".into(),
+                "implied_volatility".into(),
+                "iv_error".into(),
+                "underlying_ms_of_day".into(),
+                "underlying_price".into(),
+                "date".into(),
+            ],
+            data_table: vec![row_of(vec![
+                dv_number(34_200_000),
+                dv_price(15022, 6), // bid = 1.5022
+                dv_price(15041, 6), // ask = 1.5041
+                dv_price(7, 6),     // speed = 0.0007
+                dv_price(15, 6),    // zomma = 0.0015
+                dv_price(-2, 6),    // color = -0.0002
+                dv_price(33, 6),    // ultima = 0.0033
+                dv_price(2142, 6),  // implied_volatility = 0.2142
+                dv_price(-3, 6),    // iv_error = -0.0003
+                dv_number(34_200_001),
+                dv_price(580025, 6),
+                dv_number(20_240_614),
+            ])],
+        };
+        let ticks = parse_greeks_third_order_ticks(&table).unwrap();
+        assert_eq!(ticks.len(), 1);
+        let t = &ticks[0];
+
+        assert_eq!(t.ms_of_day, 34_200_000);
+        assert!((t.bid - 1.5022).abs() < 1e-9);
+        assert!((t.ask - 1.5041).abs() < 1e-9);
+        assert!((t.speed - 0.0007).abs() < 1e-9);
+        assert!((t.zomma - 0.0015).abs() < 1e-9);
+        assert!((t.color - -0.0002).abs() < 1e-9);
+        assert!((t.ultima - 0.0033).abs() < 1e-9);
+        assert!((t.implied_volatility - 0.2142).abs() < 1e-9);
+        assert!((t.iv_error - -0.0003).abs() < 1e-9);
+        assert_eq!(t.underlying_ms_of_day, 34_200_001);
+        assert!((t.underlying_price - 58.0025).abs() < 1e-9);
+        assert_eq!(t.date, 20_240_614);
     }
 }

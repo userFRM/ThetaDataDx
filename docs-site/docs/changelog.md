@@ -9,6 +9,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [8.0.26] - 2026-05-05
 
+### Breaking
+
+- **`GreeksTick` removed in every language and on the C ABI.** The full
+  union now ships as `GreeksAllTick` and the per-order endpoints return
+  typed subsets. Callers update imports and method return types -- no
+  forwarding shim. Renames:
+  - Rust / Python / TypeScript / Go / C++ `GreeksTick` -> `GreeksAllTick`
+    (full union returned by `option_*_greeks_all` and
+    `option_*_greeks_eod`).
+  - C ABI free fn `tdx_greeks_tick_array_free` -> `tdx_greeks_all_tick_array_free`.
+  - Endpoints now returning `GreeksFirstOrderTick`:
+    `option_snapshot_greeks_first_order`,
+    `option_history_greeks_first_order`,
+    `option_history_trade_greeks_first_order`.
+  - Endpoints now returning `GreeksSecondOrderTick`:
+    `option_snapshot_greeks_second_order`,
+    `option_history_greeks_second_order`,
+    `option_history_trade_greeks_second_order`.
+  - Endpoints now returning `GreeksThirdOrderTick`:
+    `option_snapshot_greeks_third_order`,
+    `option_history_greeks_third_order`,
+    `option_history_trade_greeks_third_order`.
+  - `GreeksAllTick` adds `bid`, `ask`, `underlying_ms_of_day`,
+    `underlying_price` columns the upstream OpenAPI publishes but the
+    legacy `GreeksTick` did not carry. Field offset of every existing
+    Greek shifts by 16 bytes (bid + ask) on the FFI mirror; rebuild any
+    binary that links the C struct.
+
+### Added
+
+- **Per-endpoint typed Greeks structs.** The vendor's
+  `option_*_greeks_first_order`, `_second_order`, `_third_order`
+  endpoints emit strict subsets of the full Greek column set. The SDK
+  now exposes `GreeksFirstOrderTick` (delta / theta / vega / rho /
+  epsilon / lambda + bid/ask + IV pair + underlying snapshot),
+  `GreeksSecondOrderTick` (gamma / vanna / charm / vomma / veta + bid/
+  ask + IV pair + underlying snapshot), and `GreeksThirdOrderTick`
+  (speed / zomma / color / ultima + bid/ask + IV pair + underlying
+  snapshot). Each per-order endpoint returns `Vec<<Type>>` directly --
+  no zero-default columns leak from one subset into another.
+- New C ABI free symbols: `tdx_greeks_all_tick_array_free`,
+  `tdx_greeks_first_order_tick_array_free`,
+  `tdx_greeks_second_order_tick_array_free`,
+  `tdx_greeks_third_order_tick_array_free`. Matching FFI array types
+  emitted on every binding (`TdxGreeksAllTickArray`,
+  `TdxGreeksFirstOrderTickArray`, etc.).
+- New header alias `underlying_ms_of_day` -> `underlying_timestamp` in
+  `crates/thetadatadx/src/decode.rs::HEADER_ALIASES` so the wire
+  Timestamp -> ms-of-day conversion flows through the standard
+  `row_number` path on every Greeks endpoint.
+- Per-field `offset_of!` layout assertions in
+  `crates/tdbe/src/types/tick.rs::layout_asserts`. Field-offset drift
+  (e.g. swapping two same-size fields) sneaks past `size_of` /
+  `align_of` checks alone -- the new asserts pin every observable Rust
+  field offset that the C / Go FFI mirrors index into.
+
+### Changed
+
+- **Generated `tdbe::types::tick` struct definitions.**
+  `crates/tdbe/src/types/tick_generated.rs` is now emitted by
+  `generate_sdk_surfaces` from `tick_schema.toml`. The hand-written
+  `tick.rs` keeps `impl_contract_id!` macro applications, the
+  `TradeTick` flag helpers, and `OptionContract::is_call` /
+  `is_put` -- everything else flows from the schema. Adding a new tick
+  type means adding one `[types.X]` row.
+- **Schema-driven C++ layout asserts and Go FFI sizes.**
+  `sdks/cpp/include/tick_layout_asserts.hpp.inc` and
+  `sdks/go/tick_ffi_sizes_generated.go` now compute every struct's
+  size + alignment from the schema (via `tick_ffi_size_and_align`)
+  rather than each emitter dispatching on the type name. Adding a tick
+  type to `tick_schema.toml` produces the size/align pair, the C++
+  `static_assert`, and the Go `unsafe.Sizeof` test entry without any
+  `build_support/ticks/{cpp,go}.rs` edit.
+- `OpenInterestTick` and `TradeQuoteTick` gained the missing `align = 64`
+  directive in `tick_schema.toml`. The schema now matches the
+  `#[repr(C, align(64))]` declared on the corresponding `tdbe` types --
+  the schema-derived FFI size used to under-count by the alignment
+  rounding (32/144 vs 64/192) before reaching the C++ layout assert.
+
 ### Fixed
 
 - **`option_*_greeks_*_order` no longer spams `expected column header
@@ -30,6 +109,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **TOML-driven render map collapses 19 hand-coded helper match arms
+  into single-key lookups.** Every per-language binding name a renderer
+  needs for one tick type — Rust direct-client return type, generated
+  parser fn, Go struct + converter, FFI array struct + free fn + output
+  variant + header-return type, C++ value type, six Python converters
+  (dict, columnar, pyclass-list, pyclass-list-class, vec-to-pylist,
+  slice-arrow), TypeScript class + class-vec converter, and the Python
+  pyclass struct name — moves into `[types.X.render]` blocks in
+  `crates/thetadatadx/tick_schema.toml`. The 20 helper functions that
+  previously enumerated those names by hand
+  (`build_support/endpoints/helpers.rs::direct_return_type` and friends,
+  plus `build_support/ticks/mod.rs::pyclass_name`) become single
+  HashMap lookups against a `OnceLock`-cached load of the schema.
+  Adding a tick type now requires one TOML row -- no helper edits. The
+  generated SDK surfaces are byte-identical against `main` because the
+  TOML rows reproduce the names the helpers previously hardcoded.
 - Per-endpoint vendor-schema column lists for the four Greeks families
   pinned and documented in `tick_schema.toml::GreeksTick` against the
   upstream OpenAPI capture in `scripts/upstream_openapi.yaml`. The

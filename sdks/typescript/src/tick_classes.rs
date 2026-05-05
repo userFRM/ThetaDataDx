@@ -43,12 +43,14 @@ pub struct EodTick {
     pub right: String,
 }
 
-/// Greeks tick. Full union of every Greek the v3 server
+/// Full union Greeks tick -- every Greek the v3 server publishes on the
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
-pub struct GreeksTick {
+pub struct GreeksAllTick {
     pub ms_of_day: i32,
+    pub bid: f64,
+    pub ask: f64,
     pub implied_volatility: f64,
     pub delta: f64,
     pub gamma: f64,
@@ -71,6 +73,77 @@ pub struct GreeksTick {
     pub epsilon: f64,
     pub lambda: f64,
     pub vera: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    pub expiration: i32,
+    pub strike: f64,
+    pub right: String,
+}
+
+/// First-order Greeks tick -- the strict column subset emitted by the
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct GreeksFirstOrderTick {
+    pub ms_of_day: i32,
+    pub bid: f64,
+    pub ask: f64,
+    pub delta: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    pub expiration: i32,
+    pub strike: f64,
+    pub right: String,
+}
+
+/// Second-order Greeks tick -- the strict column subset emitted by the
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct GreeksSecondOrderTick {
+    pub ms_of_day: i32,
+    pub bid: f64,
+    pub ask: f64,
+    pub gamma: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    pub expiration: i32,
+    pub strike: f64,
+    pub right: String,
+}
+
+/// Third-order Greeks tick -- the strict column subset emitted by the
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct GreeksThirdOrderTick {
+    pub ms_of_day: i32,
+    pub bid: f64,
+    pub ask: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
@@ -293,12 +366,14 @@ fn eod_ticks_to_class_vec(ticks: &[tick::EodTick]) -> Vec<EodTick> {
         .collect()
 }
 
-fn greeks_ticks_to_class_vec(ticks: &[tick::GreeksTick]) -> Vec<GreeksTick> {
+fn greeks_all_ticks_to_class_vec(ticks: &[tick::GreeksAllTick]) -> Vec<GreeksAllTick> {
     ticks
         .iter()
         .map(|t| {
-            GreeksTick {
+            GreeksAllTick {
                 ms_of_day: t.ms_of_day,
+                bid: t.bid,
+                ask: t.ask,
                 implied_volatility: t.implied_volatility,
                 delta: t.delta,
                 gamma: t.gamma,
@@ -321,6 +396,86 @@ fn greeks_ticks_to_class_vec(ticks: &[tick::GreeksTick]) -> Vec<GreeksTick> {
                 epsilon: t.epsilon,
                 lambda: t.lambda,
                 vera: t.vera,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+            }
+        })
+        .collect()
+}
+
+fn greeks_first_order_ticks_to_class_vec(ticks: &[tick::GreeksFirstOrderTick]) -> Vec<GreeksFirstOrderTick> {
+    ticks
+        .iter()
+        .map(|t| {
+            GreeksFirstOrderTick {
+                ms_of_day: t.ms_of_day,
+                bid: t.bid,
+                ask: t.ask,
+                delta: t.delta,
+                theta: t.theta,
+                vega: t.vega,
+                rho: t.rho,
+                epsilon: t.epsilon,
+                lambda: t.lambda,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+            }
+        })
+        .collect()
+}
+
+fn greeks_second_order_ticks_to_class_vec(ticks: &[tick::GreeksSecondOrderTick]) -> Vec<GreeksSecondOrderTick> {
+    ticks
+        .iter()
+        .map(|t| {
+            GreeksSecondOrderTick {
+                ms_of_day: t.ms_of_day,
+                bid: t.bid,
+                ask: t.ask,
+                gamma: t.gamma,
+                vanna: t.vanna,
+                charm: t.charm,
+                vomma: t.vomma,
+                veta: t.veta,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+            }
+        })
+        .collect()
+}
+
+fn greeks_third_order_ticks_to_class_vec(ticks: &[tick::GreeksThirdOrderTick]) -> Vec<GreeksThirdOrderTick> {
+    ticks
+        .iter()
+        .map(|t| {
+            GreeksThirdOrderTick {
+                ms_of_day: t.ms_of_day,
+                bid: t.bid,
+                ask: t.ask,
+                speed: t.speed,
+                zomma: t.zomma,
+                color: t.color,
+                ultima: t.ultima,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,

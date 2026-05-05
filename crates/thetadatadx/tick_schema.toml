@@ -1,7 +1,11 @@
-# Tick Type Schema — single source of truth for all DataTable column schemas.
+# Tick Type Schema -- single source of truth for all DataTable column schemas
+# AND every per-language binding name a renderer needs to emit code for that
+# tick type.
 #
 # build.rs reads this file and generates:
-#   - DataTable parsers  -> $OUT_DIR/decode_generated.rs
+#   - DataTable parsers              -> $OUT_DIR/decode_generated.rs
+#   - per-language SDK surfaces      -> sdks/{python,typescript,go,cpp}/...
+#                                       (driven entirely by [types.X.render])
 #
 # Column types:
 #   i32     -> row_number(row, i)                         default: 0
@@ -24,6 +28,28 @@
 #   doc = "..."         -- doc comment on the struct
 #   contract_id = true  -- inject expiration/strike/right fields
 #                          (populated by server on wildcard queries, 0 otherwise)
+#
+# Render block (per-language binding names):
+#   collection            -- wire-collection plural (e.g. "GreeksTicks") matched
+#                            by `endpoint_surface.toml::returns`. Must be unique.
+#   direct                -- Rust direct-client tick type
+#   parser                -- generated parser fn name (matches `parser` above)
+#   go_struct             -- Go SDK struct name
+#   go_converter          -- Go SDK converter fn (cgo bridge)
+#   ffi_array             -- FFI array struct (e.g. "TdxGreeksAllTickArray")
+#   ffi_output_variant    -- thetadatadx::EndpointOutput variant name
+#   ffi_from_vec_array    -- FFI array struct used in Tdx*::from_vec calls
+#   ffi_header_return     -- return type in generated C/Go header
+#   ffi_free_fn           -- C-side free fn name (without C. prefix)
+#   cpp_value             -- C++ value type name
+#   python_converter      -- legacy Python dict converter (PyDict)
+#   python_columnar       -- Python columnar dict converter
+#   python_pyclass_list   -- Python pyclass-list converter (PyTickList)
+#   python_vec_to_pylist  -- Python Vec<Tick> -> Py<PyList> fast-path converter
+#   python_slice_arrow    -- Python slice-arrow Arrow C Data converter
+#   ts_class              -- TypeScript napi-rs class name
+#   ts_class_vec          -- TypeScript class-vec converter fn
+#   pyclass               -- Python pyclass struct name (typically same as type_name)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Existing 4 tick types (hand-written before, now generated)
@@ -54,6 +80,27 @@ columns = [
     { name = "date",            field = "date",            type = "i32" },
 ]
 
+[types.TradeTick.render]
+collection = "TradeTicks"
+direct = "TradeTick"
+parser = "parse_trade_ticks"
+go_struct = "TradeTick"
+go_converter = "convertTradeTicks"
+ffi_array = "TdxTradeTickArray"
+ffi_output_variant = "TradeTicks"
+ffi_from_vec_array = "TdxTradeTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_trade_tick_array_free"
+cpp_value = "TradeTick"
+python_converter = "trade_tick_to_dict"
+python_columnar = "trade_ticks_to_columnar"
+python_pyclass_list = "trade_ticks_to_pyclass_list"
+python_vec_to_pylist = "trade_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::trade_tick_slice_to_arrow_table"
+ts_class = "TradeTick"
+ts_class_vec = "trade_ticks_to_class_vec"
+pyclass = "TradeTick"
+
 [types.QuoteTick]
 doc = "Quote tick -- 10 fields + midpoint. NBBO quote data."
 copy = true
@@ -74,6 +121,27 @@ columns = [
     { name = "date",          field = "date",          type = "i32" },
 ]
 
+[types.QuoteTick.render]
+collection = "QuoteTicks"
+direct = "QuoteTick"
+parser = "parse_quote_ticks"
+go_struct = "QuoteTick"
+go_converter = "convertQuoteTicks"
+ffi_array = "TdxQuoteTickArray"
+ffi_output_variant = "QuoteTicks"
+ffi_from_vec_array = "TdxQuoteTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_quote_tick_array_free"
+cpp_value = "QuoteTick"
+python_converter = "quote_tick_to_dict"
+python_columnar = "quote_ticks_to_columnar"
+python_pyclass_list = "quote_ticks_to_pyclass_list"
+python_vec_to_pylist = "quote_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::quote_tick_slice_to_arrow_table"
+ts_class = "QuoteTick"
+ts_class_vec = "quote_ticks_to_class_vec"
+pyclass = "QuoteTick"
+
 [types.OhlcTick]
 doc = "OHLC tick -- 8 fields. Aggregated bar data."
 copy = true
@@ -91,6 +159,27 @@ columns = [
     { name = "count",      field = "count",       type = "i64" },
     { name = "date",       field = "date",        type = "i32" },
 ]
+
+[types.OhlcTick.render]
+collection = "OhlcTicks"
+direct = "OhlcTick"
+parser = "parse_ohlc_ticks"
+go_struct = "OhlcTick"
+go_converter = "convertOhlcTicks"
+ffi_array = "TdxOhlcTickArray"
+ffi_output_variant = "OhlcTicks"
+ffi_from_vec_array = "TdxOhlcTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_ohlc_tick_array_free"
+cpp_value = "OhlcTick"
+python_converter = "ohlc_tick_to_dict"
+python_columnar = "ohlc_ticks_to_columnar"
+python_pyclass_list = "ohlc_ticks_to_pyclass_list"
+python_vec_to_pylist = "ohlc_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::ohlc_tick_slice_to_arrow_table"
+ts_class = "OhlcTick"
+ts_class_vec = "ohlc_ticks_to_class_vec"
+pyclass = "OhlcTick"
 
 [types.EodTick]
 doc = "End-of-day tick -- 17 fields. Full EOD snapshot with OHLC + quote."
@@ -120,6 +209,27 @@ columns = [
     { name = "date",          field = "date",          type = "eod_date" },
 ]
 
+[types.EodTick.render]
+collection = "EodTicks"
+direct = "EodTick"
+parser = "parse_eod_ticks"
+go_struct = "EodTick"
+go_converter = "convertEodTicks"
+ffi_array = "TdxEodTickArray"
+ffi_output_variant = "EodTicks"
+ffi_from_vec_array = "TdxEodTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_eod_tick_array_free"
+cpp_value = "EodTick"
+python_converter = "eod_tick_to_dict"
+python_columnar = "eod_ticks_to_columnar"
+python_pyclass_list = "eod_ticks_to_pyclass_list"
+python_vec_to_pylist = "eod_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::eod_tick_slice_to_arrow_table"
+ts_class = "EodTick"
+ts_class_vec = "eod_ticks_to_class_vec"
+pyclass = "EodTick"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 9 new tick types
 # ─────────────────────────────────────────────────────────────────────────────
@@ -127,6 +237,7 @@ columns = [
 [types.OpenInterestTick]
 doc = "Open interest tick -- 3 fields."
 copy = true
+align = 64
 contract_id = true
 parser = "parse_open_interest_ticks"
 required = ["ms_of_day"]
@@ -136,9 +247,31 @@ columns = [
     { name = "date",          field = "date",          type = "i32" },
 ]
 
+[types.OpenInterestTick.render]
+collection = "OpenInterestTicks"
+direct = "OpenInterestTick"
+parser = "parse_open_interest_ticks"
+go_struct = "OpenInterestTick"
+go_converter = "convertOpenInterestTicks"
+ffi_array = "TdxOpenInterestTickArray"
+ffi_output_variant = "OpenInterestTicks"
+ffi_from_vec_array = "TdxOpenInterestTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_open_interest_tick_array_free"
+cpp_value = "OpenInterestTick"
+python_converter = "open_interest_tick_to_dict"
+python_columnar = "open_interest_ticks_to_columnar"
+python_pyclass_list = "open_interest_ticks_to_pyclass_list"
+python_vec_to_pylist = "open_interest_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::open_interest_tick_slice_to_arrow_table"
+ts_class = "OpenInterestTick"
+ts_class_vec = "open_interest_ticks_to_class_vec"
+pyclass = "OpenInterestTick"
+
 [types.TradeQuoteTick]
 doc = "Combined trade + quote tick -- 24 fields."
 copy = true
+align = 64
 contract_id = true
 parser = "parse_trade_quote_ticks"
 required = ["ms_of_day", "price"]
@@ -169,6 +302,27 @@ columns = [
     { name = "date",             field = "date",             type = "i32" },
 ]
 
+[types.TradeQuoteTick.render]
+collection = "TradeQuoteTicks"
+direct = "TradeQuoteTick"
+parser = "parse_trade_quote_ticks"
+go_struct = "TradeQuoteTick"
+go_converter = "convertTradeQuoteTicks"
+ffi_array = "TdxTradeQuoteTickArray"
+ffi_output_variant = "TradeQuoteTicks"
+ffi_from_vec_array = "TdxTradeQuoteTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_trade_quote_tick_array_free"
+cpp_value = "TradeQuoteTick"
+python_converter = "trade_quote_tick_to_dict"
+python_columnar = "trade_quote_ticks_to_columnar"
+python_pyclass_list = "trade_quote_ticks_to_pyclass_list"
+python_vec_to_pylist = "trade_quote_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::trade_quote_tick_slice_to_arrow_table"
+ts_class = "TradeQuoteTick"
+ts_class_vec = "trade_quote_ticks_to_class_vec"
+pyclass = "TradeQuoteTick"
+
 [types.MarketValueTick]
 doc = "Market value tick -- quoted bid/ask/price for a symbol."
 copy = true
@@ -184,59 +338,247 @@ columns = [
     { name = "date",          field = "date",          type = "i32" },
 ]
 
-[types.GreeksTick]
+[types.MarketValueTick.render]
+collection = "MarketValueTicks"
+direct = "MarketValueTick"
+parser = "parse_market_value_ticks"
+go_struct = "MarketValueTick"
+go_converter = "convertMarketValueTicks"
+ffi_array = "TdxMarketValueTickArray"
+ffi_output_variant = "MarketValueTicks"
+ffi_from_vec_array = "TdxMarketValueTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_market_value_tick_array_free"
+cpp_value = "MarketValueTick"
+python_converter = "market_value_tick_to_dict"
+python_columnar = "market_value_ticks_to_columnar"
+python_pyclass_list = "market_value_ticks_to_pyclass_list"
+python_vec_to_pylist = "market_value_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::market_value_tick_slice_to_arrow_table"
+ts_class = "MarketValueTick"
+ts_class_vec = "market_value_ticks_to_class_vec"
+pyclass = "MarketValueTick"
+
+[types.GreeksAllTick]
 doc = """
-Greeks tick -- 24 fields. Full union of every Greek the v3 server
-publishes across the `option_*_greeks_*` family.
+Full union Greeks tick -- every Greek the v3 server publishes on the
+`option_*_greeks_all` and `option_*_greeks_eod` endpoints.
 
-Endpoint-specific subsets reuse this struct; absent columns decode to
-`0.0` and the per-endpoint vendor schema is documented via the upstream
-OpenAPI capture (`scripts/upstream_openapi.yaml`):
+The vendor's per-order endpoints (`option_*_greeks_first_order`,
+`_second_order`, `_third_order`) emit strict subsets of these columns
+and bind to `GreeksFirstOrderTick`, `GreeksSecondOrderTick`,
+`GreeksThirdOrderTick` respectively. `option_*_greeks_implied_volatility`
+binds to `IvTick`.
 
-* `option_*_greeks_first_order`  -> delta / theta / vega / rho / epsilon / lambda + IV pair
-* `option_*_greeks_second_order` -> gamma / vanna / charm / vomma / veta + IV pair
-* `option_*_greeks_third_order`  -> speed / zomma / color / ultima + IV pair (no vera)
-* `option_*_greeks_all` / `option_*_greeks_eod` -> the full union below
-* `option_*_greeks_implied_volatility` -> handled by `IvTick`
-
-The wire-level `timestamp` -> `ms_of_day` and `implied_vol` ->
-`implied_volatility` mappings are applied through `HEADER_ALIASES`
-in `crates/thetadatadx/src/decode.rs`. Optional columns absent from a
-subset response (e.g. `zomma` on the first-order endpoint) are silently
-defaulted to `0.0`; the parser never warns on a documented subset gap
-(see `find_header` for the trace-level diagnostic path).
+The wire-level `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
+`underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
+mappings are applied through `HEADER_ALIASES` in
+`crates/thetadatadx/src/decode.rs`.
 """
 copy = true
 align = 64
 contract_id = true
-parser = "parse_greeks_ticks"
+parser = "parse_greeks_all_ticks"
 required = ["ms_of_day"]
 columns = [
-    { name = "ms_of_day",          field = "ms_of_day",          type = "i32" },
-    { name = "implied_volatility", field = "implied_volatility", type = "f64" },
-    { name = "delta",              field = "delta",              type = "f64" },
-    { name = "gamma",              field = "gamma",              type = "f64" },
-    { name = "theta",              field = "theta",              type = "f64" },
-    { name = "vega",               field = "vega",               type = "f64" },
-    { name = "rho",                field = "rho",                type = "f64" },
-    { name = "iv_error",           field = "iv_error",           type = "f64" },
-    { name = "vanna",              field = "vanna",              type = "f64" },
-    { name = "charm",              field = "charm",              type = "f64" },
-    { name = "vomma",              field = "vomma",              type = "f64" },
-    { name = "veta",               field = "veta",               type = "f64" },
-    { name = "speed",              field = "speed",              type = "f64" },
-    { name = "zomma",              field = "zomma",              type = "f64" },
-    { name = "color",              field = "color",              type = "f64" },
-    { name = "ultima",             field = "ultima",             type = "f64" },
-    { name = "d1",                 field = "d1",                 type = "f64" },
-    { name = "d2",                 field = "d2",                 type = "f64" },
-    { name = "dual_delta",         field = "dual_delta",         type = "f64" },
-    { name = "dual_gamma",         field = "dual_gamma",         type = "f64" },
-    { name = "epsilon",            field = "epsilon",            type = "f64" },
-    { name = "lambda",             field = "lambda",             type = "f64" },
-    { name = "vera",               field = "vera",               type = "f64" },
-    { name = "date",               field = "date",               type = "i32" },
+    { name = "ms_of_day",            field = "ms_of_day",            type = "i32" },
+    { name = "bid",                  field = "bid",                  type = "price" },
+    { name = "ask",                  field = "ask",                  type = "price" },
+    { name = "implied_volatility",   field = "implied_volatility",   type = "f64" },
+    { name = "delta",                field = "delta",                type = "f64" },
+    { name = "gamma",                field = "gamma",                type = "f64" },
+    { name = "theta",                field = "theta",                type = "f64" },
+    { name = "vega",                 field = "vega",                 type = "f64" },
+    { name = "rho",                  field = "rho",                  type = "f64" },
+    { name = "iv_error",             field = "iv_error",             type = "f64" },
+    { name = "vanna",                field = "vanna",                type = "f64" },
+    { name = "charm",                field = "charm",                type = "f64" },
+    { name = "vomma",                field = "vomma",                type = "f64" },
+    { name = "veta",                 field = "veta",                 type = "f64" },
+    { name = "speed",                field = "speed",                type = "f64" },
+    { name = "zomma",                field = "zomma",                type = "f64" },
+    { name = "color",                field = "color",                type = "f64" },
+    { name = "ultima",               field = "ultima",               type = "f64" },
+    { name = "d1",                   field = "d1",                   type = "f64" },
+    { name = "d2",                   field = "d2",                   type = "f64" },
+    { name = "dual_delta",           field = "dual_delta",           type = "f64" },
+    { name = "dual_gamma",           field = "dual_gamma",           type = "f64" },
+    { name = "epsilon",              field = "epsilon",              type = "f64" },
+    { name = "lambda",               field = "lambda",               type = "f64" },
+    { name = "vera",                 field = "vera",                 type = "f64" },
+    { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32" },
+    { name = "underlying_price",     field = "underlying_price",     type = "price" },
+    { name = "date",                 field = "date",                 type = "i32" },
 ]
+
+[types.GreeksAllTick.render]
+collection = "GreeksAllTicks"
+direct = "GreeksAllTick"
+parser = "parse_greeks_all_ticks"
+go_struct = "GreeksAllTick"
+go_converter = "convertGreeksAllTicks"
+ffi_array = "TdxGreeksAllTickArray"
+ffi_output_variant = "GreeksAllTicks"
+ffi_from_vec_array = "TdxGreeksAllTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_greeks_all_tick_array_free"
+cpp_value = "GreeksAllTick"
+python_converter = "greeks_all_tick_to_dict"
+python_columnar = "greeks_all_ticks_to_columnar"
+python_pyclass_list = "greeks_all_ticks_to_pyclass_list"
+python_vec_to_pylist = "greeks_all_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::greeks_all_tick_slice_to_arrow_table"
+ts_class = "GreeksAllTick"
+ts_class_vec = "greeks_all_ticks_to_class_vec"
+pyclass = "GreeksAllTick"
+
+[types.GreeksFirstOrderTick]
+doc = """
+First-order Greeks tick -- the strict column subset emitted by the
+vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega
+/ rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and
+the underlying snapshot used to derive each Greek.
+"""
+copy = true
+align = 64
+contract_id = true
+parser = "parse_greeks_first_order_ticks"
+required = ["ms_of_day"]
+columns = [
+    { name = "ms_of_day",            field = "ms_of_day",            type = "i32" },
+    { name = "bid",                  field = "bid",                  type = "price" },
+    { name = "ask",                  field = "ask",                  type = "price" },
+    { name = "delta",                field = "delta",                type = "f64" },
+    { name = "theta",                field = "theta",                type = "f64" },
+    { name = "vega",                 field = "vega",                 type = "f64" },
+    { name = "rho",                  field = "rho",                  type = "f64" },
+    { name = "epsilon",              field = "epsilon",              type = "f64" },
+    { name = "lambda",               field = "lambda",               type = "f64" },
+    { name = "implied_volatility",   field = "implied_volatility",   type = "f64" },
+    { name = "iv_error",             field = "iv_error",             type = "f64" },
+    { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32" },
+    { name = "underlying_price",     field = "underlying_price",     type = "price" },
+    { name = "date",                 field = "date",                 type = "i32" },
+]
+
+[types.GreeksFirstOrderTick.render]
+collection = "GreeksFirstOrderTicks"
+direct = "GreeksFirstOrderTick"
+parser = "parse_greeks_first_order_ticks"
+go_struct = "GreeksFirstOrderTick"
+go_converter = "convertGreeksFirstOrderTicks"
+ffi_array = "TdxGreeksFirstOrderTickArray"
+ffi_output_variant = "GreeksFirstOrderTicks"
+ffi_from_vec_array = "TdxGreeksFirstOrderTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_greeks_first_order_tick_array_free"
+cpp_value = "GreeksFirstOrderTick"
+python_converter = "greeks_first_order_tick_to_dict"
+python_columnar = "greeks_first_order_ticks_to_columnar"
+python_pyclass_list = "greeks_first_order_ticks_to_pyclass_list"
+python_vec_to_pylist = "greeks_first_order_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::greeks_first_order_tick_slice_to_arrow_table"
+ts_class = "GreeksFirstOrderTick"
+ts_class_vec = "greeks_first_order_ticks_to_class_vec"
+pyclass = "GreeksFirstOrderTick"
+
+[types.GreeksSecondOrderTick]
+doc = """
+Second-order Greeks tick -- the strict column subset emitted by the
+vendor's `option_*_greeks_second_order` endpoints (gamma / vanna /
+charm / vomma / veta) plus the bid/ask quote pair, the IV pair, and the
+underlying snapshot.
+"""
+copy = true
+align = 64
+contract_id = true
+parser = "parse_greeks_second_order_ticks"
+required = ["ms_of_day"]
+columns = [
+    { name = "ms_of_day",            field = "ms_of_day",            type = "i32" },
+    { name = "bid",                  field = "bid",                  type = "price" },
+    { name = "ask",                  field = "ask",                  type = "price" },
+    { name = "gamma",                field = "gamma",                type = "f64" },
+    { name = "vanna",                field = "vanna",                type = "f64" },
+    { name = "charm",                field = "charm",                type = "f64" },
+    { name = "vomma",                field = "vomma",                type = "f64" },
+    { name = "veta",                 field = "veta",                 type = "f64" },
+    { name = "implied_volatility",   field = "implied_volatility",   type = "f64" },
+    { name = "iv_error",             field = "iv_error",             type = "f64" },
+    { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32" },
+    { name = "underlying_price",     field = "underlying_price",     type = "price" },
+    { name = "date",                 field = "date",                 type = "i32" },
+]
+
+[types.GreeksSecondOrderTick.render]
+collection = "GreeksSecondOrderTicks"
+direct = "GreeksSecondOrderTick"
+parser = "parse_greeks_second_order_ticks"
+go_struct = "GreeksSecondOrderTick"
+go_converter = "convertGreeksSecondOrderTicks"
+ffi_array = "TdxGreeksSecondOrderTickArray"
+ffi_output_variant = "GreeksSecondOrderTicks"
+ffi_from_vec_array = "TdxGreeksSecondOrderTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_greeks_second_order_tick_array_free"
+cpp_value = "GreeksSecondOrderTick"
+python_converter = "greeks_second_order_tick_to_dict"
+python_columnar = "greeks_second_order_ticks_to_columnar"
+python_pyclass_list = "greeks_second_order_ticks_to_pyclass_list"
+python_vec_to_pylist = "greeks_second_order_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::greeks_second_order_tick_slice_to_arrow_table"
+ts_class = "GreeksSecondOrderTick"
+ts_class_vec = "greeks_second_order_ticks_to_class_vec"
+pyclass = "GreeksSecondOrderTick"
+
+[types.GreeksThirdOrderTick]
+doc = """
+Third-order Greeks tick -- the strict column subset emitted by the
+vendor's `option_*_greeks_third_order` endpoints (speed / zomma /
+color / ultima) plus the bid/ask quote pair, the IV pair, and the
+underlying snapshot. The vendor's third-order schema does not publish
+`vera`.
+"""
+copy = true
+align = 64
+contract_id = true
+parser = "parse_greeks_third_order_ticks"
+required = ["ms_of_day"]
+columns = [
+    { name = "ms_of_day",            field = "ms_of_day",            type = "i32" },
+    { name = "bid",                  field = "bid",                  type = "price" },
+    { name = "ask",                  field = "ask",                  type = "price" },
+    { name = "speed",                field = "speed",                type = "f64" },
+    { name = "zomma",                field = "zomma",                type = "f64" },
+    { name = "color",                field = "color",                type = "f64" },
+    { name = "ultima",               field = "ultima",               type = "f64" },
+    { name = "implied_volatility",   field = "implied_volatility",   type = "f64" },
+    { name = "iv_error",             field = "iv_error",             type = "f64" },
+    { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32" },
+    { name = "underlying_price",     field = "underlying_price",     type = "price" },
+    { name = "date",                 field = "date",                 type = "i32" },
+]
+
+[types.GreeksThirdOrderTick.render]
+collection = "GreeksThirdOrderTicks"
+direct = "GreeksThirdOrderTick"
+parser = "parse_greeks_third_order_ticks"
+go_struct = "GreeksThirdOrderTick"
+go_converter = "convertGreeksThirdOrderTicks"
+ffi_array = "TdxGreeksThirdOrderTickArray"
+ffi_output_variant = "GreeksThirdOrderTicks"
+ffi_from_vec_array = "TdxGreeksThirdOrderTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_greeks_third_order_tick_array_free"
+cpp_value = "GreeksThirdOrderTick"
+python_converter = "greeks_third_order_tick_to_dict"
+python_columnar = "greeks_third_order_ticks_to_columnar"
+python_pyclass_list = "greeks_third_order_ticks_to_pyclass_list"
+python_vec_to_pylist = "greeks_third_order_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::greeks_third_order_tick_slice_to_arrow_table"
+ts_class = "GreeksThirdOrderTick"
+ts_class_vec = "greeks_third_order_ticks_to_class_vec"
+pyclass = "GreeksThirdOrderTick"
 
 [types.IvTick]
 doc = "Implied volatility tick -- 4 fields."
@@ -252,6 +594,27 @@ columns = [
     { name = "date",               field = "date",               type = "i32" },
 ]
 
+[types.IvTick.render]
+collection = "IvTicks"
+direct = "IvTick"
+parser = "parse_iv_ticks"
+go_struct = "IVTick"
+go_converter = "convertIvTicks"
+ffi_array = "TdxIvTickArray"
+ffi_output_variant = "IvTicks"
+ffi_from_vec_array = "TdxIvTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_iv_tick_array_free"
+cpp_value = "IvTick"
+python_converter = "iv_tick_to_dict"
+python_columnar = "iv_ticks_to_columnar"
+python_pyclass_list = "iv_ticks_to_pyclass_list"
+python_vec_to_pylist = "iv_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::iv_tick_slice_to_arrow_table"
+ts_class = "IvTick"
+ts_class_vec = "iv_ticks_to_class_vec"
+pyclass = "IvTick"
+
 [types.PriceTick]
 doc = "Price tick -- 3 fields. Generic price data point."
 copy = true
@@ -263,6 +626,27 @@ columns = [
     { name = "price",      field = "price",      type = "price" },
     { name = "date",       field = "date",       type = "i32" },
 ]
+
+[types.PriceTick.render]
+collection = "PriceTicks"
+direct = "PriceTick"
+parser = "parse_price_ticks"
+go_struct = "PriceTick"
+go_converter = "convertPriceTicks"
+ffi_array = "TdxPriceTickArray"
+ffi_output_variant = "PriceTicks"
+ffi_from_vec_array = "TdxPriceTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_price_tick_array_free"
+cpp_value = "PriceTick"
+python_converter = "price_tick_to_dict"
+python_columnar = "price_ticks_to_columnar"
+python_pyclass_list = "price_ticks_to_pyclass_list"
+python_vec_to_pylist = "price_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::price_tick_slice_to_arrow_table"
+ts_class = "PriceTick"
+ts_class_vec = "price_ticks_to_class_vec"
+pyclass = "PriceTick"
 
 [types.CalendarDay]
 doc = "Calendar day -- 5 fields. Market open/close schedule."
@@ -278,6 +662,27 @@ columns = [
     { name = "status",     field = "status",     type = "i32" },
 ]
 
+[types.CalendarDay.render]
+collection = "CalendarDays"
+direct = "CalendarDay"
+parser = "parse_calendar_days_v3"
+go_struct = "CalendarDay"
+go_converter = "convertCalendarDays"
+ffi_array = "TdxCalendarDayArray"
+ffi_output_variant = "CalendarDays"
+ffi_from_vec_array = "TdxCalendarDayArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_calendar_day_array_free"
+cpp_value = "CalendarDay"
+python_converter = "calendar_day_to_dict"
+python_columnar = "calendar_days_to_columnar"
+python_pyclass_list = "calendar_days_to_pyclass_list"
+python_vec_to_pylist = "calendar_days_vec_to_pylist"
+python_slice_arrow = "slice_arrow::calendar_day_slice_to_arrow_table"
+ts_class = "CalendarDay"
+ts_class_vec = "calendar_days_to_class_vec"
+pyclass = "CalendarDay"
+
 [types.InterestRateTick]
 doc = "Interest rate tick -- 3 fields. End-of-day interest rate."
 copy = true
@@ -290,6 +695,27 @@ columns = [
     { name = "date",      field = "date",      type = "i32" },
 ]
 
+[types.InterestRateTick.render]
+collection = "InterestRateTicks"
+direct = "InterestRateTick"
+parser = "parse_interest_rate_ticks"
+go_struct = "InterestRateTick"
+go_converter = "convertInterestRateTicks"
+ffi_array = "TdxInterestRateTickArray"
+ffi_output_variant = "InterestRateTicks"
+ffi_from_vec_array = "TdxInterestRateTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_interest_rate_tick_array_free"
+cpp_value = "InterestRateTick"
+python_converter = "interest_rate_tick_to_dict"
+python_columnar = "interest_rate_ticks_to_columnar"
+python_pyclass_list = "interest_rate_ticks_to_pyclass_list"
+python_vec_to_pylist = "interest_rate_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::interest_rate_tick_slice_to_arrow_table"
+ts_class = "InterestRateTick"
+ts_class_vec = "interest_rate_ticks_to_class_vec"
+pyclass = "InterestRateTick"
+
 [types.OptionContract]
 doc = "Option contract -- 4 fields. Contract specification.\n\nCannot be `Copy` because of the `String` root field."
 copy = false
@@ -301,3 +727,24 @@ columns = [
     { name = "strike",            field = "strike",            type = "price" },
     { name = "right",             field = "right",             type = "i32" },
 ]
+
+[types.OptionContract.render]
+collection = "OptionContracts"
+direct = "OptionContract"
+parser = "parse_option_contracts_v3"
+go_struct = "OptionContract"
+go_converter = "convertOptionContracts"
+ffi_array = "TdxOptionContractArray"
+ffi_output_variant = "OptionContracts"
+ffi_from_vec_array = "TdxOptionContractArray"
+ffi_header_return = "TdxOptionContractArray"
+ffi_free_fn = "tdx_option_contract_array_free"
+cpp_value = "OptionContract"
+python_converter = "option_contract_to_dict"
+python_columnar = "option_contracts_to_columnar"
+python_pyclass_list = "option_contracts_to_pyclass_list"
+python_vec_to_pylist = "option_contracts_vec_to_pylist"
+python_slice_arrow = "slice_arrow::option_contract_slice_to_arrow_table"
+ts_class = "OptionContract"
+ts_class_vec = "option_contracts_to_class_vec"
+pyclass = "OptionContract"

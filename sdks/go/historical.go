@@ -469,7 +469,7 @@ func (c *Client) OptionSnapshotGreeksImpliedVolatility(symbol string, expiration
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotGreeksAll(symbol string, expiration string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionSnapshotGreeksAll(symbol string, expiration string, opts ...EndpointOption) ([]GreeksAllTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -481,15 +481,15 @@ func (c *Client) OptionSnapshotGreeksAll(symbol string, expiration string, opts 
 	C.tdx_clear_error()
 	arr := C.tdx_option_snapshot_greeks_all_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_all_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksAllTicks(arr)
+	C.tdx_greeks_all_tick_array_free(arr)
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotGreeksFirstOrder(symbol string, expiration string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionSnapshotGreeksFirstOrder(symbol string, expiration string, opts ...EndpointOption) ([]GreeksFirstOrderTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -501,15 +501,15 @@ func (c *Client) OptionSnapshotGreeksFirstOrder(symbol string, expiration string
 	C.tdx_clear_error()
 	arr := C.tdx_option_snapshot_greeks_first_order_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_first_order_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksFirstOrderTicks(arr)
+	C.tdx_greeks_first_order_tick_array_free(arr)
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotGreeksSecondOrder(symbol string, expiration string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionSnapshotGreeksSecondOrder(symbol string, expiration string, opts ...EndpointOption) ([]GreeksSecondOrderTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -521,15 +521,15 @@ func (c *Client) OptionSnapshotGreeksSecondOrder(symbol string, expiration strin
 	C.tdx_clear_error()
 	arr := C.tdx_option_snapshot_greeks_second_order_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_second_order_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksSecondOrderTicks(arr)
+	C.tdx_greeks_second_order_tick_array_free(arr)
 	return result, nil
 }
 
-func (c *Client) OptionSnapshotGreeksThirdOrder(symbol string, expiration string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionSnapshotGreeksThirdOrder(symbol string, expiration string, opts ...EndpointOption) ([]GreeksThirdOrderTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -541,11 +541,11 @@ func (c *Client) OptionSnapshotGreeksThirdOrder(symbol string, expiration string
 	C.tdx_clear_error()
 	arr := C.tdx_option_snapshot_greeks_third_order_with_options(c.handle, cSymbol, cExpiration, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_third_order_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksThirdOrderTicks(arr)
+	C.tdx_greeks_third_order_tick_array_free(arr)
 	return result, nil
 }
 
@@ -683,7 +683,7 @@ func (c *Client) OptionHistoryOpenInterest(symbol string, expiration string, dat
 	return result, nil
 }
 
-func (c *Client) OptionHistoryGreeksEOD(symbol string, expiration string, startDate string, endDate string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryGreeksEOD(symbol string, expiration string, startDate string, endDate string, opts ...EndpointOption) ([]GreeksAllTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -699,15 +699,15 @@ func (c *Client) OptionHistoryGreeksEOD(symbol string, expiration string, startD
 	C.tdx_clear_error()
 	arr := C.tdx_option_history_greeks_eod_with_options(c.handle, cSymbol, cExpiration, cStartDate, cEndDate, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_all_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksAllTicks(arr)
+	C.tdx_greeks_all_tick_array_free(arr)
 	return result, nil
 }
 
-func (c *Client) OptionHistoryGreeksAll(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryGreeksAll(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksAllTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -721,15 +721,15 @@ func (c *Client) OptionHistoryGreeksAll(symbol string, expiration string, date s
 	C.tdx_clear_error()
 	arr := C.tdx_option_history_greeks_all_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_all_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksAllTicks(arr)
+	C.tdx_greeks_all_tick_array_free(arr)
 	return result, nil
 }
 
-func (c *Client) OptionHistoryTradeGreeksAll(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryTradeGreeksAll(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksAllTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -743,15 +743,15 @@ func (c *Client) OptionHistoryTradeGreeksAll(symbol string, expiration string, d
 	C.tdx_clear_error()
 	arr := C.tdx_option_history_trade_greeks_all_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_all_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksAllTicks(arr)
+	C.tdx_greeks_all_tick_array_free(arr)
 	return result, nil
 }
 
-func (c *Client) OptionHistoryGreeksFirstOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryGreeksFirstOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksFirstOrderTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -765,15 +765,15 @@ func (c *Client) OptionHistoryGreeksFirstOrder(symbol string, expiration string,
 	C.tdx_clear_error()
 	arr := C.tdx_option_history_greeks_first_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_first_order_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksFirstOrderTicks(arr)
+	C.tdx_greeks_first_order_tick_array_free(arr)
 	return result, nil
 }
 
-func (c *Client) OptionHistoryTradeGreeksFirstOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryTradeGreeksFirstOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksFirstOrderTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -787,15 +787,15 @@ func (c *Client) OptionHistoryTradeGreeksFirstOrder(symbol string, expiration st
 	C.tdx_clear_error()
 	arr := C.tdx_option_history_trade_greeks_first_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_first_order_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksFirstOrderTicks(arr)
+	C.tdx_greeks_first_order_tick_array_free(arr)
 	return result, nil
 }
 
-func (c *Client) OptionHistoryGreeksSecondOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryGreeksSecondOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksSecondOrderTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -809,15 +809,15 @@ func (c *Client) OptionHistoryGreeksSecondOrder(symbol string, expiration string
 	C.tdx_clear_error()
 	arr := C.tdx_option_history_greeks_second_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_second_order_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksSecondOrderTicks(arr)
+	C.tdx_greeks_second_order_tick_array_free(arr)
 	return result, nil
 }
 
-func (c *Client) OptionHistoryTradeGreeksSecondOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryTradeGreeksSecondOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksSecondOrderTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -831,15 +831,15 @@ func (c *Client) OptionHistoryTradeGreeksSecondOrder(symbol string, expiration s
 	C.tdx_clear_error()
 	arr := C.tdx_option_history_trade_greeks_second_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_second_order_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksSecondOrderTicks(arr)
+	C.tdx_greeks_second_order_tick_array_free(arr)
 	return result, nil
 }
 
-func (c *Client) OptionHistoryGreeksThirdOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryGreeksThirdOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksThirdOrderTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -853,15 +853,15 @@ func (c *Client) OptionHistoryGreeksThirdOrder(symbol string, expiration string,
 	C.tdx_clear_error()
 	arr := C.tdx_option_history_greeks_third_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_third_order_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksThirdOrderTicks(arr)
+	C.tdx_greeks_third_order_tick_array_free(arr)
 	return result, nil
 }
 
-func (c *Client) OptionHistoryTradeGreeksThirdOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksTick, error) {
+func (c *Client) OptionHistoryTradeGreeksThirdOrder(symbol string, expiration string, date string, opts ...EndpointOption) ([]GreeksThirdOrderTick, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	cSymbol := C.CString(symbol)
@@ -875,11 +875,11 @@ func (c *Client) OptionHistoryTradeGreeksThirdOrder(symbol string, expiration st
 	C.tdx_clear_error()
 	arr := C.tdx_option_history_trade_greeks_third_order_with_options(c.handle, cSymbol, cExpiration, cDate, cOpts)
 	if e := lastError(); e != "" {
-		C.tdx_greeks_tick_array_free(arr)
+		C.tdx_greeks_third_order_tick_array_free(arr)
 		return nil, fmt.Errorf("thetadatadx: %s", e)
 	}
-	result := convertGreeksTicks(arr)
-	C.tdx_greeks_tick_array_free(arr)
+	result := convertGreeksThirdOrderTicks(arr)
+	C.tdx_greeks_third_order_tick_array_free(arr)
 	return result, nil
 }
 

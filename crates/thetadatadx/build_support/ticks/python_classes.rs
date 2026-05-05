@@ -9,7 +9,7 @@
 
 use std::fmt::Write as _;
 
-use super::schema::{Schema, TickTypeDef};
+use super::schema::{render_for_type, Schema, TickTypeDef};
 use super::{pyclass_name, sorted_type_names};
 
 pub(super) fn render_python_tick_classes(
@@ -52,7 +52,7 @@ pub(super) fn render_python_tick_classes(
     // concrete typed wrapper.
     for type_name in &type_names {
         let def = &schema.types[*type_name];
-        out.push_str(&render_python_tick_list_struct(type_name, def));
+        out.push_str(&render_python_tick_list_struct(schema, type_name, def));
         out.push('\n');
     }
 
@@ -61,7 +61,7 @@ pub(super) fn render_python_tick_classes(
     // the wrapper, so no extra allocation / no double-buffering RSS spike.
     for type_name in &type_names {
         let def = &schema.types[*type_name];
-        out.push_str(&render_python_tick_class_list_fn(type_name, def));
+        out.push_str(&render_python_tick_class_list_fn(schema, type_name, def));
         out.push('\n');
     }
 
@@ -87,12 +87,14 @@ pub(super) fn render_python_tick_classes(
         // `OhlcTick` -> `OhlcTicks`). Map using `tick_collection_name`
         // below so the filter key matches `endpoint_surface.toml::returns`
         // verbatim.
-        let collection_name = tick_collection_name(type_name);
+        let collection_name = tick_collection_name(schema, type_name);
         if !snapshot_return_types.contains(collection_name) {
             continue;
         }
         let def = &schema.types[*type_name];
-        out.push_str(&render_python_tick_class_vec_to_pylist_fn(type_name, def));
+        out.push_str(&render_python_tick_class_vec_to_pylist_fn(
+            schema, type_name, def,
+        ));
         out.push('\n');
     }
 
@@ -297,46 +299,20 @@ fn render_python_string_list() -> String {
     out
 }
 
-fn python_list_fn_name(type_name: &str) -> &'static str {
-    match type_name {
-        "EodTick" => "eod_ticks_to_pyclass_list",
-        "OhlcTick" => "ohlc_ticks_to_pyclass_list",
-        "TradeTick" => "trade_ticks_to_pyclass_list",
-        "QuoteTick" => "quote_ticks_to_pyclass_list",
-        "TradeQuoteTick" => "trade_quote_ticks_to_pyclass_list",
-        "OpenInterestTick" => "open_interest_ticks_to_pyclass_list",
-        "MarketValueTick" => "market_value_ticks_to_pyclass_list",
-        "GreeksTick" => "greeks_ticks_to_pyclass_list",
-        "IvTick" => "iv_ticks_to_pyclass_list",
-        "PriceTick" => "price_ticks_to_pyclass_list",
-        "CalendarDay" => "calendar_days_to_pyclass_list",
-        "InterestRateTick" => "interest_rate_ticks_to_pyclass_list",
-        "OptionContract" => "option_contracts_to_pyclass_list",
-        other => panic!("unsupported Python list fn: {other}"),
-    }
+fn python_list_fn_name<'a>(schema: &'a Schema, type_name: &str) -> &'a str {
+    render_for_type(schema, type_name)
+        .python_pyclass_list
+        .as_str()
 }
 
 /// Slice-based Arrow converter name in `tick_arrow::slice_arrow`. The
 /// `<Tick>List.to_arrow` terminal calls this converter directly so the
 /// decoder-owned `Vec<tick::T>` feeds the Arrow column builders without
 /// any pyclass-list round-trip.
-fn slice_arrow_converter(type_name: &str) -> &'static str {
-    match type_name {
-        "EodTick" => "slice_arrow::eod_tick_slice_to_arrow_table",
-        "OhlcTick" => "slice_arrow::ohlc_tick_slice_to_arrow_table",
-        "TradeTick" => "slice_arrow::trade_tick_slice_to_arrow_table",
-        "QuoteTick" => "slice_arrow::quote_tick_slice_to_arrow_table",
-        "TradeQuoteTick" => "slice_arrow::trade_quote_tick_slice_to_arrow_table",
-        "OpenInterestTick" => "slice_arrow::open_interest_tick_slice_to_arrow_table",
-        "MarketValueTick" => "slice_arrow::market_value_tick_slice_to_arrow_table",
-        "GreeksTick" => "slice_arrow::greeks_tick_slice_to_arrow_table",
-        "IvTick" => "slice_arrow::iv_tick_slice_to_arrow_table",
-        "PriceTick" => "slice_arrow::price_tick_slice_to_arrow_table",
-        "CalendarDay" => "slice_arrow::calendar_day_slice_to_arrow_table",
-        "InterestRateTick" => "slice_arrow::interest_rate_tick_slice_to_arrow_table",
-        "OptionContract" => "slice_arrow::option_contract_slice_to_arrow_table",
-        other => panic!("unsupported slice-arrow converter: {other}"),
-    }
+fn slice_arrow_converter<'a>(schema: &'a Schema, type_name: &str) -> &'a str {
+    render_for_type(schema, type_name)
+        .python_slice_arrow
+        .as_str()
 }
 
 /// Strip " -- N fields[...]." from the first doc line so the rendered
@@ -732,12 +708,12 @@ fn pyclass_from_tick_expr(
 /// list protocol (`__len__`, `__getitem__`, `__iter__`, `__bool__`,
 /// `__repr__`) plus the chained terminals (`to_list`, `to_arrow`,
 /// `to_pandas`, `to_polars`).
-fn render_python_tick_list_struct(type_name: &str, def: &TickTypeDef) -> String {
+fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
     let class = pyclass_name(type_name);
     let list_class = format!("{class}List");
     let iter_class = format!("{class}ListIter");
-    let slice_arrow = slice_arrow_converter(type_name);
+    let slice_arrow = slice_arrow_converter(schema, type_name);
 
     // Rust-side source type. The wrapper holds the decoder-owned
     // Vec<tick::T>; no intermediate pyclass-list materialisation.
@@ -938,11 +914,15 @@ fn render_python_tick_list_struct(type_name: &str, def: &TickTypeDef) -> String 
 /// Emit the `*_to_pyclass_list` converter. Takes an owned
 /// `Vec<tick::T>` and wraps it into a `Py<<TickName>List>`; the Vec is
 /// moved straight in, no extra allocation.
-fn render_python_tick_class_list_fn(type_name: &str, _def: &TickTypeDef) -> String {
+fn render_python_tick_class_list_fn(
+    schema: &Schema,
+    type_name: &str,
+    _def: &TickTypeDef,
+) -> String {
     let mut out = String::new();
     let class = pyclass_name(type_name);
     let list_class = format!("{class}List");
-    let fn_name = python_list_fn_name(type_name);
+    let fn_name = python_list_fn_name(schema, type_name);
 
     writeln!(
         out,
@@ -959,44 +939,16 @@ fn render_python_tick_class_list_fn(type_name: &str, _def: &TickTypeDef) -> Stri
 /// (`OhlcTicks`). Bridges the two TOML files at the generator layer so
 /// the snapshot-return-type filter driving `_vec_to_pylist` emission can
 /// match `returns` verbatim.
-fn tick_collection_name(type_name: &str) -> &'static str {
-    match type_name {
-        "EodTick" => "EodTicks",
-        "OhlcTick" => "OhlcTicks",
-        "TradeTick" => "TradeTicks",
-        "QuoteTick" => "QuoteTicks",
-        "TradeQuoteTick" => "TradeQuoteTicks",
-        "OpenInterestTick" => "OpenInterestTicks",
-        "MarketValueTick" => "MarketValueTicks",
-        "GreeksTick" => "GreeksTicks",
-        "IvTick" => "IvTicks",
-        "PriceTick" => "PriceTicks",
-        "CalendarDay" => "CalendarDays",
-        "InterestRateTick" => "InterestRateTicks",
-        "OptionContract" => "OptionContracts",
-        other => panic!("unsupported tick-type collection name: {other}"),
-    }
+fn tick_collection_name<'a>(schema: &'a Schema, type_name: &str) -> &'a str {
+    render_for_type(schema, type_name).collection.as_str()
 }
 
 /// Snapshot-kind converter name. See [`python_vec_to_pylist_fn_name`]
 /// caller in `endpoints/render/python.rs`.
-fn python_vec_to_pylist_fn_name(type_name: &str) -> &'static str {
-    match type_name {
-        "EodTick" => "eod_ticks_vec_to_pylist",
-        "OhlcTick" => "ohlc_ticks_vec_to_pylist",
-        "TradeTick" => "trade_ticks_vec_to_pylist",
-        "QuoteTick" => "quote_ticks_vec_to_pylist",
-        "TradeQuoteTick" => "trade_quote_ticks_vec_to_pylist",
-        "OpenInterestTick" => "open_interest_ticks_vec_to_pylist",
-        "MarketValueTick" => "market_value_ticks_vec_to_pylist",
-        "GreeksTick" => "greeks_ticks_vec_to_pylist",
-        "IvTick" => "iv_ticks_vec_to_pylist",
-        "PriceTick" => "price_ticks_vec_to_pylist",
-        "CalendarDay" => "calendar_days_vec_to_pylist",
-        "InterestRateTick" => "interest_rate_ticks_vec_to_pylist",
-        "OptionContract" => "option_contracts_vec_to_pylist",
-        other => panic!("unsupported Python vec-to-pylist fn: {other}"),
-    }
+fn python_vec_to_pylist_fn_name<'a>(schema: &'a Schema, type_name: &str) -> &'a str {
+    render_for_type(schema, type_name)
+        .python_vec_to_pylist
+        .as_str()
 }
 
 /// Emit the `<tick>_vec_to_pylist` converter — the snapshot fast-path
@@ -1005,10 +957,14 @@ fn python_vec_to_pylist_fn_name(type_name: &str) -> &'static str {
 /// wrapper allocation. Body mirrors the `to_list` terminal on the wrapper
 /// (SSOT: both call `pyclass_from_tick_expr` to build each pyclass row)
 /// so snapshot-path and `.to_list()` output a byte-identical pylist.
-fn render_python_tick_class_vec_to_pylist_fn(type_name: &str, def: &TickTypeDef) -> String {
+fn render_python_tick_class_vec_to_pylist_fn(
+    schema: &Schema,
+    type_name: &str,
+    def: &TickTypeDef,
+) -> String {
     let mut out = String::new();
     let class = pyclass_name(type_name);
-    let fn_name = python_vec_to_pylist_fn_name(type_name);
+    let fn_name = python_vec_to_pylist_fn_name(schema, type_name);
 
     writeln!(
         out,

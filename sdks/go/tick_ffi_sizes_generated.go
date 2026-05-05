@@ -3,17 +3,20 @@
 package thetadatadx
 
 const (
-	CEodTickExpectedSize uintptr = 128
-	COhlcTickExpectedSize uintptr = 128
-	CTradeTickExpectedSize uintptr = 128
-	CQuoteTickExpectedSize uintptr = 128
-	COpenInterestTickExpectedSize uintptr = 64
 	CCalendarDayExpectedSize uintptr = 64
+	CEodTickExpectedSize uintptr = 128
+	CGreeksAllTickExpectedSize uintptr = 256
+	CGreeksFirstOrderTickExpectedSize uintptr = 128
+	CGreeksSecondOrderTickExpectedSize uintptr = 128
+	CGreeksThirdOrderTickExpectedSize uintptr = 128
 	CInterestRateTickExpectedSize uintptr = 64
 	CIvTickExpectedSize uintptr = 64
-	CPriceTickExpectedSize uintptr = 64
 	CMarketValueTickExpectedSize uintptr = 64
-	CGreeksTickExpectedSize uintptr = 256
-	CTradeQuoteTickExpectedSize uintptr = 192
+	COhlcTickExpectedSize uintptr = 128
+	COpenInterestTickExpectedSize uintptr = 64
 	COptionContractExpectedSize uintptr = 32
+	CPriceTickExpectedSize uintptr = 64
+	CQuoteTickExpectedSize uintptr = 128
+	CTradeQuoteTickExpectedSize uintptr = 192
+	CTradeTickExpectedSize uintptr = 128
 )

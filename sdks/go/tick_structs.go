@@ -38,9 +38,11 @@ type EodTick struct {
 	Right          string   `json:"right,omitempty"`
 }
 
-// GreeksTick — Greeks tick -- 24 fields. Full union of every Greek the v3 server
-type GreeksTick struct {
+// GreeksAllTick — Full union Greeks tick -- every Greek the v3 server publishes on the
+type GreeksAllTick struct {
 	MsOfDay        int      `json:"ms_of_day"`
+	Bid            float64  `json:"bid"`
+	Ask            float64  `json:"ask"`
 	IV             float64  `json:"implied_volatility"`
 	Delta          float64  `json:"delta"`
 	Gamma          float64  `json:"gamma"`
@@ -63,6 +65,68 @@ type GreeksTick struct {
 	Epsilon        float64  `json:"epsilon"`
 	Lambda         float64  `json:"lambda"`
 	Vera           float64  `json:"vera"`
+	UnderlyingMsOfDay int      `json:"underlying_ms_of_day"`
+	UnderlyingPrice float64  `json:"underlying_price"`
+	Date           int      `json:"date"`
+	Expiration     int32    `json:"expiration,omitempty"`
+	Strike         float64  `json:"strike,omitempty"`
+	Right          string   `json:"right,omitempty"`
+}
+
+// GreeksFirstOrderTick — First-order Greeks tick -- the strict column subset emitted by the
+type GreeksFirstOrderTick struct {
+	MsOfDay        int      `json:"ms_of_day"`
+	Bid            float64  `json:"bid"`
+	Ask            float64  `json:"ask"`
+	Delta          float64  `json:"delta"`
+	Theta          float64  `json:"theta"`
+	Vega           float64  `json:"vega"`
+	Rho            float64  `json:"rho"`
+	Epsilon        float64  `json:"epsilon"`
+	Lambda         float64  `json:"lambda"`
+	IV             float64  `json:"implied_volatility"`
+	IVError        float64  `json:"iv_error"`
+	UnderlyingMsOfDay int      `json:"underlying_ms_of_day"`
+	UnderlyingPrice float64  `json:"underlying_price"`
+	Date           int      `json:"date"`
+	Expiration     int32    `json:"expiration,omitempty"`
+	Strike         float64  `json:"strike,omitempty"`
+	Right          string   `json:"right,omitempty"`
+}
+
+// GreeksSecondOrderTick — Second-order Greeks tick -- the strict column subset emitted by the
+type GreeksSecondOrderTick struct {
+	MsOfDay        int      `json:"ms_of_day"`
+	Bid            float64  `json:"bid"`
+	Ask            float64  `json:"ask"`
+	Gamma          float64  `json:"gamma"`
+	Vanna          float64  `json:"vanna"`
+	Charm          float64  `json:"charm"`
+	Vomma          float64  `json:"vomma"`
+	Veta           float64  `json:"veta"`
+	IV             float64  `json:"implied_volatility"`
+	IVError        float64  `json:"iv_error"`
+	UnderlyingMsOfDay int      `json:"underlying_ms_of_day"`
+	UnderlyingPrice float64  `json:"underlying_price"`
+	Date           int      `json:"date"`
+	Expiration     int32    `json:"expiration,omitempty"`
+	Strike         float64  `json:"strike,omitempty"`
+	Right          string   `json:"right,omitempty"`
+}
+
+// GreeksThirdOrderTick — Third-order Greeks tick -- the strict column subset emitted by the
+type GreeksThirdOrderTick struct {
+	MsOfDay        int      `json:"ms_of_day"`
+	Bid            float64  `json:"bid"`
+	Ask            float64  `json:"ask"`
+	Speed          float64  `json:"speed"`
+	Zomma          float64  `json:"zomma"`
+	Color          float64  `json:"color"`
+	Ultima         float64  `json:"ultima"`
+	IV             float64  `json:"implied_volatility"`
+	IVError        float64  `json:"iv_error"`
+	UnderlyingMsOfDay int      `json:"underlying_ms_of_day"`
+	UnderlyingPrice float64  `json:"underlying_price"`
 	Date           int      `json:"date"`
 	Expiration     int32    `json:"expiration,omitempty"`
 	Strike         float64  `json:"strike,omitempty"`

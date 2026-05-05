@@ -2897,7 +2897,7 @@ impl OptionSnapshotGreeksAllBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksAllTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -2953,7 +2953,7 @@ impl OptionSnapshotGreeksAllBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_all_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -3012,7 +3012,7 @@ impl OptionSnapshotGreeksAllBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -3138,7 +3138,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksFirstOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -3194,7 +3194,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_first_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -3253,7 +3253,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -3379,7 +3379,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksSecondOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -3435,7 +3435,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_second_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -3494,7 +3494,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -3620,7 +3620,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksThirdOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -3676,7 +3676,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_third_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -3735,7 +3735,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -5029,7 +5029,7 @@ impl OptionHistoryGreeksEodBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksAllTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -5079,7 +5079,7 @@ impl OptionHistoryGreeksEodBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_all_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -5132,7 +5132,7 @@ impl OptionHistoryGreeksEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -5274,7 +5274,7 @@ impl OptionHistoryGreeksAllBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksAllTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -5335,7 +5335,7 @@ impl OptionHistoryGreeksAllBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_all_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -5399,7 +5399,7 @@ impl OptionHistoryGreeksAllBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -5540,7 +5540,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksAllTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -5601,7 +5601,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_all_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -5665,7 +5665,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -5807,7 +5807,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksFirstOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -5868,7 +5868,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_first_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -5932,7 +5932,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -6073,7 +6073,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksFirstOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -6134,7 +6134,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_first_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -6198,7 +6198,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -6340,7 +6340,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksSecondOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -6401,7 +6401,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_second_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -6465,7 +6465,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -6606,7 +6606,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksSecondOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -6667,7 +6667,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_second_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -6731,7 +6731,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -6873,7 +6873,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksThirdOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -6934,7 +6934,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_third_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -6998,7 +6998,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -7139,7 +7139,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksThirdOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -7200,7 +7200,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             request.await
         })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_third_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -7264,7 +7264,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 }
 
@@ -11897,7 +11897,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking_snapshot(py, async move { request.await })?;
-        greeks_ticks_vec_to_pylist(py, ticks)
+        greeks_all_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
@@ -11977,7 +11977,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_all_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_all`. Chain setters then call `.list()`
@@ -12081,7 +12081,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking_snapshot(py, async move { request.await })?;
-        greeks_ticks_vec_to_pylist(py, ticks)
+        greeks_first_order_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -12161,7 +12161,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_first_order_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_first_order`. Chain setters then call `.list()`
@@ -12265,7 +12265,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking_snapshot(py, async move { request.await })?;
-        greeks_ticks_vec_to_pylist(py, ticks)
+        greeks_second_order_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -12345,7 +12345,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_second_order_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_second_order`. Chain setters then call `.list()`
@@ -12449,7 +12449,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking_snapshot(py, async move { request.await })?;
-        greeks_ticks_vec_to_pylist(py, ticks)
+        greeks_third_order_ticks_vec_to_pylist(py, ticks)
     }
 
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
@@ -12529,7 +12529,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_third_order_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_snapshot_greeks_third_order`. Chain setters then call `.list()`
@@ -13507,7 +13507,7 @@ impl ThetaDataDx {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<GreeksAllTickList>> {
         let mut request = self.tdx.option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -13540,7 +13540,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_all_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
@@ -13613,7 +13613,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_greeks_eod`. Chain setters then call `.list()`
@@ -13684,7 +13684,7 @@ impl ThetaDataDx {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<GreeksAllTickList>> {
         let mut request = self.tdx.option_history_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -13726,7 +13726,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_all_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
@@ -13813,7 +13813,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_greeks_all`. Chain setters then call `.list()`
@@ -13884,7 +13884,7 @@ impl ThetaDataDx {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<GreeksAllTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -13926,7 +13926,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_all_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch all Greeks on each trade for an option contract.
@@ -14012,7 +14012,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_all`. Chain setters then call `.list()`
@@ -14084,7 +14084,7 @@ impl ThetaDataDx {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<GreeksFirstOrderTickList>> {
         let mut request = self.tdx.option_history_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -14126,7 +14126,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_first_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
@@ -14213,7 +14213,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_greeks_first_order`. Chain setters then call `.list()`
@@ -14284,7 +14284,7 @@ impl ThetaDataDx {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<GreeksFirstOrderTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -14326,7 +14326,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_first_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
@@ -14412,7 +14412,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_first_order`. Chain setters then call `.list()`
@@ -14484,7 +14484,7 @@ impl ThetaDataDx {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<GreeksSecondOrderTickList>> {
         let mut request = self.tdx.option_history_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -14526,7 +14526,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_second_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
@@ -14613,7 +14613,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_greeks_second_order`. Chain setters then call `.list()`
@@ -14684,7 +14684,7 @@ impl ThetaDataDx {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<GreeksSecondOrderTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -14726,7 +14726,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_second_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
@@ -14812,7 +14812,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_second_order`. Chain setters then call `.list()`
@@ -14884,7 +14884,7 @@ impl ThetaDataDx {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<GreeksThirdOrderTickList>> {
         let mut request = self.tdx.option_history_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -14926,7 +14926,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_third_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
@@ -15013,7 +15013,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_greeks_third_order`. Chain setters then call `.list()`
@@ -15084,7 +15084,7 @@ impl ThetaDataDx {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksTickList>> {
+    ) -> PyResult<Py<GreeksThirdOrderTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -15126,7 +15126,7 @@ impl ThetaDataDx {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_ticks_to_pyclass_list(py, ticks)
+        greeks_third_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
@@ -15212,7 +15212,7 @@ impl ThetaDataDx {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_third_order`. Chain setters then call `.list()`

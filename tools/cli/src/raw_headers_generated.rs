@@ -31,8 +31,10 @@ pub(crate) const EOD_TICK_RAW_HEADERS: &[&str] = &[
     "right",
 ];
 
-pub(crate) const GREEKS_TICK_RAW_HEADERS: &[&str] = &[
+pub(crate) const GREEKS_ALL_TICK_RAW_HEADERS: &[&str] = &[
     "ms_of_day",
+    "bid",
+    "ask",
     "implied_volatility",
     "delta",
     "gamma",
@@ -55,6 +57,65 @@ pub(crate) const GREEKS_TICK_RAW_HEADERS: &[&str] = &[
     "epsilon",
     "lambda",
     "vera",
+    "underlying_ms_of_day",
+    "underlying_price",
+    "date",
+    "expiration",
+    "strike",
+    "right",
+];
+
+pub(crate) const GREEKS_FIRST_ORDER_TICK_RAW_HEADERS: &[&str] = &[
+    "ms_of_day",
+    "bid",
+    "ask",
+    "delta",
+    "theta",
+    "vega",
+    "rho",
+    "epsilon",
+    "lambda",
+    "implied_volatility",
+    "iv_error",
+    "underlying_ms_of_day",
+    "underlying_price",
+    "date",
+    "expiration",
+    "strike",
+    "right",
+];
+
+pub(crate) const GREEKS_SECOND_ORDER_TICK_RAW_HEADERS: &[&str] = &[
+    "ms_of_day",
+    "bid",
+    "ask",
+    "gamma",
+    "vanna",
+    "charm",
+    "vomma",
+    "veta",
+    "implied_volatility",
+    "iv_error",
+    "underlying_ms_of_day",
+    "underlying_price",
+    "date",
+    "expiration",
+    "strike",
+    "right",
+];
+
+pub(crate) const GREEKS_THIRD_ORDER_TICK_RAW_HEADERS: &[&str] = &[
+    "ms_of_day",
+    "bid",
+    "ask",
+    "speed",
+    "zomma",
+    "color",
+    "ultima",
+    "implied_volatility",
+    "iv_error",
+    "underlying_ms_of_day",
+    "underlying_price",
     "date",
     "expiration",
     "strike",

@@ -298,7 +298,7 @@ export declare class ThetaDataDx {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    */
-  optionSnapshotGreeksAll(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionSnapshotGreeksAll(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksAllTick>
   /**
    * Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
    *
@@ -314,7 +314,7 @@ export declare class ThetaDataDx {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    */
-  optionSnapshotGreeksFirstOrder(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionSnapshotGreeksFirstOrder(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksFirstOrderTick>
   /**
    * Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
    *
@@ -330,7 +330,7 @@ export declare class ThetaDataDx {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    */
-  optionSnapshotGreeksSecondOrder(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionSnapshotGreeksSecondOrder(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksSecondOrderTick>
   /**
    * Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
    *
@@ -346,7 +346,7 @@ export declare class ThetaDataDx {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    */
-  optionSnapshotGreeksThirdOrder(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionSnapshotGreeksThirdOrder(symbol: string, expiration: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, stockPrice?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, minTime?: string | Date | undefined | null, useMarketValue?: boolean | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksThirdOrderTick>
   /**
    * Fetch end-of-day option data for a contract over a date range.
    *
@@ -447,7 +447,7 @@ export declare class ThetaDataDx {
    * - `version`: `"latest"`
    * - `underlyer_use_nbbo`: `false`
    */
-  optionHistoryGreeksEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, underlyerUseNbbo?: boolean | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionHistoryGreeksEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, underlyerUseNbbo?: boolean | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksAllTick>
   /**
    * Fetch all Greeks history for an option contract (intraday, sampled by interval).
    *
@@ -465,7 +465,7 @@ export declare class ThetaDataDx {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryGreeksAll(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionHistoryGreeksAll(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksAllTick>
   /**
    * Fetch all Greeks on each trade for an option contract.
    *
@@ -482,7 +482,7 @@ export declare class ThetaDataDx {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryTradeGreeksAll(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionHistoryTradeGreeksAll(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksAllTick>
   /**
    * Fetch first-order Greeks history (intraday, sampled by interval).
    *
@@ -500,7 +500,7 @@ export declare class ThetaDataDx {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionHistoryGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksFirstOrderTick>
   /**
    * Fetch first-order Greeks on each trade for an option contract.
    *
@@ -517,7 +517,7 @@ export declare class ThetaDataDx {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryTradeGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionHistoryTradeGreeksFirstOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksFirstOrderTick>
   /**
    * Fetch second-order Greeks history (intraday, sampled by interval).
    *
@@ -535,7 +535,7 @@ export declare class ThetaDataDx {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionHistoryGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksSecondOrderTick>
   /**
    * Fetch second-order Greeks on each trade for an option contract.
    *
@@ -552,7 +552,7 @@ export declare class ThetaDataDx {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryTradeGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionHistoryTradeGreeksSecondOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksSecondOrderTick>
   /**
    * Fetch third-order Greeks history (intraday, sampled by interval).
    *
@@ -570,7 +570,7 @@ export declare class ThetaDataDx {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionHistoryGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksThirdOrderTick>
   /**
    * Fetch third-order Greeks on each trade for an option contract.
    *
@@ -587,7 +587,7 @@ export declare class ThetaDataDx {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    */
-  optionHistoryTradeGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksTick>
+  optionHistoryTradeGreeksThirdOrder(symbol: string, expiration: string | Date, date: string | Date, strike?: string | undefined | null, right?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, startDate?: string | Date | undefined | null, endDate?: string | Date | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksThirdOrderTick>
   /**
    * Fetch implied volatility history (intraday, sampled by interval).
    *
@@ -901,9 +901,11 @@ export interface FpssSimplePayload {
   id?: number
 }
 
-/** Greeks tick. Full set of option greeks. */
-export interface GreeksTick {
+/** Full-union Greeks tick (option_*_greeks_all, option_*_greeks_eod). */
+export interface GreeksAllTick {
   msOfDay: number
+  bid: number
+  ask: number
   impliedVolatility: number
   delta: number
   gamma: number
@@ -926,6 +928,68 @@ export interface GreeksTick {
   epsilon: number
   lambda: number
   vera: number
+  underlyingMsOfDay: number
+  underlyingPrice: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** First-order Greeks subset tick (option_*_greeks_first_order). */
+export interface GreeksFirstOrderTick {
+  msOfDay: number
+  bid: number
+  ask: number
+  delta: number
+  theta: number
+  vega: number
+  rho: number
+  epsilon: number
+  lambda: number
+  impliedVolatility: number
+  ivError: number
+  underlyingMsOfDay: number
+  underlyingPrice: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** Second-order Greeks subset tick (option_*_greeks_second_order). */
+export interface GreeksSecondOrderTick {
+  msOfDay: number
+  bid: number
+  ask: number
+  gamma: number
+  vanna: number
+  charm: number
+  vomma: number
+  veta: number
+  impliedVolatility: number
+  ivError: number
+  underlyingMsOfDay: number
+  underlyingPrice: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** Third-order Greeks subset tick (option_*_greeks_third_order). */
+export interface GreeksThirdOrderTick {
+  msOfDay: number
+  bid: number
+  ask: number
+  speed: number
+  zomma: number
+  color: number
+  ultima: number
+  impliedVolatility: number
+  ivError: number
+  underlyingMsOfDay: number
+  underlyingPrice: number
   date: number
   expiration: number
   strike: number
