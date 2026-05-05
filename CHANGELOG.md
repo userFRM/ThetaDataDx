@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.25] - 2026-05-05
+
+### Fixed
+
+- **Windows `ERROR_IO_PENDING` (os error 997) no longer trips a fatal
+  FPSS read error.** On Windows the overlapped socket layer surfaces
+  in-flight reads as `ERROR_IO_PENDING` instead of `WSAEWOULDBLOCK`.
+  Rust `std` maps raw OS error 997 to `ErrorKind::Uncategorized`, so
+  the existing `WouldBlock | TimedOut` matches in
+  `crates/thetadatadx/src/fpss/io_loop.rs::is_read_timeout` and the
+  two retry arms in `crates/thetadatadx/src/fpss/framing.rs`
+  (pre-header and mid-payload) treated it as fatal — Python users on
+  Windows saw `FPSS read error error=IO error: Overlapped I/O
+  operation is in progress. (os error 997)` spam followed by a
+  reconnect storm. A new `is_transient_read` helper in `framing.rs`
+  matches `WouldBlock`, `TimedOut`, and `raw_os_error() == Some(997)`;
+  all three sites delegate to it so the I/O loop drains queued
+  commands and retries the way it does on Linux and macOS.
+  Closes #469.
+
+### Changed
+
+- `tdbe` 0.12.5 → 0.12.7.
+
 ## [8.0.24] - 2026-05-04
 
 ### Added

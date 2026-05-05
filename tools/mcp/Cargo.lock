@@ -1936,7 +1936,7 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.12.5"
+version = "0.12.6"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -1956,7 +1956,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.24"
+version = "8.0.25"
 dependencies = [
  "disruptor",
  "metrics",
@@ -1990,7 +1990,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-mcp"
-version = "8.0.24"
+version = "8.0.25"
 dependencies = [
  "json_canon",
  "serde",

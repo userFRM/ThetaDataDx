@@ -3022,7 +3022,7 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.12.5"
+version = "0.12.6"
 dependencies = [
  "criterion",
  "thiserror 2.0.18",
@@ -3043,7 +3043,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.24"
+version = "8.0.25"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -3082,7 +3082,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-cli"
-version = "8.0.24"
+version = "8.0.25"
 dependencies = [
  "clap",
  "comfy-table",
@@ -3095,7 +3095,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-ffi"
-version = "8.0.24"
+version = "8.0.25"
 dependencies = [
  "tdbe",
  "thetadatadx",
