@@ -22,23 +22,20 @@ pub(super) fn render_cli_raw_headers(schema: &Schema) -> String {
     out
 }
 
-fn cli_raw_header_const_name(type_name: &str) -> &'static str {
-    match type_name {
-        "CalendarDay" => "CALENDAR_DAY_RAW_HEADERS",
-        "EodTick" => "EOD_TICK_RAW_HEADERS",
-        "GreeksTick" => "GREEKS_TICK_RAW_HEADERS",
-        "InterestRateTick" => "INTEREST_RATE_TICK_RAW_HEADERS",
-        "IvTick" => "IV_TICK_RAW_HEADERS",
-        "MarketValueTick" => "MARKET_VALUE_TICK_RAW_HEADERS",
-        "OhlcTick" => "OHLC_TICK_RAW_HEADERS",
-        "OpenInterestTick" => "OPEN_INTEREST_TICK_RAW_HEADERS",
-        "OptionContract" => "OPTION_CONTRACT_RAW_HEADERS",
-        "PriceTick" => "PRICE_TICK_RAW_HEADERS",
-        "QuoteTick" => "QUOTE_TICK_RAW_HEADERS",
-        "TradeQuoteTick" => "TRADE_QUOTE_TICK_RAW_HEADERS",
-        "TradeTick" => "TRADE_TICK_RAW_HEADERS",
-        other => panic!("unsupported CLI raw-header type: {other}"),
+/// Derive the per-tick raw-header constant name from the schema type
+/// name. `EodTick` -> `EOD_TICK_RAW_HEADERS`, `GreeksFirstOrderTick` ->
+/// `GREEKS_FIRST_ORDER_TICK_RAW_HEADERS`. Adding a tick type to
+/// `tick_schema.toml` flows through here automatically -- no helper edit.
+fn cli_raw_header_const_name(type_name: &str) -> String {
+    let mut out = String::new();
+    for (i, c) in type_name.chars().enumerate() {
+        if c.is_ascii_uppercase() && i != 0 {
+            out.push('_');
+        }
+        out.push(c.to_ascii_uppercase());
     }
+    out.push_str("_RAW_HEADERS");
+    out
 }
 
 fn cli_raw_headers(type_name: &str, def: &TickTypeDef) -> Vec<String> {

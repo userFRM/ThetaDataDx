@@ -35,6 +35,7 @@
 
 use std::path::Path;
 
+pub(super) use schema::render_for_type;
 use schema::Schema;
 
 mod cli_headers;
@@ -46,8 +47,6 @@ mod python_classes;
 mod rust_frames;
 mod schema;
 mod typescript;
-
-pub(crate) use typescript::ts_tick_class_factory_name;
 
 pub struct GeneratedSourceFile {
     pub relative_path: &'static str,
@@ -127,7 +126,7 @@ fn render_sdk_generated_files(
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/tick_layout_asserts.hpp.inc",
-            contents: cpp::render_cpp_tick_layout_asserts(),
+            contents: cpp::render_cpp_tick_layout_asserts(&schema),
         },
         GeneratedSourceFile {
             relative_path: "sdks/go/tick_structs.go",

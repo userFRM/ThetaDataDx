@@ -17,17 +17,17 @@ func TestFFIStructSizes(t *testing.T) {
 	}{
 		{"cCalendarDay", unsafe.Sizeof(cCalendarDay{}), CCalendarDayExpectedSize},
 		{"cEodTick", unsafe.Sizeof(cEodTick{}), CEodTickExpectedSize},
-		{"cOhlcTick", unsafe.Sizeof(cOhlcTick{}), COhlcTickExpectedSize},
-		{"cTradeTick", unsafe.Sizeof(cTradeTick{}), CTradeTickExpectedSize},
-		{"cQuoteTick", unsafe.Sizeof(cQuoteTick{}), CQuoteTickExpectedSize},
-		{"cOpenInterestTick", unsafe.Sizeof(cOpenInterestTick{}), COpenInterestTickExpectedSize},
+		{"cGreeksTick", unsafe.Sizeof(cGreeksTick{}), CGreeksTickExpectedSize},
 		{"cInterestRateTick", unsafe.Sizeof(cInterestRateTick{}), CInterestRateTickExpectedSize},
 		{"cIvTick", unsafe.Sizeof(cIvTick{}), CIvTickExpectedSize},
-		{"cPriceTick", unsafe.Sizeof(cPriceTick{}), CPriceTickExpectedSize},
 		{"cMarketValueTick", unsafe.Sizeof(cMarketValueTick{}), CMarketValueTickExpectedSize},
-		{"cGreeksTick", unsafe.Sizeof(cGreeksTick{}), CGreeksTickExpectedSize},
-		{"cTradeQuoteTick", unsafe.Sizeof(cTradeQuoteTick{}), CTradeQuoteTickExpectedSize},
+		{"cOhlcTick", unsafe.Sizeof(cOhlcTick{}), COhlcTickExpectedSize},
+		{"cOpenInterestTick", unsafe.Sizeof(cOpenInterestTick{}), COpenInterestTickExpectedSize},
 		{"cOptionContract", unsafe.Sizeof(cOptionContract{}), COptionContractExpectedSize},
+		{"cPriceTick", unsafe.Sizeof(cPriceTick{}), CPriceTickExpectedSize},
+		{"cQuoteTick", unsafe.Sizeof(cQuoteTick{}), CQuoteTickExpectedSize},
+		{"cTradeQuoteTick", unsafe.Sizeof(cTradeQuoteTick{}), CTradeQuoteTickExpectedSize},
+		{"cTradeTick", unsafe.Sizeof(cTradeTick{}), CTradeTickExpectedSize},
 	}
 	for _, tt := range tests {
 		if tt.got != tt.want {

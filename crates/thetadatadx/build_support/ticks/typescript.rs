@@ -15,7 +15,7 @@
 use std::fmt::Write as _;
 
 use super::python_classes::strip_field_count_from_doc;
-use super::schema::{Schema, TickTypeDef};
+use super::schema::{render_for_type, Schema, TickTypeDef};
 use super::{pyclass_name as _, sorted_type_names};
 
 pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
@@ -42,7 +42,7 @@ pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
     }
     for type_name in sorted_type_names(schema) {
         let def = &schema.types[type_name];
-        out.push_str(&render_ts_tick_class_factory(type_name, def));
+        out.push_str(&render_ts_tick_class_factory(schema, type_name, def));
         out.push('\n');
     }
     out
@@ -88,9 +88,9 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
     out
 }
 
-fn render_ts_tick_class_factory(type_name: &str, def: &TickTypeDef) -> String {
+fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
-    let fn_name = ts_tick_class_factory_name(type_name);
+    let fn_name = ts_tick_class_factory_name(schema, type_name);
     writeln!(
         out,
         "fn {fn_name}(ticks: &[tick::{type_name}]) -> Vec<{type_name}> {{"
@@ -142,23 +142,8 @@ fn render_ts_tick_class_factory(type_name: &str, def: &TickTypeDef) -> String {
     out
 }
 
-pub(crate) fn ts_tick_class_factory_name(type_name: &str) -> &'static str {
-    match type_name {
-        "EodTick" => "eod_ticks_to_class_vec",
-        "OhlcTick" => "ohlc_ticks_to_class_vec",
-        "TradeTick" => "trade_ticks_to_class_vec",
-        "QuoteTick" => "quote_ticks_to_class_vec",
-        "TradeQuoteTick" => "trade_quote_ticks_to_class_vec",
-        "OpenInterestTick" => "open_interest_ticks_to_class_vec",
-        "MarketValueTick" => "market_value_ticks_to_class_vec",
-        "GreeksTick" => "greeks_ticks_to_class_vec",
-        "IvTick" => "iv_ticks_to_class_vec",
-        "PriceTick" => "price_ticks_to_class_vec",
-        "CalendarDay" => "calendar_days_to_class_vec",
-        "InterestRateTick" => "interest_rate_ticks_to_class_vec",
-        "OptionContract" => "option_contracts_to_class_vec",
-        other => panic!("unsupported TypeScript tick class factory type: {other}"),
-    }
+fn ts_tick_class_factory_name<'a>(schema: &'a Schema, type_name: &str) -> &'a str {
+    render_for_type(schema, type_name).ts_class_vec.as_str()
 }
 
 fn ts_class_rust_type(column_type: &str, type_name: &str, field: &str) -> &'static str {

@@ -242,6 +242,7 @@ pyclass = "EodTick"
 [types.OpenInterestTick]
 doc = "Open interest tick -- 3 fields."
 copy = true
+align = 64
 contract_id = true
 parser = "parse_open_interest_ticks"
 required = ["ms_of_day"]
@@ -276,6 +277,7 @@ pyclass = "OpenInterestTick"
 [types.TradeQuoteTick]
 doc = "Combined trade + quote tick -- 24 fields."
 copy = true
+align = 64
 contract_id = true
 parser = "parse_trade_quote_ticks"
 required = ["ms_of_day", "price"]

@@ -77,3 +77,23 @@ pub(super) fn load_schema() -> Result<Schema, Box<dyn std::error::Error>> {
     let schema: Schema = toml::from_str(&schema_str)?;
     Ok(schema)
 }
+
+/// Borrow the render block of a schema type by name. Panics with the
+/// available keys when the type is missing -- a missing tick type is a
+/// build-time bug. Used by every ticks/* emitter that previously kept a
+/// hand-coded match arm per tick type for FFI / Python / TS / Go binding
+/// names.
+pub(crate) fn render_for_type<'a>(schema: &'a Schema, type_name: &str) -> &'a TickRenderDef {
+    schema
+        .types
+        .get(type_name)
+        .map(|d| &d.render)
+        .unwrap_or_else(|| {
+            let mut keys: Vec<&str> = schema.types.keys().map(String::as_str).collect();
+            keys.sort();
+            panic!(
+                "no render block for tick type '{type_name}' in tick_schema.toml; available: {}",
+                keys.join(", ")
+            )
+        })
+}
