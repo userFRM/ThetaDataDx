@@ -154,21 +154,36 @@ pub(super) fn sorted_type_names(schema: &Schema) -> Vec<&str> {
 /// Stable pyclass / typed-struct name for a schema type. Shared across
 /// the Python emitters (struct, Arrow reader, and list converter) so all
 /// surfaces see the same class identifier.
+///
+/// TOML-driven via `[types.X.render].pyclass` -- adding a tick type means
+/// adding the schema row, not editing this helper. The OnceLock makes the
+/// lookup `'static` because the schema is closed at build time.
 pub(super) fn pyclass_name(type_name: &str) -> &'static str {
-    match type_name {
-        "EodTick" => "EodTick",
-        "OhlcTick" => "OhlcTick",
-        "TradeTick" => "TradeTick",
-        "QuoteTick" => "QuoteTick",
-        "TradeQuoteTick" => "TradeQuoteTick",
-        "OpenInterestTick" => "OpenInterestTick",
-        "MarketValueTick" => "MarketValueTick",
-        "GreeksTick" => "GreeksTick",
-        "IvTick" => "IvTick",
-        "PriceTick" => "PriceTick",
-        "CalendarDay" => "CalendarDay",
-        "InterestRateTick" => "InterestRateTick",
-        "OptionContract" => "OptionContract",
-        other => panic!("unsupported Python pyclass type: {other}"),
-    }
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+    static MAP: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+    let map = MAP.get_or_init(|| {
+        let schema = schema::load_schema()
+            .unwrap_or_else(|e| panic!("failed to load tick_schema.toml for pyclass_name: {e}"));
+        // Leak the strings -- build-time only, bounded by the closed set of
+        // tick types in tick_schema.toml. Avoids returning borrowed refs out
+        // of the closure.
+        schema
+            .types
+            .into_iter()
+            .map(|(name, def)| {
+                let key: &'static str = Box::leak(name.into_boxed_str());
+                let value: &'static str = Box::leak(def.render.pyclass.into_boxed_str());
+                (key, value)
+            })
+            .collect()
+    });
+    map.get(type_name).copied().unwrap_or_else(|| {
+        let mut keys: Vec<&str> = map.keys().copied().collect();
+        keys.sort();
+        panic!(
+            "unsupported Python pyclass type '{type_name}'; available: {}",
+            keys.join(", ")
+        )
+    })
 }

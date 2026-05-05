@@ -7,10 +7,140 @@
 //!
 //! Anything that emits a multi-line chunk of target-language code belongs in
 //! `render/`, not here.
+//!
+//! ## Per-tick render map (TOML-driven)
+//!
+//! The 19 hand-coded match arms that previously lived here for each renderer
+//! call (e.g. `direct_return_type`, `python_pyclass_list_class`) collapsed
+//! into single-key lookups against `tick_schema.toml::[types.X.render]`.
+//! Adding a tick type now means adding one TOML row -- no helper edits at
+//! all. See [`render_for`].
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
 
 use super::model::{GeneratedEndpoint, GeneratedParam};
+
+// ─────────────────────────── Render-map loader ─────────────────────────────
+
+/// Per-tick binding-name map keyed by wire-collection plural (e.g.
+/// `"GreeksTicks"`). Loaded once from `tick_schema.toml` on the first call
+/// and shared across every renderer.
+#[derive(Debug, Clone)]
+pub(super) struct TickRender {
+    pub(super) direct: String,
+    pub(super) parser: String,
+    pub(super) go_struct: String,
+    pub(super) go_converter: String,
+    pub(super) ffi_array: String,
+    pub(super) ffi_array_empty: String,
+    pub(super) ffi_output_variant: String,
+    pub(super) ffi_from_vec_array: String,
+    pub(super) ffi_header_return: String,
+    pub(super) ffi_free_fn: String,
+    pub(super) cpp_value: String,
+    pub(super) python_converter: String,
+    pub(super) python_columnar: String,
+    pub(super) python_pyclass_list: String,
+    pub(super) python_vec_to_pylist: String,
+    pub(super) python_slice_arrow: String,
+    pub(super) ts_class: String,
+    pub(super) ts_class_vec: String,
+    pub(super) pyclass: String,
+}
+
+#[derive(serde::Deserialize)]
+struct SchemaToml {
+    types: HashMap<String, TickTypeToml>,
+}
+
+#[derive(serde::Deserialize)]
+struct TickTypeToml {
+    render: TickRenderToml,
+}
+
+#[derive(serde::Deserialize)]
+struct TickRenderToml {
+    collection: String,
+    direct: String,
+    parser: String,
+    go_struct: String,
+    go_converter: String,
+    ffi_array: String,
+    ffi_array_empty: String,
+    ffi_output_variant: String,
+    ffi_from_vec_array: String,
+    ffi_header_return: String,
+    ffi_free_fn: String,
+    cpp_value: String,
+    python_converter: String,
+    python_columnar: String,
+    python_pyclass_list: String,
+    python_vec_to_pylist: String,
+    python_slice_arrow: String,
+    ts_class: String,
+    ts_class_vec: String,
+    pyclass: String,
+}
+
+static RENDER_MAP: OnceLock<HashMap<String, TickRender>> = OnceLock::new();
+
+fn load_render_map() -> HashMap<String, TickRender> {
+    let schema_path = "tick_schema.toml";
+    let raw = std::fs::read_to_string(schema_path)
+        .unwrap_or_else(|e| panic!("failed to read {schema_path}: {e}"));
+    let parsed: SchemaToml =
+        toml::from_str(&raw).unwrap_or_else(|e| panic!("failed to parse {schema_path}: {e}"));
+    let mut map = HashMap::new();
+    let mut tick_to_collection: HashMap<String, String> = HashMap::new();
+    for (tick_name, def) in parsed.types {
+        let render = def.render;
+        let collection = render.collection.clone();
+        if let Some(prev) = tick_to_collection.insert(tick_name.clone(), collection.clone()) {
+            panic!("tick type '{tick_name}' duplicates collection '{prev}' / '{collection}'");
+        }
+        let entry = TickRender {
+            direct: render.direct,
+            parser: render.parser,
+            go_struct: render.go_struct,
+            go_converter: render.go_converter,
+            ffi_array: render.ffi_array,
+            ffi_array_empty: render.ffi_array_empty,
+            ffi_output_variant: render.ffi_output_variant,
+            ffi_from_vec_array: render.ffi_from_vec_array,
+            ffi_header_return: render.ffi_header_return,
+            ffi_free_fn: render.ffi_free_fn,
+            cpp_value: render.cpp_value,
+            python_converter: render.python_converter,
+            python_columnar: render.python_columnar,
+            python_pyclass_list: render.python_pyclass_list,
+            python_vec_to_pylist: render.python_vec_to_pylist,
+            python_slice_arrow: render.python_slice_arrow,
+            ts_class: render.ts_class,
+            ts_class_vec: render.ts_class_vec,
+            pyclass: render.pyclass,
+        };
+        if map.insert(collection.clone(), entry).is_some() {
+            panic!("duplicate render collection '{collection}' in tick_schema.toml");
+        }
+    }
+    map
+}
+
+/// Look up the per-language render names for a wire-collection plural
+/// (e.g. `"GreeksTicks"`). Panics with the available keys when the
+/// collection name is missing -- a missing TOML row is a build-time bug.
+pub(super) fn render_for(collection: &str) -> &'static TickRender {
+    let map = RENDER_MAP.get_or_init(load_render_map);
+    map.get(collection).unwrap_or_else(|| {
+        let mut keys: Vec<&str> = map.keys().map(String::as_str).collect();
+        keys.sort();
+        panic!(
+            "no render entry for collection '{collection}' in tick_schema.toml; available: {}",
+            keys.join(", ")
+        )
+    })
+}
 
 // ───────────────────────── Param classification ────────────────────────────
 
@@ -391,42 +521,12 @@ pub(super) fn direct_stream_tick_type(return_type: &str) -> &'static str {
     }
 }
 
-pub(super) fn direct_return_type(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "Vec<EodTick>",
-        "OhlcTicks" => "Vec<OhlcTick>",
-        "TradeTicks" => "Vec<TradeTick>",
-        "QuoteTicks" => "Vec<QuoteTick>",
-        "TradeQuoteTicks" => "Vec<TradeQuoteTick>",
-        "OpenInterestTicks" => "Vec<OpenInterestTick>",
-        "MarketValueTicks" => "Vec<MarketValueTick>",
-        "GreeksTicks" => "Vec<GreeksTick>",
-        "IvTicks" => "Vec<IvTick>",
-        "PriceTicks" => "Vec<PriceTick>",
-        "CalendarDays" => "Vec<CalendarDay>",
-        "InterestRateTicks" => "Vec<InterestRateTick>",
-        "OptionContracts" => "Vec<OptionContract>",
-        other => panic!("unsupported direct return type: {other}"),
-    }
+pub(super) fn direct_return_type(return_type: &str) -> String {
+    format!("Vec<{}>", render_for(return_type).direct)
 }
 
-pub(super) fn direct_parser_name(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "decode::parse_eod_ticks",
-        "OhlcTicks" => "decode::parse_ohlc_ticks",
-        "TradeTicks" => "decode::parse_trade_ticks",
-        "QuoteTicks" => "decode::parse_quote_ticks",
-        "TradeQuoteTicks" => "decode::parse_trade_quote_ticks",
-        "OpenInterestTicks" => "decode::parse_open_interest_ticks",
-        "MarketValueTicks" => "decode::parse_market_value_ticks",
-        "GreeksTicks" => "decode::parse_greeks_ticks",
-        "IvTicks" => "decode::parse_iv_ticks",
-        "PriceTicks" => "decode::parse_price_ticks",
-        "CalendarDays" => "decode::parse_calendar_days_v3",
-        "InterestRateTicks" => "decode::parse_interest_rate_ticks",
-        "OptionContracts" => "decode::parse_option_contracts_v3",
-        other => panic!("unsupported parser return type: {other}"),
-    }
+pub(super) fn direct_parser_name(return_type: &str) -> String {
+    format!("decode::{}", render_for(return_type).parser)
 }
 
 // ───────────────────────── Per-language type tables ─────────────────────────
@@ -458,166 +558,69 @@ pub(super) fn is_time_arg(param: &GeneratedParam) -> bool {
     )
 }
 
-pub(super) fn go_result_type(return_type: &str) -> &'static str {
-    match return_type {
-        "StringList" => "[]string",
-        "EodTicks" => "[]EodTick",
-        "OhlcTicks" => "[]OhlcTick",
-        "TradeTicks" => "[]TradeTick",
-        "QuoteTicks" => "[]QuoteTick",
-        "TradeQuoteTicks" => "[]TradeQuoteTick",
-        "OpenInterestTicks" => "[]OpenInterestTick",
-        "MarketValueTicks" => "[]MarketValueTick",
-        "GreeksTicks" => "[]GreeksTick",
-        "IvTicks" => "[]IVTick",
-        "PriceTicks" => "[]PriceTick",
-        "CalendarDays" => "[]CalendarDay",
-        "InterestRateTicks" => "[]InterestRateTick",
-        "OptionContracts" => "[]OptionContract",
-        other => panic!("unsupported Go result type: {other}"),
+pub(super) fn go_result_type(return_type: &str) -> String {
+    if return_type == "StringList" {
+        return "[]string".into();
     }
+    format!("[]{}", render_for(return_type).go_struct)
 }
 
-pub(super) fn go_converter_name(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "convertEodTicks",
-        "OhlcTicks" => "convertOhlcTicks",
-        "TradeTicks" => "convertTradeTicks",
-        "QuoteTicks" => "convertQuoteTicks",
-        "TradeQuoteTicks" => "convertTradeQuoteTicks",
-        "OpenInterestTicks" => "convertOpenInterestTicks",
-        "MarketValueTicks" => "convertMarketValueTicks",
-        "GreeksTicks" => "convertGreeksTicks",
-        "IvTicks" => "convertIvTicks",
-        "PriceTicks" => "convertPriceTicks",
-        "CalendarDays" => "convertCalendarDays",
-        "InterestRateTicks" => "convertInterestRateTicks",
-        "OptionContracts" => "convertOptionContracts",
-        other => panic!("unsupported Go converter type: {other}"),
-    }
+pub(super) fn go_converter_name(return_type: &str) -> String {
+    render_for(return_type).go_converter.clone()
 }
 
-pub(super) fn ffi_array_type(return_type: &str) -> &'static str {
-    match return_type {
-        "StringList" => "TdxStringArray",
-        "EodTicks" => "TdxEodTickArray",
-        "OhlcTicks" => "TdxOhlcTickArray",
-        "TradeTicks" => "TdxTradeTickArray",
-        "QuoteTicks" => "TdxQuoteTickArray",
-        "TradeQuoteTicks" => "TdxTradeQuoteTickArray",
-        "OpenInterestTicks" => "TdxOpenInterestTickArray",
-        "MarketValueTicks" => "TdxMarketValueTickArray",
-        "GreeksTicks" => "TdxGreeksTickArray",
-        "IvTicks" => "TdxIvTickArray",
-        "PriceTicks" => "TdxPriceTickArray",
-        "CalendarDays" => "TdxCalendarDayArray",
-        "InterestRateTicks" => "TdxInterestRateTickArray",
-        "OptionContracts" => "TdxOptionContractArray",
-        other => panic!("unsupported FFI array type: {other}"),
+pub(super) fn ffi_array_type(return_type: &str) -> String {
+    if return_type == "StringList" {
+        return "TdxStringArray".into();
     }
+    render_for(return_type).ffi_array.clone()
 }
 
-pub(super) fn ffi_array_empty_expr(return_type: &str) -> &'static str {
-    match return_type {
-        "OptionContracts" => {
-            "TdxOptionContractArray {\n        data: ptr::null(),\n        len: 0,\n    }"
-        }
-        _ => "ARRAY_EMPTY",
+pub(super) fn ffi_array_empty_expr(return_type: &str) -> String {
+    if return_type == "OptionContracts" {
+        // OptionContractArray uses `*mut` pointers so the empty literal cannot
+        // share the generic ARRAY_EMPTY constant. Render the explicit struct
+        // literal instead, with the indentation the existing emitter expects.
+        return "TdxOptionContractArray {\n        data: ptr::null_mut(),\n        len: 0,\n    }"
+            .into();
     }
+    render_for(return_type).ffi_array_empty.clone()
 }
 
-pub(super) fn ffi_output_variant(return_type: &str) -> &'static str {
-    match return_type {
-        "StringList" => "StringList",
-        "EodTicks" => "EodTicks",
-        "OhlcTicks" => "OhlcTicks",
-        "TradeTicks" => "TradeTicks",
-        "QuoteTicks" => "QuoteTicks",
-        "TradeQuoteTicks" => "TradeQuoteTicks",
-        "OpenInterestTicks" => "OpenInterestTicks",
-        "MarketValueTicks" => "MarketValueTicks",
-        "GreeksTicks" => "GreeksTicks",
-        "IvTicks" => "IvTicks",
-        "PriceTicks" => "PriceTicks",
-        "CalendarDays" => "CalendarDays",
-        "InterestRateTicks" => "InterestRateTicks",
-        "OptionContracts" => "OptionContracts",
-        other => panic!("unsupported endpoint output variant: {other}"),
+pub(super) fn ffi_output_variant(return_type: &str) -> String {
+    if return_type == "StringList" {
+        return "StringList".into();
     }
+    render_for(return_type).ffi_output_variant.clone()
 }
 
 /// Returns the `#[repr(C)]` array type name for the given `EndpointOutput`
 /// variant (e.g. `TdxEodTickArray`). The emitter wraps `<type>::from_vec(...)`
 /// — which returns `Result<Self, NulError>` — in an inline match that routes
 /// interior-NUL failures through the FFI error slot.
-pub(super) fn ffi_from_vec_array_type(return_type: &str) -> &'static str {
-    match return_type {
-        "StringList" => "TdxStringArray",
-        "OptionContracts" => "TdxOptionContractArray",
-        "EodTicks" => "TdxEodTickArray",
-        "OhlcTicks" => "TdxOhlcTickArray",
-        "TradeTicks" => "TdxTradeTickArray",
-        "QuoteTicks" => "TdxQuoteTickArray",
-        "TradeQuoteTicks" => "TdxTradeQuoteTickArray",
-        "OpenInterestTicks" => "TdxOpenInterestTickArray",
-        "MarketValueTicks" => "TdxMarketValueTickArray",
-        "GreeksTicks" => "TdxGreeksTickArray",
-        "IvTicks" => "TdxIvTickArray",
-        "PriceTicks" => "TdxPriceTickArray",
-        "CalendarDays" => "TdxCalendarDayArray",
-        "InterestRateTicks" => "TdxInterestRateTickArray",
-        other => panic!("unsupported FFI from_vec return type: {other}"),
+pub(super) fn ffi_from_vec_array_type(return_type: &str) -> String {
+    if return_type == "StringList" {
+        return "TdxStringArray".into();
     }
+    render_for(return_type).ffi_from_vec_array.clone()
 }
 
-pub(super) fn ffi_header_return_type(return_type: &str) -> &'static str {
-    match return_type {
-        "OptionContracts" => "TdxOptionContractArray",
-        "StringList" => "TdxStringArray",
-        "EodTicks" | "OhlcTicks" | "TradeTicks" | "QuoteTicks" | "TradeQuoteTicks"
-        | "OpenInterestTicks" | "MarketValueTicks" | "GreeksTicks" | "IvTicks" | "PriceTicks"
-        | "CalendarDays" | "InterestRateTicks" => "TdxTickArray",
-        other => panic!("unsupported Go/C header return type: {other}"),
+pub(super) fn ffi_header_return_type(return_type: &str) -> String {
+    if return_type == "StringList" {
+        return "TdxStringArray".into();
     }
+    render_for(return_type).ffi_header_return.clone()
 }
 
-pub(super) fn ffi_free_fn(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "C.tdx_eod_tick_array_free",
-        "OhlcTicks" => "C.tdx_ohlc_tick_array_free",
-        "TradeTicks" => "C.tdx_trade_tick_array_free",
-        "QuoteTicks" => "C.tdx_quote_tick_array_free",
-        "TradeQuoteTicks" => "C.tdx_trade_quote_tick_array_free",
-        "OpenInterestTicks" => "C.tdx_open_interest_tick_array_free",
-        "MarketValueTicks" => "C.tdx_market_value_tick_array_free",
-        "GreeksTicks" => "C.tdx_greeks_tick_array_free",
-        "IvTicks" => "C.tdx_iv_tick_array_free",
-        "PriceTicks" => "C.tdx_price_tick_array_free",
-        "CalendarDays" => "C.tdx_calendar_day_array_free",
-        "InterestRateTicks" => "C.tdx_interest_rate_tick_array_free",
-        "OptionContracts" => "C.tdx_option_contract_array_free",
-        other => panic!("unsupported FFI free fn for Go: {other}"),
-    }
+pub(super) fn ffi_free_fn(return_type: &str) -> String {
+    format!("C.{}", render_for(return_type).ffi_free_fn)
 }
 
-pub(super) fn cpp_value_type(return_type: &str) -> &'static str {
-    match return_type {
-        "StringList" => "std::string",
-        "EodTicks" => "EodTick",
-        "OhlcTicks" => "OhlcTick",
-        "TradeTicks" => "TradeTick",
-        "QuoteTicks" => "QuoteTick",
-        "TradeQuoteTicks" => "TradeQuoteTick",
-        "OpenInterestTicks" => "OpenInterestTick",
-        "MarketValueTicks" => "MarketValueTick",
-        "GreeksTicks" => "GreeksTick",
-        "IvTicks" => "IvTick",
-        "PriceTicks" => "PriceTick",
-        "CalendarDays" => "CalendarDay",
-        "InterestRateTicks" => "InterestRateTick",
-        "OptionContracts" => "OptionContract",
-        other => panic!("unsupported C++ value type: {other}"),
+pub(super) fn cpp_value_type(return_type: &str) -> String {
+    if return_type == "StringList" {
+        return "std::string".into();
     }
+    render_for(return_type).cpp_value.clone()
 }
 
 pub(super) fn cpp_converter_expr(return_type: &str) -> String {
@@ -630,7 +633,7 @@ pub(super) fn cpp_converter_expr(return_type: &str) -> String {
             // so we have to consult the error slot directly. The generated
             // Client method `tdx_clear_error()`s before the FFI call so a
             // stale error from a prior call isn't misattributed.
-            let free_fn = ffi_free_fn(other).trim_start_matches("C.").to_string();
+            let free_fn = render_for(other).ffi_free_fn.clone();
             format!(
                 "{{\n        const std::string err = detail::last_ffi_error_raw();\n        if (!err.empty()) {{\n            {free_fn}(arr);\n            throw std::runtime_error(\"thetadatadx: \" + err);\n        }}\n    }}\n    auto result = detail::to_vector(arr.data, arr.len);\n    {free_fn}(arr);\n    return result;"
             )
@@ -638,65 +641,20 @@ pub(super) fn cpp_converter_expr(return_type: &str) -> String {
     }
 }
 
-pub(super) fn python_converter(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "eod_tick_to_dict",
-        "OhlcTicks" => "ohlc_tick_to_dict",
-        "TradeTicks" => "trade_tick_to_dict",
-        "QuoteTicks" => "quote_tick_to_dict",
-        "TradeQuoteTicks" => "trade_quote_tick_to_dict",
-        "OpenInterestTicks" => "open_interest_tick_to_dict",
-        "MarketValueTicks" => "market_value_tick_to_dict",
-        "GreeksTicks" => "greeks_tick_to_dict",
-        "IvTicks" => "iv_tick_to_dict",
-        "PriceTicks" => "price_tick_to_dict",
-        "CalendarDays" => "calendar_day_to_dict",
-        "InterestRateTicks" => "interest_rate_tick_to_dict",
-        "OptionContracts" => "option_contract_to_dict",
-        other => panic!("unsupported Python converter: {other}"),
-    }
+pub(super) fn python_converter(return_type: &str) -> String {
+    render_for(return_type).python_converter.clone()
 }
 
-pub(super) fn python_columnar_converter(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "eod_ticks_to_columnar",
-        "OhlcTicks" => "ohlc_ticks_to_columnar",
-        "TradeTicks" => "trade_ticks_to_columnar",
-        "QuoteTicks" => "quote_ticks_to_columnar",
-        "TradeQuoteTicks" => "trade_quote_ticks_to_columnar",
-        "OpenInterestTicks" => "open_interest_ticks_to_columnar",
-        "MarketValueTicks" => "market_value_ticks_to_columnar",
-        "GreeksTicks" => "greeks_ticks_to_columnar",
-        "IvTicks" => "iv_ticks_to_columnar",
-        "PriceTicks" => "price_ticks_to_columnar",
-        "CalendarDays" => "calendar_days_to_columnar",
-        "InterestRateTicks" => "interest_rate_ticks_to_columnar",
-        "OptionContracts" => "option_contracts_to_columnar",
-        other => panic!("unsupported Python columnar converter: {other}"),
-    }
+pub(super) fn python_columnar_converter(return_type: &str) -> String {
+    render_for(return_type).python_columnar.clone()
 }
 
 /// Name of the generated `*_to_pyclass_list` converter for a given tick
 /// return type. This is the PRIMARY return path for Python historical
 /// endpoints — typed `#[pyclass]` objects matching Rust/TS/Go/C++ SDKs.
 /// See `build_support/ticks/python_classes.rs::render_python_tick_classes`.
-pub(super) fn python_pyclass_list_converter(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "eod_ticks_to_pyclass_list",
-        "OhlcTicks" => "ohlc_ticks_to_pyclass_list",
-        "TradeTicks" => "trade_ticks_to_pyclass_list",
-        "QuoteTicks" => "quote_ticks_to_pyclass_list",
-        "TradeQuoteTicks" => "trade_quote_ticks_to_pyclass_list",
-        "OpenInterestTicks" => "open_interest_ticks_to_pyclass_list",
-        "MarketValueTicks" => "market_value_ticks_to_pyclass_list",
-        "GreeksTicks" => "greeks_ticks_to_pyclass_list",
-        "IvTicks" => "iv_ticks_to_pyclass_list",
-        "PriceTicks" => "price_ticks_to_pyclass_list",
-        "CalendarDays" => "calendar_days_to_pyclass_list",
-        "InterestRateTicks" => "interest_rate_ticks_to_pyclass_list",
-        "OptionContracts" => "option_contracts_to_pyclass_list",
-        other => panic!("unsupported Python pyclass-list converter: {other}"),
-    }
+pub(super) fn python_pyclass_list_converter(return_type: &str) -> String {
+    render_for(return_type).python_pyclass_list.clone()
 }
 
 /// Name of the generated `<TickName>List` pyclass wrapper (e.g.
@@ -704,24 +662,10 @@ pub(super) fn python_pyclass_list_converter(return_type: &str) -> &'static str {
 /// directly so callers can chain `.to_polars()` / `.to_arrow()` /
 /// `.to_pandas()` / `.to_list()` off the endpoint return value.
 ///
-/// See `build_support/ticks/python_classes.rs::render_python_tick_list_struct`.
-pub(super) fn python_pyclass_list_class(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "EodTickList",
-        "OhlcTicks" => "OhlcTickList",
-        "TradeTicks" => "TradeTickList",
-        "QuoteTicks" => "QuoteTickList",
-        "TradeQuoteTicks" => "TradeQuoteTickList",
-        "OpenInterestTicks" => "OpenInterestTickList",
-        "MarketValueTicks" => "MarketValueTickList",
-        "GreeksTicks" => "GreeksTickList",
-        "IvTicks" => "IvTickList",
-        "PriceTicks" => "PriceTickList",
-        "CalendarDays" => "CalendarDayList",
-        "InterestRateTicks" => "InterestRateTickList",
-        "OptionContracts" => "OptionContractList",
-        other => panic!("unsupported Python pyclass-list class: {other}"),
-    }
+/// Derived from the per-language `pyclass` render name + the `List`
+/// suffix the emitter applies to every pyclass-list type.
+pub(super) fn python_pyclass_list_class(return_type: &str) -> String {
+    format!("{}List", render_for(return_type).pyclass)
 }
 
 /// Map a collection return type (e.g. `CalendarDays`) to the generated
@@ -732,23 +676,8 @@ pub(super) fn python_pyclass_list_class(return_type: &str) -> &'static str {
 /// calendar-kind endpoints (see `is_snapshot_endpoint`). Parsed list
 /// endpoints keep the wrapper because users chain `.to_polars()` on bulk
 /// results.
-pub(super) fn python_vec_to_pylist_converter(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "eod_ticks_vec_to_pylist",
-        "OhlcTicks" => "ohlc_ticks_vec_to_pylist",
-        "TradeTicks" => "trade_ticks_vec_to_pylist",
-        "QuoteTicks" => "quote_ticks_vec_to_pylist",
-        "TradeQuoteTicks" => "trade_quote_ticks_vec_to_pylist",
-        "OpenInterestTicks" => "open_interest_ticks_vec_to_pylist",
-        "MarketValueTicks" => "market_value_ticks_vec_to_pylist",
-        "GreeksTicks" => "greeks_ticks_vec_to_pylist",
-        "IvTicks" => "iv_ticks_vec_to_pylist",
-        "PriceTicks" => "price_ticks_vec_to_pylist",
-        "CalendarDays" => "calendar_days_vec_to_pylist",
-        "InterestRateTicks" => "interest_rate_ticks_vec_to_pylist",
-        "OptionContracts" => "option_contracts_vec_to_pylist",
-        other => panic!("unsupported Python vec-to-pylist converter: {other}"),
-    }
+pub(super) fn python_vec_to_pylist_converter(return_type: &str) -> String {
+    render_for(return_type).python_vec_to_pylist.clone()
 }
 
 /// Map a collection return type (e.g. `TradeTicks`) to the generated
@@ -757,67 +686,22 @@ pub(super) fn python_vec_to_pylist_converter(return_type: &str) -> &'static str 
 /// terminals: feeds the decoder-owned `&[tick::T]` directly into the
 /// Arrow column builders, skipping the pyclass-list double-buffer that
 /// peaks RSS at ~2x the tick payload.
-pub(super) fn python_slice_arrow_converter(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "slice_arrow::eod_tick_slice_to_arrow_table",
-        "OhlcTicks" => "slice_arrow::ohlc_tick_slice_to_arrow_table",
-        "TradeTicks" => "slice_arrow::trade_tick_slice_to_arrow_table",
-        "QuoteTicks" => "slice_arrow::quote_tick_slice_to_arrow_table",
-        "TradeQuoteTicks" => "slice_arrow::trade_quote_tick_slice_to_arrow_table",
-        "OpenInterestTicks" => "slice_arrow::open_interest_tick_slice_to_arrow_table",
-        "MarketValueTicks" => "slice_arrow::market_value_tick_slice_to_arrow_table",
-        "GreeksTicks" => "slice_arrow::greeks_tick_slice_to_arrow_table",
-        "IvTicks" => "slice_arrow::iv_tick_slice_to_arrow_table",
-        "PriceTicks" => "slice_arrow::price_tick_slice_to_arrow_table",
-        "CalendarDays" => "slice_arrow::calendar_day_slice_to_arrow_table",
-        "InterestRateTicks" => "slice_arrow::interest_rate_tick_slice_to_arrow_table",
-        "OptionContracts" => "slice_arrow::option_contract_slice_to_arrow_table",
-        other => panic!("unsupported Python slice-arrow converter: {other}"),
-    }
+pub(super) fn python_slice_arrow_converter(return_type: &str) -> String {
+    render_for(return_type).python_slice_arrow.clone()
 }
 
 /// Map a collection return type (e.g. `TradeTicks`) to the generated
 /// `#[napi(object)]` struct name emitted in `tick_classes.rs`. The TS SDK
 /// binds each Rust tick struct (from `tdbe::types::tick`) to this flat
 /// napi-object variant so `Vec<T>` surfaces as `T[]` in `index.d.ts`.
-pub(super) fn ts_class_name(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "EodTick",
-        "OhlcTicks" => "OhlcTick",
-        "TradeTicks" => "TradeTick",
-        "QuoteTicks" => "QuoteTick",
-        "TradeQuoteTicks" => "TradeQuoteTick",
-        "OpenInterestTicks" => "OpenInterestTick",
-        "MarketValueTicks" => "MarketValueTick",
-        "GreeksTicks" => "GreeksTick",
-        "IvTicks" => "IvTick",
-        "PriceTicks" => "PriceTick",
-        "CalendarDays" => "CalendarDay",
-        "InterestRateTicks" => "InterestRateTick",
-        "OptionContracts" => "OptionContract",
-        other => panic!("unsupported TypeScript class name: {other}"),
-    }
+pub(super) fn ts_class_name(return_type: &str) -> String {
+    render_for(return_type).ts_class.clone()
 }
 
 /// Map a collection return type to the generated
 /// `{tick}_to_class_vec` factory name. Complements `ts_class_name`.
-pub(super) fn ts_class_vec_converter(return_type: &str) -> &'static str {
-    match return_type {
-        "EodTicks" => "eod_ticks_to_class_vec",
-        "OhlcTicks" => "ohlc_ticks_to_class_vec",
-        "TradeTicks" => "trade_ticks_to_class_vec",
-        "QuoteTicks" => "quote_ticks_to_class_vec",
-        "TradeQuoteTicks" => "trade_quote_ticks_to_class_vec",
-        "OpenInterestTicks" => "open_interest_ticks_to_class_vec",
-        "MarketValueTicks" => "market_value_ticks_to_class_vec",
-        "GreeksTicks" => "greeks_ticks_to_class_vec",
-        "IvTicks" => "iv_ticks_to_class_vec",
-        "PriceTicks" => "price_ticks_to_class_vec",
-        "CalendarDays" => "calendar_days_to_class_vec",
-        "InterestRateTicks" => "interest_rate_ticks_to_class_vec",
-        "OptionContracts" => "option_contracts_to_class_vec",
-        other => panic!("unsupported TypeScript class-vec converter: {other}"),
-    }
+pub(super) fn ts_class_vec_converter(return_type: &str) -> String {
+    render_for(return_type).ts_class_vec.clone()
 }
 
 // ───────────────────────── Builder / FFI option tables ─────────────────────

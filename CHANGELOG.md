@@ -30,6 +30,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **TOML-driven render map collapses 19 hand-coded helper match arms
+  into single-key lookups.** Every per-language binding name a renderer
+  needs for one tick type — Rust direct-client return type, generated
+  parser fn, Go struct + converter, FFI array struct + free fn + output
+  variant + header-return type, C++ value type, six Python converters
+  (dict, columnar, pyclass-list, pyclass-list-class, vec-to-pylist,
+  slice-arrow), TypeScript class + class-vec converter, and the Python
+  pyclass struct name — moves into `[types.X.render]` blocks in
+  `crates/thetadatadx/tick_schema.toml`. The 20 helper functions that
+  previously enumerated those names by hand
+  (`build_support/endpoints/helpers.rs::direct_return_type` and friends,
+  plus `build_support/ticks/mod.rs::pyclass_name`) become single
+  HashMap lookups against a `OnceLock`-cached load of the schema.
+  Adding a tick type now requires one TOML row -- no helper edits. The
+  generated SDK surfaces are byte-identical against `main` because the
+  TOML rows reproduce the names the helpers previously hardcoded.
 - Per-endpoint vendor-schema column lists for the four Greeks families
   pinned and documented in `tick_schema.toml::GreeksTick` against the
   upstream OpenAPI capture in `scripts/upstream_openapi.yaml`. The

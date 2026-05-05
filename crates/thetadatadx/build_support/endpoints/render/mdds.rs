@@ -308,7 +308,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     );
     out.push_str(
         &include_str!("templates/mdds/for_each_chunk_body.rs.tmpl")
-            .replace("__PARSER_NAME__", parser_name),
+            .replace("__PARSER_NAME__", &parser_name),
     );
     out.push_str(
         &include_str!("templates/mdds/metrics_result_block.rs.tmpl")
