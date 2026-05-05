@@ -134,6 +134,15 @@ fn render_sdk_generated_files(
             contents: tdbe_structs::render_tdbe_tick_structs(&schema),
         },
         GeneratedSourceFile {
+            // tdbe layout asserts -- per-tick `size_of` / `align_of` /
+            // `offset_of!` asserts emitted from the schema. Hand-written
+            // `tick.rs` `include!`s this file inside `#[cfg(test)]`.
+            // Adding a tick type to `tick_schema.toml` therefore picks up
+            // ABI guard coverage automatically.
+            relative_path: "crates/tdbe/src/types/tick_layout_asserts_generated.rs",
+            contents: tdbe_structs::render_tdbe_layout_asserts(&schema),
+        },
+        GeneratedSourceFile {
             relative_path: "sdks/cpp/include/tick_layout_asserts.hpp.inc",
             contents: cpp::render_cpp_tick_layout_asserts(&schema),
         },

@@ -169,7 +169,7 @@ fn render_go_tick_converter(schema: &Schema, type_name: &str, def: &TickTypeDef)
     out
 }
 
-fn tick_ffi_offsets(type_name: &str, def: &TickTypeDef) -> Vec<(String, usize)> {
+pub(super) fn tick_ffi_offsets(type_name: &str, def: &TickTypeDef) -> Vec<(String, usize)> {
     let mut offsets = Vec::new();
     let mut size = 0usize;
     for (field_name, field_type) in tick_ffi_fields(type_name, def) {

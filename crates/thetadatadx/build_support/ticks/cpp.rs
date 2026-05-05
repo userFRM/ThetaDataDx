@@ -2,7 +2,7 @@
 
 use std::fmt::Write as _;
 
-use super::go::tick_ffi_size_and_align;
+use super::go::{tick_ffi_offsets, tick_ffi_size_and_align};
 use super::schema::Schema;
 use super::sorted_type_names;
 
@@ -23,6 +23,10 @@ pub(super) fn render_cpp_tick_layout_asserts(schema: &Schema) -> String {
         }
         let def = &schema.types[type_name];
         let (size, align) = tick_ffi_size_and_align(type_name, def);
+        // C++ wrapper exposes the schema type name verbatim under
+        // `thetadatadx::cxx`; the C mirror is `Tdx<TypeName>`. The wrapper
+        // alias is `using <TypeName> = Tdx<TypeName>;` so `sizeof(alias)`
+        // and `offsetof(alias, field)` resolve through the C struct.
         let alias = type_name;
         let c_name = format!("Tdx{type_name}");
         writeln!(
@@ -31,6 +35,18 @@ pub(super) fn render_cpp_tick_layout_asserts(schema: &Schema) -> String {
         )
         .unwrap();
         writeln!(out, "              \"{c_name} layout drifted from Rust\");").unwrap();
+        // Per-field offset asserts. Same field set/order as the Rust /
+        // Go offset tables (column tail + contract_id triple +
+        // QuoteTick.midpoint). Field-offset drift can sneak past total-
+        // size asserts when two same-size fields swap order.
+        for (field, offset) in tick_ffi_offsets(type_name, def) {
+            writeln!(out, "static_assert(offsetof({alias}, {field}) == {offset},").unwrap();
+            writeln!(
+                out,
+                "              \"{c_name}.{field} offset drifted from Rust\");"
+            )
+            .unwrap();
+        }
     }
     out
 }
