@@ -43,7 +43,7 @@ type GreeksAllTick struct {
 	MsOfDay        int      `json:"ms_of_day"`
 	Bid            float64  `json:"bid"`
 	Ask            float64  `json:"ask"`
-	ImpliedVolatility float64  `json:"implied_volatility"`
+	IV             float64  `json:"implied_volatility"`
 	Delta          float64  `json:"delta"`
 	Gamma          float64  `json:"gamma"`
 	Theta          float64  `json:"theta"`
@@ -84,7 +84,7 @@ type GreeksFirstOrderTick struct {
 	Rho            float64  `json:"rho"`
 	Epsilon        float64  `json:"epsilon"`
 	Lambda         float64  `json:"lambda"`
-	ImpliedVolatility float64  `json:"implied_volatility"`
+	IV             float64  `json:"implied_volatility"`
 	IVError        float64  `json:"iv_error"`
 	UnderlyingMsOfDay int      `json:"underlying_ms_of_day"`
 	UnderlyingPrice float64  `json:"underlying_price"`
@@ -104,7 +104,7 @@ type GreeksSecondOrderTick struct {
 	Charm          float64  `json:"charm"`
 	Vomma          float64  `json:"vomma"`
 	Veta           float64  `json:"veta"`
-	ImpliedVolatility float64  `json:"implied_volatility"`
+	IV             float64  `json:"implied_volatility"`
 	IVError        float64  `json:"iv_error"`
 	UnderlyingMsOfDay int      `json:"underlying_ms_of_day"`
 	UnderlyingPrice float64  `json:"underlying_price"`
@@ -123,7 +123,7 @@ type GreeksThirdOrderTick struct {
 	Zomma          float64  `json:"zomma"`
 	Color          float64  `json:"color"`
 	Ultima         float64  `json:"ultima"`
-	ImpliedVolatility float64  `json:"implied_volatility"`
+	IV             float64  `json:"implied_volatility"`
 	IVError        float64  `json:"iv_error"`
 	UnderlyingMsOfDay int      `json:"underlying_ms_of_day"`
 	UnderlyingPrice float64  `json:"underlying_price"`

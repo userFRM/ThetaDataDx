@@ -252,8 +252,17 @@ fn align_to(value: usize, align: usize) -> usize {
 
 fn go_public_field_name(type_name: &str, field: &str) -> &'static str {
     match (type_name, field) {
-        ("GreeksTick", "implied_volatility") => "IV",
-        ("IvTick", "implied_volatility") => "IV",
+        // `implied_volatility` -> `IV` is the historical Go SDK convention
+        // dating back to the v3 `IVTick` (the public name was `IV`, never
+        // `ImpliedVolatility`). Apply uniformly across every tick type
+        // that surfaces the column, including the new per-order Greeks
+        // structs (`GreeksAllTick` / `GreeksFirstOrderTick` /
+        // `GreeksSecondOrderTick` / `GreeksThirdOrderTick`) split out of
+        // the legacy `GreeksTick` union, so callers see one name (`IV`)
+        // rather than `ImpliedVolatility` on Greeks ticks and `IV` on
+        // `IVTick`. Renaming `IVTick.IV` was rejected as a yet-larger
+        // public-API break.
+        (_, "implied_volatility") => "IV",
         (_, "iv_error") => "IVError",
         ("MarketValueTick", "market_bid") => "MarketBid",
         ("MarketValueTick", "market_ask") => "MarketAsk",
