@@ -38,7 +38,7 @@ type EodTick struct {
 	Right          string   `json:"right,omitempty"`
 }
 
-// GreeksTick — Greeks tick -- 24 fields. Full set of option greeks.
+// GreeksTick — Greeks tick -- 24 fields. Full union of every Greek the v3 server
 type GreeksTick struct {
 	MsOfDay        int      `json:"ms_of_day"`
 	IV             float64  `json:"implied_volatility"`

@@ -105,6 +105,14 @@ const HEADER_ALIASES: &[(&str, &str)] = &[
 ///
 /// The v3 MDDS server uses `timestamp` where the tick schema says `ms_of_day`.
 /// This function checks the primary name first, then falls back to known aliases.
+///
+/// Returns `None` silently when the header is absent — required-header
+/// guards in the generated parsers surface a typed
+/// [`Error::MissingRequiredHeader`] for the must-have columns; optional
+/// columns missing from a subset response (e.g. `option_snapshot_greeks_third_order`
+/// returning only the third-order Greek columns from the `GreeksTick`
+/// union schema) are by design. Header drift can be observed at the
+/// `trace` level via `RUST_LOG=thetadatadx=trace`.
 fn find_header(headers: &[&str], name: &str) -> Option<usize> {
     // Try exact match first.
     if let Some(pos) = headers.iter().position(|&s| s == name) {
@@ -118,9 +126,9 @@ fn find_header(headers: &[&str], name: &str) -> Option<usize> {
             }
         }
     }
-    tracing::warn!(
+    tracing::trace!(
         header = name,
-        "expected column header not found in DataTable"
+        "column header not present in DataTable (optional or subset response)"
     );
     None
 }
@@ -1751,5 +1759,180 @@ mod tests {
         let ticks = parse_greeks_ticks(&table).unwrap();
         assert_eq!(ticks.len(), 1);
         assert!(ticks[0].implied_volatility.abs() < 1e-10);
+    }
+
+    /// Vendor wire shape for `option_*_greeks_first_order`: only the seven
+    /// first-order columns plus IV pair — vanna/charm/vomma/veta/speed/
+    /// zomma/color/ultima/d1/d2/dual_delta/dual_gamma/vera are absent and
+    /// must default to `0.0` without surfacing any `find_header` warn.
+    /// Column layout pinned to `scripts/upstream_openapi.yaml` schema
+    /// `items_option_snapshot_greeks_first_order`.
+    #[test]
+    fn parse_greeks_ticks_decodes_first_order_subset_with_silent_gaps() {
+        let table = proto::DataTable {
+            headers: vec![
+                "ms_of_day".into(),
+                "implied_volatility".into(),
+                "delta".into(),
+                "theta".into(),
+                "vega".into(),
+                "rho".into(),
+                "epsilon".into(),
+                "lambda".into(),
+                "iv_error".into(),
+                "date".into(),
+            ],
+            data_table: vec![row_of(vec![
+                dv_number(34_200_000),
+                dv_price(2142, 6),  // implied_volatility = 0.2142
+                dv_price(5023, 6),  // delta = 0.5023
+                dv_price(-114, 6),  // theta = -0.0114
+                dv_price(8741, 6),  // vega = 0.8741
+                dv_price(13598, 6), // rho = 1.3598
+                dv_price(-1976, 6), // epsilon = -0.1976
+                dv_price(32052, 6), // lambda = 3.2052
+                dv_price(-3, 6),    // iv_error = -3 / 10^4 = -0.0003
+                dv_number(20_240_614),
+            ])],
+        };
+        let ticks = parse_greeks_ticks(&table).unwrap();
+        assert_eq!(ticks.len(), 1);
+        let t = &ticks[0];
+
+        // Wire-present columns: bit-exact against the input.
+        // `dv_price(value, 6)` decodes as `value * 10^(6-10) = value / 10000`
+        // (see `tdbe::types::price::Price::to_f64`).
+        assert_eq!(t.ms_of_day, 34_200_000);
+        assert!((t.implied_volatility - 0.2142).abs() < 1e-9);
+        assert!((t.delta - 0.5023).abs() < 1e-9);
+        assert!((t.theta - -0.0114).abs() < 1e-9);
+        assert!((t.vega - 0.8741).abs() < 1e-9);
+        assert!((t.rho - 1.3598).abs() < 1e-9);
+        assert!((t.epsilon - -0.1976).abs() < 1e-9);
+        assert!((t.lambda - 3.2052).abs() < 1e-9);
+        assert!((t.iv_error - -0.0003).abs() < 1e-9);
+        assert_eq!(t.date, 20_240_614);
+
+        // Wire-absent columns: zero-defaulted. These are the columns the
+        // server does NOT publish for `_greeks_first_order` — `find_header`
+        // returning `None` for each must NOT yield an error and must NOT
+        // warn (the pre-fix behaviour spammed eight warn lines per row).
+        assert_eq!(t.gamma, 0.0);
+        assert_eq!(t.vanna, 0.0);
+        assert_eq!(t.charm, 0.0);
+        assert_eq!(t.vomma, 0.0);
+        assert_eq!(t.veta, 0.0);
+        assert_eq!(t.speed, 0.0);
+        assert_eq!(t.zomma, 0.0);
+        assert_eq!(t.color, 0.0);
+        assert_eq!(t.ultima, 0.0);
+        assert_eq!(t.d1, 0.0);
+        assert_eq!(t.d2, 0.0);
+        assert_eq!(t.dual_delta, 0.0);
+        assert_eq!(t.dual_gamma, 0.0);
+        assert_eq!(t.vera, 0.0);
+    }
+
+    /// Vendor wire shape for `option_*_greeks_second_order`: gamma / vanna
+    /// / charm / vomma / veta plus IV pair. Column layout pinned to
+    /// upstream OpenAPI schema `items_option_snapshot_greeks_second_order`.
+    #[test]
+    fn parse_greeks_ticks_decodes_second_order_subset_with_silent_gaps() {
+        let table = proto::DataTable {
+            headers: vec![
+                "ms_of_day".into(),
+                "implied_volatility".into(),
+                "gamma".into(),
+                "vanna".into(),
+                "charm".into(),
+                "vomma".into(),
+                "veta".into(),
+                "iv_error".into(),
+                "date".into(),
+            ],
+            data_table: vec![row_of(vec![
+                dv_number(34_200_000),
+                dv_price(2142, 6), // implied_volatility = 0.2142
+                dv_price(120, 6),  // gamma = 0.012
+                dv_price(45, 6),   // vanna = 0.0045
+                dv_price(-12, 6),  // charm = -0.0012
+                dv_price(900, 6),  // vomma = 0.09
+                dv_price(-3, 6),   // veta = -0.0003
+                dv_price(-3, 6),   // iv_error = -0.0003
+                dv_number(20_240_614),
+            ])],
+        };
+        let ticks = parse_greeks_ticks(&table).unwrap();
+        assert_eq!(ticks.len(), 1);
+        let t = &ticks[0];
+
+        assert!((t.gamma - 0.012).abs() < 1e-9);
+        assert!((t.vanna - 0.0045).abs() < 1e-9);
+        assert!((t.charm - -0.0012).abs() < 1e-9);
+        assert!((t.vomma - 0.09).abs() < 1e-9);
+        assert!((t.veta - -0.0003).abs() < 1e-9);
+
+        // First-order, third-order, and `_all`-only columns are absent
+        // on the wire and default to 0.0.
+        assert_eq!(t.delta, 0.0);
+        assert_eq!(t.speed, 0.0);
+        assert_eq!(t.zomma, 0.0);
+        assert_eq!(t.d1, 0.0);
+        assert_eq!(t.vera, 0.0);
+    }
+
+    /// Vendor wire shape for `option_*_greeks_third_order`: speed / zomma /
+    /// color / ultima plus IV pair. This is the exact endpoint the Issue
+    /// #472 reporter was hitting — `option_snapshot_greeks_third_order`
+    /// previously emitted eight warn lines per row for the absent
+    /// first-order / second-order / `_all`-only columns. The test pins the
+    /// silent-gap behaviour so a future regression of `find_header` back
+    /// to `tracing::warn!` would surface here as a behavioural change.
+    /// Column layout pinned to upstream OpenAPI schema
+    /// `items_option_snapshot_greeks_third_order` (notably `vera` is NOT
+    /// in the third-order subset; it only ships in `_greeks_all`).
+    #[test]
+    fn parse_greeks_ticks_decodes_third_order_subset_with_silent_gaps() {
+        let table = proto::DataTable {
+            headers: vec![
+                "ms_of_day".into(),
+                "implied_volatility".into(),
+                "speed".into(),
+                "zomma".into(),
+                "color".into(),
+                "ultima".into(),
+                "iv_error".into(),
+                "date".into(),
+            ],
+            data_table: vec![row_of(vec![
+                dv_number(34_200_000),
+                dv_price(2142, 6), // implied_volatility = 0.2142
+                dv_price(7, 6),    // speed  = 0.0007
+                dv_price(15, 6),   // zomma  = 0.0015
+                dv_price(-2, 6),   // color  = -0.0002
+                dv_price(33, 6),   // ultima = 0.0033
+                dv_price(-3, 6),   // iv_error = -0.0003
+                dv_number(20_240_614),
+            ])],
+        };
+        let ticks = parse_greeks_ticks(&table).unwrap();
+        assert_eq!(ticks.len(), 1);
+        let t = &ticks[0];
+
+        assert!((t.speed - 0.0007).abs() < 1e-9);
+        assert!((t.zomma - 0.0015).abs() < 1e-9);
+        assert!((t.color - -0.0002).abs() < 1e-9);
+        assert!((t.ultima - 0.0033).abs() < 1e-9);
+
+        // Vera is NOT a third-order column on the wire even though the
+        // generic `GreeksTick` struct carries the field. It must default
+        // to 0.0 here without warning.
+        assert_eq!(t.vera, 0.0);
+        // First-order and second-order columns also absent.
+        assert_eq!(t.delta, 0.0);
+        assert_eq!(t.gamma, 0.0);
+        assert_eq!(t.vanna, 0.0);
+        assert_eq!(t.d1, 0.0);
+        assert_eq!(t.dual_gamma, 0.0);
     }
 }
