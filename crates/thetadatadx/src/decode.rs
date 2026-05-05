@@ -1756,6 +1756,57 @@ mod tests {
         assert!((ticks[0].delta - 0.5).abs() < 1e-10);
     }
 
+    /// Pin the `implied_vol → implied_volatility` and `underlying_timestamp
+    /// → underlying_ms_of_day` aliases in `HEADER_ALIASES` (decode.rs:82) by
+    /// decoding a wire payload whose headers use ONLY the v3 server-side
+    /// names. If either alias entry is dropped or mistyped, the matching
+    /// schema field silently zero-defaults via `opt_float` / `opt_number`
+    /// (see the generated `parse_greeks_all_ticks` body), and this test
+    /// catches that regression.
+    ///
+    /// The companion fixture-driven test
+    /// `crates/thetadatadx/tests/test_decode_captures.rs::greeks_all_*`
+    /// can't catch a broken `implied_vol` alias on its own because the
+    /// captured fixture's `first_row_implied_volatility` is `0.0` — a
+    /// missing alias and a real zero IV are indistinguishable there.
+    #[test]
+    fn parse_greeks_all_ticks_resolves_implied_vol_and_underlying_timestamp_aliases() {
+        // Headers use the v3 server-side names. Schema names
+        // (`implied_volatility`, `underlying_ms_of_day`) are deliberately
+        // absent so the parser MUST resolve them via `HEADER_ALIASES`.
+        let table = proto::DataTable {
+            headers: vec![
+                "ms_of_day".into(),
+                "implied_vol".into(),
+                "underlying_timestamp".into(),
+            ],
+            // IV = 0.42 encoded with price_type = 6 (value * 10^-4).
+            // underlying_timestamp epoch_ms 1_775_050_200_000 corresponds
+            // to 2026-04-01 09:30 ET, which `row_number` converts to
+            // ms-of-day 34_200_000 (matching `first_row_underlying_ms_of_day`
+            // in the option_history_greeks_all fixture meta).
+            data_table: vec![row_of(vec![
+                dv_number(34_200_000),
+                dv_price(4200, 6),
+                dv_timestamp(1_775_050_200_000),
+            ])],
+        };
+        let ticks = parse_greeks_all_ticks(&table).unwrap();
+        assert_eq!(ticks.len(), 1);
+        let t = &ticks[0];
+
+        // Non-zero IV proves the `implied_vol` alias resolved; a broken
+        // alias would produce 0.0 from the `opt_float(None)` arm.
+        assert!(
+            (t.implied_volatility - 0.42).abs() < 1e-9,
+            "implied_vol alias did not resolve: got {}",
+            t.implied_volatility,
+        );
+        // Non-zero ms-of-day proves the `underlying_timestamp` alias
+        // resolved; a broken alias would produce 0 from `opt_number(None)`.
+        assert_eq!(t.underlying_ms_of_day, 34_200_000);
+    }
+
     #[test]
     fn parse_greeks_all_ticks_still_decodes_number_cells() {
         // Companion to the Price-cell regression test: Number cells must
