@@ -14,7 +14,7 @@ pub struct Exchange {
 pub const EXCHANGES: [Exchange; 78] = [
     Exchange {
         code: 0,
-        name: "NanexComp",
+        name: "Composite",
         symbol: "COMP",
     },
     Exchange {
@@ -434,7 +434,7 @@ mod tests {
 
     #[test]
     fn exchange_name_valid() {
-        assert_eq!(exchange_name(0), "NanexComp");
+        assert_eq!(exchange_name(0), "Composite");
         assert_eq!(exchange_name(3), "NewYorkStockExchange");
         assert_eq!(exchange_name(68), "InvestorsExchange");
         assert_eq!(exchange_name(77), "24XNationalExchange");
