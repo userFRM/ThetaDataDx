@@ -278,10 +278,10 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
     }
     out.push_str("        }\n");
 
-    // polars 0.46+ requires `Series::new(PlSmallStr, ...)` and
-    // `DataFrame::new(Vec<Column>)`; call `.into()` on each `Series` to
-    // coerce it into a `Column` before handing the vector to `DataFrame::new`.
-    out.push_str("        DataFrame::new(vec![\n");
+    // polars 0.53+ takes `DataFrame::new(height, Vec<Column>)`; pass `n`
+    // (set above to `self.len()`) so an empty input still constructs a
+    // zero-row DataFrame with the typed columns intact.
+    out.push_str("        DataFrame::new(n, vec![\n");
     for column in &def.columns {
         writeln!(
             out,
