@@ -1943,7 +1943,7 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.12.8"
+version = "0.12.9"
 dependencies = [
  "thiserror 2.0.18",
 ]
