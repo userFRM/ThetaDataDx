@@ -118,6 +118,12 @@ zeroize = { version = "1.8.2", features = ["derive"] }
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }
+# Bench-only: lock-free SPSC/MPSC channel candidate for replacing
+# `std::sync::mpsc` on the FFI streaming hot path (issue #482). Kept in
+# dev-dependencies so the runtime dep graph is unchanged until the
+# implementation switch ships in a follow-up PR after we read the
+# numbers from `benches/streaming_channels.rs`.
+crossbeam-channel = "0.5.15"
 # Test-only: load captured-response fixtures and their sidecar .meta.toml
 # files for the decoder-regression suite (`tests/test_decode_captures.rs`).
 # `toml` is already a build- and opt-dependency here; adding it to
@@ -152,6 +158,10 @@ harness = false
 
 [[bench]]
 name = "bench_fpss_event"
+harness = false
+
+[[bench]]
+name = "streaming_channels"
 harness = false
 
 [[bin]]
