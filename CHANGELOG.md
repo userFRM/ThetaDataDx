@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **New `StreamingDispatcher` core in `crates/thetadatadx/src/fpss/
+  dispatcher.rs`.** Lock-free `crossbeam_channel::bounded(8192)` queue
+  between FPSS reader thread and a dedicated dispatcher thread that
+  drains the queue and invokes the user-registered Rust callback.
+  Existing `start_streaming(callback)` API now wires through this
+  dispatcher transparently — callers see no behavior change. Reader
+  thread never blocks on user code; queue overflow drops events with
+  a counter.
+
+### Added
+
+- `start_streaming_inline(callback)` — power-user opt-in Rust API.
+  Callback fires directly from the FPSS reader thread, bypassing the
+  dispatcher. Trade: zero queueing overhead (~12 ns/event vs 58 ns
+  for the dispatcher path) but slow callbacks block the reader and
+  cause vendor disconnects. Documented contract: callback must
+  return within microseconds.
+
 ## [8.0.29] - 2026-05-06
 
 ### Removed
