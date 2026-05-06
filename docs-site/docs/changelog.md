@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [8.0.30] - 2026-05-06
+
+This release closes #482: the entire FPSS streaming stack — Rust core,
+C ABI, Python, TypeScript, and C++ — moves to a callback-driven
+delivery model backed by a single `StreamingDispatcher` SSOT. Bundles
+PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
+(TypeScript), and #494 (C++ wrapper).
 
 ### Breaking
 
@@ -86,9 +92,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and connect are atomic). All `std::sync::mpsc` usage and the
   poll-based receive path have been removed from `ffi/src/streaming.rs`.
 
-  The C++ wrapper's `next_event` / `FpssEventDeleter` / `FpssEventPtr`
-  are also gone; the wrapper migrates to the callback API in a
-  follow-up.
+- **C++ wrapper**: the poll-based `tdx::FpssClient::next_event` and the
+  owning `FpssEventPtr` / `FpssEventDeleter` types are gone. Event
+  delivery is now exclusively callback-driven through the new
+  `set_callback` / `set_inline_callback` methods (see Added).
 
 ### Changed
 
@@ -109,6 +116,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for the dispatcher path) but slow callbacks block the reader and
   cause vendor disconnects. Documented contract: callback must
   return within microseconds.
+- **C++ wrapper callback API.** `tdx::FpssClient::set_callback
+  (std::function<void(const FpssEvent&)>)` for the default queued
+  path; `set_inline_callback` for power-user opt-in directly on
+  the FPSS reader thread. Both wrap the C ABI
+  `tdx_fpss_set_callback` / `tdx_fpss_set_inline_callback`
+  shipped in this release. The `fpss_smoke` example is restored on
+  the callback path.
 
 ## [8.0.29] - 2026-05-06
 

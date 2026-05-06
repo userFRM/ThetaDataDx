@@ -2358,7 +2358,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.29"
+version = "8.0.30"
 dependencies = [
  "crossbeam-channel",
  "disruptor",
@@ -2393,7 +2393,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-server"
-version = "8.0.29"
+version = "8.0.30"
 dependencies = [
  "axum",
  "clap",

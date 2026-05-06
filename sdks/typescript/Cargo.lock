@@ -1963,7 +1963,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.29"
+version = "8.0.30"
 dependencies = [
  "crossbeam-channel",
  "disruptor",
@@ -1998,7 +1998,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-napi"
-version = "8.0.29"
+version = "8.0.30"
 dependencies = [
  "chrono",
  "napi",

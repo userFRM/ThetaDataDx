@@ -280,21 +280,35 @@ int main() {
     // Create a streaming client (separate from the historical Client)
     tdx::FpssClient fpss(creds, config);
 
-    // Subscribe to real-time quotes
-    int req_id = fpss.subscribe_quotes("AAPL");
-    std::cout << "Subscribed (req_id=" << req_id << ")" << std::endl;
+    // Register a queued callback. The dispatcher drain thread invokes
+    // `fn` for every event; the FPSS reader thread never blocks on
+    // user code.
+    fpss.set_callback([](const tdx::FpssEvent& event) {
+        if (event.kind == TDX_FPSS_QUOTE) {
+            std::cout << "quote bid=" << event.quote.bid
+                      << " ask=" << event.quote.ask << std::endl;
+        }
+    });
 
-    // The C++ wrapper migrates to the new callback C ABI in a follow-up
-    // PR (refs #482). Until that lands, drive the streaming connection
-    // by calling the C symbols `tdx_fpss_set_callback` (queued, default)
-    // or `tdx_fpss_set_inline_callback` (inline, microsecond-budget)
-    // directly with an `extern "C" fn(const TdxFpssEvent*, void*)`.
+    fpss.subscribe_quotes("AAPL");
+
+    // ... let the callback run ...
 
     fpss.shutdown();
 }
 ```
 
-All prices in streaming events are `double` (f64) -- decoded during parsing. Access them directly: `event->quote.bid`, `event->trade.price`, etc. No `price_type` decoding needed.
+All prices in streaming events are `double` (f64) -- decoded during parsing. Access them directly: `event.quote.bid`, `event.trade.price`, etc. No `price_type` decoding needed.
+
+### Inline callback (power user)
+
+`set_inline_callback` is the opt-in alternative. Instead of routing events through the bounded crossbeam queue and dispatcher drain thread, the callback fires directly from the FPSS reader thread. This skips the queueing overhead but inverts the safety contract: the callback MUST return within microseconds. Any allocation, lock acquisition, syscall, or blocking I/O stalls the reader, fills the kernel TCP receive buffer, and causes the vendor to disconnect. Reach for this path only inside provably wait-free trading loops.
+
+```cpp
+fpss.set_inline_callback([](const tdx::FpssEvent& event) {
+    // wait-free hot loop -- no allocation, no locks, no I/O
+});
+```
 
 ### FpssClient API
 
@@ -321,7 +335,9 @@ All prices in streaming events are `double` (f64) -- decoded during parsing. Acc
 | `contract_lookup(id)` | `optional<string>` | Look up a contract by server-assigned ID |
 | `contract_map()` | `map<int32_t, string>` | Get the full contract ID mapping |
 | `active_subscriptions()` | `vector<Subscription>` | Get active subscriptions as typed structs |
-| (callback registration) | `int` | The C++ wrapper migrates to the new callback C ABI in a follow-up PR (#482); until then call `tdx_fpss_set_callback` / `tdx_fpss_set_inline_callback` from C directly |
+| `set_callback(std::function<void(const FpssEvent&)>)` | `void` | Queued path: dispatcher drain thread invokes `fn`, reader never blocks |
+| `set_inline_callback(std::function<void(const FpssEvent&)>)` | `void` | Inline path: `fn` fires on the FPSS reader thread (microsecond-budget contract) |
+| `dropped_events()` | `uint64_t` | Cumulative count of events the dispatcher dropped on queue overflow (0 for inline path) |
 | `reconnect()` | `void` | Reconnect streaming and restore subscriptions |
 | `shutdown()` | `void` | Shut down the FPSS client |
 
