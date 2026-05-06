@@ -69,7 +69,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::CalendarDay] {
             col_close_time.push(t.close_time);
             col_status.push(t.status);
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
             Series::new(PlSmallStr::from_static("is_open"), col_is_open).into(),
             Series::new(PlSmallStr::from_static("open_time"), col_open_time).into(),
@@ -221,7 +221,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::EodTick] {
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("ms_of_day2"), col_ms_of_day2).into(),
             Series::new(PlSmallStr::from_static("open"), col_open).into(),
@@ -454,7 +454,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksAllTick] {
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("bid"), col_bid).into(),
             Series::new(PlSmallStr::from_static("ask"), col_ask).into(),
@@ -614,7 +614,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksFirstOrderTick]
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("bid"), col_bid).into(),
             Series::new(PlSmallStr::from_static("ask"), col_ask).into(),
@@ -754,7 +754,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksSecondOrderTick
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("bid"), col_bid).into(),
             Series::new(PlSmallStr::from_static("ask"), col_ask).into(),
@@ -887,7 +887,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksThirdOrderTick]
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("bid"), col_bid).into(),
             Series::new(PlSmallStr::from_static("ask"), col_ask).into(),
@@ -947,7 +947,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::InterestRateTick] {
             col_rate.push(t.rate);
             col_date.push(t.date);
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("rate"), col_rate).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
@@ -1019,7 +1019,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::IvTick] {
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into(),
             Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into(),
@@ -1101,7 +1101,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::MarketValueTick] {
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("market_bid"), col_market_bid).into(),
             Series::new(PlSmallStr::from_static("market_ask"), col_market_ask).into(),
@@ -1202,7 +1202,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OhlcTick] {
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("open"), col_open).into(),
             Series::new(PlSmallStr::from_static("high"), col_high).into(),
@@ -1276,7 +1276,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OpenInterestTick] {
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("open_interest"), col_open_interest).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
@@ -1333,7 +1333,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::OptionContract] {
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("root"), col_root).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
@@ -1382,7 +1382,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::PriceTick] {
             col_price.push(t.price);
             col_date.push(t.date);
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("price"), col_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
@@ -1496,7 +1496,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::QuoteTick] {
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("bid_size"), col_bid_size).into(),
             Series::new(PlSmallStr::from_static("bid_exchange"), col_bid_exchange).into(),
@@ -1699,7 +1699,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeQuoteTick] {
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("sequence"), col_sequence).into(),
             Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into(),
@@ -1861,7 +1861,7 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeTick] {
             col_strike.push(t.strike);
             col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
         }
-        DataFrame::new(vec![
+        DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("sequence"), col_sequence).into(),
             Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into(),
