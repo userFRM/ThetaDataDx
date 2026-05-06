@@ -822,7 +822,7 @@ pub const TRADE_CONDITIONS: [TradeCondition; 149] = [
     },
     TradeCondition {
         code: 61,
-        name: "NANEXADMIN",
+        name: "PRICEVOLUMEADJ",
         description: "Used to make volume and price corrections to match official exchange values.",
         cancel: false,
         late_report: false,
