@@ -640,19 +640,32 @@ TdxContractMapArray* tdx_fpss_contract_map(const TdxFpssHandle* h);
 /** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */
 TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
 
-/** Poll for the next event as a typed struct. Returns TdxFpssEvent* or NULL on timeout.
- *  Caller MUST free with tdx_fpss_event_free. */
-TdxFpssEvent* tdx_fpss_next_event(const TdxFpssHandle* h, uint64_t timeout_ms);
+/** User callback signature for tdx_*_set_callback / tdx_*_set_inline_callback.
+ *  `event` is valid only for the duration of the call -- copy any fields the
+ *  caller wants to outlive the callback. `ctx` is the opaque pointer the
+ *  caller registered alongside the callback; it is passed back unchanged. */
+typedef void (*TdxFpssCallback)(const TdxFpssEvent* event, void* ctx);
 
-/** Free a TdxFpssEvent returned by tdx_fpss_next_event. */
-void tdx_fpss_event_free(TdxFpssEvent* event);
+/** Register a queued FPSS callback and open the FPSS connection.
+ *  Events flow `FPSS reader -> bounded(8192) crossbeam queue -> dispatcher
+ *  drain thread -> callback`. The reader thread NEVER blocks on user code:
+ *  on overflow events are dropped and counted (tdx_fpss_dropped_events).
+ *  Must be called once per handle. Returns 0 on success, -1 on error. */
+int tdx_fpss_set_callback(const TdxFpssHandle* h, TdxFpssCallback callback, void* ctx);
 
-/** Reconnect FPSS, re-subscribing all previous subscriptions. Returns 0 or -1. */
+/** Register an inline FPSS callback and open the FPSS connection.
+ *  `callback` fires directly on the FPSS reader thread. Microsecond-budget
+ *  contract: any allocation, I/O, or lock acquisition will stall the reader
+ *  and cause the vendor session to drop. Use only for trading loops with
+ *  provably wait-free callbacks. Must be called once per handle. */
+int tdx_fpss_set_inline_callback(const TdxFpssHandle* h, TdxFpssCallback callback, void* ctx);
+
+/** Reconnect FPSS using the previously-registered callback. Returns 0 or -1. */
 int tdx_fpss_reconnect(const TdxFpssHandle* h);
 
-/** Cumulative count of FPSS events dropped because the internal receiver
- *  was gone when the callback tried to deliver. Survives reconnect.
- *  Returns 0 if the handle is null. */
+/** Cumulative count of FPSS events dropped by the dispatcher because the
+ *  bounded queue was full when the FPSS reader tried to enqueue. Returns 0
+ *  if the handle is null, no callback installed, or inline mode (no queue). */
 uint64_t tdx_fpss_dropped_events(const TdxFpssHandle* h);
 
 /** Shut down the FPSS client. */
@@ -669,8 +682,15 @@ void tdx_fpss_free(TdxFpssHandle* h);
  *  Returns NULL on connection/auth failure (check tdx_last_error()). */
 TdxUnified* tdx_unified_connect(const TdxCredentials* creds, const TdxConfig* config);
 
-/** Start FPSS streaming on the unified client. Returns 0 on success, -1 on error. */
-int tdx_unified_start_streaming(const TdxUnified* handle);
+/** Register a queued FPSS callback and start streaming on the unified client.
+ *  Events flow `FPSS reader -> bounded(8192) crossbeam queue -> dispatcher
+ *  drain thread -> callback`. Reader never blocks on user code; overflow
+ *  events are dropped (tdx_unified_dropped_events). Returns 0 or -1. */
+int tdx_unified_set_callback(const TdxUnified* handle, TdxFpssCallback callback, void* ctx);
+
+/** Register an inline FPSS callback and start streaming on the unified client.
+ *  `callback` fires on the FPSS reader thread (microsecond-budget contract). */
+int tdx_unified_set_inline_callback(const TdxUnified* handle, TdxFpssCallback callback, void* ctx);
 
 /** Subscribe to quote data for a stock symbol. Returns 0 on success, -1 on error. */
 int tdx_unified_subscribe_quotes(const TdxUnified* handle, const char* symbol);
@@ -737,19 +757,15 @@ char* tdx_unified_contract_lookup(const TdxUnified* handle, int id);
 /** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */
 TdxSubscriptionArray* tdx_unified_active_subscriptions(const TdxUnified* handle);
 
-/** Poll for next streaming event. Returns TdxFpssEvent* or NULL on timeout.
- *  Caller MUST free with tdx_fpss_event_free. */
-TdxFpssEvent* tdx_unified_next_event(const TdxUnified* handle, uint64_t timeout_ms);
-
 /** Borrow the historical client from a unified handle. Do NOT free the returned pointer. */
 const TdxClient* tdx_unified_historical(const TdxUnified* handle);
 
 /** Stop streaming on the unified client. Historical remains available. */
 void tdx_unified_stop_streaming(const TdxUnified* handle);
 
-/** Cumulative count of FPSS events dropped because the unified handle's
- *  internal receiver was gone when the callback tried to deliver.
- *  Survives reconnect. Returns 0 if the handle is null. */
+/** Cumulative count of FPSS events dropped by the dispatcher because the
+ *  bounded queue was full when the FPSS reader tried to enqueue. Returns 0
+ *  if the handle is null, no callback installed, or inline mode (no queue). */
 uint64_t tdx_unified_dropped_events(const TdxUnified* handle);
 
 /** Free a unified client handle. */

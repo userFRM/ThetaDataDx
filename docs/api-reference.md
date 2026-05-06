@@ -687,7 +687,7 @@ ThetaDataDx exposes the full typed historical surface plus 4 `_stream` variants.
 
 Every historical endpoint is exposed through the `thetadatadx-ffi` C ABI crate. Each method has a corresponding `extern "C"` function (e.g., `thetadatadx_stock_history_eod`). The C++ SDK wraps these FFI functions 1:1; third-party C-interop wrappers (Go via cgo, Swift, Zig, etc.) can do the same against the unchanged ABI.
 
-**No JSON crosses the FFI boundary.** All inputs and outputs use typed `#[repr(C)]` structs -- historical endpoints, streaming events, Greeks, and subscriptions alike. `tdx_fpss_next_event` and `tdx_unified_next_event` return `*mut TdxFpssEvent` (a tagged `#[repr(C)]` struct with quote/trade/open_interest/ohlcvc/control/raw_data variants), freed with `tdx_fpss_event_free`.
+**No JSON crosses the FFI boundary.** All inputs and outputs use typed `#[repr(C)]` structs -- historical endpoints, streaming events, Greeks, and subscriptions alike. Streaming events are delivered through `tdx_fpss_set_callback` / `tdx_unified_set_callback` (queued via the SSOT `StreamingDispatcher`) or `tdx_fpss_set_inline_callback` / `tdx_unified_set_inline_callback` (inline on the FPSS reader thread, microsecond-budget contract). The user-supplied `extern "C" fn(const TdxFpssEvent*, void*)` receives a pointer to a tagged `#[repr(C)]` event struct (quote/trade/open_interest/ohlcvc/control/raw_data variants); the pointer is valid only for the duration of the callback.
 
 - **Bulk snapshot endpoints** (stock/index snapshot OHLC, trade, quote, market value, price) accept `symbols: *const *const c_char, symbols_len: usize` — a C array of C string pointers with a length.
 - **`tdx_all_greeks`** returns `*mut TdxGreeksResult` (22 `f64` fields). Caller frees with `tdx_greeks_result_free`.
@@ -765,8 +765,9 @@ Install:
 | `tdx_fpss_subscribe_quotes` | `(handle, symbol) -> i32` | Subscribe to quotes |
 | `tdx_fpss_subscribe_trades` | `(handle, symbol) -> i32` | Subscribe to trades |
 | `tdx_fpss_subscribe_open_interest` | `(handle, symbol) -> i32` | Subscribe to OI |
-| `tdx_fpss_next_event` | `(handle, timeout_ms) -> *mut TdxFpssEvent` | Poll next event (typed struct) |
-| `tdx_fpss_event_free` | `(event) -> void` | Free a `TdxFpssEvent` |
+| `tdx_fpss_set_callback` | `(handle, fn, ctx) -> i32` | Register queued callback (SSOT dispatcher) |
+| `tdx_fpss_set_inline_callback` | `(handle, fn, ctx) -> i32` | Register inline callback (FPSS reader thread, microsecond-budget) |
+| `tdx_fpss_dropped_events` | `(handle) -> u64` | Cumulative dispatcher overflow count |
 | `tdx_fpss_shutdown` | `(handle) -> void` | Graceful shutdown |
 | `tdx_fpss_free` | `(handle) -> void` | Free the handle |
 

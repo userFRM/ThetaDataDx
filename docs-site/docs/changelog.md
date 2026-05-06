@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **C ABI streaming**: `tdx_unified_next_event`, `tdx_fpss_next_event`,
+  `tdx_unified_start_streaming`, and `tdx_fpss_event_free` REMOVED.
+  Replaced with a callback-only surface that wires through the SSOT
+  `StreamingDispatcher`:
+
+  - `tdx_unified_set_callback(handle, fn, ctx)` /
+    `tdx_fpss_set_callback(handle, fn, ctx)` — queued: events flow
+    `FPSS reader -> bounded(8192) crossbeam queue -> dispatcher drain
+    thread -> user fn`. The reader never blocks on user code; overflow
+    events are dropped and counted via `tdx_*_dropped_events`.
+  - `tdx_unified_set_inline_callback(handle, fn, ctx)` /
+    `tdx_fpss_set_inline_callback(handle, fn, ctx)` — inline: user fn
+    fires directly on the FPSS reader thread (microsecond-budget
+    contract, identical semantics to `start_streaming_inline`).
+
+  `tdx_fpss_connect` now defers the FPSS TLS connection until the first
+  `set_callback` / `set_inline_callback` call (callback registration
+  and connect are atomic). All `std::sync::mpsc` usage and the
+  poll-based receive path have been removed from `ffi/src/streaming.rs`.
+
+  The C++ wrapper's `next_event` / `FpssEventDeleter` / `FpssEventPtr`
+  are also gone; the wrapper migrates to the callback API in a
+  follow-up. Python and TypeScript SDKs still expose their
+  poll-style `next_event` via internal mpsc shims and are unaffected
+  by this change — those bindings migrate in subsequent PRs.
+
 ### Changed
 
 - **New `StreamingDispatcher` core in `crates/thetadatadx/src/fpss/

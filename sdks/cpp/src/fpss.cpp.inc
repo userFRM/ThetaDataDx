@@ -59,11 +59,6 @@ std::vector<Subscription> FpssClient::active_subscriptions() const {
     return detail::subscription_array_to_vector(tdx_fpss_active_subscriptions(handle_.get()));
 }
 
-FpssEventPtr FpssClient::next_event(uint64_t timeout_ms) {
-    auto* raw = tdx_fpss_next_event(handle_.get(), timeout_ms);
-    return FpssEventPtr(raw);
-}
-
 void FpssClient::reconnect() {
     int rc = tdx_fpss_reconnect(handle_.get());
     if (rc < 0) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());

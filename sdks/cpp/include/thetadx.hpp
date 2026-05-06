@@ -323,13 +323,15 @@ using FpssRawData = TdxFpssRawData;
 using FpssEvent = TdxFpssEvent;
 
 // ── FPSS real-time streaming client ──
-
-struct FpssEventDeleter {
-    void operator()(TdxFpssEvent* p) const { if (p) tdx_fpss_event_free(p); }
-};
-
-/** Owned FPSS event pointer. Automatically freed when destroyed. */
-using FpssEventPtr = std::unique_ptr<TdxFpssEvent, FpssEventDeleter>;
+//
+// The poll-based `next_event` API and its `FpssEventPtr` owning unique_ptr
+// are gone in the C ABI as of issue #482 (PR B). The C++ wrapper migrates
+// to the new `tdx_fpss_set_callback` / `tdx_fpss_set_inline_callback`
+// surface in PR E. Until that lands, `FpssClient` exposes only the
+// configuration / subscription / lifecycle methods that don't touch
+// event delivery, plus a `dropped_events()` accessor whose semantics
+// changed (now reports queue overflow drops, not channel-disconnect
+// drops).
 
 class FpssClient {
 public:
@@ -344,12 +346,11 @@ public:
         return *this;
     }
 
-    /** Cumulative count of FPSS events dropped because the internal
-     *  receiver was gone (channel disconnected) when the callback tried
-     *  to deliver. Survives `reconnect()`. Parity with the Python
-     *  `tdx.dropped_events()` / TypeScript `tdx.droppedEvents()` /
-     *  Go `client.DroppedEvents()` getters. Safe to call on a moved-from
-     *  client (returns 0). */
+    /** Cumulative count of FPSS events dropped by the streaming dispatcher
+     *  because the bounded(8192) queue was full when the FPSS reader
+     *  thread tried to enqueue. Returns 0 when no callback has been
+     *  installed or when the inline path was taken (no queue). Safe to
+     *  call on a moved-from client. */
     uint64_t dropped_events() const {
         return handle_ ? tdx_fpss_dropped_events(handle_.get()) : 0;
     }
