@@ -158,7 +158,7 @@ All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64`, de
 
 All endpoints return fully typed data in every language. See the [API Reference](docs/api-reference.md) for the complete method list.
 
-**Additional surfaces** (not REST/gRPC endpoints): FPSS real-time streaming (7 subscribe/unsubscribe methods per contract and per firehose type) and a local Greeks calculator (22 Black-Scholes Greeks plus an IV solver, callable individually or batched).
+**Additional surfaces** (not REST/gRPC endpoints): FPSS real-time streaming (7 subscribe/unsubscribe methods per contract and per full-stream type) and a local Greeks calculator (22 Black-Scholes Greeks plus an IV solver, callable individually or batched).
 
 ## Architecture
 

@@ -480,7 +480,7 @@ fn raw_ms(ms: i32) -> sonic_rs::Value {
 /// the REST and MCP frontends through the `json_canon` crate so all three
 /// produce byte-identical output for the same tick payload.
 fn raw_f64(value: f64) -> sonic_rs::Value {
-    json_canon::finite_or_null(value)
+    tdbe::json_canon::finite_or_null(value)
 }
 
 /// Raw integer value as JSON number.

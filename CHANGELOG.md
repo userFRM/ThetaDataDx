@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.33] - 2026-05-07
+
+### Added
+
+- **Seven Architecture Decision Records** under `docs/architecture/`:
+  ADR-001 (Java terminal parity sourcing), ADR-002 (FPSS ring power-of-two
+  capacity), ADR-003 (MDDS `2^tier` concurrent-request mapping), ADR-004
+  (Eastern-time DST cutover), ADR-005 (OCC-21 century scope, expires
+  2099-12-31), ADR-006 (FPSS reconnect policy with rate-limit-aware backoff),
+  ADR-007 (flatfiles MDDS SPKI pin rotation policy).
+- **`tdbe::json_canon`** — JSON canonicalisation (non-finite f64 to `null`)
+  is now a `tdbe` submodule. Existing `json_canon::*` callers in the CLI,
+  MCP, and server crates migrate to `tdbe::json_canon::*`.
+
+### Changed
+
+- **`ParsedRight::from_wire_byte` is now wired at the four `is_call` /
+  `is_put` magic-number sites in `crates/tdbe/src/types/tick.rs`.** The
+  `right == 67` / `right == 80` raw integer comparisons go through the
+  typed parser; behaviour is identical, the magic numbers are gone.
+
+### Removed
+
+- **`crates/json_canon` workspace member** folded into `tdbe::json_canon`.
+  External consumers should switch to `tdbe = "0.12.9"` and import
+  `tdbe::json_canon::{canonicalize, canonicalize_and_serialize, finite_or_null}`.
+- **Internal version references in source comments** (`v8.0.10`, `v7.2.0`,
+  `v8.0.3`, `v8.0.2`, `v6.0.1+`). Semantic content preserved; release
+  metadata pruned out of code paths where it adds no maintenance value.
+- **Banned vocabulary `firehose`** removed from source doc comments,
+  README.md, and ROADMAP.md. Replaced with `full-stream` / `full-type`.
+  CHANGELOG history is intentionally untouched.
+
 ## [8.0.32] - 2026-05-06
 
 ### Fixed

@@ -161,7 +161,7 @@ pub struct FpssClient {
     next_req_id: AtomicI32,
     /// Active per-contract subscriptions for reconnection.
     pub(in crate::fpss) active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>>,
-    /// Active full-type (firehose) subscriptions for reconnection.
+    /// Active full-type (full-stream) subscriptions for reconnection.
     pub(in crate::fpss) active_full_subs:
         Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>>,
     /// Server-assigned contract ID mapping.
@@ -774,7 +774,7 @@ impl FpssClient {
             .clone()
     }
 
-    /// Get a snapshot of currently active full-type (firehose) subscriptions.
+    /// Get a snapshot of currently active full-type (full-stream) subscriptions.
     pub fn active_full_subscriptions(
         &self,
     ) -> Vec<(SubscriptionKind, tdbe::types::enums::SecType)> {

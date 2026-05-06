@@ -19,6 +19,7 @@ pub mod error;
 pub mod exchange;
 pub mod flags;
 pub mod greeks;
+pub mod json_canon;
 pub mod latency;
 pub mod right;
 pub mod sequences;

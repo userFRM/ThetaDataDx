@@ -10,7 +10,7 @@
 //!
 //! # Three variants per endpoint (sync / async / fluent builder)
 //!
-//! The v8.0.2 Python-UX surface exposes every historical endpoint in three
+//! The Python-UX surface exposes every historical endpoint in three
 //! forms without duplicating the spec:
 //!
 //! 1. **Sync `fn name(...)`** — original blocking signature; every kwarg is
@@ -204,7 +204,7 @@ pub(super) fn render_python_historical_methods(endpoints: &[GeneratedEndpoint]) 
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
-        // Sync — preserves the pre-v8.0.2 signature byte-for-byte.
+        // Sync — preserves the original blocking signature byte-for-byte.
         out.push_str(&render_python_endpoint_sync(endpoint));
         out.push('\n');
         // Async — awaitable via pyo3-async-runtimes.
@@ -218,7 +218,7 @@ pub(super) fn render_python_historical_methods(endpoints: &[GeneratedEndpoint]) 
     out
 }
 
-// ───────────────────────── Sync (pre-v8.0.2 signature) ─────────────────────
+// ───────────────────────── Sync (original blocking signature) ─────────────
 
 fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);

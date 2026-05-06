@@ -6,9 +6,9 @@
 //!   `#[path]` reuse of this file)
 
 // The `venue=nqb` default used to live here as a runtime constant applied
-// at query-assembly time. In v8.0.10 the default moved into the SSOT
+// at query-assembly time. The default now lives in the SSOT
 // (`endpoint_surface.toml` -> `stock_venue_filter.default = "nqb"`) so it
-// flows through every emitted SDK builder uniformly. `modes.rs` now reads
+// flows through every emitted SDK builder uniformly. `modes.rs` reads
 // `param.default` directly; no runtime bridge needed.
 
 /// Canonicalize the `expiration` parameter for the MDDS server.

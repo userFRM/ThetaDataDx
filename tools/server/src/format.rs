@@ -571,7 +571,7 @@ fn render_csv_value(value: &sonic_rs::Value) -> String {
     // an explicit sentinel string so the CSV column is observable rather
     // than silently empty.
     let mut owned = value.clone();
-    json_canon::canonicalize(&mut owned);
+    tdbe::json_canon::canonicalize(&mut owned);
     match sonic_rs::to_string(&owned) {
         Ok(rendered) => escape_csv_field(&rendered),
         Err(err) => {
