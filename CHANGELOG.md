@@ -87,6 +87,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `#[repr(C, align(64))]` declared on the corresponding `tdbe` types --
   the schema-derived FFI size used to under-count by the alignment
   rounding (32/144 vs 64/192) before reaching the C++ layout assert.
+- Exchange code 0 in `crates/tdbe/src/exchange.rs` renamed from a
+  third-party product mark to neutral SIP terminology (`Composite`).
+  Symbol stays `COMP`; wire byte 0 still resolves to the same array
+  slot. Closes #476.
 
 ### Fixed
 
