@@ -108,7 +108,7 @@ The REST and WebSocket routers share the same defence-in-depth stack
 
   | SDK | Accessor |
   |-----|----------|
-  | Python | `tdx.dropped_events() -> int` |
+  | Python | `tdx.dropped_event_count() -> int` |
   | TypeScript | `tdx.droppedEvents(): bigint` |
   | Go | `tdx.DroppedEvents() uint64` |
   | C / C++ (FFI) | `tdx_fpss_dropped_events(handle)`, `tdx_unified_dropped_events(handle)` |

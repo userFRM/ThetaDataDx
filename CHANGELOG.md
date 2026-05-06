@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **Python `tdx.next_event(timeout_ms)` REMOVED.** Replaced with
+  `tdx.start_streaming(callback)`. The dispatcher thread acquires
+  the GIL via `Python::with_gil` to call the user's Python
+  callable. The internal `std::sync::mpsc` shim in
+  `sdks/python/src/streaming_methods.rs` and the wrapper's `rx` /
+  `EventRx` / closure-local `dropped_events` counter are gone; the
+  Python binding now wires straight through the SSOT
+  `StreamingDispatcher`. Drop counter is exposed via
+  `tdx.dropped_event_count()` (forwarded to
+  `thetadatadx::ThetaDataDx::dropped_event_count`). The Python
+  binding deliberately does NOT expose `start_streaming_inline`:
+  GIL acquisition can block, and a slow Python callback on the
+  FPSS reader thread would fill the kernel TCP receive buffer and
+  trigger a vendor-side disconnect.
+
+  Migration:
+
+  ```python
+  # Before
+  tdx.start_streaming()
+  while True:
+      event = tdx.next_event(100)
+      if event:
+          process(event)
+
+  # After
+  def handler(event):
+      process(event)
+  tdx.start_streaming(callback=handler)
+  ```
+
+  TypeScript still exposes poll-style `next_event` via its internal
+  mpsc shim until PR D.
+
 - **C ABI streaming**: `tdx_unified_next_event`, `tdx_fpss_next_event`,
   `tdx_unified_start_streaming`, and `tdx_fpss_event_free` REMOVED.
   Replaced with a callback-only surface that wires through the SSOT

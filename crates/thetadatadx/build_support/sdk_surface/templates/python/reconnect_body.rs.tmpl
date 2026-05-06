@@ -1,21 +1,45 @@
-        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-        let dropped_events = Arc::clone(&self.dropped_events);
+        // `reconnect` re-registers the previously installed callback
+        // on a fresh FPSS connection. We require a prior
+        // `start_streaming(callback)` so the Python surface stays
+        // consistent: there is no implicit zero-callback streaming
+        // mode on this binding.
+        let stored = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            match guard.as_ref() {
+                Some(cb) => Python::attach(|py| cb.clone_ref(py)),
+                None => {
+                    return Err(PyRuntimeError::new_err(
+                        "no callback registered -- call start_streaming(callback) before reconnect()",
+                    ));
+                }
+            }
+        };
+        let callback_arc: Arc<Py<PyAny>> = Arc::new(stored);
+        let dispatch_cb = Arc::clone(&callback_arc);
+
         self.tdx
             .reconnect_streaming(move |event: &fpss::FpssEvent| {
-                let buffered = fpss_event_to_buffered(event);
-                if tx.send(buffered).is_err() {
-                    let count = dropped_events
-                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                        + 1;
-                    tracing::debug!(
-                        target: "thetadatadx::sdk::streaming",
-                        dropped_total = count,
-                        "fpss event dropped: receiver disconnected (post-reconnect)",
-                    );
-                }
+                Python::attach(|py| {
+                    let buffered = fpss_event_to_buffered(event);
+                    let typed = match buffered_event_to_typed(py, &buffered) {
+                        Ok(obj) => obj,
+                        Err(err) => {
+                            err.write_unraisable(py, None);
+                            return;
+                        }
+                    };
+                    if let Err(err) = dispatch_cb.call1(py, (typed,)) {
+                        err.write_unraisable(py, None);
+                    }
+                });
             })
             .map_err(to_py_err)?;
-        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Arc::new(Mutex::new(rx)));
+
+        // Replace the stored callable with a freshly owned handle so
+        // the next reconnect / shutdown sees the same state shape.
+        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some(Arc::try_unwrap(callback_arc).unwrap_or_else(|arc| {
+            Python::attach(|py| arc.clone_ref(py))
+        }));
         Ok(())
     }

@@ -243,21 +243,15 @@ discriminator matching the TypeScript SDK's `FpssEvent.kind` tag exactly
 route, then read attributes directly:
 
 ```python
-tdx.start_streaming()
-tdx.subscribe_full_trades("OPTION")
-
 # Build a contract ID -> symbol map as assignments arrive
 contracts = {}
 
-while True:
-    event = tdx.next_event(timeout_ms=100)
-    if event is None:
-        continue
 
+def on_event(event):
     # Track contract assignments (control events go through `Simple`)
     if event.kind == "simple" and event.event_type == "contract_assigned":
         contracts[event.id] = event.detail
-        continue
+        return
 
     contract = contracts.get(getattr(event, "contract_id", None), "unknown")
 
@@ -267,6 +261,15 @@ while True:
     elif event.kind == "quote":
         print(f"[{contract}] QUOTE bid={event.bid:.2f} ask={event.ask:.2f}")
     # Skip ohlcvc if you don't need bars
+
+
+tdx.start_streaming(callback=on_event)
+tdx.subscribe_full_trades("OPTION")
+
+# `on_event` runs on the dispatcher's drain thread under the GIL.
+# Park the main thread while events flow.
+import time
+time.sleep(60)
 
 tdx.stop_streaming()
 ```
@@ -280,10 +283,10 @@ You can also subscribe to per-contract streams if you only need specific symbols
 | `contract_map()` | Get dict mapping contract IDs to string descriptions |
 | `contract_lookup(id)` | Look up a single contract by ID (returns str or None) |
 | `active_subscriptions()` | Get list of active subscriptions (list of dicts with "kind" and "contract") |
-| `next_event(timeout_ms=5000)` | Poll for the next event (returns a typed `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData` pyclass, or `None` on timeout). `event.kind` carries the same discriminator tag as the TypeScript SDK's `FpssEvent.kind`. |
-| `next_event_typed(timeout_ms=5000)` | Alias — same return type and shape as `next_event`. |
-| `reconnect()` | Reconnect streaming and restore subscriptions |
-| `shutdown()` | Graceful shutdown |
+| `start_streaming(callback)` | Register a callable; the dispatcher's drain thread invokes `callback(event)` under the GIL for every typed FPSS event (`Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData`). `event.kind` carries the same discriminator tag as the TypeScript SDK's `FpssEvent.kind`. |
+| `dropped_event_count()` | Cumulative count of events dropped because the bounded `StreamingDispatcher` queue (8192 slots) was full. Counter survives reconnect. |
+| `reconnect()` | Reconnect streaming and re-register the previously installed callback; restores all subscriptions. |
+| `shutdown()` | Graceful shutdown — drops the registered callback. |
 
 ### Chained DataFrame terminals
 
@@ -356,20 +359,22 @@ creds = Credentials.from_file("creds.txt")
 # Or inline: creds = Credentials("user@example.com", "your-password")
 tdx = ThetaDataDx(creds, Config.production())
 
-# Start streaming and subscribe to real-time data
-tdx.start_streaming()
-tdx.subscribe_quotes("AAPL")
-tdx.subscribe_trades("SPY")
-
-# Poll for events (typed pyclasses: `Quote`, `Trade`, `Ohlcvc`, ...)
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        break  # timeout, no event received
+# Register a callback (typed pyclasses: `Quote`, `Trade`, `Ohlcvc`, ...).
+# The dispatcher's drain thread acquires the GIL to invoke `on_event`.
+def on_event(event):
     if event.kind == "quote":
         print(f"Quote: contract_id={event.contract_id} bid={event.bid} ask={event.ask}")
     elif event.kind == "trade":
         print(f"Trade: contract_id={event.contract_id} price={event.price} size={event.size}")
+
+
+tdx.start_streaming(callback=on_event)
+tdx.subscribe_quotes("AAPL")
+tdx.subscribe_trades("SPY")
+
+# Park the main thread while events flow.
+import time
+time.sleep(60)
 
 tdx.stop_streaming()
 ```

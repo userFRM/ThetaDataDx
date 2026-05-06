@@ -3,7 +3,6 @@
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use std::sync::atomic::AtomicU64;
 use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
 use tdbe::types::tick;
@@ -280,10 +279,13 @@ include!("utility_functions.rs");
 
 // ── BufferedEvent + converter (generated from fpss_event_schema.toml) ──
 //
-// The intermediate flat event type that crosses the mpsc channel from the
-// FPSS Disruptor callback to the Python polling thread. Generator output
-// is identical to the TypeScript SDK copy; `fpss_event_schema.toml` is the
-// single source of truth.
+// Flat owned form of `fpss::FpssEvent`, materialised inside the
+// dispatcher's drain-thread closure before we acquire the GIL and
+// build the typed pyclass. Cheaper than calling
+// `buffered_event_to_typed` directly on a borrowed `&FpssEvent`
+// because the typed-pyclass conversion takes owned strings/bytes.
+// Generator output is identical to the TypeScript SDK copy;
+// `fpss_event_schema.toml` is the single source of truth.
 include!("buffered_event.rs");
 
 // ── Unified ThetaDataDx client ──
@@ -292,19 +294,20 @@ include!("buffered_event.rs");
 ///
 /// This is the recommended entry point. Connects historical (MDDS/gRPC)
 /// with a single authentication. Streaming (FPSS/TCP) starts lazily via
-/// ``start_streaming()``.
+/// ``start_streaming(callback)``.
 ///
 /// Usage::
 ///
 ///     tdx = ThetaDataDx(creds, config)
 ///     eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
-///     tdx.start_streaming()
+///
+///     def on_event(event):
+///         print(event.kind, event)
+///
+///     tdx.start_streaming(callback=on_event)
 ///     tdx.subscribe_quotes("AAPL")
-///     event = tdx.next_event(100)
+///     # ... events arrive on the dispatcher's drain thread ...
 ///     tdx.stop_streaming()
-/// Shared event receiver for the streaming callback -> Python poll bridge.
-type EventRx = Arc<Mutex<Option<Arc<Mutex<std::sync::mpsc::Receiver<BufferedEvent>>>>>>;
-
 #[pyclass]
 struct ThetaDataDx {
     /// The underlying Rust unified client (Deref to MddsClient for historical).
@@ -316,16 +319,14 @@ struct ThetaDataDx {
     /// and subscription-tier state forbid it — so the builder cannot
     /// hold the value directly without Arc ref-counting.
     tdx: std::sync::Arc<thetadatadx::ThetaDataDx>,
-    /// Created lazily when `start_streaming()` is called.
-    rx: EventRx,
-    /// Count of FPSS events dropped because the Python polling side
-    /// disconnected before the callback could hand the event off. Lives
-    /// on the struct (not inside the `start_streaming` closure) so the
-    /// counter survives reconnect and is visible to callers via
-    /// [`Self::dropped_events`]. `Arc<AtomicU64>` so each closure gets
-    /// its own clone while they all increment the same underlying
-    /// counter.
-    dropped_events: Arc<AtomicU64>,
+    /// User-registered Python callable that receives every FPSS event
+    /// after `start_streaming(callback)` succeeds. The dispatcher's
+    /// drain thread acquires the GIL via `Python::attach` to invoke
+    /// `callback(event)`; the FPSS reader thread itself never touches
+    /// Python. `None` before any `start_streaming` and after every
+    /// `stop_streaming` / `shutdown`. `reconnect()` re-uses the
+    /// stored handle so callers do not have to re-pass the callable.
+    callback: Mutex<Option<Py<PyAny>>>,
 }
 
 #[pymethods]
@@ -334,8 +335,10 @@ impl ThetaDataDx {
 
     /// Connect to ThetaData (historical only -- FPSS is NOT started).
     ///
-    /// Authenticates once, opens gRPC channel. Call ``start_streaming()``
-    /// to begin FPSS real-time data.
+    /// Authenticates once, opens gRPC channel. Call
+    /// ``start_streaming(callback)`` to begin FPSS real-time data —
+    /// the dispatcher invokes ``callback(event)`` under the GIL for
+    /// every typed event.
     ///
     /// Routed through [`run_blocking`] so a hung TLS handshake or slow
     /// auth round-trip stays cancellable via Ctrl+C — a plain
@@ -358,8 +361,7 @@ impl ThetaDataDx {
 
         Ok(Self {
             tdx: std::sync::Arc::new(tdx),
-            rx: Arc::new(Mutex::new(None)),
-            dropped_events: Arc::new(AtomicU64::new(0)),
+            callback: Mutex::new(None),
         })
     }
 
@@ -379,66 +381,23 @@ impl ThetaDataDx {
         format!("ThetaDataDx(historical=connected, {streaming})")
     }
 
-    // ── Typed-pyclass event streaming ──
-    //
-    // `next_event` is the single implementation (generated in
-    // `streaming_methods.rs` from `sdk_surface.toml`). `next_event_typed`
-    // is a public alias documented in the README for consumers that
-    // prefer the explicit naming — it simply delegates so there's only
-    // one code path to audit.
-
-    /// Pull the next FPSS event as a typed Python object (alias for
-    /// [`Self::next_event`]).
+    /// Cumulative count of FPSS events dropped by the SSOT
+    /// `StreamingDispatcher` because the bounded crossbeam queue
+    /// (8192 slots) was full when the FPSS reader thread tried to
+    /// hand the event off.
     ///
-    /// Every variant returns a concrete `#[pyclass]` — `Quote`, `Trade`,
-    /// `OpenInterest`, `Ohlcvc` for market data; `Simple` for control /
-    /// diagnostic events (login, contract_assigned, disconnected, ...);
-    /// `RawData` for unrecognized wire frames. No `PyDict` path anywhere.
-    /// One allocation per event (the pyclass instance), field access via
-    /// attribute (direct C-offset lookup).
+    /// Forwarded directly to
+    /// [`thetadatadx::ThetaDataDx::dropped_event_count`] so the count
+    /// matches every other binding (C ABI, future TS / C++ migrations)
+    /// and survives reconnect — the counter lives on the dispatcher,
+    /// not on this Python wrapper.
     ///
-    /// # Parity contract with the TypeScript SDK
-    ///
-    /// The `event.kind` discriminator is the stable cross-language tag:
-    /// `"ohlcvc"`, `"open_interest"`, `"quote"`, `"trade"`, `"simple"`,
-    /// `"raw_data"`. Concrete control-event names (`"login_success"`,
-    /// `"contract_assigned"`, `"disconnected"`, `"market_open"`,
-    /// `"market_close"`, `"server_error"`, `"reconnecting"`,
-    /// `"reconnected"`, `"error"`, `"unknown_frame"`, `"unknown_data"`,
-    /// `"unknown_control"`) live on `Simple.event_type`, mirroring
-    /// `FpssSimplePayload.eventType` on the TS side. Payload field names
-    /// match byte-for-byte (modulo snake_case ↔ camelCase). Both surfaces
-    /// are generated from `fpss_event_schema.toml` — adding a field
-    /// regenerates both SDKs in lockstep, so the discriminator and
-    /// payload shape cannot drift.
-    ///
-    /// Idiomatic nesting differs by design: TS exposes a
-    /// discriminated-union struct (`event.simple.eventType`), Python
-    /// dispatches on pyclass (`event.event_type` where
-    /// `isinstance(event, Simple)`). Consumer code ports across
-    /// languages with a `.kind` switch and identical field names.
-    fn next_event_typed(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<Option<Py<PyAny>>> {
-        self.next_event(py, timeout_ms)
-    }
-
-    /// Cumulative count of FPSS events dropped because the Python polling
-    /// side disconnected before the FPSS callback could hand them off.
-    ///
-    /// Counter lives on the client instance (not inside the
-    /// `start_streaming` / `reconnect` closures), so:
-    ///
-    /// * the value survives reconnect (otherwise every reconnect would
-    ///   reset observability to zero), and
-    /// * consumers can call ``tdx.dropped_events()`` at any point —
-    ///   before streaming starts (returns 0), during (live count), or
-    ///   after stop/shutdown (post-mortem count).
-    ///
-    /// Enabling ``RUST_LOG=thetadatadx::sdk::streaming=debug`` emits
-    /// per-drop log lines; this getter is the cheap path to sample the
-    /// total without scraping logs.
-    fn dropped_events(&self) -> u64 {
-        self.dropped_events
-            .load(std::sync::atomic::Ordering::Relaxed)
+    /// Returns 0 before `start_streaming` is called, the running total
+    /// while streaming, and the post-mortem total after `stop_streaming`
+    /// or `shutdown`. Consumers should poll this on a periodic timer
+    /// and emit a log on any non-zero delta.
+    fn dropped_event_count(&self) -> u64 {
+        self.tdx.dropped_event_count()
     }
 }
 
