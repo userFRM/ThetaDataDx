@@ -2,29 +2,97 @@
 
 #[pymethods]
 impl ThetaDataDx {
-    /// Start FPSS streaming. Events are buffered; poll with next_event().
-    fn start_streaming(&self) -> PyResult<()> {
-        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-        let dropped_events = Arc::clone(&self.dropped_events);
+    /// Start FPSS streaming and register a Python callback for incoming events.
+    /// 
+    /// The dispatcher's drain thread acquires the GIL via
+    /// `Python::attach` to call `callback(event)` for every
+    /// typed FPSS event. `callback` must accept exactly one
+    /// positional argument — a `Quote`, `Trade`, `Ohlcvc`,
+    /// `OpenInterest`, `Simple`, or `RawData` instance.
+    /// 
+    /// Events flow from the FPSS reader thread through the
+    /// SSOT `StreamingDispatcher` (bounded crossbeam queue,
+    /// 8192 slots) onto a dedicated drain thread that runs
+    /// `callback`. The reader never blocks on user code; if
+    /// the callback falls behind, overflow events are
+    /// dropped and counted via `dropped_event_count()`.
+    /// 
+    /// GIL acquisition can block, so this Python binding
+    /// deliberately does NOT expose `start_streaming_inline`.
+    /// A slow Python callable on the FPSS reader thread
+    /// would fill the kernel TCP receive buffer and trigger
+    /// a vendor-side disconnect — there is no safe way to
+    /// acquire the GIL inside the FPSS read loop.
+    /// 
+    /// Exceptions raised inside `callback` are routed through
+    /// `PyErr::write_unraisable` (visible in `sys.stderr` and
+    /// the unraisable hook) so a buggy callback cannot kill
+    /// the streaming thread.
+    fn start_streaming(&self, callback: Py<PyAny>) -> PyResult<()> {
+        // Hold the user callable in a `Mutex<Option<Py<PyAny>>>` so
+        // `stop_streaming` can drop it without leaking a Python
+        // reference, and so a subsequent `start_streaming` /
+        // `reconnect` cycle replaces the previous registration cleanly.
+        let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+        // Reject double-registration with a clear PyRuntimeError. The
+        // underlying `ThetaDataDx::start_streaming` would also error,
+        // but matching the PyO3 binding's own state first gives a
+        // language-idiomatic message.
+        if cb_guard.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "streaming already started -- call stop_streaming() before start_streaming() again",
+            ));
+        }
+        // Bind the callable behind a cheap `Arc` so the FPSS dispatcher
+        // closure (`Fn(&FpssEvent) + Send + 'static`) can clone the
+        // handle into each per-event invocation. `Py<PyAny>` itself is
+        // `Send + Sync` once the GIL is released, so the Arc is purely
+        // a reference-count lifetime aid.
+        let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
+        let dispatch_cb = Arc::clone(&callback_arc);
 
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
-                let buffered = fpss_event_to_buffered(event);
-                if tx.send(buffered).is_err() {
-                    let count = dropped_events
-                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                        + 1;
-                    tracing::debug!(
-                        target: "thetadatadx::sdk::streaming",
-                        dropped_total = count,
-                        "fpss event dropped: receiver disconnected",
-                    );
-                }
+                // Acquire the GIL on the dispatcher's drain thread to
+                // call into Python. The drain thread is not the FPSS
+                // reader thread (the SSOT `StreamingDispatcher` puts a
+                // bounded `crossbeam_channel(8192)` queue between the
+                // two), so a slow Python callback at most fills the
+                // queue and bumps `dropped_event_count()`; it can never
+                // back-pressure the FPSS TLS reader and trigger a
+                // vendor-side disconnect. That's why this Python
+                // binding deliberately does NOT expose
+                // `start_streaming_inline`: GIL acquisition + arbitrary
+                // user callbacks are unsafe on the reader thread.
+                Python::attach(|py| {
+                    let buffered = fpss_event_to_buffered(event);
+                    let typed = match buffered_event_to_typed(py, &buffered) {
+                        Ok(obj) => obj,
+                        Err(err) => {
+                            // Don't propagate from the dispatcher
+                            // thread — there's no Python frame to
+                            // raise into. Surface via the standard
+                            // PyErr -> sys.stderr writer so logging
+                            // pipelines and Jupyter both see it.
+                            err.write_unraisable(py, None);
+                            return;
+                        }
+                    };
+                    if let Err(err) = dispatch_cb.call1(py, (typed,)) {
+                        err.write_unraisable(py, None);
+                    }
+                });
             })
             .map_err(to_py_err)?;
 
-        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Arc::new(Mutex::new(rx)));
+        *cb_guard = Some(Arc::try_unwrap(callback_arc).unwrap_or_else(|arc| {
+            // The dispatcher closure clone keeps a strong reference
+            // until `stop_streaming`, so the Arc ref-count is >1 here.
+            // Fall back to `clone_ref` under the GIL to lift a fresh
+            // owned handle for storage; `try_unwrap` is the cheap path
+            // we'd take if registration somehow ran inline-only.
+            Python::attach(|py| arc.clone_ref(py))
+        }));
         Ok(())
     }
 
@@ -197,87 +265,71 @@ impl ThetaDataDx {
             .map_err(to_py_err)
     }
 
-    /// Poll for the next FPSS event.
-    fn next_event(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<Option<Py<PyAny>>> {
-        let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());
-        let rx_arc = match rx_outer.as_ref() {
-            Some(arc) => Arc::clone(arc),
-            None => {
-                return Err(PyRuntimeError::new_err(
-                    "streaming not started -- call start_streaming() first",
-                ))
-            }
-        };
-        drop(rx_outer);
-        let total_timeout = std::time::Duration::from_millis(timeout_ms);
-        let deadline = std::time::Instant::now() + total_timeout;
-        let result = loop {
-            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-            let poll = std::cmp::min(remaining, std::time::Duration::from_millis(100));
-            let rx_arc_inner = Arc::clone(&rx_arc);
-            let recv_result = py.detach(move || {
-                let rx = rx_arc_inner.lock().unwrap_or_else(|e| e.into_inner());
-                rx.recv_timeout(poll)
-            });
-            match recv_result {
-                Ok(event) => break Ok(event),
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                    break Err(std::sync::mpsc::RecvTimeoutError::Disconnected);
-                }
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    py.check_signals()?;
-                    if std::time::Instant::now() >= deadline {
-                        break Err(std::sync::mpsc::RecvTimeoutError::Timeout);
-                    }
-                }
-            }
-        };
-        match result {
-            Ok(event) => Ok(Some(buffered_event_to_typed(py, &event)?)),
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(
-                PyRuntimeError::new_err(
-                    "streaming channel disconnected -- call reconnect() or start_streaming() again",
-                ),
-            ),
-        }
-    }
-
-    /// Reconnect streaming and re-subscribe all previous subscriptions.
+    /// Reconnect FPSS streaming and re-register the previously installed callback.
+    /// 
+    /// Requires a prior `start_streaming(callback)`; raises
+    /// `RuntimeError` if no callback is registered. All
+    /// active subscriptions are restored on the new
+    /// connection — see `thetadatadx::ThetaDataDx::reconnect_streaming`
+    /// for partial-failure semantics.
     fn reconnect(&self) -> PyResult<()> {
-        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-        let dropped_events = Arc::clone(&self.dropped_events);
+        // `reconnect` re-registers the previously installed callback
+        // on a fresh FPSS connection. We require a prior
+        // `start_streaming(callback)` so the Python surface stays
+        // consistent: there is no implicit zero-callback streaming
+        // mode on this binding.
+        let stored = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            match guard.as_ref() {
+                Some(cb) => Python::attach(|py| cb.clone_ref(py)),
+                None => {
+                    return Err(PyRuntimeError::new_err(
+                        "no callback registered -- call start_streaming(callback) before reconnect()",
+                    ));
+                }
+            }
+        };
+        let callback_arc: Arc<Py<PyAny>> = Arc::new(stored);
+        let dispatch_cb = Arc::clone(&callback_arc);
+
         self.tdx
             .reconnect_streaming(move |event: &fpss::FpssEvent| {
-                let buffered = fpss_event_to_buffered(event);
-                if tx.send(buffered).is_err() {
-                    let count = dropped_events
-                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                        + 1;
-                    tracing::debug!(
-                        target: "thetadatadx::sdk::streaming",
-                        dropped_total = count,
-                        "fpss event dropped: receiver disconnected (post-reconnect)",
-                    );
-                }
+                Python::attach(|py| {
+                    let buffered = fpss_event_to_buffered(event);
+                    let typed = match buffered_event_to_typed(py, &buffered) {
+                        Ok(obj) => obj,
+                        Err(err) => {
+                            err.write_unraisable(py, None);
+                            return;
+                        }
+                    };
+                    if let Err(err) = dispatch_cb.call1(py, (typed,)) {
+                        err.write_unraisable(py, None);
+                    }
+                });
             })
             .map_err(to_py_err)?;
-        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Arc::new(Mutex::new(rx)));
+
+        // Replace the stored callable with a freshly owned handle so
+        // the next reconnect / shutdown sees the same state shape.
+        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some(Arc::try_unwrap(callback_arc).unwrap_or_else(|arc| {
+            Python::attach(|py| arc.clone_ref(py))
+        }));
         Ok(())
     }
 
     /// Stop streaming while keeping the historical client usable.
     fn stop_streaming(&self) {
         self.tdx.stop_streaming();
-        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
 
     /// Shut down the FPSS streaming connection.
     fn shutdown(&self) {
         self.tdx.stop_streaming();
-        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
 

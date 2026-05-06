@@ -1,23 +1,66 @@
-        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-        let dropped_events = Arc::clone(&self.dropped_events);
+        // Hold the user callable in a `Mutex<Option<Py<PyAny>>>` so
+        // `stop_streaming` can drop it without leaking a Python
+        // reference, and so a subsequent `start_streaming` /
+        // `reconnect` cycle replaces the previous registration cleanly.
+        let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+        // Reject double-registration with a clear PyRuntimeError. The
+        // underlying `ThetaDataDx::start_streaming` would also error,
+        // but matching the PyO3 binding's own state first gives a
+        // language-idiomatic message.
+        if cb_guard.is_some() {
+            return Err(PyRuntimeError::new_err(
+                "streaming already started -- call stop_streaming() before start_streaming() again",
+            ));
+        }
+        // Bind the callable behind a cheap `Arc` so the FPSS dispatcher
+        // closure (`Fn(&FpssEvent) + Send + 'static`) can clone the
+        // handle into each per-event invocation. `Py<PyAny>` itself is
+        // `Send + Sync` once the GIL is released, so the Arc is purely
+        // a reference-count lifetime aid.
+        let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
+        let dispatch_cb = Arc::clone(&callback_arc);
 
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
-                let buffered = fpss_event_to_buffered(event);
-                if tx.send(buffered).is_err() {
-                    let count = dropped_events
-                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                        + 1;
-                    tracing::debug!(
-                        target: "thetadatadx::sdk::streaming",
-                        dropped_total = count,
-                        "fpss event dropped: receiver disconnected",
-                    );
-                }
+                // Acquire the GIL on the dispatcher's drain thread to
+                // call into Python. The drain thread is not the FPSS
+                // reader thread (the SSOT `StreamingDispatcher` puts a
+                // bounded `crossbeam_channel(8192)` queue between the
+                // two), so a slow Python callback at most fills the
+                // queue and bumps `dropped_event_count()`; it can never
+                // back-pressure the FPSS TLS reader and trigger a
+                // vendor-side disconnect. That's why this Python
+                // binding deliberately does NOT expose
+                // `start_streaming_inline`: GIL acquisition + arbitrary
+                // user callbacks are unsafe on the reader thread.
+                Python::attach(|py| {
+                    let buffered = fpss_event_to_buffered(event);
+                    let typed = match buffered_event_to_typed(py, &buffered) {
+                        Ok(obj) => obj,
+                        Err(err) => {
+                            // Don't propagate from the dispatcher
+                            // thread — there's no Python frame to
+                            // raise into. Surface via the standard
+                            // PyErr -> sys.stderr writer so logging
+                            // pipelines and Jupyter both see it.
+                            err.write_unraisable(py, None);
+                            return;
+                        }
+                    };
+                    if let Err(err) = dispatch_cb.call1(py, (typed,)) {
+                        err.write_unraisable(py, None);
+                    }
+                });
             })
             .map_err(to_py_err)?;
 
-        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Arc::new(Mutex::new(rx)));
+        *cb_guard = Some(Arc::try_unwrap(callback_arc).unwrap_or_else(|arc| {
+            // The dispatcher closure clone keeps a strong reference
+            // until `stop_streaming`, so the Arc ref-count is >1 here.
+            // Fall back to `clone_ref` under the GIL to lift a fresh
+            // owned handle for storage; `try_unwrap` is the cheap path
+            // we'd take if registration somehow ran inline-only.
+            Python::attach(|py| arc.clone_ref(py))
+        }));
         Ok(())
     }

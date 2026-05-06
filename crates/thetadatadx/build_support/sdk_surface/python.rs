@@ -77,25 +77,55 @@ fn render_all_greeks_pyclass() -> String {
 
 fn python_streaming_method(method: &MethodSpec) -> String {
     let mut out = String::new();
-    push_rust_doc_comment(&mut out, "    ", &method.doc);
+    // The doc string in `sdk_surface.toml` is the cross-language
+    // semantic summary. Two Python kinds (StartStreaming, Reconnect)
+    // require a callback-specific docstring after PR C (#482); render
+    // those inline below instead of re-using the shared one.
+    let render_shared_doc = !matches!(
+        method.kind,
+        MethodKind::StartStreaming | MethodKind::Reconnect
+    );
+    if render_shared_doc {
+        push_rust_doc_comment(&mut out, "    ", &method.doc);
+    }
     match method.kind {
         MethodKind::StartStreaming => {
-            writeln!(out, "    fn {}(&self) -> PyResult<()> {{", method.name).unwrap();
-            // Clone the instance-level `Arc<AtomicU64>` into the closure.
-            // Counter lives on `ThetaDataDx`, so it survives reconnect and
-            // is observable from Python via `tdx.dropped_events()` — a
-            // closure-local `AtomicU64::new(0)` would reset on every
-            // reconnect and would never be reachable from consumers.
-            //
-            // `debug!` is the level ops-teams enable in production when
-            // diagnosing drops. `trace` is too quiet (default filters
-            // strip it); `warn` is too loud for normal shutdown-time
-            // drops. Consumers polling via `dropped_events()` remain the
-            // primary observability path.
-            //
-            // Recover poisoned lock rather than silently dropping the
-            // swap. A stale receiver behind a closed channel is worse
-            // than a partial state from a prior panic.
+            push_rust_doc_comment(
+                &mut out,
+                "    ",
+                "Start FPSS streaming and register a Python callback for incoming events.\n\
+                 \n\
+                 The dispatcher's drain thread acquires the GIL via\n\
+                 `Python::attach` to call `callback(event)` for every\n\
+                 typed FPSS event. `callback` must accept exactly one\n\
+                 positional argument — a `Quote`, `Trade`, `Ohlcvc`,\n\
+                 `OpenInterest`, `Simple`, or `RawData` instance.\n\
+                 \n\
+                 Events flow from the FPSS reader thread through the\n\
+                 SSOT `StreamingDispatcher` (bounded crossbeam queue,\n\
+                 8192 slots) onto a dedicated drain thread that runs\n\
+                 `callback`. The reader never blocks on user code; if\n\
+                 the callback falls behind, overflow events are\n\
+                 dropped and counted via `dropped_event_count()`.\n\
+                 \n\
+                 GIL acquisition can block, so this Python binding\n\
+                 deliberately does NOT expose `start_streaming_inline`.\n\
+                 A slow Python callable on the FPSS reader thread\n\
+                 would fill the kernel TCP receive buffer and trigger\n\
+                 a vendor-side disconnect — there is no safe way to\n\
+                 acquire the GIL inside the FPSS read loop.\n\
+                 \n\
+                 Exceptions raised inside `callback` are routed through\n\
+                 `PyErr::write_unraisable` (visible in `sys.stderr` and\n\
+                 the unraisable hook) so a buggy callback cannot kill\n\
+                 the streaming thread.",
+            );
+            writeln!(
+                out,
+                "    fn {}(&self, callback: Py<PyAny>) -> PyResult<()> {{",
+                method.name
+            )
+            .unwrap();
             out.push_str(include_str!(
                 "templates/python/start_streaming_body.rs.tmpl"
             ));
@@ -231,46 +261,41 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("    }\n");
         }
         MethodKind::NextEvent => {
-            let param = &method.params[0];
-            writeln!(
-                out,
-                "    fn {}(&self, py: Python<'_>, {}: {}) -> PyResult<Option<Py<PyAny>>> {{",
-                method.name,
-                param.name,
-                python_type(param.param_type)
-            )
-            .unwrap();
-            out.push_str(include_str!("templates/python/next_event_prelude.rs.tmpl"));
-            writeln!(
-                out,
-                "        let total_timeout = std::time::Duration::from_millis({});",
-                param.name
-            )
-            .unwrap();
-            // Poll in ≤100 ms chunks so Python's `KeyboardInterrupt`
-            // (Ctrl+C) is honoured even on multi-minute `timeout_ms`
-            // values. A pure blocking `recv_timeout(total_timeout)` on a
-            // cold subscription makes the process un-killable from the
-            // REPL — signals are delivered to the main thread, but the
-            // GIL is released inside `py.detach` and `check_signals`
-            // never runs until the mpsc wakes us. Asymmetric with
-            // `run_blocking` (which polls signals on the async side
-            // every 100 ms); unify the two cancellation stories here.
-            // Disconnect is still distinguished from timeout so consumer
-            // loops don't spin 100% CPU on a dead socket.
-            out.push_str(include_str!("templates/python/next_event_body.rs.tmpl"));
+            // Python removed `next_event` in PR C (#482) — the PyO3
+            // binding now uses callback registration via
+            // `start_streaming(callback)`. The Python target is no
+            // longer in `MethodKind::NextEvent`'s allowed list (see
+            // `spec.rs`), so this arm is unreachable on the Python
+            // surface. Panicking here is the loud failure we want if
+            // someone re-adds `python_unified` to `next_event` without
+            // also implementing a poll-style PyO3 method.
+            panic!("MethodKind::NextEvent is not emitted on the Python target after PR C");
         }
         MethodKind::Reconnect => {
+            push_rust_doc_comment(
+                &mut out,
+                "    ",
+                "Reconnect FPSS streaming and re-register the previously installed callback.\n\
+                 \n\
+                 Requires a prior `start_streaming(callback)`; raises\n\
+                 `RuntimeError` if no callback is registered. All\n\
+                 active subscriptions are restored on the new\n\
+                 connection — see `thetadatadx::ThetaDataDx::reconnect_streaming`\n\
+                 for partial-failure semantics.",
+            );
             writeln!(out, "    fn {}(&self) -> PyResult<()> {{", method.name).unwrap();
-            // Clone the instance-level counter so the drop count survives
-            // reconnect (see `StartStreaming` for the full rationale).
             out.push_str(include_str!("templates/python/reconnect_body.rs.tmpl"));
         }
         MethodKind::StopStreaming | MethodKind::Shutdown => {
             writeln!(out, "    fn {}(&self) {{", method.name).unwrap();
+            // PR C (#482) replaced the receiver `rx` field with a
+            // stored `Py<PyAny>` callback. Drop the callable so the
+            // Python reference is released before the streaming side
+            // tears down — re-installing via `start_streaming` after
+            // stop / shutdown then sees a clean slot.
             out.push_str("        self.tdx.stop_streaming();\n");
             out.push_str(
-                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+                "        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",
             );
             out.push_str("        *guard = None;\n");
             out.push_str("    }\n");
