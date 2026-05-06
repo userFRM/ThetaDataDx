@@ -3,57 +3,129 @@
 //! Contains the streaming-specific handles (`TdxUnified`, `TdxFpssHandle`),
 //! the `#[repr(C)]` FPSS event types (generated — `include!`'d), the tagged
 //! subscription / contract-map arrays, and every `tdx_unified_*` /
-//! `tdx_fpss_*` `extern "C" fn`. Split verbatim from `lib.rs`; the exported
-//! C ABI is unchanged.
+//! `tdx_fpss_*` `extern "C" fn`.
+//!
+//! # Callback C ABI
+//!
+//! Both [`TdxUnified`] and [`TdxFpssHandle`] expose a pair of callback-
+//! registration entry points that wire user `extern "C"` functions through
+//! the SSOT [`thetadatadx::fpss::StreamingDispatcher`]:
+//!
+//! - `tdx_*_set_callback` — queued: the FPSS reader thread pushes onto a
+//!   bounded `crossbeam_channel::bounded(8192)` queue inside the
+//!   dispatcher; a dedicated drain thread invokes the user callback.
+//!   The reader thread never blocks on user code, so a slow C/C++
+//!   callback fills the queue and overflow events are silently dropped
+//!   (with the drop count exposed via `tdx_*_dropped_events`).
+//! - `tdx_*_set_inline_callback` — inline: the user callback fires
+//!   directly on the FPSS reader thread. Microsecond-budget contract:
+//!   any allocation, I/O, or lock acquisition will stall the reader and
+//!   cause the vendor session to drop. Use only for trading loops with
+//!   provably wait-free callbacks.
+//!
+//! The poll-based `tdx_*_next_event` API and its supporting `mpsc`
+//! pipeline have been removed; the C ABI is callback-only.
 
 use std::ffi::CString;
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_void};
 use std::ptr;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::error::set_error;
 use crate::runtime;
 use crate::types::{TdxClient, TdxConfig, TdxCredentials};
 
+// ── Callback C ABI types ──
+
+/// User callback signature: invoked once per FPSS event delivered to the
+/// FFI layer. The `event` pointer is valid only for the duration of the
+/// call; copy any fields the caller wants to outlive the callback.
+///
+/// `ctx` is the opaque user context pointer registered alongside the
+/// callback (`tdx_*_set_callback(handle, fn, ctx)`); it is passed back
+/// unchanged on every invocation.
+pub type TdxFpssCallback = extern "C" fn(event: *const TdxFpssEvent, ctx: *mut c_void);
+
+/// Bundle of `(callback, ctx)` stored inside a Rust closure registered
+/// with [`thetadatadx::ThetaDataDx::start_streaming`]. The bundle is
+/// `Send + Sync + Copy` so the dispatcher drain thread (or, for inline
+/// mode, the FPSS reader thread) can call into the user's
+/// `extern "C" fn` from a non-FFI thread, and so the same bundle can be
+/// re-registered on `tdx_*_reconnect` without re-invoking the user.
+#[derive(Clone, Copy)]
+struct FfiCallback {
+    callback: TdxFpssCallback,
+    ctx: *mut c_void,
+}
+
+// SAFETY: `FfiCallback` is `Send + Sync` because the contained pointer
+// is the user's opaque context — it is never dereferenced by Rust, only
+// handed back to the user's `extern "C" fn` exactly as registered.
+// Thread affinity of the context is the user's responsibility
+// (documented on `tdx_*_set_callback`).
+unsafe impl Send for FfiCallback {}
+unsafe impl Sync for FfiCallback {}
+
+/// Dispatch mode chosen at `tdx_*_set_callback` time. Stored on the
+/// handle so `tdx_*_reconnect` can re-register the same callback on the
+/// new stream without forcing the user to re-supply it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DispatchMode {
+    Queued,
+    Inline,
+}
+
+impl FfiCallback {
+    fn invoke(&self, event: &thetadatadx::fpss::FpssEvent) {
+        // Convert the Rust event to the FFI `#[repr(C)]` struct. The
+        // returned `FfiBufferedEvent` owns the heap memory backing the
+        // `control.detail` and `raw_data.payload` pointer fields; it is
+        // dropped at the end of this function, after the user callback
+        // returns. The user MUST NOT retain the `*const TdxFpssEvent`
+        // pointer past the callback boundary.
+        let buffered = fpss_event_to_ffi(event);
+        let event_ptr: *const TdxFpssEvent = std::ptr::from_ref(&buffered.event);
+        (self.callback)(event_ptr, self.ctx);
+    }
+}
+
 // ── Unified + FPSS handles ──
 
 /// Opaque unified client handle — wraps both historical and streaming.
 pub struct TdxUnified {
     inner: thetadatadx::ThetaDataDx,
-    /// Created lazily when `tdx_unified_start_streaming()` is called.
-    rx: Mutex<Option<Arc<Mutex<std::sync::mpsc::Receiver<FfiBufferedEvent>>>>>,
-    /// Cumulative count of FPSS events dropped because the FFI receiver
-    /// was gone (queue shut down or consumer stopped polling) before the
-    /// callback could hand the event off. Exposed via
-    /// `tdx_unified_dropped_events` so Go / C++ consumers have parity
-    /// with the Python / TypeScript SDKs' `dropped_events()` getter.
-    /// Lives on the handle (not the closure) so the count survives the
-    /// single `start_streaming` call that this handle supports.
-    dropped_events: Arc<AtomicU64>,
+    /// Callback registered via `tdx_unified_set_callback` /
+    /// `tdx_unified_set_inline_callback`. `None` until the first
+    /// registration; persisted across `tdx_unified_reconnect` so the
+    /// reconnect path can re-attach the same C user function without
+    /// re-asking the caller for it.
+    callback: Mutex<Option<(FfiCallback, DispatchMode)>>,
 }
 
 /// Opaque FPSS streaming client handle.
 ///
-/// Uses the same pattern as the Python SDK: an internal mpsc channel buffering
-/// events from the Disruptor callback, and `tdx_fpss_next_event` polls it with
-/// a timeout, returning a `*mut TdxFpssEvent` typed struct.
+/// `tdx_fpss_connect` allocates the handle and stores connection
+/// parameters; the actual FPSS TLS connection is opened on the first
+/// call to `tdx_fpss_set_callback` or `tdx_fpss_set_inline_callback`.
+/// This mirrors the unified handle's lifecycle (`connect` then
+/// `set_callback`) and keeps a single connect-time decision point for
+/// queued vs. inline dispatch.
 pub struct TdxFpssHandle {
     inner: Arc<Mutex<Option<thetadatadx::fpss::FpssClient>>>,
-    rx: Arc<Mutex<std::sync::mpsc::Receiver<FfiBufferedEvent>>>,
-    /// Saved connection parameters for reconnection (Gap 3).
+    /// Saved connection parameters used at `set_callback` time and on
+    /// every subsequent `tdx_fpss_reconnect`.
     connect_params: FpssConnectParams,
-    /// Cumulative count of FPSS events dropped because the FFI receiver
-    /// was gone (queue shut down or consumer stopped polling) before the
-    /// callback could hand the event off. Exposed via
-    /// `tdx_fpss_dropped_events` so Go / C++ consumers have parity with
-    /// the Python / TypeScript SDKs' `dropped_events()` getter. The
-    /// `Arc` is cloned into every callback closure (initial connect +
-    /// each reconnect), so the counter survives reconnection.
-    dropped_events: Arc<AtomicU64>,
+    /// Dispatcher attached when the user installs a queued callback.
+    /// `None` for inline-mode handles or before any callback is set.
+    dispatcher: Mutex<Option<thetadatadx::fpss::StreamingDispatcher>>,
+    /// User callback recorded at `tdx_fpss_set_callback` /
+    /// `tdx_fpss_set_inline_callback` time. Stored on the handle so
+    /// `tdx_fpss_reconnect` can re-register the same callback on the
+    /// new FPSS connection without forcing the caller to re-supply it.
+    callback: Mutex<Option<(FfiCallback, DispatchMode)>>,
 }
 
-/// Saved FPSS connection parameters for FFI-safe reconnection.
+/// Saved FPSS connection parameters for FFI-safe (re)connection.
 struct FpssConnectParams {
     creds: thetadatadx::Credentials,
     hosts: Vec<(String, u16)>,
@@ -79,14 +151,14 @@ include!("fpss_event_structs.rs");
 
 /// Internal buffered event — owns heap data that backs the `TdxFpssEvent`.
 ///
-/// `#[repr(C)]` guarantees `event` is at offset 0 so that casting
-/// `*mut FfiBufferedEvent` to `*mut TdxFpssEvent` is sound. The field
-/// is read through that pointer cast (not via `.event`), which the
-/// compiler cannot see — hence `pub(crate)`.
+/// Constructed once per delivered FPSS event inside the user-callback
+/// boundary (see `FfiCallback::invoke`); lives only for the duration of
+/// the user's `extern "C" fn` call and is dropped immediately after.
 ///
 /// `_detail_string` and `_raw_payload` own the backing memory for
 /// pointer fields inside `event.control.detail` and
-/// `event.raw_data.payload` respectively.
+/// `event.raw_data.payload` respectively. Users MUST NOT retain those
+/// pointers past the callback boundary.
 #[repr(C)]
 pub(crate) struct FfiBufferedEvent {
     pub(crate) event: TdxFpssEvent,
@@ -95,12 +167,6 @@ pub(crate) struct FfiBufferedEvent {
     /// Owns the raw payload bytes backing `event.raw_data.payload`, if any.
     _raw_payload: Option<Vec<u8>>,
 }
-
-// SAFETY: FfiBufferedEvent is sent across std::sync::mpsc channels.
-// The owned data (_detail_string, _raw_payload) is heap-allocated and
-// the pointers inside `event` point into that owned data. The event is
-// only accessed from the receiving thread after the send completes.
-unsafe impl Send for FfiBufferedEvent {}
 
 include!("fpss_event_converter.rs");
 
@@ -294,7 +360,8 @@ pub unsafe extern "C" fn tdx_contract_map_array_free(arr: *mut TdxContractMapArr
 
 /// Connect to `ThetaData` (historical only — FPSS streaming is NOT started).
 ///
-/// Authenticates once, opens gRPC channel. Call `tdx_unified_start_streaming()`
+/// Authenticates once, opens gRPC channel. Call `tdx_unified_set_callback()`
+/// or `tdx_unified_set_inline_callback()`
 /// later to start FPSS. Historical endpoints are available immediately.
 ///
 /// Returns null on connection/auth failure (check `tdx_last_error()`).
@@ -321,8 +388,7 @@ pub unsafe extern "C" fn tdx_unified_connect(
         )) {
             Ok(tdx) => Box::into_raw(Box::new(TdxUnified {
                 inner: tdx,
-                rx: Mutex::new(None),
-                dropped_events: Arc::new(AtomicU64::new(0)),
+                callback: Mutex::new(None),
             })),
             Err(e) => {
                 set_error(&e.to_string());
@@ -332,45 +398,103 @@ pub unsafe extern "C" fn tdx_unified_connect(
     })
 }
 
-/// Start FPSS streaming on the unified client.
+/// Register a queued FPSS callback on the unified client and start streaming.
 ///
-/// Creates an internal mpsc channel and registers a callback handler.
-/// Events are buffered — poll with `tdx_unified_next_event()`.
+/// `callback` is invoked from the dispatcher's drain thread for every
+/// FPSS event delivered by the FPSS reader. The reader thread pushes
+/// events onto a bounded `crossbeam_channel` queue (8192 slots) inside
+/// the SSOT `StreamingDispatcher`; on overflow the event is dropped and
+/// the per-handle drop counter (queryable via `tdx_unified_dropped_events`)
+/// ticks. The reader thread NEVER blocks on `callback`.
+///
+/// `ctx` is an opaque pointer passed back unchanged on every invocation;
+/// it is owned by the caller and must outlive the streaming connection
+/// (until `tdx_unified_stop_streaming` or `tdx_unified_free`). Pass NULL
+/// if the callback does not need a context.
+///
+/// The `event` pointer handed to `callback` is valid only for the
+/// duration of that invocation. Copy any fields the consumer wants to
+/// outlive the callback before returning.
 ///
 /// Returns 0 on success, -1 on error (check `tdx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn tdx_unified_start_streaming(handle: *const TdxUnified) -> i32 {
+pub unsafe extern "C" fn tdx_unified_set_callback(
+    handle: *const TdxUnified,
+    callback: TdxFpssCallback,
+    ctx: *mut c_void,
+) -> i32 {
     ffi_boundary!(-1, {
         if handle.is_null() {
             set_error("unified handle is null");
             return -1;
         }
         let handle = unsafe { &*handle };
-
-        let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
-        // Clone the handle-level counter so the send-failure path in the
-        // callback increments the same `AtomicU64` the
-        // `tdx_unified_dropped_events` getter reads. Parity with the Python
-        // / TS SDKs: silent drops need to be countable from C / Go / C++.
-        let dropped_events = Arc::clone(&handle.dropped_events);
-
+        let cb = FfiCallback { callback, ctx };
         match handle
             .inner
             .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
-                let buffered = fpss_event_to_ffi(event);
-                if tx.send(buffered).is_err() {
-                    let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
-                    tracing::debug!(
-                        target: "thetadatadx::ffi::streaming",
-                        dropped_total = count,
-                        "fpss event dropped -- receiver dead",
-                    );
-                }
+                cb.invoke(event);
             }) {
             Ok(()) => {
-                if let Ok(mut guard) = handle.rx.lock() {
-                    *guard = Some(Arc::new(Mutex::new(rx)));
-                }
+                // Persist the callback for `tdx_unified_reconnect` to
+                // re-register on the new FPSS connection without
+                // re-asking the caller. Lock cannot be poisoned here
+                // because no other thread holds it during connect.
+                let mut guard = handle
+                    .callback
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                *guard = Some((cb, DispatchMode::Queued));
+                0
+            }
+            Err(e) => {
+                set_error(&e.to_string());
+                -1
+            }
+        }
+    })
+}
+
+/// Register an inline FPSS callback on the unified client and start streaming.
+///
+/// `callback` fires directly on the FPSS reader thread, bypassing the
+/// dispatcher queue. Microsecond-budget contract: any allocation, I/O,
+/// lock acquisition, or runtime/GC interaction in the callback will
+/// stall the reader, fill the kernel TCP receive buffer, and cause the
+/// vendor session to drop. Use only for trading loops with provably
+/// wait-free callbacks.
+///
+/// For every other workload (Python/Node/Go bindings, file logging,
+/// WebSocket fan-out), call `tdx_unified_set_callback` instead.
+///
+/// `ctx` is an opaque pointer passed back unchanged on every invocation;
+/// it is owned by the caller and must outlive the streaming connection.
+///
+/// Returns 0 on success, -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_set_inline_callback(
+    handle: *const TdxUnified,
+    callback: TdxFpssCallback,
+    ctx: *mut c_void,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return -1;
+        }
+        let handle = unsafe { &*handle };
+        let cb = FfiCallback { callback, ctx };
+        match handle
+            .inner
+            .start_streaming_inline(move |event: &thetadatadx::fpss::FpssEvent| {
+                cb.invoke(event);
+            }) {
+            Ok(()) => {
+                let mut guard = handle
+                    .callback
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                *guard = Some((cb, DispatchMode::Inline));
                 0
             }
             Err(e) => {
@@ -943,17 +1067,23 @@ pub unsafe extern "C" fn tdx_unified_contract_map(
 /// Reconnect the unified client's streaming connection.
 ///
 /// Saves active subscriptions, stops the current streaming, starts a new one
-/// using the same credentials, and re-subscribes everything. The callback-based
-/// version (`reconnect_streaming(handler)`) stays Rust/Python-only.
+/// using the previously-registered callback (queued or inline), and
+/// re-subscribes everything.
+///
+/// Requires that a callback has already been installed via
+/// `tdx_unified_set_callback` or `tdx_unified_set_inline_callback`.
+/// Returns -1 if no callback was registered (the new ABI has no
+/// out-of-band buffer to fall back on).
 ///
 /// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 ///
 /// # Event continuity
 ///
-/// Events buffered in the old streaming channel are dropped during reconnect.
-/// There is no gap-free delivery guarantee across reconnections. Callers that
-/// require gap-free streaming should implement their own sequence-number-based
-/// gap detection and replay logic.
+/// Events still queued in the dispatcher when reconnect is invoked are
+/// drained before the dispatcher shuts down; events buffered inside the
+/// old TLS read path are lost. There is no gap-free delivery guarantee
+/// across reconnections — callers that require gap-free streaming
+/// should implement sequence-number-based gap detection and replay.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32 {
     ffi_boundary!(-1, {
@@ -982,43 +1112,51 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
             }
         };
 
-        // Stop streaming
+        // Look up the previously-registered callback so we can re-attach
+        // it on the new FPSS connection. `tdx_unified_reconnect` requires
+        // a prior `set_callback` / `set_inline_callback` — without one
+        // there is no destination for the new stream's events.
+        let (cb, mode) = {
+            let guard = handle
+                .callback
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match *guard {
+                Some(pair) => pair,
+                None => {
+                    set_error(
+                        "no callback registered -- call tdx_unified_set_callback or \
+                         tdx_unified_set_inline_callback before tdx_unified_reconnect",
+                    );
+                    return -1;
+                }
+            }
+        };
+
+        // Stop the current streaming connection (drains the dispatcher,
+        // tears down the FPSS reader thread). The next start_streaming
+        // call below opens a fresh connection bound to the same
+        // C callback.
         handle.inner.stop_streaming();
 
-        // Clear the old rx
-        if let Ok(mut guard) = handle.rx.lock() {
-            *guard = None;
-        }
-
-        // Start a new streaming connection with an internal buffered channel
-        let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
-        // Reuse the handle-level counter so `tdx_unified_dropped_events`
-        // reflects drops across both the initial `start_streaming` and
-        // every subsequent reconnect. Closure-local counters would reset
-        // here and make the getter useless for long-lived clients.
-        let dropped_events = Arc::clone(&handle.dropped_events);
-
-        if let Err(e) = handle
-            .inner
-            .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
-                let buffered = fpss_event_to_ffi(event);
-                if tx.send(buffered).is_err() {
-                    let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
-                    tracing::debug!(
-                        target: "thetadatadx::ffi::streaming",
-                        dropped_total = count,
-                        "fpss event dropped -- receiver dead (post-reconnect)",
-                    );
+        let result =
+            match mode {
+                DispatchMode::Queued => {
+                    handle
+                        .inner
+                        .start_streaming(move |event: &thetadatadx::fpss::FpssEvent| {
+                            cb.invoke(event);
+                        })
                 }
-            })
-        {
+                DispatchMode::Inline => handle.inner.start_streaming_inline(
+                    move |event: &thetadatadx::fpss::FpssEvent| {
+                        cb.invoke(event);
+                    },
+                ),
+            };
+        if let Err(e) = result {
             set_error(&e.to_string());
             return -1;
-        }
-
-        // Store the new rx
-        if let Ok(mut guard) = handle.rx.lock() {
-            *guard = Some(Arc::new(Mutex::new(rx)));
         }
 
         // Re-subscribe all previous subscriptions (best-effort; failures are non-fatal,
@@ -1142,51 +1280,6 @@ pub unsafe extern "C" fn tdx_unified_active_subscriptions(
     })
 }
 
-/// Poll for the next streaming event from the unified client.
-///
-/// Blocks for up to `timeout_ms` milliseconds. Returns a heap-allocated
-/// `TdxFpssEvent` that MUST be freed with `tdx_fpss_event_free`.
-/// Returns null on timeout (not an error), or if streaming has not been
-/// started yet (check `tdx_last_error()`).
-#[no_mangle]
-pub unsafe extern "C" fn tdx_unified_next_event(
-    handle: *const TdxUnified,
-    timeout_ms: u64,
-) -> *mut TdxFpssEvent {
-    ffi_boundary!(std::ptr::null_mut(), {
-        if handle.is_null() {
-            set_error("unified handle is null");
-            return ptr::null_mut();
-        }
-        let handle = unsafe { &*handle };
-        let rx_guard = handle
-            .rx
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let rx_arc = if let Some(arc) = rx_guard.as_ref() {
-            Arc::clone(arc)
-        } else {
-            set_error("streaming not started -- call tdx_unified_start_streaming() first");
-            return ptr::null_mut();
-        };
-        drop(rx_guard);
-        let rx = rx_arc
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let timeout = std::time::Duration::from_millis(timeout_ms);
-        match rx.recv_timeout(timeout) {
-            Ok(buffered) => {
-                // Box the entire FfiBufferedEvent so _detail_string/_raw_payload
-                // stay alive. Cast to *mut TdxFpssEvent (first field) for FFI.
-                let ptr = Box::into_raw(Box::new(buffered));
-                ptr.cast::<TdxFpssEvent>()
-            }
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ptr::null_mut(),
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => ptr::null_mut(),
-        }
-    })
-}
-
 /// Borrow the historical client from a unified handle.
 ///
 /// Returns a `*const TdxClient` that can be passed to all `tdx_stock_*`,
@@ -1216,6 +1309,11 @@ pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *c
 }
 
 /// Stop streaming on the unified client. Historical remains available.
+///
+/// Drains the dispatcher, joins the drain thread, and tears down the FPSS
+/// reader. The previously-registered callback is preserved so a
+/// subsequent `tdx_unified_reconnect` can re-attach it without the
+/// caller re-supplying the function pointer.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_stop_streaming(handle: *const TdxUnified) {
     ffi_boundary!((), {
@@ -1224,25 +1322,23 @@ pub unsafe extern "C" fn tdx_unified_stop_streaming(handle: *const TdxUnified) {
         }
         let handle = unsafe { &*handle };
         handle.inner.stop_streaming();
-        // Clear the rx so next_event knows streaming is stopped.
-        if let Ok(mut guard) = handle.rx.lock() {
-            *guard = None;
-        }
     })
 }
 
-/// Cumulative count of FPSS events dropped on this unified handle because
-/// the FFI receiver was gone before the callback could deliver the event.
+/// Cumulative count of FPSS events dropped by the dispatcher on this
+/// unified handle because the bounded `(8192)` queue was full when the
+/// FPSS reader thread tried to enqueue an event.
 ///
-/// Survives `tdx_unified_reconnect()` (the counter `Arc` is cloned into
-/// every callback). Returns 0 if the handle is null.
+/// Returns 0 if the handle is null, no callback has been installed yet,
+/// or the inline path was taken (no dispatcher queue exists in inline
+/// mode — overflow cannot happen because there is no queue).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_unified_dropped_events(handle: *const TdxUnified) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
             return 0;
         }
-        unsafe { (*handle).dropped_events.load(Ordering::Relaxed) }
+        unsafe { (*handle).inner.dropped_event_count() }
     })
 }
 
@@ -1262,11 +1358,16 @@ pub unsafe extern "C" fn tdx_unified_free(handle: *mut TdxUnified) {
 //  FPSS — Real-time streaming client
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Connect to FPSS streaming servers.
+/// Allocate an FPSS handle and stash the connection parameters.
 ///
-/// Events are collected in an internal queue. Call `tdx_fpss_next_event()` to poll.
+/// **Does NOT open the FPSS TLS connection** — connection is deferred
+/// until the caller installs a callback via `tdx_fpss_set_callback` or
+/// `tdx_fpss_set_inline_callback`. This is required because
+/// `FpssClient::connect` registers its event handler at connect time;
+/// deferring the connect until callback installation lets us avoid an
+/// internal queue.
 ///
-/// Returns null on connection failure (check `tdx_last_error()`).
+/// Returns null on argument validation failure (check `tdx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_connect(
     creds: *const TdxCredentials,
@@ -1284,44 +1385,8 @@ pub unsafe extern "C" fn tdx_fpss_connect(
         let creds = unsafe { &*creds };
         let config = unsafe { &*config };
 
-        let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
-        // Pre-allocate the counter Arc so the callback closure (registered
-        // with the client before the handle exists) and the returned handle
-        // point at the same `AtomicU64`. `tdx_fpss_reconnect` will also
-        // clone this Arc into the new callback, preserving the count across
-        // reconnects.
-        let dropped_events = Arc::new(AtomicU64::new(0));
-        let dropped_events_cb = Arc::clone(&dropped_events);
-
-        let client = match thetadatadx::fpss::FpssClient::connect(
-            &creds.inner,
-            &config.inner.fpss_hosts,
-            config.inner.fpss_ring_size,
-            config.inner.fpss_flush_mode,
-            config.inner.reconnect_policy.clone(),
-            config.inner.derive_ohlcvc,
-            move |event: &thetadatadx::fpss::FpssEvent| {
-                let buffered = fpss_event_to_ffi(event);
-                if tx.send(buffered).is_err() {
-                    let count = dropped_events_cb.fetch_add(1, Ordering::Relaxed) + 1;
-                    tracing::debug!(
-                        target: "thetadatadx::ffi::streaming",
-                        dropped_total = count,
-                        "fpss event dropped -- receiver dead",
-                    );
-                }
-            },
-        ) {
-            Ok(c) => c,
-            Err(e) => {
-                set_error(&e.to_string());
-                return ptr::null_mut();
-            }
-        };
-
         Box::into_raw(Box::new(TdxFpssHandle {
-            inner: Arc::new(Mutex::new(Some(client))),
-            rx: Arc::new(Mutex::new(rx)),
+            inner: Arc::new(Mutex::new(None)),
             connect_params: FpssConnectParams {
                 creds: creds.inner.clone(),
                 hosts: config.inner.fpss_hosts.clone(),
@@ -1330,8 +1395,153 @@ pub unsafe extern "C" fn tdx_fpss_connect(
                 reconnect_policy: config.inner.reconnect_policy.clone(),
                 derive_ohlcvc: config.inner.derive_ohlcvc,
             },
-            dropped_events,
+            dispatcher: Mutex::new(None),
+            callback: Mutex::new(None),
         }))
+    })
+}
+
+/// Open the FPSS connection if not already open.
+///
+/// Internal helper shared by `tdx_fpss_set_callback` and
+/// `tdx_fpss_set_inline_callback`. The caller supplies a Rust closure
+/// that consumes `FpssEvent` references; this is the closure registered
+/// with `FpssClient::connect` and lives for the lifetime of the
+/// connection. Returns -1 on connect failure (error already set), 0 on
+/// success.
+fn open_fpss<F>(handle: &TdxFpssHandle, on_event: F) -> i32
+where
+    F: FnMut(&thetadatadx::fpss::FpssEvent) + Send + 'static,
+{
+    let mut guard = handle
+        .inner
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if guard.is_some() {
+        set_error(
+            "FPSS callback already installed -- only one set_callback call is permitted per handle",
+        );
+        return -1;
+    }
+    let params = &handle.connect_params;
+    match thetadatadx::fpss::FpssClient::connect(
+        &params.creds,
+        &params.hosts,
+        params.ring_size,
+        params.flush_mode,
+        params.reconnect_policy.clone(),
+        params.derive_ohlcvc,
+        on_event,
+    ) {
+        Ok(client) => {
+            *guard = Some(client);
+            0
+        }
+        Err(e) => {
+            set_error(&e.to_string());
+            -1
+        }
+    }
+}
+
+/// Register a queued FPSS callback and open the FPSS connection.
+///
+/// `callback` is invoked from a dedicated drain thread (the SSOT
+/// [`StreamingDispatcher`](thetadatadx::fpss::StreamingDispatcher) drain
+/// thread) for every FPSS event the reader pulls off the wire. The
+/// reader thread pushes events onto a bounded `crossbeam_channel` queue
+/// (8192 slots); on overflow events are dropped silently and counted
+/// (queryable via `tdx_fpss_dropped_events`). The reader thread NEVER
+/// blocks on `callback`.
+///
+/// `ctx` is an opaque pointer passed back unchanged on every invocation;
+/// caller owns its lifetime.
+///
+/// May only be called ONCE per handle. Subsequent calls return -1 with
+/// an error message.
+///
+/// Returns 0 on success, -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_set_callback(
+    handle: *const TdxFpssHandle,
+    callback: TdxFpssCallback,
+    ctx: *mut c_void,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
+        }
+        let handle = unsafe { &*handle };
+        let cb = FfiCallback { callback, ctx };
+        // Spawn a `StreamingDispatcher` (queued mode) and register a
+        // producer-side closure with `FpssClient::connect`. The
+        // dispatcher drain thread owns the user callback; the FPSS
+        // reader never blocks on user code.
+        let dispatcher = thetadatadx::fpss::StreamingDispatcher::spawn(Box::new(
+            move |event: &thetadatadx::fpss::FpssEvent| {
+                cb.invoke(event);
+            },
+        ));
+        let producer = dispatcher.producer();
+        let rc = open_fpss(handle, move |event: &thetadatadx::fpss::FpssEvent| {
+            producer.send(event.clone());
+        });
+        if rc != 0 {
+            // Connect failed -- shut down the dispatcher we just spawned
+            // so the drain thread doesn't outlive the failure path.
+            dispatcher.shutdown();
+            return rc;
+        }
+        let mut dispatch_guard = handle
+            .dispatcher
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *dispatch_guard = Some(dispatcher);
+        let mut cb_guard = handle
+            .callback
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *cb_guard = Some((cb, DispatchMode::Queued));
+        0
+    })
+}
+
+/// Register an inline FPSS callback and open the FPSS connection.
+///
+/// `callback` fires directly on the FPSS reader thread, bypassing the
+/// dispatcher queue. Microsecond-budget contract: any allocation, I/O,
+/// lock acquisition, or runtime/GC interaction will stall the reader,
+/// fill the kernel TCP receive buffer, and cause the vendor session to
+/// drop. Use only for trading loops with provably wait-free callbacks.
+///
+/// May only be called ONCE per handle. Subsequent calls return -1.
+///
+/// Returns 0 on success, -1 on error (check `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_fpss_set_inline_callback(
+    handle: *const TdxFpssHandle,
+    callback: TdxFpssCallback,
+    ctx: *mut c_void,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("FPSS handle is null");
+            return -1;
+        }
+        let handle = unsafe { &*handle };
+        let cb = FfiCallback { callback, ctx };
+        let rc = open_fpss(handle, move |event: &thetadatadx::fpss::FpssEvent| {
+            cb.invoke(event);
+        });
+        if rc == 0 {
+            let mut cb_guard = handle
+                .callback
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            *cb_guard = Some((cb, DispatchMode::Inline));
+        }
+        rc
     })
 }
 
@@ -1357,7 +1567,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_quotes(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
@@ -1393,7 +1603,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_trades(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
@@ -1429,7 +1639,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_quotes(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
@@ -1465,7 +1675,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_trades(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
@@ -1501,7 +1711,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_open_interest(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
@@ -1537,7 +1747,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_open_interest(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = thetadatadx::fpss::protocol::Contract::stock(symbol);
@@ -1586,7 +1796,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_trades(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         match client.subscribe_full_trades(st) {
@@ -1634,7 +1844,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_full_open_interest(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         match client.subscribe_full_open_interest(st) {
@@ -1682,7 +1892,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_trades(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         match client.unsubscribe_full_trades(st) {
@@ -1730,7 +1940,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_full_open_interest(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         match client.unsubscribe_full_open_interest(st) {
@@ -1786,7 +1996,7 @@ pub unsafe extern "C" fn tdx_fpss_contract_lookup(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return ptr::null_mut();
         };
         match client.contract_lookup(id) {
@@ -1828,7 +2038,7 @@ pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return ptr::null_mut();
         };
         let subs = client.active_subscriptions();
@@ -1836,61 +2046,6 @@ pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
             subs.into_iter()
                 .map(|(kind, contract)| (format!("{kind:?}"), format!("{contract}"))),
         )
-    })
-}
-
-/// Poll for the next FPSS event as a typed `#[repr(C)]` struct.
-///
-/// Blocks for up to `timeout_ms` milliseconds. Returns a heap-allocated
-/// `TdxFpssEvent` that MUST be freed with `tdx_fpss_event_free`.
-///
-/// Returns null if no event arrived within the timeout (this is NOT an error).
-#[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_next_event(
-    handle: *const TdxFpssHandle,
-    timeout_ms: u64,
-) -> *mut TdxFpssEvent {
-    ffi_boundary!(std::ptr::null_mut(), {
-        if handle.is_null() {
-            set_error("FPSS handle is null");
-            return ptr::null_mut();
-        }
-        let handle = unsafe { &*handle };
-        let rx = handle
-            .rx
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let timeout = std::time::Duration::from_millis(timeout_ms);
-        match rx.recv_timeout(timeout) {
-            Ok(buffered) => {
-                // Box the entire FfiBufferedEvent so _detail_string/_raw_payload
-                // stay alive. Cast to *mut TdxFpssEvent (first field) for FFI.
-                let ptr = Box::into_raw(Box::new(buffered));
-                ptr.cast::<TdxFpssEvent>()
-            }
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => ptr::null_mut(),
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => ptr::null_mut(),
-        }
-    })
-}
-
-/// Free a `TdxFpssEvent` returned by `tdx_fpss_next_event` or
-/// `tdx_unified_next_event`.
-///
-/// Note: the `control.detail` pointer inside the event is NOT separately
-/// heap-allocated — it was owned by the internal buffered event and is
-/// invalidated when the event struct is freed. Do NOT call
-/// `tdx_string_free` on `control.detail`.
-#[no_mangle]
-pub unsafe extern "C" fn tdx_fpss_event_free(event: *mut TdxFpssEvent) {
-    ffi_boundary!((), {
-        if !event.is_null() {
-            // The pointer was created by boxing a FfiBufferedEvent and casting
-            // to *mut TdxFpssEvent (which is the first field). Cast back to
-            // free the entire FfiBufferedEvent including owned _detail_string
-            // and _raw_payload.
-            drop(unsafe { Box::from_raw(event.cast::<FfiBufferedEvent>()) });
-        }
     })
 }
 
@@ -1947,7 +2102,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_option_quotes(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
@@ -1997,7 +2152,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_option_trades(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
@@ -2047,7 +2202,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe_option_open_interest(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
@@ -2097,7 +2252,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_option_quotes(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
@@ -2147,7 +2302,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_option_trades(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
@@ -2197,7 +2352,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe_option_open_interest(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return -1;
         };
         let contract = match thetadatadx::fpss::protocol::Contract::option(sym, exp, stk, rt) {
@@ -2242,7 +2397,7 @@ pub unsafe extern "C" fn tdx_fpss_contract_map(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client is shut down");
+            set_error("FPSS client not started -- call tdx_fpss_set_callback or tdx_fpss_set_inline_callback first, or has been shut down");
             return ptr::null_mut();
         };
         build_contract_map_array(
@@ -2256,17 +2411,20 @@ pub unsafe extern "C" fn tdx_fpss_contract_map(
 
 /// Reconnect the FPSS streaming client, re-subscribing all previous subscriptions.
 ///
-/// This is the FFI-safe version of reconnect: it reuses the same credentials
-/// and config from the initial connect. The callback-based version stays Rust-only.
+/// Reuses the credentials/config saved at `tdx_fpss_connect` time and
+/// the C callback registered via the most recent
+/// `tdx_fpss_set_callback` / `tdx_fpss_set_inline_callback`. Returns
+/// -1 if no callback was ever installed.
 ///
 /// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 ///
 /// # Event continuity
 ///
-/// Events buffered in the old streaming channel are dropped during reconnect.
-/// There is no gap-free delivery guarantee across reconnections. Callers that
-/// require gap-free streaming should implement their own sequence-number-based
-/// gap detection and replay logic.
+/// Events still queued in the dispatcher when reconnect is invoked are
+/// drained before the dispatcher shuts down; events buffered inside the
+/// old TLS read path are lost. There is no gap-free delivery guarantee
+/// across reconnections — callers that require gap-free streaming
+/// should implement sequence-number-based gap detection and replay.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32 {
     ffi_boundary!(-1, {
@@ -2277,7 +2435,27 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
         let handle = unsafe { &*handle };
         let params = &handle.connect_params;
 
-        // 1. Save active subscriptions from the current client
+        // Look up the previously-registered C callback. Reconnect cannot
+        // make forward progress without one — `FpssClient::connect`
+        // requires an event handler at construction time.
+        let (cb, mode) = {
+            let guard = handle
+                .callback
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match *guard {
+                Some(pair) => pair,
+                None => {
+                    set_error(
+                        "no callback registered -- call tdx_fpss_set_callback or \
+                         tdx_fpss_set_inline_callback before tdx_fpss_reconnect",
+                    );
+                    return -1;
+                }
+            }
+        };
+
+        // 1. Save active subscriptions from the current client (if any).
         let (saved_subs, saved_full_subs) = {
             let guard = handle
                 .inner
@@ -2289,7 +2467,7 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
             }
         };
 
-        // 2. Shut down the old client
+        // 2. Shut down the old client and the old dispatcher (if any).
         {
             let mut guard = handle
                 .inner
@@ -2299,35 +2477,69 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
                 old.shutdown();
             }
         }
+        {
+            let mut dispatch_guard = handle
+                .dispatcher
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(old) = dispatch_guard.take() {
+                old.shutdown();
+            }
+        }
 
-        // 3. Create a new mpsc channel and connect
-        let (tx, rx) = std::sync::mpsc::channel::<FfiBufferedEvent>();
-        // Clone the handle-level counter so the drop count survives
-        // reconnect (same reasoning as Python / TS SDKs; see the struct-
-        // level field doc for the full rationale).
-        let dropped_events = Arc::clone(&handle.dropped_events);
+        // 3. Build the new event handler bound to the same C callback,
+        // routing through a fresh dispatcher (queued mode) or directly
+        // (inline mode).
+        let new_dispatcher = match mode {
+            DispatchMode::Queued => Some(thetadatadx::fpss::StreamingDispatcher::spawn(Box::new(
+                move |event: &thetadatadx::fpss::FpssEvent| {
+                    cb.invoke(event);
+                },
+            ))),
+            DispatchMode::Inline => None,
+        };
 
-        let new_client = match thetadatadx::fpss::FpssClient::connect(
-            &params.creds,
-            &params.hosts,
-            params.ring_size,
-            params.flush_mode,
-            params.reconnect_policy.clone(),
-            params.derive_ohlcvc,
-            move |event: &thetadatadx::fpss::FpssEvent| {
-                let buffered = fpss_event_to_ffi(event);
-                if tx.send(buffered).is_err() {
-                    let count = dropped_events.fetch_add(1, Ordering::Relaxed) + 1;
-                    tracing::debug!(
-                        target: "thetadatadx::ffi::streaming",
-                        dropped_total = count,
-                        "fpss event dropped -- receiver dead (post-reconnect)",
-                    );
-                }
-            },
-        ) {
+        let new_client = match mode {
+            DispatchMode::Queued => {
+                // SAFETY: in queued mode we just spawned `new_dispatcher` above,
+                // so unwrap is sound.
+                let dispatcher = new_dispatcher
+                    .as_ref()
+                    .expect("dispatcher present for queued mode");
+                let producer = dispatcher.producer();
+                thetadatadx::fpss::FpssClient::connect(
+                    &params.creds,
+                    &params.hosts,
+                    params.ring_size,
+                    params.flush_mode,
+                    params.reconnect_policy.clone(),
+                    params.derive_ohlcvc,
+                    move |event: &thetadatadx::fpss::FpssEvent| {
+                        producer.send(event.clone());
+                    },
+                )
+            }
+            DispatchMode::Inline => thetadatadx::fpss::FpssClient::connect(
+                &params.creds,
+                &params.hosts,
+                params.ring_size,
+                params.flush_mode,
+                params.reconnect_policy.clone(),
+                params.derive_ohlcvc,
+                move |event: &thetadatadx::fpss::FpssEvent| {
+                    cb.invoke(event);
+                },
+            ),
+        };
+
+        let new_client = match new_client {
             Ok(c) => c,
             Err(e) => {
+                // Tear down the dispatcher we just spawned so its drain
+                // thread does not outlive the failed reconnect.
+                if let Some(d) = new_dispatcher {
+                    d.shutdown();
+                }
                 set_error(&e.to_string());
                 return -1;
             }
@@ -2381,7 +2593,7 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
             }
         }
 
-        // 5. Store the new client and rx
+        // 5. Store the new client + dispatcher.
         {
             let mut guard = handle
                 .inner
@@ -2389,37 +2601,39 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             *guard = Some(new_client);
         }
-        {
-            let mut rx_guard = handle
-                .rx
+        if let Some(d) = new_dispatcher {
+            let mut dispatch_guard = handle
+                .dispatcher
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            // The old rx is dropped here; any buffered events from the old connection
-            // are lost, which is expected behavior for reconnection.
-            *rx_guard = rx;
+            *dispatch_guard = Some(d);
         }
 
         0
     })
 }
 
-/// Cumulative count of FPSS events dropped on this handle because the FFI
-/// receiver was gone (channel disconnected) before the callback could deliver
-/// the event.
+/// Cumulative count of FPSS events dropped by the dispatcher on this
+/// handle because the bounded `(8192)` queue was full when the FPSS
+/// reader thread tried to enqueue an event.
 ///
-/// The counter lives on the handle, so the value survives
-/// `tdx_fpss_reconnect()` — callers get a true lifetime total for drops
-/// across the initial connection and every subsequent reconnect.
-///
-/// Returns 0 if the handle is null (defensive; matches the Python
-/// `tdx.dropped_events()` contract of "always callable, never panic").
+/// Returns 0 if the handle is null, no callback has been installed yet,
+/// or the inline path was taken (no dispatcher queue exists in inline
+/// mode — overflow cannot happen because there is no queue).
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_dropped_events(handle: *const TdxFpssHandle) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
             return 0;
         }
-        unsafe { (*handle).dropped_events.load(Ordering::Relaxed) }
+        let handle = unsafe { &*handle };
+        let guard = handle
+            .dispatcher
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        guard
+            .as_ref()
+            .map_or(0, thetadatadx::fpss::StreamingDispatcher::dropped_count)
     })
 }
 
@@ -2434,12 +2648,26 @@ pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
             return;
         }
         let handle = unsafe { &*handle };
-        let mut guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(client) = guard.take() {
-            client.shutdown();
+        // Drop the FPSS reader first so no more events can land in the
+        // dispatcher queue, then drain + join the dispatcher drain
+        // thread before returning.
+        {
+            let mut guard = handle
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(client) = guard.take() {
+                client.shutdown();
+            }
+        }
+        {
+            let mut dispatch_guard = handle
+                .dispatcher
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(d) = dispatch_guard.take() {
+                d.shutdown();
+            }
         }
     })
 }
@@ -2452,4 +2680,237 @@ pub unsafe extern "C" fn tdx_fpss_free(handle: *mut TdxFpssHandle) {
             drop(unsafe { Box::from_raw(handle) });
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for the C ABI callback wiring.
+    //!
+    //! These tests exercise the `FfiCallback` shim and the
+    //! `StreamingDispatcher` integration without opening a real FPSS
+    //! TLS connection. They cover the two contracts a downstream C/C++
+    //! consumer relies on:
+    //!
+    //! 1. **`set_callback` semantics**: events handed to `FfiCallback::invoke`
+    //!    arrive at the user `extern "C" fn` with the registered `ctx` and a
+    //!    valid `*const TdxFpssEvent`. A queued `StreamingDispatcher` plus
+    //!    `FfiCallback` should run the callback on the dispatcher's drain
+    //!    thread (not the producer thread).
+    //! 2. **`set_inline_callback` semantics**: the same `FfiCallback`
+    //!    fires synchronously on the calling thread when invoked
+    //!    directly, with no intermediate queue.
+
+    use super::*;
+    use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
+    use std::sync::Arc;
+    use std::thread;
+    use std::time::Duration;
+
+    /// Mutable test context observed from the C-shaped callback. Holds
+    /// the captured contract id, thread id observed inside the user
+    /// callback (so tests can prove the dispatcher drain thread was
+    /// used), and a hit counter.
+    struct TestCtx {
+        hits: AtomicU64,
+        last_kind: AtomicI32,
+        callback_thread: AtomicU64,
+    }
+
+    extern "C" fn capture_callback(event: *const TdxFpssEvent, ctx: *mut std::os::raw::c_void) {
+        // SAFETY: the FFI layer guarantees `event` is non-null for the
+        // duration of the call and `ctx` is the pointer registered
+        // alongside `capture_callback`.
+        assert!(!event.is_null(), "FFI handed null event pointer");
+        let ctx = unsafe { &*(ctx.cast::<TestCtx>()) };
+        ctx.hits.fetch_add(1, Ordering::Relaxed);
+        // Read the kind discriminant via a pointer cast to i32. The
+        // `TdxFpssEventKind` enum is `#[repr(C)]` with explicit small
+        // integer variants, so the first 4 bytes of `*event` are the
+        // tag value. Reading by reference would `move` the non-Copy
+        // enum, which `&self` access on a `*const` borrow forbids.
+        let kind = unsafe { *event.cast::<i32>() };
+        ctx.last_kind.store(kind, Ordering::Relaxed);
+        // Record the OS thread id so the test can compare against the
+        // caller's thread id and verify queued vs. inline routing.
+        let tid = thread_id_u64();
+        ctx.callback_thread.store(tid, Ordering::Relaxed);
+    }
+
+    fn thread_id_u64() -> u64 {
+        // `ThreadId::as_u64` is unstable, so format the Debug form
+        // (e.g. "ThreadId(7)") and parse the integer back. Fine for
+        // test-only thread-affinity assertions.
+        let id = thread::current().id();
+        let s = format!("{id:?}");
+        // Strip "ThreadId(" / ")" and parse the inner integer.
+        let inner = s
+            .trim_start_matches("ThreadId(")
+            .trim_end_matches(')')
+            .trim();
+        inner.parse::<u64>().unwrap_or(0)
+    }
+
+    fn synthetic_quote_event() -> thetadatadx::fpss::FpssEvent {
+        thetadatadx::fpss::FpssEvent::Data(thetadatadx::fpss::FpssData::Quote {
+            contract_id: 42,
+            contract: Arc::new(thetadatadx::fpss::protocol::Contract::stock("AAPL")),
+            ms_of_day: 0,
+            bid: 0.0,
+            bid_size: 0,
+            bid_exchange: 0,
+            bid_condition: 0,
+            ask: 0.0,
+            ask_size: 0,
+            ask_exchange: 0,
+            ask_condition: 0,
+            date: 20260505,
+            received_at_ns: 0,
+        })
+    }
+
+    /// Inline mode: invoking the FfiCallback runs the user fn on the
+    /// caller's thread synchronously, with the registered ctx.
+    #[test]
+    fn ffi_callback_inline_invokes_user_fn_on_caller_thread() {
+        let ctx_box = Box::new(TestCtx {
+            hits: AtomicU64::new(0),
+            last_kind: AtomicI32::new(-1),
+            callback_thread: AtomicU64::new(0),
+        });
+        let ctx_ptr: *mut std::os::raw::c_void = Box::into_raw(ctx_box).cast();
+        let cb = FfiCallback {
+            callback: capture_callback,
+            ctx: ctx_ptr,
+        };
+
+        let event = synthetic_quote_event();
+        let caller_tid = thread_id_u64();
+        cb.invoke(&event);
+
+        // SAFETY: we own `ctx_ptr` and have not freed it yet.
+        let ctx_back = unsafe { Box::from_raw(ctx_ptr.cast::<TestCtx>()) };
+        assert_eq!(
+            ctx_back.hits.load(Ordering::Relaxed),
+            1,
+            "callback fired once"
+        );
+        assert_eq!(
+            ctx_back.last_kind.load(Ordering::Relaxed),
+            TdxFpssEventKind::Quote as i32,
+            "callback observed Quote event kind",
+        );
+        assert_eq!(
+            ctx_back.callback_thread.load(Ordering::Relaxed),
+            caller_tid,
+            "inline callback ran on the caller thread",
+        );
+    }
+
+    /// Queued mode (dispatcher path): the FfiCallback wired through a
+    /// StreamingDispatcher producer fires on the dispatcher's drain
+    /// thread, not the producer (caller) thread.
+    #[test]
+    fn ffi_callback_queued_runs_on_dispatcher_thread() {
+        let ctx_box = Box::new(TestCtx {
+            hits: AtomicU64::new(0),
+            last_kind: AtomicI32::new(-1),
+            callback_thread: AtomicU64::new(0),
+        });
+        let ctx_ptr: *mut std::os::raw::c_void = Box::into_raw(ctx_box).cast();
+        let cb = FfiCallback {
+            callback: capture_callback,
+            ctx: ctx_ptr,
+        };
+
+        // Replicate the wiring that `tdx_fpss_set_callback` /
+        // `tdx_unified_set_callback` install: the dispatcher's drain
+        // thread owns the user callback, the producer side is what the
+        // FPSS reader (here, the test thread) calls.
+        let dispatcher = thetadatadx::fpss::StreamingDispatcher::spawn(Box::new(
+            move |event: &thetadatadx::fpss::FpssEvent| {
+                cb.invoke(event);
+            },
+        ));
+        let producer_tid = thread_id_u64();
+        {
+            // Hold the producer in a tight scope so it is dropped before
+            // `dispatcher.shutdown()`. `shutdown` only drops the
+            // dispatcher's internal sender, but the cloned producer side
+            // would keep the channel alive and the drain-thread join
+            // would deadlock waiting for `Receiver::iter` to terminate.
+            let producer = dispatcher.producer();
+            let event = synthetic_quote_event();
+            producer.send(event);
+        }
+
+        // Shutdown drains every queued event before joining the drain
+        // thread, so by the time `shutdown` returns the callback has
+        // fired exactly once.
+        dispatcher.shutdown();
+
+        // SAFETY: ctx_ptr still valid until we re-Box below.
+        let ctx_back = unsafe { Box::from_raw(ctx_ptr.cast::<TestCtx>()) };
+        assert_eq!(
+            ctx_back.hits.load(Ordering::Relaxed),
+            1,
+            "callback fired once via dispatcher drain thread",
+        );
+        let observed_tid = ctx_back.callback_thread.load(Ordering::Relaxed);
+        assert_ne!(
+            observed_tid, producer_tid,
+            "dispatcher path ran callback on a different thread than the producer (queued semantics)",
+        );
+    }
+
+    /// Smoke test for `FfiCallback: Send + Sync`. Without these
+    /// auto-trait impls, `start_streaming` would refuse to accept a
+    /// closure capturing the bundle.
+    #[test]
+    fn ffi_callback_is_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<FfiCallback>();
+    }
+
+    /// `tdx_fpss_dropped_events` returns 0 when no callback is
+    /// installed (no dispatcher exists yet).
+    #[test]
+    fn fpss_dropped_events_zero_before_callback() {
+        // Build a minimal handle without going through the
+        // `tdx_fpss_connect` boundary (avoids needing valid creds).
+        let handle = TdxFpssHandle {
+            inner: Arc::new(Mutex::new(None)),
+            connect_params: FpssConnectParams {
+                creds: thetadatadx::Credentials::new("user", "password"),
+                hosts: vec![("localhost".to_owned(), 25503)],
+                ring_size: 4096,
+                flush_mode: thetadatadx::FpssFlushMode::default(),
+                reconnect_policy: thetadatadx::config::ReconnectPolicy::default(),
+                derive_ohlcvc: false,
+            },
+            dispatcher: Mutex::new(None),
+            callback: Mutex::new(None),
+        };
+        let raw = Box::into_raw(Box::new(handle));
+        let count = unsafe { tdx_fpss_dropped_events(raw) };
+        assert_eq!(count, 0, "no dispatcher means dropped count is 0");
+        // SAFETY: we just allocated this handle.
+        unsafe { drop(Box::from_raw(raw)) };
+    }
+
+    /// `tdx_unified_dropped_events` returns 0 on a null handle.
+    #[test]
+    fn unified_dropped_events_handles_null() {
+        let count = unsafe { tdx_unified_dropped_events(std::ptr::null()) };
+        assert_eq!(count, 0);
+
+        // And exercising the queued dispatcher: spawn one with a no-op
+        // callback, send an event, ensure dropped_count stays 0 (queue
+        // has plenty of headroom for one event), then shutdown.
+        let dispatcher = thetadatadx::fpss::StreamingDispatcher::spawn(Box::new(|_event| {}));
+        dispatcher.producer().send(synthetic_quote_event());
+        // Allow the drain thread a moment to consume.
+        thread::sleep(Duration::from_millis(20));
+        assert_eq!(dispatcher.dropped_count(), 0);
+        dispatcher.shutdown();
+    }
 }

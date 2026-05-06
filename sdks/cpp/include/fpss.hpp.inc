@@ -38,8 +38,6 @@
     std::optional<std::string> contract_lookup(int id) const;
     /** Get a snapshot of currently active subscriptions. */
     std::vector<Subscription> active_subscriptions() const;
-    /** Poll for the next FPSS event. */
-    FpssEventPtr next_event(uint64_t timeout_ms);
     /** Reconnect streaming and re-subscribe all previous subscriptions. */
     void reconnect();
     /** Shut down the FPSS streaming connection. */

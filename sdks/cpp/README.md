@@ -284,28 +284,11 @@ int main() {
     int req_id = fpss.subscribe_quotes("AAPL");
     std::cout << "Subscribed (req_id=" << req_id << ")" << std::endl;
 
-    // Poll for events (returns FpssEventPtr, nullptr on timeout)
-    while (true) {
-        auto event = fpss.next_event(5000);  // 5s timeout
-        if (!event) continue;
-
-        switch (event->kind) {
-        case TDX_FPSS_QUOTE:
-            std::cout << "Quote: bid=" << event->quote.bid
-                      << " ask=" << event->quote.ask << std::endl;
-            break;
-        case TDX_FPSS_TRADE:
-            std::cout << "Trade: price=" << event->trade.price
-                      << " size=" << event->trade.size << std::endl;
-            break;
-        case TDX_FPSS_CONTROL:
-            if (event->control.detail)
-                std::cout << "Control: " << event->control.detail << std::endl;
-            break;
-        default:
-            break;
-        }
-    }
+    // The C++ wrapper migrates to the new callback C ABI in a follow-up
+    // PR (refs #482). Until that lands, drive the streaming connection
+    // by calling the C symbols `tdx_fpss_set_callback` (queued, default)
+    // or `tdx_fpss_set_inline_callback` (inline, microsecond-budget)
+    // directly with an `extern "C" fn(const TdxFpssEvent*, void*)`.
 
     fpss.shutdown();
 }
@@ -338,7 +321,7 @@ All prices in streaming events are `double` (f64) -- decoded during parsing. Acc
 | `contract_lookup(id)` | `optional<string>` | Look up a contract by server-assigned ID |
 | `contract_map()` | `map<int32_t, string>` | Get the full contract ID mapping |
 | `active_subscriptions()` | `vector<Subscription>` | Get active subscriptions as typed structs |
-| `next_event(timeout_ms)` | `FpssEventPtr` | Poll for the next event (nullptr on timeout) |
+| (callback registration) | `int` | The C++ wrapper migrates to the new callback C ABI in a follow-up PR (#482); until then call `tdx_fpss_set_callback` / `tdx_fpss_set_inline_callback` from C directly |
 | `reconnect()` | `void` | Reconnect streaming and restore subscriptions |
 | `shutdown()` | `void` | Shut down the FPSS client |
 

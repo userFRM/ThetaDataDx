@@ -353,7 +353,7 @@ FPSS streaming uses separate `FpssClient` wrappers in Go/C++ (not the historical
 - **TypeScript/Node.js**: `tdx.startStreaming()`, `tdx.subscribeQuotes()`, `tdx.nextEvent()`, `tdx.stopStreaming()`
 - **Go**: `FpssClient` wrapping 26 FFI FPSS functions, including option-level subscribe/unsubscribe, `ContractMap()`, and `Reconnect()`
 - **C++**: `FpssClient` RAII class wrapping 26 FFI FPSS functions, including option-level subscribe/unsubscribe, `contract_map()`, and `reconnect()`
-- **C FFI**: 26 `extern "C"` functions (`tdx_fpss_connect`, `tdx_fpss_subscribe_*`, `tdx_fpss_unsubscribe_*`, `tdx_fpss_contract_map`, `tdx_fpss_reconnect`, `tdx_fpss_next_event`, `tdx_fpss_shutdown`, `tdx_fpss_free`, etc.)
+- **C FFI**: `extern "C"` functions (`tdx_fpss_connect`, `tdx_fpss_subscribe_*`, `tdx_fpss_unsubscribe_*`, `tdx_fpss_contract_map`, `tdx_fpss_reconnect`, `tdx_fpss_set_callback`, `tdx_fpss_set_inline_callback`, `tdx_fpss_shutdown`, `tdx_fpss_free`, etc.)
 
 ### Reconnection
 

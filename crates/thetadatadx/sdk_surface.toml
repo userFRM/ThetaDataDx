@@ -223,7 +223,11 @@ targets = ["python_unified", "typescript_napi", "cpp_fpss"]
 name = "next_event"
 kind = "next_event"
 doc = "Poll for the next FPSS event."
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
+# C++ removed in PR B (#482): the C ABI is callback-only after
+# `tdx_streaming_set_callback`. The C++ wrapper migrates in PR E.
+# Python and TypeScript still expose poll-style `next_event` via
+# their own internal mpsc shims; those rewrites ride PR C and PR D.
+targets = ["python_unified", "typescript_napi"]
 params = [{ name = "timeout_ms", type = "u64", doc = "Maximum time to wait in milliseconds." }]
 
 [[methods]]
