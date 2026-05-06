@@ -16,6 +16,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -324,14 +325,24 @@ using FpssEvent = TdxFpssEvent;
 
 // ── FPSS real-time streaming client ──
 //
-// The poll-based `next_event` API and its `FpssEventPtr` owning unique_ptr
-// are gone in the C ABI as of issue #482 (PR B). The C++ wrapper migrates
-// to the new `tdx_fpss_set_callback` / `tdx_fpss_set_inline_callback`
-// surface in PR E. Until that lands, `FpssClient` exposes only the
-// configuration / subscription / lifecycle methods that don't touch
-// event delivery, plus a `dropped_events()` accessor whose semantics
-// changed (now reports queue overflow drops, not channel-disconnect
-// drops).
+// Event delivery is callback-driven. Two paths are available:
+//
+// * `set_callback(fn)` — default queued path. Events flow
+//   `FPSS reader -> bounded(8192) crossbeam queue -> dispatcher drain
+//   thread -> user fn`. The reader thread never blocks on user code; on
+//   queue overflow events are dropped and counted via `dropped_events()`.
+//
+// * `set_inline_callback(fn)` — power-user opt-in. `fn` fires directly
+//   from the FPSS reader thread. The caller MUST guarantee `fn` returns
+//   within microseconds; a slow `fn` blocks the reader, fills the kernel
+//   TCP receive buffer, and causes the vendor to disconnect.
+//
+// The Client owns the `std::function`. A free `extern "C"` shim retrieves
+// the stored function from the registered `void* ctx` and invokes it with
+// the event reference. The shim converts `const TdxFpssEvent*` (the C ABI
+// payload type) to `const FpssEvent&` (the C++ alias) at the boundary.
+// Callback storage outlives any FPSS reader / dispatcher thread because
+// `~FpssClient` calls `tdx_fpss_shutdown` before the storage is freed.
 
 class FpssClient {
 public:
@@ -340,10 +351,71 @@ public:
 
     FpssClient(const FpssClient&) = delete;
     FpssClient& operator=(const FpssClient&) = delete;
-    FpssClient(FpssClient&& other) noexcept : handle_(std::move(other.handle_)) {}
+    FpssClient(FpssClient&& other) noexcept
+        : handle_(std::move(other.handle_)),
+          callback_(std::move(other.callback_)) {}
+    /** Move-assign. The receiver may already hold a live FPSS handle
+     *  with a registered callback whose `ctx` points into our existing
+     *  `callback_` storage. We must drain that wiring on the C ABI side
+     *  BEFORE destroying the old `callback_`, otherwise the Rust
+     *  dispatcher / inline reader could invoke through a dangling
+     *  `void*` ctx. `tdx_fpss_shutdown` drops the FPSS reader and joins
+     *  the dispatcher drain thread before returning, so once it
+     *  completes no thread observes the old ctx. */
     FpssClient& operator=(FpssClient&& other) noexcept {
-        handle_ = std::move(other.handle_);
+        if (this != &other) {
+            if (handle_) {
+                tdx_fpss_shutdown(handle_.get());
+            }
+            // Now safe to drop the old callback storage; no Rust thread
+            // can still be holding its address.
+            callback_.reset();
+            handle_ = std::move(other.handle_);
+            callback_ = std::move(other.callback_);
+        }
         return *this;
+    }
+
+    /** Register a queued FPSS callback and open the FPSS connection.
+     *  `fn` runs on the dispatcher drain thread, never on the FPSS
+     *  reader. The reader thread cannot be blocked by user code: on
+     *  overflow events are dropped and counted via `dropped_events()`.
+     *  Throws on registration failure.
+     *
+     *  The C ABI permits exactly one successful callback registration
+     *  per handle; a second call returns -1 and KEEPS the previously
+     *  installed (callback, ctx) wired into the Rust dispatcher. We
+     *  therefore stage the new `std::function` into a local
+     *  `unique_ptr`, attempt the FFI registration with the staged
+     *  address, and only adopt it into `callback_` after the FFI
+     *  reports success. On failure the existing `callback_` is left
+     *  untouched so the still-live Rust registration keeps pointing at
+     *  valid storage. */
+    void set_callback(std::function<void(const FpssEvent&)> fn) {
+        auto staged = std::make_unique<std::function<void(const FpssEvent&)>>(std::move(fn));
+        int rc = tdx_fpss_set_callback(handle_.get(), &FpssClient::callback_shim, staged.get());
+        if (rc < 0) {
+            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        }
+        callback_ = std::move(staged);
+    }
+
+    /** Register an inline FPSS callback and open the FPSS connection.
+     *  `fn` fires directly from the FPSS reader thread. Caller MUST
+     *  guarantee `fn` returns within microseconds; a slow `fn` stalls
+     *  the reader and the vendor will drop the session. Throws on
+     *  registration failure.
+     *
+     *  Same staged-then-adopt discipline as `set_callback`: only swap
+     *  into `callback_` after the FFI reports success, so a rejected
+     *  re-registration cannot dangle the still-active Rust ctx. */
+    void set_inline_callback(std::function<void(const FpssEvent&)> fn) {
+        auto staged = std::make_unique<std::function<void(const FpssEvent&)>>(std::move(fn));
+        int rc = tdx_fpss_set_inline_callback(handle_.get(), &FpssClient::callback_shim, staged.get());
+        if (rc < 0) {
+            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        }
+        callback_ = std::move(staged);
     }
 
     /** Cumulative count of FPSS events dropped by the streaming dispatcher
@@ -356,7 +428,24 @@ public:
     }
 
 private:
+    // Free C-ABI shim that the Rust dispatcher invokes. `ctx` is the
+    // `std::function*` we registered alongside the callback. The event
+    // pointer is non-null and valid only for the duration of this call.
+    static void callback_shim(const TdxFpssEvent* event, void* ctx) noexcept {
+        auto* fn = static_cast<std::function<void(const FpssEvent&)>*>(ctx);
+        if (fn == nullptr || event == nullptr) return;
+        try {
+            (*fn)(*event);
+        } catch (...) {
+            // User callbacks must not propagate exceptions across the
+            // C ABI boundary — Rust would unwind into UB. Swallow.
+        }
+    }
+
     std::unique_ptr<TdxFpssHandle, FpssHandleDeleter> handle_;
+    // `unique_ptr` so the address handed to the C ABI as `ctx` is stable
+    // across moves of the owning `FpssClient`.
+    std::unique_ptr<std::function<void(const FpssEvent&)>> callback_;
 };
 
 // ── Standalone Greeks functions ──
