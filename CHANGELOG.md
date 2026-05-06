@@ -48,14 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   ```typescript
   // Before
-  await tdx.startStreaming();
+  tdx.startStreaming();
   while (true) {
     const event = await tdx.nextEvent(100);
     if (event) process(event);
   }
 
   // After
-  await tdx.startStreaming((event) => process(event));
+  tdx.startStreaming((event) => process(event));
   ```
 
   The `droppedEvents()` getter is renamed to `droppedEventCount()`
@@ -88,9 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   The C++ wrapper's `next_event` / `FpssEventDeleter` / `FpssEventPtr`
   are also gone; the wrapper migrates to the callback API in a
-  follow-up. Python and TypeScript SDKs still expose their
-  poll-style `next_event` via internal mpsc shims and are unaffected
-  by this change — those bindings migrate in subsequent PRs.
+  follow-up.
 
 ### Changed
 

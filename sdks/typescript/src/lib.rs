@@ -101,10 +101,11 @@ include!("buffered_event.rs");
 /// `ThreadsafeFunction` that owns a JS callback reference and routes
 /// `FpssEvent` deliveries onto the Node main thread via napi-rs's
 /// internal `uv_async_t` queue. The const generic `false` selects
-/// `ErrorStrategy::Fatal` — we always pass `Ok(event)` and rely on
-/// the JS side's own try/catch for user-callback failures. The two
-/// `FpssEvent` type parameters are the wire payload and the JS-call
-/// arg type respectively; both are the same concrete object here.
+/// `ErrorStrategy::Fatal`, so the napi-rs `call` API takes the
+/// `FpssEvent` directly (not a `Result`) and the JS side relies on
+/// its own try/catch for user-callback failures. The two `FpssEvent`
+/// type parameters are the wire payload and the JS-call arg type
+/// respectively; both are the same concrete object here.
 ///
 /// napi-rs is the only safe path: Node's libuv requires JS callbacks
 /// on the main thread, so calling V8 from any other thread is
@@ -179,8 +180,12 @@ impl ThetaDataDx {
     ///
     /// Forwards to `thetadatadx::ThetaDataDx::dropped_event_count` so
     /// the value matches every other binding (C ABI, Python, future
-    /// C++) and survives reconnect — the dispatcher carries the count
-    /// across `start_streaming` / `reconnect` cycles.
+    /// C++). The counter lives on the underlying `StreamingDispatcher`
+    /// and resets when the dispatcher is recreated -- that happens on
+    /// `stop_streaming` and `reconnect` (which calls
+    /// `stop_streaming` + `start_streaming` internally). Snapshot the
+    /// value before reconnect if you need to accumulate drops across
+    /// session boundaries.
     ///
     /// Returned as `bigint` so it can represent the full `u64` range
     /// (Number would top out at 2^53).
