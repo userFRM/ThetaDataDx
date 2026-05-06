@@ -21,7 +21,7 @@ path = "src/main.rs"
 [dependencies]
 thetadatadx = { path = "../../crates/thetadatadx", features = ["config-file"] }
 rustls = { version = "0.23.38", features = ["ring"] }
-tdbe = { version = "0.12.8", path = "../../crates/tdbe" }
+tdbe = { version = "0.12.9", path = "../../crates/tdbe" }
 json_canon = { version = "0.1.0", path = "../../crates/json_canon" }
 axum = { version = "0.8.9", features = ["ws"] }
 tokio = { version = "1.52.1", features = ["full"] }

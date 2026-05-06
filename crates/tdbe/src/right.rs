@@ -97,6 +97,39 @@ impl ParsedRight {
             Self::Both => None,
         }
     }
+
+    /// Decode an FPSS wire byte (`67` for `'C'`, `80` for `'P'`) into
+    /// a typed [`ParsedRight`]. Returns [`None`] for any other byte
+    /// so callers can lift the soft-skip / hard-error decision into
+    /// their own error type.
+    ///
+    /// Inverse of [`Self::as_wire_byte`]: every variant whose
+    /// `as_wire_byte()` returns `Some(b)` round-trips through
+    /// `from_wire_byte(b) == Some(self)`.
+    ///
+    /// `const fn` so it stays evaluable in const contexts. Removes the
+    /// rationale for downstream tick decoders (analytics chain
+    /// snapshots, replay validators) to re-type the `67` / `80` magic
+    /// numbers at every trust boundary.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tdbe::right::ParsedRight;
+    ///
+    /// assert_eq!(ParsedRight::from_wire_byte(67), Some(ParsedRight::Call));
+    /// assert_eq!(ParsedRight::from_wire_byte(80), Some(ParsedRight::Put));
+    /// assert_eq!(ParsedRight::from_wire_byte(0), None);
+    /// assert_eq!(ParsedRight::from_wire_byte(-1), None);
+    /// ```
+    #[must_use]
+    pub const fn from_wire_byte(byte: i32) -> Option<Self> {
+        match byte {
+            67 => Some(Self::Call),
+            80 => Some(Self::Put),
+            _ => None,
+        }
+    }
 }
 
 /// Parse a user-supplied `right` string.
@@ -246,5 +279,56 @@ mod tests {
         // Still surfaces the baseline invalid-input error for garbage.
         let err = parse_right_strict("xyz").unwrap_err();
         assert!(format!("{err}").contains("invalid option right"));
+    }
+
+    #[test]
+    fn from_wire_byte_decodes_call_and_put() {
+        assert_eq!(ParsedRight::from_wire_byte(67), Some(ParsedRight::Call));
+        assert_eq!(ParsedRight::from_wire_byte(80), Some(ParsedRight::Put));
+    }
+
+    #[test]
+    fn from_wire_byte_rejects_unknown_bytes() {
+        for byte in [
+            0_i32,
+            1,
+            65,
+            66,
+            68,
+            79,
+            81,
+            100,
+            256,
+            -1,
+            i32::MIN,
+            i32::MAX,
+        ] {
+            assert!(
+                ParsedRight::from_wire_byte(byte).is_none(),
+                "byte {byte} should not decode"
+            );
+        }
+    }
+
+    #[test]
+    fn wire_byte_round_trips_through_inverse() {
+        // Every variant whose `as_wire_byte()` returns Some(b) should
+        // round-trip through `from_wire_byte(b) == Some(self)`.
+        for variant in [ParsedRight::Call, ParsedRight::Put, ParsedRight::Both] {
+            match variant.as_wire_byte() {
+                Some(byte) => {
+                    assert_eq!(
+                        ParsedRight::from_wire_byte(byte),
+                        Some(variant),
+                        "round-trip failed for {variant:?}"
+                    );
+                }
+                None => {
+                    // `Both` returns None on the forward direction —
+                    // there is no FPSS byte to invert from.
+                    assert_eq!(variant, ParsedRight::Both);
+                }
+            }
+        }
     }
 }

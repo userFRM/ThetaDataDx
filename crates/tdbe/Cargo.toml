@@ -1,6 +1,6 @@
 [package]
 name = "tdbe"
-version = "0.12.8"
+version = "0.12.9"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
