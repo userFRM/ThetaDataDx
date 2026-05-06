@@ -77,9 +77,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: actions/setup-go@v6
-        with:
-          go-version: "1.23"
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -123,9 +120,6 @@ jobs:
             ffi_artifact: ffi-windows-msvc-x86_64
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
-        with:
-          go-version: "1.23"
       - uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.ffi_artifact }}
@@ -137,19 +131,6 @@ jobs:
           path: target/x86_64-pc-windows-gnu/release/
       - run: cmake -S sdks/cpp -B build/cpp
       - run: cmake --build build/cpp --config Release --target thetadatadx_cpp
-      - shell: bash
-        working-directory: sdks/go
-        run: |
-          set -euo pipefail
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            export LD_LIBRARY_PATH="${{ github.workspace }}/target/release"
-          elif [ "${{ runner.os }}" = "macOS" ]; then
-            export DYLD_LIBRARY_PATH="${{ github.workspace }}/target/release"
-          else
-            export PATH="${{ github.workspace }}/target/x86_64-pc-windows-gnu/release:$PATH"
-            export CGO_LDFLAGS="-L${{ github.workspace }}/target/x86_64-pc-windows-gnu/release"
-          fi
-          go test ./...
 
   build-ffi:
     name: Build FFI (${{ matrix.os }})

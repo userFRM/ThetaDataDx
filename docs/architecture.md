@@ -491,7 +491,7 @@ Characters are packed pairwise: `byte = (nibble(c1) << 4) | nibble(c2)`. Odd-len
 
 ## Cross-Language SDK Surfaces
 
-Every SDK lives over the same Rust core (`thetadatadx` + `tdbe`) — Python via PyO3, TypeScript via napi-rs, Go via CGo over the C FFI, and C++ as an RAII wrapper over the same C FFI. None of the language SDKs reimplement the wire protocol; they expose the Rust parser output through their respective binding layers.
+Every SDK lives over the same Rust core (`thetadatadx` + `tdbe`) — Python via PyO3, TypeScript via napi-rs, and C++ as an RAII wrapper over the C FFI. None of the language SDKs reimplement the wire protocol; they expose the Rust parser output through their respective binding layers. The C ABI also serves as the supported integration path for any third-party C-interop language (Go via cgo, Swift, Zig, etc.).
 
 ### Typed pyclass surface (Python)
 

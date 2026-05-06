@@ -26,8 +26,7 @@
 //!   TypeScript SDK crates.
 //! * [`python`] / [`typescript`] — per-SDK typed event classes + dispatcher.
 //! * [`ffi_rust`] — `#[repr(C)]` structs + converter for the Rust FFI crate.
-//! * [`ffi_c`] — C mirror header `#include`'d from both Go cgo and C++ SDK.
-//! * [`go_structs`] — Go-idiomatic public types + kind/control constants.
+//! * [`ffi_c`] — C mirror header `#include`'d from the C++ SDK.
 
 // Reason: the fpss_events/ tree is reached through two compilation
 // contexts — `build.rs` (which only needs the schema loader + emitters
@@ -48,7 +47,6 @@ mod common;
 mod cpp_asserts;
 mod ffi_c;
 mod ffi_rust;
-mod go_structs;
 mod layout;
 mod python;
 mod schema;
@@ -122,15 +120,9 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: ffi_rust::render_ffi_fpss_event_converter(&schema),
         },
         // C header mirror of the FFI event structs. `#include`'d from
-        // `sdks/go/ffi_bridge.h` for Go cgo consumption AND from
-        // `sdks/cpp/include/thetadx.h` for the C++ SDK. Same plain-C
-        // typedefs serve both surfaces — keeping the schema as SSOT means
-        // C++ can never drift from Rust in field order again (the old
-        // hand-written C++ block diverged for months before #???).
-        GeneratedSourceFile {
-            relative_path: "sdks/go/fpss_event_structs.h.inc",
-            contents: ffi_c::render_c_fpss_event_header(&schema),
-        },
+        // `sdks/cpp/include/thetadx.h` for the C++ SDK. Keeping the
+        // schema as SSOT means C++ can never drift from Rust in field
+        // order again.
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/fpss_event_structs.h.inc",
             contents: ffi_c::render_c_fpss_event_header(&schema),
@@ -138,22 +130,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/fpss_layout_asserts.hpp.inc",
             contents: cpp_asserts::render_cpp_fpss_layout_asserts(&schema),
-        },
-        // Go-idiomatic struct definitions + kind enum + control constants
-        // + `FpssEvent` wrapper. Standalone file in the `thetadatadx`
-        // package, drop-in replacement for the hand-written block that
-        // used to live inside `sdks/go/fpss.go`.
-        GeneratedSourceFile {
-            relative_path: "sdks/go/fpss_event_structs.go",
-            contents: go_structs::render_go_fpss_event_structs(&schema),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/fpss_ffi_sizes_generated.go",
-            contents: go_structs::render_go_fpss_ffi_sizes(&schema),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/fpss_ffi_offset_checks_generated.go",
-            contents: go_structs::render_go_fpss_offset_checks(&schema),
         },
     ])
 }

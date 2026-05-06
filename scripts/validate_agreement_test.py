@@ -109,7 +109,7 @@ class AgreementTests(unittest.TestCase):
         go_row["bid"] = 685.87
         _write_artifact(
             self.artifacts,
-            "go",
+            "cli",
             [_base_record("stock_snapshot_quote", "concrete", first_row=go_row)],
         )
 
@@ -127,7 +127,7 @@ class AgreementTests(unittest.TestCase):
     def test_row_count_disagreement_without_first_row(self) -> None:
         # Legacy artifacts: no first_row field. Diff engine must fall
         # back to row_count comparison and still report the mismatch.
-        for lang, rc in (("python", 10), ("cli", 10), ("go", 9), ("cpp", 10)):
+        for lang, rc in (("python", 10), ("cli", 10), ("cli", 9), ("cpp", 10)):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -138,7 +138,7 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("stock_history_ohlc::concrete", err)
         self.assertIn("row_count disagreement", err)
         # Per-SDK status table still names each SDK and its row count.
-        self.assertIn("go", err)
+        self.assertIn("cli", err)
         self.assertIn("9", err)
         self.assertIn("10", err)
 
@@ -150,7 +150,7 @@ class AgreementTests(unittest.TestCase):
             "python",
             [_base_record("option_snapshot_trade", "concrete")],
         )
-        for lang in ("cli", "go", "cpp"):
+        for lang in ("cli", "cli", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -178,7 +178,7 @@ class AgreementTests(unittest.TestCase):
             "symbol": "SPY",
             "greeks": {"delta": [0.5, 0.6], "gamma": 0.01},
         }
-        for lang in ("python", "cli", "go"):
+        for lang in ("python", "cli", "cli"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -206,7 +206,7 @@ class AgreementTests(unittest.TestCase):
         # surface it). Diff must mark volume as <missing> for cpp and
         # show the real value for the others.
         full_row = {"price": 100.0, "volume": 5000}
-        for lang in ("python", "cli", "go"):
+        for lang in ("python", "cli", "cli"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -227,7 +227,7 @@ class AgreementTests(unittest.TestCase):
     def test_soft_skip_missing_sdk_without_require(self) -> None:
         # Only 3 SDKs reported; without --require-all-sdks this is a
         # warning, not a failure.
-        for lang in ("python", "cli", "go"):
+        for lang in ("python", "cli", "cli"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -239,7 +239,7 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("1 cells agree across", out)
 
     def test_require_all_sdks_fails_on_missing(self) -> None:
-        for lang in ("python", "cli", "go"):
+        for lang in ("python", "cli", "cli"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -253,7 +253,7 @@ class AgreementTests(unittest.TestCase):
         # 685.860000 == 685.8600004 after 6-decimal rounding. These
         # must compare equal; the diff engine must not flag a false
         # positive on 1-ULP float noise.
-        for lang, bid in (("python", 685.86), ("cli", 685.8600004), ("go", 685.86), ("cpp", 685.8599996)):
+        for lang, bid in (("python", 685.86), ("cli", 685.8600004), ("cli", 685.86), ("cpp", 685.8599996)):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -266,7 +266,7 @@ class AgreementTests(unittest.TestCase):
     def test_partial_cells_note(self) -> None:
         # CLI skips per-optional-param mode; the other three SDKs run
         # it. Not a disagreement, but the summary must mention partial.
-        for lang in ("python", "go", "cpp"):
+        for lang in ("python", "cli", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -295,7 +295,7 @@ class AgreementTests(unittest.TestCase):
             "python",
             [_base_record("stock_snapshot_quote", "concrete", first_row={"Bid": 685.86, "Ask": 685.88})],
         )
-        for lang in ("cli", "go", "cpp"):
+        for lang in ("cli", "cli", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -320,7 +320,7 @@ class AgreementTests(unittest.TestCase):
                 )
             ],
         )
-        for lang in ("cli", "go", "cpp"):
+        for lang in ("cli", "cli", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -348,7 +348,7 @@ class AgreementTests(unittest.TestCase):
             "python",
             [_base_record("option_snapshot_greeks_all", "concrete", first_row={"delta": float("nan")})],
         )
-        for lang in ("cli", "go", "cpp"):
+        for lang in ("cli", "cli", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -363,7 +363,7 @@ class AgreementTests(unittest.TestCase):
         for lang, val in (
             ("python", float("inf")),
             ("cli", float("-inf")),
-            ("go", None),
+            ("cli", None),
             ("cpp", None),
         ):
             _write_artifact(
@@ -387,15 +387,14 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "go",
+            "cli",
             [_base_record("stock_snapshot_quote", "concrete", first_row={"bid": 685.87})],
         )
-        for lang in ("cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("stock_snapshot_quote", "concrete", first_row={"bid": 685.86})],
-            )
+        _write_artifact(
+            self.artifacts,
+            "cpp",
+            [_base_record("stock_snapshot_quote", "concrete", first_row={"bid": 685.86})],
+        )
         code, _, err = self._run()
         self.assertEqual(code, 1)
         # Diff table names the LOWERCASED field even though python sent
@@ -413,7 +412,7 @@ class AgreementTests(unittest.TestCase):
         for lang, val in (
             ("python", 0),
             ("cli", 0),
-            ("go", None),
+            ("cli", None),
             ("cpp", None),
         ):
             _write_artifact(
@@ -433,7 +432,7 @@ class AgreementTests(unittest.TestCase):
         for lang, val in (
             ("python", -1),
             ("cli", -1),
-            ("go", None),
+            ("cli", None),
             ("cpp", None),
         ):
             _write_artifact(
@@ -455,7 +454,7 @@ class AgreementTests(unittest.TestCase):
             "python",
             [_base_record("stock_history_ohlc", "concrete", first_row={"date": 20260417})],
         )
-        for lang in ("cli", "go", "cpp"):
+        for lang in ("cli", "cli", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -478,7 +477,7 @@ class AgreementTests(unittest.TestCase):
         for lang, row in (
             ("python", {"expiration": 0, "time": -1}),
             ("cli", {"expiration": 0, "time": -1}),
-            ("go", {"expiration": None, "time": None}),
+            ("cli", {"expiration": None, "time": None}),
             ("cpp", {"expiration": None, "time": None}),
         ):
             _write_artifact(
@@ -529,7 +528,7 @@ class AgreementTests(unittest.TestCase):
             "python",
             [_base_record("stock_history_ohlc", "concrete", first_row={"expiration": None})],
         )
-        for lang in ("cli", "go", "cpp"):
+        for lang in ("cli", "cli", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -554,7 +553,7 @@ class AgreementTests(unittest.TestCase):
             )
         _write_artifact(
             self.artifacts,
-            "go",
+            "cli",
             [_base_record("stock_history_ohlc", "concrete", first_row={})],
         )
         code, out, _ = self._run()
@@ -600,7 +599,7 @@ class AgreementTests(unittest.TestCase):
             "cli",
             [_base_record("stock_history_ohlc", "concrete", first_row={"strike": 0.0})],
         )
-        for lang in ("go", "cpp"):
+        for lang in ("cli", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -629,7 +628,7 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "go",
+            "cli",
             [_base_record("stock_history_ohlc", "concrete", first_row={})],
         )
         _write_artifact(
@@ -652,15 +651,14 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "go",
+            "cli",
             [_base_record("option_history_ohlc", "concrete", first_row={"right": "P"})],
         )
-        for lang in ("cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("option_history_ohlc", "concrete", first_row={"right": "C"})],
-            )
+        _write_artifact(
+            self.artifacts,
+            "cpp",
+            [_base_record("option_history_ohlc", "concrete", first_row={"right": "C"})],
+        )
         code, _, err = self._run()
         self.assertEqual(code, 1, "right C vs P is a real disagreement")
         self.assertIn("right", _diff_section(err))
@@ -686,7 +684,7 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "go",
+            "cli",
             [_base_record("option_history_ohlc", "concrete", first_row={})],
         )
         for lang in ("cli", "cpp"):
@@ -717,7 +715,7 @@ class AgreementTests(unittest.TestCase):
                 first_row={"contract": {"expiration": None}},
             )],
         )
-        for lang in ("cli", "go", "cpp"):
+        for lang in ("cli", "cli", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -754,7 +752,7 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "go",
+            "cli",
             [_base_record("option_history_ohlc", "concrete", first_row={})],
         )
         for lang in ("cli", "cpp"):

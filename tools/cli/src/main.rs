@@ -448,12 +448,12 @@ async fn connect(
 //
 // These build `sonic_rs::Value` directly from the raw tick struct fields so
 // the cross-language agreement check can compare apples-to-apples with the
-// Python / Go / C++ SDKs, which expose raw ints for dates and ms-of-day. See
+// Python / C++ SDKs, which expose raw ints for dates and ms-of-day. See
 // scripts/validate_agreement.py for the canonical contract.
 //
 // Sentinel semantics (`date == 0`, `ms_of_day < 0`) are preserved verbatim
-// here -- Python (sdks/python/src/tick_columnar.rs) and Go (sdks/go/tick_structs.go)
-// emit those same sentinels as raw ints, and the server emitter
+// here -- Python (sdks/python/src/tick_columnar.rs) emits those same
+// sentinels as raw ints, and the server emitter
 // (tools/server/src/format.rs:346) does too. Normalization to `null` lives
 // entirely on the consumer side in scripts/validate_agreement.py so all
 // producers can stay stupid-simple passthroughs and the agreement check has
@@ -501,9 +501,8 @@ fn raw_str(value: &str) -> sonic_rs::Value {
 }
 
 /// Canonical `right` representation for tick types (NOT `OptionContract`).
-/// Matches `sdks/python/src/tick_columnar.rs` (`"C"` / `"P"` / `""`) and
-/// `sdks/go/tick_structs.go` `RightStr` (same mapping). Server uses the
-/// same mapping for the option-tick contract-id helper.
+/// Matches `sdks/python/src/tick_columnar.rs` (`"C"` / `"P"` / `""`). Server
+/// uses the same mapping for the option-tick contract-id helper.
 fn raw_right_label(is_call: bool, is_put: bool) -> sonic_rs::Value {
     if is_call {
         sonic_rs::Value::from("C")
@@ -1478,8 +1477,7 @@ mod tests {
 
     #[test]
     fn raw_right_label_matches_python_string_mapping() {
-        // Mirrors sdks/python/src/tick_columnar.rs:41 ("C" / "P" / "")
-        // and Go RightStr at sdks/go/tick_structs.go:215.
+        // Mirrors sdks/python/src/tick_columnar.rs:41 ("C" / "P" / "").
         assert_eq!(raw_right_label(true, false).as_str(), Some("C"));
         assert_eq!(raw_right_label(false, true).as_str(), Some("P"));
         assert_eq!(raw_right_label(false, false).as_str(), Some(""));

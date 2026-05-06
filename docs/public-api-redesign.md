@@ -3,7 +3,7 @@
 ## Purpose
 
 This document defines the migration plan for a more ergonomic public API across
-Rust, Python, Go, C++, REST, and MCP without sacrificing the current
+Rust, Python, C++, REST, and MCP without sacrificing the current
 single-source-of-truth endpoint model.
 
 The intent is not to replace the exact generated endpoint surface. The intent

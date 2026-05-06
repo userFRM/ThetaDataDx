@@ -1,15 +1,15 @@
 ---
 title: Getting Started
-description: Multi-language ThetaData SDK in Rust, Python, TypeScript, Go, and C++. Install, authenticate, run a first query, stream, and compute Greeks locally.
+description: Multi-language ThetaData SDK in Rust, Python, TypeScript, and C++. Install, authenticate, run a first query, stream, and compute Greeks locally.
 ---
 
 # Getting Started
 
-ThetaDataDx is a Rust SDK for ThetaData's MDDS (historical, gRPC) and FPSS (real-time, TCP) servers. The data path — gRPC, protobuf parsing, zstd decompression, FIT decoding, Greeks math — runs inside the `thetadatadx` Rust crate and is exposed in five language surfaces: Rust, Python, TypeScript/Node.js, Go, and C++.
+ThetaDataDx is a Rust SDK for ThetaData's MDDS (historical, gRPC) and FPSS (real-time, TCP) servers. The data path — gRPC, protobuf parsing, zstd decompression, FIT decoding, Greeks math — runs inside the `thetadatadx` Rust crate and is exposed in four language surfaces: Rust, Python, TypeScript/Node.js, and C++. Go consumers can build a thin cgo wrapper against the unchanged C ABI in [`ffi/`](https://github.com/userFRM/ThetaDataDx/tree/main/ffi).
 
 ## What's on this page
 
-- [Quick Start](./quickstart) — install, authenticate, first historical call, first streaming call, tabbed across all five SDKs
+- [Quick Start](./quickstart) — install, authenticate, first historical call, first streaming call, tabbed across all four SDKs
 - [Installation](./installation) — install for your language
 - [Authentication](./authentication) — credentials file, environment variables, token lifecycle
 - [First query](./first-query) — one historical call in every language
@@ -23,14 +23,13 @@ ThetaDataDx is a Rust SDK for ThetaData's MDDS (historical, gRPC) and FPSS (real
 | Requirement | Details |
 |-------------|---------|
 | ThetaData account | Email and password from [thetadata.us](https://thetadata.us) |
-| Rust toolchain | Required for Go and C++ SDKs (builds the FFI library); not required for Rust/Python/TypeScript on supported platforms |
+| Rust toolchain | Required for the C++ SDK (builds the FFI library); not required for Rust/Python/TypeScript on supported platforms |
 | Python 3.9+ | For the Python SDK; pre-built `abi3` wheels provided |
 | Node.js 18+ | For the TypeScript/Node.js SDK |
-| Go 1.21+ | For the Go SDK; also needs a C compiler for CGo |
 | C++17 compiler + CMake 3.16+ | For the C++ SDK |
 
 ::: tip
-The Python SDK ships pre-built `abi3` wheels for common platforms. You do not need a Rust toolchain unless you are building from source or using the Go/C++ SDKs.
+The Python SDK ships pre-built `abi3` wheels for common platforms. You do not need a Rust toolchain unless you are building from source or using the C++ SDK.
 :::
 
 ## Subscription tiers

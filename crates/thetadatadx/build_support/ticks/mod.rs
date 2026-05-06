@@ -13,7 +13,8 @@
 //! * [`python_arrow`] / [`python_classes`] — Python `#[pyclass]` struct + Arrow
 //!   columnar pipeline.
 //! * [`typescript`] — napi-rs `#[napi(object)]` tick types.
-//! * [`go`] — Go FFI converters + public structs.
+//! * [`layout`] — schema-driven `#[repr(C)]` size/align/offset math shared
+//!   by the C++ static-assert emitter and the `tdbe` layout-guard emitter.
 //! * [`cli_headers`] — `tools/cli/src/raw_headers_generated.rs` constants.
 //!
 //! # Removed surfaces (audit trail)
@@ -40,7 +41,7 @@ use schema::Schema;
 
 mod cli_headers;
 mod cpp;
-mod go;
+mod layout;
 mod parser;
 mod python_arrow;
 mod python_classes;
@@ -114,18 +115,6 @@ fn render_sdk_generated_files(
             contents: rust_frames::render_rust_frames(&schema),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/go/tick_converters.go",
-            contents: go::render_go_tick_converters(&schema),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/tick_ffi_sizes_generated.go",
-            contents: go::render_go_tick_ffi_sizes(&schema),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/ffi_layout_generated_test.go",
-            contents: go::render_go_tick_ffi_layout_tests(&schema),
-        },
-        GeneratedSourceFile {
             // tdbe tick structs -- `#[repr(C, align(N))]` definitions
             // emitted from the schema. Hand-written `tick.rs` `pub use`s
             // them and adds the macro applications + custom impls the
@@ -145,10 +134,6 @@ fn render_sdk_generated_files(
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/tick_layout_asserts.hpp.inc",
             contents: cpp::render_cpp_tick_layout_asserts(&schema),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/tick_structs.go",
-            contents: go::render_go_tick_structs(&schema),
         },
         GeneratedSourceFile {
             relative_path: "tools/cli/src/raw_headers_generated.rs",

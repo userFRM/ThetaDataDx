@@ -172,9 +172,9 @@ For registry-driven endpoints, the SDK/FFI surface is generated from
 `crates/thetadatadx/sdk_surface.toml`. For tick projection helpers, use
 `tick_schema.toml`.
 
-You only edit `ffi/src/lib.rs`, `sdks/python/src/lib.rs`, `sdks/go/*.go`, or
-`sdks/cpp/*` directly when changing runtime plumbing that is intentionally
-outside the checked-in generated surface.
+You only edit `ffi/src/lib.rs`, `sdks/python/src/lib.rs`, or `sdks/cpp/*`
+directly when changing runtime plumbing that is intentionally outside the
+checked-in generated surface.
 
 ### 6. Update CHANGELOG.md
 

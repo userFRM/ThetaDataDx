@@ -14,7 +14,7 @@
 //! * [`spec`] — TOML-backed data types + validation.
 //! * [`common`] — shared renderer helpers (string/case helpers, type maps,
 //!   generated-header, greek/param layouts).
-//! * [`python`] / [`typescript`] / [`go`] / [`cpp`] / [`mcp`] / [`cli`] —
+//! * [`python`] / [`typescript`] / [`cpp`] / [`mcp`] / [`cli`] —
 //!   one file per render target.
 
 // Reason: shared between build.rs and generate_sdk_surfaces binary via #[path]; not all
@@ -26,7 +26,6 @@ use std::path::Path;
 mod cli;
 mod common;
 mod cpp;
-mod go;
 mod mcp;
 mod python;
 mod spec;
@@ -76,11 +75,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         .iter()
         .filter(|method| method.targets.contains(&MethodTarget::PythonUnified))
         .collect();
-    let go_fpss_methods: Vec<&MethodSpec> = spec
-        .methods
-        .iter()
-        .filter(|method| method.targets.contains(&MethodTarget::GoFpss))
-        .collect();
     let cpp_fpss_methods: Vec<&MethodSpec> = spec
         .methods
         .iter()
@@ -101,11 +95,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         .iter()
         .filter(|utility| utility.targets.contains(&UtilityTarget::Python))
         .collect();
-    let go_utilities: Vec<&UtilitySpec> = spec
-        .utilities
-        .iter()
-        .filter(|utility| utility.targets.contains(&UtilityTarget::Go))
-        .collect();
     let cpp_utilities: Vec<&UtilitySpec> = spec
         .utilities
         .iter()
@@ -122,11 +111,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         .filter(|utility| utility.targets.contains(&UtilityTarget::Cli))
         .collect();
 
-    let go_fpss_methods_src =
-        go::render_go_fpss_methods(&go_fpss_methods, &spec.go_ffi.tls_reader_markers);
-    let go_utilities_src =
-        go::render_go_utility_functions(&go_utilities, &spec.go_ffi.tls_reader_markers);
-
     Ok(vec![
         GeneratedSourceFile {
             relative_path: "sdks/python/src/streaming_methods.rs",
@@ -139,14 +123,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "sdks/typescript/src/streaming_methods.rs",
             contents: typescript::render_ts_streaming_methods(&ts_napi_methods),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/fpss_methods.go",
-            contents: go_fpss_methods_src,
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/utilities.go",
-            contents: go_utilities_src,
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/fpss.hpp.inc",

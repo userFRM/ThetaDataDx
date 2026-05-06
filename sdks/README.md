@@ -8,7 +8,6 @@ Multi-language SDKs for ThetaDataDx. All are thin bindings over the shared Rust 
 |---|---|---|---|---|---|
 | **Python** | `pip install thetadatadx` | Full generated historical surface | `ThetaDataDx` | `all_greeks()`, chainable `.to_polars()` / `.to_pandas()` / `.to_arrow()` | [sdks/python/](python/) |
 | **TypeScript/Node.js** | `npm install thetadatadx` | Full generated historical surface | `ThetaDataDx` | `allGreeks()` | [sdks/typescript/](typescript/) |
-| **Go** | `go get github.com/userFRM/thetadatadx/sdks/go` | Full generated historical surface | `FpssClient` | via FFI | [sdks/go/](go/) |
 | **C++** | CMake `find_library` | Full generated historical surface | `FpssClient` | via FFI | [sdks/cpp/](cpp/) |
 | **C FFI** | `cargo build --release -p thetadatadx-ffi` | Full generated historical surface | `TdxUnified` / `TdxFpssHandle` | `tdx_all_greeks` | [ffi/](../ffi/) |
 
@@ -19,14 +18,14 @@ Multi-language SDKs for ThetaDataDx. All are thin bindings over the shared Rust 
                     |   Your Application |
                     +--------+----------+
                              |
-         +----------+-------+-------+----------+
-         |          |               |           |
-    +----v----+  +--v------+  +----v----+  +---v-----+
-    |  Python |  |  Node.js|  |   Go   |  |  C++   |
-    |  (PyO3) |  | (napi-rs)|  |  (CGo) |  | (C API)|
-    +---------+  +---------+  +--------+  +--------+
-         |          |               |           |
-         +----------+-------+-------+----------+
+              +----------+-------+----------+
+              |          |                  |
+         +----v----+  +--v------+      +---v-----+
+         |  Python |  |  Node.js|      |   C++   |
+         |  (PyO3) |  | (napi-rs)|     | (C API) |
+         +---------+  +---------+      +---------+
+              |          |                  |
+              +----------+-------+----------+
                              |
                     +--------v--------+
                     |   C FFI Layer   |
@@ -55,13 +54,12 @@ Multi-language SDKs for ThetaDataDx. All are thin bindings over the shared Rust 
                     +-----------------+
 ```
 
-The Python SDK uses [PyO3](https://pyo3.rs/) with [Maturin](https://www.maturin.rs/) for direct Rust-to-Python bindings, bypassing the C FFI layer. The TypeScript/Node.js SDK uses [napi-rs](https://napi.rs/) for direct Rust-to-Node.js bindings via a native addon. The Go and C++ SDKs go through the C FFI crate (`thetadatadx-ffi`), which exposes `extern "C"` functions compiled as both a shared library (`cdylib`) and a static archive (`staticlib`).
+The Python SDK uses [PyO3](https://pyo3.rs/) with [Maturin](https://www.maturin.rs/) for direct Rust-to-Python bindings, bypassing the C FFI layer. The TypeScript/Node.js SDK uses [napi-rs](https://napi.rs/) for direct Rust-to-Node.js bindings via a native addon. The C++ SDK goes through the C FFI crate (`thetadatadx-ffi`), which exposes `extern "C"` functions compiled as both a shared library (`cdylib`) and a static archive (`staticlib`).
 
 ## Validation Matrix
 
 - Python: wheel builds and import smoke are validated on Linux x64, macOS arm64 (Apple Silicon), and Windows x64. The package targets the CPython stable ABI (`abi3`) with a minimum version of Python 3.9, so one wheel per platform covers Python 3.9+.
 - TypeScript/Node.js: pre-built napi-rs addons are shipped for Linux x64 (glibc), macOS arm64 (Apple Silicon), and Windows x64 (MSVC), on Node.js 18+.
-- Go: validated on Linux and macOS with the default `target/release` FFI build. Windows is validated with the GNU Rust target (`x86_64-pc-windows-gnu`), because CGo links through MinGW rather than the MSVC import library used by the C++ SDK.
 - C++: validated with CMake builds on Linux, macOS, and Windows against the generated FFI library.
 
 ## Python SDK
@@ -123,31 +121,6 @@ const eod = tdx.stockHistoryEOD('AAPL', '20240101', '20240315');
 
 Requires Node.js 18+. See [sdks/typescript/README.md](typescript/README.md) for full documentation.
 
-## Go SDK
-
-**Binding technology:** CGo wrapping the C FFI layer
-
-```bash
-# Build the FFI library first
-cargo build --release -p thetadatadx-ffi
-
-# Then use the Go module
-go get github.com/userFRM/thetadatadx/sdks/go
-```
-
-```go
-import tdx "github.com/userFRM/thetadatadx/sdks/go"
-
-creds, _ := tdx.NewCredentials("email", "password")
-defer creds.Close()
-client, _ := tdx.Connect(creds, tdx.ProductionConfig())
-defer client.Close()
-
-eod, _ := client.StockHistoryEOD("AAPL", "20240101", "20240315")
-```
-
-Requires Go 1.21+ and a C compiler (for CGo). See [sdks/go/README.md](go/README.md) for full documentation.
-
 ## C++ SDK
 
 **Binding technology:** RAII C++ wrappers around the C FFI header (`thetadx.h`)
@@ -176,7 +149,7 @@ Requires C++17, CMake 3.16+, and a C compiler. See [sdks/cpp/README.md](cpp/READ
 
 ## C FFI Layer
 
-The raw C interface that the Go and C++ SDKs are built on. You can also call it directly from any language with C interop (Swift, Zig, Nim, etc.).
+The raw C interface that the C++ SDK is built on. You can also call it directly from any language with C interop (Go via cgo, Swift, Zig, Nim, etc.).
 
 ```bash
 # Build as shared library (.so / .dylib) and static archive (.a)
@@ -214,7 +187,4 @@ cd sdks/typescript && npm install && npm run build && cd ../..
 # 4. Build the C++ SDK
 cmake -S sdks/cpp -B build/cpp
 cmake --build build/cpp --config Release --target thetadatadx_cpp
-
-# 5. Go SDK - no separate build step; CGo links at compile time
-cd sdks/go/examples && go build . && cd ../../..
 ```

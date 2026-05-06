@@ -2,7 +2,7 @@
 
 use std::fmt::Write as _;
 
-use super::go::{tick_ffi_offsets, tick_ffi_size_and_align};
+use super::layout::{tick_ffi_offsets, tick_ffi_size_and_align};
 use super::schema::Schema;
 use super::sorted_type_names;
 

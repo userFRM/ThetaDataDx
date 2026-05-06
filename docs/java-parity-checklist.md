@@ -199,7 +199,6 @@ empty forms.
 | Language | Type | Parity |
 |----------|------|:------:|
 | Rust core / FFI | `i32` (67=Call, 80=Put, 0=absent). `is_call()`/`is_put()` helpers. | [✗] |
-| Go | `string` (`"C"`, `"P"`, `""`) | [✗] |
 | Python | `string` | [✗] |
 | Java internal | integer; WS JSON emits string | reference |
 
@@ -244,16 +243,17 @@ Rust SDK defaults to `"09:30:00"`/`"16:00:00"` on all interval endpoints.
 
 - **SPKI pinning** — authenticates the FPSS server on its public key alone,
   not on the expired certificate chain.
-- **Typed event surface across 5 SDKs** — Java's API is untyped and
+- **Typed event surface across 4 SDKs** — Java's API is untyped and
   callback-based; the Rust core exposes typed `FpssEvent` variants across
-  Python / TypeScript / Go / C++ / Rust.
+  Python / TypeScript / C++ / Rust.
 - **Arrow columnar DataFrame adapter** — Java has no DataFrame integration;
   Python's `to_arrow()` / `to_pandas()` / `to_polars()` pipe through
   zero-copy Arrow buffers.
 - **Sub-millisecond decode path** — no JVM warmup, no GC pauses; nibble-
   packed FIT decoder and lock-free ring buffer on the streaming path.
-- **Zero-copy FFI across Python / TypeScript / Go / C++** — one `extern "C"`
-  ABI shared by all non-Rust SDKs.
+- **Zero-copy FFI across Python / TypeScript / C++** — one `extern "C"`
+  ABI shared by all non-Rust SDKs (and available to any third-party
+  C-interop language).
 - **Unified `ThetaDataDx` client** — auth, MDDS, and FPSS behind a single
   long-lived handle with `Deref<Target=MddsClient>` for historical
   methods.

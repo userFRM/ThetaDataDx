@@ -30,8 +30,6 @@ use super::model::{GeneratedEndpoint, GeneratedParam};
 pub(super) struct TickRender {
     pub(super) direct: String,
     pub(super) parser: String,
-    pub(super) go_struct: String,
-    pub(super) go_converter: String,
     pub(super) ffi_array: String,
     pub(super) ffi_output_variant: String,
     pub(super) ffi_from_vec_array: String,
@@ -63,8 +61,6 @@ struct TickRenderToml {
     collection: String,
     direct: String,
     parser: String,
-    go_struct: String,
-    go_converter: String,
     ffi_array: String,
     ffi_output_variant: String,
     ffi_from_vec_array: String,
@@ -100,8 +96,6 @@ fn load_render_map() -> HashMap<String, TickRender> {
         let entry = TickRender {
             direct: render.direct,
             parser: render.parser,
-            go_struct: render.go_struct,
-            go_converter: render.go_converter,
             ffi_array: render.ffi_array,
             ffi_output_variant: render.ffi_output_variant,
             ffi_from_vec_array: render.ffi_from_vec_array,
@@ -555,17 +549,6 @@ pub(super) fn is_time_arg(param: &GeneratedParam) -> bool {
     )
 }
 
-pub(super) fn go_result_type(return_type: &str) -> String {
-    if return_type == "StringList" {
-        return "[]string".into();
-    }
-    format!("[]{}", render_for(return_type).go_struct)
-}
-
-pub(super) fn go_converter_name(return_type: &str) -> String {
-    render_for(return_type).go_converter.clone()
-}
-
 pub(super) fn ffi_array_type(return_type: &str) -> String {
     if return_type == "StringList" {
         return "TdxStringArray".into();
@@ -764,15 +747,6 @@ pub(super) fn sdk_method_arg_name(param: &GeneratedParam) -> String {
     }
 }
 
-pub(super) fn go_method_arg_decl(param: &GeneratedParam) -> String {
-    let name = to_camel_case(&sdk_method_arg_name(param));
-    if param.param_type == "Symbols" {
-        format!("{name} []string")
-    } else {
-        format!("{name} string")
-    }
-}
-
 pub(super) fn python_method_arg_decl(param: &GeneratedParam) -> String {
     let name = sdk_method_arg_name(param);
     format!("{name}: {}", python_string_arg_type(param))
@@ -787,10 +761,6 @@ pub(super) fn cpp_method_arg_decl(param: &GeneratedParam) -> String {
     }
 }
 
-pub(super) fn go_c_var_name(param: &GeneratedParam) -> String {
-    format!("c{}", to_go_exported_name(&sdk_method_arg_name(param)))
-}
-
 // ───────────────────────── Validator arg literals ──────────────────────────
 
 /// Render a single arg string as a Python literal expression, taking the
@@ -800,17 +770,6 @@ pub(super) fn python_arg_literal(param: &GeneratedParam, value: &str) -> String 
         "Symbols" => format!("[\"{value}\"]"),
         _ => format!("\"{value}\""),
     }
-}
-
-/// Render a single arg string as a Go literal expression.
-pub(super) fn go_arg_literal(_param: &GeneratedParam, value: &str) -> String {
-    // The Go SDK keeps scalar signatures (`StockSnapshotOHLC(symbol string, ...)`)
-    // and exposes bulk variants via a `*Bulk` suffix (`StockSnapshotOHLCBulk(
-    // symbols []string, ...)`). Generated validator cells use single-value
-    // fixtures and therefore must target the scalar form — passing a
-    // `[]string{...}` literal tripwires the Go type checker on every
-    // `Symbols`-param endpoint and turns SDK Bindings CI red.
-    format!("\"{value}\"")
 }
 
 /// Render a single arg string as a C++ literal expression.
@@ -851,32 +810,6 @@ pub(super) fn python_builder_kwarg(
         _ => format!("\"{value}\""),
     };
     Some(format!("{name}={literal}"))
-}
-
-/// Render a Go `WithXxx(value)` option for a builder-bound param. The
-/// generated validate.go lives in the same `package thetadatadx` as the
-/// `WithXxx` ctors, so no package qualifier is needed.
-pub(super) fn go_builder_option(
-    endpoint: &GeneratedEndpoint,
-    name: &str,
-    value: &str,
-) -> Option<String> {
-    let param = builder_param_for(endpoint, name)?;
-    let with_name = go_with_name_from_param(name);
-    let literal = match param.param_type.as_str() {
-        "Bool" => value.to_string(),
-        "Int" => format!("int32({value})"),
-        "Float" => value.to_string(),
-        _ => format!("\"{value}\""),
-    };
-    Some(format!("{with_name}({literal})"))
-}
-
-/// Convert a snake_case param name to the Go `WithXxx` exported ctor, keeping
-/// the `DTE`/`NBBO` acronym casing used in the existing hand-rolled options.
-pub(super) fn go_with_name_from_param(name: &str) -> String {
-    let exported = name.split('_').map(go_segment_pascal).collect::<String>();
-    format!("With{exported}")
 }
 
 /// Render a C++ `.with_<name>(value)` chained setter for a builder-bound param.

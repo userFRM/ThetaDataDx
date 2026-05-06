@@ -21,7 +21,7 @@
 
 use std::fmt::Write as _;
 
-use super::go::{tick_ffi_offsets, tick_ffi_size_and_align};
+use super::layout::{tick_ffi_offsets, tick_ffi_size_and_align};
 use super::schema::{Schema, TickTypeDef};
 use super::sorted_type_names;
 
@@ -58,14 +58,12 @@ pub(super) fn render_tdbe_tick_structs(schema: &Schema) -> String {
 ///   * `align_of::<T>()`          (catches `align(N)` drift),
 ///   * `offset_of!(T, field)`     for every column the parser fills, plus
 ///     the `contract_id` triple and `QuoteTick.midpoint` tail. This is the
-///     ABI that the C-mirror in `sdks/cpp/include/thetadx.h`, the C-mirror
-///     in `sdks/go/tick_ffi_mirrors.go`, and the layout-assert `*.hpp.inc`
-///     all index into via `offsetof()`.
+///     ABI that the C-mirror in `sdks/cpp/include/thetadx.h` and the
+///     layout-assert `*.hpp.inc` all index into via `offsetof()`.
 ///
 /// `OptionContract` is skipped: its FFI mirror carries a `*const c_char`
 /// pointer (`String` schema column) so it never crosses the C ABI as a
-/// plain `#[repr(C)]` array element. Go FFI also skips it for the same
-/// reason -- see `tick_ffi_offsets` callsite in `go.rs`.
+/// plain `#[repr(C)]` array element.
 pub(super) fn render_tdbe_layout_asserts(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(

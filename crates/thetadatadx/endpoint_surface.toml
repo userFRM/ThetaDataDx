@@ -83,7 +83,7 @@ variants = [
 ]
 
 # Global request-level options attached to every endpoint via
-# `TdxEndpointRequestOptions` (FFI) / `EndpointOption` (Go) /
+# `TdxEndpointRequestOptions` (FFI) /
 # `with_timeout_ms` (Rust/Python/C++). These are NOT per-endpoint
 # builder params — they apply uniformly across the surface — but the
 # FFI struct layout still needs to mirror this list, so we declare
@@ -1879,7 +1879,7 @@ returns = "QuoteTicks"
 # per-language live-validator renderers emit. Every mode in
 # `build_support/endpoints/modes.rs` reads its fixture values from this block
 # — there are no hardcoded fixture literals in Rust. Editing one row here
-# propagates to every generated validator (CLI, Python, Go, C++) the next
+# propagates to every generated validator (CLI, Python, C++) the next
 # time `generate_sdk_surfaces` runs.
 #
 # `parser.rs::validate_test_fixtures` enforces fail-fast at build time:

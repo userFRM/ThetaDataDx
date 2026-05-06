@@ -68,42 +68,6 @@ pub(super) fn rust_string_array_literal(values: &[String]) -> String {
     out
 }
 
-pub(super) fn pascal_case(value: &str) -> String {
-    let mut out = String::new();
-    for part in value.split('_').filter(|part| !part.is_empty()) {
-        let mut chars = part.chars();
-        if let Some(first) = chars.next() {
-            out.push(first.to_ascii_uppercase());
-            out.extend(chars);
-        }
-    }
-    out
-}
-
-pub(super) fn lower_camel_case(value: &str) -> String {
-    let pascal = pascal_case(value);
-    let mut chars = pascal.chars();
-    let Some(first) = chars.next() else {
-        return String::new();
-    };
-    let mut out = String::new();
-    out.push(first.to_ascii_lowercase());
-    out.extend(chars);
-    out
-}
-
-pub(super) fn go_exported_name(name: &str) -> String {
-    pascal_case(name)
-}
-
-pub(super) fn go_param_name(name: &str) -> String {
-    lower_camel_case(name)
-}
-
-pub(super) fn go_c_var(name: &str) -> String {
-    format!("c{}", pascal_case(name))
-}
-
 pub(super) fn push_rust_doc_comment(out: &mut String, indent: &str, doc: &str) {
     for line in doc.lines() {
         writeln!(out, "{indent}/// {line}").unwrap();
@@ -131,17 +95,6 @@ pub(super) fn python_type(param_type: ParamType) -> &'static str {
         ParamType::CredentialsRef | ParamType::ConfigRef => {
             panic!("credentials/config refs are not valid for Python emitters")
         }
-    }
-}
-
-pub(super) fn go_type(param_type: ParamType) -> &'static str {
-    match param_type {
-        ParamType::String => "string",
-        ParamType::F64 => "float64",
-        ParamType::I32 => "int",
-        ParamType::U64 => "uint64",
-        ParamType::CredentialsRef => "*Credentials",
-        ParamType::ConfigRef => "*Config",
     }
 }
 

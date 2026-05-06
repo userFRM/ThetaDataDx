@@ -615,9 +615,7 @@ fn serialize_greeks_all_ticks(ticks: &[tdbe::types::tick::GreeksAllTick]) -> Val
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_greeks_first_order_ticks(
-    ticks: &[tdbe::types::tick::GreeksFirstOrderTick],
-) -> Value {
+fn serialize_greeks_first_order_ticks(ticks: &[tdbe::types::tick::GreeksFirstOrderTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {
@@ -661,9 +659,7 @@ fn serialize_greeks_second_order_ticks(
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_greeks_third_order_ticks(
-    ticks: &[tdbe::types::tick::GreeksThirdOrderTick],
-) -> Value {
+fn serialize_greeks_third_order_ticks(ticks: &[tdbe::types::tick::GreeksThirdOrderTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {

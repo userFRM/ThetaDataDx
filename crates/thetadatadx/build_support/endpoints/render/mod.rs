@@ -12,8 +12,6 @@ mod cpp;
 mod cpp_validate;
 mod enums;
 mod ffi;
-mod go;
-mod go_validate;
 mod mdds;
 mod python;
 mod python_validate;
