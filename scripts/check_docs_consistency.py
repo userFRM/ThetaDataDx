@@ -86,14 +86,6 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
-def snake_to_go(name: str) -> str:
-    acronyms = {
-        "dte": "DTE",
-        "nbbo": "NBBO",
-    }
-    return "".join(acronyms.get(part, part.capitalize()) for part in name.split("_"))
-
-
 def expect_contains(path: Path, snippet: str) -> None:
     text = path.read_text()
     if snippet not in text:
@@ -172,10 +164,6 @@ def check_static_docs() -> None:
     expect_contains(sdk_overview, "26 functions: `tdx_fpss_connect`")
     expect_contains(sdk_overview, "Windows is validated with the GNU Rust target (`x86_64-pc-windows-gnu`)")
 
-    go_readme = ROOT / "sdks/go/README.md"
-    expect_contains(go_readme, "Windows: CI-validated via a GNU-targeted Rust FFI build (`x86_64-pc-windows-gnu`)")
-    expect_contains(go_readme, "cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi")
-
     option_docs = list((ROOT / "docs-site/docs/historical/option").rglob("*.md"))
     strike_docs = option_docs + [
         ROOT / "docs-site/docs/api-reference.md",
@@ -246,7 +234,6 @@ def check_static_docs() -> None:
         ROOT / "docs-site/docs/streaming/latency.md",
     ]:
         expect_not_contains(streaming_page, "Python does not expose reconnect_streaming() directly.")
-        expect_not_contains(streaming_page, "Go does not expose reconnect_streaming() directly.")
         expect_not_contains(streaming_page, "C++ does not expose reconnect_streaming() directly.")
         expect_not_contains(streaming_page, "| `active_subscriptions` | `() -> std::string` |")
     expect_contains(ROOT / "docs-site/docs/streaming/events.md", "| `Reconnect` | `() error` |")
@@ -260,7 +247,7 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "docs-site/docs/streaming/reconnection.md",
-        "Python, TypeScript/Node.js, Go, and C++ expose `reconnect()` on their public streaming clients.",
+        "Python, TypeScript/Node.js, and C++ expose `reconnect()` on their public streaming clients.",
     )
 
 
@@ -328,36 +315,19 @@ def check_endpoint_option_surface() -> None:
             f"missing={missing or '[]'} extra={extra or '[]'}"
         )
 
-    for path in [
-        ROOT / "sdks/go/endpoint_request_options.h.inc",
-        ROOT / "sdks/cpp/include/endpoint_request_options.h.inc",
-    ]:
-        c_fields = extract_struct_fields(
-            path,
-            r"typedef struct \{(.*?)\n\}\s*TdxEndpointRequestOptions;",
-            r"^\s*(?:const char\*|int32_t|double|uint64_t)\s+([a-z_]+);",
-        )
-        # Exclude has_* sentinel flags (FFI implementation detail, not builder params)
-        c_fields = {f for f in c_fields if not f.startswith("has_")}
-        if c_fields != ALL_OPTION_FIELDS:
-            missing = sorted(ALL_OPTION_FIELDS - c_fields)
-            extra = sorted(c_fields - ALL_OPTION_FIELDS)
-            fail(
-                f"{path.relative_to(ROOT)} endpoint option fields drifted from endpoint_surface.toml. "
-                f"missing={missing or '[]'} extra={extra or '[]'}"
-            )
-
-    go_fields = extract_struct_fields(
-        ROOT / "sdks/go/endpoint_options.go",
-        r"type EndpointRequestOptions struct \{(.*?)\n\}",
-        r"^\s*([A-Z][A-Za-z0-9]+)\s+\*",
+    c_path = ROOT / "sdks/cpp/include/endpoint_request_options.h.inc"
+    c_fields = extract_struct_fields(
+        c_path,
+        r"typedef struct \{(.*?)\n\}\s*TdxEndpointRequestOptions;",
+        r"^\s*(?:const char\*|int32_t|double|uint64_t)\s+([a-z_]+);",
     )
-    expected_go_fields = {snake_to_go(name) for name in ALL_OPTION_FIELDS}
-    if go_fields != expected_go_fields:
-        missing = sorted(expected_go_fields - go_fields)
-        extra = sorted(go_fields - expected_go_fields)
+    # Exclude has_* sentinel flags (FFI implementation detail, not builder params)
+    c_fields = {f for f in c_fields if not f.startswith("has_")}
+    if c_fields != ALL_OPTION_FIELDS:
+        missing = sorted(ALL_OPTION_FIELDS - c_fields)
+        extra = sorted(c_fields - ALL_OPTION_FIELDS)
         fail(
-            "sdks/go/endpoint_options.go EndpointRequestOptions fields drifted from endpoint_surface.toml. "
+            f"{c_path.relative_to(ROOT)} endpoint option fields drifted from endpoint_surface.toml. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
         )
 
@@ -376,12 +346,9 @@ def check_endpoint_option_surface() -> None:
 
     for path in [
         ROOT / "ffi/src/lib.rs",
-        ROOT / "sdks/go/ffi_bridge.h",
         ROOT / "sdks/cpp/include/thetadx.h",
-        ROOT / "sdks/go/client.go",
         ROOT / "sdks/cpp/include/thetadx.hpp",
         ROOT / "sdks/cpp/src/thetadx.cpp",
-        ROOT / "sdks/go/README.md",
         ROOT / "sdks/cpp/README.md",
         ROOT / "docs-site/docs/historical/option/history/greeks-eod.md",
     ]:

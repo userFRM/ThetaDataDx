@@ -1,15 +1,13 @@
 //! Thread-local error slot plus the `tdx_last_error` / `tdx_clear_error`
 //! FFI accessors and the `require_cstr!` macro used by endpoint wrappers.
 //!
-//! Contract: the error slot is scoped to the OS thread that set it. Higher-
-//! level languages whose runtime can migrate a logical execution unit
-//! across OS threads (notably Go, where a goroutine can park on one thread
-//! and resume on another) MUST pin the execution unit for the duration of
-//! a clear/call/check sequence. The generated Go wrappers do this via
-//! `runtime.LockOSThread` + deferred unlock (see
-//! `crates/thetadatadx/build_support/endpoints/render/go.rs` —
-//! `render_go_endpoint_method`). C++ and Python never migrate threads
-//! implicitly, so no pinning is needed there.
+//! Contract: the error slot is scoped to the OS thread that set it. C++
+//! and Python never migrate threads implicitly, so no pinning is needed
+//! there. Any third-party FFI consumer whose runtime can migrate a logical
+//! execution unit across OS threads (e.g. Go's goroutines, which can park
+//! on one thread and resume on another) MUST pin the execution unit for
+//! the duration of a clear/call/check sequence — typically via the host
+//! runtime's equivalent of `runtime.LockOSThread` + deferred unlock.
 
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;

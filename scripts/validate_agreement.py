@@ -3,7 +3,7 @@
 
 Loads per-language validator artifacts from `artifacts/validator_<lang>.json`
 (written by `scripts/validate_cli.py`, `scripts/validate_python.py`,
-`sdks/go/cmd/validate`, and `sdks/cpp` validator) and compares every
+and `sdks/cpp` validator) and compares every
 (endpoint, mode) cell across SDKs on:
 
 * status (PASS / SKIP / FAIL)
@@ -73,8 +73,8 @@ Consumer-side canonicalization (`_canonicalize_row`) handles:
    silently), so we collapse all three to a single unambiguous sentinel
 4. date-shaped fields (`date`, `expiration`, or ending in `_date`):
    value `0` -> `None`. Every SDK emits the sentinel verbatim (Python
-   `sdks/python/src/tick_columnar.rs:7,38`; Go `sdks/go/tick_structs.go:10,35`;
-   server `tools/server/src/format.rs:346`). Without this normalization,
+   `sdks/python/src/tick_columnar.rs:7,38`; server
+   `tools/server/src/format.rs:346`). Without this normalization,
    a producer that happens to see `date == 0` (no-data cell, pre-market
    snapshot) would false-diff against one that serializes the same
    cell as `null`.
@@ -129,7 +129,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_DIR = ROOT / "artifacts"
 
-LANGS = ("python", "cli", "go", "cpp")
+LANGS = ("python", "cli", "cpp")
 
 # Rounding precision for float comparison in canonicalized first rows.
 # 6 decimals matches the canonicalization contract documented in the
@@ -184,15 +184,15 @@ _MS_FIELD_NAMES: frozenset[str] = frozenset(
 _STRIKE_FIELD_NAMES: frozenset[str] = frozenset({"strike"})
 
 # Right-shaped field names. Tick types emit `right` as `"C" / "P" / ""`
-# (Python `tick_columnar.rs:41`, Go `RightStr`); `OptionContract` uses
-# raw int 67/80/0. Empty string OR int 0 are both sentinels -> None.
+# (Python `tick_columnar.rs:41`); `OptionContract` uses raw int 67/80/0.
+# Empty string OR int 0 are both sentinels -> None.
 _RIGHT_FIELD_NAMES: frozenset[str] = frozenset({"right"})
 
 # Union of all sentinel-shaped field names for omit-vs-null normalization.
-# A producer that omits the field (Go `omitempty`, server skip-when-zero)
-# is equivalent to one that emits `null` or the raw sentinel value (Python
-# tick_columnar emits 0/`""` verbatim). The consumer strips post-canonical
-# `None` values for these fields so all three shapes converge to "absent".
+# A producer that omits the field (server skip-when-zero) is equivalent to
+# one that emits `null` or the raw sentinel value (Python tick_columnar
+# emits 0/`""` verbatim). The consumer strips post-canonical `None` values
+# for these fields so all three shapes converge to "absent".
 _SENTINEL_SHAPED_FIELDS: frozenset[str] = (
     _DATE_FIELD_NAMES | _MS_FIELD_NAMES | _STRIKE_FIELD_NAMES | _RIGHT_FIELD_NAMES
 )
@@ -298,10 +298,9 @@ def _canonicalize_row(value: Any, key: str = "") -> Any:
       * post-canonical None -> stripped from the dict for LEAF fields
         whose name is in `_SENTINEL_SHAPED_FIELDS`. This makes producer
         divergence on omit-vs-null-vs-sentinel-value invisible to the
-        diff engine (Go `omitempty` strips zero contract-ids; server
-        skips them in `tools/server/src/format.rs:89`; Python emits raw
-        `0`/`""`; CLI emits raw `0`/`""` after round-3). All four
-        shapes converge to "field absent from the dict" post-
+        diff engine (server skips them in `tools/server/src/format.rs:89`;
+        Python emits raw `0`/`""`; CLI emits raw `0`/`""` after round-3).
+        All three shapes converge to "field absent from the dict" post-
         canonicalization.
 
     Sub-dicts and sub-lists are NEVER elided from their parent, even if

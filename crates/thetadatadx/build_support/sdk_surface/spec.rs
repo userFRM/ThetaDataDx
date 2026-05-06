@@ -16,12 +16,6 @@ pub(super) struct SdkSurfaceSpec {
     pub(super) methods: Vec<MethodSpec>,
     #[serde(default)]
     pub(super) utilities: Vec<UtilitySpec>,
-    /// Go-side FFI configuration. Holds the TLS-reader marker SSOT that
-    /// drives both `inject_os_thread_pin` (build-time body rewriter) and
-    /// the generated `tlsReaderMarkers` list consumed by the static-audit
-    /// test in `sdks/go/timeout_pin_test.go`.
-    #[serde(default)]
-    pub(super) go_ffi: GoFfiSpec,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -68,7 +62,6 @@ pub(super) enum MethodKind {
 #[serde(rename_all = "snake_case")]
 pub(super) enum MethodTarget {
     PythonUnified,
-    GoFpss,
     CppFpss,
     CppLifecycle,
     TypescriptNapi,
@@ -104,7 +97,6 @@ pub(super) enum UtilityKind {
 #[serde(rename_all = "snake_case")]
 pub(super) enum UtilityTarget {
     Python,
-    Go,
     Cpp,
     Mcp,
     Cli,
@@ -136,23 +128,6 @@ pub(super) enum ParamType {
     U64,
     CredentialsRef,
     ConfigRef,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct GoFfiSpec {
-    #[serde(default)]
-    pub(super) tls_reader_markers: Vec<TlsReaderMarker>,
-}
-
-/// A substring that, when present on a Go source line, identifies an FFI
-/// thread-local error read. The enclosing function must have executed
-/// `runtime.LockOSThread()` + `defer runtime.UnlockOSThread()` before
-/// reaching such a line.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct TlsReaderMarker {
-    pub(super) substring: String,
 }
 
 /// Rendering shape shared by the `MethodKind` match arms in
@@ -200,22 +175,6 @@ pub(super) fn validate_spec(spec: &SdkSurfaceSpec) -> Result<(), Box<dyn std::er
         validate_utility_spec(utility)?;
     }
 
-    let mut seen_tls_markers = std::collections::HashSet::new();
-    for marker in &spec.go_ffi.tls_reader_markers {
-        if marker.substring.trim().is_empty() {
-            return Err(
-                "sdk_surface.toml go_ffi.tls_reader_markers contains an empty substring".into(),
-            );
-        }
-        if !seen_tls_markers.insert(marker.substring.as_str()) {
-            return Err(format!(
-                "sdk_surface.toml go_ffi.tls_reader_markers contains duplicate substring '{}'",
-                marker.substring
-            )
-            .into());
-        }
-    }
-
     Ok(())
 }
 
@@ -247,7 +206,6 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
     // runtime_call/ffi_call/config_variant fields aren't validated here —
     // the code generator fails loudly when it tries to use a missing one.
     const PY: MethodTarget = MethodTarget::PythonUnified;
-    const GO: MethodTarget = MethodTarget::GoFpss;
     const CPP: MethodTarget = MethodTarget::CppFpss;
     const LIFE: MethodTarget = MethodTarget::CppLifecycle;
     const TS: MethodTarget = MethodTarget::TypescriptNapi;
@@ -256,13 +214,13 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
         MethodKind::IsStreaming => (Some("is_streaming"), &[PY, TS], true, &[]),
         MethodKind::StockContractCall => (
             None,
-            &[PY, TS, GO, CPP],
+            &[PY, TS, CPP],
             false,
             &[("symbol", ParamType::String)],
         ),
         MethodKind::OptionContractCall => (
             None,
-            &[PY, TS, GO, CPP],
+            &[PY, TS, CPP],
             false,
             &[
                 ("symbol", ParamType::String),
@@ -273,30 +231,30 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
         ),
         MethodKind::FullCall => (
             None,
-            &[PY, TS, GO, CPP],
+            &[PY, TS, CPP],
             false,
             &[("sec_type", ParamType::String)],
         ),
-        MethodKind::ContractMap => (Some("contract_map"), &[PY, TS, GO, CPP], false, &[]),
+        MethodKind::ContractMap => (Some("contract_map"), &[PY, TS, CPP], false, &[]),
         MethodKind::ContractLookup => (
             Some("contract_lookup"),
-            &[PY, TS, GO, CPP],
+            &[PY, TS, CPP],
             false,
             &[("id", ParamType::I32)],
         ),
         MethodKind::ActiveSubscriptions => {
-            (Some("active_subscriptions"), &[PY, TS, GO, CPP], false, &[])
+            (Some("active_subscriptions"), &[PY, TS, CPP], false, &[])
         }
         MethodKind::NextEvent => (
             Some("next_event"),
-            &[PY, TS, GO, CPP],
+            &[PY, TS, CPP],
             false,
             &[("timeout_ms", ParamType::U64)],
         ),
-        MethodKind::Reconnect => (Some("reconnect"), &[PY, TS, GO, CPP], false, &[]),
+        MethodKind::Reconnect => (Some("reconnect"), &[PY, TS, CPP], false, &[]),
         MethodKind::StopStreaming => (Some("stop_streaming"), &[PY, TS], true, &[]),
-        MethodKind::Shutdown => (Some("shutdown"), &[PY, TS, GO, CPP], false, &[]),
-        MethodKind::IsAuthenticated => (Some("is_authenticated"), &[GO, CPP], false, &[]),
+        MethodKind::Shutdown => (Some("shutdown"), &[PY, TS, CPP], false, &[]),
+        MethodKind::IsAuthenticated => (Some("is_authenticated"), &[CPP], false, &[]),
         MethodKind::FpssConnect => (
             Some("connect"),
             &[CPP],
@@ -404,7 +362,7 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
         }
     }
 
-    use UtilityTarget::{Cli, Cpp, Go, Mcp, Python};
+    use UtilityTarget::{Cli, Cpp, Mcp, Python};
     let greeks_params = offline_greeks_param_layout();
     let (expected_name, allowed_targets, exact_targets, params): (
         &str,
@@ -416,13 +374,13 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
         UtilityKind::Ping => ("ping", &[Mcp], true, &[]),
         UtilityKind::AllGreeks => (
             "all_greeks",
-            &[Python, Go, Cpp, Mcp, Cli],
+            &[Python, Cpp, Mcp, Cli],
             false,
             &greeks_params,
         ),
         UtilityKind::ImpliedVolatility => (
             "implied_volatility",
-            &[Python, Go, Cpp, Mcp, Cli],
+            &[Python, Cpp, Mcp, Cli],
             false,
             &greeks_params,
         ),

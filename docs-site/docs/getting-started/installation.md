@@ -1,11 +1,11 @@
 ---
 title: Installation
-description: Install ThetaDataDx for Rust, Python, TypeScript/Node.js, Go, or C++.
+description: Install ThetaDataDx for Rust, Python, TypeScript/Node.js, or C++.
 ---
 
 # Installation
 
-ThetaDataDx ships five language surfaces from one Rust core. Pick your language and use the one-liner below.
+ThetaDataDx ships four language surfaces from one Rust core. Pick your language and use the one-liner below. Go consumers can build their own cgo wrapper against the unchanged C ABI in [`ffi/`](https://github.com/userFRM/ThetaDataDx/tree/main/ffi).
 
 ## SDK installation
 
@@ -35,23 +35,6 @@ git clone https://github.com/userFRM/ThetaDataDx.git
 cd ThetaDataDx/sdks/typescript
 npm install
 npm run build
-```
-```bash [Go]
-# Prerequisites: Go 1.21+, Rust toolchain, C compiler (for CGo)
-
-# Build the Rust FFI library:
-git clone https://github.com/userFRM/ThetaDataDx.git
-cd ThetaDataDx
-cargo build --release -p thetadatadx-ffi
-# Produces target/release/libthetadatadx_ffi.so (Linux)
-# or libthetadatadx_ffi.dylib (macOS)
-
-# On Windows, the Go SDK links against the GNU Rust target instead:
-rustup target add x86_64-pc-windows-gnu
-cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi
-
-# Then add the Go module:
-go get github.com/userFRM/thetadatadx/sdks/go
 ```
 ```bash [C++]
 # Prerequisites: C++17 compiler, CMake 3.16+, Rust toolchain
@@ -96,22 +79,7 @@ maturin develop --release
 Building from source requires a working Rust toolchain. Install it via [rustup.rs](https://rustup.rs).
 :::
 
-## Memory management (Go / C++)
-
-### Go
-
-Every Go SDK handle that wraps an FFI pointer must be `Close()`d:
-
-```go
-creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-defer creds.Close()
-
-config := thetadatadx.ProductionConfig()
-defer config.Close()
-
-client, _ := thetadatadx.Connect(creds, config)
-defer client.Close()
-```
+## Memory management (C++)
 
 ### C++
 
@@ -152,19 +120,6 @@ import { ThetaDataDx } from 'thetadatadx';
 
 const tdx = await ThetaDataDx.connectFromFile('creds.txt');
 console.log('Connected successfully');
-```
-```go [Go]
-creds, err := thetadatadx.CredentialsFromFile("creds.txt")
-if err != nil { log.Fatal(err) }
-defer creds.Close()
-
-config := thetadatadx.ProductionConfig()
-defer config.Close()
-
-client, err := thetadatadx.Connect(creds, config)
-if err != nil { log.Fatal(err) }
-defer client.Close()
-fmt.Println("Connected successfully")
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");

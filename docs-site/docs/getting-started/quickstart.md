@@ -5,7 +5,7 @@ description: Install, authenticate, run a first historical call, subscribe to st
 
 # Quick Start
 
-One page covering all five SDKs (Rust, Python, TypeScript / Node.js, Go, C++). Each step shows the same workflow tabbed across languages.
+One page covering all four SDKs (Rust, Python, TypeScript / Node.js, C++). Each step shows the same workflow tabbed across languages. Go consumers can build a thin cgo wrapper against the unchanged C ABI in [`ffi/`](https://github.com/userFRM/ThetaDataDx/tree/main/ffi).
 
 ## Install
 
@@ -30,15 +30,6 @@ pip install thetadatadx[all]      # all three
 ```bash [TypeScript]
 npm install thetadatadx
 ```
-```bash [Go]
-# Prerequisites: Go 1.21+, Rust toolchain, C compiler
-
-git clone https://github.com/userFRM/ThetaDataDx.git
-cd ThetaDataDx
-cargo build --release -p thetadatadx-ffi
-
-go get github.com/userFRM/thetadatadx/sdks/go
-```
 ```bash [C++]
 # Prerequisites: C++17 compiler, CMake 3.16+, Rust toolchain
 
@@ -53,7 +44,7 @@ make
 ```
 :::
 
-Python wheels are pre-built (`abi3`, Python 3.9+); no Rust toolchain needed on supported platforms. Go and C++ link against the Rust FFI library built once with `cargo build`.
+Python wheels are pre-built (`abi3`, Python 3.9+); no Rust toolchain needed on supported platforms. C++ links against the Rust FFI library built once with `cargo build`.
 
 ## Authenticate
 
@@ -84,16 +75,6 @@ creds = Credentials(os.environ["THETA_EMAIL"], os.environ["THETA_PASS"])
 import { ThetaDataDx } from 'thetadatadx';
 
 // Credentials are passed directly to the connect helpers below.
-```
-```go [Go]
-import thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
-
-creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-defer creds.Close()
-
-// Or from env vars
-envCreds, _ := thetadatadx.CredentialsFromEnv("THETA_EMAIL", "THETA_PASS")
-defer envCreds.Close()
 ```
 ```cpp [C++]
 #include "thetadx.hpp"
@@ -151,36 +132,6 @@ const tdx = await ThetaDataDx.connectFromFile('creds.txt');
 const eod = tdx.stockHistoryEOD('AAPL', '20240101', '20240301');
 for (const tick of eod) {
     console.log(`${tick.date}: O=${tick.open} H=${tick.high} L=${tick.low} C=${tick.close} V=${tick.volume}`);
-}
-```
-```go [Go]
-package main
-
-import (
-    "fmt"
-    "log"
-
-    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
-)
-
-func main() {
-    creds, err := thetadatadx.CredentialsFromFile("creds.txt")
-    if err != nil { log.Fatal(err) }
-    defer creds.Close()
-
-    config := thetadatadx.ProductionConfig()
-    defer config.Close()
-
-    client, err := thetadatadx.Connect(creds, config)
-    if err != nil { log.Fatal(err) }
-    defer client.Close()
-
-    eod, err := client.StockHistoryEOD("AAPL", "20240101", "20240301")
-    if err != nil { log.Fatal(err) }
-    for _, tick := range eod {
-        fmt.Printf("%d: O=%.2f H=%.2f L=%.2f C=%.2f V=%d\n",
-            tick.Date, tick.Open, tick.High, tick.Low, tick.Close, tick.Volume)
-    }
 }
 ```
 ```cpp [C++]
@@ -286,51 +237,6 @@ try {
     }
 } finally {
     tdx.stopStreaming();
-}
-```
-```go [Go]
-package main
-
-import (
-    "fmt"
-    "log"
-
-    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
-)
-
-func main() {
-    creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-    defer creds.Close()
-
-    config := thetadatadx.ProductionConfig()
-    defer config.Close()
-
-    fpss, err := thetadatadx.NewFpssClient(creds, config)
-    if err != nil { log.Fatal(err) }
-    defer fpss.Close()
-
-    fpss.SubscribeQuotes("AAPL")
-    fpss.SubscribeTrades("MSFT")
-
-    for {
-        event, err := fpss.NextEvent(1000)
-        if err != nil {
-            log.Println("Error:", err)
-            break
-        }
-        if event == nil { continue }
-
-        switch event.Kind {
-        case thetadatadx.FpssQuoteEvent:
-            q := event.Quote
-            fmt.Printf("Quote: %d %.2f/%.2f\n", q.ContractID, q.Bid, q.Ask)
-        case thetadatadx.FpssTradeEvent:
-            t := event.Trade
-            fmt.Printf("Trade: %d %.2f x %d\n", t.ContractID, t.Price, t.Size)
-        }
-    }
-
-    fpss.Shutdown()
 }
 ```
 ```cpp [C++]

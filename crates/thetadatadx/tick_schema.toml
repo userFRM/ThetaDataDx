@@ -4,7 +4,7 @@
 #
 # build.rs reads this file and generates:
 #   - DataTable parsers              -> $OUT_DIR/decode_generated.rs
-#   - per-language SDK surfaces      -> sdks/{python,typescript,go,cpp}/...
+#   - per-language SDK surfaces      -> sdks/{python,typescript,cpp}/...
 #                                       (driven entirely by [types.X.render])
 #
 # Column types:
@@ -34,12 +34,10 @@
 #                            by `endpoint_surface.toml::returns`. Must be unique.
 #   direct                -- Rust direct-client tick type
 #   parser                -- generated parser fn name (matches `parser` above)
-#   go_struct             -- Go SDK struct name
-#   go_converter          -- Go SDK converter fn (cgo bridge)
 #   ffi_array             -- FFI array struct (e.g. "TdxGreeksAllTickArray")
 #   ffi_output_variant    -- thetadatadx::EndpointOutput variant name
 #   ffi_from_vec_array    -- FFI array struct used in Tdx*::from_vec calls
-#   ffi_header_return     -- return type in generated C/Go header
+#   ffi_header_return     -- return type in generated C header
 #   ffi_free_fn           -- C-side free fn name (without C. prefix)
 #   cpp_value             -- C++ value type name
 #   python_converter      -- legacy Python dict converter (PyDict)
@@ -84,8 +82,6 @@ columns = [
 collection = "TradeTicks"
 direct = "TradeTick"
 parser = "parse_trade_ticks"
-go_struct = "TradeTick"
-go_converter = "convertTradeTicks"
 ffi_array = "TdxTradeTickArray"
 ffi_output_variant = "TradeTicks"
 ffi_from_vec_array = "TdxTradeTickArray"
@@ -125,8 +121,6 @@ columns = [
 collection = "QuoteTicks"
 direct = "QuoteTick"
 parser = "parse_quote_ticks"
-go_struct = "QuoteTick"
-go_converter = "convertQuoteTicks"
 ffi_array = "TdxQuoteTickArray"
 ffi_output_variant = "QuoteTicks"
 ffi_from_vec_array = "TdxQuoteTickArray"
@@ -164,8 +158,6 @@ columns = [
 collection = "OhlcTicks"
 direct = "OhlcTick"
 parser = "parse_ohlc_ticks"
-go_struct = "OhlcTick"
-go_converter = "convertOhlcTicks"
 ffi_array = "TdxOhlcTickArray"
 ffi_output_variant = "OhlcTicks"
 ffi_from_vec_array = "TdxOhlcTickArray"
@@ -213,8 +205,6 @@ columns = [
 collection = "EodTicks"
 direct = "EodTick"
 parser = "parse_eod_ticks"
-go_struct = "EodTick"
-go_converter = "convertEodTicks"
 ffi_array = "TdxEodTickArray"
 ffi_output_variant = "EodTicks"
 ffi_from_vec_array = "TdxEodTickArray"
@@ -251,8 +241,6 @@ columns = [
 collection = "OpenInterestTicks"
 direct = "OpenInterestTick"
 parser = "parse_open_interest_ticks"
-go_struct = "OpenInterestTick"
-go_converter = "convertOpenInterestTicks"
 ffi_array = "TdxOpenInterestTickArray"
 ffi_output_variant = "OpenInterestTicks"
 ffi_from_vec_array = "TdxOpenInterestTickArray"
@@ -306,8 +294,6 @@ columns = [
 collection = "TradeQuoteTicks"
 direct = "TradeQuoteTick"
 parser = "parse_trade_quote_ticks"
-go_struct = "TradeQuoteTick"
-go_converter = "convertTradeQuoteTicks"
 ffi_array = "TdxTradeQuoteTickArray"
 ffi_output_variant = "TradeQuoteTicks"
 ffi_from_vec_array = "TdxTradeQuoteTickArray"
@@ -342,8 +328,6 @@ columns = [
 collection = "MarketValueTicks"
 direct = "MarketValueTick"
 parser = "parse_market_value_ticks"
-go_struct = "MarketValueTick"
-go_converter = "convertMarketValueTicks"
 ffi_array = "TdxMarketValueTickArray"
 ffi_output_variant = "MarketValueTicks"
 ffi_from_vec_array = "TdxMarketValueTickArray"
@@ -415,8 +399,6 @@ columns = [
 collection = "GreeksAllTicks"
 direct = "GreeksAllTick"
 parser = "parse_greeks_all_ticks"
-go_struct = "GreeksAllTick"
-go_converter = "convertGreeksAllTicks"
 ffi_array = "TdxGreeksAllTickArray"
 ffi_output_variant = "GreeksAllTicks"
 ffi_from_vec_array = "TdxGreeksAllTickArray"
@@ -465,8 +447,6 @@ columns = [
 collection = "GreeksFirstOrderTicks"
 direct = "GreeksFirstOrderTick"
 parser = "parse_greeks_first_order_ticks"
-go_struct = "GreeksFirstOrderTick"
-go_converter = "convertGreeksFirstOrderTicks"
 ffi_array = "TdxGreeksFirstOrderTickArray"
 ffi_output_variant = "GreeksFirstOrderTicks"
 ffi_from_vec_array = "TdxGreeksFirstOrderTickArray"
@@ -514,8 +494,6 @@ columns = [
 collection = "GreeksSecondOrderTicks"
 direct = "GreeksSecondOrderTick"
 parser = "parse_greeks_second_order_ticks"
-go_struct = "GreeksSecondOrderTick"
-go_converter = "convertGreeksSecondOrderTicks"
 ffi_array = "TdxGreeksSecondOrderTickArray"
 ffi_output_variant = "GreeksSecondOrderTicks"
 ffi_from_vec_array = "TdxGreeksSecondOrderTickArray"
@@ -563,8 +541,6 @@ columns = [
 collection = "GreeksThirdOrderTicks"
 direct = "GreeksThirdOrderTick"
 parser = "parse_greeks_third_order_ticks"
-go_struct = "GreeksThirdOrderTick"
-go_converter = "convertGreeksThirdOrderTicks"
 ffi_array = "TdxGreeksThirdOrderTickArray"
 ffi_output_variant = "GreeksThirdOrderTicks"
 ffi_from_vec_array = "TdxGreeksThirdOrderTickArray"
@@ -598,8 +574,6 @@ columns = [
 collection = "IvTicks"
 direct = "IvTick"
 parser = "parse_iv_ticks"
-go_struct = "IVTick"
-go_converter = "convertIvTicks"
 ffi_array = "TdxIvTickArray"
 ffi_output_variant = "IvTicks"
 ffi_from_vec_array = "TdxIvTickArray"
@@ -631,8 +605,6 @@ columns = [
 collection = "PriceTicks"
 direct = "PriceTick"
 parser = "parse_price_ticks"
-go_struct = "PriceTick"
-go_converter = "convertPriceTicks"
 ffi_array = "TdxPriceTickArray"
 ffi_output_variant = "PriceTicks"
 ffi_from_vec_array = "TdxPriceTickArray"
@@ -666,8 +638,6 @@ columns = [
 collection = "CalendarDays"
 direct = "CalendarDay"
 parser = "parse_calendar_days_v3"
-go_struct = "CalendarDay"
-go_converter = "convertCalendarDays"
 ffi_array = "TdxCalendarDayArray"
 ffi_output_variant = "CalendarDays"
 ffi_from_vec_array = "TdxCalendarDayArray"
@@ -699,8 +669,6 @@ columns = [
 collection = "InterestRateTicks"
 direct = "InterestRateTick"
 parser = "parse_interest_rate_ticks"
-go_struct = "InterestRateTick"
-go_converter = "convertInterestRateTicks"
 ffi_array = "TdxInterestRateTickArray"
 ffi_output_variant = "InterestRateTicks"
 ffi_from_vec_array = "TdxInterestRateTickArray"
@@ -732,8 +700,6 @@ columns = [
 collection = "OptionContracts"
 direct = "OptionContract"
 parser = "parse_option_contracts_v3"
-go_struct = "OptionContract"
-go_converter = "convertOptionContracts"
 ffi_array = "TdxOptionContractArray"
 ffi_output_variant = "OptionContracts"
 ffi_from_vec_array = "TdxOptionContractArray"

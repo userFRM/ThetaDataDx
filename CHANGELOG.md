@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.29] - 2026-05-06
+
+### Removed
+
+- **Go SDK.** The cgo bridge between Rust's C ABI and Go's runtime
+  carries per-call overhead that masks the upstream throughput this
+  SDK is engineered for. Users who need Go bindings can build their
+  own cgo wrapper against the unchanged C ABI in `crates/ffi/` —
+  header at `sdks/cpp/include/thetadx.h`, all FFI types and free fns
+  exported as `tdx_*` symbols.
+
+  Closes #481.
+
 ## [8.0.28] - 2026-05-06
 
 ### Breaking

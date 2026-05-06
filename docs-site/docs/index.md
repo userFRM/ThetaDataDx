@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "ThetaDataDx"
   text: "Rust SDK for ThetaData market data"
-  tagline: "Three public surfaces — historical request/response (MDDS gRPC), real-time streaming (FPSS), and whole-universe daily blobs (FLATFILES) — plus a local Greeks calculator, exposed in Rust, Python, TypeScript, Go, and C++ from a single Rust core."
+  tagline: "Three public surfaces — historical request/response (MDDS gRPC), real-time streaming (FPSS), and whole-universe daily blobs (FLATFILES) — plus a local Greeks calculator, exposed in Rust, Python, TypeScript, and C++ from a single Rust core."
   actions:
     - theme: brand
       text: Get Started
@@ -19,8 +19,8 @@ hero:
 features:
   - icon:
       src: /icons/globe.svg
-    title: "Five language surfaces"
-    details: "One Rust core, five bindings: Rust, Python (PyO3, abi3), TypeScript/Node.js (napi-rs), Go (CGo), C++ (RAII header-only). Same API shape, typed results in each language's idiom."
+    title: "Four language surfaces"
+    details: "One Rust core, four bindings: Rust, Python (PyO3, abi3), TypeScript/Node.js (napi-rs), C++ (RAII header-only). Same API shape, typed results in each language's idiom. The C ABI in `ffi/` is also the supported integration path for any third-party Go/C consumer that wants to roll their own wrapper."
   - icon:
       src: /icons/bolt.svg
     title: "Real-time streaming"
@@ -54,11 +54,6 @@ pip install thetadatadx[pandas]
 
 ```bash [TypeScript]
 npm install thetadatadx
-```
-
-```bash [Go]
-# Build the FFI library once, then:
-go get github.com/userFRM/thetadatadx/sdks/go
 ```
 
 ```bash [C++]
@@ -109,22 +104,6 @@ for (const q of quotes) {
 }
 ```
 
-```go [Go]
-creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-defer creds.Close()
-
-config := thetadatadx.ProductionConfig()
-defer config.Close()
-
-client, _ := thetadatadx.Connect(creds, config)
-defer client.Close()
-
-quotes, _ := client.StockHistoryQuote("AAPL", "20250115", "60000")
-for _, q := range quotes {
-    fmt.Printf("%d: bid=%.2f ask=%.2f\n", q.Date, q.Bid, q.Ask)
-}
-```
-
 ```cpp [C++]
 #include "thetadx.hpp"
 
@@ -143,7 +122,7 @@ for (const auto& q : quotes) {
 
 | Axis | ThetaDataDx |
 |------|-------------|
-| Languages | Rust, Python, TypeScript, Go, C++ |
+| Languages | Rust, Python, TypeScript, C++ |
 | Historical endpoints | Full typed historical surface (plus 4 `_stream` SDK-only variants) |
 | Real-time streaming | FPSS with SPKI pinning, SPSC ring, reconnect policy |
 | Local Greeks calculator | 23 Greeks + IV solver in Rust |

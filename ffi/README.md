@@ -2,9 +2,9 @@
 
 C FFI layer for `thetadatadx` — exposes the Rust SDK as `extern "C"` functions.
 
-Compiled as both `cdylib` (shared library) and `staticlib` (archive). Consumed by the Go (CGo), C++ (RAII), and TypeScript/Node.js (napi-rs) SDKs.
+Compiled as both `cdylib` (shared library) and `staticlib` (archive). Consumed by the C++ (RAII) and TypeScript/Node.js (napi-rs) SDKs, and available to any third-party C/C++/Go/etc. consumer that wants to roll their own wrapper against the `tdx_*` symbols.
 
-> **FLATFILES coverage:** the FFI layer currently exposes the MDDS (historical) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being added to the C ABI under issue [#434](https://github.com/userFRM/ThetaDataDx/issues/434). The Go (#437) and C++ (#438) bindings track this issue as their upstream blocker. See [`ROADMAP.md`](../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+> **FLATFILES coverage:** the FFI layer currently exposes the MDDS (historical) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being added to the C ABI under issue [#434](https://github.com/userFRM/ThetaDataDx/issues/434). The C++ binding (#438) tracks this issue as its upstream blocker. See [`ROADMAP.md`](../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
 
 ## Building
 

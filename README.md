@@ -1,6 +1,6 @@
 # ThetaDataDx
 
-Rust SDK for ThetaData market data — single Rust core, five language surfaces (Rust, Python, TypeScript, Go, C++).
+Rust SDK for ThetaData market data — single Rust core, four language surfaces (Rust, Python, TypeScript, C++).
 
 [![build](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
@@ -10,18 +10,18 @@ Rust SDK for ThetaData market data — single Rust core, five language surfaces 
 [![Docs](https://img.shields.io/docsrs/thetadatadx)](https://docs.rs/thetadatadx)
 [![Discord](https://img.shields.io/badge/Discord-community-5865F2.svg?logo=discord&logoColor=white)](https://discord.thetadata.us/)
 
-`thetadatadx` is a native Rust SDK for [ThetaData](https://thetadata.us) market data. It connects directly to ThetaData's three public surfaces — MDDS (historical request/response over gRPC), FPSS (real-time streaming over TCP), and FLATFILES (whole-universe daily blobs over the legacy MDDS port) — decodes ticks in-process, and exposes a typed API across Rust, Python, TypeScript, Go, and C++ from a single Rust core. No JVM, no subprocess, no IPC serialization.
+`thetadatadx` is a native Rust SDK for [ThetaData](https://thetadata.us) market data. It connects directly to ThetaData's three public surfaces — MDDS (historical request/response over gRPC), FPSS (real-time streaming over TCP), and FLATFILES (whole-universe daily blobs over the legacy MDDS port) — decodes ticks in-process, and exposes a typed API across Rust, Python, TypeScript, and C++ from a single Rust core. No JVM, no subprocess, no IPC serialization. Go consumers can build a thin cgo wrapper against the unchanged C ABI in [`ffi/`](ffi/) — header at [`sdks/cpp/include/thetadx.h`](sdks/cpp/include/thetadx.h), all FFI types and free fns exported as `tdx_*` symbols.
 
 > [!IMPORTANT]
 > A valid [ThetaData](https://thetadata.us) subscription is required. The SDK authenticates against ThetaData's Nexus API using your account credentials.
 
 ## Highlights
 
-- **Typed everywhere.** 61 ThetaData endpoints exposed as typed methods across all five SDKs; no raw JSON or protobuf on the public surface.
+- **Typed everywhere.** 61 ThetaData endpoints exposed as typed methods across all four SDKs; no raw JSON or protobuf on the public surface.
 - **Arrow-backed DataFrames.** Python `to_arrow()` / `to_pandas()` / `to_polars()` pipe through shared Arrow buffers.
 - **SPKI-pinned FPSS TLS.** Public-key pinning on the FPSS streaming handshake.
 - **FIT decoder + SPSC ring buffer** on the FPSS path. Decode cost is measured in the benchmarks under `crates/thetadatadx/benches/`.
-- **Shared FFI layer.** Go, C++, and Node.js go through the same `extern "C"` layer; the Python wheel uses PyO3 ABI3 directly.
+- **Shared FFI layer.** C++ and Node.js go through the same `extern "C"` layer; the Python wheel uses PyO3 ABI3 directly. The C ABI is also the supported integration path for any third-party Go/C/other-language consumer that wants to roll their own wrapper.
 - **Covers all three public surfaces.** MDDS gRPC endpoints, FPSS wire format with reconnect semantics, and the FLATFILES daily-blob protocol — every transport speaks directly to ThetaData's production servers from a single client. See the [parity checklist](docs/java-parity-checklist.md) and the [vendor flat-file reference](https://http-docs.thetadata.us/operations/get-v2-flat-file-getting-started.html).
 - **FLATFILES daily blobs.** Pull whole-universe `(sec_type, req_type, date)` blobs over the legacy MDDS port; decode to vendor-byte CSV, JSONL, or a typed `Vec<FlatFileRow>` in memory. Cross-language coverage is tracked under the binding issues; the Rust core is shipped today.
 
@@ -97,32 +97,6 @@ import { ThetaDataDx } from 'thetadatadx';
 const tdx = await ThetaDataDx.connectFromFile('creds.txt');
 for (const t of tdx.stockHistoryEOD('AAPL', '20240101', '20240301')) {
     console.log(`${t.date}: O=${t.open} H=${t.high} L=${t.low} C=${t.close} V=${t.volume}`);
-}
-```
-
-### Go
-
-```sh
-go get github.com/userFRM/ThetaDataDx/sdks/go
-```
-
-```go
-package main
-
-import (
-    "fmt"
-    thetadata "github.com/userFRM/ThetaDataDx/sdks/go"
-)
-
-func main() {
-    tdx, err := thetadata.ConnectFromFile("creds.txt", thetadata.Production())
-    if err != nil { panic(err) }
-    defer tdx.Close()
-    ticks, _ := tdx.StockHistoryEod("AAPL", "20240101", "20240301")
-    for _, t := range ticks {
-        fmt.Printf("%d: O=%.2f H=%.2f L=%.2f C=%.2f V=%d\n",
-            t.Date, t.Open, t.High, t.Low, t.Close, t.Volume)
-    }
 }
 ```
 
@@ -202,7 +176,6 @@ flowchart TB
 
     core -->|PyO3 / maturin| python["Python SDK<br/>(pyo3 · Arrow)"]
     ffi -->|napi-rs| ts["TypeScript SDK<br/>(N-API · BigInt)"]
-    ffi -->|cgo| go["Go SDK"]
     ffi -->|extern C| cpp["C++ SDK<br/>(RAII header-only)"]
     core -->|tonic| rust["Rust consumer<br/>(direct crate)"]
 
@@ -211,17 +184,16 @@ flowchart TB
     classDef sdkStyle fill:#14532d,stroke:#052e16,color:#fff
     class thetadatadx,tdbe coreStyle
     class ffi ffiStyle
-    class python,ts,go,cpp,rust sdkStyle
+    class python,ts,cpp,rust sdkStyle
 ```
 
 | Layer | Crate / package | Purpose |
 |-------|-----------------|---------|
 | Encoding / types | [`crates/tdbe`](crates/tdbe/) | Tick structs, FIT/FIE codecs, Greeks, Price |
 | Core SDK | [`crates/thetadatadx`](crates/thetadatadx/) | MDDS gRPC client, FPSS streaming, auth |
-| C FFI | [`ffi/`](ffi/) | Stable `extern "C"` layer consumed by Go, C++, Node.js |
+| C FFI | [`ffi/`](ffi/) | Stable `extern "C"` layer consumed by C++, Node.js, and any third-party C/Go consumer |
 | Python | [`sdks/python`](sdks/python/) | PyO3 / maturin wheel with Arrow DataFrame adapter |
 | TypeScript | [`sdks/typescript`](sdks/typescript/) | napi-rs prebuilt binary |
-| Go | [`sdks/go`](sdks/go/) | CGo bindings over the FFI layer |
 | C++ | [`sdks/cpp`](sdks/cpp/) | RAII header-only wrapper |
 | CLI | [`tools/cli`](tools/cli/) | `tdx` CLI — every generated historical endpoint from the command line |
 | MCP | [`tools/mcp`](tools/mcp/) | MCP server - gives clients access to every generated historical endpoint plus offline tools over JSON-RPC |

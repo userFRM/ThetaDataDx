@@ -142,7 +142,6 @@ Server retention window: 7 calendar days. Older history: contact ThetaData sales
 | REST/WS server (`tools/server`) | Pending | #432 |
 | Python (`sdks/python`) | Pending | #435 |
 | TypeScript (`sdks/typescript`) | Pending | #436 |
-| Go (`sdks/go`) | Pending | #437 |
 | C++ (`sdks/cpp`) | Pending | #438 |
 | `sdk_surface.toml` declarative spec | Pending | #439 |
 
@@ -169,11 +168,10 @@ Server retention window: 7 calendar days. Older history: contact ThetaData sales
 
 ### Cross-language parity for `utils`
 
-The Rust SDK exposes `thetadatadx::utils::{conditions, exchange, sequences}` for post-processing tick records. The Python, TypeScript, Go, and C++ SDKs do **not** currently expose any of these helpers. Tracked in issue #424.
+The Rust SDK exposes `thetadatadx::utils::{conditions, exchange, sequences}` for post-processing tick records. The Python, TypeScript, and C++ SDKs do **not** currently expose any of these helpers. Tracked in issue #424.
 
 - [ ] **Python** — bind `thetadatadx.utils.{conditions, exchange, sequences}` via PyO3.
 - [ ] **TypeScript** — bind via napi-rs under the same `utils.*` namespace.
-- [ ] **Go** — flat helper functions `thetadatadx.UtilsConditionName(code)`, etc.
 - [ ] **C++** — header at `sdks/cpp/include/thetadx_utils.h` with `extern "C"` bindings plus thin C++ wrappers.
 
 ### MDDS endpoint coverage on subscription-tier-blocked rows
@@ -193,7 +191,7 @@ The 7 SKIP rows in the MDDS validator are subscription-blocked on the current te
 
 ### Cross-SDK parity validation
 
-- [ ] Run the validator matrix through the Python, TypeScript, Go, and C++ SDKs and compare row-for-row against the Rust artifact. Locks in the contract that all four bindings return identical data for every endpoint.
+- [ ] Run the validator matrix through the Python, TypeScript, and C++ SDKs and compare row-for-row against the Rust artifact. Locks in the contract that all three bindings return identical data for every endpoint.
 
 ### Upstream features
 

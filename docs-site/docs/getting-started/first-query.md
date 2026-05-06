@@ -1,6 +1,6 @@
 ---
 title: First Query
-description: Run your first ThetaDataDx historical call in Rust, Python, TypeScript, Go, or C++.
+description: Run your first ThetaDataDx historical call in Rust, Python, TypeScript, or C++.
 ---
 
 # First Query
@@ -47,36 +47,6 @@ for (const tick of eod) {
     console.log(`${tick.date}: O=${tick.open} H=${tick.high} L=${tick.low} C=${tick.close} V=${tick.volume}`);
 }
 ```
-```go [Go]
-package main
-
-import (
-    "fmt"
-    "log"
-
-    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
-)
-
-func main() {
-    creds, err := thetadatadx.CredentialsFromFile("creds.txt")
-    if err != nil { log.Fatal(err) }
-    defer creds.Close()
-
-    config := thetadatadx.ProductionConfig()
-    defer config.Close()
-
-    client, err := thetadatadx.Connect(creds, config)
-    if err != nil { log.Fatal(err) }
-    defer client.Close()
-
-    eod, err := client.StockHistoryEOD("AAPL", "20240101", "20240301")
-    if err != nil { log.Fatal(err) }
-    for _, tick := range eod {
-        fmt.Printf("%d: O=%.2f H=%.2f L=%.2f C=%.2f V=%d\n",
-            tick.Date, tick.Open, tick.High, tick.Low, tick.Close, tick.Volume)
-    }
-}
-```
 ```cpp [C++]
 #include "thetadx.hpp"
 #include <iomanip>
@@ -108,14 +78,14 @@ int main() {
 ]
 ```
 
-Every historical endpoint returns a typed tick list with the same JSON-like shape across all five SDKs. Numeric fields are decoded to `f64` / `double` at parse time — no `Price{value, type}` objects to unpack.
+Every historical endpoint returns a typed tick list with the same JSON-like shape across all four SDKs. Numeric fields are decoded to `f64` / `double` at parse time — no `Price{value, type}` objects to unpack.
 
 ## What runs under the hood
 
 1. `connect()` loads credentials and authenticates against ThetaData's Nexus endpoint, retrieving a session UUID.
 2. The session UUID is attached to an HTTP/2 (`tonic` / `gRPC`) channel to the MDDS datacenter.
 3. `stock_history_eod(...)` streams a compressed protobuf `DataTable` response.
-4. A Rust decoder turns the `DataTable` into a `Vec<StockEodTick>` (~86k rows/sec per core on wide-schema data). The Python / TypeScript / Go / C++ bindings expose this slice as the language's native collection.
+4. A Rust decoder turns the `DataTable` into a `Vec<StockEodTick>` (~86k rows/sec per core on wide-schema data). The Python / TypeScript / C++ bindings expose this slice as the language's native collection.
 
 ## Next
 

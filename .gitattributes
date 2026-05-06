@@ -2,14 +2,6 @@
 # `generate_sdk_surfaces --check` doesn't false-positive on Windows.
 ffi/src/endpoint_request_options.rs  text eol=lf linguist-generated=true
 ffi/src/endpoint_with_options.rs     text eol=lf linguist-generated=true
-sdks/go/endpoint_options.go          text eol=lf linguist-generated=true
-sdks/go/endpoint_request_options.h.inc text eol=lf linguist-generated=true
-sdks/go/endpoint_with_options.h.inc  text eol=lf linguist-generated=true
-sdks/go/fpss_methods.go              text eol=lf linguist-generated=true
-sdks/go/historical.go                text eol=lf linguist-generated=true
-sdks/go/tick_converters.go           text eol=lf linguist-generated=true
-sdks/go/tick_structs.go              text eol=lf linguist-generated=true
-sdks/go/utilities.go                 text eol=lf linguist-generated=true
 sdks/cpp/include/endpoint_options.hpp.inc    text eol=lf linguist-generated=true
 sdks/cpp/include/endpoint_request_options.h.inc text eol=lf linguist-generated=true
 sdks/cpp/include/endpoint_with_options.h.inc text eol=lf linguist-generated=true
@@ -20,7 +12,6 @@ sdks/cpp/src/fpss.cpp.inc            text eol=lf linguist-generated=true
 sdks/cpp/src/historical.cpp.inc      text eol=lf linguist-generated=true
 sdks/cpp/src/lifecycle.cpp.inc       text eol=lf linguist-generated=true
 sdks/cpp/src/utilities.cpp.inc       text eol=lf linguist-generated=true
-sdks/go/validate.go                  text eol=lf linguist-generated=true
 sdks/python/src/historical_methods.rs text eol=lf linguist-generated=true
 sdks/python/src/streaming_methods.rs text eol=lf linguist-generated=true
 scripts/validate_python.py           text eol=lf linguist-generated=true
@@ -36,7 +27,6 @@ sdks/typescript/src/streaming_methods.rs text eol=lf linguist-generated=true
 sdks/typescript/src/tick_classes.rs  text eol=lf linguist-generated=true
 sdks/typescript/src/fpss_event_classes.rs text eol=lf linguist-generated=true
 sdks/typescript/src/buffered_event.rs text eol=lf linguist-generated=true
-sdks/go/fpss_event_structs.go        text eol=lf linguist-generated=true
 sdks/cpp/include/fpss_event_structs.h.inc text eol=lf linguist-generated=true
 
 # Generated validator surfaces that were missed from the original list.

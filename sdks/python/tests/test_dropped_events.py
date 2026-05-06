@@ -13,8 +13,7 @@ return a non-negative integer (u64 on the Rust side).
 
 Gated on `THETADX_TEST_CREDS=path/to/creds.txt` because `ThetaDataDx`
 needs a live FPSS handshake. Tests skip silently on developer
-machines that haven't wired creds. CI runs this in the surfaces job
-(same pattern as `sdks/go/timeout_test.go`).
+machines that haven't wired creds. CI runs this in the surfaces job.
 
 What this test does NOT assert:
 

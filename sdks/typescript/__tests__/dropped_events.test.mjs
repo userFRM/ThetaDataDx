@@ -14,7 +14,7 @@
 // Gated on THETADX_TEST_CREDS=/path/to/creds.txt — the underlying
 // `ThetaDataDx.connectFromFile(...)` needs a live FPSS handshake.
 // Skips silently on dev machines without creds; CI runs this in the
-// surfaces job. Same pattern as sdks/go/timeout_test.go.
+// surfaces job.
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';

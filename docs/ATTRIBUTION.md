@@ -13,7 +13,7 @@ which is also licensed under the Apache License, Version 2.0. The
 upstream project publishes the same docstrings as part of its
 `client.py` module; we consume them through our TOML SSOT so the generator
 can emit identical prose into every generated surface (Python sync +
-`_async`, fluent builders, TypeScript, Rust, C++, Go) without drift.
+`_async`, fluent builders, TypeScript, Rust, C++) without drift.
 
 The Apache-2.0 license does not require us to reproduce the notice in
 every generated file; we acknowledge the source here so downstream

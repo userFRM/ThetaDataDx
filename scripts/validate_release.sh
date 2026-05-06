@@ -5,9 +5,8 @@
 # Single script that validates every delivery surface:
 #   1. CLI       — generated validate_cli.py        (Rust core)
 #   2. Python    — generated validate_python.py     (PyO3 bridge)
-#   3. Go        — generated validate.go            (CGo FFI bridge)
-#   4. C++       — generated validate.cpp           (C FFI bridge)
-#   5. Agreement — cross-language artifact diff     (scripts/validate_agreement.py)
+#   3. C++       — generated validate.cpp           (C FFI bridge)
+#   4. Agreement — cross-language artifact diff     (scripts/validate_agreement.py)
 #
 # Each SDK validator writes a per-cell JSON artifact to
 # `artifacts/validator_<lang>.json`. The agreement step asserts that every
@@ -19,7 +18,7 @@
 #   ./scripts/validate_release.sh /path/to/creds.txt
 #
 # Prerequisites:
-#   Rust, Go, Python, a C++17 toolchain, and CMake
+#   Rust, Python, a C++17 toolchain, and CMake
 #
 # The script will build missing local artifacts as needed. If the Python SDK is
 # not installed into the current interpreter, it bootstraps a local virtualenv
@@ -123,37 +122,15 @@ else
 fi
 record "Python" "$py_pass" "$py_skip" "$py_fail"
 
-# ── 3. Go SDK ───────────────────────────────────────────────────────────────
-
-section "3/5  Go SDK — live parameter-mode matrix"
-
-go_pass=0
-go_skip=0
-go_fail=0
-
 FFI_LIB="$REPO/target/release"
 if [ ! -f "$FFI_LIB/libthetadatadx_ffi.so" ] && [ ! -f "$FFI_LIB/libthetadatadx_ffi.dylib" ]; then
     echo "Building FFI library..."
     cargo build --release -p thetadatadx-ffi --manifest-path "$REPO/Cargo.toml"
 fi
 
-if [ -f "$FFI_LIB/libthetadatadx_ffi.so" ] || [ -f "$FFI_LIB/libthetadatadx_ffi.dylib" ]; then
-    go_result=$(cd "$REPO/sdks/go" && CGO_LDFLAGS="-L$FFI_LIB" LD_LIBRARY_PATH="$FFI_LIB" \
-        go run ./cmd/validate "$CREDS" 2>&1)
-    echo "$go_result"
-    go_counts=$(echo "$go_result" | grep -oP 'COUNTS:\K.*')
-    go_pass=$(echo "$go_counts" | cut -d: -f1)
-    go_skip=$(echo "$go_counts" | cut -d: -f2)
-    go_fail=$(echo "$go_counts" | cut -d: -f3)
-else
-    echo "  FFI library build failed."
-    go_fail=61
-fi
-record "Go" "$go_pass" "$go_skip" "$go_fail"
+# ── 3. C++ SDK ──────────────────────────────────────────────────────────────
 
-# ── 4. C++ SDK ──────────────────────────────────────────────────────────────
-
-section "4/5  C++ SDK — live parameter-mode matrix"
+section "3/4  C++ SDK — live parameter-mode matrix"
 
 cpp_pass=0
 cpp_skip=0
@@ -178,9 +155,9 @@ else
 fi
 record "C++" "$cpp_pass" "$cpp_skip" "$cpp_fail"
 
-# ── 5. Cross-language agreement ─────────────────────────────────────────────
+# ── 4. Cross-language agreement ─────────────────────────────────────────────
 
-section "5/5  Cross-language agreement"
+section "4/4  Cross-language agreement"
 
 agreement_result=$(python3 "$REPO/scripts/validate_agreement.py" 2>&1)
 echo "$agreement_result"

@@ -10,10 +10,7 @@ use std::path::Path;
 
 use super::super::helpers::collect_builder_params;
 use super::super::parser::{load_endpoint_specs, validate_test_fixtures};
-use super::{
-    cli_validate, cpp, cpp_validate, enums, ffi, go, go_validate, python, python_validate,
-    typescript,
-};
+use super::{cli_validate, cpp, cpp_validate, enums, ffi, python, python_validate, typescript};
 
 struct GeneratedSourceFile {
     relative_path: &'static str,
@@ -82,26 +79,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: ffi::render_ffi_with_options(&parsed.endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/go/endpoint_request_options.h.inc",
-            contents: ffi::render_c_endpoint_request_options(&builder_params),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/endpoint_options.go",
-            contents: go::render_go_options(&builder_params),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/endpoint_ffi_sizes_generated.go",
-            contents: go::render_go_endpoint_ffi_sizes(&builder_params),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/historical.go",
-            contents: go::render_go_historical(&parsed.endpoints),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/endpoint_with_options.h.inc",
-            contents: go::render_go_endpoint_with_options_decls(&parsed.endpoints),
-        },
-        GeneratedSourceFile {
             relative_path: "sdks/cpp/include/endpoint_request_options.h.inc",
             contents: ffi::render_c_endpoint_request_options(&builder_params),
         },
@@ -140,10 +117,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "scripts/validate_python.py",
             contents: python_validate::render_python_validate(&parsed.endpoints, &parsed.fixtures),
-        },
-        GeneratedSourceFile {
-            relative_path: "sdks/go/validate.go",
-            contents: go_validate::render_go_validate(&parsed.endpoints, &parsed.fixtures),
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/examples/validate.cpp",

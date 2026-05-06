@@ -8,7 +8,7 @@ description: Handle FPSS disconnects, implement reconnection logic with reconnec
 ## Reconnection APIs
 
 Rust exposes `reconnect_streaming(handler)` on the unified `ThetaDataDx` client.
-Python, TypeScript/Node.js, Go, and C++ expose `reconnect()` on their public streaming clients.
+Python, TypeScript/Node.js, and C++ expose `reconnect()` on their public streaming clients.
 
 ## Reconnection with `reconnect_streaming()` (Rust)
 
@@ -50,7 +50,7 @@ match thetadatadx::fpss::reconnect_delay(reason) {
 `reconnect_streaming()` uses the same `DirectConfig` (including `fpss_hosts`) that was passed at `ThetaDataDx::connect()` time. If hosts change, create a new `ThetaDataDx` instance.
 :::
 
-## Reconnection with `reconnect()` (Python, Go, C++)
+## Reconnection with `reconnect()` (Python, C++)
 
 ::: code-group
 ```python [Python]
@@ -65,36 +65,6 @@ tdx.subscribe_option_quotes("SPY", "20260116", "600", "C")
 
 # reconnect() restores the existing subscription set
 tdx.reconnect()
-```
-```go [Go]
-package main
-
-import (
-    "log"
-
-    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
-)
-
-func main() {
-    creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-    defer creds.Close()
-
-    config := thetadatadx.ProductionConfig()
-    defer config.Close()
-
-    fpss, err := thetadatadx.NewFpssClient(creds, config)
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer fpss.Close()
-
-    fpss.SubscribeQuotes("AAPL")
-    fpss.SubscribeOptionQuotes("SPY", "20260116", "600", "C")
-
-    if err := fpss.Reconnect(); err != nil {
-        log.Fatal(err)
-    }
-}
 ```
 ```cpp [C++]
 #include "thetadx.hpp"
@@ -280,68 +250,6 @@ while True:
         break
 
 tdx.stop_streaming()
-```
-```go [Go]
-package main
-
-import (
-    "fmt"
-    "log"
-
-    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
-)
-
-func main() {
-    creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-    defer creds.Close()
-
-    config := thetadatadx.ProductionConfig()
-    defer config.Close()
-
-    fpss, err := thetadatadx.NewFpssClient(creds, config)
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer fpss.Close()
-
-    // Subscribe to real-time data
-    fpss.SubscribeQuotes("AAPL")
-    fpss.SubscribeTrades("AAPL")
-
-    // Process typed events
-    for {
-        event, err := fpss.NextEvent(5000)
-        if err != nil {
-            log.Println("Error:", err)
-            break
-        }
-        if event == nil {
-            continue
-        }
-
-        switch event.Kind {
-        case thetadatadx.FpssQuoteEvent:
-            q := event.Quote
-            // Bid and Ask are pre-decoded to float64
-            fmt.Printf("[QUOTE] contract=%d bid=%.4f ask=%.4f rx=%dns\n",
-                q.ContractID, q.Bid, q.Ask, q.ReceivedAtNs)
-
-        case thetadatadx.FpssTradeEvent:
-            t := event.Trade
-            // Price is pre-decoded to float64
-            fmt.Printf("[TRADE] contract=%d price=%.4f size=%d\n",
-                t.ContractID, t.Price, t.Size)
-
-        case thetadatadx.FpssControlEvent:
-            ctrl := event.Control
-            if ctrl.Kind == 6 { // Disconnected
-                fmt.Printf("Disconnected: %s\n", ctrl.Detail)
-            }
-        }
-    }
-
-    fpss.Shutdown()
-}
 ```
 ```cpp [C++]
 #include "thetadx.hpp"

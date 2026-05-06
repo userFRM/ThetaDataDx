@@ -321,9 +321,7 @@ pub fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<sonic_rs::Value>
 
 /// Convert first-order Greeks subset ticks
 /// (`option_*_greeks_first_order`) to JSON array.
-pub fn greeks_first_order_ticks_to_json(
-    ticks: &[GreeksFirstOrderTick],
-) -> Vec<sonic_rs::Value> {
+pub fn greeks_first_order_ticks_to_json(ticks: &[GreeksFirstOrderTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
@@ -351,9 +349,7 @@ pub fn greeks_first_order_ticks_to_json(
 
 /// Convert second-order Greeks subset ticks
 /// (`option_*_greeks_second_order`) to JSON array.
-pub fn greeks_second_order_ticks_to_json(
-    ticks: &[GreeksSecondOrderTick],
-) -> Vec<sonic_rs::Value> {
+pub fn greeks_second_order_ticks_to_json(ticks: &[GreeksSecondOrderTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
@@ -381,9 +377,7 @@ pub fn greeks_second_order_ticks_to_json(
 /// Convert third-order Greeks subset ticks
 /// (`option_*_greeks_third_order`) to JSON array. The vendor's
 /// third-order schema does not publish `vera`, hence its absence here.
-pub fn greeks_third_order_ticks_to_json(
-    ticks: &[GreeksThirdOrderTick],
-) -> Vec<sonic_rs::Value> {
+pub fn greeks_third_order_ticks_to_json(ticks: &[GreeksThirdOrderTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {

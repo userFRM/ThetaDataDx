@@ -1,11 +1,11 @@
 ---
 title: API Reference
-description: Complete API reference for the ThetaDataDx SDK covering all endpoints, types, and Greeks functions across Rust, Python, TypeScript/Node.js, Go, and C++.
+description: Complete API reference for the ThetaDataDx SDK covering all endpoints, types, and Greeks functions across Rust, Python, TypeScript/Node.js, and C++.
 ---
 
 # API Reference
 
-ThetaDataDx provides a unified client for accessing ThetaData market data across three public surfaces: historical request/response (MDDS over gRPC), real-time streaming (FPSS over TCP), and whole-universe daily blobs (FLATFILES over the legacy MDDS port). The SDK ships native bindings for Rust, Python, TypeScript/Node.js, Go, and C++, all backed by the same compiled Rust core.
+ThetaDataDx provides a unified client for accessing ThetaData market data across three public surfaces: historical request/response (MDDS over gRPC), real-time streaming (FPSS over TCP), and whole-universe daily blobs (FLATFILES over the legacy MDDS port). The SDK ships native bindings for Rust, Python, TypeScript/Node.js, and C++, all backed by the same compiled Rust core.
 
 Complete typed historical surface + 4 streaming variants + the FLATFILES daily-blob surface (Rust today; cross-language bindings tracked under the FLATFILES roadmap section) + 23 Greeks functions + IV solver.
 
@@ -28,16 +28,6 @@ tdx = ThetaDataDx(creds, Config.production())
 import { ThetaDataDx } from 'thetadatadx';
 
 const tdx = await ThetaDataDx.connectFromFile('creds.txt');
-```
-```go [Go]
-creds, err := thetadatadx.CredentialsFromFile("creds.txt")
-defer creds.Close()
-
-config := thetadatadx.ProductionConfig()
-defer config.Close()
-
-client, err := thetadatadx.Connect(creds, config)
-defer client.Close()
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
@@ -63,9 +53,6 @@ symbols = tdx.stock_list_symbols()
 ```typescript [TypeScript]
 const symbols = tdx.stockListSymbols();
 ```
-```go [Go]
-symbols, err := client.StockListSymbols()
-```
 ```cpp [C++]
 auto symbols = client.stock_list_symbols();
 ```
@@ -90,9 +77,6 @@ dates = tdx.stock_list_dates("TRADE", "AAPL")
 ```
 ```typescript [TypeScript]
 const dates = tdx.stockListDates('TRADE', 'AAPL');
-```
-```go [Go]
-dates, err := client.StockListDates("TRADE", "AAPL")
 ```
 ```cpp [C++]
 auto dates = client.stock_list_dates("TRADE", "AAPL");
@@ -121,9 +105,6 @@ bars = tdx.stock_snapshot_ohlc(["AAPL", "MSFT"])
 ```
 ```typescript [TypeScript]
 const bars = tdx.stockSnapshotOhlc(['AAPL', 'MSFT']);
-```
-```go [Go]
-bars, err := client.StockSnapshotOHLC([]string{"AAPL", "MSFT"})
 ```
 ```cpp [C++]
 auto bars = client.stock_snapshot_ohlc({"AAPL", "MSFT"});
@@ -154,9 +135,6 @@ trades = tdx.stock_snapshot_trade(["AAPL"])
 ```typescript [TypeScript]
 const trades = tdx.stockSnapshotTrade(['AAPL']);
 ```
-```go [Go]
-trades, err := client.StockSnapshotTrade([]string{"AAPL"})
-```
 ```cpp [C++]
 auto trades = client.stock_snapshot_trade({"AAPL"});
 ```
@@ -185,9 +163,6 @@ quotes = tdx.stock_snapshot_quote(["AAPL"])
 ```
 ```typescript [TypeScript]
 const quotes = tdx.stockSnapshotQuote(['AAPL']);
-```
-```go [Go]
-quotes, err := client.StockSnapshotQuote([]string{"AAPL"})
 ```
 ```cpp [C++]
 auto quotes = client.stock_snapshot_quote({"AAPL"});
@@ -218,9 +193,6 @@ mv = tdx.stock_snapshot_market_value(["AAPL"])
 ```typescript [TypeScript]
 const mv = tdx.stockSnapshotMarketValue(['AAPL']);
 ```
-```go [Go]
-mv, err := client.StockSnapshotMarketValue([]string{"AAPL"})
-```
 ```cpp [C++]
 auto mv = client.stock_snapshot_market_value({"AAPL"});
 ```
@@ -250,9 +222,6 @@ eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 ```typescript [TypeScript]
 const eod = tdx.stockHistoryEOD('AAPL', '20240101', '20240301');
 ```
-```go [Go]
-eod, err := client.StockHistoryEOD("AAPL", "20240101", "20240301")
-```
 ```cpp [C++]
 auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
 ```
@@ -281,9 +250,6 @@ bars = tdx.stock_history_ohlc("AAPL", "20240315", "60000")
 ```
 ```typescript [TypeScript]
 const bars = tdx.stockHistoryOHLC('AAPL', '20240315', '60000');
-```
-```go [Go]
-bars, err := client.StockHistoryOHLC("AAPL", "20240315", "60000")
 ```
 ```cpp [C++]
 auto bars = client.stock_history_ohlc("AAPL", "20240315", "60000");
@@ -317,9 +283,6 @@ bars = tdx.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000")
 ```typescript [TypeScript]
 const bars = tdx.stockHistoryOHLCRange('AAPL', '20240101', '20240301', '60000');
 ```
-```go [Go]
-bars, err := client.StockHistoryOHLCRange("AAPL", "20240101", "20240301", "60000")
-```
 ```cpp [C++]
 auto bars = client.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000");
 ```
@@ -349,9 +312,6 @@ trades = tdx.stock_history_trade("AAPL", "20240315")
 ```
 ```typescript [TypeScript]
 const trades = tdx.stockHistoryTrade('AAPL', '20240315');
-```
-```go [Go]
-trades, err := client.StockHistoryTrade("AAPL", "20240315")
 ```
 ```cpp [C++]
 auto trades = client.stock_history_trade("AAPL", "20240315");
@@ -385,9 +345,6 @@ quotes = tdx.stock_history_quote("AAPL", "20240315", "60000")
 ```
 ```typescript [TypeScript]
 const quotes = tdx.stockHistoryQuote('AAPL', '20240315', '60000');
-```
-```go [Go]
-quotes, err := client.StockHistoryQuote("AAPL", "20240315", "60000")
 ```
 ```cpp [C++]
 auto quotes = client.stock_history_quote("AAPL", "20240315", "60000");
@@ -423,9 +380,6 @@ tq = tdx.stock_history_trade_quote("AAPL", "20240315")
 ```typescript [TypeScript]
 const tq = tdx.stockHistoryTradeQuote('AAPL', '20240315');
 ```
-```go [Go]
-tq, err := client.StockHistoryTradeQuote("AAPL", "20240315")
-```
 ```cpp [C++]
 auto tq = client.stock_history_trade_quote("AAPL", "20240315");
 ```
@@ -460,9 +414,6 @@ trades = tdx.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000")
 ```typescript [TypeScript]
 const trades = tdx.stockAtTimeTrade('AAPL', '20240101', '20240301', '09:30:00.000');
 ```
-```go [Go]
-trades, err := client.StockAtTimeTrade("AAPL", "20240101", "20240301", "09:30:00.000")
-```
 ```cpp [C++]
 auto trades = client.stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000");
 ```
@@ -493,9 +444,6 @@ quotes = tdx.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000")
 ```
 ```typescript [TypeScript]
 const quotes = tdx.stockAtTimeQuote('AAPL', '20240101', '20240301', '09:30:00.000');
-```
-```go [Go]
-quotes, err := client.StockAtTimeQuote("AAPL", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
 auto quotes = client.stock_at_time_quote("AAPL", "20240101", "20240301", "09:30:00.000");
@@ -537,9 +485,6 @@ symbols = tdx.option_list_symbols()
 ```typescript [TypeScript]
 const symbols = tdx.optionListSymbols();
 ```
-```go [Go]
-symbols, err := client.OptionListSymbols()
-```
 ```cpp [C++]
 auto symbols = client.option_list_symbols();
 ```
@@ -564,9 +509,6 @@ dates = tdx.option_list_dates("TRADE", "SPY", "20241220", "500", "C")
 ```
 ```typescript [TypeScript]
 const dates = tdx.optionListDates('TRADE', 'SPY', '20241220', '500', 'C');
-```
-```go [Go]
-dates, err := client.OptionListDates("TRADE", "SPY", "20241220", "500", "C")
 ```
 ```cpp [C++]
 auto dates = client.option_list_dates("TRADE", "SPY", "20241220", "500", "C");
@@ -599,9 +541,6 @@ exps = tdx.option_list_expirations("SPY")
 ```typescript [TypeScript]
 const exps = tdx.optionListExpirations('SPY');
 ```
-```go [Go]
-exps, err := client.OptionListExpirations("SPY")
-```
 ```cpp [C++]
 auto exps = client.option_list_expirations("SPY");
 ```
@@ -628,9 +567,6 @@ strikes = tdx.option_list_strikes("SPY", "20241220")
 ```
 ```typescript [TypeScript]
 const strikes = tdx.optionListStrikes('SPY', '20241220');
-```
-```go [Go]
-strikes, err := client.OptionListStrikes("SPY", "20241220")
 ```
 ```cpp [C++]
 auto strikes = client.option_list_strikes("SPY", "20241220");
@@ -659,9 +595,6 @@ contracts = tdx.option_list_contracts("TRADE", "SPY", "20240315")
 ```
 ```typescript [TypeScript]
 const contracts = tdx.optionListContracts('TRADE', 'SPY', '20240315');
-```
-```go [Go]
-contracts, err := client.OptionListContracts("TRADE", "SPY", "20240315")
 ```
 ```cpp [C++]
 auto contracts = client.option_list_contracts("TRADE", "SPY", "20240315");
@@ -692,9 +625,6 @@ bars = tdx.option_snapshot_ohlc("SPY", "20241220", "500", "C")
 ```
 ```typescript [TypeScript]
 const bars = tdx.optionSnapshotOhlc('SPY', '20241220', '500', 'C');
-```
-```go [Go]
-bars, err := client.OptionSnapshotOHLC("SPY", "20241220", "500", "C")
 ```
 ```cpp [C++]
 auto bars = client.option_snapshot_ohlc("SPY", "20241220", "500", "C");
@@ -729,9 +659,6 @@ trades = tdx.option_snapshot_trade("SPY", "20241220", "500", "C")
 ```typescript [TypeScript]
 const trades = tdx.optionSnapshotTrade('SPY', '20241220', '500', 'C');
 ```
-```go [Go]
-trades, err := client.OptionSnapshotTrade("SPY", "20241220", "500", "C")
-```
 ```cpp [C++]
 auto trades = client.option_snapshot_trade("SPY", "20241220", "500", "C");
 ```
@@ -763,9 +690,6 @@ quotes = tdx.option_snapshot_quote("SPY", "20241220", "500", "C")
 ```
 ```typescript [TypeScript]
 const quotes = tdx.optionSnapshotQuote('SPY', '20241220', '500', 'C');
-```
-```go [Go]
-quotes, err := client.OptionSnapshotQuote("SPY", "20241220", "500", "C")
 ```
 ```cpp [C++]
 auto quotes = client.option_snapshot_quote("SPY", "20241220", "500", "C");
@@ -800,9 +724,6 @@ oi = tdx.option_snapshot_open_interest("SPY", "20241220", "500", "C")
 ```typescript [TypeScript]
 const oi = tdx.optionSnapshotOpenInterest('SPY', '20241220', '500', 'C');
 ```
-```go [Go]
-oi, err := client.OptionSnapshotOpenInterest("SPY", "20241220", "500", "C")
-```
 ```cpp [C++]
 auto oi = client.option_snapshot_open_interest("SPY", "20241220", "500", "C");
 ```
@@ -836,9 +757,6 @@ mv = tdx.option_snapshot_market_value("SPY", "20241220", "500", "C")
 ```typescript [TypeScript]
 const mv = tdx.optionSnapshotMarketValue('SPY', '20241220', '500', 'C');
 ```
-```go [Go]
-mv, err := client.OptionSnapshotMarketValue("SPY", "20241220", "500", "C")
-```
 ```cpp [C++]
 auto mv = client.option_snapshot_market_value("SPY", "20241220", "500", "C");
 ```
@@ -871,9 +789,6 @@ iv = tdx.option_snapshot_greeks_implied_volatility("SPY", "20241220", "500", "C"
 ```
 ```typescript [TypeScript]
 const iv = tdx.optionSnapshotGreeksImpliedVolatility('SPY', '20241220', '500', 'C');
-```
-```go [Go]
-iv, err := client.OptionSnapshotGreeksIV("SPY", "20241220", "500", "C")
 ```
 ```cpp [C++]
 auto iv = client.option_snapshot_greeks_implied_volatility("SPY", "20241220", "500", "C");
@@ -916,9 +831,6 @@ greeks = tdx.option_snapshot_greeks_all("SPY", "20241220", "500", "C")
 ```typescript [TypeScript]
 const greeks = tdx.optionSnapshotGreeksAll('SPY', '20241220', '500', 'C');
 ```
-```go [Go]
-greeks, err := client.OptionSnapshotGreeksAll("SPY", "20241220", "500", "C")
-```
 ```cpp [C++]
 auto greeks = client.option_snapshot_greeks_all("SPY", "20241220", "500", "C");
 ```
@@ -960,9 +872,6 @@ g = tdx.option_snapshot_greeks_first_order("SPY", "20241220", "500", "C")
 ```typescript [TypeScript]
 const g = tdx.optionSnapshotGreeksFirstOrder('SPY', '20241220', '500', 'C');
 ```
-```go [Go]
-g, err := client.OptionSnapshotGreeksFirstOrder("SPY", "20241220", "500", "C")
-```
 ```cpp [C++]
 auto g = client.option_snapshot_greeks_first_order("SPY", "20241220", "500", "C");
 ```
@@ -990,9 +899,6 @@ g = tdx.option_snapshot_greeks_second_order("SPY", "20241220", "500", "C")
 ```typescript [TypeScript]
 const g = tdx.optionSnapshotGreeksSecondOrder('SPY', '20241220', '500', 'C');
 ```
-```go [Go]
-g, err := client.OptionSnapshotGreeksSecondOrder("SPY", "20241220", "500", "C")
-```
 ```cpp [C++]
 auto g = client.option_snapshot_greeks_second_order("SPY", "20241220", "500", "C");
 ```
@@ -1019,9 +925,6 @@ g = tdx.option_snapshot_greeks_third_order("SPY", "20241220", "500", "C")
 ```
 ```typescript [TypeScript]
 const g = tdx.optionSnapshotGreeksThirdOrder('SPY', '20241220', '500', 'C');
-```
-```go [Go]
-g, err := client.OptionSnapshotGreeksThirdOrder("SPY", "20241220", "500", "C")
 ```
 ```cpp [C++]
 auto g = client.option_snapshot_greeks_third_order("SPY", "20241220", "500", "C");
@@ -1051,9 +954,6 @@ eod = tdx.option_history_eod("SPY", "20241220", "500", "C", "20240101", "2024030
 ```
 ```typescript [TypeScript]
 const eod = tdx.optionHistoryEOD('SPY', '20241220', '500', 'C', '20240101', '20240301');
-```
-```go [Go]
-eod, err := client.OptionHistoryEOD("SPY", "20241220", "500", "C", "20240101", "20240301")
 ```
 ```cpp [C++]
 auto eod = client.option_history_eod("SPY", "20241220", "500", "C", "20240101", "20240301");
@@ -1091,9 +991,6 @@ bars = tdx.option_history_ohlc("SPY", "20241220", "500", "C", "20240315", "60000
 ```typescript [TypeScript]
 const bars = tdx.optionHistoryOHLC('SPY', '20241220', '500', 'C', '20240315', '60000');
 ```
-```go [Go]
-bars, err := client.OptionHistoryOHLC("SPY", "20241220", "500", "C", "20240315", "60000")
-```
 ```cpp [C++]
 auto bars = client.option_history_ohlc("SPY", "20241220", "500", "C", "20240315", "60000");
 ```
@@ -1128,9 +1025,6 @@ trades = tdx.option_history_trade("SPY", "20241220", "500", "C", "20240315")
 ```
 ```typescript [TypeScript]
 const trades = tdx.optionHistoryTrade('SPY', '20241220', '500', 'C', '20240315');
-```
-```go [Go]
-trades, err := client.OptionHistoryTrade("SPY", "20241220", "500", "C", "20240315")
 ```
 ```cpp [C++]
 auto trades = client.option_history_trade("SPY", "20241220", "500", "C", "20240315");
@@ -1171,9 +1065,6 @@ quotes = tdx.option_history_quote("SPY", "20241220", "500", "C", "20240315", "60
 ```typescript [TypeScript]
 const quotes = tdx.optionHistoryQuote('SPY', '20241220', '500', 'C', '20240315', '60000');
 ```
-```go [Go]
-quotes, err := client.OptionHistoryQuote("SPY", "20241220", "500", "C", "20240315", "60000")
-```
 ```cpp [C++]
 auto quotes = client.option_history_quote("SPY", "20241220", "500", "C", "20240315", "60000");
 ```
@@ -1209,9 +1100,6 @@ tq = tdx.option_history_trade_quote("SPY", "20241220", "500", "C", "20240315")
 ```
 ```typescript [TypeScript]
 const tq = tdx.optionHistoryTradeQuote('SPY', '20241220', '500', 'C', '20240315');
-```
-```go [Go]
-tq, err := client.OptionHistoryTradeQuote("SPY", "20241220", "500", "C", "20240315")
 ```
 ```cpp [C++]
 auto tq = client.option_history_trade_quote("SPY", "20241220", "500", "C", "20240315");
@@ -1251,9 +1139,6 @@ oi = tdx.option_history_open_interest("SPY", "20241220", "500", "C", "20240315")
 ```typescript [TypeScript]
 const oi = tdx.optionHistoryOpenInterest('SPY', '20241220', '500', 'C', '20240315');
 ```
-```go [Go]
-oi, err := client.OptionHistoryOpenInterest("SPY", "20241220", "500", "C", "20240315")
-```
 ```cpp [C++]
 auto oi = client.option_history_open_interest("SPY", "20241220", "500", "C", "20240315");
 ```
@@ -1288,9 +1173,6 @@ g = tdx.option_history_greeks_eod("SPY", "20241220", "500", "C", "20240101", "20
 ```
 ```typescript [TypeScript]
 const g = tdx.optionHistoryGreeksEod('SPY', '20241220', '500', 'C', '20240101', '20240301');
-```
-```go [Go]
-g, err := client.OptionHistoryGreeksEOD("SPY", "20241220", "500", "C", "20240101", "20240301")
 ```
 ```cpp [C++]
 auto g = client.option_history_greeks_eod("SPY", "20241220", "500", "C", "20240101", "20240301");
@@ -1335,9 +1217,6 @@ g = tdx.option_history_greeks_all("SPY", "20241220", "500", "C", "20240315", "60
 ```typescript [TypeScript]
 const g = tdx.optionHistoryGreeksAll('SPY', '20241220', '500', 'C', '20240315', '60000');
 ```
-```go [Go]
-g, err := client.OptionHistoryGreeksAll("SPY", "20241220", "500", "C", "20240315", "60000")
-```
 ```cpp [C++]
 auto g = client.option_history_greeks_all("SPY", "20241220", "500", "C", "20240315", "60000");
 ```
@@ -1376,9 +1255,6 @@ g = tdx.option_history_trade_greeks_all("SPY", "20241220", "500", "C", "20240315
 ```
 ```typescript [TypeScript]
 const g = tdx.optionHistoryTradeGreeksAll('SPY', '20241220', '500', 'C', '20240315');
-```
-```go [Go]
-g, err := client.OptionHistoryTradeGreeksAll("SPY", "20241220", "500", "C", "20240315")
 ```
 ```cpp [C++]
 auto g = client.option_history_trade_greeks_all("SPY", "20241220", "500", "C", "20240315");
@@ -1423,9 +1299,6 @@ g = tdx.option_history_greeks_first_order("SPY", "20241220", "500", "C", "202403
 ```typescript [TypeScript]
 const g = tdx.optionHistoryGreeksFirstOrder('SPY', '20241220', '500', 'C', '20240315', '60000');
 ```
-```go [Go]
-g, err := client.OptionHistoryGreeksFirstOrder("SPY", "20241220", "500", "C", "20240315", "60000")
-```
 ```cpp [C++]
 auto g = client.option_history_greeks_first_order("SPY", "20241220", "500", "C", "20240315", "60000");
 ```
@@ -1454,9 +1327,6 @@ g = tdx.option_history_trade_greeks_first_order("SPY", "20241220", "500", "C", "
 ```
 ```typescript [TypeScript]
 const g = tdx.optionHistoryTradeGreeksFirstOrder('SPY', '20241220', '500', 'C', '20240315');
-```
-```go [Go]
-g, err := client.OptionHistoryTradeGreeksFirstOrder("SPY", "20241220", "500", "C", "20240315")
 ```
 ```cpp [C++]
 auto g = client.option_history_trade_greeks_first_order("SPY", "20241220", "500", "C", "20240315");
@@ -1487,9 +1357,6 @@ g = tdx.option_history_greeks_second_order("SPY", "20241220", "500", "C", "20240
 ```typescript [TypeScript]
 const g = tdx.optionHistoryGreeksSecondOrder('SPY', '20241220', '500', 'C', '20240315', '60000');
 ```
-```go [Go]
-g, err := client.OptionHistoryGreeksSecondOrder("SPY", "20241220", "500", "C", "20240315", "60000")
-```
 ```cpp [C++]
 auto g = client.option_history_greeks_second_order("SPY", "20241220", "500", "C", "20240315", "60000");
 ```
@@ -1518,9 +1385,6 @@ g = tdx.option_history_trade_greeks_second_order("SPY", "20241220", "500", "C", 
 ```
 ```typescript [TypeScript]
 const g = tdx.optionHistoryTradeGreeksSecondOrder('SPY', '20241220', '500', 'C', '20240315');
-```
-```go [Go]
-g, err := client.OptionHistoryTradeGreeksSecondOrder("SPY", "20241220", "500", "C", "20240315")
 ```
 ```cpp [C++]
 auto g = client.option_history_trade_greeks_second_order("SPY", "20241220", "500", "C", "20240315");
@@ -1551,9 +1415,6 @@ g = tdx.option_history_greeks_third_order("SPY", "20241220", "500", "C", "202403
 ```typescript [TypeScript]
 const g = tdx.optionHistoryGreeksThirdOrder('SPY', '20241220', '500', 'C', '20240315', '60000');
 ```
-```go [Go]
-g, err := client.OptionHistoryGreeksThirdOrder("SPY", "20241220", "500", "C", "20240315", "60000")
-```
 ```cpp [C++]
 auto g = client.option_history_greeks_third_order("SPY", "20241220", "500", "C", "20240315", "60000");
 ```
@@ -1582,9 +1443,6 @@ g = tdx.option_history_trade_greeks_third_order("SPY", "20241220", "500", "C", "
 ```
 ```typescript [TypeScript]
 const g = tdx.optionHistoryTradeGreeksThirdOrder('SPY', '20241220', '500', 'C', '20240315');
-```
-```go [Go]
-g, err := client.OptionHistoryTradeGreeksThirdOrder("SPY", "20241220", "500", "C", "20240315")
 ```
 ```cpp [C++]
 auto g = client.option_history_trade_greeks_third_order("SPY", "20241220", "500", "C", "20240315");
@@ -1615,9 +1473,6 @@ iv = tdx.option_history_greeks_implied_volatility("SPY", "20241220", "500", "C",
 ```typescript [TypeScript]
 const iv = tdx.optionHistoryGreeksImpliedVolatility('SPY', '20241220', '500', 'C', '20240315', '60000');
 ```
-```go [Go]
-iv, err := client.OptionHistoryGreeksImpliedVolatility("SPY", "20241220", "500", "C", "20240315", "60000")
-```
 ```cpp [C++]
 auto iv = client.option_history_greeks_implied_volatility("SPY", "20241220", "500", "C", "20240315", "60000");
 ```
@@ -1647,9 +1502,6 @@ iv = tdx.option_history_trade_greeks_implied_volatility("SPY", "20241220", "500"
 ```typescript [TypeScript]
 const iv = tdx.optionHistoryTradeGreeksImpliedVolatility('SPY', '20241220', '500', 'C', '20240315');
 ```
-```go [Go]
-iv, err := client.OptionHistoryTradeGreeksImpliedVolatility("SPY", "20241220", "500", "C", "20240315")
-```
 ```cpp [C++]
 auto iv = client.option_history_trade_greeks_implied_volatility("SPY", "20241220", "500", "C", "20240315");
 ```
@@ -1678,9 +1530,6 @@ trades = tdx.option_at_time_trade("SPY", "20241220", "500", "C", "20240101", "20
 ```
 ```typescript [TypeScript]
 const trades = tdx.optionAtTimeTrade('SPY', '20241220', '500', 'C', '20240101', '20240301', '09:30:00.000');
-```
-```go [Go]
-trades, err := client.OptionAtTimeTrade("SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
 auto trades = client.option_at_time_trade("SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000");
@@ -1719,9 +1568,6 @@ quotes = tdx.option_at_time_quote("SPY", "20241220", "500", "C", "20240101", "20
 ```typescript [TypeScript]
 const quotes = tdx.optionAtTimeQuote('SPY', '20241220', '500', 'C', '20240101', '20240301', '09:30:00.000');
 ```
-```go [Go]
-quotes, err := client.OptionAtTimeQuote("SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000")
-```
 ```cpp [C++]
 auto quotes = client.option_at_time_quote("SPY", "20241220", "500", "C", "20240101", "20240301", "09:30:00.000");
 ```
@@ -1759,9 +1605,6 @@ symbols = tdx.index_list_symbols()
 ```typescript [TypeScript]
 const symbols = tdx.indexListSymbols();
 ```
-```go [Go]
-symbols, err := client.IndexListSymbols()
-```
 ```cpp [C++]
 auto symbols = client.index_list_symbols();
 ```
@@ -1786,9 +1629,6 @@ dates = tdx.index_list_dates("SPX")
 ```
 ```typescript [TypeScript]
 const dates = tdx.indexListDates('SPX');
-```
-```go [Go]
-dates, err := client.IndexListDates("SPX")
 ```
 ```cpp [C++]
 auto dates = client.index_list_dates("SPX");
@@ -1816,9 +1656,6 @@ bars = tdx.index_snapshot_ohlc(["SPX", "VIX"])
 ```
 ```typescript [TypeScript]
 const bars = tdx.indexSnapshotOhlc(['SPX', 'VIX']);
-```
-```go [Go]
-bars, err := client.IndexSnapshotOHLC([]string{"SPX", "VIX"})
 ```
 ```cpp [C++]
 auto bars = client.index_snapshot_ohlc({"SPX", "VIX"});
@@ -1848,9 +1685,6 @@ prices = tdx.index_snapshot_price(["SPX"])
 ```typescript [TypeScript]
 const prices = tdx.indexSnapshotPrice(['SPX']);
 ```
-```go [Go]
-prices, err := client.IndexSnapshotPrice([]string{"SPX"})
-```
 ```cpp [C++]
 auto prices = client.index_snapshot_price({"SPX"});
 ```
@@ -1878,9 +1712,6 @@ mv = tdx.index_snapshot_market_value(["SPX"])
 ```
 ```typescript [TypeScript]
 const mv = tdx.indexSnapshotMarketValue(['SPX']);
-```
-```go [Go]
-mv, err := client.IndexSnapshotMarketValue([]string{"SPX"})
 ```
 ```cpp [C++]
 auto mv = client.index_snapshot_market_value({"SPX"});
@@ -1910,9 +1741,6 @@ eod = tdx.index_history_eod("SPX", "20240101", "20240301")
 ```typescript [TypeScript]
 const eod = tdx.indexHistoryEOD('SPX', '20240101', '20240301');
 ```
-```go [Go]
-eod, err := client.IndexHistoryEOD("SPX", "20240101", "20240301")
-```
 ```cpp [C++]
 auto eod = client.index_history_eod("SPX", "20240101", "20240301");
 ```
@@ -1941,9 +1769,6 @@ bars = tdx.index_history_ohlc("SPX", "20240101", "20240301", "60000")
 ```
 ```typescript [TypeScript]
 const bars = tdx.indexHistoryOHLC('SPX', '20240101', '20240301', '60000');
-```
-```go [Go]
-bars, err := client.IndexHistoryOHLC("SPX", "20240101", "20240301", "60000")
 ```
 ```cpp [C++]
 auto bars = client.index_history_ohlc("SPX", "20240101", "20240301", "60000");
@@ -1977,9 +1802,6 @@ prices = tdx.index_history_price("SPX", "20240315", "60000")
 ```typescript [TypeScript]
 const prices = tdx.indexHistoryPrice('SPX', '20240315', '60000');
 ```
-```go [Go]
-prices, err := client.IndexHistoryPrice("SPX", "20240315", "60000")
-```
 ```cpp [C++]
 auto prices = client.index_history_price("SPX", "20240315", "60000");
 ```
@@ -2010,9 +1832,6 @@ prices = tdx.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000")
 ```
 ```typescript [TypeScript]
 const prices = tdx.indexAtTimePrice('SPX', '20240101', '20240301', '09:30:00.000');
-```
-```go [Go]
-prices, err := client.IndexAtTimePrice("SPX", "20240101", "20240301", "09:30:00.000")
 ```
 ```cpp [C++]
 auto prices = client.index_at_time_price("SPX", "20240101", "20240301", "09:30:00.000");
@@ -2046,9 +1865,6 @@ info = tdx.calendar_open_today()
 ```typescript [TypeScript]
 const info = tdx.calendarOpenToday();
 ```
-```go [Go]
-info, err := client.CalendarOpenToday()
-```
 ```cpp [C++]
 auto info = client.calendar_open_today();
 ```
@@ -2073,9 +1889,6 @@ info = tdx.calendar_on_date("20240315")
 ```
 ```typescript [TypeScript]
 const info = tdx.calendarOnDate('20240315');
-```
-```go [Go]
-info, err := client.CalendarOnDate("20240315")
 ```
 ```cpp [C++]
 auto info = client.calendar_on_date("20240315");
@@ -2103,9 +1916,6 @@ cal = tdx.calendar_year("2024")
 ```
 ```typescript [TypeScript]
 const cal = tdx.calendarYear('2024');
-```
-```go [Go]
-cal, err := client.CalendarYear("2024")
 ```
 ```cpp [C++]
 auto cal = client.calendar_year("2024");
@@ -2135,9 +1945,6 @@ rates = tdx.interest_rate_history_eod("SOFR", "20240101", "20240301")
 ```
 ```typescript [TypeScript]
 const rates = tdx.interestRateHistoryEOD('SOFR', '20240101', '20240301');
-```
-```go [Go]
-rates, err := client.InterestRateHistoryEOD("SOFR", "20240101", "20240301")
 ```
 ```cpp [C++]
 auto rates = client.interest_rate_history_eod("SOFR", "20240101", "20240301");
@@ -2186,10 +1993,6 @@ print(f"IV: {g['iv']:.4f}, Delta: {g['delta']:.4f}")
 ```typescript [TypeScript]
 g = all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, 'C')
 ```
-```go [Go]
-g, err := thetadatadx.AllGreeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C")
-fmt.Printf("IV: %.4f, Delta: %.4f\n", g.IV, g.Delta)
-```
 ```cpp [C++]
 auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
 std::cout << "IV: " << g.iv << ", Delta: " << g.delta << std::endl;
@@ -2227,9 +2030,6 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C")
 ```
 ```typescript [TypeScript]
 iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, 'C')
-```
-```go [Go]
-iv, ivErr, err := thetadatadx.ImpliedVolatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C")
 ```
 ```cpp [C++]
 auto [iv, err] = tdx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
@@ -2308,7 +2108,7 @@ All individual functions share these parameters. Not all functions take `is_call
 
 ## Streaming (FPSS)
 
-Real-time market data streaming via FPSS (Fast Protocol Streaming Service) over TLS/TCP. The streaming connection is established lazily and managed through the main client in Rust and Python; Go and C++ use a dedicated `FpssClient`.
+Real-time market data streaming via FPSS (Fast Protocol Streaming Service) over TLS/TCP. The streaming connection is established lazily and managed through the main client in Rust and Python; C++ uses a dedicated `FpssClient`.
 
 ### Starting the Stream
 
@@ -2327,10 +2127,6 @@ tdx.start_streaming()
 ```
 ```typescript [TypeScript]
 tdx.startStreaming();
-```
-```go [Go]
-fpss := thetadatadx.NewFpssClient(creds, config)
-defer fpss.Close()
 ```
 ```cpp [C++]
 tdx::FpssClient fpss(creds, tdx::Config::production());
@@ -2353,12 +2149,6 @@ tdx.subscribe_trades("AAPL")
 ```typescript [TypeScript]
 tdx.subscribeQuotes('AAPL');
 tdx.subscribeTrades('AAPL');
-```
-```go [Go]
-reqID, err := fpss.SubscribeQuotes("AAPL")
-reqID, err := fpss.SubscribeTrades("AAPL")
-reqID, err := fpss.SubscribeOpenInterest("AAPL")
-reqID, err := fpss.SubscribeFullTrades("STOCK")
 ```
 ```cpp [C++]
 int req_id = fpss.subscribe_quotes("AAPL");
@@ -2394,11 +2184,6 @@ tdx.unsubscribe_open_interest(&Contract::stock("AAPL"))?;
 ```typescript [TypeScript]
 // Not exposed in TypeScript - use tdx.stopStreaming()
 ```
-```go [Go]
-fpss.UnsubscribeQuotes("AAPL")
-fpss.UnsubscribeTrades("AAPL")
-fpss.UnsubscribeOpenInterest("AAPL")
-```
 ```cpp [C++]
 fpss.unsubscribe_quotes("AAPL");
 fpss.unsubscribe_trades("AAPL");
@@ -2428,9 +2213,6 @@ if (event) {
     console.log(event);
 }
 ```
-```go [Go]
-event, err := fpss.NextEvent(5000)  // returns *FpssEvent or nil
-```
 ```cpp [C++]
 FpssEventPtr event = fpss.next_event(5000);  // nullptr on timeout
 ```
@@ -2448,9 +2230,6 @@ tdx.stop_streaming()
 ```typescript [TypeScript]
 tdx.stopStreaming();
 ```
-```go [Go]
-fpss.Shutdown()
-```
 ```cpp [C++]
 fpss.shutdown();
 ```
@@ -2461,7 +2240,7 @@ fpss.shutdown();
 | Method | Returns | SDK availability | Description |
 |--------|---------|------------------|-------------|
 | `is_streaming` | bool | Rust/Python only | Check if the unified streaming connection is live |
-| `contract_map` | `HashMap<i32, Contract>` (Rust), `dict[int, Contract]` (Python), `map[int32]string` (Go), `map<int32_t, string>` (C++) | All SDKs | Get full contract ID mapping |
+| `contract_map` | `HashMap<i32, Contract>` (Rust), `dict[int, Contract]` (Python), `map<int32_t, string>` (C++) | All SDKs | Get full contract ID mapping |
 | `contract_lookup` | string/optional | All SDKs (FFI-based, returns NULL/"" for not-found) | Look up a single contract by server-assigned ID |
 | `active_subscriptions` | list/typed structs | All SDKs | Get list of active subscriptions |
 | `subscribe_option_*` / `unsubscribe_option_*` | int | All SDKs | Option-level subscribe/unsubscribe by `(symbol, expiration, strike, right)` |
@@ -2547,14 +2326,13 @@ tdx.option_history_quote_stream("SPY", "20241220", "500", "C", "20240315", "0")
 
 10 tick types carry contract identification fields populated by the server on wildcard queries (pass `0` for expiration/strike). On single-contract queries these fields are `0`/empty.
 
-| Field | Type (Rust/FFI) | Type (Go) | Description |
-|-------|-----------------|-----------|-------------|
-| `expiration` | i32 | int32 | Contract expiration (YYYYMMDD). 0 if absent. |
-| `strike` | f64 | float64 | Strike price (decoded to f64). |
-| `right` | i32 | string | Contract right. Rust/FFI: 67=Call, 80=Put. Go: `"C"`, `"P"`, `""`. |
+| Field | Type (Rust/FFI) | Description |
+|-------|-----------------|-------------|
+| `expiration` | i32 | Contract expiration (YYYYMMDD). 0 if absent. |
+| `strike` | f64 | Strike price (decoded to f64). |
+| `right` | i32 | Contract right. 67=Call (`'C'`), 80=Put (`'P'`). |
 
 Helper methods (all 10 types): `is_call()`, `is_put()`, `has_contract_id()`.
-Go helper: `RightStr(code int32) string` converts raw right codes to `"C"`/`"P"`/`""`.
 
 Types with contract ID: TradeTick, QuoteTick, OhlcTick, EodTick, OpenInterestTick, TradeQuoteTick, MarketValueTick, GreeksTick, IvTick.
 
@@ -2578,7 +2356,7 @@ A single trade execution.
 | `date` | i32 | Date as YYYYMMDD integer |
 | `expiration` | i32 | Contract expiration (wildcard queries) |
 | `strike` | f64 | Contract strike (wildcard queries) |
-| `right` | i32 (Rust/FFI), string (Go) | Contract right. Rust: C=67/P=80. Go: `"C"`/`"P"`. |
+| `right` | i32 | Contract right. C=67/P=80. |
 
 Helper methods: `is_cancelled()`, `trade_condition_no_last()`, `price_condition_set_last()`, `regular_trading_hours()`, `is_seller()`, `is_incremental_volume()`, `is_call()`, `is_put()`, `has_contract_id()`
 
@@ -2595,7 +2373,7 @@ An NBBO quote.
 | `bid_condition` / `ask_condition` | i32 | Condition codes |
 | `midpoint` | f64 | Pre-computed `(bid + ask) / 2.0` |
 | `date` | i32 | Date as YYYYMMDD integer |
-| `expiration` / `strike` / `right` | i32/f64/i32 (Go: `right` is string) | Contract ID (wildcard queries) |
+| `expiration` / `strike` / `right` | i32/f64/i32 | Contract ID (wildcard queries) |
 
 Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers
 
@@ -2610,7 +2388,7 @@ An aggregated OHLC bar.
 | `volume` | i64 | Total volume in bar |
 | `count` | i64 | Number of trades in bar |
 | `date` | i32 | Date as YYYYMMDD integer |
-| `expiration` / `strike` / `right` | i32/f64/i32 (Go: `right` is string) | Contract ID (wildcard queries) |
+| `expiration` / `strike` / `right` | i32/f64/i32 | Contract ID (wildcard queries) |
 
 Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers
 
@@ -2629,7 +2407,7 @@ Full end-of-day snapshot with OHLC + closing quote data.
 | `bid` / `ask` | f64 | Closing bid/ask (decoded) |
 | `bid_condition` / `ask_condition` | i32 | Closing quote conditions |
 | `date` | i32 | Date as YYYYMMDD |
-| `expiration` / `strike` / `right` | i32/f64/i32 (Go: `right` is string) | Contract ID (wildcard queries) |
+| `expiration` / `strike` / `right` | i32/f64/i32 | Contract ID (wildcard queries) |
 
 Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID helpers
 
@@ -2646,7 +2424,7 @@ Helper methods: `is_call()`, `is_put()`, `has_contract_id()`, plus contract ID h
 | `ms_of_day` | i32 | Milliseconds since midnight ET |
 | `open_interest` | i32 | Open interest count |
 | `date` | i32 | Date as YYYYMMDD |
-| `expiration` / `strike` / `right` | i32/f64/i32 (Go: `right` is string) | Contract ID (wildcard queries) |
+| `expiration` / `strike` / `right` | i32/f64/i32 | Contract ID (wildcard queries) |
 
 ### GreeksResult
 
@@ -2697,8 +2475,6 @@ Option right: `Call`, `Put`
 - `from_char('C')` / `from_char('P')` - parse from character
 - `as_char()` - convert to `'C'` or `'P'`
 
-**Go SDK:** The `Right` field on all public tick structs is a `string` (`"C"`, `"P"`, or `""`) instead of `i32`. Use `RightStr(code int32)` for manual conversion.
-
 ### StreamResponseType
 
 Subscription response codes returned in `ReqResponse` control events.
@@ -2744,10 +2520,6 @@ tdx.subscribe_quotes("AAPL")
 # Passed as string symbol to subscribe methods
 tdx.subscribeQuotes('AAPL');
 ```
-```go [Go]
-// Passed as string symbol to subscribe methods
-fpss.SubscribeQuotes("AAPL")
-```
 ```cpp [C++]
 // Passed as string symbol to subscribe methods
 fpss.subscribe_quotes("AAPL");
@@ -2777,10 +2549,6 @@ Credentials("user@example.com", "password")
 ```typescript [TypeScript]
 Credentials.from_file('creds.txt')
 Credentials('user@example.com', 'password')
-```
-```go [Go]
-creds, err := thetadatadx.CredentialsFromFile("creds.txt")
-creds := thetadatadx.NewCredentials("email@example.com", "password")
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
@@ -2813,9 +2581,6 @@ pub enum Error {
 ```
 ```typescript [TypeScript]
 # All errors raise RuntimeError with descriptive message
-```
-```go [Go]
-// All methods return (result, error)
 ```
 ```cpp [C++]
 // All methods throw std::runtime_error on failure

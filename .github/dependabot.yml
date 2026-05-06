@@ -45,10 +45,3 @@ updates:
       patch-minor:
         update-types: ["patch", "minor"]
 
-  - package-ecosystem: "gomod"
-    directory: "/sdks/go"
-    schedule:
-      interval: "weekly"
-    groups:
-      go-patch-minor:
-        update-types: ["patch", "minor"]

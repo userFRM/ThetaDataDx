@@ -685,7 +685,7 @@ ThetaDataDx exposes the full typed historical surface plus 4 `_stream` variants.
 
 ### FFI Coverage
 
-Every historical endpoint is exposed through the `thetadatadx-ffi` C ABI crate. Each method has a corresponding `extern "C"` function (e.g., `thetadatadx_stock_history_eod`). The Go and C++ SDKs wrap these FFI functions 1:1.
+Every historical endpoint is exposed through the `thetadatadx-ffi` C ABI crate. Each method has a corresponding `extern "C"` function (e.g., `thetadatadx_stock_history_eod`). The C++ SDK wraps these FFI functions 1:1; third-party C-interop wrappers (Go via cgo, Swift, Zig, etc.) can do the same against the unchanged ABI.
 
 **No JSON crosses the FFI boundary.** All inputs and outputs use typed `#[repr(C)]` structs -- historical endpoints, streaming events, Greeks, and subscriptions alike. `tdx_fpss_next_event` and `tdx_unified_next_event` return `*mut TdxFpssEvent` (a tagged `#[repr(C)]` struct with quote/trade/open_interest/ohlcvc/control/raw_data variants), freed with `tdx_fpss_event_free`.
 
@@ -773,10 +773,9 @@ Install:
 #### FPSS Event Types (C)
 
 The generator emits the layout below; the C++ header `thetadx.h` now
-`#include`s `fpss_event_structs.h.inc` (byte-identical to the Go C
-header) instead of hand-rolling the struct, and `thetadx.hpp` guards
-every field via `static_assert(offsetof / sizeof)` so a future drift
-is compile-fatal.
+`#include`s `fpss_event_structs.h.inc` instead of hand-rolling the
+struct, and `thetadx.hpp` guards every field via
+`static_assert(offsetof / sizeof)` so a future drift is compile-fatal.
 
 ```c
 typedef enum { TDX_FPSS_QUOTE=0, TDX_FPSS_TRADE=1, TDX_FPSS_OPEN_INTEREST=2,
@@ -818,28 +817,6 @@ while (true) {
     }
 }
 tdx.stopStreaming();
-```
-
-### Go SDK: Streaming
-
-```go
-fpss, _ := thetadatadx.NewFpssClient(creds, config)
-defer fpss.Close()
-
-fpss.SubscribeQuotes("AAPL")
-for {
-    event, _ := fpss.NextEvent(5000) // returns *FpssEvent
-    if event == nil {
-        continue // timeout
-    }
-    switch event.Kind {
-    case thetadatadx.FpssQuoteEvent:
-        fmt.Printf("Quote: bid=%d ask=%d\n", event.Quote.Bid, event.Quote.Ask)
-    case thetadatadx.FpssTradeEvent:
-        fmt.Printf("Trade: price=%d size=%d\n", event.Trade.Price, event.Trade.Size)
-    }
-}
-fpss.Shutdown()
 ```
 
 ### C++ SDK: Streaming

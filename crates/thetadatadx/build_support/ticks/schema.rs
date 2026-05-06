@@ -52,8 +52,6 @@ pub(crate) struct TickRenderDef {
     pub(crate) collection: String,
     pub(crate) direct: String,
     pub(crate) parser: String,
-    pub(crate) go_struct: String,
-    pub(crate) go_converter: String,
     pub(crate) ffi_array: String,
     pub(crate) ffi_output_variant: String,
     pub(crate) ffi_from_vec_array: String,
@@ -80,7 +78,7 @@ pub(super) fn load_schema() -> Result<Schema, Box<dyn std::error::Error>> {
 /// Borrow the render block of a schema type by name. Panics with the
 /// available keys when the type is missing -- a missing tick type is a
 /// build-time bug. Used by every ticks/* emitter that previously kept a
-/// hand-coded match arm per tick type for FFI / Python / TS / Go binding
+/// hand-coded match arm per tick type for FFI / Python / TS binding
 /// names.
 pub(crate) fn render_for_type<'a>(schema: &'a Schema, type_name: &str) -> &'a TickRenderDef {
     schema

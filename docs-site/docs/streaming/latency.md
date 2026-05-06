@@ -112,28 +112,6 @@ while True:
               f"received_at_ns={received_ns}  "
               f"since_receive={approx_latency_ms:.1f}ms")
 ```
-```go [Go]
-for {
-    event, err := fpss.NextEvent(5000)
-    if err != nil {
-        log.Println("Error:", err)
-        break
-    }
-    if event == nil {
-        continue
-    }
-
-    if event.Kind == thetadatadx.FpssQuoteEvent {
-        q := event.Quote
-        // ReceivedAtNs is captured at frame decode time on the Rust side.
-        // For precise wire latency, subtract the exchange epoch ns from
-        // ReceivedAtNs. The ms_of_day + date -> epoch conversion is best
-        // done on the Rust side via tdbe::latency::latency_ns().
-        fmt.Printf("Quote: bid=%.4f ask=%.4f rx=%dns\n",
-            q.Bid, q.Ask, q.ReceivedAtNs)
-    }
-}
-```
 ```cpp [C++]
 while (true) {
     auto event = fpss.next_event(5000);
@@ -162,7 +140,7 @@ For the absolute lowest latency:
 
 2. **Keep the callback fast** -- the Disruptor callback runs on the consumer thread. Push to your own queue for heavy processing.
 
-3. **Use the Rust SDK directly** -- Python, TypeScript/Node.js, Go, and C++ add an mpsc channel hop between the Disruptor and `next_event()`.
+3. **Use the Rust SDK directly** -- Python, TypeScript/Node.js, and C++ add an mpsc channel hop between the Disruptor and `next_event()`.
 
 ## Network Physics: Minimum Achievable Latency
 
@@ -189,7 +167,7 @@ For latency-sensitive applications:
 
 1. **Colocate near NJ** -- AWS us-east-1 (N. Virginia) or any NJ/NYC-area datacenter gets sub-5ms
 2. **`FpssFlushMode::Immediate`** reduces software batching latency by up to 100ms, but cannot beat physics
-3. **Use the Rust SDK directly** -- eliminates the FFI channel hop present in Python/TypeScript/Go/C++ (adds <1ms)
+3. **Use the Rust SDK directly** -- eliminates the FFI channel hop present in Python/TypeScript/C++ (adds <1ms)
 
 ## Latency Histogram Example
 
@@ -253,64 +231,6 @@ for i, count in enumerate(buckets):
     if count > 0:
         print(f"{i*10:>3}-{(i+1)*10:>3}ms: {count} events")
 ```
-```go [Go]
-package main
-
-import (
-    "fmt"
-    "log"
-    "time"
-
-    thetadatadx "github.com/userFRM/thetadatadx/sdks/go"
-)
-
-func main() {
-    creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-    defer creds.Close()
-
-    config := thetadatadx.ProductionConfig()
-    defer config.Close()
-
-    fpss, _ := thetadatadx.NewFpssClient(creds, config)
-    defer fpss.Close()
-
-    fpss.SubscribeQuotes("SPY")
-
-    buckets := make([]uint64, 20) // 0-10ms, 10-20ms, ...
-    deadline := time.Now().Add(60 * time.Second)
-
-    for time.Now().Before(deadline) {
-        event, err := fpss.NextEvent(5000)
-        if err != nil {
-            log.Println("Error:", err)
-            break
-        }
-        if event == nil {
-            continue
-        }
-        if event.Kind == thetadatadx.FpssQuoteEvent {
-            // ReceivedAtNs is Rust-side; approximate histogram only
-            q := event.Quote
-            delta := int64(time.Now().UnixNano()) - int64(q.ReceivedAtNs)
-            if delta < 0 { delta = 0 }
-            latMs := uint64(delta) / 1_000_000
-            bucket := latMs / 10
-            if bucket > 19 {
-                bucket = 19
-            }
-            buckets[bucket]++
-        }
-    }
-
-    fpss.Shutdown()
-
-    for i, count := range buckets {
-        if count > 0 {
-            fmt.Printf("%3d-%3dms: %d events\n", i*10, (i+1)*10, count)
-        }
-    }
-}
-```
 ```cpp [C++]
 #include "thetadx.hpp"
 #include <array>
@@ -368,6 +288,5 @@ Every `FpssData` variant includes this field:
 | `OpenInterest` | Present | `u64` |
 | `Ohlcvc` | Present | `u64` |
 
-In Go: `event.Quote.ReceivedAtNs`, `event.Trade.ReceivedAtNs`, etc.
 In C++: `event->quote.received_at_ns`, `event->trade.received_at_ns`, etc.
 In Python: `event.received_at_ns` (integer).
