@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.32] - 2026-05-06
+
+### Fixed
+
+- **StreamingDispatcher drain loop now catches user-callback panics**
+  and continues serving subsequent events. New `panic_count`
+  diagnostic counter exposed alongside `dropped_count`. Previously a
+  panic in user code (Rust closure / PyO3 callable / napi
+  ThreadsafeFunction / C extern fn) silently killed the dispatcher
+  thread; only `shutdown()` surfaced it.
+- **FPSS C ABI handle state machine.** `tdx_fpss_set_callback` /
+  `_inline_callback` / `_reconnect` / `_shutdown` enforce the public
+  contract: at most one registration per handle, shutdown is
+  terminal, post-shutdown ops return -1 with a clear `tdx_last_error()`
+  string. Previously the contract was documented but unenforced.
+- **C ABI `ctx` lifetime contract documented.** The public header now
+  states `ctx` must outlive registration until shutdown / free
+  returns (or a successful unified re-registration). Queued vs inline
+  thread-affinity also documented.
+- **Python `dropped_event_count()` doc + test corrected** to
+  reflect the actual reset-on-reconnect / zero-after-stop semantics.
+  The counter lives on the StreamingDispatcher and resets when the
+  dispatcher is rebuilt (matches the TypeScript binding).
+- **Dispatcher `dropped` counter is now strictly queue-full.** The
+  `Disconnected` variant of `TrySendError` (rare; happens only during
+  shutdown races) feeds a new separate `disconnected_count` so the
+  user-facing drop metric isn't inflated by lifecycle noise.
+- **TypeScript `index.d.ts` regenerated** so the JS-visible doc
+  comment matches the Rust source — the counter resets on reconnect.
+
+### Changed
+
+- **Unified C ABI `set_callback` after stop is REPLACEMENT.** Documented
+  explicitly in `thetadx.h` and the rustdoc: contrary to the FPSS
+  one-shot rule, the unified high-level path supports stop +
+  re-register as a normal user flow (this is what `reconnect_streaming`
+  is built on). The contract divergence is intentional.
+
 ## [8.0.31] - 2026-05-06
 
 ### tdbe

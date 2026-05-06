@@ -388,14 +388,22 @@ impl ThetaDataDx {
     ///
     /// Forwarded directly to
     /// [`thetadatadx::ThetaDataDx::dropped_event_count`] so the count
-    /// matches every other binding (C ABI, future TS / C++ migrations)
-    /// and survives reconnect — the counter lives on the dispatcher,
-    /// not on this Python wrapper.
+    /// matches every other binding (C ABI, TypeScript, C++). The
+    /// counter lives on the live dispatcher, not on this Python
+    /// wrapper, which has two consequences:
     ///
-    /// Returns 0 before `start_streaming` is called, the running total
-    /// while streaming, and the post-mortem total after `stop_streaming`
-    /// or `shutdown`. Consumers should poll this on a periodic timer
-    /// and emit a log on any non-zero delta.
+    /// * `reconnect()` calls `stop_streaming()` + `start_streaming()`
+    ///   internally; that recreates the dispatcher and the counter
+    ///   resets to zero. Snapshot the value BEFORE reconnect if you
+    ///   need to accumulate drops across session boundaries.
+    /// * After `stop_streaming()` the dispatcher slot is empty and
+    ///   the getter returns 0. The same is true before
+    ///   `start_streaming()` is ever called.
+    ///
+    /// Returns 0 before `start_streaming`, the running total while
+    /// streaming, and 0 again after `stop_streaming`. Consumers
+    /// should poll this on a periodic timer and emit a log on any
+    /// non-zero delta within a single streaming session.
     fn dropped_event_count(&self) -> u64 {
         self.tdx.dropped_event_count()
     }

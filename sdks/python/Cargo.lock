@@ -2339,7 +2339,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.31"
+version = "8.0.32"
 dependencies = [
  "crossbeam-channel",
  "disruptor",
@@ -2374,7 +2374,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-py"
-version = "8.0.31"
+version = "8.0.32"
 dependencies = [
  "arrow",
  "arrow-array",

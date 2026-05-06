@@ -15,8 +15,12 @@ export declare class ThetaDataDx {
    *
    * Forwards to `thetadatadx::ThetaDataDx::dropped_event_count` so
    * the value matches every other binding (C ABI, Python, future
-   * C++) and survives reconnect — the dispatcher carries the count
-   * across `start_streaming` / `reconnect` cycles.
+   * C++). The counter lives on the underlying `StreamingDispatcher`
+   * and resets when the dispatcher is recreated -- that happens on
+   * `stop_streaming` and `reconnect` (which calls
+   * `stop_streaming` + `start_streaming` internally). Snapshot the
+   * value before reconnect if you need to accumulate drops across
+   * session boundaries.
    *
    * Returned as `bigint` so it can represent the full `u64` range
    * (Number would top out at 2^53).
@@ -764,24 +768,27 @@ export declare class ThetaDataDx {
   /**
    * Start FPSS streaming and register a JS callback for incoming events.
    *
-   * The dispatcher's drain thread routes every typed FPSS event through
-   * napi-rs `ThreadsafeFunction` to the Node main thread, where the user's
-   * `callback(event)` runs. The FPSS reader thread itself never touches V8:
-   * events cross the bounded `crossbeam_channel(8192)` queue inside the
-   * SSOT `StreamingDispatcher` first.
+   * The dispatcher's drain thread routes every typed FPSS
+   * event through napi-rs `ThreadsafeFunction` to the Node
+   * main thread, where the user's `callback(event)` runs.
+   * The FPSS reader thread itself never touches V8: events
+   * cross the bounded `crossbeam_channel(8192)` queue
+   * inside the SSOT `StreamingDispatcher` first.
    *
-   * Node's libuv requires JS callbacks on the main thread, so
-   * `ThreadsafeFunction` (with its internal `uv_async_t` queue) is the only
-   * safe path. This binding deliberately does NOT expose a
-   * `start_streaming_inline` opt-in: calling into V8 from any thread other
-   * than the main loop is undefined behavior.
+   * Node's libuv requires JS callbacks on the main thread,
+   * so `ThreadsafeFunction` (with its internal `uv_async_t`
+   * queue) is the only safe path. This binding deliberately
+   * does NOT expose a `start_streaming_inline` opt-in:
+   * calling into V8 from any thread other than the main
+   * loop is undefined behavior.
    *
-   * Backpressure: a slow callback fills the dispatcher queue and overflow
-   * events are dropped, observable via `droppedEventCount()`. The FPSS TLS
-   * reader is never blocked — vendor disconnects on slow consumers cannot
+   * Backpressure: a slow callback fills the dispatcher
+   * queue and overflow events are dropped, observable via
+   * `droppedEventCount()`. The FPSS TLS reader is never
+   * blocked — vendor disconnects on slow consumers cannot
    * happen on this path.
    */
-  startStreaming(callback: (event: FpssEvent) => void): void
+  startStreaming(callback: ((arg: FpssEvent) => void)): void
   /** Whether the streaming connection is active. */
   isStreaming(): boolean
   /** Subscribe to real-time quote data for a stock symbol. */
@@ -825,10 +832,11 @@ export declare class ThetaDataDx {
   /**
    * Reconnect FPSS streaming and re-register the previously installed callback.
    *
-   * Requires a prior `startStreaming(callback)`; throws if no callback is
-   * registered. All active subscriptions are restored on the new connection
-   * — see `thetadatadx::ThetaDataDx::reconnect_streaming` for partial-failure
-   * semantics.
+   * Requires a prior `startStreaming(callback)`; throws if
+   * no callback is registered. All active subscriptions are
+   * restored on the new connection — see
+   * `thetadatadx::ThetaDataDx::reconnect_streaming` for
+   * partial-failure semantics.
    */
   reconnect(): void
   /** Stop streaming while keeping the historical client usable. */
@@ -926,7 +934,7 @@ export interface FpssSimplePayload {
   id?: number
 }
 
-/** Full-union Greeks tick (option_*_greeks_all, option_*_greeks_eod). */
+/** Full union Greeks tick -- every Greek the v3 server publishes on the */
 export interface GreeksAllTick {
   msOfDay: number
   bid: number
@@ -961,7 +969,7 @@ export interface GreeksAllTick {
   right: string
 }
 
-/** First-order Greeks subset tick (option_*_greeks_first_order). */
+/** First-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksFirstOrderTick {
   msOfDay: number
   bid: number
@@ -982,7 +990,7 @@ export interface GreeksFirstOrderTick {
   right: string
 }
 
-/** Second-order Greeks subset tick (option_*_greeks_second_order). */
+/** Second-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksSecondOrderTick {
   msOfDay: number
   bid: number
@@ -1002,7 +1010,7 @@ export interface GreeksSecondOrderTick {
   right: string
 }
 
-/** Third-order Greeks subset tick (option_*_greeks_third_order). */
+/** Third-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksThirdOrderTick {
   msOfDay: number
   bid: number

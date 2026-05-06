@@ -647,28 +647,71 @@ TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
 typedef void (*TdxFpssCallback)(const TdxFpssEvent* event, void* ctx);
 
 /** Register a queued FPSS callback and open the FPSS connection.
+ *
  *  Events flow `FPSS reader -> bounded(8192) crossbeam queue -> dispatcher
  *  drain thread -> callback`. The reader thread NEVER blocks on user code:
  *  on overflow events are dropped and counted (tdx_fpss_dropped_events).
- *  Must be called once per handle. Returns 0 on success, -1 on error. */
+ *
+ *  ## ctx lifetime + thread affinity
+ *
+ *  `ctx` MUST remain valid from this call until tdx_fpss_shutdown() returns
+ *  or tdx_fpss_free() returns. The dispatcher drain thread accesses it on
+ *  every event and on every tdx_fpss_reconnect(). Freeing `ctx` early is
+ *  undefined behavior.
+ *
+ *  Queued path: the dispatcher drain thread invokes `callback(event, ctx)`
+ *  serially on a single drain thread. The user does NOT need internal locks
+ *  for callback-private state.
+ *
+ *  ## Lifecycle contract (FPSS one-shot rule)
+ *
+ *  Must be called exactly ONCE per handle. After tdx_fpss_shutdown() this
+ *  handle is terminal: a second register, a register-after-shutdown, a
+ *  reconnect-after-shutdown, or a double-shutdown all return -1 with a
+ *  clear tdx_last_error() string ("FPSS callback already installed -- ..."
+ *  or "FPSS handle has already been shut down -- this is terminal").
+ *
+ *  This is intentionally stricter than tdx_unified_set_callback(), where
+ *  set-after-stop is supported as a normal user flow.
+ *
+ *  Returns 0 on success, -1 on error (check tdx_last_error()). */
 int tdx_fpss_set_callback(const TdxFpssHandle* h, TdxFpssCallback callback, void* ctx);
 
 /** Register an inline FPSS callback and open the FPSS connection.
+ *
  *  `callback` fires directly on the FPSS reader thread. Microsecond-budget
  *  contract: any allocation, I/O, or lock acquisition will stall the reader
  *  and cause the vendor session to drop. Use only for trading loops with
- *  provably wait-free callbacks. Must be called once per handle. */
+ *  provably wait-free callbacks.
+ *
+ *  ## ctx lifetime + thread affinity
+ *
+ *  Same lifetime as tdx_fpss_set_callback (must outlive shutdown / free).
+ *  Inline path: `callback(event, ctx)` is invoked DIRECTLY on the FPSS
+ *  reader thread (no dispatcher queue, no extra thread), serially. The
+ *  user does NOT need internal locks for callback-private state.
+ *
+ *  ## Lifecycle contract
+ *
+ *  Same one-shot / terminal-shutdown rules as tdx_fpss_set_callback. */
 int tdx_fpss_set_inline_callback(const TdxFpssHandle* h, TdxFpssCallback callback, void* ctx);
 
-/** Reconnect FPSS using the previously-registered callback. Returns 0 or -1. */
+/** Reconnect FPSS using the previously-registered callback. Returns 0 or -1.
+ *  Returns -1 with "FPSS handle has already been shut down -- this is
+ *  terminal" if the handle is past tdx_fpss_shutdown. */
 int tdx_fpss_reconnect(const TdxFpssHandle* h);
 
 /** Cumulative count of FPSS events dropped by the dispatcher because the
  *  bounded queue was full when the FPSS reader tried to enqueue. Returns 0
- *  if the handle is null, no callback installed, or inline mode (no queue). */
+ *  if the handle is null, no callback installed, or inline mode (no queue).
+ *  Disconnected sends (drain-thread-already-exited race) are NOT counted
+ *  here -- the metric is a pure queue-overflow signal. */
 uint64_t tdx_fpss_dropped_events(const TdxFpssHandle* h);
 
-/** Shut down the FPSS client. */
+/** Shut down the FPSS client. Terminal: every subsequent set_callback /
+ *  set_inline_callback / reconnect / shutdown call on this handle returns
+ *  -1 with a clear tdx_last_error() string. The handle remains valid for
+ *  tdx_fpss_free() only. */
 void tdx_fpss_shutdown(const TdxFpssHandle* h);
 
 /** Free the FPSS handle. Must be called after tdx_fpss_shutdown. */
@@ -683,13 +726,46 @@ void tdx_fpss_free(TdxFpssHandle* h);
 TdxUnified* tdx_unified_connect(const TdxCredentials* creds, const TdxConfig* config);
 
 /** Register a queued FPSS callback and start streaming on the unified client.
+ *
  *  Events flow `FPSS reader -> bounded(8192) crossbeam queue -> dispatcher
  *  drain thread -> callback`. Reader never blocks on user code; overflow
- *  events are dropped (tdx_unified_dropped_events). Returns 0 or -1. */
+ *  events are dropped (tdx_unified_dropped_events).
+ *
+ *  ## ctx lifetime + thread affinity
+ *
+ *  `ctx` MUST remain valid from this call until either
+ *  tdx_unified_stop_streaming() / tdx_unified_free() returns OR a successful
+ *  subsequent set_callback / set_inline_callback REPLACES it. Queued path:
+ *  the dispatcher drain thread accesses ctx on every event and reconnect.
+ *  The dispatcher invokes `callback(event, ctx)` serially on a single
+ *  drain thread. Freeing ctx early is undefined behavior.
+ *
+ *  ## Lifecycle contract (REPLACEMENT after stop)
+ *
+ *  Unlike tdx_fpss_set_callback (one-shot), the unified path supports
+ *  stop+register as a normal user flow: after tdx_unified_stop_streaming
+ *  another tdx_unified_set_callback / _set_inline_callback REPLACES the
+ *  saved (callback, ctx). tdx_unified_reconnect is built on top of this.
+ *  Calling set_callback while streaming is already active returns -1 with
+ *  "streaming already started".
+ *
+ *  Returns 0 on success, -1 on error. */
 int tdx_unified_set_callback(const TdxUnified* handle, TdxFpssCallback callback, void* ctx);
 
 /** Register an inline FPSS callback and start streaming on the unified client.
- *  `callback` fires on the FPSS reader thread (microsecond-budget contract). */
+ *
+ *  `callback` fires on the FPSS reader thread (microsecond-budget contract).
+ *
+ *  ## ctx lifetime + thread affinity
+ *
+ *  Same lifetime as tdx_unified_set_callback (must outlive stop / free, or
+ *  be replaced by a successful subsequent registration). Inline path:
+ *  `callback(event, ctx)` is invoked DIRECTLY on the FPSS reader thread
+ *  serially.
+ *
+ *  ## Lifecycle contract
+ *
+ *  Same replacement-after-stop semantics as tdx_unified_set_callback. */
 int tdx_unified_set_inline_callback(const TdxUnified* handle, TdxFpssCallback callback, void* ctx);
 
 /** Subscribe to quote data for a stock symbol. Returns 0 on success, -1 on error. */

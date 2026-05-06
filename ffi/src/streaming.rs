@@ -29,6 +29,7 @@
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
+use std::sync::atomic::{AtomicU8, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
 
 use crate::error::set_error;
@@ -102,6 +103,17 @@ pub struct TdxUnified {
     callback: Mutex<Option<(FfiCallback, DispatchMode)>>,
 }
 
+/// FPSS handle lifecycle state — see [`TdxFpssHandle::state`].
+///
+/// The C ABI documents a strict three-state machine on every FPSS
+/// handle. `tdx_fpss_set_callback`, `_set_inline_callback`, and
+/// `_reconnect` enforce the transitions; `tdx_fpss_shutdown` is
+/// terminal (no further registration / reconnect / shutdown calls
+/// succeed).
+const FPSS_STATE_FRESH: u8 = 0;
+const FPSS_STATE_ACTIVE: u8 = 1;
+const FPSS_STATE_SHUTDOWN: u8 = 2;
+
 /// Opaque FPSS streaming client handle.
 ///
 /// `tdx_fpss_connect` allocates the handle and stores connection
@@ -110,6 +122,22 @@ pub struct TdxUnified {
 /// This mirrors the unified handle's lifecycle (`connect` then
 /// `set_callback`) and keeps a single connect-time decision point for
 /// queued vs. inline dispatch.
+///
+/// # Lifecycle state machine
+///
+/// `state` enforces the public C ABI contract:
+///
+/// - `FPSS_STATE_FRESH`  -> `FPSS_STATE_ACTIVE` on the first successful
+///   `tdx_fpss_set_callback` / `tdx_fpss_set_inline_callback`. A second
+///   registration on an already-`ACTIVE` handle returns -1 with
+///   "FPSS callback already installed -- only one set_callback call is
+///   permitted per handle".
+/// - `FPSS_STATE_ACTIVE` -> `FPSS_STATE_SHUTDOWN` on
+///   `tdx_fpss_shutdown`. Shutdown is terminal: every subsequent
+///   register / reconnect / shutdown call returns -1 with
+///   "FPSS handle has already been shut down -- this is terminal".
+/// - `FPSS_STATE_FRESH` directly to `FPSS_STATE_SHUTDOWN` is allowed
+///   (caller shut down a handle before installing a callback).
 pub struct TdxFpssHandle {
     inner: Arc<Mutex<Option<thetadatadx::fpss::FpssClient>>>,
     /// Saved connection parameters used at `set_callback` time and on
@@ -123,6 +151,13 @@ pub struct TdxFpssHandle {
     /// `tdx_fpss_reconnect` can re-register the same callback on the
     /// new FPSS connection without forcing the caller to re-supply it.
     callback: Mutex<Option<(FfiCallback, DispatchMode)>>,
+    /// Permanent lifecycle state — separate from `inner` so that a
+    /// post-shutdown reconnect (which would re-populate `inner`) is
+    /// rejected before any work happens. `Relaxed` ordering is
+    /// sufficient because state transitions are coordinated by the
+    /// inner `Mutex`es around the actual resources; `state` is purely
+    /// observational from the perspective of the C ABI fast paths.
+    state: AtomicU8,
 }
 
 /// Saved FPSS connection parameters for FFI-safe (re)connection.
@@ -407,14 +442,37 @@ pub unsafe extern "C" fn tdx_unified_connect(
 /// the per-handle drop counter (queryable via `tdx_unified_dropped_events`)
 /// ticks. The reader thread NEVER blocks on `callback`.
 ///
-/// `ctx` is an opaque pointer passed back unchanged on every invocation;
-/// it is owned by the caller and must outlive the streaming connection
-/// (until `tdx_unified_stop_streaming` or `tdx_unified_free`). Pass NULL
-/// if the callback does not need a context.
+/// # `ctx` lifetime + thread affinity
+///
+/// `ctx` is an opaque pointer passed back unchanged on every invocation.
+/// It MUST remain valid from this call until either
+/// (a) `tdx_unified_stop_streaming` returns / `tdx_unified_free` returns,
+/// or (b) a successful subsequent call to `tdx_unified_set_callback` /
+/// `tdx_unified_set_inline_callback` replaces it. Pass NULL if the
+/// callback does not need a context.
+///
+/// `ctx` is accessed from the dispatcher drain thread (NOT the FPSS
+/// reader thread). The dispatcher invokes `callback(event, ctx)`
+/// serially on a single drain thread, so the user does not need
+/// internal locks for callback-private state. Freeing `ctx` early is
+/// undefined behavior.
 ///
 /// The `event` pointer handed to `callback` is valid only for the
 /// duration of that invocation. Copy any fields the consumer wants to
 /// outlive the callback before returning.
+///
+/// # Lifecycle contract (REPLACEMENT after stop)
+///
+/// After `tdx_unified_stop_streaming` the unified client accepts a
+/// fresh `tdx_unified_set_callback` / `_set_inline_callback`; the new
+/// `(callback, ctx)` REPLACES the saved registration. This is
+/// intentionally different from the FPSS-handle one-shot rule: the
+/// unified path is the high-level API, where stop+restart is a normal
+/// user flow (`tdx_unified_reconnect` is built on top of it).
+///
+/// On the first call after `tdx_unified_connect` this is the initial
+/// registration. Calling `tdx_unified_set_callback` while streaming is
+/// already active returns -1 with `"streaming already started"`.
 ///
 /// Returns 0 on success, -1 on error (check `tdx_last_error()`).
 #[no_mangle]
@@ -467,8 +525,25 @@ pub unsafe extern "C" fn tdx_unified_set_callback(
 /// For every other workload (Python/Node/Go bindings, file logging,
 /// WebSocket fan-out), call `tdx_unified_set_callback` instead.
 ///
-/// `ctx` is an opaque pointer passed back unchanged on every invocation;
-/// it is owned by the caller and must outlive the streaming connection.
+/// # `ctx` lifetime + thread affinity
+///
+/// `ctx` is an opaque pointer passed back unchanged on every invocation.
+/// It MUST remain valid from this call until either
+/// (a) `tdx_unified_stop_streaming` returns / `tdx_unified_free` returns,
+/// or (b) a successful subsequent call to `tdx_unified_set_callback` /
+/// `tdx_unified_set_inline_callback` replaces it.
+///
+/// `ctx` is accessed from the FPSS reader thread directly (NOT a
+/// dispatcher drain thread). The reader invokes `callback(event, ctx)`
+/// serially on a single thread, so the user does not need internal
+/// locks for callback-private state. Freeing `ctx` early is undefined
+/// behavior.
+///
+/// # Lifecycle contract (REPLACEMENT after stop)
+///
+/// Same replacement-after-stop semantics as
+/// [`tdx_unified_set_callback`]: a fresh registration after
+/// `tdx_unified_stop_streaming` REPLACES the saved `(callback, ctx)`.
 ///
 /// Returns 0 on success, -1 on error (check `tdx_last_error()`).
 #[no_mangle]
@@ -1397,8 +1472,51 @@ pub unsafe extern "C" fn tdx_fpss_connect(
             },
             dispatcher: Mutex::new(None),
             callback: Mutex::new(None),
+            state: AtomicU8::new(FPSS_STATE_FRESH),
         }))
     })
+}
+
+/// Reject the call if the handle is already past its first
+/// registration (`Active`) or has been shut down (`Shutdown`).
+///
+/// Returns `true` if the caller should proceed (handle is `Fresh`);
+/// `false` after setting `tdx_last_error()` to a contract-specific
+/// message. Used by `tdx_fpss_set_callback` /
+/// `tdx_fpss_set_inline_callback` to enforce one-shot registration
+/// and the terminal-shutdown rule.
+fn reject_if_not_fresh(handle: &TdxFpssHandle) -> bool {
+    match handle.state.load(AtomicOrdering::Relaxed) {
+        FPSS_STATE_FRESH => true,
+        FPSS_STATE_ACTIVE => {
+            set_error(
+                "FPSS callback already installed -- only one set_callback call is permitted per handle",
+            );
+            false
+        }
+        FPSS_STATE_SHUTDOWN => {
+            set_error("FPSS handle has already been shut down -- this is terminal");
+            false
+        }
+        _ => {
+            // Unreachable -- state is only ever set to one of the three
+            // constants above. Treat as terminal to fail closed.
+            set_error("FPSS handle in unknown lifecycle state -- refusing operation");
+            false
+        }
+    }
+}
+
+/// Reject the call if the handle has been shut down. Used by
+/// `tdx_fpss_reconnect` and `tdx_fpss_shutdown` (the latter to make
+/// double-shutdown a clean error rather than silently no-op).
+fn reject_if_shutdown(handle: &TdxFpssHandle) -> bool {
+    if handle.state.load(AtomicOrdering::Relaxed) == FPSS_STATE_SHUTDOWN {
+        set_error("FPSS handle has already been shut down -- this is terminal");
+        false
+    } else {
+        true
+    }
 }
 
 /// Open the FPSS connection if not already open.
@@ -1409,6 +1527,10 @@ pub unsafe extern "C" fn tdx_fpss_connect(
 /// with `FpssClient::connect` and lives for the lifetime of the
 /// connection. Returns -1 on connect failure (error already set), 0 on
 /// success.
+///
+/// Lifecycle enforcement (one-shot registration, terminal shutdown)
+/// happens upstream in [`reject_if_not_fresh`]; this helper only
+/// touches the inner `FpssClient` slot.
 fn open_fpss<F>(handle: &TdxFpssHandle, on_event: F) -> i32
 where
     F: FnMut(&thetadatadx::fpss::FpssEvent) + Send + 'static,
@@ -1418,6 +1540,10 @@ where
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     if guard.is_some() {
+        // Belt-and-suspenders: reject_if_not_fresh should already have
+        // caught this at the C ABI entry point. Keep the check so a
+        // future caller that bypasses the state gate cannot end up
+        // double-connecting silently.
         set_error(
             "FPSS callback already installed -- only one set_callback call is permitted per handle",
         );
@@ -1454,11 +1580,29 @@ where
 /// (queryable via `tdx_fpss_dropped_events`). The reader thread NEVER
 /// blocks on `callback`.
 ///
-/// `ctx` is an opaque pointer passed back unchanged on every invocation;
-/// caller owns its lifetime.
+/// `ctx` is an opaque pointer passed back unchanged on every invocation.
+/// It MUST remain valid from this call until either
+/// `tdx_fpss_shutdown` returns or `tdx_fpss_free` returns; the dispatcher
+/// drain thread accesses it on every event and on every
+/// `tdx_fpss_reconnect`. Freeing `ctx` before shutdown is undefined
+/// behavior.
 ///
-/// May only be called ONCE per handle. Subsequent calls return -1 with
-/// an error message.
+/// # Lifecycle contract (FPSS one-shot rule)
+///
+/// May only be called ONCE per handle, and ONLY before
+/// `tdx_fpss_shutdown`. Subsequent calls — including any call after
+/// shutdown — return -1 with an error message:
+///
+/// - second register on an already-active handle:
+///   `"FPSS callback already installed -- only one set_callback call is permitted per handle"`
+/// - register after shutdown:
+///   `"FPSS handle has already been shut down -- this is terminal"`
+///
+/// This is intentionally stricter than the unified C ABI's
+/// `tdx_unified_set_callback`, which supports stop-then-re-register as
+/// a normal user flow. The FPSS handle is the low-level surface; the
+/// unified handle is the high-level surface. See
+/// [`tdx_unified_set_callback`] for the replacement contract.
 ///
 /// Returns 0 on success, -1 on error (check `tdx_last_error()`).
 #[no_mangle]
@@ -1473,6 +1617,9 @@ pub unsafe extern "C" fn tdx_fpss_set_callback(
             return -1;
         }
         let handle = unsafe { &*handle };
+        if !reject_if_not_fresh(handle) {
+            return -1;
+        }
         let cb = FfiCallback { callback, ctx };
         // Spawn a `StreamingDispatcher` (queued mode) and register a
         // producer-side closure with `FpssClient::connect`. The
@@ -1489,7 +1636,9 @@ pub unsafe extern "C" fn tdx_fpss_set_callback(
         });
         if rc != 0 {
             // Connect failed -- shut down the dispatcher we just spawned
-            // so the drain thread doesn't outlive the failure path.
+            // so the drain thread doesn't outlive the failure path. State
+            // stays Fresh so the caller can retry once the underlying
+            // problem is fixed.
             dispatcher.shutdown();
             return rc;
         }
@@ -1503,6 +1652,12 @@ pub unsafe extern "C" fn tdx_fpss_set_callback(
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         *cb_guard = Some((cb, DispatchMode::Queued));
+        // Transition to Active only after every fallible operation has
+        // succeeded -- a failed connect leaves the handle Fresh so the
+        // caller can retry.
+        handle
+            .state
+            .store(FPSS_STATE_ACTIVE, AtomicOrdering::Relaxed);
         0
     })
 }
@@ -1515,7 +1670,21 @@ pub unsafe extern "C" fn tdx_fpss_set_callback(
 /// fill the kernel TCP receive buffer, and cause the vendor session to
 /// drop. Use only for trading loops with provably wait-free callbacks.
 ///
-/// May only be called ONCE per handle. Subsequent calls return -1.
+/// `ctx` is an opaque pointer passed back unchanged on every invocation.
+/// It MUST remain valid from this call until either
+/// `tdx_fpss_shutdown` returns or `tdx_fpss_free` returns; the FPSS
+/// reader thread accesses it on every event and on every
+/// `tdx_fpss_reconnect`. Freeing `ctx` before shutdown is undefined
+/// behavior. Inline mode invokes `callback` serially on the FPSS
+/// reader thread (no dispatcher queue, no extra thread); the user is
+/// responsible for any cross-thread synchronization on `ctx` outside
+/// the callback.
+///
+/// # Lifecycle contract (FPSS one-shot rule)
+///
+/// Same one-shot / terminal-shutdown rules as
+/// [`tdx_fpss_set_callback`]. Subsequent register calls — including
+/// any call after shutdown — return -1.
 ///
 /// Returns 0 on success, -1 on error (check `tdx_last_error()`).
 #[no_mangle]
@@ -1530,6 +1699,9 @@ pub unsafe extern "C" fn tdx_fpss_set_inline_callback(
             return -1;
         }
         let handle = unsafe { &*handle };
+        if !reject_if_not_fresh(handle) {
+            return -1;
+        }
         let cb = FfiCallback { callback, ctx };
         let rc = open_fpss(handle, move |event: &thetadatadx::fpss::FpssEvent| {
             cb.invoke(event);
@@ -1540,6 +1712,9 @@ pub unsafe extern "C" fn tdx_fpss_set_inline_callback(
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             *cb_guard = Some((cb, DispatchMode::Inline));
+            handle
+                .state
+                .store(FPSS_STATE_ACTIVE, AtomicOrdering::Relaxed);
         }
         rc
     })
@@ -2414,7 +2589,8 @@ pub unsafe extern "C" fn tdx_fpss_contract_map(
 /// Reuses the credentials/config saved at `tdx_fpss_connect` time and
 /// the C callback registered via the most recent
 /// `tdx_fpss_set_callback` / `tdx_fpss_set_inline_callback`. Returns
-/// -1 if no callback was ever installed.
+/// -1 if no callback was ever installed or if the handle has been
+/// shut down (shutdown is terminal — see [`tdx_fpss_shutdown`]).
 ///
 /// Returns 0 on success, or -1 on error (check `tdx_last_error()`).
 ///
@@ -2433,6 +2609,9 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
             return -1;
         }
         let handle = unsafe { &*handle };
+        if !reject_if_shutdown(handle) {
+            return -1;
+        }
         let params = &handle.connect_params;
 
         // Look up the previously-registered C callback. Reconnect cannot
@@ -2639,8 +2818,17 @@ pub unsafe extern "C" fn tdx_fpss_dropped_events(handle: *const TdxFpssHandle) -
 
 /// Shut down the FPSS client, stopping all background threads.
 ///
-/// The handle remains valid for `tdx_fpss_free()` but all subsequent operations
-/// will return errors.
+/// # Lifecycle contract (terminal)
+///
+/// Shutdown is terminal: every subsequent `tdx_fpss_set_callback` /
+/// `_set_inline_callback` / `_reconnect` / `_shutdown` call on this
+/// handle returns -1 with the error message
+/// `"FPSS handle has already been shut down -- this is terminal"`. The
+/// handle remains valid for `tdx_fpss_free()` only.
+///
+/// Idempotency: calling shutdown twice on the same handle is rejected
+/// rather than silently no-op'd, so a misuse caller cannot accidentally
+/// observe "success" after the resource is gone.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
     ffi_boundary!((), {
@@ -2648,6 +2836,10 @@ pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
             return;
         }
         let handle = unsafe { &*handle };
+        if !reject_if_shutdown(handle) {
+            // Double-shutdown -- error already set, nothing to drop.
+            return;
+        }
         // Drop the FPSS reader first so no more events can land in the
         // dispatcher queue, then drain + join the dispatcher drain
         // thread before returning.
@@ -2669,6 +2861,12 @@ pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
                 d.shutdown();
             }
         }
+        // Mark terminal AFTER teardown so any racing register/reconnect
+        // attempt that observes Shutdown is guaranteed to see a fully
+        // torn-down handle.
+        handle
+            .state
+            .store(FPSS_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
     })
 }
 
@@ -2889,12 +3087,65 @@ mod tests {
             },
             dispatcher: Mutex::new(None),
             callback: Mutex::new(None),
+            state: AtomicU8::new(FPSS_STATE_FRESH),
         };
         let raw = Box::into_raw(Box::new(handle));
         let count = unsafe { tdx_fpss_dropped_events(raw) };
         assert_eq!(count, 0, "no dispatcher means dropped count is 0");
         // SAFETY: we just allocated this handle.
         unsafe { drop(Box::from_raw(raw)) };
+    }
+
+    /// HIGH 2 follow-up: the FPSS handle state gate rejects
+    /// post-shutdown register / reconnect / shutdown calls without
+    /// touching live resources. We exercise the gate directly on a
+    /// minimal handle (no live FPSS connect) so the test does not need
+    /// network credentials.
+    #[test]
+    fn fpss_state_gate_rejects_after_shutdown() {
+        let handle = TdxFpssHandle {
+            inner: Arc::new(Mutex::new(None)),
+            connect_params: FpssConnectParams {
+                creds: thetadatadx::Credentials::new("user", "password"),
+                hosts: vec![("localhost".to_owned(), 25503)],
+                ring_size: 4096,
+                flush_mode: thetadatadx::FpssFlushMode::default(),
+                reconnect_policy: thetadatadx::config::ReconnectPolicy::default(),
+                derive_ohlcvc: false,
+            },
+            dispatcher: Mutex::new(None),
+            callback: Mutex::new(None),
+            state: AtomicU8::new(FPSS_STATE_SHUTDOWN),
+        };
+        assert!(
+            !reject_if_not_fresh(&handle),
+            "register on Shutdown handle must be rejected",
+        );
+        assert!(
+            !reject_if_shutdown(&handle),
+            "reconnect / shutdown on Shutdown handle must be rejected",
+        );
+
+        // And the Active state rejects fresh-only operations but
+        // allows reconnect / shutdown.
+        handle
+            .state
+            .store(FPSS_STATE_ACTIVE, AtomicOrdering::Relaxed);
+        assert!(
+            !reject_if_not_fresh(&handle),
+            "second register on Active handle must be rejected",
+        );
+        assert!(
+            reject_if_shutdown(&handle),
+            "reconnect / shutdown on Active handle must be allowed",
+        );
+
+        // Fresh allows everything.
+        handle
+            .state
+            .store(FPSS_STATE_FRESH, AtomicOrdering::Relaxed);
+        assert!(reject_if_not_fresh(&handle));
+        assert!(reject_if_shutdown(&handle));
     }
 
     /// `tdx_unified_dropped_events` returns 0 on a null handle.
