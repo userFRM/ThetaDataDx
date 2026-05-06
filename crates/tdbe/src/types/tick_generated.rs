@@ -275,12 +275,12 @@ pub struct OpenInterestTick {
 
 /// Option contract -- 4 fields. Contract specification.
 ///
-/// Cannot be `Copy` because of the `String` root field.
+/// Cannot be `Copy` because of the `String` symbol field.
 #[must_use]
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct OptionContract {
-    pub root: String,
+    pub symbol: String,
     pub expiration: i32,
     pub strike: f64,
     pub right: i32,

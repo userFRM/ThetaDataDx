@@ -8,7 +8,7 @@
 //!   ...). These read `flags::*` constants and don't fit the schema's
 //!   field-only model.
 //! * `impl OptionContract` for `is_call` / `is_put` -- a non-`Copy` struct
-//!   so the macro doesn't apply.
+//!   (because of the `String` `symbol` field) so the macro doesn't apply.
 //!
 //! The structs themselves are generated at build-time from
 //! `crates/thetadatadx/tick_schema.toml` by

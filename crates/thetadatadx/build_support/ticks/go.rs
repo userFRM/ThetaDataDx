@@ -143,9 +143,9 @@ fn render_go_tick_converter(schema: &Schema, type_name: &str, def: &TickTypeDef)
     writeln!(out, "    result := make([]{public_type}, n)").unwrap();
     out.push_str("    for i, t := range src {\n");
     if type_name == "OptionContract" {
-        out.push_str("        root := \"\"\n");
-        out.push_str("        if t.Root != 0 {\n");
-        out.push_str("            root = C.GoString((*C.char)(unsafe.Pointer(t.Root)))\n");
+        out.push_str("        symbol := \"\"\n");
+        out.push_str("        if t.Symbol != 0 {\n");
+        out.push_str("            symbol = C.GoString((*C.char)(unsafe.Pointer(t.Symbol)))\n");
         out.push_str("        }\n");
     }
     writeln!(out, "        result[i] = {public_type}{{").unwrap();
@@ -298,7 +298,7 @@ fn go_public_field_name(type_name: &str, field: &str) -> &'static str {
 fn go_source_expr(type_name: &str, field: &str, kind: &str) -> String {
     let ffi_field = go_ffi_field_name(field);
     match (type_name, field, kind) {
-        ("OptionContract", "root", "String") => "root".into(),
+        ("OptionContract", "symbol", "String") => "symbol".into(),
         ("OptionContract", "right", "i32") => "RightStr(t.Right)".into(),
         (_, "right", "i32") => "RightStr(t.Right)".into(),
         (_, "is_open", "i32") => "t.IsOpen != 0".into(),
@@ -471,7 +471,11 @@ fn render_go_public_struct(type_name: &str, def: &TickTypeDef) -> String {
     for column in &def.columns {
         let public_field = go_public_field_name(type_name, &column.field);
         let go_type_str = go_public_field_type(type_name, &column.field, &column.r#type);
-        let json_tag = go_json_tag(&column.name);
+        // JSON tag tracks the public field name (matches the Rust /
+        // Python / C++ surface). For most ticks `name` and `field`
+        // coincide; OptionContract is the exception where the wire still
+        // carries `root` but the public surface emits `symbol`.
+        let json_tag = go_json_tag(&column.field);
         writeln!(
             out,
             "\t{:14} {:<8} `json:\"{json_tag}\"`",

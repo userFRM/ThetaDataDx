@@ -17,8 +17,8 @@ use crate::flatfiles::datatype::DataType;
 /// Single decoded flat-file row.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlatFileRow {
-    /// Underlying root symbol (e.g. `"SPY"`).
-    pub root: String,
+    /// Underlying ticker symbol (e.g. `"SPY"`).
+    pub symbol: String,
     /// Expiration in `YYYYMMDD`. `None` for stock blobs.
     pub expiration: Option<i32>,
     /// Strike in vendor units (1/1000 of a dollar). `None` for stocks.
@@ -49,7 +49,7 @@ impl FlatFileRow {
     /// `Price.price_type`). `None` means the schema has no PRICE_TYPE
     /// column, so price-bearing values are emitted as raw integers.
     pub(crate) fn from_decoded(
-        root: &str,
+        symbol: &str,
         expiration: Option<i32>,
         strike: Option<i32>,
         right: Option<char>,
@@ -75,7 +75,7 @@ impl FlatFileRow {
             fields.push((dt.name().into_owned(), cell));
         }
         Self {
-            root: root.to_string(),
+            symbol: symbol.to_string(),
             expiration,
             strike,
             right,

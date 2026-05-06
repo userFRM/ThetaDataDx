@@ -717,12 +717,12 @@ ts_class_vec = "interest_rate_ticks_to_class_vec"
 pyclass = "InterestRateTick"
 
 [types.OptionContract]
-doc = "Option contract -- 4 fields. Contract specification.\n\nCannot be `Copy` because of the `String` root field."
+doc = "Option contract -- 4 fields. Contract specification.\n\nCannot be `Copy` because of the `String` symbol field."
 copy = false
 parser = "parse_option_contracts"
 required = ["root"]
 columns = [
-    { name = "root",              field = "root",              type = "String" },
+    { name = "root",              field = "symbol",            type = "String" },
     { name = "expiration",        field = "expiration",        type = "i32" },
     { name = "strike",            field = "strike",            type = "price" },
     { name = "right",             field = "right",             type = "i32" },

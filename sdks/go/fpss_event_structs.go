@@ -40,16 +40,16 @@ const (
 	// Value 7 is reserved for future use.
 )
 
-// Contract identifies a subscribed instrument. Root is always present;
-// option fields (ExpDate, IsCall, Strike) are non-nil only for options.
+// Contract identifies a subscribed instrument. Symbol is always present;
+// option fields (Expiration, IsCall, Strike) are non-nil only for options.
 // The same Contract value is attached to every FPSS data event the SDK
 // emits for the matching contract_id.
 type Contract struct {
-	Root    string
-	SecType int32
-	ExpDate *int32
-	IsCall  *bool
-	Strike  *int32
+	Symbol     string
+	SecType    int32
+	Expiration *int32
+	IsCall     *bool
+	Strike     *int32
 }
 
 // FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.

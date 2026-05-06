@@ -35,9 +35,9 @@ use super::reconnect_delay;
 /// real contract whose root is merely absent or transiently empty.
 static EMPTY_CONTRACT: std::sync::LazyLock<Arc<Contract>> = std::sync::LazyLock::new(|| {
     Arc::new(Contract {
-        root: String::new(),
+        symbol: String::new(),
         sec_type: tdbe::types::enums::SecType::Unknown,
-        exp_date: None,
+        expiration: None,
         is_call: None,
         strike: None,
     })
@@ -124,7 +124,7 @@ pub(super) fn decode_frame(
                 // Wrap the parsed contract in Arc once on insert. Every
                 // subsequent data event refcount-clones this Arc, so the
                 // only `Contract::clone` (and therefore the only
-                // `String::clone` of `contract.root`) happens here —
+                // `String::clone` of `contract.symbol`) happens here —
                 // at most once per contract_id per session.
                 let arc_contract: Arc<Contract> = Arc::new(contract);
                 // Insert into thread-local cache (zero-lock hot-path lookups).
@@ -975,7 +975,7 @@ mod tests {
             match primary.expect("ContractAssigned must emit a primary event") {
                 FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
                     assert_eq!(id, 777);
-                    assert_eq!(contract.root, "AAPL");
+                    assert_eq!(contract.symbol, "AAPL");
                     // The Arc inside the event, the Arc in the shared map, and
                     // the Arc in the thread-local cache must all point at the
                     // SAME Contract heap cell — a different pointer would mean
@@ -1047,9 +1047,9 @@ mod tests {
         );
         match primary.expect("Quote must emit a primary event") {
             FpssEvent::Data(FpssData::Quote { contract, .. }) => {
-                assert_eq!(contract.root, "AAPL");
+                assert_eq!(contract.symbol, "AAPL");
                 // Arc::ptr_eq proves both events share the SAME heap
-                // allocation — `assert_eq!(contract.root, "AAPL")` alone
+                // allocation — `assert_eq!(contract.symbol, "AAPL")` alone
                 // only checks that both events carry the same *value*,
                 // which a regression to per-event Contract::clone would
                 // still pass. Pointer equality pins down the exact
@@ -1126,7 +1126,7 @@ mod tests {
                     "missing contract_id must surface sec_type = Unknown"
                 );
                 assert!(
-                    contract.root.is_empty(),
+                    contract.symbol.is_empty(),
                     "empty-contract sentinel must also have an empty root"
                 );
                 // Same Arc as EMPTY_CONTRACT — the hot path never
@@ -1249,7 +1249,7 @@ mod tests {
                     "post-Restart tick on known-but-cleared ID must surface Unknown"
                 );
                 assert_ne!(
-                    contract.root, "SEED",
+                    contract.symbol, "SEED",
                     "post-Restart decoder must NOT resurrect the pre-restart Contract"
                 );
             }

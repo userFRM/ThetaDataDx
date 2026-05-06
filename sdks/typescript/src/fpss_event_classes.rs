@@ -16,9 +16,9 @@
 #[napi(object)]
 #[derive(Clone)]
 pub struct Contract {
-    pub root: String,
+    pub symbol: String,
     pub sec_type: i32,
-    pub exp_date: Option<i32>,
+    pub expiration: Option<i32>,
     pub is_call: Option<bool>,
     pub strike: Option<i32>,
 }
@@ -173,9 +173,9 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.ohlcvc = Some(Ohlcvc {
                 contract_id,
                 contract: Contract {
-                    root: contract.root.clone(),
+                    symbol: contract.symbol.clone(),
                     sec_type: contract.sec_type as i32,
-                    exp_date: contract.exp_date,
+                    expiration: contract.expiration,
                     is_call: contract.is_call,
                     strike: contract.strike,
                 },
@@ -202,9 +202,9 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.open_interest = Some(OpenInterest {
                 contract_id,
                 contract: Contract {
-                    root: contract.root.clone(),
+                    symbol: contract.symbol.clone(),
                     sec_type: contract.sec_type as i32,
-                    exp_date: contract.exp_date,
+                    expiration: contract.expiration,
                     is_call: contract.is_call,
                     strike: contract.strike,
                 },
@@ -233,9 +233,9 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.quote = Some(Quote {
                 contract_id,
                 contract: Contract {
-                    root: contract.root.clone(),
+                    symbol: contract.symbol.clone(),
                     sec_type: contract.sec_type as i32,
-                    exp_date: contract.exp_date,
+                    expiration: contract.expiration,
                     is_call: contract.is_call,
                     strike: contract.strike,
                 },
@@ -276,9 +276,9 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.trade = Some(Trade {
                 contract_id,
                 contract: Contract {
-                    root: contract.root.clone(),
+                    symbol: contract.symbol.clone(),
                     sec_type: contract.sec_type as i32,
-                    exp_date: contract.exp_date,
+                    expiration: contract.expiration,
                     is_call: contract.is_call,
                     strike: contract.strike,
                 },

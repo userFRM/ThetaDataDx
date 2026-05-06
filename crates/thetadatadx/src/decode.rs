@@ -734,8 +734,11 @@ pub fn parse_option_contracts_v3(
 
     // Same schema-drift guard as the generated parsers: "no contracts today"
     // is legitimate, but a rows-present response missing the required `root`
-    // column is a silent data-loss trap.
-    let root_idx = match find_header(&h, "root") {
+    // column is a silent data-loss trap. The wire column is still named
+    // `root` (or `symbol` via the v3 alias in `decode::HEADER_ALIASES`); the
+    // `symbol` binding here is the public-API field name documented in the
+    // v3 vendor migration guide.
+    let symbol_idx = match find_header(&h, "root") {
         Some(i) => i,
         None => {
             if table.data_table.is_empty() {
@@ -756,7 +759,7 @@ pub fn parse_option_contracts_v3(
         .data_table
         .iter()
         .map(|row| {
-            let root = row_text(row, root_idx)?.unwrap_or_default();
+            let symbol = row_text(row, symbol_idx)?.unwrap_or_default();
 
             // Expiration: `Number` carries YYYYMMDD directly; `Text` carries
             // an ISO "2026-04-13" that we parse here. `NullValue` → 0 (legit
@@ -820,7 +823,7 @@ pub fn parse_option_contracts_v3(
             };
 
             Ok(OptionContract {
-                root,
+                symbol,
                 expiration,
                 strike,
                 right,

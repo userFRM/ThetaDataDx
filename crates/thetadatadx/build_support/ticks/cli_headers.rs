@@ -39,10 +39,16 @@ fn cli_raw_header_const_name(type_name: &str) -> String {
 }
 
 fn cli_raw_headers(type_name: &str, def: &TickTypeDef) -> Vec<String> {
+    // The raw headers are user-facing CLI column labels, so they track
+    // the public struct field name rather than the wire-protocol column.
+    // For most ticks `name` and `field` coincide; the divergence appears
+    // on `OptionContract` where the wire still ships `root` but the
+    // public surface (per the v3 vendor migration guide) names it
+    // `symbol`.
     let mut headers: Vec<String> = def
         .columns
         .iter()
-        .map(|column| column.name.clone())
+        .map(|column| column.field.clone())
         .collect();
     if type_name == "QuoteTick" {
         headers.push("midpoint".to_string());

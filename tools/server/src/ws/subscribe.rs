@@ -106,17 +106,25 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
     let req_type = req_type_val.as_str().unwrap_or("").to_uppercase();
 
     let contract_obj = obj.get("contract").unwrap_or(&null_val);
-    let root_val = contract_obj.get("root").unwrap_or(&null_val);
-    let root = root_val.as_str().unwrap_or("");
+    // Accept the v3 `"symbol"` key first, fall back to legacy `"root"`
+    // so existing consumers keep working without an envelope rewrite.
+    // The two keys are mutually exclusive in practice; downstream
+    // validation runs against whichever the caller sent.
+    let symbol_val = contract_obj
+        .get("symbol")
+        .or_else(|| contract_obj.get("root"))
+        .unwrap_or(&null_val);
+    let symbol = symbol_val.as_str().unwrap_or("");
 
-    // Bound the client-supplied ticker root length BEFORE the string flows
-    // into `Contract::stock(root)` / `Contract::option_raw(root, ...)`.
-    // Without this a malicious client can send a multi-megabyte `"root"`
-    // value in the JSON subscribe envelope, triggering allocation inside
-    // the FPSS contract map keyed by that string. Mirrors the REST
-    // validation performed in `handler::build_endpoint_args`.
-    if let Err(e) = validation::validate_symbol(root, "root") {
-        tracing::warn!(error = %e, "WS subscribe: root failed length validation");
+    // Bound the client-supplied ticker symbol length BEFORE the string
+    // flows into `Contract::stock(symbol)` /
+    // `Contract::option_raw(symbol, ...)`. Without this a malicious
+    // client can send a multi-megabyte `"symbol"` value in the JSON
+    // subscribe envelope, triggering allocation inside the FPSS
+    // contract map keyed by that string. Mirrors the REST validation
+    // performed in `handler::build_endpoint_args`.
+    if let Err(e) = validation::validate_symbol(symbol, "symbol") {
+        tracing::warn!(error = %e, "WS subscribe: symbol failed length validation");
         let resp = sonic_rs::json!({
             "header": {
                 "type": "REQ_RESPONSE",
@@ -134,7 +142,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         sec_type = %sec_type,
         req_type = %req_type,
         req_id = req_id,
-        root = %root,
+        symbol = %symbol,
         add = is_add,
         "WebSocket subscription command"
     );
@@ -288,9 +296,9 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 return;
             }
         };
-        Contract::option_raw(root, exp, is_call, strike)
+        Contract::option_raw(symbol, exp, is_call, strike)
     } else {
-        Contract::stock(root)
+        Contract::stock(symbol)
     };
 
     let tdx = state.tdx();
