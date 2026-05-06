@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.27] - 2026-05-06
+
+### Changed
+
+- **polars 0.52 -> 0.53.** Adopts the new
+  `DataFrame::new(height: usize, columns: Vec<Column>)` signature in
+  `crates/thetadatadx/build_support/ticks/rust_frames.rs` (the existing
+  `n = self.len()` binding feeds the new `height` argument). Re-runs of
+  `generate_sdk_surfaces` produce `frames_generated.rs` with the
+  updated call form. Closes #464.
+
+### Fixed
+
+- **`crates/tdbe/src/conditions.rs` trade condition 61 renamed from
+  a third-party product mark to `PRICEVOLUMEADJ`.** Same scrub pattern
+  as the v8.0.26 exchange-code-0 rename. Single tracked-source
+  occurrence; `rg 'NANEX'` now clean. Description unchanged. Closes
+  #476's sibling, filed as #480.
+
 ## [8.0.26] - 2026-05-05
 
 ### Breaking
