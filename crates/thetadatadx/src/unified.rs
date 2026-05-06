@@ -40,7 +40,7 @@ use crate::auth::Credentials;
 use crate::config::DirectConfig;
 use crate::error::Error;
 use crate::fpss::protocol::{Contract, SubscriptionKind};
-use crate::fpss::{FpssClient, FpssEvent};
+use crate::fpss::{FpssClient, FpssEvent, StreamingDispatcher};
 use crate::mdds::MddsClient;
 use tdbe::types::enums::SecType;
 
@@ -78,6 +78,13 @@ pub enum ConnectionStatus {
 pub struct ThetaDataDx {
     historical: MddsClient,
     streaming: Mutex<Option<FpssClient>>,
+    /// Drain thread + bounded queue between the FPSS reader and the
+    /// user callback, populated when [`Self::start_streaming`] takes
+    /// the dispatcher path. `None` when streaming is inactive or when
+    /// the inline path was used. Owned here (not inside `FpssClient`)
+    /// so its lifetime ends at `stop_streaming` time, after the FPSS
+    /// reader thread has been signalled to stop calling `send`.
+    dispatcher: Mutex<Option<StreamingDispatcher>>,
     creds: Credentials,
     /// Set to `true` once `start_streaming()` succeeds; never cleared.
     /// Used by `connection_status()` to distinguish "never started" from
@@ -103,6 +110,7 @@ impl ThetaDataDx {
         Ok(Self {
             historical,
             streaming: Mutex::new(None),
+            dispatcher: Mutex::new(None),
             creds: creds.clone(),
             was_streaming: AtomicBool::new(false),
         })
@@ -110,15 +118,124 @@ impl ThetaDataDx {
 
     /// Start the FPSS streaming connection with a callback handler.
     ///
-    /// This opens a TLS/TCP connection to `ThetaData`'s FPSS servers,
+    /// Opens a TLS/TCP connection to `ThetaData`'s FPSS servers,
     /// authenticates with the same credentials used at connect time,
-    /// and starts the Disruptor ring buffer + I/O thread.
+    /// and starts the FPSS reader thread.
     ///
-    /// The callback runs on the Disruptor consumer thread -- keep it fast.
+    /// # Dispatcher path (default)
+    ///
+    /// Events flow `FPSS reader -> StreamingDispatcher (bounded(8192))
+    /// -> drain thread -> user callback`. The reader thread never
+    /// blocks on user code: a slow callback fills the bounded queue
+    /// and overflow events are dropped, with the drop count exposed
+    /// through [`Self::dropped_event_count`]. This is the safe default
+    /// that protects the vendor connection against arbitrary user
+    /// callbacks.
+    ///
+    /// For zero-queueing-overhead delivery (~12 ns vs ~58 ns per event)
+    /// at the cost of binding callback latency to the FPSS reader
+    /// thread, see [`Self::start_streaming_inline`].
+    ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
     pub fn start_streaming<F>(&self, handler: F) -> Result<(), Error>
+    where
+        F: FnMut(&FpssEvent) + Send + 'static,
+    {
+        let mut guard = self
+            .streaming
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if guard.is_some() {
+            return Err(Error::Fpss {
+                kind: crate::error::FpssErrorKind::ConnectionRefused,
+                message: "streaming already started".into(),
+            });
+        }
+
+        // Spawn the dispatcher first. Its drain thread owns the user
+        // callback; the FPSS reader thread only ever sees a `Fn` that
+        // pushes onto the bounded queue.
+        //
+        // `handler` is `FnMut`, but `StreamingDispatcher::spawn` takes
+        // `Fn` (so the dispatcher type stays `Send + Sync`). Wrap the
+        // user `FnMut` in a `Mutex` so the drain thread can call it
+        // mutably without exposing `&mut` over the `Fn` boundary.
+        let user_handler = std::sync::Mutex::new(handler);
+        let dispatcher = StreamingDispatcher::spawn(Box::new(move |event: &FpssEvent| {
+            let mut h = user_handler
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            (h)(event);
+        }));
+
+        // Cheap clone of the producer-side handle; the FPSS reader
+        // thread captures this in its handler closure.
+        let producer = dispatcher.producer();
+
+        let config = self.historical.config();
+        let client = FpssClient::connect(
+            &self.creds,
+            &config.fpss_hosts,
+            config.fpss_ring_size,
+            config.fpss_flush_mode,
+            config.reconnect_policy.clone(),
+            config.derive_ohlcvc,
+            move |event: &FpssEvent| {
+                // Reader-thread side: clone the event and push onto the
+                // bounded queue. On overflow the dispatcher drops the
+                // clone and ticks its dropped counter — the reader
+                // never blocks here.
+                producer.send(event.clone());
+            },
+        )?;
+        *guard = Some(client);
+
+        let mut dispatch_guard = self
+            .dispatcher
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *dispatch_guard = Some(dispatcher);
+
+        self.was_streaming.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    /// Start the FPSS streaming connection with a callback that fires
+    /// directly on the FPSS reader thread, bypassing the dispatcher.
+    ///
+    /// # Performance
+    ///
+    /// No queue, no drain thread, no clone — the user callback is
+    /// invoked in-place from inside the FPSS reader's decode loop.
+    /// Per-event overhead drops from ~58 ns (the dispatcher path) to
+    /// ~12 ns (see `benches/streaming_channels.rs::direct_callback`).
+    ///
+    /// # Safety contract
+    ///
+    /// The callback **must** return within microseconds. The FPSS
+    /// reader thread owns the TLS socket exclusively; while the
+    /// callback is executing, no bytes are being read from the kernel
+    /// receive buffer. A slow callback (anything doing I/O,
+    /// allocation-heavy work, lock acquisition, or Python/JS GC) will:
+    ///
+    /// 1. Fill the kernel TCP receive buffer.
+    /// 2. Trigger TCP backpressure on the vendor side.
+    /// 3. Cause the FPSS server to disconnect the session and drop
+    ///    every active subscription.
+    ///
+    /// Use this entry point only when the callback is a simple memcpy
+    /// into a lock-free ring you own, or when the consumer is a tight
+    /// in-process trading loop that is provably wait-free for the
+    /// callback's duration. For every other workload — including
+    /// Python/Node bindings, WebSocket fan-out, file logging — call
+    /// [`Self::start_streaming`] instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
+    pub fn start_streaming_inline<F>(&self, handler: F) -> Result<(), Error>
     where
         F: FnMut(&FpssEvent) + Send + 'static,
     {
@@ -145,6 +262,22 @@ impl ThetaDataDx {
         *guard = Some(client);
         self.was_streaming.store(true, Ordering::Release);
         Ok(())
+    }
+
+    /// Snapshot of events dropped by the dispatcher since
+    /// [`Self::start_streaming`]. Returns `0` when streaming has not
+    /// started or when the inline path was taken (no dispatcher).
+    ///
+    /// Operators should poll this on a periodic timer (e.g. every
+    /// second) and emit a `warn` log on any non-zero delta. A
+    /// per-drop log would amplify under sustained overflow.
+    #[must_use]
+    pub fn dropped_event_count(&self) -> u64 {
+        self.dispatcher
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .map_or(0, StreamingDispatcher::dropped_count)
     }
 
     /// Whether streaming is currently active.
@@ -301,12 +434,27 @@ impl ThetaDataDx {
 
     /// Shut down the streaming connection. Historical remains available.
     pub fn stop_streaming(&self) {
+        // Drop the FPSS client first: that joins the reader thread and
+        // guarantees no further `producer.send` calls reach the
+        // dispatcher's queue. Only then is it safe to shut the
+        // dispatcher down — otherwise the drain thread could observe
+        // the sender channel close while the reader thread is still
+        // mid-`try_send`, racing on the same channel handle.
         let mut guard = self
             .streaming
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(client) = guard.take() {
             client.shutdown();
+        }
+        drop(guard);
+
+        let mut dispatch_guard = self
+            .dispatcher
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(dispatcher) = dispatch_guard.take() {
+            dispatcher.shutdown();
         }
     }
 

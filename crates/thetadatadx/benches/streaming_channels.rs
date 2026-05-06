@@ -8,7 +8,7 @@
 //! `ffi/src/streaming.rs::tdx_unified_next_event` and
 //! `tdx_fpss_next_event` do today.
 //!
-//! Five variants are timed end-to-end (1 producer + 1 consumer thread,
+//! Six variants are timed end-to-end (1 producer + 1 consumer thread,
 //! 100k events each, payload sized like the real `FfiBufferedEvent` —
 //! ~488 bytes including the tagged union and two heap-owned tails):
 //!
@@ -21,6 +21,11 @@
 //!    `extern "C" fn(*const Event, *mut c_void)` directly through a
 //!    `Box<dyn Fn>` adapter, modelling the C/C++ tier-1 path proposed
 //!    in issue #482.
+//! 6. `dispatcher_via_crossbeam` — exercises the live
+//!    `thetadatadx::fpss::StreamingDispatcher`: producer thread calls
+//!    `DispatcherProducer::send` with an `FpssEvent::Empty` payload,
+//!    drain thread invokes the user callback. Mirrors the wiring
+//!    `ThetaDataDx::start_streaming` puts in front of every callback.
 //!
 //! The buffered event mirrors the field layout of
 //! `ffi::streaming::FfiBufferedEvent`: a `#[repr(C)]` tagged event
@@ -42,6 +47,7 @@ use std::thread;
 use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use thetadatadx::fpss::{FpssEvent, StreamingDispatcher};
 
 // ─── Event payload mirror ──────────────────────────────────────────────
 //
@@ -395,6 +401,59 @@ fn run_direct_callback() {
     assert_eq!(counter, EVENTS_PER_ITER as u64);
 }
 
+// ─── Variant 6: live StreamingDispatcher (crossbeam_channel + drain) ───
+//
+// Exercises the actual `thetadatadx::fpss::StreamingDispatcher` rather
+// than a raw `crossbeam_channel::bounded(8192)` pair. The dispatcher
+// spawns its own drain thread internally and routes every event from
+// the bounded queue to the registered callback, so we measure the full
+// production cost: `try_send` on the producer side, drain-thread
+// dequeue, and callback dispatch.
+//
+// The payload is `FpssEvent::Empty` — the live `FpssEvent` enum, not
+// the local `BufferedEvent` mirror — because that is exactly what
+// `ThetaDataDx::start_streaming`'s reader-side closure pushes onto the
+// dispatcher's queue (`producer.send(event.clone())`). The
+// `FpssEvent::Empty` variant is the cheapest possible enum payload, so
+// the bench isolates the channel + dispatch cost from per-variant
+// clone overhead.
+
+fn run_dispatcher_via_crossbeam() {
+    let counter: std::sync::Arc<std::sync::atomic::AtomicU64> =
+        std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let counter_cb = std::sync::Arc::clone(&counter);
+
+    let dispatcher = StreamingDispatcher::spawn(Box::new(move |_event: &FpssEvent| {
+        counter_cb.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }));
+    let producer = dispatcher.producer();
+
+    let producer_thread = thread::spawn(move || {
+        for _ in 0..EVENTS_PER_ITER {
+            producer.send(FpssEvent::Empty);
+        }
+    });
+
+    producer_thread
+        .join()
+        .expect("dispatcher producer thread panicked");
+
+    // Block until the drain thread has caught up. `shutdown` joins the
+    // drain thread, which must process every event the producer
+    // enqueued before `shutdown` (since both producer handles are
+    // dropped by then) before returning.
+    let dropped = dispatcher.dropped_count();
+    dispatcher.shutdown();
+
+    let received = counter.load(std::sync::atomic::Ordering::Relaxed);
+    assert_eq!(
+        received + dropped,
+        EVENTS_PER_ITER as u64,
+        "every send must either reach the callback or count as a drop \
+         (received={received}, dropped={dropped})",
+    );
+}
+
 // ─── Criterion driver ──────────────────────────────────────────────────
 
 fn bench_std_mpsc_unbounded(c: &mut Criterion) {
@@ -437,6 +496,14 @@ fn bench_direct_callback(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_dispatcher_via_crossbeam(c: &mut Criterion) {
+    let mut group = c.benchmark_group("streaming_channels/dispatcher_via_crossbeam");
+    group.throughput(Throughput::Elements(EVENTS_PER_ITER as u64));
+    group.sample_size(10);
+    group.bench_function("100k_events", |b| b.iter(run_dispatcher_via_crossbeam));
+    group.finish();
+}
+
 criterion_group!(
     streaming_channels,
     bench_std_mpsc_unbounded,
@@ -444,5 +511,6 @@ criterion_group!(
     bench_crossbeam_bounded_1024,
     bench_crossbeam_bounded_8192,
     bench_direct_callback,
+    bench_dispatcher_via_crossbeam,
 );
 criterion_main!(streaming_channels);

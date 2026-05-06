@@ -90,6 +90,7 @@ mod accumulator;
 pub mod connection;
 mod decode;
 mod delta;
+pub mod dispatcher;
 mod events;
 pub mod framing;
 mod io_loop;
@@ -98,6 +99,7 @@ pub mod protocol;
 pub mod ring;
 mod session;
 
+pub use self::dispatcher::{DispatcherProducer, StreamingDispatcher};
 use self::events::IoCommand;
 pub use self::events::{FpssControl, FpssData, FpssEvent};
 use self::io_loop::{io_loop, ping_loop, wait_for_login, LoginResult};
