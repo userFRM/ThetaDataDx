@@ -247,12 +247,14 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
         }
         MethodKind::NextEvent => (
             Some("next_event"),
-            // PR C (#482) removes Python from the allowed target set:
-            // the PyO3 binding now uses callback registration via
-            // `start_streaming(callback)` instead of poll-style
-            // `next_event`. C++ was dropped in PR B (#490) for the
-            // same reason. TypeScript follows in PR D.
-            &[TS],
+            // PRs B/C/D (#482) removed every binding's poll-style
+            // `next_event` in favour of callback registration via
+            // `start_streaming(callback)` (Python / TypeScript) or
+            // `set_callback` (C ABI / C++). No target emits this
+            // method any more; the kind is retained only as a
+            // historical entry in the surface schema and any future
+            // re-introduction would have to opt back in here.
+            &[],
             false,
             &[("timeout_ms", ParamType::U64)],
         ),

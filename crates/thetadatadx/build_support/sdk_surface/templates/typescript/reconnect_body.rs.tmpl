@@ -1,21 +1,30 @@
-        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-        let dropped_events = Arc::clone(&self.dropped_events);
+        // `reconnect` re-registers the previously installed callback
+        // on a fresh FPSS connection. Require a prior
+        // `startStreaming(callback)` so the napi surface stays
+        // consistent: there is no implicit zero-callback streaming
+        // mode on this binding.
+        let callback_arc: Arc<TsfnCallback> = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            match guard.as_ref() {
+                Some(cb) => Arc::clone(cb),
+                None => {
+                    return Err(napi::Error::from_reason(
+                        "no callback registered -- call startStreaming(callback) before reconnect()",
+                    ));
+                }
+            }
+        };
+        let dispatch_cb = Arc::clone(&callback_arc);
+
         self.tdx
             .reconnect_streaming(move |event: &fpss::FpssEvent| {
                 let buffered = fpss_event_to_buffered(event);
-                if tx.send(buffered).is_err() {
-                    let count = dropped_events
-                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                        + 1;
-                    tracing::debug!(
-                        target: "thetadatadx::sdk::streaming",
-                        dropped_total = count,
-                        "fpss event dropped: receiver disconnected (post-reconnect)",
-                    );
-                }
+                let typed = buffered_event_to_typed(buffered);
+                dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
             })
             .map_err(to_napi_err)?;
-        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Arc::new(Mutex::new(rx)));
+
+        // Keep the previously stored handle in place — `reconnect_streaming`
+        // re-uses the same `ThreadsafeFunction`. No state shape change.
         Ok(())
     }

@@ -9,18 +9,19 @@ export declare class ThetaDataDx {
   /** Connect with a credentials file (line 1 = email, line 2 = password). */
   static connectFromFile(path: string): ThetaDataDx
   /**
-   * Cumulative count of FPSS events dropped because the JS polling
-   * side disconnected before the FPSS callback could hand them off.
+   * Cumulative count of FPSS events dropped because the SSOT
+   * `StreamingDispatcher`'s bounded queue overflowed before the
+   * drain thread could hand the event off to the JS callback.
    *
-   * Counter lives on the client instance (not inside the
-   * `start_streaming` / `reconnect` closures), so the value survives
-   * reconnect and is observable at any point — before streaming,
-   * during, or after `shutdown()`.
+   * Forwards to `thetadatadx::ThetaDataDx::dropped_event_count` so
+   * the value matches every other binding (C ABI, Python, future
+   * C++) and survives reconnect — the dispatcher carries the count
+   * across `start_streaming` / `reconnect` cycles.
    *
    * Returned as `bigint` so it can represent the full `u64` range
    * (Number would top out at 2^53).
    */
-  droppedEvents(): bigint
+  droppedEventCount(): bigint
   /**
    * List all available stock ticker symbols.
    *
@@ -760,8 +761,27 @@ export declare class ThetaDataDx {
    * - `venue`: `"nqb"`
    */
   stockHistoryOHLCRange(symbol: string, startDate: string | Date, endDate: string | Date, interval?: string | undefined | null, startTime?: string | Date | undefined | null, endTime?: string | Date | undefined | null, venue?: string | undefined | null, timeoutMs?: number | undefined | null): Array<OhlcTick>
-  /** Start FPSS streaming. Events are buffered; poll with next_event(). */
-  startStreaming(): void
+  /**
+   * Start FPSS streaming and register a JS callback for incoming events.
+   *
+   * The dispatcher's drain thread routes every typed FPSS event through
+   * napi-rs `ThreadsafeFunction` to the Node main thread, where the user's
+   * `callback(event)` runs. The FPSS reader thread itself never touches V8:
+   * events cross the bounded `crossbeam_channel(8192)` queue inside the
+   * SSOT `StreamingDispatcher` first.
+   *
+   * Node's libuv requires JS callbacks on the main thread, so
+   * `ThreadsafeFunction` (with its internal `uv_async_t` queue) is the only
+   * safe path. This binding deliberately does NOT expose a
+   * `start_streaming_inline` opt-in: calling into V8 from any thread other
+   * than the main loop is undefined behavior.
+   *
+   * Backpressure: a slow callback fills the dispatcher queue and overflow
+   * events are dropped, observable via `droppedEventCount()`. The FPSS TLS
+   * reader is never blocked — vendor disconnects on slow consumers cannot
+   * happen on this path.
+   */
+  startStreaming(callback: (event: FpssEvent) => void): void
   /** Whether the streaming connection is active. */
   isStreaming(): boolean
   /** Subscribe to real-time quote data for a stock symbol. */
@@ -802,9 +822,14 @@ export declare class ThetaDataDx {
   contractLookup(id: number): string | null
   /** Get a snapshot of currently active subscriptions. */
   activeSubscriptions(): any
-  /** Poll for the next FPSS event. */
-  nextEvent(timeoutMs: number): Promise<({ kind: 'ohlcvc'; ohlcvc: Ohlcvc } | { kind: 'open_interest'; openInterest: OpenInterest } | { kind: 'quote'; quote: Quote } | { kind: 'trade'; trade: Trade } | { kind: 'simple'; simple: FpssSimplePayload } | { kind: 'raw_data'; rawData: FpssRawDataPayload }) | null>
-  /** Reconnect streaming and re-subscribe all previous subscriptions. */
+  /**
+   * Reconnect FPSS streaming and re-register the previously installed callback.
+   *
+   * Requires a prior `startStreaming(callback)`; throws if no callback is
+   * registered. All active subscriptions are restored on the new connection
+   * — see `thetadatadx::ThetaDataDx::reconnect_streaming` for partial-failure
+   * semantics.
+   */
   reconnect(): void
   /** Stop streaming while keeping the historical client usable. */
   stopStreaming(): void
