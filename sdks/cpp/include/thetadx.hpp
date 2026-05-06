@@ -382,15 +382,29 @@ public:
      *  overflow events are dropped and counted via `dropped_events()`.
      *  Throws on registration failure.
      *
+     *  ## Callback storage + thread affinity
+     *
+     *  The wrapper owns a `std::unique_ptr<std::function>` whose
+     *  address is what the Rust dispatcher receives as `ctx`. That
+     *  address must outlive every dispatcher-thread invocation; the
+     *  destructor / move-assign teardown drains the C ABI side via
+     *  `tdx_fpss_shutdown` BEFORE freeing the storage, so no thread
+     *  can observe a dangling ctx. The dispatcher invokes `fn`
+     *  serially on a single drain thread — no internal locks are
+     *  needed for callback-private state.
+     *
+     *  ## Lifecycle contract (FPSS one-shot rule)
+     *
      *  The C ABI permits exactly one successful callback registration
-     *  per handle; a second call returns -1 and KEEPS the previously
-     *  installed (callback, ctx) wired into the Rust dispatcher. We
-     *  therefore stage the new `std::function` into a local
-     *  `unique_ptr`, attempt the FFI registration with the staged
-     *  address, and only adopt it into `callback_` after the FFI
-     *  reports success. On failure the existing `callback_` is left
-     *  untouched so the still-live Rust registration keeps pointing at
-     *  valid storage. */
+     *  per handle, and rejects every register / reconnect / shutdown
+     *  call after `tdx_fpss_shutdown`. A second call on a still-live
+     *  handle returns -1 and KEEPS the previously installed
+     *  (callback, ctx) wired into the Rust dispatcher. We therefore
+     *  stage the new `std::function` into a local `unique_ptr`,
+     *  attempt the FFI registration with the staged address, and only
+     *  adopt it into `callback_` after the FFI reports success. On
+     *  failure the existing `callback_` is left untouched so the
+     *  still-live Rust registration keeps pointing at valid storage. */
     void set_callback(std::function<void(const FpssEvent&)> fn) {
         auto staged = std::make_unique<std::function<void(const FpssEvent&)>>(std::move(fn));
         int rc = tdx_fpss_set_callback(handle_.get(), &FpssClient::callback_shim, staged.get());
@@ -406,9 +420,19 @@ public:
      *  the reader and the vendor will drop the session. Throws on
      *  registration failure.
      *
+     *  ## Callback storage + thread affinity
+     *
      *  Same staged-then-adopt discipline as `set_callback`: only swap
      *  into `callback_` after the FFI reports success, so a rejected
-     *  re-registration cannot dangle the still-active Rust ctx. */
+     *  re-registration cannot dangle the still-active Rust ctx. The
+     *  inline path invokes `fn` directly from the FPSS reader thread
+     *  (no dispatcher queue, no extra thread); since the reader is
+     *  single-threaded, no internal locks are needed for
+     *  callback-private state.
+     *
+     *  ## Lifecycle contract (FPSS one-shot rule)
+     *
+     *  Same one-shot / terminal-shutdown rules as `set_callback`. */
     void set_inline_callback(std::function<void(const FpssEvent&)> fn) {
         auto staged = std::make_unique<std::function<void(const FpssEvent&)>>(std::move(fn));
         int rc = tdx_fpss_set_inline_callback(handle_.get(), &FpssClient::callback_shim, staged.get());

@@ -21,7 +21,11 @@
 //!
 //! This struct is the single source of truth for the queue + drain-thread
 //! orchestration. Bindings (Python, TypeScript, FFI) consume the same
-//! `StreamingDispatcher` rather than rebuilding their own variants.
+//! `StreamingDispatcher` rather than rebuilding their own variants. The
+//! drain loop wraps every user-callback invocation in `catch_unwind` so
+//! a panic from binding glue (PyO3 `Python::attach`, napi `ThreadsafeFunction`,
+//! C `extern "C" fn`) does NOT take the dispatcher thread down — bindings
+//! must NOT add their own panic handling around the same call path.
 //!
 //! # Capacity
 //!
@@ -33,6 +37,7 @@
 //! without holding so much memory that the dispatcher becomes the de
 //! facto buffer for a multi-second stall.
 
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
@@ -69,8 +74,21 @@ pub struct StreamingDispatcher {
     handle: Option<JoinHandle<()>>,
     /// Count of events dropped because the bounded queue was full when
     /// the reader called [`Self::send`]. Snapshot via
-    /// [`Self::dropped_count`].
+    /// [`Self::dropped_count`]. This is the user-facing "queue overflow"
+    /// metric; disconnected sends (post-shutdown race) are tracked
+    /// separately on [`Self::disconnected`].
     dropped: Arc<AtomicU64>,
+    /// Count of events that could not be enqueued because the receiver
+    /// end was already disconnected. This is shutdown-race noise (drain
+    /// thread already exited), tracked separately so the public drop
+    /// metric stays a clean overflow signal. Snapshot via
+    /// [`Self::disconnected_count`].
+    disconnected: Arc<AtomicU64>,
+    /// Count of user-callback panics caught by the drain loop. The
+    /// drain thread keeps running on panic; this counter is the only
+    /// surfacing mechanism on a long-lived stream. Snapshot via
+    /// [`Self::panic_count`].
+    panic_count: Arc<AtomicU64>,
 }
 
 impl StreamingDispatcher {
@@ -80,6 +98,12 @@ impl StreamingDispatcher {
     /// closed (either through [`Self::shutdown`] or because every
     /// [`Sender`] clone has been dropped), at which point [`Receiver::iter`]
     /// terminates and the thread exits.
+    ///
+    /// Each callback invocation is wrapped in [`std::panic::catch_unwind`]
+    /// so a panic from user code (Rust closure / PyO3 callable / napi
+    /// `ThreadsafeFunction` / C `extern "C" fn`) does NOT kill the
+    /// dispatcher thread. Panics are counted on [`Self::panic_count`]
+    /// and logged at `error` level, then draining continues.
     ///
     /// # Panics
     ///
@@ -91,7 +115,10 @@ impl StreamingDispatcher {
     pub fn spawn(callback: Box<dyn Fn(&FpssEvent) + Send + 'static>) -> Self {
         let (sender, receiver) = bounded::<FpssEvent>(QUEUE_CAPACITY);
         let dropped = Arc::new(AtomicU64::new(0));
+        let disconnected = Arc::new(AtomicU64::new(0));
+        let panic_count = Arc::new(AtomicU64::new(0));
 
+        let panic_count_thread = Arc::clone(&panic_count);
         let handle = thread::Builder::new()
             .name("fpss-dispatcher".to_owned())
             .spawn(move || {
@@ -99,8 +126,29 @@ impl StreamingDispatcher {
                 // senders are dropped; the loop exits cleanly when the
                 // last sender goes away (i.e., on `shutdown` or when the
                 // owning `StreamingDispatcher` is dropped).
+                //
+                // Each invocation is wrapped in `catch_unwind` so a
+                // panic from user code (or from binding glue such as
+                // PyO3's `Python::attach` during interpreter teardown)
+                // does NOT kill the dispatcher thread. A killed
+                // dispatcher would surface only later as a join panic
+                // in `shutdown()` and every queued event after the
+                // panic would be silently lost.
+                //
+                // `AssertUnwindSafe` is sound here because the
+                // callback's captured state lives behind the
+                // `Box<dyn Fn>`; any user-visible side effects observable
+                // across a panic boundary are the user's own
+                // responsibility, not the dispatcher's.
                 for event in receiver.iter() {
-                    callback(&event);
+                    if catch_unwind(AssertUnwindSafe(|| callback(&event))).is_err() {
+                        panic_count_thread.fetch_add(1, Ordering::Relaxed);
+                        tracing::error!(
+                            target: "thetadatadx::fpss::dispatcher",
+                            "user callback panicked; dispatcher continuing — \
+                             panic_count incremented",
+                        );
+                    }
                 }
             })
             .expect("spawn fpss-dispatcher thread");
@@ -109,22 +157,26 @@ impl StreamingDispatcher {
             sender: Some(sender),
             handle: Some(handle),
             dropped,
+            disconnected,
+            panic_count,
         }
     }
 
     /// Enqueue an event for the drain thread.
     ///
     /// Non-blocking. On a full queue the event is dropped and the
-    /// per-dispatcher dropped counter is incremented; callers should
-    /// log the counter delta at `warn` level on a periodic timer rather
-    /// than per-drop to avoid log amplification under sustained
-    /// overflow.
+    /// queue-full counter ([`Self::dropped_count`]) is incremented;
+    /// callers should log the counter delta at `warn` level on a
+    /// periodic timer rather than per-drop to avoid log amplification
+    /// under sustained overflow. Disconnected sends (drain thread
+    /// already exited / shutdown race) feed
+    /// [`Self::disconnected_count`] instead so the public drop metric
+    /// stays a pure overflow signal.
     pub fn send(&self, event: FpssEvent) {
         let Some(sender) = self.sender.as_ref() else {
-            // Sender has already been dropped via `shutdown`. Count
-            // the event so observers on the still-living producer
-            // handle (if any) see it accounted for.
-            self.dropped.fetch_add(1, Ordering::Relaxed);
+            // Sender has already been dropped via `shutdown`. Track
+            // as a disconnect (lifecycle noise), not a queue-full drop.
+            self.disconnected.fetch_add(1, Ordering::Relaxed);
             return;
         };
         match sender.try_send(event) {
@@ -133,17 +185,18 @@ impl StreamingDispatcher {
                 self.dropped.fetch_add(1, Ordering::Relaxed);
             }
             Err(TrySendError::Disconnected(_)) => {
-                // Drain thread has exited (shutdown completed) — count
-                // the event against the dropped total so callers
-                // observing the counter on a stale handle still see
-                // events accounted for. No log: shutdown is expected.
-                self.dropped.fetch_add(1, Ordering::Relaxed);
+                // Drain thread has exited (shutdown completed). Track
+                // separately from queue-full drops — disconnect is
+                // expected at lifecycle boundaries and should not
+                // inflate the user-facing drop metric. No log:
+                // shutdown is expected.
+                self.disconnected.fetch_add(1, Ordering::Relaxed);
             }
         }
     }
 
     /// Return a producer-side handle that pushes onto the same
-    /// bounded queue and shares the same dropped-event counter.
+    /// bounded queue and shares the same dropped/disconnected counters.
     ///
     /// Used to give the FPSS reader thread its own send handle without
     /// exposing the [`StreamingDispatcher`] itself, which is owned by
@@ -165,16 +218,43 @@ impl StreamingDispatcher {
                 .expect("sender present until shutdown consumes self")
                 .clone(),
             dropped: Arc::clone(&self.dropped),
+            disconnected: Arc::clone(&self.disconnected),
         }
     }
 
-    /// Snapshot the number of events dropped since [`Self::spawn`].
+    /// Snapshot the number of events dropped because the bounded queue
+    /// was full when the producer called [`Self::send`].
     ///
     /// Uses `Relaxed` ordering — this counter is observational only,
-    /// it does not gate any other memory access.
+    /// it does not gate any other memory access. Disconnected-sender
+    /// events (lifecycle race) are tracked separately on
+    /// [`Self::disconnected_count`] and are NOT included here.
     #[must_use]
     pub fn dropped_count(&self) -> u64 {
         self.dropped.load(Ordering::Relaxed)
+    }
+
+    /// Snapshot the number of events that could not be enqueued
+    /// because the receiver end was already disconnected (drain thread
+    /// exited / shutdown race). In practice this counter typically
+    /// stays at 0 — disconnect only happens during the brief window
+    /// between [`Self::shutdown`] consuming the dispatcher and the
+    /// upstream producer noticing.
+    #[must_use]
+    pub fn disconnected_count(&self) -> u64 {
+        self.disconnected.load(Ordering::Relaxed)
+    }
+
+    /// Snapshot the number of user-callback panics observed by the
+    /// drain loop since [`Self::spawn`].
+    ///
+    /// The drain loop wraps every callback invocation in
+    /// `catch_unwind`; on panic the counter ticks, an `error`-level
+    /// `tracing` event is emitted, and the next event is processed.
+    /// The dispatcher thread NEVER dies from a user-code panic.
+    #[must_use]
+    pub fn panic_count(&self) -> u64 {
+        self.panic_count.load(Ordering::Relaxed)
     }
 
     /// Close the queue and join the drain thread.
@@ -183,12 +263,11 @@ impl StreamingDispatcher {
     /// terminate, processes any events still in the queue, then
     /// returns. This call blocks until the drain thread has exited.
     ///
-    /// # Panics
-    ///
-    /// Panics if the drain thread itself panicked (i.e. the user
-    /// callback panicked). The panic is propagated rather than
-    /// swallowed so the failure surfaces at the call site that
-    /// initiated shutdown.
+    /// User-callback panics encountered during draining are caught by
+    /// the loop and counted on [`Self::panic_count`]; they do NOT
+    /// propagate out of `shutdown`. The only path that can panic here
+    /// is an internal Rust bug in the drain wiring itself, which
+    /// would re-raise on join.
     pub fn shutdown(mut self) {
         // Drop the sender so the drain thread sees `Receiver::iter`
         // terminate, then join. `take` is safe to use here even though
@@ -204,7 +283,7 @@ impl StreamingDispatcher {
 
 /// Producer-side handle to a [`StreamingDispatcher`]'s queue.
 ///
-/// Cheap to clone (one [`Sender`] clone + one `Arc::clone`). The FPSS
+/// Cheap to clone (one [`Sender`] clone + two `Arc::clone`). The FPSS
 /// reader thread holds one of these and calls [`Self::send`] for every
 /// decoded event; the unified client retains the [`StreamingDispatcher`]
 /// itself for `shutdown` and `dropped_count` access.
@@ -212,17 +291,22 @@ impl StreamingDispatcher {
 pub struct DispatcherProducer {
     sender: Sender<FpssEvent>,
     dropped: Arc<AtomicU64>,
+    disconnected: Arc<AtomicU64>,
 }
 
 impl DispatcherProducer {
     /// Enqueue an event for the drain thread. Same overflow semantics
     /// as [`StreamingDispatcher::send`]: non-blocking `try_send`,
-    /// dropped events tick the shared counter.
+    /// queue-full drops tick `dropped`, disconnected sends (shutdown
+    /// race) tick `disconnected`.
     pub fn send(&self, event: FpssEvent) {
         match self.sender.try_send(event) {
             Ok(()) => {}
-            Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) => {
+            Err(TrySendError::Full(_)) => {
                 self.dropped.fetch_add(1, Ordering::Relaxed);
+            }
+            Err(TrySendError::Disconnected(_)) => {
+                self.disconnected.fetch_add(1, Ordering::Relaxed);
             }
         }
     }
@@ -319,6 +403,14 @@ mod tests {
             dropped <= total as u64,
             "dropped count {dropped} must not exceed total sent {total}",
         );
+        // Disconnected counter must not have ticked at all -- the
+        // receiver is still very much alive (just blocked on the
+        // gate). Splits the metric cleanly along its public contract.
+        assert_eq!(
+            dispatcher.disconnected_count(),
+            0,
+            "disconnected counter must remain 0 while the receiver is live",
+        );
 
         // Release the gate so the drain thread can finish and shutdown
         // joins cleanly without leaking the thread.
@@ -384,5 +476,69 @@ mod tests {
             saw_other_thread,
             "dispatcher callback must run on the drain thread, not the caller's thread",
         );
+    }
+
+    /// HIGH 1 follow-up: a panicking user callback must NOT kill the
+    /// dispatcher thread. Subsequent events must still fire, and the
+    /// `panic_count` snapshot must reflect every panic observed.
+    #[test]
+    fn dispatcher_survives_panicking_callback() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls_cb = Arc::clone(&calls);
+        let panics_to_throw = Arc::new(AtomicUsize::new(3));
+        let panics_to_throw_cb = Arc::clone(&panics_to_throw);
+
+        let dispatcher = StreamingDispatcher::spawn(Box::new(move |_event: &FpssEvent| {
+            calls_cb.fetch_add(1, AOrdering::Relaxed);
+            // Panic on the first three events; succeed afterwards.
+            if panics_to_throw_cb
+                .fetch_update(AOrdering::Relaxed, AOrdering::Relaxed, |n| {
+                    if n > 0 {
+                        Some(n - 1)
+                    } else {
+                        None
+                    }
+                })
+                .is_ok()
+            {
+                panic!("synthetic user-callback panic for dispatcher resilience test");
+            }
+        }));
+
+        // Three guaranteed-panic events.
+        for _ in 0..3 {
+            dispatcher.send(FpssEvent::Empty);
+        }
+        // Three follow-on events that must still fire.
+        for _ in 0..3 {
+            dispatcher.send(FpssEvent::Empty);
+        }
+
+        // Wait until the callback has been invoked the expected six
+        // times (three panicking, three successful) before sampling
+        // counters. Avoids racing the drain thread.
+        let drained = wait_until(
+            || calls.load(AOrdering::Relaxed) >= 6,
+            Duration::from_secs(2),
+        );
+        assert!(drained, "drain thread must process all 6 events");
+
+        assert_eq!(
+            dispatcher.panic_count(),
+            3,
+            "every panicking invocation must tick panic_count",
+        );
+        assert_eq!(
+            dispatcher.dropped_count(),
+            0,
+            "no overflow should occur on a 6-event burst",
+        );
+        assert_eq!(
+            calls.load(AOrdering::Relaxed),
+            6,
+            "subsequent non-panicking callbacks must still fire",
+        );
+
+        dispatcher.shutdown();
     }
 }

@@ -284,7 +284,7 @@ You can also subscribe to per-contract streams if you only need specific symbols
 | `contract_lookup(id)` | Look up a single contract by ID (returns str or None) |
 | `active_subscriptions()` | Get list of active subscriptions (list of dicts with "kind" and "contract") |
 | `start_streaming(callback)` | Register a callable; the dispatcher's drain thread invokes `callback(event)` under the GIL for every typed FPSS event (`Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData`). `event.kind` carries the same discriminator tag as the TypeScript SDK's `FpssEvent.kind`. |
-| `dropped_event_count()` | Cumulative count of events dropped because the bounded `StreamingDispatcher` queue (8192 slots) was full. Counter survives reconnect. |
+| `dropped_event_count()` | Cumulative count of events dropped because the bounded `StreamingDispatcher` queue (8192 slots) was full. Counter lives on the live dispatcher: it resets to 0 on `reconnect()` (which rebuilds the dispatcher) and reads 0 after `stop_streaming()`. Snapshot the value before reconnect if you need to accumulate drops across session boundaries. |
 | `reconnect()` | Reconnect streaming and re-register the previously installed callback; restores all subscriptions. |
 | `shutdown()` | Graceful shutdown — drops the registered callback. |
 
