@@ -109,8 +109,7 @@ The REST and WebSocket routers share the same defence-in-depth stack
   | SDK | Accessor |
   |-----|----------|
   | Python | `tdx.dropped_event_count() -> int` |
-  | TypeScript | `tdx.droppedEvents(): bigint` |
-  | Go | `tdx.DroppedEvents() uint64` |
+  | TypeScript | `tdx.droppedEventCount(): bigint` |
   | C / C++ (FFI) | `tdx_fpss_dropped_events(handle)`, `tdx_unified_dropped_events(handle)` |
 
   The counter increments instead of silently dropping, so slow consumers are observable without having to instrument the transport layer.

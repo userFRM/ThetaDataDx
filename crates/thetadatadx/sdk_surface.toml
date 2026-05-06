@@ -220,18 +220,6 @@ doc = "Get a snapshot of currently active subscriptions."
 targets = ["python_unified", "typescript_napi", "cpp_fpss"]
 
 [[methods]]
-name = "next_event"
-kind = "next_event"
-doc = "Poll for the next FPSS event."
-# C++ removed in PR B (#482): the C ABI is callback-only after
-# `tdx_streaming_set_callback`. The C++ wrapper migrates in PR E.
-# Python removed in PR C (#482): the PyO3 surface is callback-only
-# after `tdx.start_streaming(callback)`. TypeScript still exposes
-# poll-style `next_event` via its internal mpsc shim until PR D.
-targets = ["typescript_napi"]
-params = [{ name = "timeout_ms", type = "u64", doc = "Maximum time to wait in milliseconds." }]
-
-[[methods]]
 name = "reconnect"
 kind = "reconnect"
 doc = "Reconnect streaming and re-subscribe all previous subscriptions."

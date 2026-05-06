@@ -40,8 +40,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tdx.start_streaming(callback=handler)
   ```
 
-  TypeScript still exposes poll-style `next_event` via its internal
-  mpsc shim until PR D.
+- **TypeScript `tdx.nextEvent(timeoutMs)` REMOVED.** Replaced with
+  `tdx.startStreaming(callback)`. The dispatcher thread routes
+  events through napi-rs `ThreadsafeFunction` to the Node main
+  thread; the user's JS callback runs there, decoupled from the
+  FPSS reader. Migration:
+
+  ```typescript
+  // Before
+  await tdx.startStreaming();
+  while (true) {
+    const event = await tdx.nextEvent(100);
+    if (event) process(event);
+  }
+
+  // After
+  await tdx.startStreaming((event) => process(event));
+  ```
+
+  The `droppedEvents()` getter is renamed to `droppedEventCount()`
+  and now forwards to the SSOT `StreamingDispatcher` so the value
+  matches every other binding. `std::sync::mpsc` is gone from
+  `sdks/typescript/`. The TypeScript binding deliberately does NOT
+  expose a `start_streaming_inline` opt-in: Node's libuv requires
+  JS callbacks on the main thread, and `ThreadsafeFunction`'s
+  internal `uv_async_t` queue is the only safe path.
 
 - **C ABI streaming**: `tdx_unified_next_event`, `tdx_fpss_next_event`,
   `tdx_unified_start_streaming`, and `tdx_fpss_event_free` REMOVED.

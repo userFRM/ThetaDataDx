@@ -52,8 +52,6 @@ mod python;
 mod schema;
 mod typescript;
 
-pub use typescript::ts_next_event_union_type;
-
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     for file in render_sdk_generated_files()? {
         let abs = repo_root.join(file.relative_path);

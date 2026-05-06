@@ -3,7 +3,7 @@
 
 use std::fmt::Write as _;
 
-use super::common::{snake_case, snake_to_camel, ts_rust_field_type};
+use super::common::{snake_case, ts_rust_field_type};
 use super::schema::{load_schema, sorted_data_event_names, sorted_event_names, EventDef, Schema};
 
 /// Emit the Contract napi struct. Same shape across every language —
@@ -222,27 +222,4 @@ fn render_ts_event_class_struct(event_name: &str, def: &EventDef) -> String {
     }
     out.push_str("}\n");
     out
-}
-
-/// Render the discriminated-union TypeScript type literal used by the
-/// `next_event` napi method's `#[napi(ts_return_type = ...)]` override.
-///
-/// The flat `FpssEvent` interface napi-rs emits does not narrow payloads
-/// inside `switch (ev.kind)`, so we re-emit the shape as a true TS union
-/// and pin that onto `next_event`'s return type. Derived from the same
-/// `fpss_event_schema.toml` SSOT — adding a new data variant updates
-/// both the struct and the union in lockstep.
-pub fn ts_next_event_union_type() -> String {
-    let schema = load_schema().expect("fpss_event_schema.toml must parse");
-    let mut parts: Vec<String> = Vec::new();
-    for event_name in sorted_data_event_names(&schema) {
-        let kind_tag = snake_case(event_name);
-        let field_camel = snake_to_camel(&kind_tag);
-        parts.push(format!(
-            "{{ kind: '{kind_tag}'; {field_camel}: {event_name} }}"
-        ));
-    }
-    parts.push("{ kind: 'simple'; simple: FpssSimplePayload }".to_string());
-    parts.push("{ kind: 'raw_data'; rawData: FpssRawDataPayload }".to_string());
-    format!("({}) | null", parts.join(" | "))
 }

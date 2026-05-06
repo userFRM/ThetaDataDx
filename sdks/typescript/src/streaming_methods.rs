@@ -2,34 +2,88 @@
 
 #[napi]
 impl ThetaDataDx {
-    /// Start FPSS streaming. Events are buffered; poll with next_event().
+    /// Start FPSS streaming and register a JS callback for incoming events.
+    /// 
+    /// The dispatcher's drain thread routes every typed FPSS
+    /// event through napi-rs `ThreadsafeFunction` to the Node
+    /// main thread, where the user's `callback(event)` runs.
+    /// The FPSS reader thread itself never touches V8: events
+    /// cross the bounded `crossbeam_channel(8192)` queue
+    /// inside the SSOT `StreamingDispatcher` first.
+    /// 
+    /// Node's libuv requires JS callbacks on the main thread,
+    /// so `ThreadsafeFunction` (with its internal `uv_async_t`
+    /// queue) is the only safe path. This binding deliberately
+    /// does NOT expose a `start_streaming_inline` opt-in:
+    /// calling into V8 from any thread other than the main
+    /// loop is undefined behavior.
+    /// 
+    /// Backpressure: a slow callback fills the dispatcher
+    /// queue and overflow events are dropped, observable via
+    /// `droppedEventCount()`. The FPSS TLS reader is never
+    /// blocked — vendor disconnects on slow consumers cannot
+    /// happen on this path.
     #[napi(js_name = "startStreaming")]
-    pub fn start_streaming(&self) -> napi::Result<()> {
-        // Unbounded: the FPSS network thread must never block on send.
-        // If the JS consumer falls behind, events queue in RAM and drain
-        // when polling resumes. A bounded channel would cause disconnects
-        // under backpressure. Same pattern as the Python SDK.
-        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-        let dropped_events = Arc::clone(&self.dropped_events);
+    pub fn start_streaming(&self, callback: napi::threadsafe_function::ThreadsafeFunction<FpssEvent, (), FpssEvent, napi::Status, false>) -> napi::Result<()> {
+        // Hold the JS callback in a `Mutex<Option<Arc<...>>>` so
+        // `stopStreaming` / `shutdown` can drop it (releasing the
+        // napi-rs reference back to V8) and so a subsequent
+        // `startStreaming` / `reconnect` cycle replaces the previous
+        // registration cleanly.
+        let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+        // Reject double-registration with a clear napi error. The
+        // underlying `ThetaDataDx::start_streaming` would also error,
+        // but matching the napi binding's own state first gives a
+        // language-idiomatic message.
+        if cb_guard.is_some() {
+            return Err(napi::Error::from_reason(
+                "streaming already started -- call stopStreaming() before startStreaming() again",
+            ));
+        }
+        // Bind the callback behind a cheap `Arc` so the FPSS dispatcher
+        // closure (`Fn(&FpssEvent) + Send + 'static`) can clone the
+        // handle into each per-event invocation. `ThreadsafeFunction`
+        // is `Send + Sync` but does not implement `Clone` in napi-rs
+        // 3.x — the outer `Arc` is the canonical way to share the
+        // handle between the closure and the stored copy on `self`.
+        let callback_arc: Arc<TsfnCallback> = Arc::new(callback);
+        let dispatch_cb = Arc::clone(&callback_arc);
 
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
+                // Convert to the typed `FpssEvent` napi object on the
+                // dispatcher's drain thread, then hand the value to
+                // `ThreadsafeFunction::call`. napi-rs' internal
+                // `uv_async_t` queue routes the call onto the Node main
+                // thread, which is the only thread allowed to execute
+                // V8 (libuv invariant). The FPSS reader thread itself
+                // never touches V8: the SSOT `StreamingDispatcher`
+                // bounded `crossbeam_channel(8192)` queue sits between
+                // the reader and this drain thread, so a slow JS
+                // callback can never back-pressure the FPSS TLS reader
+                // and trigger a vendor-side disconnect — overflow
+                // events are dropped and surface via
+                // `droppedEventCount()`.
                 let buffered = fpss_event_to_buffered(event);
-                if tx.send(buffered).is_err() {
-                    let count = dropped_events
-                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                        + 1;
-                    tracing::debug!(
-                        target: "thetadatadx::sdk::streaming",
-                        dropped_total = count,
-                        "fpss event dropped: receiver disconnected",
-                    );
-                }
+                let typed = buffered_event_to_typed(buffered);
+                // `Blocking` so the dispatcher drain thread waits if
+                // the napi tsfn queue is full instead of silently
+                // discarding the event. The dispatcher already absorbs
+                // FPSS-side bursts; the only path where the tsfn queue
+                // fills is a stalled Node event loop, and there a
+                // bounded blocking back-pressure is preferable to a
+                // double-drop (queue and tsfn).
+                //
+                // `ErrorStrategy::Fatal` (the `false` const generic on
+                // `TsfnCallback`) means we pass `T` directly, not
+                // `Result<T, _>` — exceptions in the JS callback are
+                // the JS side's problem, surfaced through Node's own
+                // `uncaughtException`.
+                dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
             })
             .map_err(to_napi_err)?;
 
-        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Arc::new(Mutex::new(rx)));
+        *cb_guard = Some(callback_arc);
         Ok(())
     }
 
@@ -219,58 +273,43 @@ impl ThetaDataDx {
             .map_err(to_napi_err)
     }
 
-    /// Poll for the next FPSS event.
-    #[napi(js_name = "nextEvent", ts_return_type = "Promise<({ kind: 'ohlcvc'; ohlcvc: Ohlcvc } | { kind: 'open_interest'; openInterest: OpenInterest } | { kind: 'quote'; quote: Quote } | { kind: 'trade'; trade: Trade } | { kind: 'simple'; simple: FpssSimplePayload } | { kind: 'raw_data'; rawData: FpssRawDataPayload }) | null>")]
-    pub async fn next_event(&self, timeout_ms: f64) -> napi::Result<Option<FpssEvent>> {
-        let rx_arc = {
-            let rx_outer = self.rx.lock().unwrap_or_else(|e| e.into_inner());
-            match rx_outer.as_ref() {
-                Some(arc) => Arc::clone(arc),
+    /// Reconnect FPSS streaming and re-register the previously installed callback.
+    /// 
+    /// Requires a prior `startStreaming(callback)`; throws if
+    /// no callback is registered. All active subscriptions are
+    /// restored on the new connection — see
+    /// `thetadatadx::ThetaDataDx::reconnect_streaming` for
+    /// partial-failure semantics.
+    #[napi(js_name = "reconnect")]
+    pub fn reconnect(&self) -> napi::Result<()> {
+        // `reconnect` re-registers the previously installed callback
+        // on a fresh FPSS connection. Require a prior
+        // `startStreaming(callback)` so the napi surface stays
+        // consistent: there is no implicit zero-callback streaming
+        // mode on this binding.
+        let callback_arc: Arc<TsfnCallback> = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            match guard.as_ref() {
+                Some(cb) => Arc::clone(cb),
                 None => {
                     return Err(napi::Error::from_reason(
-                        "streaming not started -- call startStreaming() first",
-                    ))
+                        "no callback registered -- call startStreaming(callback) before reconnect()",
+                    ));
                 }
             }
         };
-        let timeout = std::time::Duration::from_millis(timeout_ms as u64);
-        let result = tokio::task::spawn_blocking(move || {
-            let rx = rx_arc.lock().unwrap_or_else(|e| e.into_inner());
-            rx.recv_timeout(timeout)
-        })
-        .await
-        .map_err(|e| napi::Error::from_reason(format!("blocking task join error: {e}")))?;
-        match result {
-            Ok(event) => Ok(Some(buffered_event_to_typed(event))),
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(None),
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Err(napi::Error::from_reason(
-                "streaming channel disconnected -- call reconnect() or startStreaming() again",
-            )),
-        }
-    }
+        let dispatch_cb = Arc::clone(&callback_arc);
 
-    /// Reconnect streaming and re-subscribe all previous subscriptions.
-    #[napi(js_name = "reconnect")]
-    pub fn reconnect(&self) -> napi::Result<()> {
-        let (tx, rx) = std::sync::mpsc::channel::<BufferedEvent>();
-        let dropped_events = Arc::clone(&self.dropped_events);
         self.tdx
             .reconnect_streaming(move |event: &fpss::FpssEvent| {
                 let buffered = fpss_event_to_buffered(event);
-                if tx.send(buffered).is_err() {
-                    let count = dropped_events
-                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                        + 1;
-                    tracing::debug!(
-                        target: "thetadatadx::sdk::streaming",
-                        dropped_total = count,
-                        "fpss event dropped: receiver disconnected (post-reconnect)",
-                    );
-                }
+                let typed = buffered_event_to_typed(buffered);
+                dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
             })
             .map_err(to_napi_err)?;
-        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Arc::new(Mutex::new(rx)));
+
+        // Keep the previously stored handle in place — `reconnect_streaming`
+        // re-uses the same `ThreadsafeFunction`. No state shape change.
         Ok(())
     }
 
@@ -278,7 +317,7 @@ impl ThetaDataDx {
     #[napi(js_name = "stopStreaming")]
     pub fn stop_streaming(&self) {
         self.tdx.stop_streaming();
-        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
 
@@ -286,7 +325,7 @@ impl ThetaDataDx {
     #[napi(js_name = "shutdown")]
     pub fn shutdown(&self) {
         self.tdx.stop_streaming();
-        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
 

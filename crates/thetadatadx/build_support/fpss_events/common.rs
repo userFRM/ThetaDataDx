@@ -20,22 +20,6 @@ pub(super) fn snake_case(name: &str) -> String {
     out
 }
 
-pub(super) fn snake_to_camel(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut upper_next = false;
-    for ch in s.chars() {
-        if ch == '_' {
-            upper_next = true;
-        } else if upper_next {
-            out.push(ch.to_ascii_uppercase());
-            upper_next = false;
-        } else {
-            out.push(ch);
-        }
-    }
-    out
-}
-
 pub(super) fn python_rust_field_type(
     column_type: &str,
     event_name: &str,

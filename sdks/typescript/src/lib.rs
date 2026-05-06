@@ -5,7 +5,6 @@
 #[macro_use]
 extern crate napi_derive;
 
-use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use napi::Either;
@@ -99,18 +98,46 @@ include!("buffered_event.rs");
 
 // ── Unified ThetaDataDx client ──
 
-type EventRx = Arc<Mutex<Option<Arc<Mutex<std::sync::mpsc::Receiver<BufferedEvent>>>>>>;
+/// `ThreadsafeFunction` that owns a JS callback reference and routes
+/// `FpssEvent` deliveries onto the Node main thread via napi-rs's
+/// internal `uv_async_t` queue. The const generic `false` selects
+/// `ErrorStrategy::Fatal` — we always pass `Ok(event)` and rely on
+/// the JS side's own try/catch for user-callback failures. The two
+/// `FpssEvent` type parameters are the wire payload and the JS-call
+/// arg type respectively; both are the same concrete object here.
+///
+/// napi-rs is the only safe path: Node's libuv requires JS callbacks
+/// on the main thread, so calling V8 from any other thread is
+/// undefined behavior. The dispatcher's drain thread therefore hands
+/// every event to this `ThreadsafeFunction`, which queues it for the
+/// main thread via `napi_call_threadsafe_function`.
+type TsfnCallback = napi::threadsafe_function::ThreadsafeFunction<
+    FpssEvent,
+    (),
+    FpssEvent,
+    napi::Status,
+    false,
+>;
 
 #[napi]
 pub struct ThetaDataDx {
     tdx: thetadatadx::ThetaDataDx,
-    rx: EventRx,
-    /// Count of FPSS events dropped because the JS polling side
-    /// disconnected before the FPSS callback could hand them off.
-    /// Survives reconnect (the `start_streaming` / `reconnect` closures
-    /// capture an `Arc<AtomicU64>` clone). Exposed to JS via
-    /// [`Self::dropped_events`] as a `bigint`.
-    dropped_events: Arc<AtomicU64>,
+    /// Stored JS callback registered via `startStreaming(callback)`.
+    /// `None` until the first registration; persisted across
+    /// `reconnect()` so the reconnect path can re-attach the same JS
+    /// function without re-asking the caller for it. Cleared on
+    /// `stopStreaming()` / `shutdown()` so the napi reference is
+    /// released back to V8 and a subsequent `startStreaming()` sees a
+    /// clean slot.
+    ///
+    /// Wrapped in `Arc` because the dispatcher closure (`Fn(&FpssEvent)
+    /// + Send + 'static`) needs its own ref-counted clone of the
+    /// callback handle. `ThreadsafeFunction` itself does not implement
+    /// `Clone` in napi-rs 3.x (its inner `napi_threadsafe_function`
+    /// is `Arc`-managed but only exposed through the
+    /// `Arc<ThreadsafeFunctionHandle>` field on the struct), so the
+    /// outer `Arc` here is the canonical way to share the handle.
+    callback: Mutex<Option<Arc<TsfnCallback>>>,
 }
 
 #[napi]
@@ -128,8 +155,7 @@ impl ThetaDataDx {
             .map_err(to_napi_err)?;
         Ok(ThetaDataDx {
             tdx,
-            rx: Arc::new(Mutex::new(None)),
-            dropped_events: Arc::new(AtomicU64::new(0)),
+            callback: Mutex::new(None),
         })
     }
 
@@ -143,27 +169,24 @@ impl ThetaDataDx {
             .map_err(to_napi_err)?;
         Ok(ThetaDataDx {
             tdx,
-            rx: Arc::new(Mutex::new(None)),
-            dropped_events: Arc::new(AtomicU64::new(0)),
+            callback: Mutex::new(None),
         })
     }
 
-    /// Cumulative count of FPSS events dropped because the JS polling
-    /// side disconnected before the FPSS callback could hand them off.
+    /// Cumulative count of FPSS events dropped because the SSOT
+    /// `StreamingDispatcher`'s bounded queue overflowed before the
+    /// drain thread could hand the event off to the JS callback.
     ///
-    /// Counter lives on the client instance (not inside the
-    /// `start_streaming` / `reconnect` closures), so the value survives
-    /// reconnect and is observable at any point — before streaming,
-    /// during, or after `shutdown()`.
+    /// Forwards to `thetadatadx::ThetaDataDx::dropped_event_count` so
+    /// the value matches every other binding (C ABI, Python, future
+    /// C++) and survives reconnect — the dispatcher carries the count
+    /// across `start_streaming` / `reconnect` cycles.
     ///
     /// Returned as `bigint` so it can represent the full `u64` range
     /// (Number would top out at 2^53).
-    #[napi(js_name = "droppedEvents")]
-    pub fn dropped_events(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(
-            self.dropped_events
-                .load(std::sync::atomic::Ordering::Relaxed),
-        )
+    #[napi(js_name = "droppedEventCount")]
+    pub fn dropped_event_count(&self) -> napi::bindgen_prelude::BigInt {
+        napi::bindgen_prelude::BigInt::from(self.tdx.dropped_event_count())
     }
 }
 

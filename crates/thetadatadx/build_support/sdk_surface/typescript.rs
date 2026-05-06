@@ -20,24 +20,57 @@ pub(super) fn render_ts_streaming_methods(methods: &[&MethodSpec]) -> String {
 
 fn ts_streaming_method(method: &MethodSpec) -> String {
     let mut out = String::new();
-    push_rust_doc_comment(&mut out, "    ", &method.doc);
+    // The doc string in `sdk_surface.toml` is the cross-language
+    // semantic summary. Two TS kinds (StartStreaming, Reconnect)
+    // require a callback-specific docstring after PR D (#482); render
+    // those inline below instead of re-using the shared one.
+    let render_shared_doc = !matches!(
+        method.kind,
+        MethodKind::StartStreaming | MethodKind::Reconnect
+    );
+    if render_shared_doc {
+        push_rust_doc_comment(&mut out, "    ", &method.doc);
+    }
     match method.kind {
         MethodKind::StartStreaming => {
+            push_rust_doc_comment(
+                &mut out,
+                "    ",
+                "Start FPSS streaming and register a JS callback for incoming events.\n\
+                 \n\
+                 The dispatcher's drain thread routes every typed FPSS\n\
+                 event through napi-rs `ThreadsafeFunction` to the Node\n\
+                 main thread, where the user's `callback(event)` runs.\n\
+                 The FPSS reader thread itself never touches V8: events\n\
+                 cross the bounded `crossbeam_channel(8192)` queue\n\
+                 inside the SSOT `StreamingDispatcher` first.\n\
+                 \n\
+                 Node's libuv requires JS callbacks on the main thread,\n\
+                 so `ThreadsafeFunction` (with its internal `uv_async_t`\n\
+                 queue) is the only safe path. This binding deliberately\n\
+                 does NOT expose a `start_streaming_inline` opt-in:\n\
+                 calling into V8 from any thread other than the main\n\
+                 loop is undefined behavior.\n\
+                 \n\
+                 Backpressure: a slow callback fills the dispatcher\n\
+                 queue and overflow events are dropped, observable via\n\
+                 `droppedEventCount()`. The FPSS TLS reader is never\n\
+                 blocked — vendor disconnects on slow consumers cannot\n\
+                 happen on this path.",
+            );
             writeln!(out, "    #[napi(js_name = \"startStreaming\")]").unwrap();
+            // `ThreadsafeFunction<FpssEvent, ErrorStrategy::CalleeHandled>`
+            // is the napi-rs handle that owns a JS function reference
+            // and routes calls onto the V8 main thread via
+            // `uv_async_t`. We register a Rust closure with the SSOT
+            // dispatcher; the closure clones the `ThreadsafeFunction`
+            // (cheap `Arc` bump) and calls it with the typed event.
             writeln!(
                 out,
-                "    pub fn {}(&self) -> napi::Result<()> {{",
+                "    pub fn {}(&self, callback: napi::threadsafe_function::ThreadsafeFunction<FpssEvent, (), FpssEvent, napi::Status, false>) -> napi::Result<()> {{",
                 method.name
             )
             .unwrap();
-            // Clone the instance-level `Arc<AtomicU64>` into the closure.
-            // Counter lives on `ThetaDataDx`, so it survives reconnect
-            // and is observable from JS via `tdx.droppedEvents()` — a
-            // closure-local `AtomicU64::new(0)` would reset on every
-            // reconnect and be unreachable from consumers.
-            //
-            // `debug!` is the level ops-teams enable in production when
-            // diagnosing drops (see Python SDK comment for full detail).
             out.push_str(include_str!(
                 "templates/typescript/start_streaming_body.rs.tmpl"
             ));
@@ -166,64 +199,28 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             out.push_str("    }\n");
         }
         MethodKind::NextEvent => {
-            let param = &method.params[0];
-            // Override the TS return type with a proper discriminated union so
-            // `switch (ev.kind) case 'quote': ...` narrows `ev.quote` to
-            // `Quote` (not `Quote | undefined`). The flat `FpssEvent` interface
-            // that napi-rs emits from the Rust struct does not narrow in TS.
-            // The union literal is generator-derived from
-            // `fpss_event_schema.toml` via `fpss_events::ts_next_event_union_type`
-            // so adding a new data variant tomorrow updates both sides.
-            let union_ts = super::super::fpss_events::ts_next_event_union_type();
-            // Wrap in `Promise<>` because the fn is `async`. napi-rs
-            // would default-emit `Promise<FpssEvent | null>`, losing
-            // the discriminated-union narrowing we want for
-            // `switch (ev.kind)`; override preserves it.
-            writeln!(
-                out,
-                "    #[napi(js_name = \"nextEvent\", ts_return_type = \"Promise<{union_ts}>\")]"
-            )
-            .unwrap();
-            // ASYNC napi fn so `recv_timeout` runs on a tokio blocking
-            // worker instead of the V8 main thread. An earlier sync
-            // implementation called `rx.recv_timeout(timeout)` directly,
-            // which froze the Node event loop for up to `timeout_ms`
-            // milliseconds per call — any setTimeout / I/O callback on
-            // the JS side stalled with it. Surfacing as `async` lets
-            // Node keep servicing other work while the Rust side blocks.
-            // JS callers now `await tdx.nextEvent(...)` instead of
-            // calling it synchronously (breaking change in v7.4.0;
-            // documented in CHANGELOG).
-            writeln!(
-                out,
-                "    pub async fn {}(&self, {}: f64) -> napi::Result<Option<FpssEvent>> {{",
-                method.name, param.name,
-            )
-            .unwrap();
-            // Resolve the receiver handle in a scoped block so the outer
-            // `MutexGuard` drops BEFORE we `.await` the spawned blocking
-            // task — otherwise the guard would be held across `.await`
-            // and the compiler (correctly) refuses to make the future
-            // `Send`.
-            out.push_str(include_str!(
-                "templates/typescript/next_event_prelude.rs.tmpl"
-            ));
-            writeln!(
-                out,
-                "        let timeout = std::time::Duration::from_millis({} as u64);",
-                param.name
-            )
-            .unwrap();
-            // `spawn_blocking` offloads the OS-level blocking wait to a
-            // dedicated tokio worker so the V8 main thread is free to
-            // service other JS work while we wait for the next frame.
-            //
-            // Disconnected = streaming loop dropped the sender half.
-            // Surface as an error, not `null`, so dead-socket consumers
-            // can reconnect explicitly.
-            out.push_str(include_str!("templates/typescript/next_event_body.rs.tmpl"));
+            // TypeScript removed `next_event` in PR D (#482) — the
+            // napi-rs binding now uses callback registration via
+            // `startStreaming(callback)`. The TS target is no longer
+            // in `MethodKind::NextEvent`'s allowed list (see
+            // `spec.rs`), so this arm is unreachable on the TS
+            // surface. Panicking here is the loud failure we want if
+            // someone re-adds `typescript_napi` to `next_event` without
+            // also implementing a poll-style napi method.
+            panic!("MethodKind::NextEvent is not emitted on the TypeScript target after PR D");
         }
         MethodKind::Reconnect => {
+            push_rust_doc_comment(
+                &mut out,
+                "    ",
+                "Reconnect FPSS streaming and re-register the previously installed callback.\n\
+                 \n\
+                 Requires a prior `startStreaming(callback)`; throws if\n\
+                 no callback is registered. All active subscriptions are\n\
+                 restored on the new connection — see\n\
+                 `thetadatadx::ThetaDataDx::reconnect_streaming` for\n\
+                 partial-failure semantics.",
+            );
             writeln!(out, "    #[napi(js_name = \"reconnect\")]").unwrap();
             writeln!(
                 out,
@@ -231,17 +228,21 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 method.name
             )
             .unwrap();
-            // Clone the instance-level counter so the drop count survives
-            // reconnect (see `StartStreaming` for the full rationale).
             out.push_str(include_str!("templates/typescript/reconnect_body.rs.tmpl"));
         }
         MethodKind::StopStreaming | MethodKind::Shutdown => {
             let js_name = to_ts_camel_case(&method.name);
             writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
             writeln!(out, "    pub fn {}(&self) {{", method.name).unwrap();
+            // PR D (#482) replaced the receiver `rx` field with a
+            // stored `ThreadsafeFunction` callback. Drop the stored
+            // handle so the napi reference is released before the
+            // streaming side tears down — re-installing via
+            // `startStreaming` after stop / shutdown then sees a clean
+            // slot.
             out.push_str("        self.tdx.stop_streaming();\n");
             out.push_str(
-                "        let mut guard = self.rx.lock().unwrap_or_else(|e| e.into_inner());\n",
+                "        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",
             );
             out.push_str("        *guard = None;\n");
             out.push_str("    }\n");

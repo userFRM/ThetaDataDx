@@ -36,14 +36,19 @@ async function main() {
   // With timeout
   const snap = tdx.stockSnapshotQuote(['AAPL', 'MSFT'], null, null, 5000);
 
-  // Streaming — `nextEvent` is async; `await` it or you'll get a
-  // `Promise` object back and `event.kind` will be `undefined`.
-  tdx.startStreaming();
+  // Streaming — register a callback. napi-rs `ThreadsafeFunction`
+  // routes every event through libuv's `uv_async_t` queue onto the
+  // Node main thread; the callback runs there, decoupled from the
+  // FPSS reader thread. A slow callback fills the SSOT dispatcher's
+  // bounded queue and overflow events are dropped (observable via
+  // `tdx.droppedEventCount()`); the FPSS TLS reader is never blocked.
+  tdx.startStreaming((event) => {
+    if (event.kind === 'quote') {
+      console.log(event.quote.bid, event.quote.ask);
+    }
+  });
   tdx.subscribeQuotes('AAPL');
-  const event = await tdx.nextEvent(1000); // poll with 1s timeout
-  if (event && event.kind === 'quote') {
-    console.log(event.quote.bid, event.quote.ask);
-  }
+  // ...do other work; the callback fires on incoming events...
   tdx.stopStreaming();
 }
 
@@ -60,20 +65,21 @@ the Rust side, so the full typed surface lives in `index.d.ts`
 import type { OhlcTick, GreeksTick, Quote, Trade, FpssEvent } from 'thetadatadx';
 ```
 
-Historical endpoints return `Tick[]`; `nextEvent()` is async and resolves
-to a discriminated `FpssEvent | null` union, narrowed on `event.kind`:
+Historical endpoints return `Tick[]`. Streaming events arrive through the
+`startStreaming(callback)` registration; the callback receives a
+discriminated `FpssEvent`, narrowed on `event.kind`:
 
 ```ts
-const event = await tdx.nextEvent(1000);
-if (!event) return; // timeout
-switch (event.kind) {
-  case 'quote':    /* event.quote is Quote */    break;
-  case 'trade':    /* event.trade is Trade */    break;
-  case 'ohlcvc':   /* event.ohlcvc is Ohlcvc */  break;
-  case 'open_interest': /* event.openInterest is OpenInterest */ break;
-  case 'simple':   /* event.simple is FpssSimplePayload */ break;
-  case 'raw_data': /* event.rawData is FpssRawDataPayload */ break;
-}
+tdx.startStreaming((event: FpssEvent) => {
+  switch (event.kind) {
+    case 'quote':    /* event.quote is Quote */    break;
+    case 'trade':    /* event.trade is Trade */    break;
+    case 'ohlcvc':   /* event.ohlcvc is Ohlcvc */  break;
+    case 'open_interest': /* event.openInterest is OpenInterest */ break;
+    case 'simple':   /* event.simple is FpssSimplePayload */ break;
+    case 'raw_data': /* event.rawData is FpssRawDataPayload */ break;
+  }
+});
 ```
 
 The `kind` field is typed as the string-literal union
@@ -87,7 +93,7 @@ including Vite, esbuild, ts-jest, and Next.js.
 
 Anywhere a Rust `u64` or `i64` crosses the napi boundary it surfaces as
 JavaScript `bigint` (not `number`): `volume` and `count` on every
-OHLC / EOD tick, `droppedEvents()` on the streaming client, and
+OHLC / EOD tick, `droppedEventCount()` on the streaming client, and
 `received_at_ns` on every FPSS event. Use `bigint` literal syntax
 (`42n`) for comparisons or widen to `Number(x)` at the point of
 display (watch for loss of precision beyond 2^53).
