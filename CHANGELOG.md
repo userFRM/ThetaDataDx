@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.31] - 2026-05-06
+
+### tdbe
+
+- `tdbe::right::ParsedRight::from_wire_byte(byte: i32) -> Option<Self>`
+  — `const fn` decoder for the FPSS wire `right` byte (`67` for
+  `'C'`, `80` for `'P'`). Inverse of the existing `as_wire_byte()`.
+  Removes the rationale for downstream tick decoders to re-type the
+  `67` / `80` magic numbers at every trust boundary; round-trip
+  property test confirms `from_wire_byte(self.as_wire_byte().unwrap())
+  == Some(self)` for every variant where the forward direction is
+  defined. Patch bump tdbe 0.12.8 → 0.12.9.
+
 ## [8.0.30] - 2026-05-06
 
 This release closes #482: the entire FPSS streaming stack — Rust core,
@@ -123,17 +136,6 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
   `tdx_fpss_set_callback` / `tdx_fpss_set_inline_callback`
   shipped in this release. The `fpss_smoke` example is restored on
   the callback path.
-
-### tdbe
-
-- `tdbe::right::ParsedRight::from_wire_byte(byte: i32) -> Option<Self>`
-  — `const fn` decoder for the FPSS wire `right` byte (`67` for
-  `'C'`, `80` for `'P'`). Inverse of the existing `as_wire_byte()`.
-  Removes the rationale for downstream tick decoders to re-type the
-  `67` / `80` magic numbers at every trust boundary; round-trip
-  property test confirms `from_wire_byte(self.as_wire_byte().unwrap())
-  == Some(self)` for every variant where the forward direction is
-  defined. Patch bump tdbe 0.12.8 → 0.12.9.
 
 ## [8.0.29] - 2026-05-06
 
