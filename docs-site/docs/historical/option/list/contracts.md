@@ -16,13 +16,13 @@ List all option contracts available for a given underlying symbol on a specific 
 let data = tdx.option_list_contracts("TRADE", "SPY", "20260402").await?;
 for t in &data {
     println!("symbol={} expiration={} strike={:.2} right={}",
-        t.root, t.expiration, t.strike, t.right);
+        t.symbol, t.expiration, t.strike, t.right);
 }
 ```
 ```python [Python]
 data = tdx.option_list_contracts("TRADE", "SPY", "20260402")
 for t in data:
-    print(f"symbol={t.root} expiration={t.expiration} strike={t.strike:.2f} right={t.right}")
+    print(f"symbol={t.symbol} expiration={t.expiration} strike={t.strike:.2f} right={t.right}")
 ```
 ```typescript [TypeScript]
 const data = tdx.optionListContracts('TRADE', 'SPY', '20260402');
@@ -39,7 +39,7 @@ for _, t := range data {
 auto data = client.option_list_contracts("TRADE", "SPY", "20260402");
 for (const auto& t : data) {
     printf("symbol=%s expiration=%d strike=%.2f right=%s\n",
-        t.root, t.expiration, t.strike, t.right);
+        t.symbol, t.expiration, t.strike, t.right);
 }
 ```
 :::

@@ -107,7 +107,7 @@ Send JSON commands to manage subscriptions:
     "req_type": "QUOTE",
     "add": true,
     "id": 1,
-    "contract": {"root": "AAPL"}
+    "contract": {"symbol": "AAPL"}
 }
 ```
 

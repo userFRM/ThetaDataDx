@@ -156,10 +156,15 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
         } else {
             arrow_data_type_expr(column.r#type.as_str())
         };
+        // Arrow / Polars schema names mirror the public struct field name
+        // (matches the Rust / Python / TypeScript / Go surfaces). For most
+        // ticks `name` and `field` coincide; the divergence appears on
+        // `OptionContract` where the wire ships `root` but the public
+        // surface emits `symbol` per the v3 vendor migration guide.
         writeln!(
             out,
             "            Field::new(\"{name}\", {dt}, false),",
-            name = column.name
+            name = column.field
         )
         .unwrap();
     }
@@ -283,10 +288,12 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
     // zero-row DataFrame with the typed columns intact.
     out.push_str("        DataFrame::new(n, vec![\n");
     for column in &def.columns {
+        // Polars Series name mirrors the public struct field name —
+        // same justification as the Arrow `Field::new` emitter above.
         writeln!(
             out,
             "            Series::new(PlSmallStr::from_static(\"{name}\"), col_{field}).into(),",
-            name = column.name,
+            name = column.field,
             field = column.field
         )
         .unwrap();

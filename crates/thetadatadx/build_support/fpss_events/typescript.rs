@@ -7,7 +7,7 @@ use super::common::{snake_case, snake_to_camel, ts_rust_field_type};
 use super::schema::{load_schema, sorted_data_event_names, sorted_event_names, EventDef, Schema};
 
 /// Emit the Contract napi struct. Same shape across every language —
-/// `root` is always present (empty when not yet resolved), option fields
+/// `symbol` is always present (empty when not yet resolved), option fields
 /// are `Option<T>` on the Rust side / `?: T` on the TS side.
 ///
 /// Uses a raw string literal (`r#""#`) so the field indentation is
@@ -22,9 +22,9 @@ fn render_contract_napi() -> &'static str {
 #[napi(object)]
 #[derive(Clone)]
 pub struct Contract {
-    pub root: String,
+    pub symbol: String,
     pub sec_type: i32,
-    pub exp_date: Option<i32>,
+    pub expiration: Option<i32>,
     pub is_call: Option<bool>,
     pub strike: Option<i32>,
 }
@@ -164,11 +164,11 @@ pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
                     name = column.name
                 )
                 .unwrap(),
-                // Contract is constructed explicitly — `root` clones, the
-                // option fields transfer by value.
+                // Contract is constructed explicitly — `symbol` clones,
+                // the option fields transfer by value.
                 "Contract" => writeln!(
                     out,
-                    "                {name}: Contract {{\n                    root: {name}.root.clone(),\n                    sec_type: {name}.sec_type as i32,\n                    exp_date: {name}.exp_date,\n                    is_call: {name}.is_call,\n                    strike: {name}.strike,\n                }},",
+                    "                {name}: Contract {{\n                    symbol: {name}.symbol.clone(),\n                    sec_type: {name}.sec_type as i32,\n                    expiration: {name}.expiration,\n                    is_call: {name}.is_call,\n                    strike: {name}.strike,\n                }},",
                     name = column.name
                 )
                 .unwrap(),

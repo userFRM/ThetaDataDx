@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.0.28] - 2026-05-06
+
+### Breaking
+
+- **`Contract`, `OptionContract`, `FlatFileRow`, and `IndexEntry` rename
+  `root` to `symbol` and `exp_date` to `expiration` to match the v3
+  vendor surface documented in the [v2 → v3 migration guide][v3-mig].
+  The wire codec is unchanged — `Contract::to_bytes` /
+  `Contract::from_bytes` still serialize the field as `root` per
+  `Contract.java` parity, and the FLATFILES decoder still resolves both
+  v2 (`root`) and v3 (`symbol`) response columns through the existing
+  `decode::HEADER_ALIASES`. Per-language renames:
+
+  - **Rust** (`thetadatadx::fpss::protocol::Contract`,
+    `tdbe::types::tick::OptionContract`,
+    `thetadatadx::flatfiles::FlatFileRow`):
+    - `Contract.root` → `Contract.symbol`
+    - `Contract.exp_date` → `Contract.expiration`
+    - `Contract::stock(root)` → `Contract::stock(symbol)`
+    - `Contract::index(root)` → `Contract::index(symbol)`
+    - `Contract::rate(root)` → `Contract::rate(symbol)`
+    - `Contract::option(root, exp_date, …)` →
+      `Contract::option(symbol, expiration, …)`
+    - `Contract::option_raw(root, exp_date, …)` →
+      `Contract::option_raw(symbol, expiration, …)`
+    - `OptionContract.root` → `OptionContract.symbol`
+    - `FlatFileRow.root` → `FlatFileRow.symbol`
+  - **Python** (`thetadatadx.Contract`, `thetadatadx.OptionContract`):
+    `contract.root` / `contract.exp_date` →
+    `contract.symbol` / `contract.expiration`;
+    `OptionContract(root=…)` constructor keyword → `symbol=…`.
+  - **TypeScript** (`Contract`, `OptionContract`):
+    `contract.root` / `contract.expDate` →
+    `contract.symbol` / `contract.expiration`.
+  - **Go** (`thetadatadx.Contract`, `thetadatadx.OptionContract`):
+    `c.Root` / `c.ExpDate` → `c.Symbol` / `c.Expiration`.
+  - **C++** (`OptionContract`, `TdxContract`, `TdxOptionContract`):
+    `c.root` / `c.exp_date` / `c.has_exp_date` →
+    `c.symbol` / `c.expiration` / `c.has_expiration`.
+  - **C ABI**: `TdxContract.root` → `TdxContract.symbol`,
+    `TdxContract.exp_date` → `TdxContract.expiration`,
+    `TdxContract.has_exp_date` → `TdxContract.has_expiration`,
+    `TdxOptionContract.root` → `TdxOptionContract.symbol`.
+  - **FLATFILES CSV / JSONL**: contract-prefix headers and JSON keys
+    change from `root,expiration,strike,right,…` to
+    `symbol,expiration,strike,right,…`. Stock blobs go from `root,…` to
+    `symbol,…`. The vendor's response columns are unchanged; only the
+    SDK's emitted file headers change.
+  - **REST / WebSocket / MCP outputs** in `tools/server` and
+    `tools/mcp` emit `"symbol"` / `"expiration"` keys on every contract
+    payload (option lists, FPSS event contracts, FLATFILES rows).
+
+[v3-mig]: https://docs.thetadata.us/Articles/Getting-Started/v2-migration-guide.html#_5-parameter-mapping
+
+### Changed
+
+- Workspace 8.0.27 → 8.0.28, tdbe 0.12.7 → 0.12.8. The tdbe bump rides
+  the regenerated `OptionContract.symbol` field in
+  `crates/tdbe/src/types/tick_generated.rs`; every other change ships
+  as patch deltas off the existing v8 line per repo policy.
+- `tools/cli` raw column header for `OptionContract` is `symbol`
+  instead of `root`, sourced from `tick_schema.toml::field` so future
+  schema renames flow through the CLI without a helper edit.
+
 ## [8.0.27] - 2026-05-06
 
 ### Changed

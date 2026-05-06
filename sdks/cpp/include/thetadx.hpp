@@ -81,11 +81,11 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 // Generated layout guards for the FPSS event C mirror structs.
 #include "fpss_layout_asserts.hpp.inc"
 
-// OptionContract uses std::string for root to avoid use-after-free.
+// OptionContract uses std::string for symbol to avoid use-after-free.
 // The C FFI TdxOptionContract uses a raw char* that is freed with the array,
 // so we deep-copy the string during conversion.
 struct OptionContract {
-    std::string root;
+    std::string symbol;
     int32_t expiration;
     double strike;
     int32_t right;

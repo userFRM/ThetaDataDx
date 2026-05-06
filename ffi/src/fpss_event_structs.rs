@@ -18,20 +18,20 @@ pub enum TdxFpssEventKind {
 
 /// FPSS `Contract` shared across every data event.
 /// 
-/// `root` is a NUL-terminated C string; may be null when the SDK has not
+/// `symbol` is a NUL-terminated C string; may be null when the SDK has not
 /// yet resolved the server-assigned contract_id to a `ContractAssigned`
-/// frame. Optional option fields (`exp_date`, `is_call`, `strike`) use a
+/// frame. Optional option fields (`expiration`, `is_call`, `strike`) use a
 /// tagged-present bool because `#[repr(C)]` cannot express `Option<T>`
 /// directly.
 #[repr(C)]
 pub struct TdxContract {
-/// Ticker root (e.g. "AAPL"). Null until ContractAssigned arrives.
-pub root: *const c_char,
+/// Ticker symbol (e.g. "AAPL"). Null until ContractAssigned arrives.
+pub symbol: *const c_char,
 /// Security type code — matches `tdbe::types::enums::SecType`.
 pub sec_type: i32,
-/// Whether `exp_date` is meaningful (options only).
-pub has_exp_date: bool,
-pub exp_date: i32,
+/// Whether `expiration` is meaningful (options only).
+pub has_expiration: bool,
+pub expiration: i32,
 /// Whether `is_call` is meaningful (options only).
 pub has_is_call: bool,
 pub is_call: bool,
@@ -41,10 +41,10 @@ pub strike: i32,
 }
 
 pub(crate) const ZERO_CONTRACT_STRUCT: TdxContract = TdxContract {
-root: ptr::null(),
+symbol: ptr::null(),
 sec_type: 0,
-has_exp_date: false,
-exp_date: 0,
+has_expiration: false,
+expiration: 0,
 has_is_call: false,
 is_call: false,
 has_strike: false,

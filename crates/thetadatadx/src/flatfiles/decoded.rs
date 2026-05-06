@@ -236,8 +236,8 @@ pub(crate) fn decode_to_memory(raw_path: &Path, sec: SecType) -> Result<Vec<Flat
         for row in &rows_buf {
             let pt = crate::flatfiles::writer::price_type_for_row(row, hdr.price_type_idx);
             out.push(FlatFileRow::from_decoded(
-                &entry.root,
-                entry.exp,
+                &entry.symbol,
+                entry.expiration,
                 entry.strike,
                 entry.right,
                 &hdr.fmt,
