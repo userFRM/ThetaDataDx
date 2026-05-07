@@ -88,6 +88,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/install-protoc
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           baseline-rev: v9.0.0
