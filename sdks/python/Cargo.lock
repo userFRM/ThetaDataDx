@@ -2500,7 +2500,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "9.0.1"
+version = "9.0.2"
 dependencies = [
  "arc-swap",
  "crossbeam-channel",
@@ -2536,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-py"
-version = "9.0.1"
+version = "9.0.2"
 dependencies = [
  "arrow",
  "arrow-array",

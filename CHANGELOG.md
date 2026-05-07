@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.0.2] - 2026-05-07
+
+### Added
+
+- Property-based tests on five hot paths via `proptest = "1.5"`
+  (dev-dependency only; no public-API surface change).
+  - `crates/tdbe/src/codec/fie.rs`: encoder/decoder round-trip on the
+    full FIE alphabet (excluding `'n'`, the documented terminator
+    nibble), strict-vs-panicking-encoder agreement, and per-character
+    nibble round-trip.
+  - `crates/tdbe/src/codec/fit.rs`: single-row FIT round-trip via a
+    cfg(test) encoder against `FitReader::read_changes`,
+    `decode_fit_buffer_bulk` agreement on the same byte stream, and
+    `flush_digits` non-negative-monotonicity on partial digit runs.
+  - `crates/tdbe/src/greeks.rs`: Black-Scholes invariants over the
+    market range `(spot, strike) in [0.01, 10000.0]`,
+    `rate in [-0.05, 0.20]`, `div_yield in [0.0, 0.10]`,
+    `tte in [1/365, 5.0]`, `iv in [0.001, 5.0]` -- put-call parity
+    (tolerance scaled to `norm_cdf` approximation error), call/put
+    delta bounds, vega non-negativity, gamma non-negativity.
+  - `crates/tdbe/src/time.rs`: `civil_to_epoch_days` monotonicity over
+    1970..=2099, `eastern_offset_ms` returns exactly EST or EDT for
+    every timestamp in 2000..=2099, and DST cutover sanity at the
+    spring-forward / fall-back boundaries across 1990..=2099 (covers
+    both pre- and post-2007 rule windows).
+  - `crates/thetadatadx/src/fpss/protocol/contract.rs`:
+    `Contract -> to_bytes -> from_bytes` round-trip for stocks and
+    options (expiration 2000..=2099, strike 1..=99_999_999,
+    right in {C, P}, root 1..=6 ASCII uppercase), OCC-21 string
+    parser round-trip, and composite `OCC-21 -> Contract -> bytes`
+    round-trip pinning the parser and wire codec against each other.
+
 ## [9.0.1] - 2026-05-07
 
 ### Changed

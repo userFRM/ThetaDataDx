@@ -242,4 +242,125 @@ mod tests {
             "mid-February 2006 should be EST under old DST rules"
         );
     }
+
+    // ---------------------------------------------------------------------------
+    // Property-based tests
+    // ---------------------------------------------------------------------------
+    //
+    // Three invariants:
+    //
+    //   1. `civil_to_epoch_days` is monotone over the full
+    //      `[1970-01-01, 2099-12-31]` calendar range — a strictly later
+    //      civil date never returns a smaller day count.
+    //   2. `eastern_offset_ms` returns exactly one of two values
+    //      (`-5*3_600_000` or `-4*3_600_000`) for any timestamp in
+    //      `[2000-01-01 UTC, 2099-12-31 UTC]`.
+    //   3. DST cutover sanity: at the spring-forward boundary, `+1 ms`
+    //      already returns EDT; at the fall-back boundary, `-1 ms` is
+    //      still EDT. Asserted across a sweep of years that covers both
+    //      the pre-2007 and post-2007 rule windows.
+
+    use proptest::prelude::*;
+
+    /// Strategy for `(year, month, day)` triples in the
+    /// `[1970-01-01, 2099-12-31]` range. Days are clamped per-month so
+    /// every emitted triple is a valid civil date.
+    fn arbitrary_civil_date() -> impl Strategy<Value = (i32, u32, u32)> {
+        (1970i32..=2099, 1u32..=12).prop_flat_map(|(y, m)| {
+            // Days in month, accounting for leap years.
+            let dim = match m {
+                1 | 3 | 5 | 7 | 8 | 10 | 12 => 31u32,
+                4 | 6 | 9 | 11 => 30,
+                2 => {
+                    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+                    if leap {
+                        29
+                    } else {
+                        28
+                    }
+                }
+                _ => unreachable!(),
+            };
+            (Just(y), Just(m), 1u32..=dim)
+        })
+    }
+
+    /// Strategy for an epoch_ms timestamp in [2000-01-01 UTC, 2099-12-31 UTC].
+    // Reason: the upper bound lies well within u64 range.
+    #[allow(clippy::cast_sign_loss)]
+    fn arbitrary_epoch_ms_2000_2099() -> impl Strategy<Value = u64> {
+        // 2000-01-01 00:00:00 UTC = 946_684_800_000 ms
+        // 2099-12-31 23:59:59 UTC = 4_102_444_799_000 ms
+        946_684_800_000u64..=4_102_444_799_000u64
+    }
+
+    proptest! {
+        /// `civil_to_epoch_days` monotonicity over 1970..=2099.
+        ///
+        /// For any two valid civil dates `(y1, m1, d1) <= (y2, m2, d2)`
+        /// (lexicographic order), the day-count of the second is
+        /// `>=` the day-count of the first. Asserted by drawing two
+        /// independent dates and ordering them lexicographically.
+        #[test]
+        fn civil_to_epoch_days_monotone(
+            a in arbitrary_civil_date(),
+            b in arbitrary_civil_date(),
+        ) {
+            let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
+            let lo_days = civil_to_epoch_days(lo.0, lo.1, lo.2);
+            let hi_days = civil_to_epoch_days(hi.0, hi.1, hi.2);
+            prop_assert!(
+                hi_days >= lo_days,
+                "monotonicity violated: {:?} -> {} but {:?} -> {}",
+                lo, lo_days, hi, hi_days,
+            );
+        }
+
+        /// `eastern_offset_ms` returns either `-5*3_600_000` (EST) or
+        /// `-4*3_600_000` (EDT) for any timestamp in 2000..=2099.
+        #[test]
+        fn eastern_offset_only_returns_est_or_edt(epoch_ms in arbitrary_epoch_ms_2000_2099()) {
+            let off = eastern_offset_ms(epoch_ms);
+            prop_assert!(
+                off == -5 * 3_600 * 1_000 || off == -4 * 3_600 * 1_000,
+                "eastern_offset_ms returned unexpected value {off} for epoch_ms {epoch_ms}",
+            );
+        }
+
+        /// DST cutover sanity:
+        ///   * at the spring-forward instant, `+1 ms` already returns EDT;
+        ///   * at the fall-back instant, `-1 ms` still returns EDT.
+        /// Asserted across both the pre-2007 (Uniform Time Act) and
+        /// post-2007 (Energy Policy Act) rule windows by sweeping years
+        /// 1990..=2099.
+        #[test]
+        fn dst_cutover_boundaries(year in 1990i32..=2099) {
+            let (start_utc, end_utc) = if year >= 2007 {
+                (march_second_sunday_utc(year), november_first_sunday_utc(year))
+            } else {
+                (april_first_sunday_utc(year), october_last_sunday_utc(year))
+            };
+
+            // Spring forward: just after the start instant must be EDT.
+            // Reason: start_utc/end_utc are positive year-specific epoch ms.
+            #[allow(clippy::cast_sign_loss)]
+            let after_spring = (start_utc as u64) + 1;
+            prop_assert_eq!(
+                eastern_offset_ms(after_spring),
+                -4 * 3_600 * 1_000,
+                "expected EDT immediately after spring-forward boundary in {}",
+                year,
+            );
+
+            // Fall back: just before the end instant is still EDT.
+            #[allow(clippy::cast_sign_loss)]
+            let before_fall = (end_utc as u64) - 1;
+            prop_assert_eq!(
+                eastern_offset_ms(before_fall),
+                -4 * 3_600 * 1_000,
+                "expected EDT immediately before fall-back boundary in {}",
+                year,
+            );
+        }
+    }
 }

@@ -361,4 +361,91 @@ mod tests {
         let decoded = fie_line_to_string(&data).expect("should decode");
         assert_eq!(decoded, "ee");
     }
+
+    // ---------------------------------------------------------------------------
+    // Property-based tests
+    // ---------------------------------------------------------------------------
+    //
+    // FIE is a string-to-nibble codec. The decoder treats nibble 0xD ('n') as
+    // an end-of-line marker, so any string containing `'n'` cannot round-trip
+    // — that is by design, documented in the module header. The strategy
+    // below draws characters from the FIE alphabet *minus* `'n'` so the
+    // round-trip property is well-defined.
+
+    use proptest::prelude::*;
+
+    /// Generate a string of valid FIE characters (excluding 'n', which is the
+    /// terminator nibble and thus cannot round-trip).
+    fn arbitrary_fie_string() -> impl Strategy<Value = String> {
+        // Alphabet without 'n' (= 0xD = NEWLINE_NIBBLE).
+        proptest::collection::vec(
+            prop_oneof![
+                Just(b'0'),
+                Just(b'1'),
+                Just(b'2'),
+                Just(b'3'),
+                Just(b'4'),
+                Just(b'5'),
+                Just(b'6'),
+                Just(b'7'),
+                Just(b'8'),
+                Just(b'9'),
+                Just(b'.'),
+                Just(b','),
+                Just(b'/'),
+                Just(b'-'),
+                Just(b'e'),
+            ],
+            0..64usize,
+        )
+        .prop_map(|bytes| String::from_utf8(bytes).expect("ASCII bytes are valid UTF-8"))
+    }
+
+    proptest! {
+        /// Encoder/decoder round-trip: any FIE-alphabet string survives a
+        /// `string_to_fie_line` -> `fie_line_to_string` round-trip
+        /// byte-for-byte. Covers byte boundaries because the strategy
+        /// produces both even- and odd-length inputs (including length 0
+        /// and length 1, which exercise the empty-string and single-char
+        /// paths) and all 15 valid alphabet characters.
+        #[test]
+        fn fie_encode_decode_roundtrips(input in arbitrary_fie_string()) {
+            let encoded = string_to_fie_line(&input);
+            let decoded = fie_line_to_string(&encoded)
+                .expect("decode of valid encoder output must succeed");
+            prop_assert_eq!(decoded, input);
+        }
+
+        /// The encoder is total over the FIE alphabet — never panics, always
+        /// returns at least one byte (the terminator).
+        #[test]
+        fn fie_encoder_total_on_alphabet(input in arbitrary_fie_string()) {
+            let encoded = string_to_fie_line(&input);
+            prop_assert!(!encoded.is_empty());
+        }
+
+        /// `try_string_to_fie_line` rejects exactly the bytes outside the
+        /// alphabet. Any input containing a non-alphabet byte fails; any
+        /// input drawn from the alphabet succeeds and matches the panicking
+        /// variant byte-for-byte.
+        #[test]
+        fn fie_try_matches_panicking_on_alphabet(input in arbitrary_fie_string()) {
+            let strict = try_string_to_fie_line(&input).expect("alphabet input must succeed");
+            let lax = string_to_fie_line(&input);
+            prop_assert_eq!(strict, lax);
+        }
+
+        /// Nibble round-trip: every char in the alphabet (excluding 'n')
+        /// maps to a nibble that maps back to the same char.
+        #[test]
+        fn nibble_char_roundtrip(c in prop_oneof![
+            Just(b'0'), Just(b'1'), Just(b'2'), Just(b'3'), Just(b'4'),
+            Just(b'5'), Just(b'6'), Just(b'7'), Just(b'8'), Just(b'9'),
+            Just(b'.'), Just(b','), Just(b'/'), Just(b'-'), Just(b'e'),
+        ]) {
+            let n = char_to_nibble(c).expect("alphabet char maps to nibble");
+            let back = nibble_to_char(n).expect("nibble maps back to char");
+            prop_assert_eq!(c, back);
+        }
+    }
 }
