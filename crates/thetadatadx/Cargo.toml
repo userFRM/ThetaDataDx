@@ -152,6 +152,16 @@ proptest = "1.5"
 # dev-dependencies lets the tests pull the same version without the
 # `config-file` feature gate.
 toml = "1.1.2"
+# Lock-free MPMC bounded queue used by `streaming_throughput.rs` to
+# measure the "tight production" callback shape (push the event onto a
+# fixed-capacity ring without going through `Vec` growth). dev-only.
+crossbeam-queue = "0.3.12"
+# PyO3 with `auto-initialize` so the `streaming_throughput` bench can
+# acquire the GIL without an explicit `Py_Initialize`. Pinned to the
+# same patch as the Python SDK shim under `sdks/python/` so the
+# dev-dependency graph stays consistent. dev-only — never enters the
+# published crate graph.
+pyo3 = { version = "=0.28.2", features = ["auto-initialize"] }
 
 [build-dependencies]
 # tonic 0.14 extracted build integration into tonic-prost-build
@@ -184,6 +194,10 @@ harness = false
 
 [[bench]]
 name = "streaming_channels"
+harness = false
+
+[[bench]]
+name = "streaming_throughput"
 harness = false
 
 [[bin]]
