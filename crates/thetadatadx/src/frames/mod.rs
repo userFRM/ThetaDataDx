@@ -46,7 +46,7 @@
 ///
 /// Feature-gated on the `polars` Cargo feature. Implemented for every
 /// tick type in [`tdbe::types::tick`]; the per-type impls live in the
-/// generator-emitted `frames_generated.rs`.
+/// generator-emitted `frames/generated.rs`.
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 pub trait TicksPolarsExt {
@@ -61,7 +61,7 @@ pub trait TicksPolarsExt {
 ///
 /// Feature-gated on the `arrow` Cargo feature. Implemented for every
 /// tick type in [`tdbe::types::tick`]; the per-type impls live in the
-/// generator-emitted `frames_generated.rs`.
+/// generator-emitted `frames/generated.rs`.
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 pub trait TicksArrowExt {
@@ -77,4 +77,4 @@ pub trait TicksArrowExt {
 // file — each `impl` block is `#[cfg(feature = "...")]` on its own, so
 // enabling only one of `polars` / `arrow` compiles the matching impls
 // without pulling the other dep.
-include!("frames_generated.rs");
+include!("generated.rs");

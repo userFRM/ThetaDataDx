@@ -1,4 +1,4 @@
-//! Emit `crates/tdbe/src/types/tick_generated.rs` -- the `#[repr(C, align(N))]`
+//! Emit `crates/tdbe/src/types/generated/tick.rs` -- the `#[repr(C, align(N))]`
 //! struct definitions for every tick type declared in `tick_schema.toml`.
 //!
 //! The hand-written `crates/tdbe/src/types/tick.rs` keeps the items the
@@ -48,7 +48,7 @@ pub(super) fn render_tdbe_tick_structs(schema: &Schema) -> String {
     out
 }
 
-/// Emit `crates/tdbe/src/types/tick_layout_asserts_generated.rs` -- a
+/// Emit `crates/tdbe/src/types/generated/tick_layout_asserts.rs` -- a
 /// `#[cfg(test)]` module containing `size_of` / `align_of` / `offset_of!`
 /// asserts for every tick struct in the schema. The hand-written
 /// `tick.rs` `include!`s it.

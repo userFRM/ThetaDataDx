@@ -249,7 +249,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         .iter()
         .filter_map(|param| direct_date_arg_name(endpoint, param))
     {
-        writeln!(out, "        validate_date(&{arg})?;").unwrap();
+        writeln!(out, "        validate_date_required(&{arg})?;").unwrap();
     }
     writeln!(
         out,

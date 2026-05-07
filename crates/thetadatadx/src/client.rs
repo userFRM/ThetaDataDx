@@ -33,8 +33,9 @@
 //! ```
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+
+use arc_swap::ArcSwap;
 
 use crate::auth::Credentials;
 use crate::config::DirectConfig;
@@ -43,6 +44,38 @@ use crate::fpss::protocol::{Contract, SubscriptionKind};
 use crate::fpss::{FpssClient, FpssEvent, StreamingDispatcher};
 use crate::mdds::MddsClient;
 use tdbe::types::enums::SecType;
+
+/// Snapshot of the streaming side of the unified client.
+///
+/// Replaces the previous trio of coordinated fields
+/// (`Mutex<Option<FpssClient>>`, `Mutex<Option<StreamingDispatcher>>`,
+/// `AtomicBool was_streaming`) with a single [`ArcSwap`] cell so every
+/// read path collapses to one atomic load.
+///
+/// Lifecycle: `Idle` (constructed) → `Live` (`start_streaming` /
+/// `start_streaming_inline` succeeded) → `Stopped` (`stop_streaming`
+/// returned). A subsequent `start_streaming` from `Stopped` swaps back
+/// to `Live`; `Idle` is reachable only at construction time, never
+/// re-entered after a successful start.
+enum StreamingSlot {
+    /// `start_streaming()` has not been called yet.
+    Idle,
+    /// Streaming connection is established. `dispatcher` is `Some` for
+    /// the dispatcher path and `None` for the inline path
+    /// (`start_streaming_inline`). The mutex is hit only by
+    /// `stop_streaming` — the hot read path
+    /// (`is_streaming`, `connection_status`, `with_streaming`) never
+    /// touches it.
+    Live {
+        client: Arc<FpssClient>,
+        dispatcher: Mutex<Option<StreamingDispatcher>>,
+    },
+    /// `stop_streaming()` ran (or `Drop` did). Distinguishes "was
+    /// started, then stopped" from "never started" for
+    /// [`ConnectionStatus::Disconnected`] vs
+    /// [`ConnectionStatus::NotStarted`].
+    Stopped,
+}
 
 /// Subscription tier information captured at authentication time.
 #[derive(Debug, Clone)]
@@ -77,19 +110,13 @@ pub enum ConnectionStatus {
 /// [`MddsClient`]. Streaming methods are on this struct directly.
 pub struct ThetaDataDx {
     historical: MddsClient,
-    streaming: Mutex<Option<FpssClient>>,
-    /// Drain thread + bounded queue between the FPSS reader and the
-    /// user callback, populated when [`Self::start_streaming`] takes
-    /// the dispatcher path. `None` when streaming is inactive or when
-    /// the inline path was used. Owned here (not inside `FpssClient`)
-    /// so its lifetime ends at `stop_streaming` time, after the FPSS
-    /// reader thread has been signalled to stop calling `send`.
-    dispatcher: Mutex<Option<StreamingDispatcher>>,
     creds: Credentials,
-    /// Set to `true` once `start_streaming()` succeeds; never cleared.
-    /// Used by `connection_status()` to distinguish "never started" from
-    /// "was started but the client was dropped/stopped".
-    was_streaming: AtomicBool,
+    /// Streaming-side state machine. See [`StreamingSlot`] for the
+    /// `Idle → Live → Stopped` lifecycle. The
+    /// [`ArcSwap`] makes `is_streaming` / `connection_status` /
+    /// `with_streaming` single-atomic-load reads — the previous design
+    /// took two `Mutex` locks plus an `AtomicBool` for the same answer.
+    state: ArcSwap<StreamingSlot>,
 }
 
 impl ThetaDataDx {
@@ -109,11 +136,27 @@ impl ThetaDataDx {
         let historical = MddsClient::connect(creds, config).await?;
         Ok(Self {
             historical,
-            streaming: Mutex::new(None),
-            dispatcher: Mutex::new(None),
             creds: creds.clone(),
-            was_streaming: AtomicBool::new(false),
+            state: ArcSwap::from_pointee(StreamingSlot::Idle),
         })
+    }
+
+    /// Helper: build a [`StreamingSlot::Live`] cell from a freshly
+    /// connected [`FpssClient`] and an optional dispatcher.
+    fn live_slot(client: FpssClient, dispatcher: Option<StreamingDispatcher>) -> StreamingSlot {
+        StreamingSlot::Live {
+            client: Arc::new(client),
+            dispatcher: Mutex::new(dispatcher),
+        }
+    }
+
+    /// Helper: error returned when `start_streaming*` is called while
+    /// the slot is already [`StreamingSlot::Live`].
+    fn already_streaming() -> Error {
+        Error::Fpss {
+            kind: crate::error::FpssErrorKind::ConnectionRefused,
+            message: "streaming already started".into(),
+        }
     }
 
     /// Start the FPSS streaming connection with a callback handler.
@@ -143,15 +186,12 @@ impl ThetaDataDx {
     where
         F: FnMut(&FpssEvent) + Send + 'static,
     {
-        let mut guard = self
-            .streaming
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if guard.is_some() {
-            return Err(Error::Fpss {
-                kind: crate::error::FpssErrorKind::ConnectionRefused,
-                message: "streaming already started".into(),
-            });
+        // Reject a second concurrent start before paying the connect
+        // cost. The post-connect slot install below revalidates this
+        // because another caller may race in during the connect; the
+        // upfront check is just a fast-path optimisation.
+        if matches!(&**self.state.load(), StreamingSlot::Live { .. }) {
+            return Err(Self::already_streaming());
         }
 
         // Spawn the dispatcher first. Its drain thread owns the user
@@ -190,16 +230,8 @@ impl ThetaDataDx {
                 producer.send(event.clone());
             },
         )?;
-        *guard = Some(client);
 
-        let mut dispatch_guard = self
-            .dispatcher
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        *dispatch_guard = Some(dispatcher);
-
-        self.was_streaming.store(true, Ordering::Release);
-        Ok(())
+        self.install_live(Self::live_slot(client, Some(dispatcher)))
     }
 
     /// Start the FPSS streaming connection with a callback that fires
@@ -239,15 +271,8 @@ impl ThetaDataDx {
     where
         F: FnMut(&FpssEvent) + Send + 'static,
     {
-        let mut guard = self
-            .streaming
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if guard.is_some() {
-            return Err(Error::Fpss {
-                kind: crate::error::FpssErrorKind::ConnectionRefused,
-                message: "streaming already started".into(),
-            });
+        if matches!(&**self.state.load(), StreamingSlot::Live { .. }) {
+            return Err(Self::already_streaming());
         }
         let config = self.historical.config();
         let client = FpssClient::connect(
@@ -259,8 +284,31 @@ impl ThetaDataDx {
             config.fpss.derive_ohlcvc,
             handler,
         )?;
-        *guard = Some(client);
-        self.was_streaming.store(true, Ordering::Release);
+        self.install_live(Self::live_slot(client, None))
+    }
+
+    /// Atomically swap the slot to a fresh `Live` state.
+    ///
+    /// Rejects the install when the slot raced into `Live` between the
+    /// caller's `start_streaming*` precheck and the FPSS connect
+    /// returning successfully. On rejection the freshly built
+    /// [`FpssClient`] is dropped, which triggers its reader-thread
+    /// shutdown and detaches the dispatcher cleanly.
+    fn install_live(&self, new_slot: StreamingSlot) -> Result<(), Error> {
+        let new = Arc::new(new_slot);
+        // CAS loop: only swap from `Idle` or `Stopped` into `Live`.
+        // ArcSwap doesn't expose `compare_and_swap` on `&Arc<T>` directly
+        // for non-Eq T; we instead read, decide, and rcu the state. The
+        // `rcu` closure is retried until the swap is observed atomically.
+        let prev = self.state.rcu(|current| match &**current {
+            StreamingSlot::Live { .. } => Arc::clone(current),
+            _ => Arc::clone(&new),
+        });
+        if matches!(&*prev, StreamingSlot::Live { .. }) {
+            // Lost the race: another start_streaming installed first.
+            // `new` falls out of scope and shuts down its FPSS client.
+            return Err(Self::already_streaming());
+        }
         Ok(())
     }
 
@@ -273,19 +321,21 @@ impl ThetaDataDx {
     /// per-drop log would amplify under sustained overflow.
     #[must_use]
     pub fn dropped_event_count(&self) -> u64 {
-        self.dispatcher
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .as_ref()
-            .map_or(0, StreamingDispatcher::dropped_count)
+        let snap = self.state.load();
+        match &**snap {
+            StreamingSlot::Live { dispatcher, .. } => {
+                let guard = dispatcher
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                guard.as_ref().map_or(0, StreamingDispatcher::dropped_count)
+            }
+            StreamingSlot::Idle | StreamingSlot::Stopped => 0,
+        }
     }
 
     /// Whether streaming is currently active.
     pub fn is_streaming(&self) -> bool {
-        self.streaming
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .is_some()
+        matches!(&**self.state.load(), StreamingSlot::Live { .. })
     }
 
     // -- Streaming convenience methods --
@@ -294,15 +344,14 @@ impl ThetaDataDx {
         &self,
         f: impl FnOnce(&FpssClient) -> Result<R, Error>,
     ) -> Result<R, Error> {
-        let guard = self
-            .streaming
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let client = guard.as_ref().ok_or_else(|| Error::Fpss {
-            kind: crate::error::FpssErrorKind::Disconnected,
-            message: "streaming not started -- call start_streaming() first".into(),
-        })?;
-        f(client)
+        let snap = self.state.load();
+        match &**snap {
+            StreamingSlot::Live { client, .. } => f(client.as_ref()),
+            StreamingSlot::Idle | StreamingSlot::Stopped => Err(Error::Fpss {
+                kind: crate::error::FpssErrorKind::Disconnected,
+                message: "streaming not started -- call start_streaming() first".into(),
+            }),
+        }
     }
 
     /// Subscribe to quote updates for a contract.
@@ -433,28 +482,36 @@ impl ThetaDataDx {
     }
 
     /// Shut down the streaming connection. Historical remains available.
+    ///
+    /// Idempotent: calling on an `Idle` or `Stopped` slot is a no-op,
+    /// repeated calls during the drain race are safe (only the first
+    /// observer of the `Live` slot performs the shutdown sequence).
     pub fn stop_streaming(&self) {
-        // Drop the FPSS client first: that joins the reader thread and
-        // guarantees no further `producer.send` calls reach the
-        // dispatcher's queue. Only then is it safe to shut the
-        // dispatcher down — otherwise the drain thread could observe
-        // the sender channel close while the reader thread is still
-        // mid-`try_send`, racing on the same channel handle.
-        let mut guard = self
-            .streaming
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(client) = guard.take() {
-            client.shutdown();
-        }
-        drop(guard);
+        // Atomically swap to `Stopped`; whichever caller wins the swap
+        // owns the previous `Arc<StreamingSlot>` and is the one that
+        // runs the shutdown sequence.
+        let prev = self.state.swap(Arc::new(StreamingSlot::Stopped));
 
-        let mut dispatch_guard = self
-            .dispatcher
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(dispatcher) = dispatch_guard.take() {
-            dispatcher.shutdown();
+        // Order matters: drop the FPSS client first so its reader thread
+        // joins and guarantees no further `producer.send` calls reach the
+        // dispatcher's queue. Only then is it safe to shut the dispatcher
+        // down — otherwise the drain thread could observe the sender
+        // channel close while the reader thread is still mid-`try_send`,
+        // racing on the same channel handle.
+        if let StreamingSlot::Live { client, dispatcher } = &*prev {
+            client.shutdown();
+            // Take the dispatcher out of its mutex so we can call the
+            // value-consuming `shutdown(mut self)`. Concurrent
+            // `dropped_event_count` callers see `None` and report 0 —
+            // the slot has already moved to `Stopped` so they are
+            // racing with a finalised lifecycle.
+            let dispatcher_owned = dispatcher
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take();
+            if let Some(d) = dispatcher_owned {
+                d.shutdown();
+            }
         }
     }
 
@@ -490,18 +547,12 @@ impl ThetaDataDx {
     {
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
         // 1. Save active subscriptions before stopping
-        let saved_subs = {
-            let guard = self
-                .streaming
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            match guard.as_ref() {
-                Some(client) => (
-                    client.active_subscriptions(),
-                    client.active_full_subscriptions(),
-                ),
-                None => (Vec::new(), Vec::new()),
-            }
+        let saved_subs = match &**self.state.load() {
+            StreamingSlot::Live { client, .. } => (
+                client.active_subscriptions(),
+                client.active_full_subscriptions(),
+            ),
+            StreamingSlot::Idle | StreamingSlot::Stopped => (Vec::new(), Vec::new()),
         };
 
         // 2. Stop streaming
@@ -536,20 +587,10 @@ impl ThetaDataDx {
 
     /// Get the current streaming connection status.
     pub fn connection_status(&self) -> ConnectionStatus {
-        let guard = self
-            .streaming
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        match guard.as_ref() {
-            None => {
-                // Client is gone (never set, or taken/dropped by stop_streaming).
-                if self.was_streaming.load(Ordering::Acquire) {
-                    ConnectionStatus::Disconnected
-                } else {
-                    ConnectionStatus::NotStarted
-                }
-            }
-            Some(client) => {
+        match &**self.state.load() {
+            StreamingSlot::Idle => ConnectionStatus::NotStarted,
+            StreamingSlot::Stopped => ConnectionStatus::Disconnected,
+            StreamingSlot::Live { client, .. } => {
                 if client.is_authenticated() {
                     ConnectionStatus::Connected
                 } else {
@@ -579,17 +620,16 @@ impl ThetaDataDx {
 
     /// Get subscription tier information captured at authentication time.
     pub fn subscription_info(&self) -> SubscriptionInfo {
-        let tier = |level: Option<i32>| match level {
-            Some(0) => "Free".to_string(),
-            Some(1) => "Value".to_string(),
-            Some(2) => "Standard".to_string(),
-            Some(3) => "Pro".to_string(),
-            Some(n) => format!("Unknown({n})"),
+        let label = |tier: Option<crate::mdds::SubscriptionTier>| match tier {
+            Some(crate::mdds::SubscriptionTier::Free) => "Free".to_string(),
+            Some(crate::mdds::SubscriptionTier::Value) => "Value".to_string(),
+            Some(crate::mdds::SubscriptionTier::Standard) => "Standard".to_string(),
+            Some(crate::mdds::SubscriptionTier::Pro) => "Pro".to_string(),
             None => "Unknown".to_string(),
         };
         SubscriptionInfo {
-            stock: tier(self.historical.stock_tier()),
-            options: tier(self.historical.options_tier()),
+            stock: label(self.historical.stock_tier()),
+            options: label(self.historical.options_tier()),
         }
     }
 
@@ -822,6 +862,13 @@ impl ThetaDataDx {
 }
 
 impl Drop for ThetaDataDx {
+    /// Final cleanup: idempotently stops the streaming connection.
+    ///
+    /// `stop_streaming` swaps the state cell to `Stopped` and only
+    /// performs the FPSS client / dispatcher shutdown sequence when the
+    /// previous slot was `Live`. Calling it once from `Drop` after the
+    /// user already called `stop_streaming` is therefore a no-op — the
+    /// state machine guarantees the shutdown runs exactly once.
     fn drop(&mut self) {
         self.stop_streaming();
     }
@@ -913,6 +960,87 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Lightweight stand-in for `StreamingSlot` carrying just enough
+    /// shape to walk the state machine transitions without spinning up
+    /// a real FPSS connection. The transitions and the `ArcSwap`
+    /// install/swap mechanics are what we are validating; the live
+    /// payload (`FpssClient`, `StreamingDispatcher`) is exercised by
+    /// the existing FPSS integration tests.
+    enum SlotMarker {
+        Idle,
+        Live(u32),
+        Stopped,
+    }
+
+    fn variant(s: &SlotMarker) -> &'static str {
+        match s {
+            SlotMarker::Idle => "Idle",
+            SlotMarker::Live(_) => "Live",
+            SlotMarker::Stopped => "Stopped",
+        }
+    }
+
+    /// Walks Idle → Live → Stopped → Live → Stopped, asserting the
+    /// `ArcSwap` cell observes each transition exactly once and that
+    /// the `Live` payload (here a generation counter) is preserved
+    /// across re-installs.
+    #[test]
+    fn streaming_slot_state_machine_transitions() {
+        let cell: ArcSwap<SlotMarker> = ArcSwap::from_pointee(SlotMarker::Idle);
+
+        // Idle observed.
+        assert_eq!(variant(&cell.load()), "Idle");
+
+        // Idle → Live(1)
+        let prev = cell.swap(Arc::new(SlotMarker::Live(1)));
+        assert_eq!(variant(&prev), "Idle");
+        assert_eq!(variant(&cell.load()), "Live");
+
+        // Live(1) → Stopped
+        let prev = cell.swap(Arc::new(SlotMarker::Stopped));
+        assert!(matches!(&*prev, SlotMarker::Live(1)));
+        assert_eq!(variant(&cell.load()), "Stopped");
+
+        // Stopped → Live(2)  — the second start path
+        let prev = cell.swap(Arc::new(SlotMarker::Live(2)));
+        assert_eq!(variant(&prev), "Stopped");
+        assert!(matches!(&**cell.load(), SlotMarker::Live(2)));
+
+        // Live(2) → Stopped (second shutdown)
+        let prev = cell.swap(Arc::new(SlotMarker::Stopped));
+        assert!(matches!(&*prev, SlotMarker::Live(2)));
+        assert_eq!(variant(&cell.load()), "Stopped");
+    }
+
+    /// Concurrent `start` race: only one caller observes the install,
+    /// the other sees `Live` and must reject. Modeled with the same
+    /// rcu CAS the real `install_live` uses.
+    #[test]
+    fn streaming_slot_rejects_double_install() {
+        let cell: ArcSwap<SlotMarker> = ArcSwap::from_pointee(SlotMarker::Idle);
+
+        let new1 = Arc::new(SlotMarker::Live(1));
+        let prev = cell.rcu(|cur| match &**cur {
+            SlotMarker::Live(_) => Arc::clone(cur),
+            _ => Arc::clone(&new1),
+        });
+        assert!(matches!(&*prev, SlotMarker::Idle));
+        assert_eq!(variant(&cell.load()), "Live");
+
+        // Second installer races in: must observe `Live` from `prev`.
+        let new2 = Arc::new(SlotMarker::Live(2));
+        let prev = cell.rcu(|cur| match &**cur {
+            SlotMarker::Live(_) => Arc::clone(cur),
+            _ => Arc::clone(&new2),
+        });
+        assert!(
+            matches!(&*prev, SlotMarker::Live(1)),
+            "second installer must see existing Live(1) and bail"
+        );
+        // Cell is unchanged: still Live(1), the Live(2) install was rejected.
+        assert!(matches!(&**cell.load(), SlotMarker::Live(1)));
+    }
 
     /// Inject a single failing per-contract subscribe call and prove the
     /// returned failure list contains exactly the failed `(kind, contract)`

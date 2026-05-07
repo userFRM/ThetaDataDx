@@ -36,13 +36,25 @@
 //!   helpers (`normalize_expiration`, `wire_strike_opt`, `wire_right_opt`)
 //!   live in the in-crate `wire_semantics` module.
 
+// macros must come first so the macro_rules they declare are textually
+// in scope for every later submodule in this `mdds/mod.rs` file (in
+// particular `endpoints`, which `include!`s the generated endpoint
+// bodies that call `list_endpoint!` / `parsed_endpoint!`).
+#[macro_use]
+pub(crate) mod macros;
+
 mod client;
 pub mod decode;
+pub mod endpoint_args;
 mod endpoints;
+pub(crate) mod registry;
 mod stream;
-mod validate;
+mod tier;
+pub(crate) mod validate;
+pub(crate) mod wire_semantics;
 
 pub use client::MddsClient;
+pub use tier::SubscriptionTier;
 
 #[cfg(test)]
 mod tests {

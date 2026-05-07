@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx"
-version = "8.0.36"
+version = "8.0.37"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -124,6 +124,14 @@ zeroize = { version = "1.8.2", features = ["derive"] }
 # `benches/streaming_channels.rs::crossbeam_bounded_8192` for the per-event
 # cost benchmark.
 crossbeam-channel = "0.5.15"
+
+# Lock-free atomic swap of an `Arc<StreamingSlot>` for the streaming
+# state machine on `ThetaDataDx`. Replaces three coordinated fields
+# (`Mutex<Option<FpssClient>>`, `Mutex<Option<StreamingDispatcher>>`,
+# `AtomicBool was_streaming`) with a single atomic load on the read
+# path — `is_streaming`, `connection_status`, `dropped_event_count` and
+# the `with_streaming` helper all collapse to one `state.load()`.
+arc-swap = "1.7"
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }

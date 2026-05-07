@@ -12,7 +12,7 @@ use tdbe::types::tick::{
     OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
 };
 
-use crate::registry::ParamType;
+use crate::mdds::registry::ParamType;
 use crate::Error;
 
 /// Validated scalar argument value accepted by the shared endpoint runtime.
@@ -173,7 +173,7 @@ impl EndpointArgs {
     /// Read a required expiration argument.
     ///
     /// Accepts `*` / `0` (wildcard sentinels), `YYYYMMDD`, or `YYYY-MM-DD`.
-    /// Wire-level canonicalization happens in `crate::wire_semantics::normalize_expiration`.
+    /// Wire-level canonicalization happens in `crate::mdds::wire_semantics::normalize_expiration`.
     pub fn required_expiration(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_expiration(value, key)?;
@@ -195,7 +195,7 @@ impl EndpointArgs {
     ///
     /// Accepts `*` / `0` / empty (wildcard sentinels) or a positive decimal
     /// (e.g. `"550"`, `"17.5"`). Wildcards become proto-unset on the wire
-    /// via `crate::wire_semantics::wire_strike_opt` so the server applies its default.
+    /// via `crate::mdds::wire_semantics::wire_strike_opt` so the server applies its default.
     pub fn required_strike(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_strike(value, key)?;
@@ -491,8 +491,8 @@ pub fn parse_raw_arg_value(
     }
 }
 
-// Canonical validation — delegates to the shared `validate` module.
-use crate::validate::{
+// Canonical validation — delegates to the shared `mdds::validate` module.
+use crate::mdds::validate::{
     parse_bool, parse_symbols, validate_date, validate_expiration, validate_interval,
     validate_right, validate_strike, validate_symbol, validate_year,
 };
@@ -673,7 +673,7 @@ mod tests {
     /// registry's content, not dispatch coverage.
     #[test]
     fn registry_metadata_integrity() {
-        use crate::registry::ENDPOINTS;
+        use crate::mdds::registry::ENDPOINTS;
 
         let registry_names: std::collections::HashSet<&str> =
             ENDPOINTS.iter().map(|e| e.name).collect();

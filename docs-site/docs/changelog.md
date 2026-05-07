@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.37] - 2026-05-07
+
+### Added
+
+- **Typed `SubscriptionTier` enum** (`Free`, `Value`, `Standard`, `Pro`)
+  replacing raw `Option<i32>` on `MddsClient`.
+  `max_concurrent_requests(self)` codifies the `2^tier` semaphore
+  semantics; `from_wire(i32)` decodes the wire byte (returning `None`
+  for unknown values rather than silently coercing). Re-exported as
+  `thetadatadx::SubscriptionTier`. The wire-side `auth::nexus::AuthUser`
+  keeps its raw `Option<i32>` fields so deserialization stays
+  infallible for unknown future tiers; the typed enum is the
+  post-decode in-memory shape callers see.
+
+### Changed
+
+- **Streaming state machine collapsed into a single `ArcSwap<StreamingSlot>`.**
+  `ThetaDataDx`'s prior 3-field state (`Mutex<Option<FpssClient>>`,
+  `Mutex<Option<StreamingDispatcher>>`, `AtomicBool was_streaming`) is
+  now one `ArcSwap` of an `Idle` / `Live` / `Stopped` enum. Read paths
+  (`is_streaming`, `connection_status`, `with_streaming`, every
+  per-subscription forwarder) collapse to one atomic load. Lifecycle
+  paths retain serial semantics through an rcu-CAS install and an
+  atomic swap-to-`Stopped`. Adds `arc-swap` 1.7 to runtime deps.
+- **Layout moves:**
+  - Top-level mdds-specific modules relocated under `mdds/`
+    (`endpoint.rs` → `mdds/endpoint_args.rs`, `macros.rs` →
+    `mdds/macros.rs`, `registry.rs` → `mdds/registry.rs`,
+    `validate.rs` merged into `mdds/validate.rs`,
+    `wire_semantics.rs` → `mdds/wire_semantics.rs`). Re-exports
+    preserved at crate root for back-compat
+    (`thetadatadx::endpoint::*`, `thetadatadx::EndpointMeta`,
+    `thetadatadx::ENDPOINTS`).
+  - `unified.rs` → `client.rs` (filename = primary type name).
+  - `frames.rs` + `frames_generated.rs` → `frames/{mod,generated}.rs`.
+  - `tdbe::types::*_generated.rs` segregated under
+    `tdbe::types::generated/`.
+
+### Fixed
+
+- (LOW 3.2) `extract_*_column` return type left as `Vec<Option<T>>` —
+  iterator conversion deferred. The three helpers are public surface
+  exercised by benches, integration tests, the macro-driven list
+  endpoints, and the Polars / Arrow column projections; switching to
+  `impl Iterator<Item = Option<T>>` would force every caller to deal
+  with the iterator shape and lose the missing-header early-return the
+  warn-log path relies on.
+- (LOW 3.9) `Drop::drop` on `ThetaDataDx` documents its idempotency
+  invariant. The `Idle` / `Live` / `Stopped` state machine guarantees
+  the FPSS / dispatcher shutdown sequence runs at most once across
+  `stop_streaming` + `Drop`.
+- (LOW 3.10) `#[allow(dead_code)]` removed from
+  `flatfiles/framing.rs::msg`. Every one of the ten `u16` wire-code
+  constants is genuinely used by `flatfiles::request` and
+  `flatfiles::session`; the attribute was a false positive.
+
+  Refs #500.
+
 ## [8.0.36] - 2026-05-07
 
 ### Changed

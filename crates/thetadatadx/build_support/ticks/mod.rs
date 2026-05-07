@@ -106,12 +106,12 @@ fn render_sdk_generated_files(
             contents: python_classes::render_python_tick_classes(&schema, snapshot_return_types),
         },
         GeneratedSourceFile {
-            // Rust `frames_generated.rs` — per-tick-type `TicksPolarsExt` /
+            // Rust `frames/generated.rs` — per-tick-type `TicksPolarsExt` /
             // `TicksArrowExt` impls. Feature-gated (`polars` / `arrow`),
             // `include!`-ed from the hand-written `src/frames.rs` so the
             // trait definitions and the per-type impls compile in the
             // same unit.
-            relative_path: "crates/thetadatadx/src/frames_generated.rs",
+            relative_path: "crates/thetadatadx/src/frames/generated.rs",
             contents: rust_frames::render_rust_frames(&schema),
         },
         GeneratedSourceFile {
@@ -119,7 +119,7 @@ fn render_sdk_generated_files(
             // emitted from the schema. Hand-written `tick.rs` `pub use`s
             // them and adds the macro applications + custom impls the
             // schema cannot express.
-            relative_path: "crates/tdbe/src/types/tick_generated.rs",
+            relative_path: "crates/tdbe/src/types/generated/tick.rs",
             contents: tdbe_structs::render_tdbe_tick_structs(&schema),
         },
         GeneratedSourceFile {
@@ -128,7 +128,7 @@ fn render_sdk_generated_files(
             // `tick.rs` `include!`s this file inside `#[cfg(test)]`.
             // Adding a tick type to `tick_schema.toml` therefore picks up
             // ABI guard coverage automatically.
-            relative_path: "crates/tdbe/src/types/tick_layout_asserts_generated.rs",
+            relative_path: "crates/tdbe/src/types/generated/tick_layout_asserts.rs",
             contents: tdbe_structs::render_tdbe_layout_asserts(&schema),
         },
         GeneratedSourceFile {

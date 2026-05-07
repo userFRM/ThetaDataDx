@@ -30,7 +30,6 @@ const MAX_PAYLOAD: u32 = 64 * 1024 * 1024;
 /// `u16` constants rather than an enum because the wire byte values are
 /// fixed by the protocol and the constants are matched against incoming
 /// frame headers.
-#[allow(dead_code)]
 pub(crate) mod msg {
     pub const CREDENTIALS: u16 = 0;
     pub const SESSION_TOKEN: u16 = 1;

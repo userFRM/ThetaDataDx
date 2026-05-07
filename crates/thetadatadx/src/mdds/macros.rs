@@ -214,21 +214,21 @@ macro_rules! list_endpoint {
                                 .map_err(|e| -> Error { e.into() })?;
                             self.collect_stream(stream.into_inner()).await
                         }.await;
-                        match $crate::macros::classify_attempt(
+                        match $crate::mdds::macros::classify_attempt(
                             self.session(),
                             &snap,
                             &mut refreshed_already,
                             stringify!($name),
                             attempt_result,
                         ).await {
-                            $crate::macros::AttemptStep::Ok(t) => break 'retry t,
-                            $crate::macros::AttemptStep::Terminal(err) => return Err::<Vec<String>, Error>(err),
-                            $crate::macros::AttemptStep::Retry(err) => {
+                            $crate::mdds::macros::AttemptStep::Ok(t) => break 'retry t,
+                            $crate::mdds::macros::AttemptStep::Terminal(err) => return Err::<Vec<String>, Error>(err),
+                            $crate::mdds::macros::AttemptStep::Retry(err) => {
                                 if attempt == budget {
                                     last_err = Some(err);
                                     break;
                                 }
-                                $crate::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
+                                $crate::mdds::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
                                 last_err = Some(err);
                             }
                         }
@@ -327,7 +327,7 @@ macro_rules! parsed_endpoint {
                         deadline,
                     } = self;
                     let _ = &client;
-                    $($(validate_date(&$date_arg)?;)+)?
+                    $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
                     let inner = async move {
                         tracing::debug!(endpoint = stringify!($name), "gRPC request");
                         metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
@@ -351,21 +351,21 @@ macro_rules! parsed_endpoint {
                                         .map_err(|e| -> Error { e.into() })?;
                                     client.collect_stream(stream.into_inner()).await
                                 }.await;
-                                match $crate::macros::classify_attempt(
+                                match $crate::mdds::macros::classify_attempt(
                                     client.session(),
                                     &snap,
                                     &mut refreshed_already,
                                     stringify!($name),
                                     attempt_result,
                                 ).await {
-                                    $crate::macros::AttemptStep::Ok(t) => break 'retry t,
-                                    $crate::macros::AttemptStep::Terminal(err) => return Err::<$ret, Error>(err),
-                                    $crate::macros::AttemptStep::Retry(err) => {
+                                    $crate::mdds::macros::AttemptStep::Ok(t) => break 'retry t,
+                                    $crate::mdds::macros::AttemptStep::Terminal(err) => return Err::<$ret, Error>(err),
+                                    $crate::mdds::macros::AttemptStep::Retry(err) => {
                                         if attempt == budget {
                                             last_err = Some(err);
                                             break;
                                         }
-                                        $crate::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
+                                        $crate::mdds::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
                                         last_err = Some(err);
                                     }
                                 }
@@ -378,7 +378,7 @@ macro_rules! parsed_endpoint {
                         // as Error::Decode via `From<DecodeError>`.
                         $parser(&table).map_err(Error::from)
                     };
-                    $crate::macros::run_with_optional_deadline(deadline, inner).await
+                    $crate::mdds::macros::run_with_optional_deadline(deadline, inner).await
                 })
             }
         }
