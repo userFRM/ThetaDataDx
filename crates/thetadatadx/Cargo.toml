@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx"
-version = "9.0.1"
+version = "9.0.2"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -135,6 +135,7 @@ arc-swap = "1.7"
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }
+proptest = "1.5"
 # Test-only: load captured-response fixtures and their sidecar .meta.toml
 # files for the decoder-regression suite (`tests/test_decode_captures.rs`).
 # `toml` is already a build- and opt-dependency here; adding it to

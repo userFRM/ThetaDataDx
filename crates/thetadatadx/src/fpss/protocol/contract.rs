@@ -1190,4 +1190,177 @@ mod tests {
         let c = Contract::from_str("BRK.B").expect("single-dot root must parse");
         assert_eq!(c.symbol, "BRK.B");
     }
+
+    // ---------------------------------------------------------------------------
+    // Property-based tests
+    // ---------------------------------------------------------------------------
+    //
+    // Two round-trip invariants:
+    //
+    //   1. `Contract -> to_bytes -> from_bytes -> Contract` is the identity
+    //      for any stock or option contract whose symbol matches the
+    //      `validate_root` shape (1..=16 ASCII uppercase, optional single
+    //      dot) and whose option fields lie in the canonical wire ranges
+    //      (expiration `[20000101, 20991231]`, strike `[1, 100_000_000]`
+    //      = $0.001..=$100_000 in i32 thousandths, right `'C' | 'P'`).
+    //
+    //   2. `OCC-21 string -> parse_occ21 -> Display -> OCC-21 string` is
+    //      not the identity in this codebase because `Display` formats
+    //      the verbose `"SYMBOL OPTION YYYYMMDD R STRIKE"` shape rather
+    //      than the OCC-21 wire shape. The substantive round-trip is
+    //      `OCC-21 -> Contract -> to_bytes -> from_bytes -> Contract`,
+    //      which exercises both the OCC-21 parser and the wire codec on
+    //      the same Contract value. Asserted as such below.
+
+    use proptest::prelude::*;
+
+    /// Strategy for a valid root symbol: 1..=6 ASCII uppercase letters
+    /// (the OCC-21 root field is 6 bytes, so we cap there for the OCC-21
+    /// arm). The wire codec accepts up to 16 bytes; the bytes round-trip
+    /// arm uses the same strategy because every OCC-21-valid root is
+    /// also wire-codec-valid, and capping at 6 keeps the two arms aligned.
+    fn arbitrary_root() -> impl Strategy<Value = String> {
+        proptest::collection::vec(b'A'..=b'Z', 1usize..=6)
+            .prop_map(|bytes| String::from_utf8(bytes).expect("ASCII uppercase is valid UTF-8"))
+    }
+
+    /// Strategy for a valid YYYYMMDD expiration in the OCC-21 century scope.
+    /// Uses a lazy day-count clamp per month so every emitted date is real.
+    fn arbitrary_expiration() -> impl Strategy<Value = i32> {
+        (2000i32..=2099, 1u32..=12).prop_flat_map(|(y, m)| {
+            let dim = match m {
+                1 | 3 | 5 | 7 | 8 | 10 | 12 => 31u32,
+                4 | 6 | 9 | 11 => 30,
+                2 => {
+                    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+                    if leap {
+                        29
+                    } else {
+                        28
+                    }
+                }
+                _ => unreachable!(),
+            };
+            (Just(y), Just(m), 1u32..=dim).prop_map(|(y, m, d)| {
+                // Reason: y, m, d are bounded above; product fits in i32.
+                #[allow(clippy::cast_possible_wrap)]
+                {
+                    y * 10_000 + (m as i32) * 100 + (d as i32)
+                }
+            })
+        })
+    }
+
+    /// Strategy for a stock-or-option Contract.
+    fn arbitrary_contract() -> impl Strategy<Value = Contract> {
+        prop_oneof![
+            // Stock branch.
+            arbitrary_root().prop_map(Contract::stock),
+            // Option branch: wire-format integer triple variant so the
+            // strategy never has to round-trip strings -- the Contract
+            // value itself is the unit under test.
+            (
+                arbitrary_root(),
+                arbitrary_expiration(),
+                any::<bool>(),
+                // Strike: 8 zero-padded digits in OCC-21, so the
+                // representable range is `[0, 99_999_999]` for the
+                // OCC-21 round-trip. Cap at the OCC-21 ceiling
+                // (99_999_999 = $99_999.999) and bottom at 1 to dodge
+                // the edge case where `strike = 0` would parse but
+                // collide with a malformed wire frame in callers that
+                // sentinel on it.
+                1i32..=99_999_999,
+            )
+                .prop_map(|(root, exp, is_call, strike)| {
+                    Contract::option(root, (exp, is_call, strike))
+                        .expect("integer triple is infallible by type")
+                }),
+        ]
+    }
+
+    /// Build a canonical 21-char OCC-21 string from a strike-bearing
+    /// contract. Mirrors the layout documented on `parse_occ21`.
+    fn contract_to_occ21(c: &Contract) -> String {
+        let exp = c.expiration.expect("option contract carries expiration");
+        let strike = c.strike.expect("option contract carries strike");
+        let right = if c.is_call.expect("option contract carries right") {
+            'C'
+        } else {
+            'P'
+        };
+        // YYYYMMDD -> YYMMDD (the parser maps YY -> 2000+YY).
+        let yymmdd = exp - 20_000_000;
+        // Pad the root to 6 chars with trailing spaces.
+        let root_padded = format!("{:<6}", c.symbol);
+        format!("{root_padded}{yymmdd:06}{right}{strike:08}")
+    }
+
+    proptest! {
+        /// `Contract -> to_bytes -> from_bytes` is the identity for any
+        /// well-formed stock or option contract.
+        #[test]
+        fn contract_bytes_roundtrip(c in arbitrary_contract()) {
+            let bytes = c.to_bytes();
+            let (parsed, consumed) = Contract::from_bytes(&bytes)
+                .expect("encoder output must decode");
+            prop_assert_eq!(consumed, bytes.len());
+            prop_assert_eq!(parsed, c);
+        }
+
+        /// OCC-21 string parsing is byte-for-byte invertible: rebuilding
+        /// the OCC-21 string from a parsed Contract reproduces the
+        /// original input exactly.
+        #[test]
+        fn occ21_string_roundtrip(
+            root in arbitrary_root(),
+            exp in arbitrary_expiration(),
+            is_call in any::<bool>(),
+            strike in 1i32..=99_999_999,
+        ) {
+            let original = {
+                let yymmdd = exp - 20_000_000;
+                let right = if is_call { 'C' } else { 'P' };
+                let root_padded = format!("{root:<6}");
+                format!("{root_padded}{yymmdd:06}{right}{strike:08}")
+            };
+            prop_assert_eq!(original.len(), 21);
+
+            let parsed: Contract = original.parse()
+                .expect("well-formed OCC-21 string must parse");
+            prop_assert_eq!(&parsed.symbol, &root);
+            prop_assert_eq!(parsed.expiration, Some(exp));
+            prop_assert_eq!(parsed.is_call, Some(is_call));
+            prop_assert_eq!(parsed.strike, Some(strike));
+
+            let rebuilt = contract_to_occ21(&parsed);
+            prop_assert_eq!(rebuilt, original);
+        }
+
+        /// Composite round-trip: `OCC-21 string -> Contract -> to_bytes
+        /// -> from_bytes -> Contract` yields the same Contract that the
+        /// OCC-21 parser produced. Pins the wire codec and the OCC-21
+        /// parser against each other on the same value.
+        #[test]
+        fn occ21_then_bytes_roundtrip(
+            root in arbitrary_root(),
+            exp in arbitrary_expiration(),
+            is_call in any::<bool>(),
+            strike in 1i32..=99_999_999,
+        ) {
+            let occ21 = {
+                let yymmdd = exp - 20_000_000;
+                let right = if is_call { 'C' } else { 'P' };
+                let root_padded = format!("{root:<6}");
+                format!("{root_padded}{yymmdd:06}{right}{strike:08}")
+            };
+            let parsed: Contract = occ21.parse()
+                .expect("well-formed OCC-21 string must parse");
+
+            let bytes = parsed.to_bytes();
+            let (decoded, _) = Contract::from_bytes(&bytes)
+                .expect("encoder output must decode");
+            prop_assert_eq!(decoded, parsed);
+        }
+    }
 }

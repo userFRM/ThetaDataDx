@@ -1166,4 +1166,98 @@ mod tests {
         // Just confirm it's finite and roughly intrinsic-ish.
         assert!(bundle.value.is_finite());
     }
+
+    // ---------------------------------------------------------------------------
+    // Property-based tests
+    // ---------------------------------------------------------------------------
+    //
+    // Black-Scholes invariants. The strategy draws non-degenerate inputs
+    // (`v > 0`, `t > 0`) within sensible market ranges and checks four
+    // closed-form properties:
+    //
+    //   1. Put-call parity: `C - P = S*exp(-q*T) - X*exp(-r*T)`.
+    //      Tolerance is loose (1e-3) because the production `norm_cdf`
+    //      uses the Abramowitz & Stegun formula 26.2.17 approximation
+    //      (max ~1.5e-7 absolute error per evaluation, see the
+    //      `norm_cdf` doc comment), and parity sums four such evaluations
+    //      multiplied by spot/strike magnitudes up to 10 000.
+    //   2. Delta bounds: `0 <= delta_call <= 1`, `-1 <= delta_put <= 0`.
+    //   3. Vega is non-negative.
+    //   4. Gamma is non-negative for both calls and puts (Gamma is
+    //      independent of `is_call` — same formula either way — but the
+    //      property is asserted via the public `gamma` function).
+
+    use proptest::prelude::*;
+
+    /// Strategy for `(spot, strike, rate, div_yield, tte, iv)` within
+    /// sensible ranges.
+    fn arbitrary_market() -> impl Strategy<Value = (f64, f64, f64, f64, f64, f64)> {
+        (
+            0.01f64..=10_000.0,     // spot
+            0.01f64..=10_000.0,     // strike
+            -0.05f64..=0.20,        // rate
+            0.0f64..=0.10,          // div_yield
+            (1.0f64 / 365.0)..=5.0, // tte
+            0.001f64..=5.0,         // iv
+        )
+    }
+
+    proptest! {
+        /// Put-call parity within a tolerance that accommodates the
+        /// production `norm_cdf` approximation error scaled by spot
+        /// and strike magnitudes.
+        #[test]
+        fn put_call_parity_holds(market in arbitrary_market()) {
+            let (s, x, r, q, t, v) = market;
+            let call = value(s, x, v, r, q, t, true);
+            let put = value(s, x, v, r, q, t, false);
+            let lhs = call - put;
+            let rhs = s * (-q * t).exp() - x * (-r * t).exp();
+            // norm_cdf has ~1.5e-7 max absolute error (Abramowitz &
+            // Stegun 26.2.17). Parity sums up to 4 norm_cdf evaluations
+            // multiplied by spot/strike (each up to 1e4), so the
+            // accumulated absolute error tolerance must scale with the
+            // input magnitude. 1e-3 absolute + 1e-5 relative is a safe
+            // ceiling across the full input range.
+            let tol = 1e-3 + 1e-5 * (s.abs() + x.abs());
+            prop_assert!(
+                (lhs - rhs).abs() < tol,
+                "put-call parity violation: lhs={lhs} rhs={rhs} diff={diff} tol={tol} for s={s} x={x} v={v} r={r} q={q} t={t}",
+                diff = (lhs - rhs).abs()
+            );
+        }
+
+        /// Delta bounds: call delta in `[0, 1]`, put delta in `[-1, 0]`.
+        /// The continuous-dividend Black-Scholes call delta carries an
+        /// `exp(-q*T)` factor, which keeps it strictly within `[0, 1]`
+        /// for any `q >= 0`.
+        #[test]
+        fn delta_bounds_hold(market in arbitrary_market()) {
+            let (s, x, r, q, t, v) = market;
+            let dc = delta(s, x, v, r, q, t, true);
+            let dp = delta(s, x, v, r, q, t, false);
+            prop_assert!((0.0..=1.0).contains(&dc), "call delta out of bounds: {dc}");
+            prop_assert!((-1.0..=0.0).contains(&dp), "put delta out of bounds: {dp}");
+        }
+
+        /// Vega is always non-negative — long volatility is long
+        /// optionality regardless of moneyness or sign of rate.
+        #[test]
+        fn vega_nonneg(market in arbitrary_market()) {
+            let (s, x, r, q, t, v) = market;
+            let vg = vega(s, x, v, r, q, t);
+            prop_assert!(vg >= 0.0, "vega must be non-negative: {vg}");
+        }
+
+        /// Gamma is always non-negative for calls and puts. The
+        /// production `gamma` function is `is_call`-independent, but the
+        /// property is asserted via the same call shape both surfaces
+        /// expose.
+        #[test]
+        fn gamma_nonneg(market in arbitrary_market()) {
+            let (s, x, r, q, t, v) = market;
+            let g = gamma(s, x, v, r, q, t);
+            prop_assert!(g >= 0.0, "gamma must be non-negative: {g}");
+        }
+    }
 }

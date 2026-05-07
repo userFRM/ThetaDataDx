@@ -36,6 +36,7 @@ toml = "1.1"
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }
+proptest = "1.5"
 
 [[bench]]
 name = "bench_fit"
