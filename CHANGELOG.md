@@ -5,6 +5,86 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.1.0] - 2026-05-07
+
+Single-queue SSOT rewrite for FPSS streaming (closes #513). The
+documented "single-dispatcher SSOT" claim turned out to compose two
+queues — the LMAX Disruptor ring plus a `crossbeam_channel::bounded(8192)`
+inside `StreamingDispatcher` — with a per-tick clone in between.
+Resolved through an external multi-model audit.
+
+### Changed
+
+- `ThetaDataDx::start_streaming` now invokes the user callback directly
+  from the LMAX Disruptor consumer thread, with each invocation wrapped
+  in `std::panic::catch_unwind`. There is exactly ONE queue between the
+  TLS reader and the user callback (the Disruptor ring); the per-tick
+  `FpssEvent::clone` shim in `client.rs` is gone.
+- `dropped_event_count()` keeps the same public signature but now
+  reports `Producer::try_publish` failures (ring-buffer overflow when
+  the consumer falls behind) instead of `crossbeam_channel::Full`
+  rejections.
+- The TLS reader uses `Producer::try_publish` for every data event so
+  a slow user callback can never block the reader. Handshake-time
+  control frames (`Connected`, `Ping`, `LoginSuccess`, `Reconnecting`,
+  `Disconnected`) keep the original `publish` semantics so wire-order
+  ordering relative to `LoginSuccess` is preserved.
+
+### Added
+
+- `ThetaDataDx::panic_count()` and `FpssClient::panic_count()` — new
+  public methods that snapshot the count of user-callback panics
+  caught by the Disruptor consumer's `catch_unwind` boundary. Each
+  panic is also surfaced via `tracing::error!` with target
+  `thetadatadx::fpss::io_loop`.
+- `expert-mode` Cargo feature on `thetadatadx`, off by default.
+  Reserves the `start_streaming_inline` entry point for a future
+  TLS-reader-direct dispatch path; documented as forbidden for
+  `stop_streaming` / `reconnect_streaming` / blocking / panicking
+  callbacks. The FFI crate (`thetadatadx-ffi`) enables this feature
+  unconditionally so `tdx_*_set_inline_callback` keeps its C ABI.
+- `crates/thetadatadx/tests/streaming_soak.rs` — four soak tests
+  (slow callback, panicking callback, callback-triggered stop,
+  burst overload) that exercise the consumer-thread wiring without a
+  live FPSS connection.
+- Python SDK: "Streaming buffering" section in `sdks/python/README.md`
+  documenting the `collections.deque` (Pattern A, default) and
+  `queue.Queue` (Pattern B, cross-thread blocking) consumer patterns.
+
+### Removed
+
+- `crates/thetadatadx/src/fpss/dispatcher.rs` and its public exports
+  (`StreamingDispatcher`, `DispatcherProducer`). The struct's panic
+  isolation, drop counting, and consumer-thread invariants now live
+  on the Disruptor consumer in `io_loop`.
+- `crossbeam-channel` runtime dependency on `thetadatadx`.
+
+### Performance
+
+- Per-event cost on the `start_streaming` path drops by removing the
+  `event.clone()` + `crossbeam` `try_send` + drain-thread wakeup hop
+  that previously sat between the Disruptor consumer and the user
+  callback. Microbenchmark numbers from
+  `crates/thetadatadx/benches/streaming_channels.rs` (100k
+  `FpssEvent::Empty` payloads per sample, criterion median, native
+  release build):
+  - `disruptor_consumer_panic_isolated` (live SSOT path:
+    `Producer::try_publish` + Disruptor consumer + `catch_unwind`):
+    ~113 µs / 100k ≈ 1.13 ns / event.
+  - `disruptor_consumer_no_catch_unwind` (same pipeline without the
+    panic boundary, so the `catch_unwind` overhead is observable as
+    the delta against the row above): ~113 µs / 100k ≈ 1.13 ns /
+    event. The `catch_unwind` cost is below criterion's noise floor
+    on `Empty` events.
+  - `disruptor_cross_thread` (production-shape topology: producer
+    and consumer on separate OS threads): ~209 µs / 100k ≈ 2.09 ns /
+    event.
+  - `direct_callback` (prospective TLS-reader-direct path modelled
+    via `Box<dyn Fn>` adapter): ~527 µs / 100k ≈ 5.27 ns / event on
+    the bench's per-iteration event construction; the live ring
+    publish path (variants above) is faster because the slot is
+    pre-allocated.
+
 ## [9.0.2] - 2026-05-07
 
 ### Added

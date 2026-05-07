@@ -280,9 +280,9 @@ int main() {
     // Create a streaming client (separate from the historical Client)
     tdx::FpssClient fpss(creds, config);
 
-    // Register a queued callback. The dispatcher drain thread invokes
-    // `fn` for every event; the FPSS reader thread never blocks on
-    // user code.
+    // Register a queued callback. The LMAX Disruptor consumer thread
+    // invokes `fn` for every event under `catch_unwind`; the FPSS
+    // reader thread never blocks on user code.
     fpss.set_callback([](const tdx::FpssEvent& event) {
         if (event.kind == TDX_FPSS_QUOTE) {
             std::cout << "quote bid=" << event.quote.bid
@@ -302,7 +302,7 @@ All prices in streaming events are `double` (f64) -- decoded during parsing. Acc
 
 ### Inline callback (power user)
 
-`set_inline_callback` is the opt-in alternative. Instead of routing events through the bounded crossbeam queue and dispatcher drain thread, the callback fires directly from the FPSS reader thread. This skips the queueing overhead but inverts the safety contract: the callback MUST return within microseconds. Any allocation, lock acquisition, syscall, or blocking I/O stalls the reader, fills the kernel TCP receive buffer, and causes the vendor to disconnect. Reach for this path only inside provably wait-free trading loops.
+`set_inline_callback` is the expert-mode opt-in. After the #513 single-queue rewrite the queued and inline paths share the same Disruptor-consumer pipeline; the inline gate is reserved for a future TLS-reader-direct dispatch path. The microsecond-budget contract still applies on the eventual reader-thread implementation: the callback MUST return within microseconds and MUST NOT call `reconnect()` / `shutdown()` from inside the callback (would self-join). For everything that is not a provably wait-free trading loop, prefer `set_callback`.
 
 ```cpp
 fpss.set_inline_callback([](const tdx::FpssEvent& event) {
@@ -335,9 +335,9 @@ fpss.set_inline_callback([](const tdx::FpssEvent& event) {
 | `contract_lookup(id)` | `optional<string>` | Look up a contract by server-assigned ID |
 | `contract_map()` | `map<int32_t, string>` | Get the full contract ID mapping |
 | `active_subscriptions()` | `vector<Subscription>` | Get active subscriptions as typed structs |
-| `set_callback(std::function<void(const FpssEvent&)>)` | `void` | Queued path: dispatcher drain thread invokes `fn`, reader never blocks |
-| `set_inline_callback(std::function<void(const FpssEvent&)>)` | `void` | Inline path: `fn` fires on the FPSS reader thread (microsecond-budget contract) |
-| `dropped_events()` | `uint64_t` | Cumulative count of events the dispatcher dropped on queue overflow (0 for inline path) |
+| `set_callback(std::function<void(const FpssEvent&)>)` | `void` | Queued path: Disruptor consumer thread invokes `fn` under `catch_unwind`, reader never blocks |
+| `set_inline_callback(std::function<void(const FpssEvent&)>)` | `void` | Expert-mode path: reserved for a future TLS-reader-direct dispatch (microsecond-budget contract) |
+| `dropped_events()` | `uint64_t` | Cumulative ring-buffer overflow count (`Producer::try_publish` failures) |
 | `reconnect()` | `void` | Reconnect streaming and restore subscriptions |
 | `shutdown()` | `void` | Shut down the FPSS client |
 

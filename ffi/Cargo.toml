@@ -30,7 +30,12 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 testing-panic-boundary = []
 
 [dependencies]
-thetadatadx = { path = "../crates/thetadatadx" }
+# `expert-mode` is required: the C ABI's `tdx_*_set_inline_callback`
+# entry points are the FFI's contract for ultra-low-latency C/C++
+# trading-loop callers, and they wire through
+# `ThetaDataDx::start_streaming_inline` which is gated behind that
+# feature in the core crate (see #513).
+thetadatadx = { path = "../crates/thetadatadx", features = ["expert-mode"] }
 tdbe = { version = "0.13.0", path = "../crates/tdbe" }
 tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
 # Used by the FPSS streaming callback silent-drop observability path
@@ -39,3 +44,10 @@ tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
 # `tracing::debug!` writes to is filterable with a single
 # `RUST_LOG=thetadatadx=debug` directive.
 tracing = "0.1.44"
+
+[dev-dependencies]
+# Used by the FFI streaming unit test that exercises the Disruptor
+# consumer thread directly (`ffi_callback_queued_runs_on_consumer_thread`).
+# Pinned to the same version the core crate consumes through
+# `crates/thetadatadx/Cargo.toml`.
+disruptor = "4.1.0"

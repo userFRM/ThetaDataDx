@@ -174,14 +174,15 @@ impl ThetaDataDx {
         })
     }
 
-    /// Cumulative count of FPSS events dropped because the SSOT
-    /// `StreamingDispatcher`'s bounded queue overflowed before the
-    /// drain thread could hand the event off to the JS callback.
+    /// Cumulative count of FPSS events the TLS reader could not
+    /// publish into the Disruptor ring because the Disruptor consumer
+    /// fell behind and the ring was full (`Producer::try_publish`
+    /// returned `RingBufferFull`).
     ///
     /// Forwards to `thetadatadx::ThetaDataDx::dropped_event_count` so
-    /// the value matches every other binding (C ABI, Python, future
-    /// C++). The counter lives on the underlying `StreamingDispatcher`
-    /// and resets when the dispatcher is recreated -- that happens on
+    /// the value matches every other binding (C ABI, Python, C++).
+    /// The counter lives on the underlying `FpssClient` and resets
+    /// when the client is recreated -- that happens on
     /// `stop_streaming` and `reconnect` (which calls
     /// `stop_streaming` + `start_streaming` internally). Snapshot the
     /// value before reconnect if you need to accumulate drops across

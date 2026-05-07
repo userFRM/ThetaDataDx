@@ -8,20 +8,23 @@
 //! # Callback C ABI
 //!
 //! Both [`TdxUnified`] and [`TdxFpssHandle`] expose a pair of callback-
-//! registration entry points that wire user `extern "C"` functions through
-//! the SSOT [`thetadatadx::fpss::StreamingDispatcher`]:
+//! registration entry points that wire user `extern "C"` functions
+//! through the SSOT single-queue pipeline introduced in #513:
 //!
-//! - `tdx_*_set_callback` — queued: the FPSS reader thread pushes onto a
-//!   bounded `crossbeam_channel::bounded(8192)` queue inside the
-//!   dispatcher; a dedicated drain thread invokes the user callback.
-//!   The reader thread never blocks on user code, so a slow C/C++
-//!   callback fills the queue and overflow events are silently dropped
-//!   (with the drop count exposed via `tdx_*_dropped_events`).
-//! - `tdx_*_set_inline_callback` — inline: the user callback fires
-//!   directly on the FPSS reader thread. Microsecond-budget contract:
-//!   any allocation, I/O, or lock acquisition will stall the reader and
-//!   cause the vendor session to drop. Use only for trading loops with
-//!   provably wait-free callbacks.
+//! - `tdx_*_set_callback` — queued: the user callback runs on the LMAX
+//!   Disruptor consumer thread, with each invocation wrapped in
+//!   [`std::panic::catch_unwind`] so a C/C++ panic does not kill the
+//!   consumer. The TLS reader publishes events via
+//!   `Producer::try_publish`; on ring overflow the event is dropped and
+//!   the drop count is exposed via `tdx_*_dropped_events`. The reader
+//!   thread never blocks on user code.
+//! - `tdx_*_set_inline_callback` — inline: gated behind the
+//!   `thetadatadx/expert-mode` Cargo feature (the FFI crate enables
+//!   this unconditionally so the C ABI keeps its expert path).
+//!   Currently delegates to the same Disruptor-consumer pipeline as
+//!   the queued path; the feature gate is in place so a future
+//!   revision can introduce a true TLS-reader-direct dispatch without
+//!   a SemVer-breaking rename.
 //!
 //! The poll-based `tdx_*_next_event` API and its supporting `mpsc`
 //! pipeline have been removed; the C ABI is callback-only.
@@ -143,9 +146,6 @@ pub struct TdxFpssHandle {
     /// Saved connection parameters used at `set_callback` time and on
     /// every subsequent `tdx_fpss_reconnect`.
     connect_params: FpssConnectParams,
-    /// Dispatcher attached when the user installs a queued callback.
-    /// `None` for inline-mode handles or before any callback is set.
-    dispatcher: Mutex<Option<thetadatadx::fpss::StreamingDispatcher>>,
     /// User callback recorded at `tdx_fpss_set_callback` /
     /// `tdx_fpss_set_inline_callback` time. Stored on the handle so
     /// `tdx_fpss_reconnect` can re-register the same callback on the
@@ -1334,7 +1334,6 @@ pub unsafe extern "C" fn tdx_fpss_connect(
                 reconnect_policy: config.inner.reconnect.policy.clone(),
                 derive_ohlcvc: config.inner.fpss.derive_ohlcvc,
             },
-            dispatcher: Mutex::new(None),
             callback: Mutex::new(None),
             state: AtomicU8::new(FPSS_STATE_FRESH),
         }))
@@ -1438,13 +1437,13 @@ where
 
 /// Register a queued FPSS callback and open the FPSS connection.
 ///
-/// `callback` is invoked from a dedicated drain thread (the SSOT
-/// [`StreamingDispatcher`](thetadatadx::fpss::StreamingDispatcher) drain
-/// thread) for every FPSS event the reader pulls off the wire. The
-/// reader thread pushes events onto a bounded `crossbeam_channel` queue
-/// (8192 slots); on overflow events are dropped silently and counted
-/// (queryable via `tdx_fpss_dropped_events`). The reader thread NEVER
-/// blocks on `callback`.
+/// `callback` is invoked from the LMAX Disruptor consumer thread for
+/// every FPSS event the reader pulls off the wire, with each
+/// invocation wrapped in [`std::panic::catch_unwind`] so a C/C++ panic
+/// does not kill the consumer. The TLS reader publishes events via
+/// `Producer::try_publish`; on ring overflow events are dropped and
+/// counted (queryable via `tdx_fpss_dropped_events`). The reader
+/// thread NEVER blocks on `callback`.
 ///
 /// `ctx` is an opaque pointer passed back unchanged on every invocation.
 /// It MUST remain valid from this call until either
@@ -1487,32 +1486,18 @@ pub unsafe extern "C" fn tdx_fpss_set_callback(
             return -1;
         }
         let cb = FfiCallback { callback, ctx };
-        // Spawn a `StreamingDispatcher` (queued mode) and register a
-        // producer-side closure with `FpssClient::connect`. The
-        // dispatcher drain thread owns the user callback; the FPSS
-        // reader never blocks on user code.
-        let dispatcher = thetadatadx::fpss::StreamingDispatcher::spawn(Box::new(
-            move |event: &thetadatadx::fpss::FpssEvent| {
-                cb.invoke(event);
-            },
-        ));
-        let producer = dispatcher.producer();
+        // Wire the user callback directly into `FpssClient::connect`;
+        // the core SDK's Disruptor consumer invokes it under
+        // `catch_unwind` and counts ring-buffer overflow on
+        // `dropped_count`. No second queue, no extra drain thread.
         let rc = open_fpss(handle, move |event: &thetadatadx::fpss::FpssEvent| {
-            producer.send(event.clone());
+            cb.invoke(event);
         });
         if rc != 0 {
-            // Connect failed -- shut down the dispatcher we just spawned
-            // so the drain thread doesn't outlive the failure path. State
-            // stays Fresh so the caller can retry once the underlying
-            // problem is fixed.
-            dispatcher.shutdown();
+            // Connect failed; state stays Fresh so the caller can
+            // retry once the underlying problem is fixed.
             return rc;
         }
-        let mut dispatch_guard = handle
-            .dispatcher
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        *dispatch_guard = Some(dispatcher);
         let mut cb_guard = handle
             .callback
             .lock()
@@ -2436,7 +2421,10 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
             }
         };
 
-        // 2. Shut down the old client and the old dispatcher (if any).
+        // 2. Shut down the old client. With the SSOT pipeline there is
+        // no separate dispatcher to tear down — the Disruptor consumer
+        // joins inside `FpssClient::Drop` when the last `Arc` goes
+        // away.
         {
             let mut guard = handle
                 .inner
@@ -2446,73 +2434,33 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
                 old.shutdown();
             }
         }
-        {
-            let mut dispatch_guard = handle
-                .dispatcher
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if let Some(old) = dispatch_guard.take() {
-                old.shutdown();
-            }
-        }
 
-        // 3. Build the new event handler bound to the same C callback,
-        // routing through a fresh dispatcher (queued mode) or directly
-        // (inline mode).
-        let new_dispatcher = match mode {
-            DispatchMode::Queued => Some(thetadatadx::fpss::StreamingDispatcher::spawn(Box::new(
-                move |event: &thetadatadx::fpss::FpssEvent| {
-                    cb.invoke(event);
-                },
-            ))),
-            DispatchMode::Inline => None,
-        };
-
-        let new_client = match mode {
-            DispatchMode::Queued => {
-                // SAFETY: in queued mode we just spawned `new_dispatcher` above,
-                // so unwrap is sound.
-                let dispatcher = new_dispatcher
-                    .as_ref()
-                    .expect("dispatcher present for queued mode");
-                let producer = dispatcher.producer();
-                thetadatadx::fpss::FpssClient::connect(
-                    thetadatadx::fpss::FpssConnectArgs {
-                        creds: &params.creds,
-                        hosts: &params.hosts,
-                        ring_size: params.ring_size,
-                        flush_mode: params.flush_mode,
-                        policy: params.reconnect_policy.clone(),
-                        derive_ohlcvc: params.derive_ohlcvc,
-                    },
-                    move |event: &thetadatadx::fpss::FpssEvent| {
-                        producer.send(event.clone());
-                    },
-                )
-            }
-            DispatchMode::Inline => thetadatadx::fpss::FpssClient::connect(
-                thetadatadx::fpss::FpssConnectArgs {
-                    creds: &params.creds,
-                    hosts: &params.hosts,
-                    ring_size: params.ring_size,
-                    flush_mode: params.flush_mode,
-                    policy: params.reconnect_policy.clone(),
-                    derive_ohlcvc: params.derive_ohlcvc,
-                },
-                move |event: &thetadatadx::fpss::FpssEvent| {
-                    cb.invoke(event);
-                },
-            ),
-        };
+        // 3. Build the new event handler bound to the same C callback.
+        // After #513 there is no dispatcher hop: the Disruptor consumer
+        // invokes `cb.invoke(event)` under `catch_unwind` for the
+        // queued path, and the (feature-gated) inline path delegates to
+        // the same pipeline today. `mode` is preserved because it is
+        // load-bearing on existing C ABI consumers (telemetry,
+        // diagnostics) and reserved for the eventual reader-thread
+        // dispatch revision.
+        let _ = mode;
+        let new_client = thetadatadx::fpss::FpssClient::connect(
+            thetadatadx::fpss::FpssConnectArgs {
+                creds: &params.creds,
+                hosts: &params.hosts,
+                ring_size: params.ring_size,
+                flush_mode: params.flush_mode,
+                policy: params.reconnect_policy.clone(),
+                derive_ohlcvc: params.derive_ohlcvc,
+            },
+            move |event: &thetadatadx::fpss::FpssEvent| {
+                cb.invoke(event);
+            },
+        );
 
         let new_client = match new_client {
             Ok(c) => c,
             Err(e) => {
-                // Tear down the dispatcher we just spawned so its drain
-                // thread does not outlive the failed reconnect.
-                if let Some(d) = new_dispatcher {
-                    d.shutdown();
-                }
                 set_error(&e.to_string());
                 return -1;
             }
@@ -2566,7 +2514,7 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
             }
         }
 
-        // 5. Store the new client + dispatcher.
+        // 5. Store the new client.
         {
             let mut guard = handle
                 .inner
@@ -2574,25 +2522,17 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             *guard = Some(new_client);
         }
-        if let Some(d) = new_dispatcher {
-            let mut dispatch_guard = handle
-                .dispatcher
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            *dispatch_guard = Some(d);
-        }
 
         0
     })
 }
 
-/// Cumulative count of FPSS events dropped by the dispatcher on this
-/// handle because the bounded `(8192)` queue was full when the FPSS
-/// reader thread tried to enqueue an event.
+/// Cumulative count of FPSS events the TLS reader could not publish
+/// into the Disruptor ring because the consumer fell behind and the
+/// ring was full (`Producer::try_publish` returned `RingBufferFull`).
 ///
-/// Returns 0 if the handle is null, no callback has been installed yet,
-/// or the inline path was taken (no dispatcher queue exists in inline
-/// mode — overflow cannot happen because there is no queue).
+/// Returns 0 if the handle is null or no callback has been installed
+/// yet.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fpss_dropped_events(handle: *const TdxFpssHandle) -> u64 {
     ffi_boundary!(0, {
@@ -2601,12 +2541,12 @@ pub unsafe extern "C" fn tdx_fpss_dropped_events(handle: *const TdxFpssHandle) -
         }
         let handle = unsafe { &*handle };
         let guard = handle
-            .dispatcher
+            .inner
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         guard
             .as_ref()
-            .map_or(0, thetadatadx::fpss::StreamingDispatcher::dropped_count)
+            .map_or(0, thetadatadx::fpss::FpssClient::dropped_count)
     })
 }
 
@@ -2634,9 +2574,9 @@ pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
             // Double-shutdown -- error already set, nothing to drop.
             return;
         }
-        // Drop the FPSS reader first so no more events can land in the
-        // dispatcher queue, then drain + join the dispatcher drain
-        // thread before returning.
+        // Drop the FPSS reader; the Disruptor consumer drains the ring
+        // and joins inside `FpssClient::Drop` when the last `Arc` is
+        // dropped. There is no separate dispatcher to tear down.
         {
             let mut guard = handle
                 .inner
@@ -2644,15 +2584,6 @@ pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             if let Some(client) = guard.take() {
                 client.shutdown();
-            }
-        }
-        {
-            let mut dispatch_guard = handle
-                .dispatcher
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if let Some(d) = dispatch_guard.take() {
-                d.shutdown();
             }
         }
         // Mark terminal AFTER teardown so any racing register/reconnect
@@ -2679,24 +2610,22 @@ mod tests {
     //! Unit tests for the C ABI callback wiring.
     //!
     //! These tests exercise the `FfiCallback` shim and the
-    //! `StreamingDispatcher` integration without opening a real FPSS
+    //! Disruptor-consumer integration without opening a real FPSS
     //! TLS connection. They cover the two contracts a downstream C/C++
     //! consumer relies on:
     //!
     //! 1. **`set_callback` semantics**: events handed to `FfiCallback::invoke`
-    //!    arrive at the user `extern "C" fn` with the registered `ctx` and a
-    //!    valid `*const TdxFpssEvent`. A queued `StreamingDispatcher` plus
-    //!    `FfiCallback` should run the callback on the dispatcher's drain
-    //!    thread (not the producer thread).
+    //!    arrive at the user `extern "C" fn` with the registered `ctx`
+    //!    and a valid `*const TdxFpssEvent`. The Disruptor consumer
+    //!    runs the callback on its own thread (not the producer thread).
     //! 2. **`set_inline_callback` semantics**: the same `FfiCallback`
     //!    fires synchronously on the calling thread when invoked
-    //!    directly, with no intermediate queue.
+    //!    directly.
 
     use super::*;
     use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
     use std::sync::Arc;
     use std::thread;
-    use std::time::Duration;
 
     /// Mutable test context observed from the C-shaped callback. Holds
     /// the captured contract id, thread id observed inside the user
@@ -2798,11 +2727,14 @@ mod tests {
         );
     }
 
-    /// Queued mode (dispatcher path): the FfiCallback wired through a
-    /// StreamingDispatcher producer fires on the dispatcher's drain
-    /// thread, not the producer (caller) thread.
+    /// Queued mode (Disruptor consumer path): the FfiCallback wired
+    /// through a Disruptor consumer fires on the consumer thread, not
+    /// the producer (caller) thread.
     #[test]
-    fn ffi_callback_queued_runs_on_dispatcher_thread() {
+    fn ffi_callback_queued_runs_on_consumer_thread() {
+        use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
+        use std::panic::{catch_unwind, AssertUnwindSafe};
+
         let ctx_box = Box::new(TestCtx {
             hits: AtomicU64::new(0),
             last_kind: AtomicI32::new(-1),
@@ -2815,42 +2747,47 @@ mod tests {
         };
 
         // Replicate the wiring that `tdx_fpss_set_callback` /
-        // `tdx_unified_set_callback` install: the dispatcher's drain
-        // thread owns the user callback, the producer side is what the
-        // FPSS reader (here, the test thread) calls.
-        let dispatcher = thetadatadx::fpss::StreamingDispatcher::spawn(Box::new(
-            move |event: &thetadatadx::fpss::FpssEvent| {
-                cb.invoke(event);
-            },
-        ));
-        let producer_tid = thread_id_u64();
-        {
-            // Hold the producer in a tight scope so it is dropped before
-            // `dispatcher.shutdown()`. `shutdown` only drops the
-            // dispatcher's internal sender, but the cloned producer side
-            // would keep the channel alive and the drain-thread join
-            // would deadlock waiting for `Receiver::iter` to terminate.
-            let producer = dispatcher.producer();
-            let event = synthetic_quote_event();
-            producer.send(event);
+        // `tdx_unified_set_callback` install through `start_streaming`:
+        // the Disruptor consumer thread owns the user callback wrapped
+        // in `catch_unwind`; the producer side is what the FPSS reader
+        // (here, the test thread) calls via `try_publish`.
+        #[derive(Default)]
+        struct Slot {
+            event: Option<thetadatadx::fpss::FpssEvent>,
         }
+        // SAFETY: matches the live `RingEvent`'s `unsafe impl Sync`.
+        unsafe impl Sync for Slot {}
 
-        // Shutdown drains every queued event before joining the drain
-        // thread, so by the time `shutdown` returns the callback has
-        // fired exactly once.
-        dispatcher.shutdown();
+        let mut producer = build_single_producer(64, || Slot { event: None }, BusySpin)
+            .handle_events_with(move |slot: &Slot, _seq: Sequence, _eob: bool| {
+                if let Some(ref evt) = slot.event {
+                    let _ = catch_unwind(AssertUnwindSafe(|| cb.invoke(evt)));
+                }
+            })
+            .build();
+
+        let producer_tid = thread_id_u64();
+        producer
+            .try_publish(|slot| {
+                slot.event = Some(synthetic_quote_event());
+            })
+            .expect("ring buffer has room for a single event");
+
+        // Drop the producer to drain + join the consumer thread. By
+        // the time `drop` returns the callback has fired exactly once.
+        drop(producer);
 
         // SAFETY: ctx_ptr still valid until we re-Box below.
         let ctx_back = unsafe { Box::from_raw(ctx_ptr.cast::<TestCtx>()) };
         assert_eq!(
             ctx_back.hits.load(Ordering::Relaxed),
             1,
-            "callback fired once via dispatcher drain thread",
+            "callback fired once via Disruptor consumer thread",
         );
         let observed_tid = ctx_back.callback_thread.load(Ordering::Relaxed);
         assert_ne!(
             observed_tid, producer_tid,
-            "dispatcher path ran callback on a different thread than the producer (queued semantics)",
+            "consumer path ran callback on a different thread than the producer (queued semantics)",
         );
     }
 
@@ -2864,7 +2801,7 @@ mod tests {
     }
 
     /// `tdx_fpss_dropped_events` returns 0 when no callback is
-    /// installed (no dispatcher exists yet).
+    /// installed (no inner client exists yet).
     #[test]
     fn fpss_dropped_events_zero_before_callback() {
         // Build a minimal handle without going through the
@@ -2879,13 +2816,12 @@ mod tests {
                 reconnect_policy: thetadatadx::config::ReconnectPolicy::default(),
                 derive_ohlcvc: false,
             },
-            dispatcher: Mutex::new(None),
             callback: Mutex::new(None),
             state: AtomicU8::new(FPSS_STATE_FRESH),
         };
         let raw = Box::into_raw(Box::new(handle));
         let count = unsafe { tdx_fpss_dropped_events(raw) };
-        assert_eq!(count, 0, "no dispatcher means dropped count is 0");
+        assert_eq!(count, 0, "no inner client means dropped count is 0");
         // SAFETY: we just allocated this handle.
         unsafe { drop(Box::from_raw(raw)) };
     }
@@ -2907,7 +2843,6 @@ mod tests {
                 reconnect_policy: thetadatadx::config::ReconnectPolicy::default(),
                 derive_ohlcvc: false,
             },
-            dispatcher: Mutex::new(None),
             callback: Mutex::new(None),
             state: AtomicU8::new(FPSS_STATE_SHUTDOWN),
         };
@@ -2947,15 +2882,5 @@ mod tests {
     fn unified_dropped_events_handles_null() {
         let count = unsafe { tdx_unified_dropped_events(std::ptr::null()) };
         assert_eq!(count, 0);
-
-        // And exercising the queued dispatcher: spawn one with a no-op
-        // callback, send an event, ensure dropped_count stays 0 (queue
-        // has plenty of headroom for one event), then shutdown.
-        let dispatcher = thetadatadx::fpss::StreamingDispatcher::spawn(Box::new(|_event| {}));
-        dispatcher.producer().send(synthetic_quote_event());
-        // Allow the drain thread a moment to consume.
-        thread::sleep(Duration::from_millis(20));
-        assert_eq!(dispatcher.dropped_count(), 0);
-        dispatcher.shutdown();
     }
 }

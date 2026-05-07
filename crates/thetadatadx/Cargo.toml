@@ -38,6 +38,14 @@ frames = ["polars", "arrow"]
 # Opt-in gate for tests that hit live MDDS / FPSS endpoints. Default-off
 # so `cargo test` never burns a live call without the user asking for it.
 live-tests = []
+# Forward-compatibility gate for the expert-mode entry point
+# `ThetaDataDx::start_streaming_inline`. After the #513 single-queue
+# rewrite the user callback runs on the LMAX Disruptor consumer thread
+# for both entry points (one queue, one consumer, panic-isolated via
+# `catch_unwind`); the `expert-mode` flag stays in place so a future
+# revision can introduce a true TLS-reader-direct dispatch path here
+# without a SemVer-breaking rename. Off by default.
+expert-mode = []
 
 [dependencies]
 tdbe = { version = "0.13.0", path = "../tdbe" }
@@ -116,21 +124,11 @@ serde_json = "1.0.137"
 # `/proc/<pid>/mem` after the struct goes out of scope.
 zeroize = { version = "1.8.2", features = ["derive"] }
 
-# Lock-free bounded MPMC channel used by the FPSS streaming dispatcher
-# (`fpss::dispatcher::StreamingDispatcher`). The dispatcher decouples the
-# FPSS reader thread from user callbacks: the reader does `try_send` on a
-# `bounded(8192)` queue, a dedicated drain thread invokes the callback,
-# and overflow drops are counted instead of blocking the reader. See
-# `benches/streaming_channels.rs::crossbeam_bounded_8192` for the per-event
-# cost benchmark.
-crossbeam-channel = "0.5.15"
-
 # Lock-free atomic swap of an `Arc<StreamingSlot>` for the streaming
-# state machine on `ThetaDataDx`. Replaces three coordinated fields
-# (`Mutex<Option<FpssClient>>`, `Mutex<Option<StreamingDispatcher>>`,
-# `AtomicBool was_streaming`) with a single atomic load on the read
-# path — `is_streaming`, `connection_status`, `dropped_event_count` and
-# the `with_streaming` helper all collapse to one `state.load()`.
+# state machine on `ThetaDataDx`. Carries the `Arc<FpssClient>` so the
+# hot read paths (`is_streaming`, `connection_status`,
+# `dropped_event_count`, `panic_count`, `with_streaming`) all collapse
+# to a single `state.load()`.
 arc-swap = "1.7"
 
 [dev-dependencies]

@@ -95,30 +95,27 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                 "    ",
                 "Start FPSS streaming and register a Python callback for incoming events.\n\
                  \n\
-                 The dispatcher's drain thread acquires the GIL via\n\
-                 `Python::attach` to call `callback(event)` for every\n\
-                 typed FPSS event. `callback` must accept exactly one\n\
+                 The LMAX Disruptor consumer thread acquires the GIL\n\
+                 via `Python::attach` to call `callback(event)` for\n\
+                 every typed FPSS event, with each invocation wrapped\n\
+                 in `catch_unwind`. `callback` must accept exactly one\n\
                  positional argument — a `Quote`, `Trade`, `Ohlcvc`,\n\
                  `OpenInterest`, `Simple`, or `RawData` instance.\n\
                  \n\
-                 Events flow from the FPSS reader thread through the\n\
-                 SSOT `StreamingDispatcher` (bounded crossbeam queue,\n\
-                 8192 slots) onto a dedicated drain thread that runs\n\
-                 `callback`. The reader never blocks on user code; if\n\
-                 the callback falls behind, overflow events are\n\
-                 dropped and counted via `dropped_event_count()`.\n\
+                 Events flow from the FPSS reader thread into the\n\
+                 LMAX Disruptor ring (`Producer::try_publish`) and out\n\
+                 to the consumer thread that runs `callback`. The\n\
+                 reader never blocks on user code; if the callback\n\
+                 falls behind, ring-overflow events are dropped and\n\
+                 counted via `dropped_event_count()`.\n\
                  \n\
                  GIL acquisition can block, so this Python binding\n\
                  deliberately does NOT expose `start_streaming_inline`.\n\
-                 A slow Python callable on the FPSS reader thread\n\
-                 would fill the kernel TCP receive buffer and trigger\n\
-                 a vendor-side disconnect — there is no safe way to\n\
-                 acquire the GIL inside the FPSS read loop.\n\
                  \n\
-                 Exceptions raised inside `callback` are routed through\n\
+                 Exceptions raised inside `callback` are caught by the\n\
+                 `catch_unwind` boundary and routed through\n\
                  `PyErr::write_unraisable` (visible in `sys.stderr` and\n\
-                 the unraisable hook) so a buggy callback cannot kill\n\
-                 the streaming thread.",
+                 the unraisable hook); each one bumps `panic_count()`.",
             );
             writeln!(
                 out,

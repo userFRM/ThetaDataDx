@@ -39,8 +39,8 @@ async function main() {
   // Streaming — register a callback. napi-rs `ThreadsafeFunction`
   // routes every event through libuv's `uv_async_t` queue onto the
   // Node main thread; the callback runs there, decoupled from the
-  // FPSS reader thread. A slow callback fills the SSOT dispatcher's
-  // bounded queue and overflow events are dropped (observable via
+  // FPSS reader thread. A slow callback fills the LMAX Disruptor
+  // ring and overflow events are dropped (observable via
   // `tdx.droppedEventCount()`); the FPSS TLS reader is never blocked.
   tdx.startStreaming((event) => {
     if (event.kind === 'quote') {

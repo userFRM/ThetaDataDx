@@ -73,7 +73,8 @@
 //!                                   | Ping thread        |                      v
 //!                                   | (std::thread,      |             +------------------+
 //!                                   |  sleep loop)       |             | User handler(F)  |
-//!                                   +--------------------+             | (zero-alloc)     |
+//!                                   +--------------------+             | (catch_unwind,   |
+//!                                                                      |  panic-isolated) |
 //!                                                                      +------------------+
 //! ```
 //!
@@ -81,6 +82,15 @@
 //! unsubscribe, ping) arrive via a `std::sync::mpsc` command channel. Between
 //! blocking reads (during read timeouts), the I/O thread drains the command
 //! queue and sends frames. This eliminates all lock contention on the TLS stream.
+//!
+//! There is exactly ONE queue between the TLS reader and the user callback —
+//! the LMAX Disruptor ring. The reader publishes events; the Disruptor's
+//! consumer thread invokes the user callback wrapped in
+//! [`std::panic::catch_unwind`] so a panic from user code (or binding glue
+//! such as PyO3 / napi) is counted on [`FpssClient::panic_count`] and
+//! reported via `tracing::error!` rather than tearing down the consumer.
+//! Ring-buffer overflow (consumer falling behind) is counted on
+//! [`FpssClient::dropped_count`] via `Producer::try_publish` failures.
 //!
 //! # Sub-modules
 //!
@@ -93,7 +103,6 @@ mod accumulator;
 pub(crate) mod connection;
 mod decode;
 mod delta;
-pub(crate) mod dispatcher;
 mod events;
 pub(crate) mod framing;
 mod io_loop;
@@ -102,7 +111,6 @@ pub mod protocol;
 pub(crate) mod ring;
 mod session;
 
-pub use self::dispatcher::{DispatcherProducer, StreamingDispatcher};
 // Surface a thin slice of the framing codec for offline benchmarks
 // (`benches/bench_framing.rs`). The full `framing` module remains
 // crate-private; only the round-trip primitives are exposed.
@@ -112,7 +120,7 @@ pub use self::framing::{read_frame, write_frame, Frame};
 use self::io_loop::{io_loop, ping_loop, wait_for_login, LoginResult};
 pub use self::session::reconnect_delay;
 
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -256,6 +264,16 @@ pub struct FpssClient {
         Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>>,
     /// The server address we connected to.
     server_addr: String,
+    /// Cumulative count of `Producer::try_publish` failures: events the
+    /// TLS reader could not enqueue because the Disruptor consumer fell
+    /// behind and the ring buffer was full. Snapshot via
+    /// [`FpssClient::dropped_count`]; this is the user-facing
+    /// "ring-overflow" metric.
+    dropped: Arc<AtomicU64>,
+    /// Cumulative count of user-callback panics caught by the
+    /// Disruptor consumer's `catch_unwind` boundary. Snapshot via
+    /// [`FpssClient::panic_count`].
+    panics: Arc<AtomicU64>,
 }
 
 impl FpssClient {
@@ -401,6 +419,8 @@ impl FpssClient {
         let active_full_subs: Arc<
             Mutex<Vec<(protocol::SubscriptionKind, tdbe::types::enums::SecType)>>,
         > = Arc::new(Mutex::new(Vec::new()));
+        let dropped = Arc::new(AtomicU64::new(0));
+        let panics = Arc::new(AtomicU64::new(0));
 
         // Command channel: FpssClient -> I/O thread
         let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
@@ -416,6 +436,8 @@ impl FpssClient {
         let io_hosts = hosts.to_vec();
         let io_active_subs = Arc::clone(&active_subs);
         let io_active_full_subs = Arc::clone(&active_full_subs);
+        let io_dropped = Arc::clone(&dropped);
+        let io_panics = Arc::clone(&panics);
 
         let io_handle = thread::Builder::new()
             .name("fpss-io".to_owned())
@@ -437,6 +459,8 @@ impl FpssClient {
                     io_hosts,
                     io_active_subs,
                     io_active_full_subs,
+                    io_dropped,
+                    io_panics,
                 );
             })
             .map_err(|e| Error::Fpss {
@@ -468,7 +492,33 @@ impl FpssClient {
             active_subs,
             active_full_subs,
             server_addr,
+            dropped,
+            panics,
         })
+    }
+
+    /// Cumulative count of events the TLS reader could not publish into
+    /// the Disruptor ring because the consumer fell behind and the ring
+    /// was full (`Producer::try_publish` returned [`disruptor::RingBufferFull`]).
+    ///
+    /// This is the user-facing "events dropped due to slow callback"
+    /// metric on the post-SSOT pipeline. Operators should poll on a
+    /// periodic timer (e.g. every second) and emit a `warn` log on any
+    /// non-zero delta — a per-drop log would amplify under sustained
+    /// overflow.
+    #[must_use]
+    pub fn dropped_count(&self) -> u64 {
+        self.dropped.load(Ordering::Relaxed)
+    }
+
+    /// Cumulative count of user-callback panics caught by the
+    /// Disruptor consumer's `catch_unwind` boundary. Each panic is
+    /// also surfaced via `tracing::error!` with target
+    /// `thetadatadx::fpss::io_loop`. The consumer thread NEVER dies
+    /// from a user-code panic.
+    #[must_use]
+    pub fn panic_count(&self) -> u64 {
+        self.panics.load(Ordering::Relaxed)
     }
 
     /// Subscribe to quote data for a contract.

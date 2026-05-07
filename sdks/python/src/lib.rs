@@ -382,24 +382,24 @@ impl ThetaDataDx {
         format!("ThetaDataDx(historical=connected, {streaming})")
     }
 
-    /// Cumulative count of FPSS events dropped by the SSOT
-    /// `StreamingDispatcher` because the bounded crossbeam queue
-    /// (8192 slots) was full when the FPSS reader thread tried to
-    /// hand the event off.
+    /// Cumulative count of FPSS events the TLS reader could not
+    /// publish into the Disruptor ring because the consumer fell
+    /// behind and the ring was full (`Producer::try_publish` returned
+    /// `RingBufferFull`).
     ///
     /// Forwarded directly to
     /// [`thetadatadx::ThetaDataDx::dropped_event_count`] so the count
     /// matches every other binding (C ABI, TypeScript, C++). The
-    /// counter lives on the live dispatcher, not on this Python
+    /// counter lives on the live `FpssClient`, not on this Python
     /// wrapper, which has two consequences:
     ///
     /// * `reconnect()` calls `stop_streaming()` + `start_streaming()`
-    ///   internally; that recreates the dispatcher and the counter
+    ///   internally; that rebuilds the FPSS client and the counter
     ///   resets to zero. Snapshot the value BEFORE reconnect if you
     ///   need to accumulate drops across session boundaries.
-    /// * After `stop_streaming()` the dispatcher slot is empty and
-    ///   the getter returns 0. The same is true before
-    ///   `start_streaming()` is ever called.
+    /// * After `stop_streaming()` the slot is empty and the getter
+    ///   returns 0. The same is true before `start_streaming()` is
+    ///   ever called.
     ///
     /// Returns 0 before `start_streaming`, the running total while
     /// streaming, and 0 again after `stop_streaming`. Consumers

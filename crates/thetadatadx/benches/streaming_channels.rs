@@ -1,490 +1,248 @@
-//! Streaming hot-path channel benchmarks (issue #482).
+//! Streaming hot-path channel benchmarks (issues #482, #513).
 //!
-//! Measures the per-event cost of the producer/consumer hand-off the FFI
-//! streaming surface pays for every FPSS event delivered to a buffered
-//! consumer. The producer thread models the FPSS sync read loop pushing
-//! one event per iteration; the consumer thread models the FFI side
-//! draining via `recv` / `recv_timeout` exactly like
-//! `ffi/src/streaming.rs::tdx_unified_next_event` and
-//! `tdx_fpss_next_event` do today.
+//! After the #513 single-queue rewrite there is exactly ONE queue between
+//! the FPSS TLS reader and the user callback — the LMAX Disruptor ring
+//! buffer. The reader publishes events via `Producer::try_publish`; a
+//! single Disruptor consumer thread invokes the user callback wrapped in
+//! `catch_unwind`. The previous `StreamingDispatcher` (a second
+//! `crossbeam_channel::bounded(8192)` queue plus drain thread) has been
+//! deleted along with its `crossbeam-channel` dependency.
 //!
-//! Six variants are timed end-to-end (1 producer + 1 consumer thread,
-//! 100k events each, payload sized like the real `FfiBufferedEvent` —
-//! ~488 bytes including the tagged union and two heap-owned tails):
+//! These benches exercise the post-#513 pipeline end-to-end so the
+//! release notes can quote a numbers-against-numbers comparison rather
+//! than sketches. Three variants are timed:
 //!
-//! 1. `std_mpsc_unbounded` — `std::sync::mpsc::channel()` with
-//!    `recv_timeout(100ms)`, the live shape.
-//! 2. `crossbeam_bounded_256` — `crossbeam_channel::bounded(256)`.
-//! 3. `crossbeam_bounded_1024` — `crossbeam_channel::bounded(1024)`.
-//! 4. `crossbeam_bounded_8192` — `crossbeam_channel::bounded(8192)`.
-//! 5. `direct_callback` — no channel; producer invokes a
-//!    `extern "C" fn(*const Event, *mut c_void)` directly through a
-//!    `Box<dyn Fn>` adapter, modelling the C/C++ tier-1 path proposed
-//!    in issue #482.
-//! 6. `dispatcher_via_crossbeam` — exercises the live
-//!    `thetadatadx::fpss::StreamingDispatcher`: producer thread calls
-//!    `DispatcherProducer::send` with an `FpssEvent::Empty` payload,
-//!    drain thread invokes the user callback. Mirrors the wiring
-//!    `ThetaDataDx::start_streaming` puts in front of every callback.
+//! 1. `disruptor_consumer_panic_isolated` — the live
+//!    `start_streaming` path: `Producer::try_publish` on the producer
+//!    thread, `handle_events_with` on the consumer thread, each callback
+//!    invocation wrapped in `catch_unwind`. This is what the SDK ships.
+//! 2. `disruptor_consumer_no_catch_unwind` — same Disruptor pipeline but
+//!    without the `catch_unwind` boundary, so the cost of the panic
+//!    isolation is observable as a delta against variant 1.
+//! 3. `direct_callback` — the prospective inline path the
+//!    `expert-mode` feature flag reserves for: the producer invokes the
+//!    user callback in-place via a `Box<dyn Fn>` adapter, no ring, no
+//!    consumer thread. Models a true TLS-reader-direct dispatch.
 //!
-//! The buffered event mirrors the field layout of
-//! `ffi::streaming::FfiBufferedEvent`: a `#[repr(C)]` tagged event
-//! (Quote/Trade/OHLCVC/OpenInterest/Control/RawData) with a `TdxContract`
-//! embedded in every data variant, plus two heap-owned tails (`CString`
-//! detail + `Vec<u8>` raw payload) that hold the backing memory for
-//! pointer fields. The mirror is local to this bench file so the runtime
-//! dep graph is untouched; sizes and field shapes match the generated
-//! `fpss_event_structs.rs` byte-for-byte on x86_64.
+//! All three variants ship 100k `FpssEvent::Empty` payloads per
+//! criterion sample so the per-event wall-clock is large enough to
+//! dwarf the harness overhead.
 //!
 //! Run: `cargo bench --bench streaming_channels`
 
-use std::ffi::{c_void, CString};
 use std::hint::black_box;
-use std::os::raw::c_char;
-use std::ptr;
-use std::sync::mpsc as std_mpsc;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use thetadatadx::fpss::{FpssEvent, StreamingDispatcher};
+use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
+use thetadatadx::fpss::FpssEvent;
 
-// ─── Event payload mirror ──────────────────────────────────────────────
-//
-// Field-for-field copy of the relevant prefix of
-// `ffi/src/streaming.rs::FfiBufferedEvent` and the generated
-// `TdxFpssEvent` tagged union. Kept in this bench file (not pulled from
-// the ffi crate) so the bench is self-contained and the runtime dep
-// graph stays clean. Sizes match: `Event` = 448 B, `BufferedEvent` = 488 B
-// on x86_64 Linux.
-
-#[repr(C)]
-struct Contract {
-    root: *const c_char,
-    sec_type: i32,
-    has_exp_date: bool,
-    exp_date: i32,
-    has_is_call: bool,
-    is_call: bool,
-    has_strike: bool,
-    strike: i32,
-}
-
-#[repr(C)]
-struct Ohlcvc {
-    contract_id: i32,
-    contract: Contract,
-    ms_of_day: i32,
-    open: f64,
-    high: f64,
-    low: f64,
-    close: f64,
-    volume: i64,
-    count: i64,
-    date: i32,
-    received_at_ns: u64,
-}
-
-#[repr(C)]
-struct OpenInterest {
-    contract_id: i32,
-    contract: Contract,
-    ms_of_day: i32,
-    open_interest: i32,
-    date: i32,
-    received_at_ns: u64,
-}
-
-#[repr(C)]
-struct Quote {
-    contract_id: i32,
-    contract: Contract,
-    ms_of_day: i32,
-    bid_size: i32,
-    bid_exchange: i32,
-    bid: f64,
-    bid_condition: i32,
-    ask_size: i32,
-    ask_exchange: i32,
-    ask: f64,
-    ask_condition: i32,
-    date: i32,
-    received_at_ns: u64,
-}
-
-#[repr(C)]
-struct Trade {
-    contract_id: i32,
-    contract: Contract,
-    ms_of_day: i32,
-    sequence: i32,
-    ext_condition1: i32,
-    ext_condition2: i32,
-    ext_condition3: i32,
-    ext_condition4: i32,
-    condition: i32,
-    size: i32,
-    exchange: i32,
-    price: f64,
-    condition_flags: i32,
-    price_flags: i32,
-    volume_type: i32,
-    records_back: i32,
-    date: i32,
-    received_at_ns: u64,
-}
-
-#[repr(C)]
-struct Control {
-    kind: i32,
-    id: i32,
-    detail: *const c_char,
-}
-
-#[repr(C)]
-struct RawData {
-    code: u8,
-    payload: *const u8,
-    payload_len: usize,
-}
-
-/// Tag prefix on `Event`. The real `TdxFpssEventKind` has six variants
-/// (Quote/Trade/OpenInterest/Ohlcvc/Control/RawData); the bench only
-/// constructs `Quote` (the dominant FPSS variant by event count), so
-/// only that variant is declared. `#[repr(C)]` discriminant width is
-/// the C `int` width regardless of variant count, so size parity with
-/// the real `TdxFpssEvent` is preserved.
-#[repr(C)]
-enum Kind {
-    Quote = 0,
-}
-
-#[repr(C)]
-struct Event {
-    kind: Kind,
-    ohlcvc: Ohlcvc,
-    open_interest: OpenInterest,
-    quote: Quote,
-    trade: Trade,
-    control: Control,
-    raw_data: RawData,
-}
-
-/// Buffered wrapper that owns heap data backing the pointer fields,
-/// mirroring `FfiBufferedEvent` exactly: `event` at offset 0, then
-/// `Option<CString>` (control detail) and `Option<Vec<u8>>` (raw
-/// payload). Sending this across a channel is what the streaming hot
-/// path actually pays for today.
-#[repr(C)]
-struct BufferedEvent {
-    event: Event,
-    _detail_string: Option<CString>,
-    _raw_payload: Option<Vec<u8>>,
-}
-
-// SAFETY: identical reasoning to `FfiBufferedEvent` in the ffi crate —
-// owned heap data is not aliased after send; receiving thread is the
-// only reader.
-unsafe impl Send for BufferedEvent {}
-
-const ZERO_CONTRACT: Contract = Contract {
-    root: ptr::null(),
-    sec_type: 0,
-    has_exp_date: false,
-    exp_date: 0,
-    has_is_call: false,
-    is_call: false,
-    has_strike: false,
-    strike: 0,
-};
-
-const ZERO_OHLCVC: Ohlcvc = Ohlcvc {
-    contract_id: 0,
-    contract: ZERO_CONTRACT,
-    ms_of_day: 0,
-    open: 0.0,
-    high: 0.0,
-    low: 0.0,
-    close: 0.0,
-    volume: 0,
-    count: 0,
-    date: 0,
-    received_at_ns: 0,
-};
-
-const ZERO_OI: OpenInterest = OpenInterest {
-    contract_id: 0,
-    contract: ZERO_CONTRACT,
-    ms_of_day: 0,
-    open_interest: 0,
-    date: 0,
-    received_at_ns: 0,
-};
-
-const ZERO_TRADE: Trade = Trade {
-    contract_id: 0,
-    contract: ZERO_CONTRACT,
-    ms_of_day: 0,
-    sequence: 0,
-    ext_condition1: 0,
-    ext_condition2: 0,
-    ext_condition3: 0,
-    ext_condition4: 0,
-    condition: 0,
-    size: 0,
-    exchange: 0,
-    price: 0.0,
-    condition_flags: 0,
-    price_flags: 0,
-    volume_type: 0,
-    records_back: 0,
-    date: 0,
-    received_at_ns: 0,
-};
-
-const ZERO_CONTROL: Control = Control {
-    kind: 0,
-    id: 0,
-    detail: ptr::null(),
-};
-
-const ZERO_RAW: RawData = RawData {
-    code: 0,
-    payload: ptr::null(),
-    payload_len: 0,
-};
-
-/// Build a representative Quote event — the dominant variant on a live
-/// FPSS stream by event count. Fields chosen to match
-/// `bench_fpss_event::sample_quote` so the cost of building the payload
-/// itself is consistent with the existing decode benches.
-fn sample_quote(seq: i32) -> BufferedEvent {
-    BufferedEvent {
-        event: Event {
-            kind: Kind::Quote,
-            ohlcvc: ZERO_OHLCVC,
-            open_interest: ZERO_OI,
-            quote: Quote {
-                contract_id: seq,
-                contract: ZERO_CONTRACT,
-                ms_of_day: 34_200_000 + seq,
-                bid_size: 100,
-                bid_exchange: 1,
-                bid: 450.25,
-                bid_condition: 0,
-                ask_size: 200,
-                ask_exchange: 1,
-                ask: 450.27,
-                ask_condition: 0,
-                date: 20_260_418,
-                received_at_ns: 1_700_000_000_000_000_000,
-            },
-            trade: ZERO_TRADE,
-            control: ZERO_CONTROL,
-            raw_data: ZERO_RAW,
-        },
-        _detail_string: None,
-        _raw_payload: None,
-    }
-}
-
-// Number of events shipped through the channel (or callback) per
-// criterion sample. Sized so the per-iteration wall-clock is large
-// enough to dwarf criterion's own measurement overhead, and so the
-// p50/p99 reported by criterion reflects steady-state behaviour rather
-// than warm-up.
+/// Number of events shipped through the pipeline per criterion sample.
+/// Sized so the per-iteration wall-clock dwarfs criterion's measurement
+/// overhead and so p50/p99 reflect steady-state behaviour, not warm-up.
 const EVENTS_PER_ITER: usize = 100_000;
 
-// ─── Variant 1: std::sync::mpsc unbounded + recv_timeout ───────────────
+/// Disruptor ring size for the bench harness. Matches the production
+/// default (`FpssConnectArgs::ring_size = 4096`) so the bench numbers
+/// translate directly to the live SDK configuration.
+const RING_SIZE: usize = 4096;
 
-fn run_std_mpsc() {
-    let (tx, rx) = std_mpsc::channel::<BufferedEvent>();
+#[derive(Default)]
+struct RingSlot {
+    event: Option<FpssEvent>,
+}
 
-    let producer = thread::spawn(move || {
-        for i in 0..EVENTS_PER_ITER {
-            // `expect` (not `unwrap_or_default`): a closed channel during
-            // the bench is a hard failure, not silent data loss.
-            tx.send(sample_quote(i as i32))
-                .expect("std_mpsc producer: receiver dropped mid-bench");
-        }
-    });
+// SAFETY: matches the live `RingEvent` impl in
+// `crates/thetadatadx/src/fpss/ring.rs` — `FpssEvent: Clone + Send`,
+// the Disruptor's sequencing guarantees exclusive write / shared read.
+unsafe impl Sync for RingSlot {}
 
-    // Mirrors `tdx_unified_next_event` / `tdx_fpss_next_event`: a
-    // recv_timeout(100ms) poll loop, breaking on disconnect.
-    let mut received = 0usize;
-    loop {
-        match rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(ev) => {
-                black_box(&ev);
-                received += 1;
+// ─── Variant 1: live SSOT (Disruptor consumer + catch_unwind) ──────────
+
+fn run_disruptor_consumer_panic_isolated() {
+    let counter = Arc::new(AtomicU64::new(0));
+    let counter_consumer = Arc::clone(&counter);
+    let panics = Arc::new(AtomicU64::new(0));
+    let panics_consumer = Arc::clone(&panics);
+
+    // Mirror the live `io_loop` wiring: `FnMut` user callback wrapped in
+    // a `Mutex<F>` so the Disruptor consumer (which expects `Fn`) can
+    // call it mutably across the boundary. Single-locker pattern — no
+    // contention because only the consumer thread takes the lock.
+    let user_handler: Mutex<Box<dyn FnMut(&FpssEvent) + Send>> =
+        Mutex::new(Box::new(move |_event: &FpssEvent| {
+            counter_consumer.fetch_add(1, Ordering::Relaxed);
+        }));
+
+    let factory = || RingSlot { event: None };
+    let mut producer = build_single_producer(RING_SIZE, factory, BusySpin)
+        .handle_events_with(move |slot: &RingSlot, _seq: Sequence, _eob: bool| {
+            if let Some(ref evt) = slot.event {
+                let mut h = user_handler
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if catch_unwind(AssertUnwindSafe(|| h(evt))).is_err() {
+                    panics_consumer.fetch_add(1, Ordering::Relaxed);
+                }
             }
-            Err(std_mpsc::RecvTimeoutError::Disconnected) => break,
-            Err(std_mpsc::RecvTimeoutError::Timeout) => {
-                panic!("std_mpsc consumer: 100ms timeout with producer alive");
-            }
+        })
+        .build();
+
+    let mut dropped: u64 = 0;
+    for _ in 0..EVENTS_PER_ITER {
+        if producer
+            .try_publish(|slot| {
+                slot.event = Some(FpssEvent::Empty);
+            })
+            .is_err()
+        {
+            dropped += 1;
         }
     }
 
-    producer.join().expect("std_mpsc producer thread panicked");
-    assert_eq!(received, EVENTS_PER_ITER);
+    // Drop the producer so the consumer drains and the worker thread
+    // joins before this sample finishes — the criterion timer wraps
+    // exactly this call site.
+    drop(producer);
+    black_box((counter.load(Ordering::Relaxed), dropped));
 }
 
-// ─── Variants 2-4: crossbeam-channel bounded ───────────────────────────
+// ─── Variant 2: Disruptor consumer without catch_unwind ────────────────
 
-fn run_crossbeam_bounded(capacity: usize) {
-    let (tx, rx) = crossbeam_channel::bounded::<BufferedEvent>(capacity);
+fn run_disruptor_consumer_no_catch_unwind() {
+    let counter = Arc::new(AtomicU64::new(0));
+    let counter_consumer = Arc::clone(&counter);
 
-    let producer = thread::spawn(move || {
-        for i in 0..EVENTS_PER_ITER {
-            tx.send(sample_quote(i as i32))
-                .expect("crossbeam producer: receiver dropped mid-bench");
-        }
-    });
+    let user_handler: Mutex<Box<dyn FnMut(&FpssEvent) + Send>> =
+        Mutex::new(Box::new(move |_event: &FpssEvent| {
+            counter_consumer.fetch_add(1, Ordering::Relaxed);
+        }));
 
-    let mut received = 0usize;
-    loop {
-        match rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(ev) => {
-                black_box(&ev);
-                received += 1;
+    let factory = || RingSlot { event: None };
+    let mut producer = build_single_producer(RING_SIZE, factory, BusySpin)
+        .handle_events_with(move |slot: &RingSlot, _seq: Sequence, _eob: bool| {
+            if let Some(ref evt) = slot.event {
+                let mut h = user_handler
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                h(evt);
             }
-            Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
-            Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-                panic!("crossbeam consumer: 100ms timeout with producer alive");
-            }
+        })
+        .build();
+
+    let mut dropped: u64 = 0;
+    for _ in 0..EVENTS_PER_ITER {
+        if producer
+            .try_publish(|slot| {
+                slot.event = Some(FpssEvent::Empty);
+            })
+            .is_err()
+        {
+            dropped += 1;
         }
     }
 
-    producer.join().expect("crossbeam producer thread panicked");
-    assert_eq!(received, EVENTS_PER_ITER);
+    drop(producer);
+    black_box((counter.load(Ordering::Relaxed), dropped));
 }
 
-// ─── Variant 5: direct extern "C" fn callback (C/C++ tier-1 path) ──────
-//
-// Models the proposed FFI surface from issue #482: the FPSS thread
-// invokes the user's `extern "C" fn(*const FfiBufferedEvent, *mut c_void)`
-// pointer in-place, no channel between producer and consumer. The
-// `Box<dyn Fn>` adapter is the realistic shape — Rust closures cannot
-// be coerced to `extern "C" fn` directly when they capture state, so
-// production code routes through a thin trampoline that loads the
-// user's `extern "C" fn` from a `*mut c_void` cookie. We measure exactly
-// that two-step: trampoline (closure call) -> user callback (extern fn).
-
-extern "C" fn user_callback(ev: *const BufferedEvent, cookie: *mut c_void) {
-    // SAFETY: the bench harness owns `ev` for the duration of the call
-    // and passes a real `*mut u64` counter as the cookie.
-    let counter = unsafe { &mut *(cookie as *mut u64) };
-    let ev_ref = unsafe { &*ev };
-    black_box(ev_ref);
-    *counter = counter.wrapping_add(1);
-}
+// ─── Variant 3: direct TLS-reader-thread callback (prospective inline) ─
 
 fn run_direct_callback() {
-    let mut counter: u64 = 0;
-    let cookie: *mut c_void = (&mut counter as *mut u64).cast();
+    let counter = Arc::new(AtomicU64::new(0));
+    let counter_cb = Arc::clone(&counter);
 
-    // The trampoline: a `Box<dyn Fn>` closing over the user-supplied
-    // `extern "C" fn` and cookie. Invocation cost = vtable dispatch +
-    // extern fn call, which is what tier-1 C/C++ consumers will pay.
-    let trampoline: Box<dyn Fn(&BufferedEvent)> = Box::new(move |ev: &BufferedEvent| {
-        user_callback(ev as *const BufferedEvent, cookie);
+    // Same shape the eventual `expert-mode` reader-thread path would
+    // use: a `Box<dyn Fn>` invoked by the producer in-place. Models a
+    // future TLS-reader-direct dispatch with no ring, no consumer
+    // thread, no `catch_unwind`.
+    let trampoline: Box<dyn Fn(&FpssEvent)> = Box::new(move |_event: &FpssEvent| {
+        counter_cb.fetch_add(1, Ordering::Relaxed);
     });
 
-    // Same-thread producer + callback — the realistic path where the
-    // FPSS reader thread IS the callback thread. No queueing, no
-    // wake-up, no allocation past the `BufferedEvent` itself.
-    for i in 0..EVENTS_PER_ITER {
-        let ev = sample_quote(i as i32);
-        trampoline(&ev);
+    for _ in 0..EVENTS_PER_ITER {
+        let event = FpssEvent::Empty;
+        trampoline(&event);
     }
 
-    assert_eq!(counter, EVENTS_PER_ITER as u64);
+    black_box(counter.load(Ordering::Relaxed));
 }
 
-// ─── Variant 6: live StreamingDispatcher (crossbeam_channel + drain) ───
+// ─── Variant 4: cross-thread Disruptor publish (multi-thread topology) ─
 //
-// Exercises the actual `thetadatadx::fpss::StreamingDispatcher` rather
-// than a raw `crossbeam_channel::bounded(8192)` pair. The dispatcher
-// spawns its own drain thread internally and routes every event from
-// the bounded queue to the registered callback, so we measure the full
-// production cost: `try_send` on the producer side, drain-thread
-// dequeue, and callback dispatch.
-//
-// The payload is `FpssEvent::Empty` — the live `FpssEvent` enum, not
-// the local `BufferedEvent` mirror — because that is exactly what
-// `ThetaDataDx::start_streaming`'s reader-side closure pushes onto the
-// dispatcher's queue (`producer.send(event.clone())`). The
-// `FpssEvent::Empty` variant is the cheapest possible enum payload, so
-// the bench isolates the channel + dispatch cost from per-variant
-// clone overhead.
+// The first three variants run the producer on the bench thread; the
+// live SDK runs the producer on the FPSS reader thread and the
+// consumer on a different OS thread spawned by the Disruptor builder.
+// This variant pins down that the cross-thread cost is dominated by
+// the same publish + consumer pair, with the producer thread spawned
+// explicitly so the topology matches the live deployment.
 
-fn run_dispatcher_via_crossbeam() {
-    let counter: std::sync::Arc<std::sync::atomic::AtomicU64> =
-        std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let counter_cb = std::sync::Arc::clone(&counter);
+fn run_disruptor_cross_thread() {
+    let counter = Arc::new(AtomicU64::new(0));
+    let counter_consumer = Arc::clone(&counter);
 
-    let dispatcher = StreamingDispatcher::spawn(Box::new(move |_event: &FpssEvent| {
-        counter_cb.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    }));
-    let producer = dispatcher.producer();
+    let user_handler: Mutex<Box<dyn FnMut(&FpssEvent) + Send>> =
+        Mutex::new(Box::new(move |_event: &FpssEvent| {
+            counter_consumer.fetch_add(1, Ordering::Relaxed);
+        }));
+
+    let factory = || RingSlot { event: None };
+    let mut producer = build_single_producer(RING_SIZE, factory, BusySpin)
+        .handle_events_with(move |slot: &RingSlot, _seq: Sequence, _eob: bool| {
+            if let Some(ref evt) = slot.event {
+                let mut h = user_handler
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if catch_unwind(AssertUnwindSafe(|| h(evt))).is_err() {}
+            }
+        })
+        .build();
 
     let producer_thread = thread::spawn(move || {
+        let mut dropped: u64 = 0;
         for _ in 0..EVENTS_PER_ITER {
-            producer.send(FpssEvent::Empty);
+            if producer
+                .try_publish(|slot| {
+                    slot.event = Some(FpssEvent::Empty);
+                })
+                .is_err()
+            {
+                dropped += 1;
+            }
         }
+        // Drop the producer to drain + join the consumer.
+        drop(producer);
+        dropped
     });
 
-    producer_thread
+    let dropped = producer_thread
         .join()
-        .expect("dispatcher producer thread panicked");
-
-    // Block until the drain thread has caught up. `shutdown` joins the
-    // drain thread, which must process every event the producer
-    // enqueued before `shutdown` (since both producer handles are
-    // dropped by then) before returning.
-    let dropped = dispatcher.dropped_count();
-    dispatcher.shutdown();
-
-    let received = counter.load(std::sync::atomic::Ordering::Relaxed);
-    assert_eq!(
-        received + dropped,
-        EVENTS_PER_ITER as u64,
-        "every send must either reach the callback or count as a drop \
-         (received={received}, dropped={dropped})",
-    );
+        .expect("disruptor cross-thread producer panicked");
+    black_box((counter.load(Ordering::Relaxed), dropped));
 }
 
 // ─── Criterion driver ──────────────────────────────────────────────────
 
-fn bench_std_mpsc_unbounded(c: &mut Criterion) {
-    let mut group = c.benchmark_group("streaming_channels/std_mpsc_unbounded");
+fn bench_disruptor_consumer_panic_isolated(c: &mut Criterion) {
+    let mut group = c.benchmark_group("streaming_channels/disruptor_consumer_panic_isolated");
     group.throughput(Throughput::Elements(EVENTS_PER_ITER as u64));
     group.sample_size(10);
-    group.bench_function("100k_events", |b| b.iter(run_std_mpsc));
+    group.bench_function("100k_events", |b| {
+        b.iter(run_disruptor_consumer_panic_isolated);
+    });
     group.finish();
 }
 
-fn bench_crossbeam_bounded_256(c: &mut Criterion) {
-    let mut group = c.benchmark_group("streaming_channels/crossbeam_bounded_256");
+fn bench_disruptor_consumer_no_catch_unwind(c: &mut Criterion) {
+    let mut group = c.benchmark_group("streaming_channels/disruptor_consumer_no_catch_unwind");
     group.throughput(Throughput::Elements(EVENTS_PER_ITER as u64));
     group.sample_size(10);
-    group.bench_function("100k_events", |b| b.iter(|| run_crossbeam_bounded(256)));
-    group.finish();
-}
-
-fn bench_crossbeam_bounded_1024(c: &mut Criterion) {
-    let mut group = c.benchmark_group("streaming_channels/crossbeam_bounded_1024");
-    group.throughput(Throughput::Elements(EVENTS_PER_ITER as u64));
-    group.sample_size(10);
-    group.bench_function("100k_events", |b| b.iter(|| run_crossbeam_bounded(1024)));
-    group.finish();
-}
-
-fn bench_crossbeam_bounded_8192(c: &mut Criterion) {
-    let mut group = c.benchmark_group("streaming_channels/crossbeam_bounded_8192");
-    group.throughput(Throughput::Elements(EVENTS_PER_ITER as u64));
-    group.sample_size(10);
-    group.bench_function("100k_events", |b| b.iter(|| run_crossbeam_bounded(8192)));
+    group.bench_function("100k_events", |b| {
+        b.iter(run_disruptor_consumer_no_catch_unwind);
+    });
     group.finish();
 }
 
@@ -496,21 +254,19 @@ fn bench_direct_callback(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_dispatcher_via_crossbeam(c: &mut Criterion) {
-    let mut group = c.benchmark_group("streaming_channels/dispatcher_via_crossbeam");
+fn bench_disruptor_cross_thread(c: &mut Criterion) {
+    let mut group = c.benchmark_group("streaming_channels/disruptor_cross_thread");
     group.throughput(Throughput::Elements(EVENTS_PER_ITER as u64));
     group.sample_size(10);
-    group.bench_function("100k_events", |b| b.iter(run_dispatcher_via_crossbeam));
+    group.bench_function("100k_events", |b| b.iter(run_disruptor_cross_thread));
     group.finish();
 }
 
 criterion_group!(
     streaming_channels,
-    bench_std_mpsc_unbounded,
-    bench_crossbeam_bounded_256,
-    bench_crossbeam_bounded_1024,
-    bench_crossbeam_bounded_8192,
+    bench_disruptor_consumer_panic_isolated,
+    bench_disruptor_consumer_no_catch_unwind,
     bench_direct_callback,
-    bench_dispatcher_via_crossbeam,
+    bench_disruptor_cross_thread,
 );
 criterion_main!(streaming_channels);

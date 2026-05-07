@@ -266,7 +266,10 @@ def on_event(event):
 tdx.start_streaming(callback=on_event)
 tdx.subscribe_full_trades("OPTION")
 
-# `on_event` runs on the dispatcher's drain thread under the GIL.
+# `on_event` runs on the LMAX Disruptor consumer thread under the GIL,
+# wrapped in `catch_unwind` so a Python exception is reported via
+# `tracing::error!` and `panic_count()` rather than tearing down the
+# consumer.
 # Park the main thread while events flow.
 import time
 time.sleep(60)
@@ -276,6 +279,57 @@ tdx.stop_streaming()
 
 You can also subscribe to per-contract streams if you only need specific symbols rather than the full firehose.
 
+#### Streaming buffering — Pattern A (`collections.deque`) vs Pattern B (`queue.Queue`)
+
+Both patterns drain the SDK callback into a Python-native data
+structure so business logic runs off the GIL-acquisition hot path.
+Pattern A is the institutional default — it matches the Bloomberg
+BLPAPI direct-callback shape and runs ~2-5x faster than Pattern B
+because `deque.append`/`popleft` are GIL-atomic single ops with no
+condition-variable wake-up. Pattern B is the right pick when the
+consumer needs cross-thread blocking `get()` semantics.
+
+```python
+# Pattern A — collections.deque (lowest overhead, ring-buffer drop-oldest)
+from collections import deque
+
+buf = deque(maxlen=100_000)
+
+
+def cb(event):
+    buf.append(event)
+
+
+tdx.start_streaming(cb)
+# Consumer thread reads via buf.popleft() with retry-on-IndexError;
+# `maxlen` enforces drop-oldest semantics inside the deque itself.
+```
+
+```python
+# Pattern B — queue.Queue (cross-thread blocking get(), drop-newest backpressure)
+import queue
+
+q = queue.Queue(maxsize=100_000)
+
+
+def cb(event):
+    try:
+        q.put_nowait(event)
+    except queue.Full:
+        pass  # explicit drop on overflow — the SDK's own dropped_event_count()
+              # already counts ring-buffer overflow at the Rust layer.
+
+
+tdx.start_streaming(cb)
+# Consumer thread reads via q.get() (blocks until next event).
+```
+
+Trade-off: deque is the fastest queue in the standard library and
+loses the oldest event on overflow; `queue.Queue` is slower but gives
+you `get()` blocking semantics and an explicit drop-newest decision.
+Pick deque by default; reach for `queue.Queue` only when you need
+the blocking `get()`.
+
 #### State & lifecycle
 
 | Method | Description |
@@ -283,8 +337,8 @@ You can also subscribe to per-contract streams if you only need specific symbols
 | `contract_map()` | Get dict mapping contract IDs to string descriptions |
 | `contract_lookup(id)` | Look up a single contract by ID (returns str or None) |
 | `active_subscriptions()` | Get list of active subscriptions (list of dicts with "kind" and "contract") |
-| `start_streaming(callback)` | Register a callable; the dispatcher's drain thread invokes `callback(event)` under the GIL for every typed FPSS event (`Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData`). `event.kind` carries the same discriminator tag as the TypeScript SDK's `FpssEvent.kind`. |
-| `dropped_event_count()` | Cumulative count of events dropped because the bounded `StreamingDispatcher` queue (8192 slots) was full. Counter lives on the live dispatcher: it resets to 0 on `reconnect()` (which rebuilds the dispatcher) and reads 0 after `stop_streaming()`. Snapshot the value before reconnect if you need to accumulate drops across session boundaries. |
+| `start_streaming(callback)` | Register a callable; the LMAX Disruptor consumer thread invokes `callback(event)` under the GIL for every typed FPSS event (`Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData`), with each invocation wrapped in `catch_unwind`. `event.kind` carries the same discriminator tag as the TypeScript SDK's `FpssEvent.kind`. |
+| `dropped_event_count()` | Cumulative count of events the FPSS reader could not publish into the Disruptor ring because the consumer fell behind and the ring was full. Resets to 0 on `reconnect()` (which rebuilds the FPSS client) and reads 0 after `stop_streaming()`. Snapshot the value before reconnect if you need to accumulate drops across session boundaries. |
 | `reconnect()` | Reconnect streaming and re-register the previously installed callback; restores all subscriptions. |
 | `shutdown()` | Graceful shutdown — drops the registered callback. |
 
@@ -360,7 +414,9 @@ creds = Credentials.from_file("creds.txt")
 tdx = ThetaDataDx(creds, Config.production())
 
 # Register a callback (typed pyclasses: `Quote`, `Trade`, `Ohlcvc`, ...).
-# The dispatcher's drain thread acquires the GIL to invoke `on_event`.
+# The LMAX Disruptor consumer thread acquires the GIL to invoke `on_event`,
+# with each invocation wrapped in `catch_unwind` so a Python exception
+# is counted on `panic_count()` rather than tearing down the consumer.
 def on_event(event):
     if event.kind == "quote":
         print(f"Quote: contract_id={event.contract_id} bid={event.bid} ask={event.ask}")

@@ -24,7 +24,8 @@ pub(in crate::fpss) use ping::ping_loop;
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::Write;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -88,7 +89,7 @@ pub(in crate::fpss) const MAX_RECONNECT_ATTEMPTS: u32 = 5;
 pub(in crate::fpss) fn io_loop<F>(
     stream: connection::FpssStream,
     cmd_rx: std_mpsc::Receiver<IoCommand>,
-    mut handler: F,
+    handler: F,
     ring_size: usize,
     shutdown: Arc<AtomicBool>,
     authenticated: Arc<AtomicBool>,
@@ -102,6 +103,8 @@ pub(in crate::fpss) fn io_loop<F>(
     hosts: Vec<(String, u16)>,
     active_subs: ActiveSubs,
     active_full_subs: ActiveFullSubs,
+    dropped: Arc<AtomicU64>,
+    panics: Arc<AtomicU64>,
 ) where
     F: FnMut(&FpssEvent) + Send + 'static,
 {
@@ -110,6 +113,23 @@ pub(in crate::fpss) fn io_loop<F>(
     let factory = || RingEvent { event: None };
     let wait_strategy = AdaptiveWaitStrategy::fpss_default();
 
+    // The Disruptor consumer thread is the SINGLE consumer between the
+    // TLS reader and the user callback. The reader publishes events into
+    // the ring; this closure runs on the consumer thread, filters
+    // internal-only events, and invokes the user callback wrapped in
+    // `catch_unwind` so a panic from user code (or binding glue such as
+    // PyO3 / napi `ThreadsafeFunction`) is counted on `panics` and
+    // surfaced via `tracing::error!` rather than killing the consumer.
+    //
+    // `handler` is `FnMut`, but `Producer::handle_events_with` requires
+    // `Fn`. Wrap it in a `Mutex` so the consumer thread can call it
+    // mutably across the `Fn` boundary. The lock is uncontended in
+    // practice — only the Disruptor's single consumer thread ever takes
+    // it (single-locker pattern) — so the cost collapses to one
+    // unlocked-acquire / unlocked-release per event.
+    let handler_cell = Mutex::new(handler);
+    let panics_consumer = Arc::clone(&panics);
+
     let mut producer = build_single_producer(ring_size, factory, wait_strategy)
         .handle_events_with(
             move |ring_event: &RingEvent, _sequence: Sequence, _eob: bool| {
@@ -117,7 +137,24 @@ pub(in crate::fpss) fn io_loop<F>(
                     // Filter out internal-only events (Issue #185).
                     match evt {
                         FpssEvent::Empty | FpssEvent::RawData { .. } => {}
-                        _ => handler(evt),
+                        _ => {
+                            let mut handler = handler_cell
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner);
+                            // `AssertUnwindSafe` is sound here because
+                            // the user callback's captured state lives
+                            // behind the `Mutex<F>`; any side effects
+                            // observable across a panic boundary are the
+                            // user's responsibility, not the SDK's.
+                            if catch_unwind(AssertUnwindSafe(|| handler(evt))).is_err() {
+                                panics_consumer.fetch_add(1, Ordering::Relaxed);
+                                tracing::error!(
+                                    target: "thetadatadx::fpss::io_loop",
+                                    "user callback panicked on Disruptor consumer thread; \
+                                     panic_count incremented, consumer continuing",
+                                );
+                            }
+                        }
                     }
                 }
             },
@@ -201,14 +238,30 @@ pub(in crate::fpss) fn io_loop<F>(
                     );
 
                     if let Some(evt) = primary {
-                        producer.publish(|slot| {
-                            slot.event = Some(evt);
-                        });
+                        if producer
+                            .try_publish(|slot| {
+                                slot.event = Some(evt);
+                            })
+                            .is_err()
+                        {
+                            // Ring buffer full: consumer fell behind.
+                            // Count the drop and keep reading — the
+                            // alternative (blocking `publish`) would
+                            // stall the TLS reader and cause the
+                            // vendor session to drop on a slow
+                            // user callback.
+                            dropped.fetch_add(1, Ordering::Relaxed);
+                        }
                     }
                     if let Some(evt) = secondary {
-                        producer.publish(|slot| {
-                            slot.event = Some(evt);
-                        });
+                        if producer
+                            .try_publish(|slot| {
+                                slot.event = Some(evt);
+                            })
+                            .is_err()
+                        {
+                            dropped.fetch_add(1, Ordering::Relaxed);
+                        }
                     }
                 }
                 Ok(None) => {

@@ -4,30 +4,27 @@
 impl ThetaDataDx {
     /// Start FPSS streaming and register a Python callback for incoming events.
     /// 
-    /// The dispatcher's drain thread acquires the GIL via
-    /// `Python::attach` to call `callback(event)` for every
-    /// typed FPSS event. `callback` must accept exactly one
+    /// The LMAX Disruptor consumer thread acquires the GIL
+    /// via `Python::attach` to call `callback(event)` for
+    /// every typed FPSS event, with each invocation wrapped
+    /// in `catch_unwind`. `callback` must accept exactly one
     /// positional argument — a `Quote`, `Trade`, `Ohlcvc`,
     /// `OpenInterest`, `Simple`, or `RawData` instance.
     /// 
-    /// Events flow from the FPSS reader thread through the
-    /// SSOT `StreamingDispatcher` (bounded crossbeam queue,
-    /// 8192 slots) onto a dedicated drain thread that runs
-    /// `callback`. The reader never blocks on user code; if
-    /// the callback falls behind, overflow events are
-    /// dropped and counted via `dropped_event_count()`.
+    /// Events flow from the FPSS reader thread into the
+    /// LMAX Disruptor ring (`Producer::try_publish`) and out
+    /// to the consumer thread that runs `callback`. The
+    /// reader never blocks on user code; if the callback
+    /// falls behind, ring-overflow events are dropped and
+    /// counted via `dropped_event_count()`.
     /// 
     /// GIL acquisition can block, so this Python binding
     /// deliberately does NOT expose `start_streaming_inline`.
-    /// A slow Python callable on the FPSS reader thread
-    /// would fill the kernel TCP receive buffer and trigger
-    /// a vendor-side disconnect — there is no safe way to
-    /// acquire the GIL inside the FPSS read loop.
     /// 
-    /// Exceptions raised inside `callback` are routed through
+    /// Exceptions raised inside `callback` are caught by the
+    /// `catch_unwind` boundary and routed through
     /// `PyErr::write_unraisable` (visible in `sys.stderr` and
-    /// the unraisable hook) so a buggy callback cannot kill
-    /// the streaming thread.
+    /// the unraisable hook); each one bumps `panic_count()`.
     fn start_streaming(&self, callback: Py<PyAny>) -> PyResult<()> {
         // Hold the user callable in a `Mutex<Option<Py<PyAny>>>` so
         // `stop_streaming` can drop it without leaking a Python
@@ -43,7 +40,7 @@ impl ThetaDataDx {
                 "streaming already started -- call stop_streaming() before start_streaming() again",
             ));
         }
-        // Bind the callable behind a cheap `Arc` so the FPSS dispatcher
+        // Bind the callable behind a cheap `Arc` so the FPSS callback
         // closure (`Fn(&FpssEvent) + Send + 'static`) can clone the
         // handle into each per-event invocation. `Py<PyAny>` itself is
         // `Send + Sync` once the GIL is released, so the Arc is purely
@@ -53,17 +50,16 @@ impl ThetaDataDx {
 
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
-                // Acquire the GIL on the dispatcher's drain thread to
-                // call into Python. The drain thread is not the FPSS
-                // reader thread (the SSOT `StreamingDispatcher` puts a
-                // bounded `crossbeam_channel(8192)` queue between the
-                // two), so a slow Python callback at most fills the
-                // queue and bumps `dropped_event_count()`; it can never
-                // back-pressure the FPSS TLS reader and trigger a
-                // vendor-side disconnect. That's why this Python
-                // binding deliberately does NOT expose
-                // `start_streaming_inline`: GIL acquisition + arbitrary
-                // user callbacks are unsafe on the reader thread.
+                // Acquire the GIL on the LMAX Disruptor consumer thread
+                // to call into Python. The consumer is not the FPSS TLS
+                // reader thread; a slow Python callback at most fills
+                // the Disruptor ring and bumps `dropped_event_count()`,
+                // it cannot back-pressure the TLS reader and trigger a
+                // vendor-side disconnect. The core SDK wraps the user
+                // callback in `catch_unwind`, so a Python panic is
+                // counted on `panic_count()` and written to
+                // `sys.stderr` via `PyErr::write_unraisable` rather
+                // than killing the consumer.
                 Python::attach(|py| {
                     let buffered = fpss_event_to_buffered(event);
                     let typed = match buffered_event_to_typed(py, &buffered) {
@@ -86,7 +82,7 @@ impl ThetaDataDx {
             .map_err(to_py_err)?;
 
         *cb_guard = Some(Arc::try_unwrap(callback_arc).unwrap_or_else(|arc| {
-            // The dispatcher closure clone keeps a strong reference
+            // The Disruptor consumer closure keeps a strong reference
             // until `stop_streaming`, so the Arc ref-count is >1 here.
             // Fall back to `clone_ref` under the GIL to lift a fresh
             // owned handle for storage; `try_unwrap` is the cheap path

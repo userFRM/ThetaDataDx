@@ -13,7 +13,7 @@
                 "streaming already started -- call stopStreaming() before startStreaming() again",
             ));
         }
-        // Bind the callback behind a cheap `Arc` so the FPSS dispatcher
+        // Bind the callback behind a cheap `Arc` so the FPSS callback
         // closure (`Fn(&FpssEvent) + Send + 'static`) can clone the
         // handle into each per-event invocation. `ThreadsafeFunction`
         // is `Send + Sync` but does not implement `Clone` in napi-rs
@@ -25,27 +25,26 @@
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
                 // Convert to the typed `FpssEvent` napi object on the
-                // dispatcher's drain thread, then hand the value to
-                // `ThreadsafeFunction::call`. napi-rs' internal
-                // `uv_async_t` queue routes the call onto the Node main
-                // thread, which is the only thread allowed to execute
-                // V8 (libuv invariant). The FPSS reader thread itself
-                // never touches V8: the SSOT `StreamingDispatcher`
-                // bounded `crossbeam_channel(8192)` queue sits between
-                // the reader and this drain thread, so a slow JS
-                // callback can never back-pressure the FPSS TLS reader
-                // and trigger a vendor-side disconnect — overflow
-                // events are dropped and surface via
-                // `droppedEventCount()`.
+                // LMAX Disruptor consumer thread, then hand the value
+                // to `ThreadsafeFunction::call`. napi-rs' internal
+                // `uv_async_t` queue routes the call onto the Node
+                // main thread, which is the only thread allowed to
+                // execute V8 (libuv invariant). The FPSS TLS reader
+                // thread itself never touches V8: the Disruptor ring
+                // sits between the reader and the consumer that runs
+                // this closure, so a slow JS callback at most fills
+                // the ring and bumps `droppedEventCount()` — it
+                // cannot back-pressure the TLS reader and trigger a
+                // vendor-side disconnect.
                 let buffered = fpss_event_to_buffered(event);
                 let typed = buffered_event_to_typed(buffered);
-                // `Blocking` so the dispatcher drain thread waits if
-                // the napi tsfn queue is full instead of silently
-                // discarding the event. The dispatcher already absorbs
-                // FPSS-side bursts; the only path where the tsfn queue
-                // fills is a stalled Node event loop, and there a
+                // `Blocking` so the Disruptor consumer waits if the
+                // napi tsfn queue is full instead of silently
+                // discarding the event. The Disruptor already absorbs
+                // FPSS-side bursts; the only path where the tsfn
+                // queue fills is a stalled Node event loop, and a
                 // bounded blocking back-pressure is preferable to a
-                // double-drop (queue and tsfn).
+                // double-drop (ring + tsfn).
                 //
                 // `ErrorStrategy::Fatal` (the `false` const generic on
                 // `TsfnCallback`) means we pass `T` directly, not

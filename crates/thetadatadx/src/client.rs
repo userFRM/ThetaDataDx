@@ -32,7 +32,7 @@
 //! }
 //! ```
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 
@@ -40,35 +40,32 @@ use crate::auth::Credentials;
 use crate::config::DirectConfig;
 use crate::error::Error;
 use crate::fpss::protocol::{Contract, SubscriptionKind};
-use crate::fpss::{FpssClient, FpssEvent, StreamingDispatcher};
+use crate::fpss::{FpssClient, FpssEvent};
 use crate::mdds::MddsClient;
 use tdbe::types::enums::SecType;
 
 /// Snapshot of the streaming side of the unified client.
 ///
-/// Replaces the previous trio of coordinated fields
-/// (`Mutex<Option<FpssClient>>`, `Mutex<Option<StreamingDispatcher>>`,
-/// `AtomicBool was_streaming`) with a single [`ArcSwap`] cell so every
-/// read path collapses to one atomic load.
+/// One [`ArcSwap`] cell so every read path collapses to a single
+/// atomic load. The previous design carried a separate
+/// `Mutex<Option<StreamingDispatcher>>` alongside the [`FpssClient`];
+/// after the post-#513 single-queue rewrite the user callback runs
+/// directly on the Disruptor consumer thread inside [`FpssClient`],
+/// so the slot only needs to track the live client.
 ///
-/// Lifecycle: `Idle` (constructed) → `Live` (`start_streaming` /
-/// `start_streaming_inline` succeeded) → `Stopped` (`stop_streaming`
-/// returned). A subsequent `start_streaming` from `Stopped` swaps back
-/// to `Live`; `Idle` is reachable only at construction time, never
-/// re-entered after a successful start.
+/// Lifecycle: `Idle` (constructed) → `Live` (`start_streaming`
+/// succeeded) → `Stopped` (`stop_streaming` returned). A subsequent
+/// `start_streaming` from `Stopped` swaps back to `Live`; `Idle` is
+/// reachable only at construction time, never re-entered after a
+/// successful start.
 enum StreamingSlot {
     /// `start_streaming()` has not been called yet.
     Idle,
-    /// Streaming connection is established. `dispatcher` is `Some` for
-    /// the dispatcher path and `None` for the inline path
-    /// (`start_streaming_inline`). The mutex is hit only by
-    /// `stop_streaming` — the hot read path
-    /// (`is_streaming`, `connection_status`, `with_streaming`) never
-    /// touches it.
-    Live {
-        client: Arc<FpssClient>,
-        dispatcher: Mutex<Option<StreamingDispatcher>>,
-    },
+    /// Streaming connection is established. The user callback runs
+    /// inside the [`FpssClient`]'s Disruptor consumer thread (panic
+    /// isolated via `catch_unwind`); ring-buffer overflow is reported
+    /// through [`FpssClient::dropped_count`].
+    Live { client: Arc<FpssClient> },
     /// `stop_streaming()` ran (or `Drop` did). Distinguishes "was
     /// started, then stopped" from "never started" for
     /// [`ConnectionStatus::Disconnected`] vs
@@ -141,11 +138,10 @@ impl ThetaDataDx {
     }
 
     /// Helper: build a [`StreamingSlot::Live`] cell from a freshly
-    /// connected [`FpssClient`] and an optional dispatcher.
-    fn live_slot(client: FpssClient, dispatcher: Option<StreamingDispatcher>) -> StreamingSlot {
+    /// connected [`FpssClient`].
+    fn live_slot(client: FpssClient) -> StreamingSlot {
         StreamingSlot::Live {
             client: Arc::new(client),
-            dispatcher: Mutex::new(dispatcher),
         }
     }
 
@@ -162,21 +158,35 @@ impl ThetaDataDx {
     ///
     /// Opens a TLS/TCP connection to `ThetaData`'s FPSS servers,
     /// authenticates with the same credentials used at connect time,
-    /// and starts the FPSS reader thread.
+    /// and starts the FPSS reader thread plus the LMAX Disruptor
+    /// consumer thread.
     ///
-    /// # Dispatcher path (default)
+    /// # Pipeline (single-queue SSOT, post-#513)
     ///
-    /// Events flow `FPSS reader -> StreamingDispatcher (bounded(8192))
-    /// -> drain thread -> user callback`. The reader thread never
-    /// blocks on user code: a slow callback fills the bounded queue
-    /// and overflow events are dropped, with the drop count exposed
-    /// through [`Self::dropped_event_count`]. This is the safe default
-    /// that protects the vendor connection against arbitrary user
-    /// callbacks.
+    /// `TLS reader thread -> Disruptor ring (try_publish, non-blocking)
+    /// -> Disruptor consumer thread -> catch_unwind(user callback)`.
     ///
-    /// For zero-queueing-overhead delivery (~12 ns vs ~58 ns per event)
-    /// at the cost of binding callback latency to the FPSS reader
-    /// thread, see [`Self::start_streaming_inline`].
+    /// The TLS reader publishes every decoded event into a pre-allocated
+    /// LMAX Disruptor ring via `Producer::try_publish`. A single
+    /// dedicated consumer thread owned by the Disruptor invokes the
+    /// user callback for each event, with each invocation wrapped in
+    /// [`std::panic::catch_unwind`]. Two contracts:
+    ///
+    /// 1. **Reader never blocks on user code.** When the consumer
+    ///    falls behind and the ring is full, `try_publish` returns
+    ///    [`disruptor::RingBufferFull`], the event is dropped, and
+    ///    [`Self::dropped_event_count`] increments. Operators should
+    ///    poll the counter on a periodic timer.
+    /// 2. **User panics never kill the consumer.** A panic from user
+    ///    code (or from binding glue such as PyO3 / napi) is caught,
+    ///    [`Self::panic_count`] increments, and the consumer keeps
+    ///    delivering subsequent events.
+    ///
+    /// This is the default and only safe entry point for general use.
+    /// The `expert-mode` feature flag exposes
+    /// [`Self::start_streaming_inline`] for ultra-low-latency callers
+    /// who can guarantee a wait-free callback and accept that any
+    /// panic will tear down the FPSS reader thread.
     ///
     /// # Errors
     ///
@@ -193,26 +203,6 @@ impl ThetaDataDx {
             return Err(Self::already_streaming());
         }
 
-        // Spawn the dispatcher first. Its drain thread owns the user
-        // callback; the FPSS reader thread only ever sees a `Fn` that
-        // pushes onto the bounded queue.
-        //
-        // `handler` is `FnMut`, but `StreamingDispatcher::spawn` takes
-        // `Fn` (so the dispatcher type stays `Send + Sync`). Wrap the
-        // user `FnMut` in a `Mutex` so the drain thread can call it
-        // mutably without exposing `&mut` over the `Fn` boundary.
-        let user_handler = std::sync::Mutex::new(handler);
-        let dispatcher = StreamingDispatcher::spawn(Box::new(move |event: &FpssEvent| {
-            let mut h = user_handler
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            (h)(event);
-        }));
-
-        // Cheap clone of the producer-side handle; the FPSS reader
-        // thread captures this in its handler closure.
-        let producer = dispatcher.producer();
-
         let config = self.historical.config();
         let client = FpssClient::connect(
             crate::fpss::FpssConnectArgs {
@@ -223,51 +213,65 @@ impl ThetaDataDx {
                 policy: config.reconnect.policy.clone(),
                 derive_ohlcvc: config.fpss.derive_ohlcvc,
             },
-            move |event: &FpssEvent| {
-                // Reader-thread side: clone the event and push onto the
-                // bounded queue. On overflow the dispatcher drops the
-                // clone and ticks its dropped counter — the reader
-                // never blocks here.
-                producer.send(event.clone());
-            },
+            handler,
         )?;
 
-        self.install_live(Self::live_slot(client, Some(dispatcher)))
+        self.install_live(Self::live_slot(client))
     }
 
-    /// Start the FPSS streaming connection with a callback that fires
-    /// directly on the FPSS reader thread, bypassing the dispatcher.
+    /// Expert-mode entry point retained behind the `expert-mode` Cargo
+    /// feature for forward compatibility with a future TLS-reader-direct
+    /// dispatch path.
     ///
-    /// # Performance
+    /// # Feature flag
     ///
-    /// No queue, no drain thread, no clone — the user callback is
-    /// invoked in-place from inside the FPSS reader's decode loop.
-    /// Per-event overhead drops from ~58 ns (the dispatcher path) to
-    /// ~12 ns (see `benches/streaming_channels.rs::direct_callback`).
+    /// Gated behind the `expert-mode` feature (off by default). Users
+    /// opt in via `features = ["expert-mode"]`. The default
+    /// [`Self::start_streaming`] path covers every workload that is not
+    /// a provably wait-free trading loop.
     ///
-    /// # Safety contract
+    /// # Current semantics (post-#513)
     ///
-    /// The callback **must** return within microseconds. The FPSS
-    /// reader thread owns the TLS socket exclusively; while the
-    /// callback is executing, no bytes are being read from the kernel
-    /// receive buffer. A slow callback (anything doing I/O,
-    /// allocation-heavy work, lock acquisition, or Python/JS GC) will:
+    /// After the single-queue rewrite tracked in #513 the user
+    /// callback now runs on the LMAX Disruptor consumer thread for
+    /// every entry point (one queue, one consumer, panic-isolated via
+    /// `catch_unwind`). This method delegates to the same pipeline as
+    /// [`Self::start_streaming`] — the previous "bypass the dispatcher"
+    /// shortcut no longer exists because there is no second queue to
+    /// bypass. The feature gate stays in place so a future revision
+    /// can introduce a true TLS-reader-direct path here without a
+    /// SemVer-breaking rename.
     ///
-    /// 1. Fill the kernel TCP receive buffer.
-    /// 2. Trigger TCP backpressure on the vendor side.
-    /// 3. Cause the FPSS server to disconnect the session and drop
-    ///    every active subscription.
+    /// # Forbidden operations on the eventual reader-thread path
     ///
-    /// Use this entry point only when the callback is a simple memcpy
-    /// into a lock-free ring you own, or when the consumer is a tight
-    /// in-process trading loop that is provably wait-free for the
-    /// callback's duration. For every other workload — including
-    /// Python/Node bindings, WebSocket fan-out, file logging — call
-    /// [`Self::start_streaming`] instead.
+    /// The contract for any future inline dispatch — already
+    /// load-bearing on existing callers — is:
+    ///
+    /// - **MUST NOT call [`Self::stop_streaming`] or
+    ///   [`Self::reconnect_streaming`] from inside the callback.**
+    ///   Doing so would drop the last `Arc<FpssClient>` on the same
+    ///   thread that [`crate::fpss::FpssClient::drop`](Drop) tries to
+    ///   join, causing a self-join deadlock. Use
+    ///   [`Self::start_streaming`] for any callback that drives the
+    ///   lifecycle.
+    /// - **MUST NOT block, allocate heavily, or hold locks.** The TLS
+    ///   reader loop owns reads, outbound command drain, and the ping
+    ///   heartbeat. A slow callback would starve all three — kernel
+    ///   TCP receive buffer fills, vendor disconnects the session,
+    ///   every active subscription drops.
+    /// - **MUST NOT panic.** A future reader-thread path will not
+    ///   carry the consumer-thread `catch_unwind` boundary; an
+    ///   unhandled panic would terminate the reader.
+    ///
+    /// Reach for this entry point only inside trading loops with
+    /// statically-known wait-free callbacks. For Python / Node / Go
+    /// bindings, WebSocket fan-out, file logging, or any callback that
+    /// allocates, call [`Self::start_streaming`] instead.
     ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
+    #[cfg(feature = "expert-mode")]
     pub fn start_streaming_inline<F>(&self, handler: F) -> Result<(), Error>
     where
         F: FnMut(&FpssEvent) + Send + 'static,
@@ -287,7 +291,7 @@ impl ThetaDataDx {
             },
             handler,
         )?;
-        self.install_live(Self::live_slot(client, None))
+        self.install_live(Self::live_slot(client))
     }
 
     /// Atomically swap the slot to a fresh `Live` state.
@@ -315,9 +319,9 @@ impl ThetaDataDx {
         Ok(())
     }
 
-    /// Snapshot of events dropped by the dispatcher since
-    /// [`Self::start_streaming`]. Returns `0` when streaming has not
-    /// started or when the inline path was taken (no dispatcher).
+    /// Snapshot of events the TLS reader could not publish into the
+    /// Disruptor ring because the consumer fell behind and the ring
+    /// was full. Returns `0` when streaming has not started.
     ///
     /// Operators should poll this on a periodic timer (e.g. every
     /// second) and emit a `warn` log on any non-zero delta. A
@@ -326,12 +330,21 @@ impl ThetaDataDx {
     pub fn dropped_event_count(&self) -> u64 {
         let snap = self.state.load();
         match &**snap {
-            StreamingSlot::Live { dispatcher, .. } => {
-                let guard = dispatcher
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                guard.as_ref().map_or(0, StreamingDispatcher::dropped_count)
-            }
+            StreamingSlot::Live { client } => client.dropped_count(),
+            StreamingSlot::Idle | StreamingSlot::Stopped => 0,
+        }
+    }
+
+    /// Snapshot of user-callback panics caught by the Disruptor
+    /// consumer's `catch_unwind` boundary. Each panic is also
+    /// surfaced via `tracing::error!` with target
+    /// `thetadatadx::fpss::io_loop`. Returns `0` when streaming has
+    /// not started.
+    #[must_use]
+    pub fn panic_count(&self) -> u64 {
+        let snap = self.state.load();
+        match &**snap {
+            StreamingSlot::Live { client } => client.panic_count(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
         }
     }
@@ -349,7 +362,7 @@ impl ThetaDataDx {
     ) -> Result<R, Error> {
         let snap = self.state.load();
         match &**snap {
-            StreamingSlot::Live { client, .. } => f(client.as_ref()),
+            StreamingSlot::Live { client } => f(client.as_ref()),
             StreamingSlot::Idle | StreamingSlot::Stopped => Err(Error::Fpss {
                 kind: crate::error::FpssErrorKind::Disconnected,
                 message: "streaming not started -- call start_streaming() first".into(),
@@ -472,26 +485,12 @@ impl ThetaDataDx {
         // runs the shutdown sequence.
         let prev = self.state.swap(Arc::new(StreamingSlot::Stopped));
 
-        // Order matters: drop the FPSS client first so its reader thread
-        // joins and guarantees no further `producer.send` calls reach the
-        // dispatcher's queue. Only then is it safe to shut the dispatcher
-        // down — otherwise the drain thread could observe the sender
-        // channel close while the reader thread is still mid-`try_send`,
-        // racing on the same channel handle.
-        if let StreamingSlot::Live { client, dispatcher } = &*prev {
+        // Drop the FPSS client signal so its reader thread + Disruptor
+        // consumer drain and exit. The actual join happens in
+        // `FpssClient::Drop` when the last `Arc<FpssClient>` is dropped
+        // (typically with `prev` going out of scope at end of scope).
+        if let StreamingSlot::Live { client } = &*prev {
             client.shutdown();
-            // Take the dispatcher out of its mutex so we can call the
-            // value-consuming `shutdown(mut self)`. Concurrent
-            // `dropped_event_count` callers see `None` and report 0 —
-            // the slot has already moved to `Stopped` so they are
-            // racing with a finalised lifecycle.
-            let dispatcher_owned = dispatcher
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .take();
-            if let Some(d) = dispatcher_owned {
-                d.shutdown();
-            }
         }
     }
 
@@ -528,7 +527,7 @@ impl ThetaDataDx {
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
         // 1. Save active subscriptions before stopping
         let saved_subs = match &**self.state.load() {
-            StreamingSlot::Live { client, .. } => (
+            StreamingSlot::Live { client } => (
                 client.active_subscriptions(),
                 client.active_full_subscriptions(),
             ),
@@ -570,7 +569,7 @@ impl ThetaDataDx {
         match &**self.state.load() {
             StreamingSlot::Idle => ConnectionStatus::NotStarted,
             StreamingSlot::Stopped => ConnectionStatus::Disconnected,
-            StreamingSlot::Live { client, .. } => {
+            StreamingSlot::Live { client } => {
                 if client.is_authenticated() {
                     ConnectionStatus::Connected
                 } else {
@@ -845,10 +844,12 @@ impl Drop for ThetaDataDx {
     /// Final cleanup: idempotently stops the streaming connection.
     ///
     /// `stop_streaming` swaps the state cell to `Stopped` and only
-    /// performs the FPSS client / dispatcher shutdown sequence when the
-    /// previous slot was `Live`. Calling it once from `Drop` after the
-    /// user already called `stop_streaming` is therefore a no-op — the
-    /// state machine guarantees the shutdown runs exactly once.
+    /// signals the FPSS client when the previous slot was `Live`.
+    /// The actual TLS reader + Disruptor consumer join happens when
+    /// the last `Arc<FpssClient>` is dropped via `FpssClient::Drop`.
+    /// Calling once from `Drop` after the user already called
+    /// `stop_streaming` is therefore a no-op — the state machine
+    /// guarantees the shutdown signal runs exactly once.
     fn drop(&mut self) {
         self.stop_streaming();
     }
