@@ -4,6 +4,13 @@ Feature-by-feature comparison of the Rust SDK against the Java terminal's
 behavior. `[✓]` = parity, `[✗]` = intentional deviation (documented),
 `[~]` = partial / in progress.
 
+> **Vocabulary note.** The Java terminal exposes contract fields under the v2
+> wire names (`root`, `expDate`). The Rust SDK exposes them under the
+> post-#484 v3 vocabulary (`symbol`, `expiration`); see CHANGELOG entry for
+> v8.0.28. The wire codec is unchanged — the rename is API-side only — so any
+> `root` / `expDate` references on the Java side of a comparison row are kept
+> verbatim, and the Rust counterpart is given in the post-rename form.
+
 > **Last audited**: 2026-04-03 against the Java terminal v202603181.
 > Coverage: all 21 `StreamMsgType` codes, all 19 `RemoveReason` codes, all 4
 > `StreamResponseType` codes, all 4 `SecType` codes, all 30 `ReqType` codes,
@@ -108,7 +115,7 @@ client projections from that data. Requests remain wire-identical.
 | Ring-buffer capacity monitoring | [~] | Java's `RingBuffer.remainingCapacity()` enables back-pressure warnings; `disruptor-rs` v4 does not expose a fill-level API. Known upstream limitation. |
 | `FpssEvent` split (`FpssData` + `FpssControl`) | [✗] | Intentional API improvement — enables exhaustive `match` on data-only events without touching lifecycle events. Wire format unchanged. |
 | FPSS streaming prices exposed as `f64` | [✗] | Intentional improvement — Rust decodes prices at frame-parse time using the per-cell `price_type`. Java exposes raw integers + `price_type` and requires callers to invoke `PriceCalcUtils` manually. |
-| `Contract::option(root, exp, strike, right)` API | [✗] | Intentional improvement — Rust accepts string inputs matching MDDS historical (`"SPY"`, `"20260417"`, `"550"`, `"C"`). Java's `Contract(root, expDate, isCall, strike)` leaks wire-format details. `Contract::option_raw()` is available for the drop-in server. |
+| `Contract::option(symbol, expiration, strike, right)` API | [✗] | Intentional improvement — Rust accepts string inputs matching MDDS historical (`"SPY"`, `"20260417"`, `"550"`, `"C"`). Java's `Contract(root, expDate, isCall, strike)` leaks wire-format details. A typed `IntoOptionSpec` constructor is planned for 9.0.0 to replace the deferred `Contract::option_raw()` shape used by the drop-in server. |
 | FPSS subscription tracking | [✗] | Rust: per-instance `Mutex`. Java: static `ConcurrentHashMap` shared across all `FPSSClient` instances in the JVM. Rust isolates subscription state per client. |
 | Full-type subscribe payload `[req_id: i32 BE] [sec_type: u8]` | [✓] | |
 | `contract_map` cleared on `START`/`STOP` | [✓] | Matches Java's `idToContract.clear()`. |
@@ -147,7 +154,7 @@ client projections from that data. Requests remain wire-identical.
 
 | Feature | Parity | Notes |
 |---------|:------:|-------|
-| Contract root length check | [✗] | Rust: `assert!(root.len() <= 244)`. Java: silent `as byte` truncation. |
+| Contract symbol length check | [✗] | Rust: `assert!(symbol.len() <= 244)`. Java: silent `as byte` truncation on the `root` field. |
 | Price-type range check | [✓] | Both enforce `0 <= type < 20`. |
 | Frame payload size | [✗] | Rust: `assert!(payload.len() <= 255)` in release. Java: implicit `u8` truncation. |
 | Date format validation (8 ASCII digits) | [✗] | Rust validates client-side in `mdds/validate.rs::validate_date()`. Java relies on server-side rejection. |
@@ -273,8 +280,8 @@ Rust SDK defaults to `"09:30:00"`/`"16:00:00"` on all interval endpoints.
   instead of logging them as garbled strings.
 - **`f64` prices at parse time** — no `price_type` in the public API; every
   `Price` cell is decoded using its own `price_type`.
-- **Typed `Contract::option(root, exp, strike, right)` API** — strings
-  matching the MDDS historical API; no wire-format leakage.
+- **Typed `Contract::option(symbol, expiration, strike, right)` API** —
+  strings matching the MDDS historical API; no wire-format leakage.
 
 ## Class-level mapping
 

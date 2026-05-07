@@ -32,7 +32,7 @@ console.log(data);
 data, _ := client.OptionListContracts("TRADE", "SPY", "20260402")
 for _, t := range data {
     fmt.Printf("symbol=%s expiration=%d strike=%.2f right=%s\n",
-        t.Root, t.Expiration, t.Strike, t.Right)
+        t.Symbol, t.Expiration, t.Strike, t.Right)
 }
 ```
 ```cpp [C++]
@@ -69,7 +69,7 @@ for (const auto& t : data) {
 
 <div class="param-list">
 <div class="param">
-<div class="param-header"><code>root</code><span class="param-type">string</span></div>
+<div class="param-header"><code>symbol</code><span class="param-type">string</span></div>
 <div class="param-desc">Underlying symbol</div>
 </div>
 <div class="param">
@@ -91,11 +91,17 @@ for (const auto& t : data) {
 
 ```json
 [
-  {"root": "SPY", "expiration": 20260403, "strike": 320.00, "right": "C"},
-  {"root": "SPY", "expiration": 20260403, "strike": 640.00, "right": "C"},
-  {"root": "SPY", "expiration": 20260417, "strike": 550.00, "right": "P"}
+  {"symbol": "SPY", "expiration": 20260403, "strike": 320.00, "right": "C"},
+  {"symbol": "SPY", "expiration": 20260403, "strike": 640.00, "right": "C"},
+  {"symbol": "SPY", "expiration": 20260417, "strike": 550.00, "right": "P"}
 ]
 ```
+
+> Field names above match the typed `OptionContract` struct exposed by every
+> SDK (`symbol`, `expiration`, `strike`, `right`). The `Vec<OptionContract>` is
+> decoded from the v3 gRPC `DataTable` response — there is no raw JSON wire
+> format on this endpoint, so the SDK's `symbol` vocabulary is what callers
+> see.
 
 > Lists all option contracts for SPY on the given date. 5,467 contracts returned for 2026-04-02.
 

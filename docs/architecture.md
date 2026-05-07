@@ -297,7 +297,13 @@ sequenceDiagram
 
 ### Contract Binary Format
 
-Contracts are serialized differently for equities vs options:
+Contracts are serialized differently for equities vs options. The byte-level
+labels below (`root_len`, `root`, `exp_date`) are the **FPSS streaming wire
+field names** and are deliberately preserved as-is; they describe the binary
+layout the FPSS server emits and consumes. The Rust SDK's `Contract` struct
+exposes these fields as `symbol` and `expiration` (renamed in #484, v8.0.28),
+but the on-the-wire encoding is unchanged. The MDDS gRPC v3 surface uses
+`symbol` natively in its protobuf schema.
 
 ```mermaid
 packet-beta

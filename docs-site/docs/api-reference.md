@@ -608,7 +608,7 @@ auto contracts = client.option_list_contracts("TRADE", "SPY", "20240315");
 | `date` | string | Yes | Date (`YYYYMMDD`) |
 | `max_dte` | int | No | Maximum days to expiration filter |
 
-**Returns:** Array of OptionContract records with root, expiration, strike, right.
+**Returns:** Array of OptionContract records with symbol, expiration, strike, right.
 
 ---
 
@@ -2528,9 +2528,9 @@ fpss.subscribe_quotes("AAPL");
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `root` | string | Ticker symbol |
+| `symbol` | string | Ticker symbol |
 | `sec_type` | SecType | Security type |
-| `exp_date` | int (optional) | Expiration date as YYYYMMDD (options only) |
+| `expiration` | int (optional) | Expiration date as YYYYMMDD (options only) |
 | `is_call` | bool (optional) | true = call, false = put (options only) |
 | `strike` | string (optional) | Strike price in dollars (options only) |
 

@@ -1959,7 +1959,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.33"
+version = "8.0.35"
 dependencies = [
  "crossbeam-channel",
  "disruptor",
@@ -1994,7 +1994,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-mcp"
-version = "8.0.33"
+version = "8.0.35"
 dependencies = [
  "serde",
  "sonic-rs",

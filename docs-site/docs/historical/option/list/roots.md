@@ -61,9 +61,9 @@ None.
 ["SPY", "SPY1", "SPY2", "SPY7"]
 ```
 
-> Returns all option root symbols for the given underlying.
+> Returns the full list of underlying symbols with available option chains.
 
 ## Notes
 
 - Returns all underlying symbols, not individual contracts. Use [option_list_expirations](./expirations) and [option_list_strikes](./strikes) to drill into a specific chain.
-- The Rust SDK method is `option_list_symbols`; "roots" refers to the underlying concept in ThetaData's API.
+- The Rust SDK method is `option_list_symbols`. The legacy "roots" term is preserved in this page's URL slug for inbound-link stability; the SDK and protobuf surface use `symbol` exclusively.
