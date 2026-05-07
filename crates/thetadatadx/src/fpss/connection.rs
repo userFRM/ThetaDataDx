@@ -1,20 +1,20 @@
 //! TLS TCP connection to FPSS servers.
 //!
-//! # Transport (from decompiled Java -- `FPSSClient.java`)
+//! See ADR-001 (`docs/architecture/ADR-001-java-terminal-parity.md`) for the
+//! Java terminal parity reverse-engineering source.
 //!
-//! The Java terminal connects via `SSLSocket` (TLS over TCP) with:
+//! # Transport
+//!
+//! TLS over TCP with:
 //! - `TCP_NODELAY = true` (Nagle disabled for low latency)
 //! - Connect timeout: 2 seconds
 //! - Read timeout: 10 seconds
 //! - Tries servers in order until one connects: `nj-a:20000`, `nj-a:20001`,
 //!   `nj-b:20000`, `nj-b:20001`
 //!
-//! Source: `FPSSClient.connect()` and `FPSSClient.SERVERS` in decompiled terminal.
+//! # Implementation
 //!
-//! # Rust implementation
-//!
-//! Uses `std::net::TcpStream` + `rustls::StreamOwned` for blocking TLS I/O,
-//! matching the Java `SSLSocketFactory.createSocket()` behavior exactly.
+//! Uses `std::net::TcpStream` + `rustls::StreamOwned` for blocking TLS I/O.
 //! No tokio, no async -- pure blocking I/O on `std::thread`.
 
 use std::net::{TcpStream, ToSocketAddrs};
@@ -46,14 +46,13 @@ fn ensure_rustls_crypto_provider() {
 /// Tries each server in order. Returns the stream and connected server
 /// address on success, or the last error if all fail.
 ///
-/// # Connection sequence (from `FPSSClient.connect()`)
+/// # Connection sequence
 ///
 /// 1. TCP connect with 2s timeout
 /// 2. `TCP_NODELAY = true`
-/// 3. Set read timeout to 10s (matches Java `socket.setSoTimeout(10000)`)
+/// 3. Set read timeout to 10s (`socket.setSoTimeout(10000)`)
 /// 4. TLS handshake via system trust store
 ///
-/// Source: `FPSSClient.connect()` in decompiled terminal.
 /// # Errors
 ///
 /// Returns an error on network, authentication, or parsing failure.
@@ -106,11 +105,11 @@ fn tls_client_config() -> Arc<ClientConfig> {
 
 /// Attempt a single blocking TLS connection to one server.
 ///
-/// # Steps (matching `FPSSClient.connect()`)
+/// # Steps
 ///
-/// 1. `TcpStream::connect_timeout` -- matches Java `socket.connect(addr, 2000)`
-/// 2. `set_nodelay(true)` -- matches Java `socket.setTcpNoDelay(true)`
-/// 3. `set_read_timeout` -- matches Java `socket.setSoTimeout(10000)`
+/// 1. `TcpStream::connect_timeout` -- `socket.connect(addr, 2000)`
+/// 2. `set_nodelay(true)` -- `socket.setTcpNoDelay(true)`
+/// 3. `set_read_timeout` -- `socket.setSoTimeout(10000)`
 /// 4. Blocking TLS handshake via rustls `StreamOwned`
 fn try_connect(
     host: &str,
@@ -139,10 +138,10 @@ fn try_connect(
     // TCP connect with timeout
     let tcp = TcpStream::connect_timeout(&sock_addr, connect_timeout)?;
 
-    // TCP_NODELAY = true (matches Java: socket.setTcpNoDelay(true))
+    // TCP_NODELAY = true (socket.setTcpNoDelay(true)).
     tcp.set_nodelay(true)?;
 
-    // Read timeout (matches Java: socket.setSoTimeout(10000))
+    // Read timeout (socket.setSoTimeout(10000)).
     tcp.set_read_timeout(Some(read_timeout))?;
 
     // TLS handshake (blocking) using rustls with webpki root certificates.

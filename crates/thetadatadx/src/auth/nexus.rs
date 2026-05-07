@@ -154,7 +154,7 @@ impl AuthUser {
     /// - STANDARD = 2 -> 4 concurrent requests
     /// - PROFESSIONAL/PRO = 3 -> 8 concurrent requests
     ///
-    /// Source: Java terminal `MddsConnectionManager` — `2^subscription_tier`.
+    /// Bound: `2^subscription_tier`.
     #[must_use]
     pub fn max_concurrent_requests(&self) -> usize {
         let tier = [

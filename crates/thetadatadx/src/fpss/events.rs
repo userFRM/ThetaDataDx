@@ -132,17 +132,16 @@ pub enum FpssControl {
     ///
     /// `permissions` is the server's "Bundle" string, copied verbatim from the
     /// METADATA frame payload as UTF-8. **It is opaque diagnostic metadata, not
-    /// a structured permission set.** The Java terminal (`FPSSClient.perms`,
-    /// source of truth for the wire protocol) does not parse it: it logs the
-    /// value as `[FPSS] CONNECTED: [host], Bundle: <perms>` and uses non-null
-    /// as the `isVerified()` sentinel — that's it.
+    /// a structured permission set.** The wire protocol does not parse it:
+    /// upstream logs the value as `[FPSS] CONNECTED: [host], Bundle: <perms>`
+    /// and uses non-null as the `isVerified()` sentinel — that's it.
     ///
     /// **For feature gating, use [`crate::auth::AuthUser`] instead**.
     /// The Nexus REST endpoint exposes per-asset subscription tiers
     /// (`stock_subscription`, `options_subscription`, `indices_subscription`,
     /// `interest_rate_subscription`, each `0=FREE / 1=VALUE / 2=STANDARD /
-    /// 3=PRO`), which is the canonical surface the Java terminal itself uses
-    /// to compute concurrency limits and gate features.
+    /// 3=PRO`), which is the canonical surface used to compute concurrency
+    /// limits and gate features.
     ///
     /// Treat this field as a log/diagnostic string only. Do not parse it.
     LoginSuccess { permissions: String },

@@ -17,9 +17,8 @@
 //!                                          +--------------------+
 //! ```
 //!
-//! This mirrors the Java terminal's LMAX Disruptor architecture exactly:
-//! - Java: blocking `DataInputStream` -> LMAX Disruptor ring -> event handlers
-//! - Rust: blocking TLS `read` -> Disruptor ring -> user's `FnMut(&FpssEvent)` callback
+//! Pipeline: blocking TLS `read` -> Disruptor ring -> user's
+//! `FnMut(&FpssEvent)` callback.
 //!
 //! No tokio, no channels, no async. The blocking read thread IS the Disruptor
 //! producer. Events are pre-allocated in the ring buffer (zero allocation on

@@ -34,8 +34,7 @@ pub enum SubscriptionTier {
 impl SubscriptionTier {
     /// Concurrent in-flight gRPC requests permitted at this tier.
     ///
-    /// Computed as `2^tier`, matching the Java terminal's
-    /// `MddsConnectionManager` semaphore bound.
+    /// Computed as `2^tier`.
     #[must_use]
     pub const fn max_concurrent_requests(self) -> usize {
         1usize << self as u32

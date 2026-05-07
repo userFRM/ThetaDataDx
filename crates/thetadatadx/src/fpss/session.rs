@@ -7,21 +7,22 @@ use super::protocol::{RECONNECT_DELAY_MS, TOO_MANY_REQUESTS_DELAY_MS};
 
 /// Determine the reconnect delay based on the disconnect reason.
 ///
-/// Source: `FPSSClient.java` -- reconnect logic checks `RemoveReason` to decide delay.
+/// The classifier maps a `RemoveReason` to a retry delay (or `None` for
+/// permanent errors).
 ///
-/// # Intentional divergence from Java (see docs/java-parity-checklist.md)
+/// # Intentional divergence from upstream parity (see docs/java-parity-checklist.md)
 ///
-/// Java only treats `AccountAlreadyConnected` (code 6) as a permanent error,
-/// retrying forever on invalid credentials — which burns rate limits and never
-/// succeeds. We treat all 7 credential/account error codes as permanent because
-/// no amount of retrying will fix bad credentials. This is a deliberate
-/// improvement over the Java behavior.
+/// Upstream only treats `AccountAlreadyConnected` (code 6) as a permanent
+/// error, retrying forever on invalid credentials — which burns rate limits
+/// and never succeeds. We treat all 7 credential/account error codes as
+/// permanent because no amount of retrying will fix bad credentials. This
+/// is a deliberate improvement over the upstream behavior.
 #[must_use]
 pub fn reconnect_delay(reason: RemoveReason) -> Option<u64> {
     match reason {
         // Permanent errors -- no amount of reconnection will fix bad credentials.
-        // Java only checks AccountAlreadyConnected here; we extend this to all
-        // credential errors. See docs/java-parity-checklist.md (Reconnection).
+        // Upstream only checks AccountAlreadyConnected here; we extend this to
+        // all credential errors. See docs/java-parity-checklist.md (Reconnection).
         RemoveReason::AccountAlreadyConnected
         | RemoveReason::InvalidCredentials
         | RemoveReason::InvalidLoginValues

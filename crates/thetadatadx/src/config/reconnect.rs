@@ -51,9 +51,8 @@ impl std::fmt::Debug for ReconnectPolicy {
 pub struct ReconnectConfig {
     /// Delay before attempting reconnection after a disconnect, in milliseconds.
     ///
-    /// Source: `FPSSClient.RECONNECT_DELAY_MS = 2000` in decompiled terminal.
-    /// Note: `config_0.properties` has `RECONNECT_WAIT=1000` but the Java code
-    /// uses the constant `2000` at runtime.
+    /// Wire constant: `RECONNECT_DELAY_MS = 2000`. Note: `config_0.properties`
+    /// has `RECONNECT_WAIT=1000` but the runtime uses the constant `2000`.
     ///
     /// NOTE: Not automatically wired — consumed by
     /// [`crate::ThetaDataDx::reconnect_streaming`] / the FPSS auto-reconnect path.
@@ -61,7 +60,7 @@ pub struct ReconnectConfig {
 
     /// Delay before reconnecting after a `TooManyRequests` disconnect, in milliseconds.
     ///
-    /// Source: `FPSSClient.handleInvoluntaryDisconnect()` — 130 second wait.
+    /// Involuntary-disconnect handler waits 130 seconds in this case.
     ///
     /// NOTE: Not automatically wired — consumed by
     /// [`crate::ThetaDataDx::reconnect_streaming`] / the FPSS auto-reconnect path.
@@ -69,7 +68,7 @@ pub struct ReconnectConfig {
 
     /// Controls FPSS auto-reconnection behavior after involuntary disconnect.
     ///
-    /// Default: [`ReconnectPolicy::Auto`] — matches Java terminal behavior.
+    /// Default: [`ReconnectPolicy::Auto`].
     pub policy: ReconnectPolicy,
 }
 

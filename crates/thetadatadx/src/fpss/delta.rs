@@ -90,8 +90,8 @@ impl DeltaState {
     /// The ENTIRE payload is FIT-encoded. The first FIT field (alloc[0]) is the
     /// `contract_id`. Tick data fields start at alloc[1..].
     ///
-    /// This matches the Java terminal's `FPSSClient` which calls:
-    /// ```java
+    /// Equivalent to the upstream sequence:
+    /// ```text
     /// fitReader.open(p.data(), 0, p.len());  // FIT starts at offset 0
     /// int size = fitReader.readChanges(alloc); // alloc[0] = contract_id
     /// Contract c = idToContract.get(alloc[0]); // first field IS the contract_id

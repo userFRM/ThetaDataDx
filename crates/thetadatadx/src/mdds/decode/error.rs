@@ -1,19 +1,20 @@
 //! Per-cell decode errors and `DataType` variant naming for diagnostics.
 //!
-//! Mirrors the Java terminal's `IllegalArgumentException` path in
-//! `PojoMessageUtils.convert`. Schema-drift guards in the generated parsers
-//! raise [`DecodeError::MissingRequiredHeader`] when an upstream column is
+//! Schema-drift guards in the generated parsers raise
+//! [`DecodeError::MissingRequiredHeader`] when an upstream column is
 //! absent, and the streaming accumulator raises
 //! [`DecodeError::ChunkHeaderDrift`] when a mid-stream chunk's header set
 //! diverges from the first chunk's schema.
+//!
+//! See ADR-001 (`docs/architecture/ADR-001-java-terminal-parity.md`) for the
+//! Java terminal parity reverse-engineering source.
 
 use crate::proto;
 use thiserror::Error as ThisError;
 
 /// Per-cell decode failure. Produced by the `row_*` helpers when a cell does
 /// not match the column's declared type, or when the requested column index is
-/// past the end of the row. Mirrors the Java terminal's `IllegalArgumentException`
-/// path in `PojoMessageUtils.convert`.
+/// past the end of the row.
 #[derive(Debug, ThisError, PartialEq, Eq)]
 pub enum DecodeError {
     /// Cell exists but its `DataType` variant does not match the declared

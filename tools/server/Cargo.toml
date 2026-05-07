@@ -1,8 +1,8 @@
 [package]
 name = "thetadatadx-server"
-version = "9.0.0"
+version = "9.0.1"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 authors = ["userFRM"]
 description = "Drop-in Rust replacement for the ThetaData Java Terminal"
 documentation = "https://docs.rs/thetadatadx-server"

@@ -117,7 +117,7 @@ pub fn try_string_to_fie_line(input: &str) -> Result<Vec<u8>, u8> {
         i += 2;
     }
 
-    if len % 2 == 0 {
+    if len.is_multiple_of(2) {
         // Even length: all characters consumed; append terminator 0xDD.
         out.push((NEWLINE_NIBBLE << 4) | NEWLINE_NIBBLE);
     } else {

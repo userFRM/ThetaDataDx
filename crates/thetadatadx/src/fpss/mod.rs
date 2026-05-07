@@ -1,9 +1,12 @@
 //! FPSS (Feed Processing Streaming Server) real-time streaming client.
 //!
-//! # Architecture (from decompiled Java -- `FPSSClient.java`)
+//! See ADR-001 (`docs/architecture/ADR-001-java-terminal-parity.md`) for the
+//! Java terminal parity reverse-engineering source.
+//!
+//! # Architecture
 //!
 //! The FPSS protocol provides real-time market data over a custom TLS/TCP
-//! binary protocol. The Java terminal's `FPSSClient` runs:
+//! binary protocol. The client runs:
 //!
 //! 1. A TLS connection to one of 4 FPSS servers (NJ-A/NJ-B, ports 20000/20001)
 //! 2. An authentication handshake (email + password over the wire)
@@ -14,11 +17,10 @@
 //! # Fully synchronous -- no tokio in the FPSS path
 //!
 //! This module is 100% blocking I/O on `std::thread`. No tokio, no async, no
-//! `.await` anywhere. This matches the Java terminal exactly:
+//! `.await` anywhere. The pipeline is:
 //!
 //! ```text
-//! Java:  std::thread (blocking DataInputStream.read) -> LMAX Disruptor ring -> event handler callback
-//! Rust:  std::thread (blocking TLS read)             -> LMAX Disruptor ring -> user's FnMut(&FpssEvent) callback
+//! std::thread (blocking TLS read) -> LMAX Disruptor ring -> user's FnMut(&FpssEvent) callback
 //! ```
 //!
 //! # Usage
@@ -218,7 +220,7 @@ impl<'a> Default for FpssConnectArgs<'a> {
 
 /// Real-time streaming client for `ThetaData`'s FPSS servers.
 ///
-/// # Lifecycle (from `FPSSClient.java`)
+/// # Lifecycle
 ///
 /// 1. `FpssClient::connect()` -- TLS connect + authenticate + start background tasks
 /// 2. `subscribe_quotes()` / `subscribe_trades()` -- subscribe to market data
@@ -230,8 +232,6 @@ impl<'a> Default for FpssConnectArgs<'a> {
 /// `FpssClient` is `Send + Sync`. The `subscribe_*` and `unsubscribe_*` methods
 /// send commands through a lock-free channel to the I/O thread; they never touch
 /// the TLS stream directly.
-///
-/// Source: `FPSSClient.java` -- main connection/reconnection state machine.
 pub struct FpssClient {
     /// Channel to send write commands to the I/O thread.
     ///
@@ -265,7 +265,7 @@ impl FpssClient {
     /// The callback runs on the Disruptor's consumer thread -- keep it fast.
     /// For heavy processing, push events to your own queue from the callback.
     ///
-    /// # Sequence (from `FPSSClient.java`)
+    /// # Sequence
     ///
     /// 1. Try each server in `hosts` until one connects (blocking TLS over TCP)
     /// 2. Send CREDENTIALS (code 0) with email + password
@@ -273,7 +273,6 @@ impl FpssClient {
     /// 4. Start ping heartbeat (100ms interval, `std::thread` with sleep loop)
     /// 5. Start I/O thread (blocking TLS read -> Disruptor ring -> callback)
     ///
-    /// Source: `FPSSClient.connect()` and `FPSSClient.sendCredentials()`.
     /// Connect to FPSS streaming servers.
     ///
     /// `hosts` is the FPSS server list from [`crate::config::FpssConfig::hosts`].
@@ -335,15 +334,14 @@ impl FpssClient {
     where
         F: FnMut(&FpssEvent) + Send + 'static,
     {
-        // Send CREDENTIALS (code 0)
-        // Source: FPSSClient.sendCredentials()
+        // Send CREDENTIALS (code 0).
         let cred_payload = build_credentials_payload(&creds.email, &creds.password);
         let frame = Frame::new(StreamMsgType::Credentials, cred_payload);
         write_frame(&mut stream, &frame)?;
         tracing::debug!("sent CREDENTIALS to {server_addr}");
 
-        // Wait for METADATA (success) or DISCONNECTED (failure)
-        // Source: FPSSClient.connect() -- blocks until login response arrives.
+        // Wait for METADATA (success) or DISCONNECTED (failure). Blocks until
+        // the login response arrives.
         // `pending_control` collects every typed control frame (`Connected`,
         // `Ping`, `ReconnectedServer`, `Restart`) that arrives BEFORE
         // METADATA, preserving wire order. The io_loop drains the buffer
@@ -777,7 +775,7 @@ impl FpssClient {
 
     /// Send the STOP message and shut down background threads.
     ///
-    /// Source: `FPSSClient.disconnect()` -- sends STOP (code 32), then closes socket.
+    /// Sends STOP (code 32), then closes the socket.
     pub fn shutdown(&self) {
         if self.shutdown.swap(true, Ordering::AcqRel) {
             return; // already shut down

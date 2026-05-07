@@ -3,8 +3,8 @@
 //! Struct definitions now live in the `tdbe` crate (`crates/tdbe/src/types/tick.rs`);
 //! only parser functions are generated here. Parsers return
 //! `Result<Vec<Tick>, DecodeError>`; each cell access threads `?` so a type
-//! mismatch in one row fails the whole table, matching Java terminal
-//! semantics (see `PojoMessageUtils.convert`).
+//! mismatch in one row fails the whole table, matching upstream wire-protocol
+//! semantics.
 
 use std::fmt::Write as _;
 use std::path::Path;
