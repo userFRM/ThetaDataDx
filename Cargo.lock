@@ -3075,7 +3075,7 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.12.9"
+version = "0.12.10"
 dependencies = [
  "criterion",
  "sonic-rs",
@@ -3097,7 +3097,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.33"
+version = "8.0.34"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -3137,7 +3137,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-cli"
-version = "8.0.33"
+version = "8.0.34"
 dependencies = [
  "clap",
  "comfy-table",
@@ -3149,7 +3149,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-ffi"
-version = "8.0.33"
+version = "8.0.34"
 dependencies = [
  "tdbe",
  "thetadatadx",

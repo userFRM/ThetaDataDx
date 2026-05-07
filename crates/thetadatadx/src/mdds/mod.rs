@@ -37,6 +37,7 @@
 //!   live in the in-crate `wire_semantics` module.
 
 mod client;
+pub mod decode;
 mod endpoints;
 mod stream;
 mod validate;

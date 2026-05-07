@@ -2474,7 +2474,7 @@ checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
 
 [[package]]
 name = "tdbe"
-version = "0.12.9"
+version = "0.12.10"
 dependencies = [
  "sonic-rs",
  "thiserror 2.0.18",
@@ -2495,7 +2495,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.33"
+version = "8.0.34"
 dependencies = [
  "crossbeam-channel",
  "disruptor",
@@ -2530,7 +2530,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-py"
-version = "8.0.33"
+version = "8.0.34"
 dependencies = [
  "arrow",
  "arrow-array",

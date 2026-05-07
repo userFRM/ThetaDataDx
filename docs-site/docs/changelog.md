@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.34] - 2026-05-07
+
+### Changed
+
+- **`crates/thetadatadx/src/decode.rs` (2177 LoC) split into
+  `mdds/decode/{error,headers,transport,extract,cell,v3}` modules.**
+  Pure structural refactor; public API unchanged. Re-exports
+  preserved at `thetadatadx::mdds::decode::*`.
+
+- **Eastern-time + DST primitives lifted to `tdbe::time`.**
+  `eastern_offset_ms`, `march_second_sunday_utc`,
+  `november_first_sunday_utc`, `april_first_sunday_utc`,
+  `october_last_sunday_utc`, `civil_to_epoch_days`,
+  `timestamp_to_ms_of_day`, `timestamp_to_date` — single canonical
+  module reused by mdds, fpss, flatfiles. Patch bump tdbe 0.12.9
+  → 0.12.10.
+
+  Refs #500.
+
 ## [8.0.33] - 2026-05-07
 
 ### Added

@@ -93,7 +93,6 @@
 
 pub mod auth;
 pub mod config;
-pub mod decode;
 pub mod endpoint;
 pub mod error;
 pub mod flatfiles;
@@ -114,6 +113,12 @@ pub(crate) mod wire_semantics;
 mod macros;
 
 pub mod mdds;
+
+// `decode` is re-exported from `mdds::decode` to preserve the public surface
+// (`thetadatadx::decode::*`). Wave 2 split the original decode.rs god-file
+// into `mdds/decode/{error, headers, transport, extract, cell, v3}`; the
+// re-export keeps existing consumer paths unchanged.
+pub use mdds::decode;
 
 /// Generated protobuf types from `mdds.proto` (package `BetaEndpoints`).
 #[allow(clippy::pedantic)]
