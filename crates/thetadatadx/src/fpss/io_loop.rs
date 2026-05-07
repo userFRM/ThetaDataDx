@@ -183,7 +183,6 @@ pub(super) fn io_loop<F>(
     ring_size: usize,
     shutdown: Arc<AtomicBool>,
     authenticated: Arc<AtomicBool>,
-    contract_map: Arc<Mutex<HashMap<i32, Arc<Contract>>>>,
     permissions: String,
     mut pending_control: Vec<FpssControl>,
     _server_addr: String,
@@ -245,8 +244,9 @@ pub(super) fn io_loop<F>(
     // Thread-local contract cache: contract_id -> Arc<Contract>.
     // Populated on ContractAssigned events, used by the decode hot path to
     // attach the parsed contract to every emitted data event with zero
-    // Mutex locks. The shared contract_map (Mutex-backed) is still updated
-    // for external callers (contract_map() / contract_lookup() public APIs).
+    // Mutex locks. Downstream consumers that still want an id->contract
+    // map build it from the `ContractAssigned` event stream — the SDK no
+    // longer holds wire-internal `contract_id` state.
     let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
 
     // Reusable frame payload buffer.
@@ -285,7 +285,6 @@ pub(super) fn io_loop<F>(
                         code,
                         &frame_buf[..payload_len],
                         &authenticated,
-                        &contract_map,
                         &mut local_contracts,
                         &shutdown,
                         &mut delta_state,
@@ -557,10 +556,6 @@ pub(super) fn io_loop<F>(
         // Clear delta state -- fresh connection means fresh deltas.
         delta_state.clear();
         local_contracts.clear();
-        contract_map
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clear();
 
         authenticated.store(true, Ordering::Release);
 

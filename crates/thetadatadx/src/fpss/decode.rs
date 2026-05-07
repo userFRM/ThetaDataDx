@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 
 use tdbe::types::enums::StreamMsgType;
@@ -63,7 +63,6 @@ pub(super) fn decode_frame(
     code: StreamMsgType,
     payload: &[u8],
     authenticated: &AtomicBool,
-    contract_map: &Mutex<HashMap<i32, Arc<Contract>>>,
     local_contracts: &mut HashMap<i32, Arc<Contract>>,
     shutdown: &AtomicBool,
     delta_state: &mut DeltaState,
@@ -128,15 +127,10 @@ pub(super) fn decode_frame(
                 // at most once per contract_id per session.
                 let arc_contract: Arc<Contract> = Arc::new(contract);
                 // Insert into thread-local cache (zero-lock hot-path lookups).
+                // Downstream consumers that need an id->contract map build
+                // it from the `ContractAssigned` event stream — the SDK no
+                // longer holds wire-internal `contract_id` state.
                 local_contracts.insert(id, Arc::clone(&arc_contract));
-                // Also update shared map for external callers (contract_map(),
-                // contract_lookup() public APIs on FpssClient). Same Arc —
-                // the string heap allocation is shared across the I/O
-                // thread's cache, the shared map, and every emitted event.
-                contract_map
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .insert(id, Arc::clone(&arc_contract));
                 (
                     Some(FpssEvent::Control(FpssControl::ContractAssigned {
                         id,
@@ -410,11 +404,7 @@ pub(super) fn decode_frame(
         StreamMsgType::Start => {
             tracing::info!("market open signal received");
             delta_state.clear();
-            local_contracts.clear();
-            contract_map
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clear(); // Java: idToContract.clear()
+            local_contracts.clear(); // Java: idToContract.clear()
             (Some(FpssEvent::Control(FpssControl::MarketOpen)), None)
         }
 
@@ -422,11 +412,7 @@ pub(super) fn decode_frame(
             tracing::info!("market close signal received");
             delta_state.last_stop = Some(Instant::now());
             delta_state.clear();
-            local_contracts.clear();
-            contract_map
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clear(); // Java: idToContract.clear()
+            local_contracts.clear(); // Java: idToContract.clear()
             (Some(FpssEvent::Control(FpssControl::MarketClose)), None)
         }
 
@@ -522,10 +508,6 @@ pub(super) fn decode_frame(
             tracing::info!("FPSS server RESTART frame received");
             delta_state.clear();
             local_contracts.clear();
-            contract_map
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clear();
             (Some(FpssEvent::Control(FpssControl::Restart)), None)
         }
 
@@ -848,9 +830,6 @@ mod tests {
     // -----------------------------------------------------------------------
 
     fn decode_ctrl(code: StreamMsgType, payload: &[u8]) -> FpssEvent {
-        use std::sync::Mutex as StdMutex;
-        let contract_map: std::sync::Mutex<HashMap<i32, Arc<Contract>>> =
-            StdMutex::new(HashMap::new());
         let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -859,7 +838,6 @@ mod tests {
             code,
             payload,
             &authenticated,
-            &contract_map,
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
@@ -901,9 +879,6 @@ mod tests {
     #[test]
     fn decode_code_31_restart_emits_typed_variant_and_clears_delta_state() {
         // Seed delta state so we can verify it was cleared.
-        use std::sync::Mutex as StdMutex;
-        let contract_map: std::sync::Mutex<HashMap<i32, Arc<Contract>>> =
-            StdMutex::new(HashMap::new());
         let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -919,7 +894,6 @@ mod tests {
             StreamMsgType::Restart,
             &[],
             &authenticated,
-            &contract_map,
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
@@ -952,9 +926,6 @@ mod tests {
         payload.extend_from_slice(&777i32.to_be_bytes());
         payload.extend_from_slice(&expected_contract.to_bytes());
 
-        use std::sync::Mutex as StdMutex;
-        let contract_map: std::sync::Mutex<HashMap<i32, Arc<Contract>>> =
-            StdMutex::new(HashMap::new());
         let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -964,7 +935,6 @@ mod tests {
             StreamMsgType::Contract,
             &payload,
             &authenticated,
-            &contract_map,
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
@@ -976,30 +946,19 @@ mod tests {
                 FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
                     assert_eq!(id, 777);
                     assert_eq!(contract.symbol, "AAPL");
-                    // The Arc inside the event, the Arc in the shared map, and
-                    // the Arc in the thread-local cache must all point at the
-                    // SAME Contract heap cell — a different pointer would mean
-                    // we regressed to per-event Contract::clone.
+                    // The Arc inside the event and the Arc in the thread-local
+                    // cache must point at the SAME Contract heap cell — a
+                    // different pointer would mean we regressed to per-event
+                    // Contract::clone.
                     let emitted_ptr = Arc::as_ptr(&contract);
                     let cache_ptr = Arc::as_ptr(
                         local_contracts
                             .get(&777)
                             .expect("local cache must have the contract"),
                     );
-                    let map_ptr = Arc::as_ptr(
-                        contract_map
-                            .lock()
-                            .unwrap()
-                            .get(&777)
-                            .expect("shared map must have the contract"),
-                    );
                     assert_eq!(
                         emitted_ptr, cache_ptr,
                         "event's Arc<Contract> must alias the I/O thread cache"
-                    );
-                    assert_eq!(
-                        emitted_ptr, map_ptr,
-                        "event's Arc<Contract> must alias the shared contract_map"
                     );
                     contract
                 }
@@ -1039,7 +998,6 @@ mod tests {
             StreamMsgType::Quote,
             &bytes,
             &authenticated,
-            &contract_map,
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
@@ -1069,9 +1027,6 @@ mod tests {
 
     #[test]
     fn quote_for_unknown_contract_id_uses_empty_contract_sentinel() {
-        use std::sync::Mutex as StdMutex;
-        let contract_map: std::sync::Mutex<HashMap<i32, Arc<Contract>>> =
-            StdMutex::new(HashMap::new());
         let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -1108,7 +1063,6 @@ mod tests {
             StreamMsgType::Quote,
             &bytes,
             &authenticated,
-            &contract_map,
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
@@ -1160,33 +1114,28 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // Restart arm MUST clear contract_map + local_contracts, mirroring
-    // the START/STOP arms. Without this, contract IDs the server reuses
-    // or re-announces after a restart would resolve to stale shapes.
+    // Restart arm MUST clear local_contracts, mirroring the START/STOP arms.
+    // Without this, contract IDs the server reuses or re-announces after a
+    // restart would resolve to stale shapes.
     // -----------------------------------------------------------------------
 
     #[test]
-    fn restart_clears_contract_map_and_local_contracts() {
+    fn restart_clears_local_contracts() {
         use crate::fpss::protocol::Contract as ProtoContract;
-        use std::sync::Mutex as StdMutex;
 
-        let contract_map: std::sync::Mutex<HashMap<i32, Arc<Contract>>> =
-            StdMutex::new(HashMap::new());
         let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
 
-        // Seed both caches (as if a ContractAssigned had arrived).
+        // Seed the thread-local cache (as if a ContractAssigned had arrived).
         let seeded = Arc::new(ProtoContract::stock("SEED"));
         local_contracts.insert(42, Arc::clone(&seeded));
-        contract_map.lock().unwrap().insert(42, Arc::clone(&seeded));
 
         let (primary, _) = decode_frame(
             StreamMsgType::Restart,
             &[],
             &authenticated,
-            &contract_map,
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
@@ -1199,10 +1148,6 @@ mod tests {
         assert!(
             local_contracts.is_empty(),
             "Restart must clear the thread-local contract cache"
-        );
-        assert!(
-            contract_map.lock().unwrap().is_empty(),
-            "Restart must clear the shared contract_map"
         );
 
         // A subsequent tick on the now-unknown ID MUST route through
@@ -1235,7 +1180,6 @@ mod tests {
             StreamMsgType::Quote,
             &bytes,
             &authenticated,
-            &contract_map,
             &mut local_contracts,
             &shutdown,
             &mut delta_state,

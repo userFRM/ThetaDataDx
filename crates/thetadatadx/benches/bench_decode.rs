@@ -5,7 +5,7 @@ use thetadatadx::decode::{
     decode_data_table, decompress_response, extract_number_column, extract_price_column,
     parse_ohlc_ticks, parse_quote_ticks, parse_trade_ticks,
 };
-use thetadatadx::proto;
+use thetadatadx::wire as proto;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Helpers

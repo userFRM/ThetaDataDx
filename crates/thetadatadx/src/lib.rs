@@ -121,9 +121,30 @@ pub use mdds::endpoint_args as endpoint;
 pub use mdds::decode;
 
 /// Generated protobuf types from `mdds.proto` (package `BetaEndpoints`).
+///
+/// Wire-internal: bindings and decode-fixture consumers reach the
+/// gRPC payload shapes via [`crate::wire`], which surfaces only the
+/// types those callers genuinely need. Inside the crate the full
+/// generated module is reachable via `crate::proto`.
 #[allow(clippy::pedantic)]
-pub mod proto {
+pub(crate) mod proto {
     tonic::include_proto!("beta_endpoints");
+}
+
+/// gRPC wire-payload re-exports for offline-decode callers.
+///
+/// The MDDS gRPC server emits `ResponseData` frames; each frame's body
+/// is a zstd-compressed `DataTable` of `DataValueList` rows. SDK
+/// bindings that recover endpoint outputs from recorded byte streams
+/// (the parity-bench harness in particular) need these three types
+/// plus the `data_value` oneof. The generated `proto` module that
+/// hosts them is otherwise wire-internal — this re-export is the
+/// supported surface for that one use case.
+pub mod wire {
+    pub use super::proto::{
+        data_value, CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList,
+        Price, ResponseData,
+    };
 }
 
 pub use auth::Credentials;

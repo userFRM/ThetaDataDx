@@ -123,7 +123,7 @@ impl ThetaDataDx {
         strike: String,
         right: String,
     ) -> napi::Result<()> {
-        let contract = fpss::protocol::Contract::option(&symbol, &expiration, &strike, &right).map_err(to_napi_err)?;
+        let contract = fpss::protocol::Contract::option(&symbol, (&expiration, &strike, &right)).map_err(to_napi_err)?;
         self.tdx.subscribe_quotes(&contract).map_err(to_napi_err)
     }
 
@@ -136,7 +136,7 @@ impl ThetaDataDx {
         strike: String,
         right: String,
     ) -> napi::Result<()> {
-        let contract = fpss::protocol::Contract::option(&symbol, &expiration, &strike, &right).map_err(to_napi_err)?;
+        let contract = fpss::protocol::Contract::option(&symbol, (&expiration, &strike, &right)).map_err(to_napi_err)?;
         self.tdx.subscribe_trades(&contract).map_err(to_napi_err)
     }
 
@@ -149,7 +149,7 @@ impl ThetaDataDx {
         strike: String,
         right: String,
     ) -> napi::Result<()> {
-        let contract = fpss::protocol::Contract::option(&symbol, &expiration, &strike, &right).map_err(to_napi_err)?;
+        let contract = fpss::protocol::Contract::option(&symbol, (&expiration, &strike, &right)).map_err(to_napi_err)?;
         self.tdx.subscribe_open_interest(&contract).map_err(to_napi_err)
     }
 
@@ -197,7 +197,7 @@ impl ThetaDataDx {
         strike: String,
         right: String,
     ) -> napi::Result<()> {
-        let contract = fpss::protocol::Contract::option(&symbol, &expiration, &strike, &right).map_err(to_napi_err)?;
+        let contract = fpss::protocol::Contract::option(&symbol, (&expiration, &strike, &right)).map_err(to_napi_err)?;
         self.tdx.unsubscribe_quotes(&contract).map_err(to_napi_err)
     }
 
@@ -210,7 +210,7 @@ impl ThetaDataDx {
         strike: String,
         right: String,
     ) -> napi::Result<()> {
-        let contract = fpss::protocol::Contract::option(&symbol, &expiration, &strike, &right).map_err(to_napi_err)?;
+        let contract = fpss::protocol::Contract::option(&symbol, (&expiration, &strike, &right)).map_err(to_napi_err)?;
         self.tdx.unsubscribe_trades(&contract).map_err(to_napi_err)
     }
 
@@ -223,7 +223,7 @@ impl ThetaDataDx {
         strike: String,
         right: String,
     ) -> napi::Result<()> {
-        let contract = fpss::protocol::Contract::option(&symbol, &expiration, &strike, &right).map_err(to_napi_err)?;
+        let contract = fpss::protocol::Contract::option(&symbol, (&expiration, &strike, &right)).map_err(to_napi_err)?;
         self.tdx.unsubscribe_open_interest(&contract).map_err(to_napi_err)
     }
 
@@ -239,23 +239,6 @@ impl ThetaDataDx {
     pub fn unsubscribe_full_open_interest(&self, sec_type: String) -> napi::Result<()> {
         let st = parse_sec_type(&sec_type)?;
         self.tdx.unsubscribe_full_open_interest(st).map_err(to_napi_err)
-    }
-
-    /// Get the current contract map keyed by server-assigned contract ID.
-    #[napi(js_name = "contractMap")]
-    pub fn contract_map(&self) -> napi::Result<std::collections::HashMap<String, String>> {
-        self.tdx
-            .contract_map()
-            .map(|m| m.into_iter().map(|(id, c)| (id.to_string(), format!("{c}"))).collect())
-            .map_err(to_napi_err)
-    }
-
-    /// Look up a single contract by its server-assigned ID.
-    #[napi(js_name = "contractLookup")]
-    pub fn contract_lookup(&self, id: i32) -> napi::Result<Option<String>> {
-        self.tdx.contract_lookup(id)
-            .map(|opt| opt.map(|c| format!("{c}")))
-            .map_err(to_napi_err)
     }
 
     /// Get a snapshot of currently active subscriptions.

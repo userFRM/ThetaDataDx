@@ -201,19 +201,6 @@ targets = ["python_unified", "typescript_napi", "cpp_fpss"]
 params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
 
 [[methods]]
-name = "contract_map"
-kind = "contract_map"
-doc = "Get the current contract map keyed by server-assigned contract ID."
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-
-[[methods]]
-name = "contract_lookup"
-kind = "contract_lookup"
-doc = "Look up a single contract by its server-assigned ID."
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [{ name = "id", type = "i32", doc = "Server-assigned contract ID." }]
-
-[[methods]]
 name = "active_subscriptions"
 kind = "active_subscriptions"
 doc = "Get a snapshot of currently active subscriptions."

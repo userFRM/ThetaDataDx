@@ -43,8 +43,6 @@ pub(super) enum MethodKind {
     StockContractCall,
     OptionContractCall,
     FullCall,
-    ContractMap,
-    ContractLookup,
     ActiveSubscriptions,
     NextEvent,
     Reconnect,
@@ -234,13 +232,6 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
             &[PY, TS, CPP],
             false,
             &[("sec_type", ParamType::String)],
-        ),
-        MethodKind::ContractMap => (Some("contract_map"), &[PY, TS, CPP], false, &[]),
-        MethodKind::ContractLookup => (
-            Some("contract_lookup"),
-            &[PY, TS, CPP],
-            false,
-            &[("id", ParamType::I32)],
         ),
         MethodKind::ActiveSubscriptions => {
             (Some("active_subscriptions"), &[PY, TS, CPP], false, &[])

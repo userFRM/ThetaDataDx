@@ -24,12 +24,13 @@
 //! # Usage
 //!
 //! ```rust,no_run
-//! # use thetadatadx::fpss::{FpssClient, FpssData, FpssEvent};
+//! # use thetadatadx::fpss::{FpssClient, FpssConnectArgs, FpssData, FpssEvent};
 //! # use thetadatadx::auth::Credentials;
 //! # fn example() -> Result<(), thetadatadx::error::Error> {
 //! let creds = Credentials::new("user@example.com", "pw");
 //! let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
-//! let client = FpssClient::connect(&creds, &hosts, 4096, Default::default(), Default::default(), true, |event: &FpssEvent| {
+//! let args = FpssConnectArgs::new(&creds, &hosts);
+//! let client = FpssClient::connect(args, |event: &FpssEvent| {
 //!     // Runs on the Disruptor consumer thread -- keep it fast.
 //!     // Push to your own queue for heavy processing.
 //!     match event {
@@ -87,25 +88,28 @@
 //! - [`ring`] -- LMAX Disruptor ring buffer and adaptive wait strategy
 
 mod accumulator;
-pub mod connection;
+pub(crate) mod connection;
 mod decode;
 mod delta;
-pub mod dispatcher;
+pub(crate) mod dispatcher;
 mod events;
-pub mod framing;
+pub(crate) mod framing;
 mod io_loop;
 pub(crate) mod pinning;
 pub mod protocol;
-pub mod ring;
+pub(crate) mod ring;
 mod session;
 
 pub use self::dispatcher::{DispatcherProducer, StreamingDispatcher};
+// Surface a thin slice of the framing codec for offline benchmarks
+// (`benches/bench_framing.rs`). The full `framing` module remains
+// crate-private; only the round-trip primitives are exposed.
 use self::events::IoCommand;
 pub use self::events::{FpssControl, FpssData, FpssEvent};
+pub use self::framing::{read_frame, write_frame, Frame};
 use self::io_loop::{io_loop, ping_loop, wait_for_login, LoginResult};
 pub use self::session::reconnect_delay;
 
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
@@ -117,10 +121,96 @@ use crate::config::{FpssFlushMode, ReconnectPolicy};
 use crate::error::Error;
 use tdbe::types::enums::{RemoveReason, StreamMsgType};
 
-use self::framing::{write_frame, Frame};
 use self::protocol::{
     build_credentials_payload, build_subscribe_payload, Contract, SubscriptionKind,
 };
+
+// ---------------------------------------------------------------------------
+// FpssConnectArgs — typed parameter bundle for `FpssClient::connect`
+// ---------------------------------------------------------------------------
+
+/// Parameters for [`FpssClient::connect`].
+///
+/// Bundles the connection-side knobs (credentials, hosts, ring size, flush mode,
+/// reconnect policy, OHLCVC derivation) into one struct so the call site reads
+/// linearly rather than as a positional list of seven heterogeneous arguments.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// # use thetadatadx::fpss::{FpssClient, FpssConnectArgs, FpssEvent};
+/// # use thetadatadx::auth::Credentials;
+/// # fn example() -> Result<(), thetadatadx::error::Error> {
+/// let creds = Credentials::new("user@example.com", "pw");
+/// let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
+/// let args = FpssConnectArgs {
+///     creds: &creds,
+///     hosts: &hosts,
+///     ring_size: 4096,
+///     ..Default::default()
+/// };
+/// let client = FpssClient::connect(args, |_event: &FpssEvent| {})?;
+/// # Ok(())
+/// # }
+/// ```
+#[derive(Clone, Debug)]
+pub struct FpssConnectArgs<'a> {
+    /// Authenticated user credentials.
+    pub creds: &'a Credentials,
+    /// FPSS server list. Servers are tried in order until one connects;
+    /// the surviving list is retained for auto-reconnect.
+    pub hosts: &'a [(String, u16)],
+    /// Disruptor ring buffer size (events). Must be a power of two.
+    pub ring_size: usize,
+    /// I/O thread flush behavior. See [`FpssFlushMode`].
+    pub flush_mode: FpssFlushMode,
+    /// Auto-reconnect policy after involuntary disconnect.
+    pub policy: ReconnectPolicy,
+    /// When `false`, suppresses locally derived `FpssData::Ohlcvc` events.
+    /// Server-sent OHLCVC frames (wire code 24) still pass through.
+    pub derive_ohlcvc: bool,
+}
+
+impl<'a> FpssConnectArgs<'a> {
+    /// Construct with the two required arguments and SDK defaults for the rest.
+    ///
+    /// Equivalent to `FpssConnectArgs { creds, hosts, ..Default::default() }`,
+    /// but avoids the lifetime gymnastics that the spread pattern can trip on
+    /// when `hosts` is borrowed from a temporary.
+    #[must_use]
+    pub fn new(creds: &'a Credentials, hosts: &'a [(String, u16)]) -> Self {
+        Self {
+            creds,
+            hosts,
+            ring_size: 4096,
+            flush_mode: FpssFlushMode::default(),
+            policy: ReconnectPolicy::default(),
+            derive_ohlcvc: true,
+        }
+    }
+}
+
+impl<'a> Default for FpssConnectArgs<'a> {
+    fn default() -> Self {
+        // Reason: `creds` and `hosts` are required references with no
+        // sensible global default. `Default` is implemented so callers can
+        // use `FpssConnectArgs { creds, hosts, ..Default::default() }` —
+        // the placeholders are immediately overwritten in any working call.
+        const EMPTY_HOSTS: &[(String, u16)] = &[];
+        // Static credentials placeholder; overridden by the caller.
+        // Held in a `OnceLock` so the reference outlives the function.
+        static EMPTY_CREDS: std::sync::OnceLock<Credentials> = std::sync::OnceLock::new();
+        let creds = EMPTY_CREDS.get_or_init(|| Credentials::new("", ""));
+        Self {
+            creds,
+            hosts: EMPTY_HOSTS,
+            ring_size: 4096,
+            flush_mode: FpssFlushMode::default(),
+            policy: ReconnectPolicy::default(),
+            derive_ohlcvc: true,
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // FpssClient
@@ -164,12 +254,6 @@ pub struct FpssClient {
     /// Active full-type (full-stream) subscriptions for reconnection.
     pub(in crate::fpss) active_full_subs:
         Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>>,
-    /// Server-assigned contract ID mapping.
-    ///
-    /// Stores `Arc<Contract>` so the I/O thread, the shared map, and
-    /// every decoded data event share a single heap allocation per
-    /// contract_id.
-    contract_map: Arc<Mutex<HashMap<i32, Arc<Contract>>>>,
     /// The server address we connected to.
     server_addr: String,
 }
@@ -197,7 +281,7 @@ impl FpssClient {
     ///
     /// `policy` controls auto-reconnect behavior after involuntary disconnect.
     ///
-    /// When `derive_ohlcvc` is `false`, the client will NOT emit derived
+    /// When `args.derive_ohlcvc` is `false`, the client will NOT emit derived
     /// `FpssData::Ohlcvc` events after each trade. You still receive
     /// server-sent OHLCVC frames (wire code 24). This reduces throughput
     /// overhead by eliminating one extra event per trade.
@@ -205,18 +289,18 @@ impl FpssClient {
     /// # Errors
     ///
     /// Returns [`Error`] if the TLS handshake or FPSS authentication fails.
-    pub fn connect<F>(
-        creds: &Credentials,
-        hosts: &[(String, u16)],
-        ring_size: usize,
-        flush_mode: FpssFlushMode,
-        policy: ReconnectPolicy,
-        derive_ohlcvc: bool,
-        handler: F,
-    ) -> Result<Self, Error>
+    pub fn connect<F>(args: FpssConnectArgs<'_>, handler: F) -> Result<Self, Error>
     where
         F: FnMut(&FpssEvent) + Send + 'static,
     {
+        let FpssConnectArgs {
+            creds,
+            hosts,
+            ring_size,
+            flush_mode,
+            policy,
+            derive_ohlcvc,
+        } = args;
         let borrowed: Vec<(&str, u16)> = hosts.iter().map(|(h, p)| (h.as_str(), *p)).collect();
         let (stream, server_addr) = connection::connect_to_servers(&borrowed)?;
         Self::connect_with_stream(
@@ -314,7 +398,6 @@ impl FpssClient {
 
         let shutdown = Arc::new(AtomicBool::new(false));
         let authenticated = Arc::new(AtomicBool::new(true));
-        let contract_map = Arc::new(Mutex::new(HashMap::new()));
         let active_subs: Arc<Mutex<Vec<(protocol::SubscriptionKind, protocol::Contract)>>> =
             Arc::new(Mutex::new(Vec::new()));
         let active_full_subs: Arc<
@@ -330,7 +413,6 @@ impl FpssClient {
         // Spawn the I/O thread: blocking TLS read + Disruptor publish + command drain.
         let io_shutdown = Arc::clone(&shutdown);
         let io_authenticated = Arc::clone(&authenticated);
-        let io_contract_map = Arc::clone(&contract_map);
         let io_server_addr = server_addr.clone();
         let io_creds = creds.clone();
         let io_hosts = hosts.to_vec();
@@ -347,7 +429,6 @@ impl FpssClient {
                     ring_size,
                     io_shutdown,
                     io_authenticated,
-                    io_contract_map,
                     permissions,
                     pending_control,
                     io_server_addr,
@@ -388,7 +469,6 @@ impl FpssClient {
             next_req_id: AtomicI32::new(1),
             active_subs,
             active_full_subs,
-            contract_map,
             server_addr,
         })
     }
@@ -737,33 +817,6 @@ impl FpssClient {
     /// Get the server address we are connected to.
     pub fn server_addr(&self) -> &str {
         &self.server_addr
-    }
-
-    /// Get the current contract map (server-assigned IDs -> `Arc<Contract>`).
-    ///
-    /// Each value is the SAME `Arc<Contract>` the I/O thread hands to every
-    /// decoded data event for that contract_id. Cloning the map clones
-    /// `Arc`s (refcount bumps), not the underlying `Contract` values.
-    pub fn contract_map(&self) -> HashMap<i32, Arc<Contract>> {
-        self.contract_map
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clone()
-    }
-
-    /// Look up a single contract by its server-assigned ID.
-    ///
-    /// Returns `Arc<Contract>` so the caller participates in the same
-    /// heap allocation used by every decoded data event. Much cheaper
-    /// than [`contract_map()`](Self::contract_map) for the hot path
-    /// where callers decode FIT ticks and need to resolve individual
-    /// contract IDs.
-    pub fn contract_lookup(&self, id: i32) -> Option<Arc<Contract>> {
-        self.contract_map
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(&id)
-            .cloned()
     }
 
     /// Get a snapshot of currently active per-contract subscriptions.

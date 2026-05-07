@@ -116,7 +116,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             out.push_str("    ) -> napi::Result<()> {\n");
             writeln!(
                 out,
-                "        let contract = fpss::protocol::Contract::option(&{}, &{}, &{}, &{}).map_err(to_napi_err)?;",
+                "        let contract = fpss::protocol::Contract::option(&{}, (&{}, &{}, &{})).map_err(to_napi_err)?;",
                 method.params[0].name,
                 method.params[1].name,
                 method.params[2].name,
@@ -148,34 +148,6 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 method.runtime_call.as_deref().unwrap()
             )
             .unwrap();
-            out.push_str("    }\n");
-        }
-        MethodKind::ContractMap => {
-            writeln!(out, "    #[napi(js_name = \"contractMap\")]").unwrap();
-            writeln!(
-                out,
-                "    pub fn {}(&self) -> napi::Result<std::collections::HashMap<String, String>> {{",
-                method.name
-            )
-            .unwrap();
-            out.push_str("        self.tdx\n");
-            out.push_str("            .contract_map()\n");
-            out.push_str("            .map(|m| m.into_iter().map(|(id, c)| (id.to_string(), format!(\"{c}\"))).collect())\n");
-            out.push_str("            .map_err(to_napi_err)\n");
-            out.push_str("    }\n");
-        }
-        MethodKind::ContractLookup => {
-            let param = &method.params[0];
-            writeln!(out, "    #[napi(js_name = \"contractLookup\")]").unwrap();
-            writeln!(
-                out,
-                "    pub fn {}(&self, {}: i32) -> napi::Result<Option<String>> {{",
-                method.name, param.name,
-            )
-            .unwrap();
-            writeln!(out, "        self.tdx.contract_lookup({})", param.name).unwrap();
-            out.push_str("            .map(|opt| opt.map(|c| format!(\"{c}\")))\n");
-            out.push_str("            .map_err(to_napi_err)\n");
             out.push_str("    }\n");
         }
         MethodKind::ActiveSubscriptions => {

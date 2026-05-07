@@ -174,7 +174,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("    ) -> PyResult<()> {\n");
             writeln!(
                 out,
-                "        let contract = fpss::protocol::Contract::option({}, {}, {}, {}).map_err(to_py_err)?;",
+                "        let contract = fpss::protocol::Contract::option({}, ({}, {}, {})).map_err(to_py_err)?;",
                 method.params[0].name,
                 method.params[1].name,
                 method.params[2].name,
@@ -206,34 +206,6 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                 method.runtime_call.as_deref().unwrap()
             )
             .unwrap();
-            out.push_str("    }\n");
-        }
-        MethodKind::ContractMap => {
-            writeln!(
-                out,
-                "    fn {}(&self) -> PyResult<std::collections::HashMap<i32, String>> {{",
-                method.name
-            )
-            .unwrap();
-            out.push_str("        self.tdx\n");
-            out.push_str("            .contract_map()\n");
-            out.push_str("            .map(|m| m.into_iter().map(|(id, c)| (id, format!(\"{c}\"))).collect())\n");
-            out.push_str("            .map_err(to_py_err)\n");
-            out.push_str("    }\n");
-        }
-        MethodKind::ContractLookup => {
-            let param = &method.params[0];
-            writeln!(
-                out,
-                "    fn {}(&self, {}: {}) -> PyResult<Option<String>> {{",
-                method.name,
-                param.name,
-                python_type(param.param_type)
-            )
-            .unwrap();
-            writeln!(out, "        self.tdx.contract_lookup({})", param.name).unwrap();
-            out.push_str("            .map(|opt| opt.map(|c| format!(\"{c}\")))\n");
-            out.push_str("            .map_err(to_py_err)\n");
             out.push_str("    }\n");
         }
         MethodKind::ActiveSubscriptions => {

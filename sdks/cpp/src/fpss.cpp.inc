@@ -32,29 +32,6 @@ int FpssClient::unsubscribe_full_trades(const std::string& sec_type) { return td
 
 int FpssClient::unsubscribe_full_open_interest(const std::string& sec_type) { return tdx_fpss_unsubscribe_full_open_interest(handle_.get(), sec_type.c_str()); }
 
-std::map<int32_t, std::string> FpssClient::contract_map() const {
-    auto* arr = tdx_fpss_contract_map(handle_.get());
-    if (!arr) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-    std::map<int32_t, std::string> result;
-    if (arr->data != nullptr && arr->len > 0) {
-        for (size_t i = 0; i < arr->len; ++i) {
-            result.emplace(arr->data[i].id, arr->data[i].contract ? std::string(arr->data[i].contract) : std::string());
-        }
-    }
-    tdx_contract_map_array_free(arr);
-    return result;
-}
-
-std::optional<std::string> FpssClient::contract_lookup(int id) const {
-    detail::FfiString result(tdx_fpss_contract_lookup(handle_.get(), id));
-    if (!result.ok()) {
-        std::string err = detail::last_ffi_error();
-        if (!err.empty()) throw std::runtime_error("thetadatadx: " + err);
-        return std::nullopt;
-    }
-    return result.str();
-}
-
 std::vector<Subscription> FpssClient::active_subscriptions() const {
     return detail::subscription_array_to_vector(tdx_fpss_active_subscriptions(handle_.get()));
 }

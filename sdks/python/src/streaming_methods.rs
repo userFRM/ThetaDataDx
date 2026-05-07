@@ -127,7 +127,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
+        let contract = fpss::protocol::Contract::option(symbol, (expiration, strike, right)).map_err(to_py_err)?;
         self.tdx.subscribe_quotes(&contract).map_err(to_py_err)
     }
 
@@ -139,7 +139,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
+        let contract = fpss::protocol::Contract::option(symbol, (expiration, strike, right)).map_err(to_py_err)?;
         self.tdx.subscribe_trades(&contract).map_err(to_py_err)
     }
 
@@ -151,7 +151,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
+        let contract = fpss::protocol::Contract::option(symbol, (expiration, strike, right)).map_err(to_py_err)?;
         self.tdx.subscribe_open_interest(&contract).map_err(to_py_err)
     }
 
@@ -193,7 +193,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
+        let contract = fpss::protocol::Contract::option(symbol, (expiration, strike, right)).map_err(to_py_err)?;
         self.tdx.unsubscribe_quotes(&contract).map_err(to_py_err)
     }
 
@@ -205,7 +205,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
+        let contract = fpss::protocol::Contract::option(symbol, (expiration, strike, right)).map_err(to_py_err)?;
         self.tdx.unsubscribe_trades(&contract).map_err(to_py_err)
     }
 
@@ -217,7 +217,7 @@ impl ThetaDataDx {
         strike: &str,
         right: &str,
     ) -> PyResult<()> {
-        let contract = fpss::protocol::Contract::option(symbol, expiration, strike, right).map_err(to_py_err)?;
+        let contract = fpss::protocol::Contract::option(symbol, (expiration, strike, right)).map_err(to_py_err)?;
         self.tdx.unsubscribe_open_interest(&contract).map_err(to_py_err)
     }
 
@@ -231,21 +231,6 @@ impl ThetaDataDx {
     fn unsubscribe_full_open_interest(&self, sec_type: &str) -> PyResult<()> {
         let st = parse_sec_type(sec_type)?;
         self.tdx.unsubscribe_full_open_interest(st).map_err(to_py_err)
-    }
-
-    /// Get the current contract map keyed by server-assigned contract ID.
-    fn contract_map(&self) -> PyResult<std::collections::HashMap<i32, String>> {
-        self.tdx
-            .contract_map()
-            .map(|m| m.into_iter().map(|(id, c)| (id, format!("{c}"))).collect())
-            .map_err(to_py_err)
-    }
-
-    /// Look up a single contract by its server-assigned ID.
-    fn contract_lookup(&self, id: i32) -> PyResult<Option<String>> {
-        self.tdx.contract_lookup(id)
-            .map(|opt| opt.map(|c| format!("{c}")))
-            .map_err(to_py_err)
     }
 
     /// Get a snapshot of currently active subscriptions.

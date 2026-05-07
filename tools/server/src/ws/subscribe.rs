@@ -296,7 +296,22 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 return;
             }
         };
-        Contract::option_raw(symbol, exp, is_call, strike)
+        match Contract::option(symbol, (exp, is_call, strike)) {
+            Ok(c) => c,
+            Err(e) => {
+                let err_msg = format!("invalid option spec: {e}");
+                let resp = sonic_rs::json!({
+                    "header": {
+                        "type": "REQ_RESPONSE",
+                        "response": "ERROR",
+                        "req_id": req_id,
+                        "error": err_msg.as_str(),
+                    }
+                });
+                send_response(socket, &resp, "bad_request_reply").await;
+                return;
+            }
+        }
     } else {
         Contract::stock(symbol)
     };

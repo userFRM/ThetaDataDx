@@ -24,7 +24,7 @@ use prost::Message;
 use serde::Deserialize;
 use tdbe::types::tick::{CalendarDay, EodTick, GreeksAllTick, OhlcTick, TradeQuoteTick, TradeTick};
 use thetadatadx::decode::{self, DecodeError};
-use thetadatadx::proto;
+use thetadatadx::wire as proto;
 
 fn fixtures_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -3,7 +3,7 @@ use std::hint::black_box;
 use std::io::Cursor;
 
 use tdbe::types::enums::StreamMsgType;
-use thetadatadx::fpss::framing::{read_frame, write_frame, Frame};
+use thetadatadx::fpss::{read_frame, write_frame, Frame};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  FPSS framing benchmarks
