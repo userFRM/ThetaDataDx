@@ -113,6 +113,27 @@ impl IntoOptionSpec for (i32, bool, i32) {
     }
 }
 
+// Owned-string variant — covers callers that already own `String`s
+// (the typical PyO3 / napi-rs binding shape, where parameters arrive
+// as `String`).
+impl sealed::Sealed for (String, String, String) {}
+impl IntoOptionSpec for (String, String, String) {
+    fn into_spec(self) -> Result<(i32, bool, i32), Error> {
+        let (e, s, r) = self;
+        (e.as_str(), s.as_str(), r.as_str()).into_spec()
+    }
+}
+
+// Reference-to-owned-string variant — covers binding code that holds
+// the `String`s and prefers to pass references rather than re-clone.
+impl sealed::Sealed for (&String, &String, &String) {}
+impl IntoOptionSpec for (&String, &String, &String) {
+    fn into_spec(self) -> Result<(i32, bool, i32), Error> {
+        let (e, s, r) = self;
+        (e.as_str(), s.as_str(), r.as_str()).into_spec()
+    }
+}
+
 impl Contract {
     /// Create a stock contract.
     ///
