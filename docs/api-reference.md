@@ -948,9 +948,9 @@ Returns `None` for permanent credential/account errors (`InvalidCredentials`, `I
 
 ```rust
 pub struct Contract {
-    pub root: String,
+    pub symbol: String,
     pub sec_type: SecType,
-    pub exp_date: Option<i32>,
+    pub expiration: Option<i32>,
     pub is_call: Option<bool>,
     pub strike: Option<i32>,
 }
@@ -1294,11 +1294,11 @@ pub struct InterestRateTick {
 
 ### OptionContract
 
-Option contract specification. Not `Copy` due to `String` root field.
+Option contract specification. Not `Copy` due to `String` symbol field.
 
 ```rust
 pub struct OptionContract {
-    pub root: String,
+    pub symbol: String,
     pub expiration: i32,
     pub strike: f64,
     pub right: i32,

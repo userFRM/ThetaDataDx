@@ -3279,14 +3279,14 @@ components:
       type: object
       description: Full contract representation used in streaming
       properties:
-        root:
+        symbol:
           type: string
           description: Underlying symbol
         sec_type:
           type: integer
           enum: [0, 1, 2, 3]
           description: '0=Stock, 1=Option, 2=Index, 3=Rate'
-        exp_date:
+        expiration:
           type: integer
           description: Expiration as YYYYMMDD integer (options only)
         is_call:

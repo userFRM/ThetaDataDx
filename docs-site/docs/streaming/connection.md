@@ -34,7 +34,7 @@ let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
 
 tdx.start_streaming(|event: &FpssEvent| {
     match event {
-        // Every data event carries an `Arc<Contract>` — read the root ticker
+        // Every data event carries an `Arc<Contract>` — read the symbol
         // directly, no contract-ID map lookup required.
         FpssEvent::Data(FpssData::Quote { contract, bid, ask, received_at_ns, .. }) => {
             println!("Quote: {} bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns", contract.symbol);

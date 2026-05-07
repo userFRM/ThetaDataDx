@@ -13,7 +13,7 @@ tdx.start_streaming(|event: &FpssEvent| {
     match event {
         // --- Data events ---
         // Each data variant carries an `Arc<Contract>`, so `contract.symbol`
-        // (plus `.exp_date` / `.strike` / `.is_call` on options) is readable
+        // (plus `.expiration` / `.strike` / `.is_call` on options) is readable
         // inline — no contract-ID map lookup required.
         FpssEvent::Data(FpssData::Quote {
             contract, ms_of_day, bid, ask, bid_size, ask_size,

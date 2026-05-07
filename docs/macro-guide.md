@@ -44,7 +44,7 @@ parsed_endpoint! {
     grpc: get_stock_history_ohlc;     // gRPC stub method name
     request: StockHistoryOhlcRequest; // protobuf request wrapper type
     query: StockHistoryOhlcParams {   // protobuf params struct + field mapping
-        root: symbol.to_string(),
+        symbol: symbol.to_string(),
         date: date.to_string(),
         ivl: interval.to_string(),
     };

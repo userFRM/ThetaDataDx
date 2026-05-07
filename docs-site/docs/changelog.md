@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.35] - 2026-05-07
+
+### Documentation
+
+- **Sweep stale `root` / `exp_date` references across the doc tree.**
+  Post-#484 (8.0.28) follow-up: `docs/api-reference.md`, `docs/macro-guide.md`,
+  `docs/architecture.md`, `docs/java-parity-checklist.md`, `docs-site/docs/api-reference.md`,
+  `docs-site/docs/streaming/{connection,events}.md`, `docs-site/docs/historical/option/list/{roots,contracts}.md`,
+  `sdks/cpp/README.md` — Rust SDK references rewritten to use the post-#484
+  `symbol` / `expiration` vocabulary. Closes #503.
+
 ## [8.0.33] - 2026-05-07
 
 ### Added
