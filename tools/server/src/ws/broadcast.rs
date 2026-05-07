@@ -132,7 +132,7 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             Ok(()) => {}
             Err(TrySendError::Full(_)) => {
                 let dropped = state_for_cb.record_fpss_broadcast_drop();
-                if dropped % WARN_EVERY_N == 0 {
+                if dropped.is_multiple_of(WARN_EVERY_N) {
                     tracing::warn!(
                         target: "thetadatadx::server::ws",
                         dropped_total = dropped,
@@ -144,7 +144,7 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             }
             Err(TrySendError::Closed(_)) => {
                 let dropped = state_for_cb.record_fpss_broadcast_drop();
-                if dropped % WARN_EVERY_N == 0 {
+                if dropped.is_multiple_of(WARN_EVERY_N) {
                     tracing::warn!(
                         target: "thetadatadx::server::ws",
                         dropped_total = dropped,
