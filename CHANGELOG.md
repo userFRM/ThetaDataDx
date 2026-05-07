@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.1.0] - 2026-05-07
+
+### Added
+
+- Dynamic-schema Arrow builder for FLATFILES rows at
+  `crates/thetadatadx/src/flatfiles/arrow.rs`. `rows_to_arrow(rows: &[FlatFileRow])`
+  walks the first row to infer column names and Arrow `DataType`, then
+  builds an `arrow_array::RecordBatch` in one pass. Subsequent rows
+  must match the inferred schema; mismatches return `Error::Decode`.
+  Public re-export gated on the `arrow` feature, alongside the new
+  `flatfile_value_arrow_type` SSOT mapping helper. Foundation step
+  toward Python / TypeScript / C++ FLATFILES bindings.
+- `MethodKind::FlatfileCall` and `ParamType::FlatfileFormat` in the
+  SSOT codegen (`crates/thetadatadx/build_support/sdk_surface/`). Lays
+  the foundation for per-binding flatfile wrapper generation; no
+  `[[methods]]` entries are declared in `sdk_surface.toml` yet, so
+  the codegen `--check` reports no drift.
+
 ## [9.0.1] - 2026-05-07
 
 ### Changed

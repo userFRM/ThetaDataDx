@@ -54,6 +54,15 @@ pub(super) enum MethodKind {
     CredentialsFromEmail,
     ConfigConstructor,
     ClientConnect,
+    /// FLATFILES per-endpoint call: `(date, format) -> path` /
+    /// `date -> Vec<FlatFileRow>`. Each binding wraps the
+    /// corresponding `ThetaDataDx::flatfile_*` async method and
+    /// terminates with `.to_polars() / .to_pandas() / .to_arrow() /
+    /// .to_path(p, fmt)` (Python and language-equivalent forms).
+    /// Endpoint name varies per row, so `expected_name = None` in the
+    /// shape table, mirroring the existing `StockContractCall` /
+    /// `OptionContractCall` / `FullCall` policy.
+    FlatfileCall,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -126,6 +135,11 @@ pub(super) enum ParamType {
     U64,
     CredentialsRef,
     ConfigRef,
+    /// `FlatFileFormat` enum (`csv` / `jsonl`). Bindings project this
+    /// to a string or native enum at the language boundary; the SSOT
+    /// renderer keeps the wire-level identity. Mirrors the
+    /// `crate::flatfiles::FlatFileFormat` Rust enum.
+    FlatfileFormat,
 }
 
 /// Rendering shape shared by the `MethodKind` match arms in
@@ -310,6 +324,7 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
                 ("config", ParamType::ConfigRef),
             ],
         ),
+        MethodKind::FlatfileCall => (None, &[PY, TS, CPP], false, &[("date", ParamType::String)]),
     };
     let (expected_name, allowed_targets, exact_targets, params) = shape;
 

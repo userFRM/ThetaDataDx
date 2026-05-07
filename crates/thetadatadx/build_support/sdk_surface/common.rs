@@ -95,6 +95,13 @@ pub(super) fn python_type(param_type: ParamType) -> &'static str {
         ParamType::CredentialsRef | ParamType::ConfigRef => {
             panic!("credentials/config refs are not valid for Python emitters")
         }
+        ParamType::FlatfileFormat => {
+            // Flatfile-emitter exclusive type. Reached only when a
+            // FlatfileCall row in sdk_surface.toml routes through the
+            // generic param-rendering path; the FlatfileCall arm
+            // overrides the rendering before hitting this helper.
+            panic!("flatfile_format must be rendered by the FlatfileCall arm directly")
+        }
     }
 }
 
@@ -106,6 +113,7 @@ pub(super) fn cpp_type(param_type: ParamType) -> &'static str {
         ParamType::U64 => "uint64_t",
         ParamType::CredentialsRef => "const Credentials&",
         ParamType::ConfigRef => "const Config&",
+        ParamType::FlatfileFormat => "thetadatadx::FlatFileFormat",
     }
 }
 
@@ -171,5 +179,6 @@ pub(super) fn mcp_json_type(param_type: ParamType) -> &'static str {
         ParamType::CredentialsRef | ParamType::ConfigRef => {
             panic!("credentials/config refs are not valid for MCP emitters")
         }
+        ParamType::FlatfileFormat => "string",
     }
 }

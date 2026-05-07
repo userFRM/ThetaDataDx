@@ -56,6 +56,9 @@
 //! - `types` — `SecType`, `ReqType`, `FlatFilesUnavailableReason`.
 //! - `datatype` — wire-code mapping for the per-row column schema.
 
+#[cfg(feature = "arrow")]
+#[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+pub mod arrow;
 pub(crate) mod datatype;
 pub(crate) mod decode;
 pub(crate) mod decoded;
@@ -69,6 +72,9 @@ pub(crate) mod session;
 pub(crate) mod types;
 pub(crate) mod writer;
 
+#[cfg(feature = "arrow")]
+#[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+pub use arrow::{flatfile_value_arrow_type, rows_to_arrow};
 pub use decoded::{default_output_filename, flatfile_request, flatfile_request_decoded};
 pub use decoded_row::{FlatFileRow, FlatFileValue};
 pub use format::FlatFileFormat;
