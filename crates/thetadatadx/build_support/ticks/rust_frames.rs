@@ -1,7 +1,7 @@
-//! Emit `crates/thetadatadx/src/frames_generated.rs` — per-tick-type
+//! Emit `crates/thetadatadx/src/frames/generated.rs` — per-tick-type
 //! `TicksPolarsExt` / `TicksArrowExt` impls.
 //!
-//! Two extension traits live in the hand-written `crates/thetadatadx/src/frames.rs`:
+//! Two extension traits live in the hand-written `crates/thetadatadx/src/frames/mod.rs`:
 //!
 //! * `TicksPolarsExt::to_polars(&self) -> PolarsResult<DataFrame>`
 //! * `TicksArrowExt::to_arrow(&self) -> ArrowResult<RecordBatch>`

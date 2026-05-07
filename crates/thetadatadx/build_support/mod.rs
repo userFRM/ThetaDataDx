@@ -9,7 +9,7 @@ mod endpoints;
 mod fpss_events;
 mod ticks;
 mod upstream_openapi;
-#[path = "../src/wire_semantics.rs"]
+#[path = "../src/mdds/wire_semantics.rs"]
 mod wire_semantics;
 
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {

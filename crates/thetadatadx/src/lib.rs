@@ -92,8 +92,8 @@
 //! update the proto file and regenerate stubs when ThetaData ships a new version.
 
 pub mod auth;
+pub(crate) mod client;
 pub mod config;
-pub mod endpoint;
 pub mod error;
 pub mod flatfiles;
 pub mod fpss;
@@ -101,18 +101,18 @@ pub mod fpss;
 #[cfg_attr(docsrs, doc(cfg(any(feature = "polars", feature = "arrow"))))]
 pub mod frames;
 pub mod observability;
-pub(crate) mod registry;
-pub(crate) mod unified;
-pub(crate) mod validate;
-pub(crate) mod wire_semantics;
 
-// Macro definitions invoked by generated endpoint code and handwritten
-// streaming builders in `mdds`. Declared with `#[macro_use]` so the
-// macro_rules are visible to all subsequent module declarations.
-#[macro_use]
-mod macros;
-
+// Wave 3 layout: macros, registry, validate, wire_semantics, and the
+// shared endpoint runtime (`endpoint_args`) all live under `mdds/`.
+// The macro_rules in `mdds/macros.rs` are made textually visible to
+// the sibling `mdds/endpoints` module via `#[macro_use]` on the
+// `macros` declaration inside `mdds/mod.rs`.
 pub mod mdds;
+
+/// Shared endpoint runtime (`EndpointArgs`, `EndpointError`,
+/// `invoke_endpoint`). Re-exported from [`mdds::endpoint_args`] so
+/// existing `thetadatadx::endpoint::*` paths continue to resolve.
+pub use mdds::endpoint_args as endpoint;
 
 // `decode` is re-exported from `mdds::decode` to preserve the public surface
 // (`thetadatadx::decode::*`). Wave 2 split the original decode.rs god-file
@@ -127,21 +127,21 @@ pub mod proto {
 }
 
 pub use auth::Credentials;
+pub use client::{ConnectionStatus, SubscriptionInfo, ThetaDataDx};
 pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};
-pub use endpoint::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use flatfiles::{
     default_output_filename as flatfile_default_filename, flatfile_request,
     flatfile_request_decoded, flatfile_request_raw, FlatFileFormat, FlatFileRow, FlatFileValue,
     FlatFilesUnavailableReason, ReqType as FlatFileReqType, SecType as FlatFileSecType,
 };
-pub use mdds::MddsClient;
-pub use registry::{
+pub use mdds::endpoint_args::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
+pub use mdds::registry::{
     by_category, find, param_type_to_json_type, EndpointMeta, ParamMeta, ParamType, ReturnType,
     CATEGORIES, ENDPOINTS,
 };
+pub use mdds::{MddsClient, SubscriptionTier};
 pub use tdbe::right::{parse_right, parse_right_strict, ParsedRight};
-pub use unified::{ConnectionStatus, SubscriptionInfo, ThetaDataDx};
 
 // Offline Black-Scholes utilities re-exported from `tdbe`. Prefer these at
 // the `thetadatadx` top level so SDK users do not need a separate `tdbe`

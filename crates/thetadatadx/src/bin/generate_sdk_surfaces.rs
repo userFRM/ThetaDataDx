@@ -22,7 +22,7 @@ mod sdk_surface;
 mod ticks;
 #[path = "../../build_support/upstream_openapi.rs"]
 mod upstream_openapi;
-#[path = "../../src/wire_semantics.rs"]
+#[path = "../../src/mdds/wire_semantics.rs"]
 mod wire_semantics;
 
 fn repo_root() -> PathBuf {

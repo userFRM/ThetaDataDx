@@ -9,7 +9,7 @@
 //! Per-request helpers (`collect_stream`, `for_each_chunk`) live in
 //! [`super::stream`]; the cross-cutting wire helpers
 //! (`normalize_expiration`, `wire_strike_opt`, `wire_right_opt`) in
-//! [`crate::wire_semantics`]; date validation in [`super::validate`];
+//! [`super::wire_semantics`]; date validation in [`super::validate`];
 //! generated endpoint method bodies in [`super::endpoints`].
 
 use std::collections::HashMap;
@@ -19,6 +19,7 @@ use std::time::Duration;
 use crate::auth::{self, Credentials, SessionToken};
 use crate::config::DirectConfig;
 use crate::error::Error;
+use crate::mdds::tier::SubscriptionTier;
 use crate::proto;
 use crate::proto::beta_theta_terminal_client::BetaThetaTerminalClient;
 
@@ -71,8 +72,11 @@ pub struct MddsClient {
     /// bound to prevent server-side rate limiting / 429 disconnects.
     pub(crate) request_semaphore: Arc<tokio::sync::Semaphore>,
     /// Per-asset subscription tiers captured from the Nexus auth response.
-    stock_tier: Option<i32>,
-    options_tier: Option<i32>,
+    /// `None` for asset classes the auth response omits or for unknown
+    /// wire values (the wire byte is preserved in the structured logs at
+    /// connect time but never silently coerced into a tier).
+    stock_tier: Option<SubscriptionTier>,
+    options_tier: Option<SubscriptionTier>,
 }
 
 // ── Infrastructure (not generated — these are session/transport methods, not ThetaData endpoints) ──
@@ -151,8 +155,16 @@ impl MddsClient {
             "request semaphore initialized"
         );
 
-        let stock_tier = auth_resp.user.as_ref().and_then(|u| u.stock_subscription);
-        let options_tier = auth_resp.user.as_ref().and_then(|u| u.options_subscription);
+        let stock_tier = auth_resp
+            .user
+            .as_ref()
+            .and_then(|u| u.stock_subscription)
+            .and_then(SubscriptionTier::from_wire);
+        let options_tier = auth_resp
+            .user
+            .as_ref()
+            .and_then(|u| u.options_subscription)
+            .and_then(SubscriptionTier::from_wire);
 
         let session = SessionToken::new(session_uuid, config.auth.nexus_url.clone(), creds.clone());
         let client_type = config.auth.client_type.clone();
@@ -229,15 +241,18 @@ impl MddsClient {
         self.session.current_uuid().await
     }
 
-    /// Stock subscription tier from Nexus auth response (0=Free, 1=Value, 2=Standard, 3=Pro).
+    /// Stock subscription tier captured at authentication time, decoded
+    /// from the Nexus auth response. `None` when the response omits the
+    /// stock tier or carries an unknown wire value.
     #[must_use]
-    pub fn stock_tier(&self) -> Option<i32> {
+    pub fn stock_tier(&self) -> Option<SubscriptionTier> {
         self.stock_tier
     }
 
-    /// Options subscription tier from Nexus auth response (0=Free, 1=Value, 2=Standard, 3=Pro).
+    /// Options subscription tier captured at authentication time. Same
+    /// semantics as [`Self::stock_tier`].
     #[must_use]
-    pub fn options_tier(&self) -> Option<i32> {
+    pub fn options_tier(&self) -> Option<SubscriptionTier> {
         self.options_tier
     }
 }

@@ -27,8 +27,8 @@ use tdbe::types::tick::{
 };
 
 use super::client::MddsClient;
-use super::validate::validate_date;
-use crate::wire_semantics::{normalize_expiration, wire_right_opt, wire_strike_opt};
+use super::validate::validate_date_required;
+use super::wire_semantics::{normalize_expiration, wire_right_opt, wire_strike_opt};
 
 /// Accepted symbol input for endpoints whose MDDS wire field is
 /// `repeated string symbol`.

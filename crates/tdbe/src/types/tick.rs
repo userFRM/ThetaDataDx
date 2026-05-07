@@ -14,7 +14,7 @@
 //! `crates/thetadatadx/tick_schema.toml` by
 //! `cargo run -p thetadatadx --bin generate_sdk_surfaces`.
 
-include!("tick_generated.rs");
+include!("generated/tick.rs");
 
 pub use crate::right::ParsedRight;
 
@@ -118,4 +118,4 @@ impl OptionContract {
 //  `cargo test -p tdbe` before it lands on the FFI side.
 // ─────────────────────────────────────────────────────────────────────────────
 
-include!("tick_layout_asserts_generated.rs");
+include!("generated/tick_layout_asserts.rs");

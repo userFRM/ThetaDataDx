@@ -473,4 +473,4 @@ pub enum RemoveReason {
     InvalidCredentialsNullUser = 18,
 }
 
-include!("enums_endpoint_generated.rs");
+include!("generated/enums_endpoint.rs");
