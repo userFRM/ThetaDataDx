@@ -4,7 +4,8 @@
 //! full-type subscribe, ping, stop). Parsers cover the server->client
 //! responses (REQ_RESPONSE, DISCONNECTED, CONTRACT).
 //!
-//! Source: `FPSSClient.java`, `PacketStream.java` in decompiled terminal.
+//! See ADR-001 (`docs/architecture/ADR-001-java-terminal-parity.md`) for the
+//! Java terminal parity reverse-engineering source.
 
 use tdbe::types::enums::{RemoveReason, SecType, StreamResponseType};
 
@@ -17,13 +18,13 @@ use crate::error::Error;
 
 /// Build the CREDENTIALS (code 0) message payload.
 ///
-/// # Wire format (from `FPSSClient.sendCredentials()`)
+/// # Wire format
 ///
 /// ```text
 /// [0x00] [username_len: u16 BE] [username bytes] [password bytes]
 /// ```
 ///
-/// The leading 0x00 byte is a version/flag byte present in the Java source.
+/// The leading 0x00 byte is a version/flag byte.
 /// `username_len` is the byte-length of the username (email), as a big-endian u16.
 /// Password bytes follow immediately with no length prefix — the server infers
 /// password length from `payload_len - 3 - username_len`.
@@ -32,12 +33,12 @@ pub fn build_credentials_payload(username: &str, password: &str) -> Vec<u8> {
     let user_bytes = username.as_bytes();
     let pass_bytes = password.as_bytes();
 
-    // Match Java's `putShort((byte)len)` behavior: the length is first narrowed
-    // to a byte (i8), then sign-extended to a short (i16). For lengths 0-127
-    // this is identical to a plain u16 cast. For lengths 128-255 the sign
-    // extension sets the high byte to 0xFF. In practice usernames are always
-    // <128 bytes, but we match the exact wire encoding for correctness.
-    // Truncation to i8 is intentional: matches Java putShort((byte)len) wire encoding.
+    // Match the wire's `putShort((byte)len)` behavior: the length is first
+    // narrowed to a byte (i8), then sign-extended to a short (i16). For
+    // lengths 0-127 this is identical to a plain u16 cast. For lengths
+    // 128-255 the sign extension sets the high byte to 0xFF. In practice
+    // usernames are always <128 bytes, but we match the exact wire
+    // encoding for correctness. The truncation to i8 is intentional.
     #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
     let user_len = i16::from(user_bytes.len() as i8);
 
@@ -56,7 +57,7 @@ pub fn build_credentials_payload(username: &str, password: &str) -> Vec<u8> {
 
 /// Build a subscription payload for a specific contract.
 ///
-/// # Wire format (from `PacketStream.addQuote()` / `PacketStream.addTrade()`)
+/// # Wire format
 ///
 /// ```text
 /// [req_id: i32 BE] [contract bytes]
@@ -68,7 +69,7 @@ pub fn build_credentials_payload(username: &str, password: &str) -> Vec<u8> {
 /// # Errors
 ///
 /// Returns [`Error::Config`] if the contract root is empty or longer
-/// than 16 bytes, surfacing the Java-parity invariant from
+/// than 16 bytes, surfacing the wire-protocol invariant from
 /// [`Contract::try_to_bytes`].
 pub fn build_subscribe_payload(req_id: i32, contract: &Contract) -> Result<Vec<u8>, Error> {
     let contract_bytes = contract.try_to_bytes()?;
@@ -80,7 +81,7 @@ pub fn build_subscribe_payload(req_id: i32, contract: &Contract) -> Result<Vec<u
 
 /// Build a full-type subscription payload (subscribe to all contracts of a security type).
 ///
-/// # Wire format (from `PacketStream.java`)
+/// # Wire format
 ///
 /// ```text
 /// [req_id: i32 BE] [sec_type: u8]
@@ -98,7 +99,7 @@ pub fn build_full_type_subscribe_payload(req_id: i32, sec_type: SecType) -> Vec<
 
 /// Build the PING (code 10) payload.
 ///
-/// Source: `FPSSClient.java` — heartbeat sends 1-byte zero payload every 100ms.
+/// Heartbeat sends a 1-byte zero payload every 100ms.
 #[must_use]
 pub fn build_ping_payload() -> Vec<u8> {
     vec![0x00]
@@ -106,7 +107,7 @@ pub fn build_ping_payload() -> Vec<u8> {
 
 /// Build the STOP (code 32) payload sent by the client on shutdown.
 ///
-/// Source: `FPSSClient.java` — `sendStop()` sends empty-ish STOP message.
+/// `sendStop()` sends an empty-ish STOP message.
 #[must_use]
 pub fn build_stop_payload() -> Vec<u8> {
     vec![0x00]
@@ -118,7 +119,7 @@ pub fn build_stop_payload() -> Vec<u8> {
 
 /// Parse a `REQ_RESPONSE` (code 40) payload.
 ///
-/// # Wire format (from `FPSSClient.onReqResponse()`)
+/// # Wire format
 ///
 /// ```text
 /// [req_id: i32 BE] [resp_code: i32 BE]
@@ -160,7 +161,7 @@ pub fn parse_req_response(payload: &[u8]) -> Result<(i32, StreamResponseType), E
 
 /// Parse a DISCONNECTED (code 12) payload.
 ///
-/// # Wire format (from `FPSSClient.java`)
+/// # Wire format
 ///
 /// ```text
 /// [reason: i16 BE]
@@ -197,7 +198,7 @@ pub fn parse_disconnect_reason(payload: &[u8]) -> RemoveReason {
 
 /// Parse a CONTRACT (code 20) payload.
 ///
-/// # Wire format (from `FPSSClient.onContract()`)
+/// # Wire format
 ///
 /// ```text
 /// [contract_id: i32 BE] [contract bytes...]

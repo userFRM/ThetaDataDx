@@ -5,9 +5,25 @@
 //! the resulting events into the LMAX Disruptor ring, and drains the outgoing
 //! command channel between reads. On involuntary disconnect it re-runs the
 //! login handshake in-place according to [`ReconnectPolicy`].
+//!
+//! Sub-modules:
+//!
+//! - [`login`] -- handshake (`wait_for_login` + `LoginResult`).
+//! - [`ping`] -- background heartbeat scheduler.
+//!
+//! This file owns the main blocking read + Disruptor publish + command
+//! drain loop and the auto-reconnect state machine, neither of which
+//! decompose without leaking session state.
+
+mod login;
+mod ping;
+
+pub(in crate::fpss) use login::{wait_for_login, LoginResult};
+pub(in crate::fpss) use ping::ping_loop;
 
 use std::collections::HashMap;
-use std::io::{BufReader, Write};
+use std::io::BufReader;
+use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
@@ -27,13 +43,10 @@ use super::decode::decode_frame;
 use super::delta::DeltaState;
 use super::events::{FpssControl, FpssEvent, IoCommand};
 use super::framing::{
-    self, is_drain_yield, read_frame, read_frame_into, write_frame, write_raw_frame,
-    write_raw_frame_no_flush, Frame, FrameReadState,
+    self, is_drain_yield, read_frame_into, write_frame, write_raw_frame, write_raw_frame_no_flush,
+    Frame, FrameReadState,
 };
-use super::protocol::{
-    self, build_credentials_payload, build_ping_payload, parse_disconnect_reason, Contract,
-    PING_INTERVAL_MS,
-};
+use super::protocol::{self, build_credentials_payload, Contract};
 use super::reconnect_delay;
 use super::ring::{self, AdaptiveWaitStrategy, RingEvent};
 
@@ -48,115 +61,11 @@ type ActiveFullSubs = Arc<
 >;
 
 // ---------------------------------------------------------------------------
-// Login result (internal)
-// ---------------------------------------------------------------------------
-
-pub(super) enum LoginResult {
-    Success(String),
-    Disconnected(RemoveReason),
-}
-
-/// Wait for the server's login response (blocking).
-///
-/// Source: `FPSSClient.connect()` -- reads frames until METADATA or DISCONNECTED.
-///
-/// On `Metadata`, the payload is the server's "Bundle" string. We copy it
-/// verbatim into [`LoginResult::Success`]; see
-/// [`FpssControl::LoginSuccess`] for why this string is treated as opaque.
-///
-/// Typed control frames that arrive BEFORE `METADATA` — code 4
-/// (`Connected`), code 10 (`Ping`), code 13 (`ReconnectedServer`), and
-/// code 31 (`Restart`) — are appended to `pending_control` in the order
-/// the wire delivered them. The caller flushes this buffer onto the
-/// event bus once the Disruptor producer is live, so user callbacks
-/// observe handshake-time control frames on the same channel the
-/// post-login `decode_frame` dispatch uses. Prior to this, every typed
-/// control frame that preceded `METADATA` was silently dropped because
-/// the handshake loop consumed it before the main dispatch could turn
-/// it into a typed event.
-pub(super) fn wait_for_login(
-    stream: &mut connection::FpssStream,
-    pending_control: &mut Vec<FpssControl>,
-) -> Result<LoginResult, Error> {
-    wait_for_login_generic(stream, pending_control)
-}
-
-/// Read-generic variant of [`wait_for_login`] for unit-testable handshake
-/// coverage. Holds the full dispatch logic so both the TLS-backed entry
-/// point above and in-memory test harnesses can drive it against a
-/// buffer of pre-canned frames.
-fn wait_for_login_generic<R: std::io::Read>(
-    stream: &mut R,
-    pending_control: &mut Vec<FpssControl>,
-) -> Result<LoginResult, Error> {
-    loop {
-        let frame = read_frame(stream)?.ok_or_else(|| Error::Fpss {
-            kind: crate::error::FpssErrorKind::Disconnected,
-            message: "connection closed during login handshake".to_string(),
-        })?;
-
-        match frame.code {
-            StreamMsgType::Metadata => {
-                let permissions = String::from_utf8_lossy(&frame.payload).to_string();
-                return Ok(LoginResult::Success(permissions));
-            }
-            StreamMsgType::Disconnected => {
-                let reason = parse_disconnect_reason(&frame.payload);
-                return Ok(LoginResult::Disconnected(reason));
-            }
-            StreamMsgType::Error => {
-                let msg = String::from_utf8_lossy(&frame.payload);
-                tracing::warn!(message = %msg, "server error during login");
-                return Err(Error::Fpss {
-                    kind: crate::error::FpssErrorKind::ConnectionRefused,
-                    message: format!("server error during login: {msg}"),
-                });
-            }
-            StreamMsgType::Connected => {
-                // Code 4: transport ack. Mirror the post-login
-                // `decode_frame` dispatch so users subscribed to
-                // `FpssControl::Connected` see this frame whether it
-                // arrived before or after METADATA.
-                tracing::debug!("FPSS CONNECTED frame received during handshake");
-                pending_control.push(FpssControl::Connected);
-            }
-            StreamMsgType::Ping => {
-                // Code 10: server heartbeat. Preserve the raw payload so
-                // downstream diagnostics match the post-login dispatch
-                // path byte-for-byte.
-                pending_control.push(FpssControl::Ping {
-                    payload: frame.payload.clone(),
-                });
-            }
-            StreamMsgType::Reconnected => {
-                // Code 13: server-side reconnect ack. Distinct from the
-                // client-emitted `Reconnected` control (which the
-                // auto-reconnect state machine produces after a fresh
-                // TLS session authenticates).
-                tracing::debug!("FPSS RECONNECTED frame received during handshake");
-                pending_control.push(FpssControl::ReconnectedServer);
-            }
-            StreamMsgType::Restart => {
-                // Code 31: server stream restart. Promoted to a typed
-                // event so callbacks that clear downstream state on
-                // restart don't need to wait for the post-METADATA
-                // dispatch.
-                tracing::debug!("FPSS RESTART frame received during handshake");
-                pending_control.push(FpssControl::Restart);
-            }
-            other => {
-                tracing::trace!(code = ?other, "ignoring frame during login handshake");
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // I/O thread: blocking read + Disruptor publish + command drain
 // ---------------------------------------------------------------------------
 
 /// Maximum number of consecutive reconnection attempts before giving up.
-pub(super) const MAX_RECONNECT_ATTEMPTS: u32 = 5;
+pub(in crate::fpss) const MAX_RECONNECT_ATTEMPTS: u32 = 5;
 
 /// The I/O thread owns the TLS stream. It does three things in a loop:
 ///
@@ -176,7 +85,7 @@ pub(super) const MAX_RECONNECT_ATTEMPTS: u32 = 5;
     clippy::needless_pass_by_value,
     clippy::too_many_lines
 )]
-pub(super) fn io_loop<F>(
+pub(in crate::fpss) fn io_loop<F>(
     stream: connection::FpssStream,
     cmd_rx: std_mpsc::Receiver<IoCommand>,
     mut handler: F,
@@ -581,9 +490,9 @@ pub(super) fn io_loop<F>(
         reader = BufReader::new(new_stream);
 
         // Re-subscribe all active subscriptions on the new connection.
-        // Source: FPSSClient.java METADATA handler iterates activeQuotes +
-        // activeTrades and re-sends each. Without this, the server accepts
-        // the login but receives no subscribe commands → data stops flowing.
+        // The METADATA handler iterates activeQuotes + activeTrades and
+        // re-sends each. Without this, the server accepts the login but
+        // receives no subscribe commands → data stops flowing.
         //
         // Snapshot + drop lock before writing: holding the mutex during
         // network I/O would stall concurrent subscribe/unsubscribe calls.
@@ -694,62 +603,6 @@ fn is_read_timeout(e: &Error) -> bool {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Ping heartbeat loop
-// ---------------------------------------------------------------------------
-
-/// Background thread that sends PING heartbeat every 100ms via the command channel.
-///
-/// # Behavior (from `FPSSClient.java`)
-///
-/// After successful login, the Java client starts a thread that sends:
-/// - Code 10 (PING)
-/// - 1-byte payload: `[0x00]`
-/// - Every 100ms
-///
-/// Source: `FPSSClient.java` heartbeat thread, interval = 100ms.
-// Reason: all parameters are moved into this function from a spawned thread closure.
-#[allow(clippy::needless_pass_by_value)]
-pub(super) fn ping_loop(
-    cmd_tx: std_mpsc::Sender<IoCommand>,
-    shutdown: Arc<AtomicBool>,
-    authenticated: Arc<AtomicBool>,
-) {
-    let interval = Duration::from_millis(PING_INTERVAL_MS);
-    let ping_payload = build_ping_payload();
-
-    // Java: scheduleAtFixedRate(task, 2000L, 100L) — first execution at 2000ms,
-    // then every 100ms. scheduleAtFixedRate sends THEN waits, so the first ping
-    // fires at exactly 2000ms.
-    thread::sleep(Duration::from_millis(2000));
-
-    loop {
-        if shutdown.load(Ordering::Relaxed) {
-            break;
-        }
-        if !authenticated.load(Ordering::Relaxed) {
-            // Don't send pings if not authenticated
-            thread::sleep(interval);
-            continue;
-        }
-
-        // Send ping FIRST, then sleep — matches Java's scheduleAtFixedRate
-        // which executes the task then waits the interval.
-        let cmd = IoCommand::WriteFrame {
-            code: StreamMsgType::Ping,
-            payload: ping_payload.clone(),
-        };
-        if cmd_tx.send(cmd).is_err() {
-            // I/O thread has exited
-            break;
-        }
-
-        thread::sleep(interval);
-    }
-
-    tracing::debug!("fpss-ping thread exiting");
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -757,228 +610,6 @@ mod tests {
     #[test]
     fn max_reconnect_attempts_is_5() {
         assert_eq!(MAX_RECONNECT_ATTEMPTS, 5);
-    }
-
-    /// Build a single FPSS wire frame: `[LEN: u8] [CODE: u8] [PAYLOAD...]`.
-    ///
-    /// Keeps the handshake unit tests decoupled from the higher-level
-    /// `framing::write_raw_frame` writer so they can't be passed a
-    /// bogus-but-valid frame through test-only helpers.
-    fn wire_frame(code: StreamMsgType, payload: &[u8]) -> Vec<u8> {
-        assert!(payload.len() <= u8::MAX as usize);
-        let mut v = Vec::with_capacity(2 + payload.len());
-        v.push(payload.len() as u8);
-        v.push(code as u8);
-        v.extend_from_slice(payload);
-        v
-    }
-
-    /// A CONNECTED frame arriving BEFORE METADATA must be captured in
-    /// `pending_control` so the io_loop can forward the buffered
-    /// `FpssControl::Connected` to the event bus. Before the v8
-    /// handshake work, the handshake loop silently dropped the frame
-    /// because only the post-login `decode_frame` dispatch knew how to
-    /// turn it into a typed event.
-    #[test]
-    fn wait_for_login_captures_connected_frame_before_metadata() {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Connected, &[]));
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Metadata, b"test-perms"));
-        let mut cursor = std::io::Cursor::new(buf);
-
-        let mut pending: Vec<FpssControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
-            .expect("wait_for_login_generic must succeed when Metadata arrives");
-        match result {
-            LoginResult::Success(p) => assert_eq!(p, "test-perms"),
-            LoginResult::Disconnected(r) => {
-                panic!("expected LoginResult::Success, got Disconnected({r:?})")
-            }
-        }
-        assert_eq!(pending.len(), 1);
-        assert!(matches!(pending[0], FpssControl::Connected));
-    }
-
-    /// Complement to the above: when only METADATA arrives (the common
-    /// case), `pending_control` stays empty so the io_loop does NOT
-    /// emit any spurious control event for users who never actually
-    /// saw a typed control frame on the wire.
-    #[test]
-    fn wait_for_login_leaves_pending_control_empty_without_control_frames() {
-        let buf = wire_frame(StreamMsgType::Metadata, b"test-perms");
-        let mut cursor = std::io::Cursor::new(buf);
-
-        let mut pending: Vec<FpssControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
-            .expect("wait_for_login_generic must succeed when Metadata arrives");
-        assert!(matches!(result, LoginResult::Success(_)));
-        assert!(
-            pending.is_empty(),
-            "pending_control must stay empty when no typed control frames preceded METADATA"
-        );
-    }
-
-    /// LoginResult variant shape: a Disconnected frame during handshake
-    /// propagates without populating `pending_control`. Guards against
-    /// a regression where a shape-buggy handshake would smuggle a
-    /// Connected/Ping through the error path.
-    #[test]
-    fn wait_for_login_disconnected_does_not_populate_pending_control() {
-        let mut buf = Vec::new();
-        // Reason code 0 = InvalidCredentials (i16 BE).
-        buf.extend_from_slice(&wire_frame(
-            StreamMsgType::Disconnected,
-            &0i16.to_be_bytes(),
-        ));
-        let mut cursor = std::io::Cursor::new(buf);
-
-        let mut pending: Vec<FpssControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
-            .expect("Disconnected frame must produce LoginResult::Disconnected, not Err");
-        assert!(matches!(result, LoginResult::Disconnected(_)));
-        assert!(pending.is_empty());
-    }
-
-    /// End-to-end coverage that the io_loop-level forwarding path does
-    /// the right thing with a populated `pending_control` buffer:
-    /// running the actual I/O loop requires a real TLS stream, so this
-    /// test asserts the adapter contract by exercising the smaller,
-    /// deterministic piece -- draining the buffer emits every control
-    /// in wire order BEFORE LoginSuccess.
-    #[test]
-    fn pending_control_forwards_to_event_bus_in_wire_order() {
-        // Emulate the io_loop startup block: drain `pending_control`
-        // in wire order, THEN publish LoginSuccess. A regression that
-        // re-orders or drops events would fail on the `matches!`
-        // sequence below.
-        let mut events: Vec<FpssEvent> = Vec::new();
-        let pending_control: Vec<FpssControl> = vec![
-            FpssControl::Connected,
-            FpssControl::Ping {
-                payload: vec![0x00],
-            },
-            FpssControl::ReconnectedServer,
-            FpssControl::Restart,
-        ];
-        for ctrl in pending_control {
-            events.push(FpssEvent::Control(ctrl));
-        }
-        events.push(FpssEvent::Control(FpssControl::LoginSuccess {
-            permissions: "test".to_string(),
-        }));
-        assert_eq!(events.len(), 5);
-        assert!(matches!(
-            events[0],
-            FpssEvent::Control(FpssControl::Connected)
-        ));
-        match &events[1] {
-            FpssEvent::Control(FpssControl::Ping { payload }) => {
-                assert_eq!(payload.as_slice(), &[0x00]);
-            }
-            other => panic!("expected Ping, got {other:?}"),
-        }
-        assert!(matches!(
-            events[2],
-            FpssEvent::Control(FpssControl::ReconnectedServer)
-        ));
-        assert!(matches!(
-            events[3],
-            FpssEvent::Control(FpssControl::Restart)
-        ));
-        assert!(matches!(
-            events[4],
-            FpssEvent::Control(FpssControl::LoginSuccess { .. })
-        ));
-    }
-
-    /// Finding #1 coverage: a PING frame arriving BEFORE METADATA must
-    /// be captured in `pending_control` as `FpssControl::Ping` with
-    /// the exact payload bytes. Before this fix, the handshake's
-    /// trace-and-drop branch silently swallowed every heartbeat that
-    /// the server emitted between CONNECT and METADATA.
-    #[test]
-    fn wait_for_login_captures_ping_frame_before_metadata() {
-        let mut buf = Vec::new();
-        // Server heartbeat observed as a 1-byte payload `[0]`.
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Ping, &[0x00]));
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Metadata, b"test-perms"));
-        let mut cursor = std::io::Cursor::new(buf);
-
-        let mut pending: Vec<FpssControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
-            .expect("wait_for_login_generic must succeed when Metadata arrives");
-        assert!(matches!(result, LoginResult::Success(_)));
-        assert_eq!(pending.len(), 1, "PING must surface as a typed control");
-        match &pending[0] {
-            FpssControl::Ping { payload } => {
-                assert_eq!(
-                    payload.as_slice(),
-                    &[0x00],
-                    "Ping payload must match the wire bytes byte-for-byte"
-                );
-            }
-            other => panic!("expected FpssControl::Ping, got {other:?}"),
-        }
-    }
-
-    /// Finding #1 coverage: a RECONNECTED frame (code 13) arriving
-    /// BEFORE METADATA must be captured as
-    /// `FpssControl::ReconnectedServer`. The distinction from the
-    /// client-emitted `FpssControl::Reconnected` is preserved.
-    #[test]
-    fn wait_for_login_captures_reconnected_server_frame_before_metadata() {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Reconnected, &[]));
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Metadata, b"perms"));
-        let mut cursor = std::io::Cursor::new(buf);
-
-        let mut pending: Vec<FpssControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
-            .expect("wait_for_login_generic must succeed when Metadata arrives");
-        assert!(matches!(result, LoginResult::Success(_)));
-        assert_eq!(pending.len(), 1);
-        assert!(matches!(pending[0], FpssControl::ReconnectedServer));
-    }
-
-    /// Finding #1 coverage: a RESTART frame (code 31) arriving BEFORE
-    /// METADATA must be captured as `FpssControl::Restart`.
-    #[test]
-    fn wait_for_login_captures_restart_frame_before_metadata() {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Restart, &[]));
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Metadata, b"perms"));
-        let mut cursor = std::io::Cursor::new(buf);
-
-        let mut pending: Vec<FpssControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
-            .expect("wait_for_login_generic must succeed when Metadata arrives");
-        assert!(matches!(result, LoginResult::Success(_)));
-        assert_eq!(pending.len(), 1);
-        assert!(matches!(pending[0], FpssControl::Restart));
-    }
-
-    /// Finding #1 coverage: multiple typed control frames arriving
-    /// BEFORE METADATA must all be captured, in the exact wire order
-    /// the server delivered them.
-    #[test]
-    fn wait_for_login_captures_multiple_control_frames_in_wire_order() {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Connected, &[]));
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Ping, &[0x00]));
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Reconnected, &[]));
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Restart, &[]));
-        buf.extend_from_slice(&wire_frame(StreamMsgType::Metadata, b"perms"));
-        let mut cursor = std::io::Cursor::new(buf);
-
-        let mut pending: Vec<FpssControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending)
-            .expect("wait_for_login_generic must succeed when Metadata arrives");
-        assert!(matches!(result, LoginResult::Success(_)));
-        assert_eq!(pending.len(), 4);
-        assert!(matches!(pending[0], FpssControl::Connected));
-        assert!(matches!(pending[1], FpssControl::Ping { .. }));
-        assert!(matches!(pending[2], FpssControl::ReconnectedServer));
-        assert!(matches!(pending[3], FpssControl::Restart));
     }
 
     /// Finding #2 coverage: permanent disconnect reasons during the

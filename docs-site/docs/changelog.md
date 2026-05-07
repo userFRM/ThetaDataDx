@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.0.1] - 2026-05-07
+
+### Changed
+
+- Stripped 76 per-line Java reverse-engineering breadcrumbs across the
+  FPSS, MDDS, and config trees; ADR-001
+  (`docs/architecture/ADR-001-java-terminal-parity.md`) is now the
+  single anchor for that work, referenced from one module-header line
+  in each affected file.
+- Split `crates/thetadatadx/src/fpss/io_loop.rs` into
+  `io_loop/{mod.rs, login.rs, ping.rs}` so the login handshake and
+  ping heartbeat live next to the main I/O loop without sharing a
+  1,072-line file.
+- Removed `docs/public-api-redesign.md`; v9.0.0 shipped the redesign
+  it described, and a one-line note in `docs/architecture/README.md`
+  records that the planning prose for shipped surfaces is intentionally
+  not preserved.
+- Declared `rust-version = "1.88"` on every workspace `[package]`. CI's
+  `Lint` matrix grows a `1.88` axis on Linux so dependency bumps that
+  raise the rustc requirement fail before release; `README.md` adds a
+  `Requirements` section.
+- Added a `Semver check` CI job that runs
+  `obi1kenobi/cargo-semver-checks-action@v2` against the `v9.0.0` tag
+  on every PR. `CONTRIBUTING.md` documents the public-API stability
+  policy and the local invocation.
+
 ## [9.0.0] - 2026-05-07
 
 ### Breaking

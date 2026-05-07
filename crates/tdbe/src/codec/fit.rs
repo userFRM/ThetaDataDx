@@ -312,7 +312,7 @@ impl<'a> FitReader<'a> {
                     }
                     *idx += 1;
                 }
-                // Match Java: unconditionally reset to SPACING in case idx
+                // Wire spec: unconditionally reset to SPACING in case idx
                 // was already >= SPACING before the zero-fill loop.
                 *idx = SPACING;
                 false

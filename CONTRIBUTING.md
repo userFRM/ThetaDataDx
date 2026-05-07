@@ -193,6 +193,34 @@ Every PR must include:
 - Updated `CHANGELOG.md` if user-facing
 - Updated documentation if any public API changed
 
+## Public API Stability
+
+The Rust crates published from this repo (`tdbe`, `thetadatadx`) follow
+[semver](https://semver.org/) on every release. CI gates this with
+[`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks):
+
+- **Patch and minor PRs** must pass `cargo-semver-checks` against the
+  latest released tag. The CI `Semver check` job runs
+  `obi1kenobi/cargo-semver-checks-action@v2` with
+  `baseline-rev: v9.0.0`; bump that baseline whenever a new minor tag
+  ships so additive changes are checked against the most recent surface.
+- **Major bumps** may break the public API. Set the baseline to the
+  previous major (`baseline-rev: v8.x.y`) for the bump PR, document the
+  breakage in the PR body, and add a `### Removed` / `### Changed`
+  bucket in `CHANGELOG.md` for every removed or renamed symbol.
+
+To run the same check locally before opening a PR:
+
+```bash
+cargo install cargo-semver-checks --locked  # one-time
+cargo semver-checks check-release --baseline-rev v9.0.0
+```
+
+If a false positive surfaces (typically on macro-generated re-exports),
+prefer hiding the offending item with `#[doc(hidden)]` over adjusting
+the baseline; the gate stays useful only as long as it reports real
+breakage.
+
 ## How to Update After a ThetaData Protocol Update
 
 When ThetaData ships a new proto revision:

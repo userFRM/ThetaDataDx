@@ -1,15 +1,13 @@
 //! MDDS (gRPC) sub-configuration.
 //!
-//! All values originate from the decompiled Java terminal's
-//! `MddsConnectionManager` / `ChannelProvider`; defaults match what the
-//! v3 terminal sends in production.
+//! Defaults match what the v3 terminal sends in production. See ADR-001
+//! (`docs/architecture/ADR-001-java-terminal-parity.md`) for the Java
+//! terminal parity reverse-engineering source.
 
 /// MDDS gRPC client tuning.
 #[derive(Debug, Clone)]
 pub struct MddsConfig {
-    /// MDDS gRPC hostname.
-    ///
-    /// Source: `MddsConnectionManager` in decompiled terminal (v3 path).
+    /// MDDS gRPC hostname (v3 path).
     pub host: String,
 
     /// MDDS gRPC port (443 for TLS in production).
@@ -31,14 +29,10 @@ pub struct MddsConfig {
     /// default 4MB, max 10MB.
     pub max_message_size: usize,
 
-    /// gRPC keepalive interval in seconds.
-    ///
-    /// Source: `ChannelProvider` — `keepAliveTime(30, SECONDS)`.
+    /// gRPC keepalive interval in seconds (`keepAliveTime(30, SECONDS)`).
     pub keepalive_secs: u64,
 
-    /// gRPC keepalive timeout in seconds.
-    ///
-    /// Source: `ChannelProvider` — `keepAliveTimeout(10, SECONDS)`.
+    /// gRPC keepalive timeout in seconds (`keepAliveTimeout(10, SECONDS)`).
     pub keepalive_timeout_secs: u64,
 
     /// gRPC flow control: initial stream window size in KB.
@@ -57,14 +51,14 @@ pub struct MddsConfig {
     ///
     /// Bounds the time the tonic endpoint will spend establishing a TCP +
     /// TLS handshake before failing fast. Default `10s` matches the upper
-    /// bound observed in the Java terminal's `ChannelProvider` connect
-    /// path; production deployments behind NAT / VPN can raise this to
-    /// absorb slow handshakes without altering keepalive cadence.
+    /// bound observed on the wire; production deployments behind NAT / VPN
+    /// can raise this to absorb slow handshakes without altering keepalive
+    /// cadence.
     pub connect_timeout_secs: u64,
 }
 
 impl MddsConfig {
-    /// Production defaults — extracted from the decompiled Java terminal.
+    /// Production defaults.
     #[must_use]
     pub fn production_defaults() -> Self {
         Self {

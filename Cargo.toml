@@ -12,7 +12,7 @@ resolver = "2"
 # else (the 8.0.x SDK line). Each member keeps its own `version = "..."`.
 [workspace.package]
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 authors = ["userFRM"]
 license = "Apache-2.0"
 homepage = "https://github.com/userFRM/ThetaDataDx"

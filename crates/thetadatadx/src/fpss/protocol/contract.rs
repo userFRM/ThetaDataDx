@@ -454,7 +454,7 @@ impl Contract {
 
         let is_option = self.sec_type == SecType::Option;
 
-        // Java: `3 + root.length()` for non-option, `12 + root.length()` for option.
+        // `3 + root.length()` for non-option, `12 + root.length()` for option.
         // The size byte counts itself: size(1) + root_len(1) + root(N) + sec_type(1) [+ option fields(9)]
         let total_size = if is_option {
             12 + root_bytes.len()
@@ -721,9 +721,9 @@ mod tests {
     fn stock_contract_roundtrip() {
         let c = Contract::stock("AAPL");
         let bytes = c.to_bytes();
-        // Java: 3 + root.length() = 3 + 4 = 7 total bytes, size byte = 7
+        // 3 + root.length() = 3 + 4 = 7 total bytes, size byte = 7.
         assert_eq!(bytes.len(), 7);
-        assert_eq!(bytes[0], 7); // total_size includes itself (Java: `3 + root.length()`)
+        assert_eq!(bytes[0], 7); // total_size includes itself (3 + root.length()).
 
         let (parsed, consumed) = Contract::from_bytes(&bytes).unwrap();
         assert_eq!(consumed, 7);
@@ -734,9 +734,9 @@ mod tests {
     fn option_contract_roundtrip() {
         let c = Contract::option("SPY", ("20261218", "60", "C")).unwrap();
         let bytes = c.to_bytes();
-        // Java: 12 + root.length() = 12 + 3 = 15 total bytes, size byte = 15
+        // 12 + root.length() = 12 + 3 = 15 total bytes, size byte = 15.
         assert_eq!(bytes.len(), 15);
-        assert_eq!(bytes[0], 15); // total_size includes itself (Java: `12 + root.length()`)
+        assert_eq!(bytes[0], 15); // total_size includes itself (12 + root.length()).
 
         let (parsed, consumed) = Contract::from_bytes(&bytes).unwrap();
         assert_eq!(consumed, 15);
@@ -779,13 +779,12 @@ mod tests {
         assert_eq!(c.to_string(), "SPY OPTION 20261218 P 45000");
     }
 
-    // -- Java wire-format parity tests -----------------------------------------
-    // These verify byte-for-byte compatibility with Java's Contract.toBytes().
+    // -- Wire-format parity tests ----------------------------------------------
+    // Byte-for-byte compatibility with the documented Contract serialization.
 
     #[test]
-    fn java_parity_stock_aapl() {
-        // Java: root="AAPL" (4 bytes), sec=STOCK
-        // Java allocates: 3 + 4 = 7 bytes
+    fn wire_parity_stock_aapl() {
+        // root="AAPL" (4 bytes), sec=STOCK; allocates 3 + 4 = 7 bytes.
         // Wire: [7, 4, 'A', 'A', 'P', 'L', sec_type_code]
         let c = Contract::stock("AAPL");
         let bytes = c.to_bytes();
@@ -797,9 +796,9 @@ mod tests {
     }
 
     #[test]
-    fn java_parity_option_spy() {
-        // Java: root="SPY" (3 bytes), sec=OPTION, exp=20261218, isCall=true, strike=60000
-        // Java allocates: 12 + 3 = 15 bytes
+    fn wire_parity_option_spy() {
+        // root="SPY" (3 bytes), sec=OPTION, exp=20261218, isCall=true, strike=60000.
+        // Allocates 12 + 3 = 15 bytes.
         // Wire: [15, 3, 'S','P','Y', sec_type, exp(4), is_call(1), strike(4)]
         let c = Contract::option("SPY", ("20261218", "60", "C")).unwrap();
         let bytes = c.to_bytes();
@@ -815,9 +814,8 @@ mod tests {
     }
 
     #[test]
-    fn java_parity_index_spx() {
-        // Java: root="SPX" (3 bytes), sec=INDEX
-        // Java allocates: 3 + 3 = 6 bytes
+    fn wire_parity_index_spx() {
+        // root="SPX" (3 bytes), sec=INDEX; allocates 3 + 3 = 6 bytes.
         let c = Contract::index("SPX");
         let bytes = c.to_bytes();
         assert_eq!(bytes[0], 6);

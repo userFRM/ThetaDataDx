@@ -83,9 +83,8 @@ fn row_number_returns_none_for_null_cell() {
 #[test]
 fn row_number_errors_on_unset_cell() {
     // A DataValue with the oneof unset is a wire-protocol anomaly.
-    // Java's `PojoMessageUtils.convert` hits the default arm for
-    // `DATATYPE_NOT_SET` and throws `IllegalArgumentException`; we
-    // surface it as `TypeMismatch { observed: "Unset" }`.
+    // The upstream parser hits the default arm for `DATATYPE_NOT_SET`
+    // and throws; we surface it as `TypeMismatch { observed: "Unset" }`.
     let row = row_of(vec![dv_missing()]);
     assert_eq!(
         row_number(&row, 0),
@@ -502,8 +501,8 @@ fn parse_trade_ticks_propagates_type_mismatch() {
 // ─────────── Unset-oneof is an error at every strict decode site ───────────
 //
 // A `DataValue` with its `data_type` oneof unset is a wire-protocol
-// anomaly (Java's `PojoMessageUtils.convert` default arm throws
-// `IllegalArgumentException`). The helpers `row_number` / `row_date` /
+// anomaly (the upstream parser's default arm throws on it). The
+// helpers `row_number` / `row_date` /
 // etc. already surface it as `TypeMismatch { observed: "Unset" }`. These
 // tests pin the same behaviour on the call-sites that used to coalesce
 // `NullValue | None` to zero: `parse_option_contracts_v3`,

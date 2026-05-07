@@ -49,10 +49,10 @@ static EMPTY_CONTRACT: std::sync::LazyLock<Arc<Contract>> = std::sync::LazyLock:
 /// frames that also produce a derived OHLCVC event. This eliminates the
 /// per-frame `Vec<FpssEvent>` allocation that was on the hot path.
 ///
-/// This is the frame dispatch logic from `FPSSClient.java`'s reader thread.
-/// Tick data frames (Quote, Trade, `OpenInterest`, Ohlcvc) are FIT-decoded and
-/// delta-decompressed before being emitted as typed events.
-// Reason: FPSS protocol uses Java-defined integer widths; frame decode is inherently large.
+/// This is the frame dispatch logic of the reader thread. Tick data frames
+/// (Quote, Trade, `OpenInterest`, Ohlcvc) are FIT-decoded and delta-decompressed
+/// before being emitted as typed events.
+// Reason: FPSS wire protocol uses fixed integer widths; frame decode is inherently large.
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
@@ -260,7 +260,7 @@ pub(super) fn decode_frame(
                         (f[0], f[7], f[9], f[14], f[15])
                     };
 
-                    // Derive OHLCVC from trade (Java: OHLCVC.processTrade).
+                    // Derive OHLCVC from trade (OHLCVC.processTrade).
                     // Only if enabled AND the server has already seeded a bar.
                     // When derive_ohlcvc is false, skip entirely — zero overhead.
                     let ohlcvc_event = if derive_ohlcvc {
@@ -404,7 +404,7 @@ pub(super) fn decode_frame(
         StreamMsgType::Start => {
             tracing::info!("market open signal received");
             delta_state.clear();
-            local_contracts.clear(); // Java: idToContract.clear()
+            local_contracts.clear(); // mirrors idToContract.clear() on the wire
             (Some(FpssEvent::Control(FpssControl::MarketOpen)), None)
         }
 
@@ -412,15 +412,14 @@ pub(super) fn decode_frame(
             tracing::info!("market close signal received");
             delta_state.last_stop = Some(Instant::now());
             delta_state.clear();
-            local_contracts.clear(); // Java: idToContract.clear()
+            local_contracts.clear(); // mirrors idToContract.clear() on the wire
             (Some(FpssEvent::Control(FpssControl::MarketClose)), None)
         }
 
         StreamMsgType::Error => {
             // The dev server's replay loop boundary leaks FIT tick data into
             // Error frames. Detect binary content and skip silently -- these
-            // are not real errors, just replay artifacts. Matches Java terminal
-            // behavior (logs and ignores).
+            // are not real errors, just replay artifacts (logged + ignored).
             let is_binary = framing::is_binary_payload(payload);
             if is_binary {
                 tracing::debug!(
@@ -462,9 +461,8 @@ pub(super) fn decode_frame(
         // noise they did not ask for. Each now maps to its own typed
         // `FpssControl` variant so downstream code can match directly.
         StreamMsgType::Connected => {
-            // Code 4: connection ack. Java: FPSSClient.onConnected logs
-            // "connected" and returns — no side effects other than
-            // acknowledging the transition.
+            // Code 4: connection ack. Logs "connected" and returns — no
+            // side effects other than acknowledging the transition.
             tracing::debug!("FPSS server CONNECTED frame received");
             (Some(FpssEvent::Control(FpssControl::Connected)), None)
         }

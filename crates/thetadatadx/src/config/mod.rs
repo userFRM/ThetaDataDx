@@ -17,9 +17,8 @@
 //! mdds-01.thetadata.us:443
 //! ```
 //!
-//! Source: `MddsConnectionManager` in decompiled terminal — the v3 code path
-//! constructs a gRPC channel to `mdds-01.thetadata.us:443` with TLS, ignoring
-//! the multi-host config entirely.
+//! The v3 code path constructs a gRPC channel to `mdds-01.thetadata.us:443`
+//! with TLS, ignoring the multi-host config entirely.
 //!
 //! ## FPSS — Feed Processing Streaming Server (TCP, real-time streaming)
 //!

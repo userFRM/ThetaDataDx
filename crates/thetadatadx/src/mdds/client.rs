@@ -132,12 +132,11 @@ impl MddsClient {
         tracing::info!("MDDS gRPC channel connected");
 
         let mut query_parameters = HashMap::new();
-        // The Java terminal includes "client": "terminal" in every QueryInfo.
-        // Source: MddsConnectionManager in decompiled terminal.
+        // QueryInfo always includes `"client": "terminal"`.
         query_parameters.insert("client".to_string(), "terminal".to_string());
 
         // Auto-detect concurrency from subscription tier when config is 0.
-        // Source: Java terminal uses 2^subscription_tier (FREE=1, VALUE=2, STANDARD=4, PRO=8).
+        // Bound is 2^subscription_tier (FREE=1, VALUE=2, STANDARD=4, PRO=8).
         let concurrent = if config.mdds.concurrent_requests == 0 {
             auth_resp
                 .user

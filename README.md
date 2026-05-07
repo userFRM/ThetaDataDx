@@ -15,6 +15,15 @@ Rust SDK for ThetaData market data — single Rust core, four language surfaces 
 > [!IMPORTANT]
 > A valid [ThetaData](https://thetadata.us) subscription is required. The SDK authenticates against ThetaData's Nexus API using your account credentials.
 
+## Requirements
+
+- Rust 1.88 or newer. Declared as `rust-version = "1.88"` on every
+  workspace `[package]`; the Linux Lint job in CI is pinned to this
+  floor so dependency bumps that raise the rustc requirement surface
+  before release.
+- A valid [ThetaData](https://thetadata.us) subscription for the live
+  endpoints.
+
 ## Highlights
 
 - **Typed everywhere.** 61 ThetaData endpoints exposed as typed methods across all four SDKs; no raw JSON or protobuf on the public surface.

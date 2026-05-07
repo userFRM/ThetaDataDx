@@ -46,15 +46,11 @@ pub struct FpssConfig {
     /// FPSS heartbeat ping interval in milliseconds.
     /// The protocol requires pings every 100ms; changing this may cause disconnects.
     ///
-    /// Source: `FPSSClient.startPinging()` — timer period = 100ms.
-    ///
     /// NOTE: Not automatically wired — the ping loop uses `protocol::PING_INTERVAL_MS`.
     /// Override that constant or pass this value when a configurable ping loop is added.
     pub ping_interval_ms: u64,
 
-    /// Per-server TCP connect timeout in milliseconds.
-    ///
-    /// Source: `FPSSClient` — `socket.connect(addr, 2000)`.
+    /// Per-server TCP connect timeout in milliseconds. Default `2000`.
     ///
     /// NOTE: Not automatically wired — the connection module uses `protocol::CONNECT_TIMEOUT_MS`.
     /// Override that constant or pass this value when a configurable connect is added.
@@ -62,8 +58,8 @@ pub struct FpssConfig {
 
     /// Controls when the FPSS write buffer is flushed.
     ///
-    /// - [`FpssFlushMode::Batched`] (default): only flush on PING frames (~100ms),
-    ///   matching the Java terminal. Lower syscall overhead.
+    /// - [`FpssFlushMode::Batched`] (default): only flush on PING frames (~100ms).
+    ///   Lower syscall overhead.
     /// - [`FpssFlushMode::Immediate`]: flush after every frame write. Lowest
     ///   latency, higher syscall overhead.
     pub flush_mode: FpssFlushMode,
