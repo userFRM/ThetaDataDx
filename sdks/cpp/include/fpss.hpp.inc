@@ -32,10 +32,6 @@
     int unsubscribe_full_trades(const std::string& sec_type);
     /** Unsubscribe from all open interest for a security type. */
     int unsubscribe_full_open_interest(const std::string& sec_type);
-    /** Get the current contract map keyed by server-assigned contract ID. */
-    std::map<int32_t, std::string> contract_map() const;
-    /** Look up a single contract by its server-assigned ID. */
-    std::optional<std::string> contract_lookup(int id) const;
     /** Get a snapshot of currently active subscriptions. */
     std::vector<Subscription> active_subscriptions() const;
     /** Reconnect streaming and re-subscribe all previous subscriptions. */

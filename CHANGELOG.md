@@ -5,6 +5,143 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [9.0.0] - 2026-05-07
+
+### Breaking
+
+- **`Contract::option` is now polymorphic; `Contract::option_raw` is gone.**
+  A new sealed `IntoOptionSpec` trait accepts either `(&str, &str, &str)`
+  (human-friendly: expiration / strike / right) or `(i32, bool, i32)`
+  (wire-format integer triple). Callers pass one tuple instead of four
+  loose arguments, and the wire-format constructor moves under the same
+  method name.
+
+  ```rust
+  // Before:
+  let c = Contract::option("SPY", "20261218", "60", "C")?;
+  let c = Contract::option_raw("SPY", 20261218, true, 60_000);
+
+  // After:
+  let c = Contract::option("SPY", ("20261218", "60", "C"))?;
+  let c = Contract::option("SPY", (20261218, true, 60_000))?;
+  ```
+
+- **`FpssClient::connect` takes one `FpssConnectArgs` struct instead of
+  seven loose arguments.** The struct exposes `creds`, `hosts`,
+  `ring_size`, `flush_mode`, `policy`, `derive_ohlcvc`. `Default` and a
+  `new(creds, hosts)` shortcut cover the common path.
+
+  ```rust
+  // Before:
+  FpssClient::connect(&creds, &hosts, 4096, FpssFlushMode::default(),
+                      ReconnectPolicy::default(), true, handler)?;
+
+  // After:
+  let args = FpssConnectArgs::new(&creds, &hosts);
+  FpssClient::connect(args, handler)?;
+  ```
+
+- **Wire-internal `contract_id: i32` removed from every public surface.**
+  Dropped from Rust (`ThetaDataDx::contract_map`, `ThetaDataDx::contract_lookup`,
+  `FpssClient::contract_map`, `FpssClient::contract_lookup`), C ABI
+  (`tdx_unified_contract_map`, `tdx_unified_contract_lookup`,
+  `tdx_fpss_contract_map`, `tdx_fpss_contract_lookup`,
+  `tdx_contract_map_array_free`, `TdxContractMapArray`, `TdxContractMapEntry`),
+  Python (`contract_map()`, `contract_lookup()`), TypeScript
+  (`contractMap()`, `contractLookup()`), and C++ (`FpssClient::contract_map`,
+  `FpssClient::contract_lookup`). Users identify contracts by
+  `(symbol, expiration, right, strike)`; the wire id stays inside the
+  reader-thread cache and is delivered alongside every event via
+  `FpssControl::ContractAssigned { id, contract }` for callers that
+  still need to maintain their own id→contract map.
+
+  ```rust
+  // Before:
+  let map = client.contract_map()?;
+  if let Some(c) = client.contract_lookup(id)? { ... }
+
+  // After: build the map yourself from the event stream.
+  client.start_streaming(|event| {
+      if let FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) = event {
+          my_map.insert(*id, Arc::clone(contract));
+      }
+  })?;
+  ```
+
+- **`pub mod proto` is now `pub(crate)`.** Generated protobuf types are
+  wire-internal. Bindings that need `DataTable` / `DataValueList` /
+  `ResponseData` / `Price` / `data_value::*` go through the new
+  `thetadatadx::wire` re-export, which surfaces only the types
+  offline-decode harnesses actually need.
+
+  ```rust
+  // Before:
+  use thetadatadx::proto::{DataTable, ResponseData};
+
+  // After:
+  use thetadatadx::wire::{DataTable, ResponseData};
+  ```
+
+- **FPSS submodules `connection`, `framing`, `dispatcher`, `ring`
+  reduced to `pub(crate)`.** Only `protocol` remains a public submodule
+  of `fpss`. `Frame`, `read_frame`, `write_frame` are surfaced as items
+  at `thetadatadx::fpss::` for benchmark consumers; everything else
+  (TLS connect, ring-buffer wait strategies, dispatcher internals) is
+  now crate-private.
+
+  ```rust
+  // Before:
+  use thetadatadx::fpss::framing::{read_frame, write_frame, Frame};
+
+  // After:
+  use thetadatadx::fpss::{read_frame, write_frame, Frame};
+  ```
+
+### Added
+
+- `IntoOptionSpec` sealed trait + impls for `(&str, &str, &str)` and
+  `(i32, bool, i32)` — see `fpss::protocol::IntoOptionSpec`.
+- `FpssConnectArgs` struct + `FpssConnectArgs::new(creds, hosts)`
+  shortcut.
+- `thetadatadx::wire` module — the supported re-export surface for the
+  generated protobuf payload types (`DataTable`, `DataValueList`,
+  `DataValue`, `ResponseData`, `Price`, `CompressionAlgo`,
+  `CompressionDescription`, `data_value`).
+
+### Changed
+
+- **Comprehensive public-API discipline sweep.** `auth::{creds, nexus,
+  session}` reduced to `pub(crate)`; user-facing types (`Credentials`,
+  `AuthResponse`, `AuthUser`, `SessionToken`, `authenticate`,
+  `authenticate_at`) re-exported at `thetadatadx::auth::*` and the
+  crate root. Every `pub fn` / `pub struct` reachable from a public
+  path was audited; internal helpers (TLS connect entry points,
+  ring-size constants, framing reader idle predicates) are now
+  crate-private.
+- `tdbe` 0.12.10 → 0.13.0 (eastern-time + json_canon + conditions
+  codegen surface expansion warrants the minor bump).
+
+### Removed
+
+- `Contract::option_raw` (folded into `Contract::option` via
+  `IntoOptionSpec`).
+- `ThetaDataDx::contract_map`, `ThetaDataDx::contract_lookup`,
+  `FpssClient::contract_map`, `FpssClient::contract_lookup`.
+- C ABI: `tdx_unified_contract_map`, `tdx_unified_contract_lookup`,
+  `tdx_fpss_contract_map`, `tdx_fpss_contract_lookup`,
+  `tdx_contract_map_array_free`, `TdxContractMapArray`,
+  `TdxContractMapEntry`.
+- Python SDK: `ThetaDataDx.contract_map`, `ThetaDataDx.contract_lookup`.
+- TypeScript SDK: `ThetaDataDx.contractMap`, `ThetaDataDx.contractLookup`.
+- C++ SDK: `FpssClient::contract_map`, `FpssClient::contract_lookup`.
+- `pub mod proto` (now `pub(crate)`; consumers use `thetadatadx::wire`).
+- `pub mod fpss::{connection, framing, dispatcher, ring}` (now
+  `pub(crate)`; surfaces preserved as items at `fpss::` root where
+  needed).
+- Dead helpers removed: `fpss::connection::connect_to`,
+  `fpss::framing::FrameReadState::is_idle`,
+  `fpss::ring::DEFAULT_RING_SIZE`.
+
 ## [8.0.37] - 2026-05-07
 
 ### Added

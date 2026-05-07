@@ -48,7 +48,7 @@ pub mod contract;
 pub mod subscription;
 pub mod wire;
 
-pub use self::contract::{Contract, ContractParseError};
+pub use self::contract::{Contract, ContractParseError, IntoOptionSpec};
 pub use self::subscription::SubscriptionKind;
 pub use self::wire::{
     build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,

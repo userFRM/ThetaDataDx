@@ -32,7 +32,6 @@
 //! }
 //! ```
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use arc_swap::ArcSwap;
@@ -216,12 +215,14 @@ impl ThetaDataDx {
 
         let config = self.historical.config();
         let client = FpssClient::connect(
-            &self.creds,
-            &config.fpss.hosts,
-            config.fpss.ring_size,
-            config.fpss.flush_mode,
-            config.reconnect.policy.clone(),
-            config.fpss.derive_ohlcvc,
+            crate::fpss::FpssConnectArgs {
+                creds: &self.creds,
+                hosts: &config.fpss.hosts,
+                ring_size: config.fpss.ring_size,
+                flush_mode: config.fpss.flush_mode,
+                policy: config.reconnect.policy.clone(),
+                derive_ohlcvc: config.fpss.derive_ohlcvc,
+            },
             move |event: &FpssEvent| {
                 // Reader-thread side: clone the event and push onto the
                 // bounded queue. On overflow the dispatcher drops the
@@ -276,12 +277,14 @@ impl ThetaDataDx {
         }
         let config = self.historical.config();
         let client = FpssClient::connect(
-            &self.creds,
-            &config.fpss.hosts,
-            config.fpss.ring_size,
-            config.fpss.flush_mode,
-            config.reconnect.policy.clone(),
-            config.fpss.derive_ohlcvc,
+            crate::fpss::FpssConnectArgs {
+                creds: &self.creds,
+                hosts: &config.fpss.hosts,
+                ring_size: config.fpss.ring_size,
+                flush_mode: config.fpss.flush_mode,
+                policy: config.reconnect.policy.clone(),
+                derive_ohlcvc: config.fpss.derive_ohlcvc,
+            },
             handler,
         )?;
         self.install_live(Self::live_slot(client, None))
@@ -440,29 +443,6 @@ impl ThetaDataDx {
     /// Returns an error on network, authentication, or parsing failure.
     pub fn unsubscribe_full_open_interest(&self, sec_type: SecType) -> Result<(), Error> {
         self.with_streaming(|s| s.unsubscribe_full_open_interest(sec_type))
-    }
-
-    /// Get the current contract ID to Contract mapping.
-    ///
-    /// Values are `Arc<Contract>` — the same refcounted contract every
-    /// decoded FPSS event carries. Cloning the map clones Arcs, not
-    /// underlying `Contract` values.
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn contract_map(&self) -> Result<HashMap<i32, Arc<Contract>>, Error> {
-        self.with_streaming(|s| Ok(s.contract_map()))
-    }
-
-    /// Look up a contract by its server-assigned ID.
-    ///
-    /// Returns `Arc<Contract>` so callers share the same heap allocation
-    /// as the I/O thread cache and every decoded data event.
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn contract_lookup(&self, id: i32) -> Result<Option<Arc<Contract>>, Error> {
-        self.with_streaming(|s| Ok(s.contract_lookup(id)))
     }
 
     /// Get all active per-contract subscriptions.

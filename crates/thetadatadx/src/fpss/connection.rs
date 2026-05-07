@@ -166,20 +166,6 @@ fn try_connect(
     Ok(tls_stream)
 }
 
-/// Connect to a specific server address (for testing or when the caller
-/// already knows which server to use).
-///
-/// This bypasses the server rotation logic.
-/// # Errors
-///
-/// Returns an error on network, authentication, or parsing failure.
-pub fn connect_to(host: &str, port: u16) -> Result<FpssStream, crate::error::Error> {
-    ensure_rustls_crypto_provider();
-    let connect_timeout = Duration::from_millis(CONNECT_TIMEOUT_MS);
-    let read_timeout = Duration::from_millis(READ_TIMEOUT_MS);
-    try_connect(host, port, connect_timeout, read_timeout)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -117,15 +117,8 @@ pub struct RingEvent {
 // disruptor's sequencing guarantees (exclusive write, shared read).
 unsafe impl Sync for RingEvent {}
 
-/// Default ring buffer size (must be a power of 2).
-///
-/// 131072 slots covers ~13 seconds of burst traffic at 10k events/sec with
-/// headroom. This matches the Java terminal's `FPSS_QUEUE_DEPTH` spirit while
-/// using the disruptor's power-of-2 constraint.
-pub const DEFAULT_RING_SIZE: usize = 131_072; // 2^17
-
 /// Minimum ring size (power of 2).
-pub const MIN_RING_SIZE: usize = 64;
+pub(crate) const MIN_RING_SIZE: usize = 64;
 
 /// Round up to the next power of 2 (required by disruptor ring buffer).
 pub(crate) fn next_power_of_two(n: usize) -> usize {
@@ -179,11 +172,6 @@ mod tests {
         assert_eq!(next_power_of_two(65), 128);
         assert_eq!(next_power_of_two(1000), 1024);
         assert_eq!(next_power_of_two(100_000), 131_072);
-    }
-
-    #[test]
-    fn default_ring_size_is_power_of_two() {
-        assert!(DEFAULT_RING_SIZE.is_power_of_two());
     }
 
     #[test]

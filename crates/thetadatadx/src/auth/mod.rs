@@ -16,9 +16,9 @@
 //!             FPSS (TCP):  email + password sent over TCP handshake
 //! ```
 
-pub mod creds;
-pub mod nexus;
-pub mod session;
+pub(crate) mod creds;
+pub(crate) mod nexus;
+pub(crate) mod session;
 
 pub use creds::Credentials;
 pub use nexus::{authenticate, authenticate_at, AuthResponse, AuthUser};

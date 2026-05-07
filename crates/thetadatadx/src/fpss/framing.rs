@@ -130,16 +130,6 @@ impl FrameReadState {
     pub fn new() -> Self {
         Self::default()
     }
-
-    /// `true` when no bytes of the current frame have been read yet.
-    /// The I/O loop uses this to skip the drain-yield error re-entry
-    /// when the reader is idle (fresh frame boundary) -- in that
-    /// case the caller can treat the error as "try again later"
-    /// without worrying about desync.
-    #[must_use]
-    pub fn is_idle(&self) -> bool {
-        self.header_read == 0 && !self.payload_phase
-    }
 }
 
 /// A decoded FPSS frame: message code + payload bytes.

@@ -3084,7 +3084,7 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.12.10"
+version = "0.13.0"
 dependencies = [
  "criterion",
  "serde",
@@ -3108,7 +3108,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.37"
+version = "9.0.0"
 dependencies = [
  "arc-swap",
  "arrow-array",
@@ -3149,7 +3149,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-cli"
-version = "8.0.37"
+version = "9.0.0"
 dependencies = [
  "clap",
  "comfy-table",
@@ -3161,7 +3161,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-ffi"
-version = "8.0.37"
+version = "9.0.0"
 dependencies = [
  "tdbe",
  "thetadatadx",

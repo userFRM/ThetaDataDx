@@ -42,6 +42,77 @@ pub struct Contract {
     pub strike: Option<i32>,
 }
 
+// ---------------------------------------------------------------------------
+// IntoOptionSpec — sealed trait for `Contract::option` polymorphic input
+// ---------------------------------------------------------------------------
+
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// Sealed trait describing every input shape accepted by [`Contract::option`].
+///
+/// Two implementations:
+///
+/// - `(&str, &str, &str)` — `(expiration_yyyymmdd, strike_dollars, right)`
+///   for human-friendly construction. Performs the same parsing as the
+///   pre-9.0 `Contract::option`.
+/// - `(i32, bool, i32)` — `(expiration_yyyymmdd, is_call, strike_raw)`
+///   with the wire-format integer strike already scaled. Used by the
+///   in-process WS server which parses the wire format directly.
+///
+/// The trait is sealed; downstream crates cannot add their own input shapes.
+pub trait IntoOptionSpec: sealed::Sealed {
+    /// Convert this input into the canonical wire-format triple
+    /// `(expiration, is_call, strike_raw)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] when the parsed shape fails validation
+    /// (e.g. unparseable expiration, strike outside `i32` range, or a
+    /// non-strict right value).
+    fn into_spec(self) -> Result<(i32, bool, i32), Error>;
+}
+
+impl sealed::Sealed for (&str, &str, &str) {}
+impl IntoOptionSpec for (&str, &str, &str) {
+    fn into_spec(self) -> Result<(i32, bool, i32), Error> {
+        let (expiration, strike, right) = self;
+        let exp: i32 = expiration
+            .replace('-', "")
+            .parse()
+            .map_err(|e| Error::Config(format!("invalid expiration date {expiration:?}: {e}")))?;
+        let is_call = tdbe::right::parse_right_strict(right)?
+            .as_is_call()
+            .ok_or_else(|| {
+                Error::Config("parse_right_strict returned Both despite strict mode".to_string())
+            })?;
+        let strike_dollars: f64 = strike
+            .parse()
+            .map_err(|e| Error::Config(format!("invalid strike price {strike:?}: {e}")))?;
+        let strike_scaled = (strike_dollars * 1000.0).round();
+        if !strike_scaled.is_finite()
+            || strike_scaled < f64::from(i32::MIN)
+            || strike_scaled > f64::from(i32::MAX)
+        {
+            return Err(Error::Config(format!(
+                "strike {strike_dollars} out of i32 range after *1000 scaling"
+            )));
+        }
+        // Reason: bounds checked above.
+        #[allow(clippy::cast_possible_truncation)]
+        let strike_raw = strike_scaled as i32;
+        Ok((exp, is_call, strike_raw))
+    }
+}
+
+impl sealed::Sealed for (i32, bool, i32) {}
+impl IntoOptionSpec for (i32, bool, i32) {
+    fn into_spec(self) -> Result<(i32, bool, i32), Error> {
+        Ok(self)
+    }
+}
+
 impl Contract {
     /// Create a stock contract.
     ///
@@ -78,51 +149,25 @@ impl Contract {
         }
     }
 
-    /// Create an option contract.
+    /// Create an option contract from any [`IntoOptionSpec`] input shape.
     ///
     /// # Arguments
     /// - `symbol`: Underlying ticker (e.g., `"AAPL"`)
-    /// - `expiration`: Expiration as `"YYYYMMDD"` (e.g., `"20260320"`)
-    /// - `strike`: Strike price in dollars as string (e.g., `"550"`)
-    /// - `right`: option right — accepts `"call"`/`"put"`/`"C"`/`"P"`
-    ///   (case-insensitive). FPSS per-contract subscriptions cannot carry
-    ///   the `both` / `*` wildcard, so those values are rejected.
+    /// - `spec`: Either of:
+    ///   - `(expiration_yyyymmdd, strike_dollars, right)` as `(&str, &str, &str)`
+    ///     for human-friendly construction (parses the strings).
+    ///   - `(expiration_yyyymmdd, is_call, strike_raw)` as `(i32, bool, i32)`
+    ///     for callers that already have wire-format integer triples (e.g.
+    ///     the in-process WS server parsing the JSON wire format).
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Config`] if `expiration` is not a valid integer date,
-    /// if `right` cannot be parsed to a single side, if `strike` is not a
-    /// valid f64, or if `strike * 1000` would overflow `i32`.
-    pub fn option(
-        symbol: impl Into<String>,
-        expiration: &str,
-        strike: &str,
-        right: &str,
-    ) -> Result<Self, Error> {
-        let exp: i32 = expiration
-            .replace('-', "")
-            .parse()
-            .map_err(|e| Error::Config(format!("invalid expiration date {expiration:?}: {e}")))?;
-        let is_call = tdbe::right::parse_right_strict(right)?
-            .as_is_call()
-            .ok_or_else(|| {
-                Error::Config("parse_right_strict returned Both despite strict mode".to_string())
-            })?;
-        let strike_dollars: f64 = strike
-            .parse()
-            .map_err(|e| Error::Config(format!("invalid strike price {strike:?}: {e}")))?;
-        let strike_scaled = (strike_dollars * 1000.0).round();
-        if !strike_scaled.is_finite()
-            || strike_scaled < f64::from(i32::MIN)
-            || strike_scaled > f64::from(i32::MAX)
-        {
-            return Err(Error::Config(format!(
-                "strike {strike_dollars} out of i32 range after *1000 scaling"
-            )));
-        }
-        // Reason: bounds checked above.
-        #[allow(clippy::cast_possible_truncation)]
-        let strike_raw = strike_scaled as i32;
+    /// Returns [`Error::Config`] when `spec` fails validation: unparseable
+    /// expiration, non-strict right value, unparseable strike, or strike
+    /// outside `i32` range after scaling. The integer triple variant is
+    /// infallible at the type level.
+    pub fn option(symbol: impl Into<String>, spec: impl IntoOptionSpec) -> Result<Self, Error> {
+        let (exp, is_call, strike_raw) = spec.into_spec()?;
         Ok(Self {
             symbol: symbol.into(),
             sec_type: SecType::Option,
@@ -130,25 +175,6 @@ impl Contract {
             is_call: Some(is_call),
             strike: Some(strike_raw),
         })
-    }
-
-    /// Construct from raw wire-format values (integer expiration, bool call/put, raw strike).
-    ///
-    /// Prefer [`Contract::option`] for user-facing code. This constructor is for the
-    /// drop-in REST/WS server which must match the Java terminal's contract format.
-    pub fn option_raw(
-        symbol: impl Into<String>,
-        expiration: i32,
-        is_call: bool,
-        strike: i32,
-    ) -> Self {
-        Self {
-            symbol: symbol.into(),
-            sec_type: SecType::Option,
-            expiration: Some(expiration),
-            is_call: Some(is_call),
-            strike: Some(strike),
-        }
     }
 
     /// Synthetic marker used by `reconnect_streaming` to represent a failed
@@ -685,7 +711,7 @@ mod tests {
 
     #[test]
     fn option_contract_roundtrip() {
-        let c = Contract::option("SPY", "20261218", "60", "C").unwrap();
+        let c = Contract::option("SPY", ("20261218", "60", "C")).unwrap();
         let bytes = c.to_bytes();
         // Java: 12 + root.length() = 12 + 3 = 15 total bytes, size byte = 15
         assert_eq!(bytes.len(), 15);
@@ -728,7 +754,7 @@ mod tests {
 
     #[test]
     fn contract_display_option() {
-        let c = Contract::option("SPY", "20261218", "45", "P").unwrap();
+        let c = Contract::option("SPY", ("20261218", "45", "P")).unwrap();
         assert_eq!(c.to_string(), "SPY OPTION 20261218 P 45000");
     }
 
@@ -754,7 +780,7 @@ mod tests {
         // Java: root="SPY" (3 bytes), sec=OPTION, exp=20261218, isCall=true, strike=60000
         // Java allocates: 12 + 3 = 15 bytes
         // Wire: [15, 3, 'S','P','Y', sec_type, exp(4), is_call(1), strike(4)]
-        let c = Contract::option("SPY", "20261218", "60", "C").unwrap();
+        let c = Contract::option("SPY", ("20261218", "60", "C")).unwrap();
         let bytes = c.to_bytes();
         assert_eq!(bytes[0], 15); // size byte = 12 + root.length()
         assert_eq!(bytes[1], 3); // root_len
@@ -783,19 +809,19 @@ mod tests {
     #[test]
     fn option_rejects_invalid_strike() {
         // Garbage strike string -- must return Err, not panic.
-        assert!(Contract::option("SPY", "20261218", "not-a-number", "C").is_err());
+        assert!(Contract::option("SPY", ("20261218", "not-a-number", "C")).is_err());
     }
 
     #[test]
     fn option_rejects_overflowing_strike() {
         // Strike * 1000 exceeds i32::MAX. Must return Err, not wrap silently.
-        assert!(Contract::option("SPY", "20261218", "3000000", "C").is_err());
+        assert!(Contract::option("SPY", ("20261218", "3000000", "C")).is_err());
     }
 
     #[test]
     fn option_rejects_invalid_expiration() {
         // Non-numeric expiration -- must return Err, not panic.
-        assert!(Contract::option("SPY", "not-a-date", "60", "C").is_err());
+        assert!(Contract::option("SPY", ("not-a-date", "60", "C")).is_err());
     }
 
     #[test]

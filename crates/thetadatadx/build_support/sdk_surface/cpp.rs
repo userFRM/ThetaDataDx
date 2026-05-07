@@ -86,12 +86,6 @@ fn cpp_fpss_decl(method: &MethodSpec) -> String {
             writeln!(out, "    int {}({params});", method.name).unwrap();
         }
         MethodKind::IsAuthenticated => out.push_str("    bool is_authenticated() const;\n"),
-        MethodKind::ContractLookup => {
-            out.push_str("    std::optional<std::string> contract_lookup(int id) const;\n");
-        }
-        MethodKind::ContractMap => {
-            out.push_str("    std::map<int32_t, std::string> contract_map() const;\n");
-        }
         MethodKind::ActiveSubscriptions => {
             out.push_str("    std::vector<Subscription> active_subscriptions() const;\n");
         }
@@ -140,12 +134,6 @@ fn cpp_fpss_def(method: &MethodSpec) -> String {
         MethodKind::IsAuthenticated => {
             "bool FpssClient::is_authenticated() const { return tdx_fpss_is_authenticated(handle_.get()) != 0; }\n"
                 .to_string()
-        }
-        MethodKind::ContractLookup => {
-            include_str!("templates/cpp/contract_lookup_def.cpp.tmpl").to_string()
-        }
-        MethodKind::ContractMap => {
-            include_str!("templates/cpp/contract_map_def.cpp.tmpl").to_string()
         }
         MethodKind::ActiveSubscriptions => {
             include_str!("templates/cpp/active_subscriptions_def.cpp.tmpl").to_string()
