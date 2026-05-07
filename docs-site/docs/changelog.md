@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.36] - 2026-05-07
+
+### Changed
+
+- **`crates/thetadatadx/src/decode.rs` (2177 LoC) split into 7 modules**
+  under `mdds/decode/{error,headers,transport,extract,cell,v3}`. Pure
+  structural refactor; public API unchanged via `mdds::decode::*` re-exports.
+- **Eastern-time + DST primitives lifted to `tdbe::time`.**
+  `eastern_offset_ms`, `march_second_sunday_utc`, `november_first_sunday_utc`,
+  `april_first_sunday_utc`, `october_last_sunday_utc`, `civil_to_epoch_days`,
+  `timestamp_to_ms_of_day`, `timestamp_to_date` — single canonical module
+  reused by mdds, fpss, flatfiles. tdbe 0.12.9 → 0.12.10.
+- **`crates/thetadatadx/src/fpss/protocol.rs` (1613 LoC) split into 4 modules**
+  under `fpss/protocol/`. `mod.rs` keeps constants and re-exports;
+  `contract.rs` holds `Contract` + 6 constructors + `Display` + `FromStr` +
+  OCC-21 parser; `wire.rs` holds payload builders / parsers; `subscription.rs`
+  holds `SubscriptionKind`.
+- **`crates/thetadatadx/src/config.rs` (1396 LoC, 30 flat fields) refactored
+  into 7 nested typed sub-configs.** `DirectConfig` now contains `mdds`,
+  `fpss`, `reconnect`, `retry`, `auth`, `metrics`, `runtime`. Field-read
+  accessors preserved on `DirectConfig` for back-compat (`config.mdds_host()`
+  etc still work). Field-write callers must migrate to nested form
+  (`config.fpss.queue_depth = ...`). Adds `mdds.connect_timeout_secs`
+  (default 10s, covers prior LOW finding).
+- **`crates/tdbe/src/conditions.rs` (2749 LoC) refactored to TOML-driven
+  codegen.** Source-of-truth at `crates/tdbe/data/{trade,quote}_conditions.toml`
+  (149 + 75 entries). `crates/tdbe/build.rs` reads the TOMLs and emits
+  `crates/tdbe/src/conditions/tables_generated.rs` with compile-time
+  const arrays. Public surface unchanged; new `condition_tables_pin`
+  test pins 12 known entries against the const arrays for round-trip
+  protection.
+
+  Refs #500.
+
 ## [8.0.35] - 2026-05-07
 
 ### Documentation

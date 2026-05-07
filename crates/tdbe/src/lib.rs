@@ -23,6 +23,7 @@ pub mod json_canon;
 pub mod latency;
 pub mod right;
 pub mod sequences;
+pub mod time;
 pub mod types;
 
 // Convenience re-exports at crate root

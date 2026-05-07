@@ -193,21 +193,21 @@ mod tests {
     #[test]
     fn production_config_has_four_fpss_hosts() {
         let config = crate::config::DirectConfig::production();
-        assert_eq!(config.fpss_hosts.len(), 4);
+        assert_eq!(config.fpss.hosts.len(), 4);
         assert_eq!(
-            config.fpss_hosts[0],
+            config.fpss.hosts[0],
             ("nj-a.thetadata.us".to_string(), 20000)
         );
         assert_eq!(
-            config.fpss_hosts[1],
+            config.fpss.hosts[1],
             ("nj-a.thetadata.us".to_string(), 20001)
         );
         assert_eq!(
-            config.fpss_hosts[2],
+            config.fpss.hosts[2],
             ("nj-b.thetadata.us".to_string(), 20000)
         );
         assert_eq!(
-            config.fpss_hosts[3],
+            config.fpss.hosts[3],
             ("nj-b.thetadata.us".to_string(), 20001)
         );
     }

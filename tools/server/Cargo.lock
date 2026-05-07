@@ -2331,10 +2331,12 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.12.9"
+version = "0.12.10"
 dependencies = [
+ "serde",
  "sonic-rs",
  "thiserror 2.0.18",
+ "toml",
 ]
 
 [[package]]
@@ -2352,7 +2354,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.35"
+version = "8.0.36"
 dependencies = [
  "crossbeam-channel",
  "disruptor",
@@ -2387,7 +2389,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-server"
-version = "8.0.35"
+version = "8.0.36"
 dependencies = [
  "axum",
  "clap",

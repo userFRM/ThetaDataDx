@@ -177,11 +177,11 @@ impl ThetaDataDx {
         let config = self.historical.config();
         let client = FpssClient::connect(
             &self.creds,
-            &config.fpss_hosts,
-            config.fpss_ring_size,
-            config.fpss_flush_mode,
-            config.reconnect_policy.clone(),
-            config.derive_ohlcvc,
+            &config.fpss.hosts,
+            config.fpss.ring_size,
+            config.fpss.flush_mode,
+            config.reconnect.policy.clone(),
+            config.fpss.derive_ohlcvc,
             move |event: &FpssEvent| {
                 // Reader-thread side: clone the event and push onto the
                 // bounded queue. On overflow the dispatcher drops the
@@ -252,11 +252,11 @@ impl ThetaDataDx {
         let config = self.historical.config();
         let client = FpssClient::connect(
             &self.creds,
-            &config.fpss_hosts,
-            config.fpss_ring_size,
-            config.fpss_flush_mode,
-            config.reconnect_policy.clone(),
-            config.derive_ohlcvc,
+            &config.fpss.hosts,
+            config.fpss.ring_size,
+            config.fpss.flush_mode,
+            config.reconnect.policy.clone(),
+            config.fpss.derive_ohlcvc,
             handler,
         )?;
         *guard = Some(client);
