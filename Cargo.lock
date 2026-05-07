@@ -1489,13 +1489,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "json_canon"
-version = "0.1.0"
-dependencies = [
- "sonic-rs",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3085,6 +3078,7 @@ name = "tdbe"
 version = "0.12.9"
 dependencies = [
  "criterion",
+ "sonic-rs",
  "thiserror 2.0.18",
 ]
 
@@ -3103,7 +3097,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.32"
+version = "8.0.33"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -3143,11 +3137,10 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-cli"
-version = "8.0.32"
+version = "8.0.33"
 dependencies = [
  "clap",
  "comfy-table",
- "json_canon",
  "sonic-rs",
  "tdbe",
  "thetadatadx",
@@ -3156,7 +3149,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-ffi"
-version = "8.0.32"
+version = "8.0.33"
 dependencies = [
  "tdbe",
  "thetadatadx",

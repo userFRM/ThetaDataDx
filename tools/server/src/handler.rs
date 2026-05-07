@@ -32,7 +32,7 @@ use crate::validation;
 /// see structured JSON they can parse.
 fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
     let mut body = format::error_envelope(error_type, msg);
-    let json_bytes = json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
+    let json_bytes = tdbe::json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
         tracing::error!(
             error = %err,
             "error envelope failed to serialise; emitting minimal fallback"
@@ -62,7 +62,7 @@ fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
 /// structured `500` carrying the underlying error message rather than an
 /// empty `200 OK` body.
 fn json_response(val: &mut sonic_rs::Value) -> Response {
-    match json_canon::canonicalize_and_serialize(val) {
+    match tdbe::json_canon::canonicalize_and_serialize(val) {
         Ok(json_bytes) => (
             StatusCode::OK,
             [(
@@ -541,7 +541,7 @@ mod tests {
             "vega": Value::new_null(),
         });
         if let Some(o) = row.as_object_mut() {
-            o.insert(&"vega", json_canon::finite_or_null(f64::NAN));
+            o.insert(&"vega", tdbe::json_canon::finite_or_null(f64::NAN));
         }
         let mut envelope = format::ok_envelope(vec![row]);
 

@@ -337,7 +337,7 @@ impl ThetaDataDx {
         self.with_streaming(|s| s.subscribe_all(contract))
     }
 
-    /// Subscribe to all trades for a security type (firehose).
+    /// Subscribe to all trades for a security type (full-stream).
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
@@ -345,7 +345,7 @@ impl ThetaDataDx {
         self.with_streaming(|s| s.subscribe_full_trades(sec_type))
     }
 
-    /// Subscribe to all open interest for a security type (firehose).
+    /// Subscribe to all open interest for a security type (full-stream).
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
@@ -424,7 +424,7 @@ impl ThetaDataDx {
         self.with_streaming(|s| Ok(s.active_subscriptions()))
     }
 
-    /// Get all active full-type (firehose) subscriptions.
+    /// Get all active full-type (full-stream) subscriptions.
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.

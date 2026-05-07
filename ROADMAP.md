@@ -11,7 +11,7 @@ The SDK exposes three independent ways to consume data:
 | Surface | Purpose | Status |
 |---------|---------|--------|
 | **MDDS** | Request / response history + reference data | Verified |
-| **FPSS** | Live streaming firehose (trades, quotes, OI) | Verified |
+| **FPSS** | Live streaming full-stream (trades, quotes, OI) | Verified |
 | **FLATFILES** | Server-pre-built whole-universe daily blobs delivered over the legacy MDDS auth path | Verified |
 
 Each surface has a separate authentication flow and a separate transport. All three are reachable from the same `ThetaDataDx` client; consumers pick which surface they need on a per-call basis.
@@ -156,9 +156,9 @@ Server retention window: 7 calendar days. Older history: contact ThetaData sales
 | Option quote subscription | Standard | Verified |
 | Option trade subscription | Standard | Verified |
 | Open interest subscription | Pro | Verified |
-| Full trade firehose (Option) | Pro | Verified |
-| Full trade firehose (Stock) | Pro | Verified |
-| Full OI firehose | Pro | Verified |
+| Full trade stream (Option) | Pro | Verified |
+| Full trade stream (Stock) | Pro | Verified |
+| Full OI stream | Pro | Verified |
 | Index price subscription | Indices subscription | Subscription-tier-blocked |
 | Dev server replay | — | Verified |
 | Reconnection (per-read deadline, Java-parity) | — | Verified |

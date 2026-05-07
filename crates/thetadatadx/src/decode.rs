@@ -1731,7 +1731,7 @@ mod tests {
 
     #[test]
     fn parse_greeks_all_ticks_decodes_price_encoded_greeks() {
-        // Regression: v7.2.0 strict decode rejected Price cells for Greek
+        // Regression: an earlier strict decode rejected Price cells for Greek
         // columns, but the v3 MDDS server sends Greeks as Price-encoded
         // values (mirroring Java's `dataValue2Object` -> BigDecimal path).
         // Live run #24520486541 on main surfaced this as

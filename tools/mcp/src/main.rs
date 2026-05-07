@@ -951,7 +951,7 @@ async fn handle_request(
 /// `tools/call` arm so the regression test for issue #459 can exercise the
 /// canonicalisation path without spinning up a live `ThetaDataDx` client.
 fn build_tool_call_response(id: Value, result: &mut Value) -> JsonRpcResponse {
-    match json_canon::canonicalize_and_serialize(result) {
+    match tdbe::json_canon::canonicalize_and_serialize(result) {
         Ok(text) => JsonRpcResponse::success(
             id,
             json!({
@@ -1584,7 +1584,7 @@ mod tests {
         });
         if let Some(ticks) = tool_result.get_mut("ticks").and_then(|v| v.as_array_mut()) {
             if let Some(row) = ticks.first_mut().and_then(|v| v.as_object_mut()) {
-                row.insert("vega", json_canon::finite_or_null(f64::NAN));
+                row.insert("vega", tdbe::json_canon::finite_or_null(f64::NAN));
             }
         }
 

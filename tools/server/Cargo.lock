@@ -1168,13 +1168,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "json_canon"
-version = "0.1.0"
-dependencies = [
- "sonic-rs",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2340,6 +2333,7 @@ dependencies = [
 name = "tdbe"
 version = "0.12.9"
 dependencies = [
+ "sonic-rs",
  "thiserror 2.0.18",
 ]
 
@@ -2358,7 +2352,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "8.0.32"
+version = "8.0.33"
 dependencies = [
  "crossbeam-channel",
  "disruptor",
@@ -2393,11 +2387,10 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-server"
-version = "8.0.32"
+version = "8.0.33"
 dependencies = [
  "axum",
  "clap",
- "json_canon",
  "rustls",
  "serde",
  "serde_urlencoded",

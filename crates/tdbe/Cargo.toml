@@ -16,6 +16,7 @@ categories = ["encoding", "finance"]
 workspace = true
 
 [dependencies]
+sonic-rs = "0.5.8"
 thiserror = "2.0.18"
 
 [dev-dependencies]
