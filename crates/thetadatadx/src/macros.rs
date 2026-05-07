@@ -197,7 +197,7 @@ macro_rules! list_endpoint {
                 let _metrics_start = std::time::Instant::now();
                 let _permit = self.request_semaphore.acquire().await
                     .map_err(|_| Error::Config("request semaphore closed".into()))?;
-                let policy = self.config().retry_policy;
+                let policy = self.config().retry;
                 let budget = policy.max_attempts.max(1);
                 let mut refreshed_already = false;
                 let mut last_err: Option<Error> = None;
@@ -334,7 +334,7 @@ macro_rules! parsed_endpoint {
                         let _metrics_start = std::time::Instant::now();
                         let _permit = client.request_semaphore.acquire().await
                             .map_err(|_| Error::Config("request semaphore closed".into()))?;
-                        let policy = client.config().retry_policy;
+                        let policy = client.config().retry;
                         let budget = policy.max_attempts.max(1);
                         let mut refreshed_already = false;
                         let mut last_err: Option<Error> = None;

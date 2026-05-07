@@ -28,7 +28,7 @@
 //! # use thetadatadx::auth::Credentials;
 //! # fn example() -> Result<(), thetadatadx::error::Error> {
 //! let creds = Credentials::new("user@example.com", "pw");
-//! let hosts = thetadatadx::config::DirectConfig::production().fpss_hosts;
+//! let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
 //! let client = FpssClient::connect(&creds, &hosts, 4096, Default::default(), Default::default(), true, |event: &FpssEvent| {
 //!     // Runs on the Disruptor consumer thread -- keep it fast.
 //!     // Push to your own queue for heavy processing.
@@ -192,7 +192,7 @@ impl FpssClient {
     /// Source: `FPSSClient.connect()` and `FPSSClient.sendCredentials()`.
     /// Connect to FPSS streaming servers.
     ///
-    /// `hosts` is the FPSS server list from [`crate::config::DirectConfig::fpss_hosts`].
+    /// `hosts` is the FPSS server list from [`crate::config::FpssConfig::hosts`].
     /// Servers are tried in order until one connects.
     ///
     /// `policy` controls auto-reconnect behavior after involuntary disconnect.

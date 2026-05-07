@@ -138,7 +138,7 @@ pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode:
             return;
         }
         let config = unsafe { &mut *config };
-        config.inner.fpss_flush_mode = match mode {
+        config.inner.fpss.flush_mode = match mode {
             1 => thetadatadx::FpssFlushMode::Immediate,
             _ => thetadatadx::FpssFlushMode::Batched,
         };
@@ -156,7 +156,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_policy(config: *mut TdxConfig,
             return;
         }
         let config = unsafe { &mut *config };
-        config.inner.reconnect_policy = match policy {
+        config.inner.reconnect.policy = match policy {
             1 => thetadatadx::ReconnectPolicy::Manual,
             _ => thetadatadx::ReconnectPolicy::Auto,
         };
@@ -174,7 +174,7 @@ pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, en
             return;
         }
         let config = unsafe { &mut *config };
-        config.inner.derive_ohlcvc = enabled != 0;
+        config.inner.fpss.derive_ohlcvc = enabled != 0;
     })
 }
 

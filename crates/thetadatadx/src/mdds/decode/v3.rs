@@ -1,0 +1,339 @@
+//! Hand-written parsers for v3 MDDS payload shapes that the macro-generated
+//! parser cannot model directly.
+//!
+//! v3 publishes some columns as text (ISO dates, "PUT"/"CALL" rights, the
+//! calendar `type` column) where the schema would otherwise expect numeric
+//! cells. The hand-written parsers here dispatch on the cell's own wire
+//! type, surfacing mismatches as [`DecodeError::TypeMismatch`] rather than
+//! coalescing silently.
+
+use crate::proto;
+use tdbe::types::tick::{CalendarDay, OptionContract};
+
+use super::cell::{cell_type, row_price_f64, row_text};
+use super::error::{observed_name, DecodeError};
+use super::headers::find_header;
+
+/// Hand-written parser for `OptionContract` that handles the v3 server's
+/// text-formatted fields (expiration as ISO date, right as "PUT"/"CALL").
+///
+/// The `expiration` and `right` columns legitimately arrive as either `Number`
+/// or `Text` depending on the upstream version, so the parser dispatches on
+/// the cell's own type rather than coalescing silently. Mismatched types
+/// propagate as [`DecodeError::TypeMismatch`].
+///
+/// # Errors
+///
+/// Returns [`DecodeError`] on type mismatch or missing cell.
+pub fn parse_option_contracts_v3(
+    table: &crate::proto::DataTable,
+) -> Result<Vec<OptionContract>, DecodeError> {
+    let h: Vec<&str> = table
+        .headers
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
+
+    // Same schema-drift guard as the generated parsers: "no contracts today"
+    // is legitimate, but a rows-present response missing the required `root`
+    // column is a silent data-loss trap. The wire column is still named
+    // `root` (or `symbol` via the v3 alias in `decode::HEADER_ALIASES`); the
+    // `symbol` binding here is the public-API field name documented in the
+    // v3 vendor migration guide.
+    let symbol_idx = match find_header(&h, "root") {
+        Some(i) => i,
+        None => {
+            if table.data_table.is_empty() {
+                return Ok(vec![]);
+            }
+            return Err(DecodeError::MissingRequiredHeader {
+                header: "root",
+                rows: table.data_table.len(),
+                available: h.join(","),
+            });
+        }
+    };
+    let exp_idx = find_header(&h, "expiration");
+    let strike_idx = find_header(&h, "strike");
+    let right_idx = find_header(&h, "right");
+
+    table
+        .data_table
+        .iter()
+        .map(|row| {
+            let symbol = row_text(row, symbol_idx)?.unwrap_or_default();
+
+            // Expiration: `Number` carries YYYYMMDD directly; `Text` carries
+            // an ISO "2026-04-13" that we parse here. `NullValue` → 0 (legit
+            // null, coalesce). An unset oneof is a wire anomaly → TypeMismatch.
+            let expiration = match exp_idx {
+                Some(i) => match cell_type(row, i)? {
+                    Some(proto::data_value::DataType::Number(n)) => *n as i32,
+                    Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s),
+                    Some(proto::data_value::DataType::NullValue(_)) => 0,
+                    None => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Text",
+                            observed: "Unset",
+                        });
+                    }
+                    other => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Text",
+                            observed: observed_name(other),
+                        });
+                    }
+                },
+                None => 0,
+            };
+
+            let strike = match strike_idx {
+                Some(i) => row_price_f64(row, i)?.unwrap_or(0.0),
+                None => 0.0,
+            };
+
+            // Right: `Number` carries the ASCII code directly; `Text` carries
+            // "PUT"/"CALL"/"P"/"C". `NullValue` / unknown text → 0. An unset
+            // oneof is a wire anomaly → TypeMismatch.
+            let right = match right_idx {
+                Some(i) => match cell_type(row, i)? {
+                    Some(proto::data_value::DataType::Number(n)) => *n as i32,
+                    Some(proto::data_value::DataType::Text(s)) => match s.as_str() {
+                        "CALL" | "C" => 67, // ASCII 'C'
+                        "PUT" | "P" => 80,  // ASCII 'P'
+                        _ => 0,
+                    },
+                    Some(proto::data_value::DataType::NullValue(_)) => 0,
+                    None => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Text",
+                            observed: "Unset",
+                        });
+                    }
+                    other => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Text",
+                            observed: observed_name(other),
+                        });
+                    }
+                },
+                None => 0,
+            };
+
+            Ok(OptionContract {
+                symbol,
+                expiration,
+                strike,
+                right,
+            })
+        })
+        .collect()
+}
+
+/// Parse an ISO date string "2026-04-13" to YYYYMMDD integer 20260413.
+// Reason: date parsing with known-safe integer ranges.
+#[allow(clippy::cast_possible_truncation, clippy::missing_panics_doc)]
+pub(crate) fn parse_iso_date(s: &str) -> i32 {
+    // Fast path: already numeric (YYYYMMDD)
+    if let Ok(n) = s.parse::<i32>() {
+        return n;
+    }
+    // ISO format: YYYY-MM-DD
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.len() == 3 {
+        if let (Ok(y), Ok(m), Ok(d)) = (
+            parts[0].parse::<i32>(),
+            parts[1].parse::<i32>(),
+            parts[2].parse::<i32>(),
+        ) {
+            return y * 10_000 + m * 100 + d;
+        }
+    }
+    0
+}
+
+/// Parse a time string "HH:MM:SS" to milliseconds from midnight.
+pub(crate) fn parse_time_text(s: &str) -> i32 {
+    let parts: Vec<&str> = s.split(':').collect();
+    if parts.len() == 3 {
+        if let (Ok(h), Ok(m), Ok(sec)) = (
+            parts[0].parse::<i32>(),
+            parts[1].parse::<i32>(),
+            parts[2].parse::<i32>(),
+        ) {
+            return (h * 3_600 + m * 60 + sec) * 1_000;
+        }
+    }
+    0
+}
+
+/// Calendar day status constants.
+///
+/// The v3 MDDS server sends a `type` column with text values. We map them to
+/// integer constants for the `CalendarDay.status` field:
+///
+/// | Server text    | Constant | Meaning                           |
+/// |----------------|----------|-----------------------------------|
+/// | `"open"`       | `0`      | Normal trading day                |
+/// | `"early_close"`| `1`      | Early close (e.g. day after Thanksgiving) |
+/// | `"full_close"` | `2`      | Market closed (holiday)           |
+/// | `"weekend"`    | `3`      | Weekend                           |
+/// | (unknown)      | `-1`     | Unrecognized status text          |
+pub const CALENDAR_STATUS_OPEN: i32 = 0;
+pub const CALENDAR_STATUS_EARLY_CLOSE: i32 = 1;
+pub const CALENDAR_STATUS_FULL_CLOSE: i32 = 2;
+pub const CALENDAR_STATUS_WEEKEND: i32 = 3;
+pub const CALENDAR_STATUS_UNKNOWN: i32 = -1;
+
+/// Map a v3 calendar `type` text to `(is_open, status)`.
+fn calendar_type_text(s: &str) -> (i32, i32) {
+    match s {
+        "open" => (1, CALENDAR_STATUS_OPEN),
+        "early_close" => (1, CALENDAR_STATUS_EARLY_CLOSE),
+        "full_close" => (0, CALENDAR_STATUS_FULL_CLOSE),
+        "weekend" => (0, CALENDAR_STATUS_WEEKEND),
+        _ => (0, CALENDAR_STATUS_UNKNOWN),
+    }
+}
+
+/// Hand-written parser for `CalendarDay` that handles the v3 server's
+/// text-formatted fields.
+///
+/// The v3 MDDS server sends calendar data with different column names and types
+/// than the generated parser expects:
+///
+/// | Schema field | Server header | Server type | Mapping                               |
+/// |--------------|---------------|-------------|---------------------------------------|
+/// | `date`       | `date`        | Text        | "2025-01-01" -> 20250101              |
+/// | `is_open`    | `type`        | Text        | "`open"/"early_close`" -> 1, else -> 0  |
+/// | `open_time`  | `open`        | Text / Null | "09:30:00" -> 34200000 ms             |
+/// | `close_time` | `close`       | Text / Null | "16:00:00" -> 57600000 ms             |
+/// | `status`     | `type`        | Text        | See [`CALENDAR_STATUS_OPEN`] etc.     |
+///
+/// Note: `calendar_on_date` and `calendar_open_today` omit the `date` column.
+/// Each column dispatches on the cell's own type rather than coalescing
+/// silently — mismatched types propagate as [`DecodeError::TypeMismatch`].
+///
+/// # Errors
+///
+/// Returns [`DecodeError`] on type mismatch or missing cell.
+pub fn parse_calendar_days_v3(
+    table: &crate::proto::DataTable,
+) -> Result<Vec<CalendarDay>, DecodeError> {
+    let h: Vec<&str> = table
+        .headers
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
+
+    let date_idx = h.iter().position(|&s| s == "date");
+    let type_idx = h.iter().position(|&s| s == "type");
+    let open_idx = h.iter().position(|&s| s == "open");
+    let close_idx = h.iter().position(|&s| s == "close");
+
+    table
+        .data_table
+        .iter()
+        .map(|row| {
+            // date: Number carries YYYYMMDD, Timestamp converts to ET date,
+            // Text "2025-01-01" parses to YYYYMMDD. `NullValue` → 0 (legit
+            // null). Unset oneof is a wire anomaly → TypeMismatch.
+            let date = match date_idx {
+                Some(i) => match cell_type(row, i)? {
+                    Some(proto::data_value::DataType::Number(n)) => *n as i32,
+                    Some(proto::data_value::DataType::Timestamp(ts)) => {
+                        tdbe::time::timestamp_to_date(ts.epoch_ms)
+                    }
+                    Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s),
+                    Some(proto::data_value::DataType::NullValue(_)) => 0,
+                    None => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Timestamp|Text",
+                            observed: "Unset",
+                        });
+                    }
+                    other => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Number|Timestamp|Text",
+                            observed: observed_name(other),
+                        });
+                    }
+                },
+                None => 0,
+            };
+
+            // type: Text "open"/"full_close"/"early_close"/"weekend"; Number
+            // kept as a future-proofing path. `NullValue` → (0, 0). Unset
+            // oneof is a wire anomaly → TypeMismatch.
+            let (is_open, status) = match type_idx {
+                Some(i) => match cell_type(row, i)? {
+                    Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s),
+                    Some(proto::data_value::DataType::Number(n)) => {
+                        let n = *n as i32;
+                        (i32::from(n != 0), n)
+                    }
+                    Some(proto::data_value::DataType::NullValue(_)) => (0, 0),
+                    None => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Text|Number",
+                            observed: "Unset",
+                        });
+                    }
+                    other => {
+                        return Err(DecodeError::TypeMismatch {
+                            column: i,
+                            expected: "Text|Number",
+                            observed: observed_name(other),
+                        });
+                    }
+                },
+                None => (0, 0),
+            };
+
+            let open_time = decode_calendar_time(row, open_idx)?;
+            let close_time = decode_calendar_time(row, close_idx)?;
+
+            Ok(CalendarDay {
+                date,
+                is_open,
+                open_time,
+                close_time,
+                status,
+            })
+        })
+        .collect()
+}
+
+/// Decode a calendar `open`/`close` column. `Text "HH:MM:SS"` → ms-of-day;
+/// `Number` kept as future-proofing. `NullValue` / absent column → 0. An unset
+/// oneof is a wire anomaly → [`DecodeError::TypeMismatch`].
+fn decode_calendar_time(
+    row: &proto::DataValueList,
+    idx: Option<usize>,
+) -> Result<i32, DecodeError> {
+    let Some(i) = idx else {
+        return Ok(0);
+    };
+    match cell_type(row, i)? {
+        Some(proto::data_value::DataType::Text(s)) => Ok(parse_time_text(s)),
+        Some(proto::data_value::DataType::Number(n)) => Ok(*n as i32),
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(0),
+        None => Err(DecodeError::TypeMismatch {
+            column: i,
+            expected: "Text|Number",
+            observed: "Unset",
+        }),
+        other => Err(DecodeError::TypeMismatch {
+            column: i,
+            expected: "Text|Number",
+            observed: observed_name(other),
+        }),
+    }
+}

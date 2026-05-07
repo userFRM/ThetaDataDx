@@ -166,7 +166,8 @@ impl Credentials {
 // `frozen` + `skip_from_py_object` matches every generated pyclass: the
 // outer handle is immutable from Rust's perspective (no `&mut self` across
 // the GIL), while the inner `DirectConfig` is guarded by a `Mutex` so
-// Python-side setters (`config.reconnect_policy = "auto"`) still mutate in
+// Python-side setters (`config.reconnect_policy = "auto"`) still mutate the
+// underlying nested `DirectConfig` in
 // place. Python-side semantics are unchanged.
 
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
@@ -218,7 +219,7 @@ impl Config {
             }
         };
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.reconnect_policy = parsed;
+        guard.reconnect.policy = parsed;
         Ok(())
     }
 
@@ -226,7 +227,7 @@ impl Config {
     #[getter]
     fn get_reconnect_policy(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        match guard.reconnect_policy {
+        match guard.reconnect.policy {
             config::ReconnectPolicy::Auto => "auto",
             config::ReconnectPolicy::Manual => "manual",
             config::ReconnectPolicy::Custom(_) => "custom",
@@ -240,23 +241,23 @@ impl Config {
     #[setter]
     fn set_derive_ohlcvc(&self, enabled: bool) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.derive_ohlcvc = enabled;
+        guard.fpss.derive_ohlcvc = enabled;
     }
 
     /// Get the current OHLCVC derivation setting.
     #[getter]
     fn get_derive_ohlcvc(&self) -> bool {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.derive_ohlcvc
+        guard.fpss.derive_ohlcvc
     }
 
     fn __repr__(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         format!(
             "Config(mdds={}:{}, fpss_hosts={})",
-            guard.mdds_host,
-            guard.mdds_port,
-            guard.fpss_hosts.len()
+            guard.mdds.host,
+            guard.mdds.port,
+            guard.fpss.hosts.len()
         )
     }
 }

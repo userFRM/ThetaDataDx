@@ -33,7 +33,7 @@ use crate::config::DirectConfig;
 
 /// Install the Prometheus exporter using the port configured on
 /// `config`. Returns `Ok(())` when the feature is disabled or when
-/// `config.metrics_port` is `None` — callers don't need to guard at
+/// `config.metrics.port` is `None` — callers don't need to guard at
 /// every call site.
 ///
 /// # Errors
@@ -42,7 +42,7 @@ use crate::config::DirectConfig;
 /// to the configured port. Re-installation in the same process logs a
 /// warning and returns `Ok(())`.
 pub fn try_install_exporter(config: &DirectConfig) -> Result<(), crate::error::Error> {
-    let Some(port) = config.metrics_port else {
+    let Some(port) = config.metrics.port else {
         return Ok(());
     };
     install_exporter_impl(port)
@@ -96,13 +96,13 @@ mod tests {
     #[test]
     fn try_install_noop_when_metrics_port_none() {
         let config = DirectConfig::production_defaults();
-        assert!(config.metrics_port.is_none());
+        assert!(config.metrics.port.is_none());
         try_install_exporter(&config).expect("must be a no-op");
     }
 
     #[test]
     fn with_metrics_port_builder_sets_port() {
         let config = DirectConfig::production_defaults().with_metrics_port(9090);
-        assert_eq!(config.metrics_port, Some(9090));
+        assert_eq!(config.metrics.port, Some(9090));
     }
 }

@@ -90,10 +90,10 @@ impl MddsClient {
     /// Returns an error on network, authentication, or parsing failure.
     pub async fn connect(creds: &Credentials, config: DirectConfig) -> Result<Self, Error> {
         // Step 1: Authenticate against Nexus API using the configured URL
-        // (env-var / builder overridable). `config.nexus_url` already
+        // (env-var / builder overridable). `config.auth.nexus_url` already
         // reflects that precedence via `DirectConfig::production()`.
-        tracing::info!(nexus_url = %config.nexus_url, "authenticating with Nexus API");
-        let auth_resp = auth::authenticate_at(&config.nexus_url, creds).await?;
+        tracing::info!(nexus_url = %config.auth.nexus_url, "authenticating with Nexus API");
+        let auth_resp = auth::authenticate_at(&config.auth.nexus_url, creds).await?;
         let session_uuid = auth_resp.session_id.clone();
 
         tracing::debug!(
@@ -108,17 +108,17 @@ impl MddsClient {
 
         let endpoint = tonic::transport::Channel::from_shared(mdds_uri.clone())
             .map_err(|e| Error::Config(format!("invalid MDDS URI '{mdds_uri}': {e}")))?
-            .keep_alive_timeout(Duration::from_secs(config.mdds_keepalive_timeout_secs))
-            .http2_keep_alive_interval(Duration::from_secs(config.mdds_keepalive_secs))
+            .keep_alive_timeout(Duration::from_secs(config.mdds.keepalive_timeout_secs))
+            .http2_keep_alive_interval(Duration::from_secs(config.mdds.keepalive_secs))
             .initial_stream_window_size(
-                u32::try_from(config.mdds_window_size_kb * 1024).unwrap_or(u32::MAX),
+                u32::try_from(config.mdds.window_size_kb * 1024).unwrap_or(u32::MAX),
             )
             .initial_connection_window_size(
-                u32::try_from(config.mdds_connection_window_size_kb * 1024).unwrap_or(u32::MAX),
+                u32::try_from(config.mdds.connection_window_size_kb * 1024).unwrap_or(u32::MAX),
             )
-            .connect_timeout(Duration::from_secs(10));
+            .connect_timeout(Duration::from_secs(config.mdds.connect_timeout_secs));
 
-        let endpoint = if config.mdds_tls {
+        let endpoint = if config.mdds.tls {
             endpoint.tls_config(tonic::transport::ClientTlsConfig::new().with_enabled_roots())?
         } else {
             endpoint
@@ -134,28 +134,28 @@ impl MddsClient {
 
         // Auto-detect concurrency from subscription tier when config is 0.
         // Source: Java terminal uses 2^subscription_tier (FREE=1, VALUE=2, STANDARD=4, PRO=8).
-        let concurrent = if config.mdds_concurrent_requests == 0 {
+        let concurrent = if config.mdds.concurrent_requests == 0 {
             auth_resp
                 .user
                 .as_ref()
                 .map_or(2, crate::auth::nexus::AuthUser::max_concurrent_requests)
         } else {
-            config.mdds_concurrent_requests
+            config.mdds.concurrent_requests
         };
 
         let request_semaphore = Arc::new(tokio::sync::Semaphore::new(concurrent));
 
         tracing::debug!(
             mdds_concurrent_requests = concurrent,
-            auto_detected = config.mdds_concurrent_requests == 0,
+            auto_detected = config.mdds.concurrent_requests == 0,
             "request semaphore initialized"
         );
 
         let stock_tier = auth_resp.user.as_ref().and_then(|u| u.stock_subscription);
         let options_tier = auth_resp.user.as_ref().and_then(|u| u.options_subscription);
 
-        let session = SessionToken::new(session_uuid, config.nexus_url.clone(), creds.clone());
-        let client_type = config.client_type.clone();
+        let session = SessionToken::new(session_uuid, config.auth.nexus_url.clone(), creds.clone());
+        let client_type = config.auth.client_type.clone();
 
         Ok(Self {
             session,
@@ -214,7 +214,7 @@ impl MddsClient {
         BetaThetaTerminalClient::new(self.channel.clone())
             // MDDS can return large DataTables (e.g. full day of trades).
             // Uses the config-specified max message size.
-            .max_decoding_message_size(self.config.mdds_max_message_size)
+            .max_decoding_message_size(self.config.mdds.max_message_size)
     }
 
     /// Return a reference to the underlying config for diagnostics.
