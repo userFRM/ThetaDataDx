@@ -277,17 +277,18 @@ time.sleep(60)
 tdx.stop_streaming()
 ```
 
-You can also subscribe to per-contract streams if you only need specific symbols rather than the full firehose.
+You can also subscribe to per-contract streams if you only need specific symbols rather than the full-stream subscription.
 
 #### Streaming buffering — Pattern A (`collections.deque`) vs Pattern B (`queue.Queue`)
 
 Both patterns drain the SDK callback into a Python-native data
 structure so business logic runs off the GIL-acquisition hot path.
-Pattern A is the institutional default — it matches the Bloomberg
-BLPAPI direct-callback shape and runs ~2-5x faster than Pattern B
-because `deque.append`/`popleft` are GIL-atomic single ops with no
-condition-variable wake-up. Pattern B is the right pick when the
-consumer needs cross-thread blocking `get()` semantics.
+Pattern A is the institutional default — it matches the
+direct-callback shape used by every major market-data vendor's native
+API and runs ~2-5x faster than Pattern B because `deque.append` /
+`popleft` are GIL-atomic single ops with no condition-variable
+wake-up. Pattern B is the right pick when the consumer needs
+cross-thread blocking `get()` semantics.
 
 ```python
 # Pattern A — collections.deque (lowest overhead, ring-buffer drop-oldest)

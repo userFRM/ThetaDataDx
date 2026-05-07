@@ -122,8 +122,8 @@ pub use self::session::reconnect_delay;
 
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
-use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::thread::{self, JoinHandle, ThreadId};
 use std::time::Duration;
 
 use crate::auth::Credentials;
@@ -222,6 +222,24 @@ impl<'a> Default for FpssConnectArgs<'a> {
     }
 }
 
+/// Selector for the test-only [`FpssClient::for_self_join_test`]
+/// constructor's pre-burst path. Lets soak tests pick between
+/// blocking `publish` (matches handshake-time control-frame emission)
+/// and non-blocking `try_publish` (matches the live data path that
+/// drives the public `dropped_count`).
+#[cfg(any(test, feature = "test-harness"))]
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy)]
+pub enum HarnessPublishMode {
+    /// Pre-publish via `Producer::publish` on the spawning thread —
+    /// never overflows, suitable for the self-join repro.
+    BlockingPublish,
+    /// Burst on the I/O thread via `Producer::try_publish`,
+    /// incrementing the shared `dropped` counter on every rejection
+    /// the same way `io_loop` does on the live reader path.
+    TryPublishBurst,
+}
+
 // ---------------------------------------------------------------------------
 // FpssClient
 // ---------------------------------------------------------------------------
@@ -274,6 +292,18 @@ pub struct FpssClient {
     /// Disruptor consumer's `catch_unwind` boundary. Snapshot via
     /// [`FpssClient::panic_count`].
     panics: Arc<AtomicU64>,
+    /// `ThreadId` of the Disruptor consumer thread, captured on first
+    /// invocation of the consumer closure. Read by [`Drop`] to detect
+    /// the **self-join** case: when the user callback (running on the
+    /// consumer thread) drops the last `Arc<FpssClient>`, we cannot
+    /// `JoinHandle::join` the I/O thread inline because that join
+    /// transitively joins the consumer thread itself — the very thread
+    /// running `Drop`. In that case [`Drop`] detaches the join onto a
+    /// helper thread; cleanup still completes, callers just observe
+    /// completion via [`FpssClient::is_streaming`] or
+    /// [`ThetaDataDx::is_streaming`] returning `false` rather than
+    /// blocking on `Drop`.
+    consumer_thread_id: Arc<OnceLock<ThreadId>>,
 }
 
 impl FpssClient {
@@ -421,6 +451,11 @@ impl FpssClient {
         > = Arc::new(Mutex::new(Vec::new()));
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
+        // Captured by the Disruptor consumer closure on first dispatch
+        // and read by `FpssClient::drop` to break the self-join cycle
+        // (callback -> stop_streaming -> drop FpssClient -> join io
+        // thread -> drop producer -> join consumer thread = self).
+        let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
 
         // Command channel: FpssClient -> I/O thread
         let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
@@ -438,6 +473,7 @@ impl FpssClient {
         let io_active_full_subs = Arc::clone(&active_full_subs);
         let io_dropped = Arc::clone(&dropped);
         let io_panics = Arc::clone(&panics);
+        let io_consumer_thread_id = Arc::clone(&consumer_thread_id);
 
         let io_handle = thread::Builder::new()
             .name("fpss-io".to_owned())
@@ -461,6 +497,7 @@ impl FpssClient {
                     io_active_full_subs,
                     io_dropped,
                     io_panics,
+                    io_consumer_thread_id,
                 );
             })
             .map_err(|e| Error::Fpss {
@@ -494,6 +531,7 @@ impl FpssClient {
             server_addr,
             dropped,
             panics,
+            consumer_thread_id,
         })
     }
 
@@ -902,6 +940,143 @@ impl FpssClient {
         Ok(())
     }
 
+    /// Test-only constructor that wires up the same Disruptor +
+    /// I/O-thread topology as [`Self::connect_with_stream`] **without**
+    /// touching the network. It exists to drive the `Drop` self-join
+    /// guard from `tests/streaming_soak.rs` against the real
+    /// `FpssClient` instance and the real `consumer_thread_id`
+    /// plumbing, not a mock of either.
+    ///
+    /// Topology:
+    /// - The user `handler` runs on the Disruptor consumer thread,
+    ///   under `catch_unwind`, exactly like `io_loop`.
+    /// - The fake "I/O thread" runs a [`mode`]-dependent burst loop
+    ///   (`publish` blocking or `try_publish` non-blocking, mirroring
+    ///   `io_loop`'s data path) and idles on the shutdown signal.
+    /// - `try_publish` failures increment the same `dropped`
+    ///   `Arc<AtomicU64>` the public [`Self::dropped_count`] reads,
+    ///   so soak tests can assert on the public surface.
+    /// - `Drop` reads `consumer_thread_id` and runs the same
+    ///   self-join guard as the production path.
+    ///
+    /// `n_burst_events` synthetic `FpssEvent::Control(MarketOpen)`
+    /// frames are pushed via [`HarnessPublishMode`].
+    #[cfg(any(test, feature = "test-harness"))]
+    #[doc(hidden)]
+    pub fn for_self_join_test<F>(
+        n_burst_events: usize,
+        ring_size: usize,
+        mode: HarnessPublishMode,
+        handler: F,
+    ) -> Arc<Self>
+    where
+        F: FnMut(&FpssEvent) + Send + 'static,
+    {
+        use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
+
+        use self::ring::RingEvent;
+
+        let ring_size = ring::next_power_of_two(ring_size.max(ring::MIN_RING_SIZE));
+
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let authenticated = Arc::new(AtomicBool::new(true));
+        let active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>> =
+            Arc::new(Mutex::new(Vec::new()));
+        let active_full_subs: Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>> =
+            Arc::new(Mutex::new(Vec::new()));
+        let dropped = Arc::new(AtomicU64::new(0));
+        let panics = Arc::new(AtomicU64::new(0));
+        let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
+
+        let (cmd_tx, _cmd_rx) = std_mpsc::channel::<IoCommand>();
+
+        let handler_cell = Mutex::new(handler);
+        let panics_consumer = Arc::clone(&panics);
+        let consumer_thread_id_cell = Arc::clone(&consumer_thread_id);
+
+        let factory = || RingEvent { event: None };
+        let mut producer = build_single_producer(ring_size, factory, BusySpin)
+            .handle_events_with(move |slot: &RingEvent, _seq: Sequence, _eob: bool| {
+                consumer_thread_id_cell.get_or_init(|| thread::current().id());
+                if let Some(ref evt) = slot.event {
+                    match evt {
+                        FpssEvent::Empty | FpssEvent::RawData { .. } => {}
+                        _ => {
+                            let mut h = handler_cell
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner);
+                            if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| h(evt)))
+                                .is_err()
+                            {
+                                panics_consumer.fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                    }
+                }
+            })
+            .build();
+
+        // Pre-burst on the spawning thread: blocking publishes never
+        // overflow, so this path is for the self-join repro that just
+        // needs the callback to fire. Try-publish bursts run on the
+        // io thread below so the test can race the producer against a
+        // gated consumer the same way the real reader thread does.
+        if matches!(mode, HarnessPublishMode::BlockingPublish) {
+            for _ in 0..n_burst_events {
+                producer.publish(|slot| {
+                    slot.event = Some(FpssEvent::Control(FpssControl::MarketOpen));
+                });
+            }
+        }
+
+        // Fake I/O thread: in `TryPublishBurst` mode, push the burst
+        // via `try_publish` exactly like `io_loop` does on the real
+        // TLS reader path, incrementing the shared `dropped` counter
+        // on every overflow rejection. Then park until shutdown and
+        // drop the producer (producer-drop joins the consumer, the
+        // exact transitive dependency that creates the self-join
+        // hazard in the production exit path).
+        let io_shutdown = Arc::clone(&shutdown);
+        let io_dropped = Arc::clone(&dropped);
+        let io_burst = n_burst_events;
+        let io_handle = thread::Builder::new()
+            .name("fpss-io-test".to_owned())
+            .spawn(move || {
+                if matches!(mode, HarnessPublishMode::TryPublishBurst) {
+                    for _ in 0..io_burst {
+                        if producer
+                            .try_publish(|slot| {
+                                slot.event = Some(FpssEvent::Control(FpssControl::MarketOpen));
+                            })
+                            .is_err()
+                        {
+                            io_dropped.fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                }
+                while !io_shutdown.load(Ordering::Acquire) {
+                    thread::sleep(Duration::from_millis(5));
+                }
+                drop(producer);
+            })
+            .expect("failed to spawn fpss-io-test thread");
+
+        Arc::new(FpssClient {
+            cmd_tx: Mutex::new(cmd_tx),
+            io_handle: Some(io_handle),
+            ping_handle: None,
+            shutdown,
+            authenticated,
+            next_req_id: AtomicI32::new(1),
+            active_subs,
+            active_full_subs,
+            server_addr: "test://self-join".to_owned(),
+            dropped,
+            panics,
+            consumer_thread_id,
+        })
+    }
+
     /// Send a command to the I/O thread. Maps channel-send failure to a
     /// `Disconnected` FPSS error.
     pub(in crate::fpss) fn send_cmd(&self, cmd: IoCommand) -> Result<(), Error> {
@@ -923,11 +1098,74 @@ impl Drop for FpssClient {
         // Send shutdown command so I/O thread exits its loop.
         let _ = self.send_cmd(IoCommand::Shutdown);
 
-        // Join background threads.
-        if let Some(h) = self.ping_handle.take() {
+        // Self-join guard.
+        //
+        // The exit path of the I/O thread drops the Disruptor producer
+        // (`crates/thetadatadx/src/fpss/io_loop/mod.rs:640`), and
+        // `disruptor::Producer::drop` joins the consumer thread
+        // (`disruptor` 4.x `single.rs`). So `self.io_handle.join()`
+        // transitively joins the consumer thread.
+        //
+        // If `Drop` is running on either of those threads — the I/O
+        // thread itself, or the Disruptor consumer thread (the thread
+        // running the user callback) — joining the I/O handle inline
+        // would block the very thread cleanup needs to complete on,
+        // producing a self-join deadlock. The consumer-thread case is
+        // load-bearing: a user callback that calls
+        // `ThetaDataDx::stop_streaming()` swaps the live slot to
+        // `Stopped` and drops the last `Arc<FpssClient>` while running
+        // on the consumer thread.
+        //
+        // Detach the join onto a helper thread in those cases. Cleanup
+        // still completes; observers see `is_streaming()` flip to
+        // `false` once the helper finishes, instead of `Drop` blocking
+        // forever.
+        let cur = thread::current().id();
+        let consumer_id = self.consumer_thread_id.get().copied();
+
+        // Take both handles up-front so the helper-thread path can move
+        // them into the detached closure.
+        let ping_handle = self.ping_handle.take();
+        let io_handle = self.io_handle.take();
+
+        let io_handle_thread_id = io_handle.as_ref().map(|h| h.thread().id());
+
+        let self_join = io_handle_thread_id == Some(cur) || consumer_id == Some(cur);
+
+        if self_join {
+            // Detach on a fresh thread so the consumer thread (or the
+            // I/O thread itself) is not blocked waiting on its own
+            // termination.
+            let detached = thread::Builder::new()
+                .name("fpss-shutdown-detach".to_owned())
+                .spawn(move || {
+                    if let Some(h) = ping_handle {
+                        let _ = h.join();
+                    }
+                    if let Some(h) = io_handle {
+                        let _ = h.join();
+                    }
+                });
+            if let Err(e) = detached {
+                tracing::warn!(
+                    error = %e,
+                    "failed to spawn fpss-shutdown-detach; handles will be leaked rather than \
+                     attempting an inline join that would deadlock the current thread"
+                );
+                // Best-effort path: spawning a thread realistically only
+                // fails on catastrophic OOM / FD exhaustion. We choose
+                // to leak both handles (they were already moved out of
+                // `self`) rather than risk an inline join that would
+                // self-deadlock the consumer or I/O thread we are
+                // running on.
+            }
+            return;
+        }
+
+        if let Some(h) = ping_handle {
             let _ = h.join();
         }
-        if let Some(h) = self.io_handle.take() {
+        if let Some(h) = io_handle {
             let _ = h.join();
         }
     }

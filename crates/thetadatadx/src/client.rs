@@ -181,12 +181,22 @@ impl ThetaDataDx {
     ///    code (or from binding glue such as PyO3 / napi) is caught,
     ///    [`Self::panic_count`] increments, and the consumer keeps
     ///    delivering subsequent events.
+    /// 3. **Calling [`Self::stop_streaming`] from inside the callback
+    ///    is safe.** The callback runs on the Disruptor consumer
+    ///    thread, not on the thread that owns the [`FpssClient::drop`]
+    ///    join. When the swap to `Stopped` releases the last
+    ///    `Arc<FpssClient>` from inside the callback, `Drop` detects
+    ///    the self-join case (callback thread == consumer thread that
+    ///    the I/O thread's exit path joins) and detaches the join onto
+    ///    a helper thread. Cleanup completes asynchronously; observers
+    ///    see [`Self::is_streaming`] flip to `false` once the helper
+    ///    finishes, instead of `Drop` blocking forever.
     ///
     /// This is the default and only safe entry point for general use.
     /// The `expert-mode` feature flag exposes
     /// [`Self::start_streaming_inline`] for ultra-low-latency callers
-    /// who can guarantee a wait-free callback and accept that any
-    /// panic will tear down the FPSS reader thread.
+    /// who can guarantee a wait-free callback and accept the contracts
+    /// listed under that method's `# Future` heading.
     ///
     /// # Errors
     ///
@@ -230,38 +240,45 @@ impl ThetaDataDx {
     /// [`Self::start_streaming`] path covers every workload that is not
     /// a provably wait-free trading loop.
     ///
-    /// # Current semantics (post-#513)
+    /// # Current
     ///
-    /// After the single-queue rewrite tracked in #513 the user
-    /// callback now runs on the LMAX Disruptor consumer thread for
-    /// every entry point (one queue, one consumer, panic-isolated via
-    /// `catch_unwind`). This method delegates to the same pipeline as
-    /// [`Self::start_streaming`] — the previous "bypass the dispatcher"
-    /// shortcut no longer exists because there is no second queue to
-    /// bypass. The feature gate stays in place so a future revision
-    /// can introduce a true TLS-reader-direct path here without a
-    /// SemVer-breaking rename.
+    /// **`start_streaming_inline` and [`Self::start_streaming`]
+    /// currently deliver the user callback on the same thread — the
+    /// LMAX Disruptor consumer thread.** After the single-queue
+    /// rewrite tracked in #513, `start_streaming_inline` delegates to
+    /// the same pipeline as [`Self::start_streaming`] (one queue, one
+    /// consumer, panic-isolated via `catch_unwind`). The previous
+    /// "bypass the dispatcher" shortcut no longer exists because there
+    /// is no second queue to bypass.
     ///
-    /// # Forbidden operations on the eventual reader-thread path
+    /// The feature gate and method name stay in place so the future
+    /// path described below can ship without a SemVer-breaking rename.
     ///
-    /// The contract for any future inline dispatch — already
-    /// load-bearing on existing callers — is:
+    /// Calling [`Self::stop_streaming`] from inside the callback is
+    /// safe today: `FpssClient::Drop` detects the consumer-thread
+    /// self-join case via the `consumer_thread_id` field captured on
+    /// first dispatch and detaches the join onto a helper thread.
+    /// Cleanup completes asynchronously; observers see
+    /// [`Self::is_streaming`] flip to `false` once the helper finishes.
     ///
-    /// - **MUST NOT call [`Self::stop_streaming`] or
-    ///   [`Self::reconnect_streaming`] from inside the callback.**
-    ///   Doing so would drop the last `Arc<FpssClient>` on the same
-    ///   thread that [`crate::fpss::FpssClient::drop`](Drop) tries to
-    ///   join, causing a self-join deadlock. Use
-    ///   [`Self::start_streaming`] for any callback that drives the
-    ///   lifecycle.
-    /// - **MUST NOT block, allocate heavily, or hold locks.** The TLS
-    ///   reader loop owns reads, outbound command drain, and the ping
-    ///   heartbeat. A slow callback would starve all three — kernel
-    ///   TCP receive buffer fills, vendor disconnects the session,
+    /// # Future
+    ///
+    /// A future revision will run the user callback **directly on the
+    /// TLS reader thread**, bypassing the Disruptor ring entirely. On
+    /// that future path:
+    ///
+    /// - The `catch_unwind` boundary will not be present — an
+    ///   unhandled panic will terminate the reader thread and tear
+    ///   down the FPSS session.
+    /// - The reader thread owns reads, outbound command drain, and
+    ///   ping heartbeat dispatch. A blocking, allocating, or
+    ///   lock-holding callback will stall all three: kernel TCP
+    ///   receive buffer fills, the vendor disconnects the session,
     ///   every active subscription drops.
-    /// - **MUST NOT panic.** A future reader-thread path will not
-    ///   carry the consumer-thread `catch_unwind` boundary; an
-    ///   unhandled panic would terminate the reader.
+    /// - Calling [`Self::stop_streaming`] / [`Self::reconnect_streaming`]
+    ///   from inside the callback will be **forbidden**: the future
+    ///   path has no second thread to detach the join onto, so the
+    ///   self-join is unrecoverable rather than just asynchronous.
     ///
     /// Reach for this entry point only inside trading loops with
     /// statically-known wait-free callbacks. For Python / Node / Go

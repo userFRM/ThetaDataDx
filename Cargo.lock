@@ -3184,6 +3184,7 @@ dependencies = [
  "sha2",
  "subtle",
  "tdbe",
+ "thetadatadx",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",

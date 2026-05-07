@@ -69,7 +69,8 @@ where
     let panic_count = Arc::new(AtomicU64::new(0));
     let panic_count_consumer = Arc::clone(&panic_count);
 
-    let handler_cell: Mutex<Box<dyn FnMut(&FpssEvent) + Send>> = Mutex::new(Box::new(handler));
+    type BoxedHandler = Mutex<Box<dyn FnMut(&FpssEvent) + Send>>;
+    let handler_cell: BoxedHandler = Mutex::new(Box::new(handler));
 
     let producer = build_single_producer(ring_size, || Slot { event: None }, BusySpin)
         .handle_events_with(move |slot: &Slot, _seq: Sequence, _eob: bool| {
@@ -195,43 +196,116 @@ fn panicking_callback_does_not_kill_consumer() {
 
 #[test]
 fn callback_triggered_stop_does_not_self_join() {
-    // Models the contract that `start_streaming` callbacks run on the
-    // Disruptor consumer thread, which is NOT the thread that owns
-    // `FpssClient::Drop`'s `io_handle.join()`. A callback that
-    // requests shutdown (here: setting a flag and stopping production)
-    // must not deadlock; the producer drop on the test thread joins
-    // the consumer cleanly.
+    // Real reproducer for the self-join deadlock fixed in this branch.
+    //
+    // Live trace the test pins down:
+    //
+    //   1. User callback runs on the Disruptor consumer thread
+    //      (`crates/thetadatadx/src/fpss/io_loop/mod.rs` consumer
+    //      closure).
+    //   2. Callback drops the last `Arc<FpssClient>` it carries — the
+    //      live SDK does this via `ThetaDataDx::stop_streaming` swapping
+    //      `StreamingSlot::Live` to `StreamingSlot::Stopped`, which
+    //      releases the previous slot's `Arc<FpssClient>` on the
+    //      consumer thread.
+    //   3. Last `Arc<FpssClient>` drop runs `FpssClient::Drop`, which
+    //      previously called `io_handle.join()` unconditionally.
+    //   4. The I/O thread's exit path drops the Disruptor producer.
+    //   5. `disruptor::Producer::Drop` joins the consumer thread.
+    //   6. The consumer thread IS the thread running step (1). The
+    //      pre-fix `io_handle.join()` would block waiting for itself —
+    //      classic self-join deadlock.
+    //
+    // After the fix, `FpssClient::Drop` checks
+    // `consumer_thread_id == current().id()` and detaches the join
+    // onto a helper thread. Cleanup completes asynchronously; observers
+    // poll a flag (or `is_streaming()` on the unified path) to confirm.
+    //
+    // The watchdog below pins down regressions: if the deadlock returns
+    // the worker thread never exits and the watchdog fires within 5 s.
+    use std::sync::Mutex as StdMutex;
+    use thetadatadx::fpss::{FpssClient, HarnessPublishMode};
+
+    const WATCHDOG: Duration = Duration::from_secs(5);
     const RING: usize = 64;
+    const N_EVENTS: usize = 4;
 
-    let stop_requested = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let stop_cb = Arc::clone(&stop_requested);
+    let dropped_observed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let dropped_observed_main = Arc::clone(&dropped_observed);
 
-    let (mut producer, _panics) = build_consumer(RING, move |_event: &FpssEvent| {
-        // Simulate a callback that asks the SDK to shut down. With
-        // `start_streaming` this is sound because the callback is on
-        // the Disruptor consumer thread, separate from the TLS reader
-        // thread that `FpssClient::Drop` joins. The flag is the
-        // observable side effect; we just need to see it set without
-        // deadlock.
-        stop_cb.store(true, Ordering::Release);
+    // Hand the test-only `FpssClient::for_self_join_test` constructor
+    // a callback that drops the last `Arc<FpssClient>` from inside
+    // itself. The callback owns the Arc through a `Mutex<Option<...>>`
+    // so the first invocation can take it out and let it drop while
+    // the consumer thread is still running this very closure.
+    let (worker_done_tx, worker_done_rx) = std::sync::mpsc::channel::<()>();
+
+    let worker = thread::spawn(move || {
+        let arc_holder: Arc<StdMutex<Option<Arc<FpssClient>>>> = Arc::new(StdMutex::new(None));
+        let arc_holder_cb = Arc::clone(&arc_holder);
+        let dropped_observed_cb = Arc::clone(&dropped_observed);
+
+        let client = FpssClient::for_self_join_test(
+            N_EVENTS,
+            RING,
+            HarnessPublishMode::BlockingPublish,
+            move |_event: &FpssEvent| {
+                // Take the Arc out of the holder (idempotent). The
+                // first take leaves the holder empty; subsequent
+                // events are no-ops. Dropping the local `taken_arc`
+                // at end of scope releases what was the last
+                // `Arc<FpssClient>` reference, triggering
+                // `FpssClient::Drop` ON THE CONSUMER THREAD. That
+                // is the precise scenario the production
+                // `stop_streaming() inside the callback` flow
+                // produces.
+                let taken_arc = arc_holder_cb
+                    .lock()
+                    .expect("arc holder lock poisoned")
+                    .take();
+                if let Some(arc) = taken_arc {
+                    drop(arc);
+                    dropped_observed_cb.store(true, Ordering::Release);
+                }
+            },
+        );
+
+        // Stash the only outstanding `Arc<FpssClient>` reference into
+        // the holder so the callback can drop it. After this line,
+        // the consumer's closure owns the only path to the Arc.
+        *arc_holder.lock().expect("arc holder lock poisoned") = Some(client);
+
+        // Wait until the callback has observed at least one event +
+        // taken the Arc. Spin briefly so we don't hammer the lock.
+        let waited_until = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < waited_until {
+            if dropped_observed.load(Ordering::Acquire) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        worker_done_tx.send(()).expect("worker_done channel closed");
     });
 
-    // Push one event so the consumer fires the callback.
-    producer
-        .try_publish(|slot| {
-            slot.event = Some(event());
-        })
-        .expect("ring has room for one event");
+    // Watchdog: if the worker doesn't return within WATCHDOG, the
+    // self-join deadlock has reappeared. Fail loud.
+    match worker_done_rx.recv_timeout(WATCHDOG) {
+        Ok(()) => {}
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            panic!(
+                "self-join deadlock detected: worker did not return within {WATCHDOG:?} after \
+                 dropping the last Arc<FpssClient> from inside the Disruptor consumer callback",
+            );
+        }
+        Err(other) => panic!("worker channel error: {other:?}"),
+    }
 
-    // Drop the producer — this triggers the consumer-thread join.
-    // If the callback's "stop" had self-joined, this drop would
-    // deadlock; the test would hang past its default timeout. The
-    // assertion below executes only if drop returned cleanly.
-    drop(producer);
+    worker.join().expect("worker thread panicked");
 
     assert!(
-        stop_requested.load(Ordering::Acquire),
-        "callback must have observed the stop request",
+        dropped_observed_main.load(Ordering::Acquire),
+        "callback never observed an event — the test scenario did not reach the \
+         self-join code path",
     );
 }
 
@@ -290,4 +364,80 @@ fn burst_overload_drops_count_correctly() {
     // joins the consumer thread cleanly.
     drop(lock);
     drop(producer);
+}
+
+/// Same burst-overload contract as
+/// `burst_overload_drops_count_correctly`, but routed through the
+/// **public** counter on the real `FpssClient`
+/// (`FpssClient::dropped_count()`). The harness's I/O thread runs a
+/// `try_publish` burst against a gated consumer — the same shape as
+/// the live `io_loop` data path — and increments the same
+/// `Arc<AtomicU64>` the public getter reads.
+#[test]
+fn burst_overload_increments_public_dropped_count() {
+    use std::sync::Mutex as StdMutex;
+    use thetadatadx::fpss::{FpssClient, HarnessPublishMode};
+
+    const RING: usize = 64;
+    // Generous burst so that even with the consumer pulling one or
+    // two events before the gate stalls it, the post-ring overflow
+    // is unmistakable.
+    const N_BURST: usize = RING * 8;
+
+    let gate = Arc::new(StdMutex::new(()));
+    let gate_cb = Arc::clone(&gate);
+    let lock = gate.lock().expect("gate lock");
+
+    let client = FpssClient::for_self_join_test(
+        N_BURST,
+        RING,
+        HarnessPublishMode::TryPublishBurst,
+        move |_event: &FpssEvent| {
+            let _g = gate_cb.lock().expect("callback gate");
+        },
+    );
+
+    // Wait for the harness's I/O thread to finish its `try_publish`
+    // burst. The gate is still held, so the consumer is stalled
+    // mid-callback and the burst will end with the public counter
+    // pegged at the overflow count. Bound the wait so a regression
+    // in the harness path fails fast rather than hanging this test.
+    let waited_until = Instant::now() + Duration::from_secs(3);
+    let mut last_seen = client.dropped_count();
+    let mut stable_for = 0u32;
+    while Instant::now() < waited_until {
+        let now = client.dropped_count();
+        if now == last_seen && now > 0 {
+            stable_for += 1;
+            if stable_for >= 5 {
+                break;
+            }
+        } else {
+            stable_for = 0;
+            last_seen = now;
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+
+    let dropped = client.dropped_count();
+    assert!(
+        dropped > 0,
+        "public dropped_count must reflect try_publish overflow: dropped={dropped}, ring={RING}, burst={N_BURST}",
+    );
+
+    // Lower bound: the burst is N_BURST events, the ring holds RING
+    // slots, and the consumer is stalled on the gate (so it pulls at
+    // most ~RING + a small slack of events). Therefore drops must be
+    // at least N_BURST - RING - slack. Use a conservative slack of
+    // 2*RING to absorb Disruptor scheduling.
+    let lower_bound = (N_BURST.saturating_sub(2 * RING)) as u64;
+    assert!(
+        dropped >= lower_bound,
+        "public dropped_count={dropped} below expected lower bound {lower_bound} for burst={N_BURST} ring={RING}",
+    );
+
+    // Release the gate so the consumer drains; drop the Arc so the
+    // I/O thread shuts down and joins cleanly.
+    drop(lock);
+    drop(client);
 }

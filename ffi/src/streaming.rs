@@ -357,12 +357,14 @@ pub unsafe extern "C" fn tdx_unified_connect(
 
 /// Register a queued FPSS callback on the unified client and start streaming.
 ///
-/// `callback` is invoked from the dispatcher's drain thread for every
-/// FPSS event delivered by the FPSS reader. The reader thread pushes
-/// events onto a bounded `crossbeam_channel` queue (8192 slots) inside
-/// the SSOT `StreamingDispatcher`; on overflow the event is dropped and
-/// the per-handle drop counter (queryable via `tdx_unified_dropped_events`)
-/// ticks. The reader thread NEVER blocks on `callback`.
+/// `callback` is invoked from the LMAX Disruptor consumer thread for
+/// every FPSS event the reader pulls off the wire. Each invocation is
+/// wrapped in [`std::panic::catch_unwind`] so a C/C++ callback panic
+/// does not kill the consumer. The TLS reader publishes events into a
+/// pre-allocated ring via `Producer::try_publish`; on overflow the
+/// event is dropped and the per-handle drop counter (queryable via
+/// `tdx_unified_dropped_events`) ticks. The reader thread NEVER blocks
+/// on `callback`.
 ///
 /// # `ctx` lifetime + thread affinity
 ///
@@ -373,11 +375,11 @@ pub unsafe extern "C" fn tdx_unified_connect(
 /// `tdx_unified_set_inline_callback` replaces it. Pass NULL if the
 /// callback does not need a context.
 ///
-/// `ctx` is accessed from the dispatcher drain thread (NOT the FPSS
-/// reader thread). The dispatcher invokes `callback(event, ctx)`
-/// serially on a single drain thread, so the user does not need
-/// internal locks for callback-private state. Freeing `ctx` early is
-/// undefined behavior.
+/// `ctx` is accessed from the Disruptor consumer thread (NOT the FPSS
+/// TLS reader thread). The consumer invokes `callback(event, ctx)`
+/// serially on a single thread, so the user does not need internal
+/// locks for callback-private state. Freeing `ctx` early is undefined
+/// behavior.
 ///
 /// The `event` pointer handed to `callback` is valid only for the
 /// duration of that invocation. Copy any fields the consumer wants to
@@ -437,14 +439,33 @@ pub unsafe extern "C" fn tdx_unified_set_callback(
 
 /// Register an inline FPSS callback on the unified client and start streaming.
 ///
-/// `callback` fires directly on the FPSS reader thread, bypassing the
-/// dispatcher queue. Microsecond-budget contract: any allocation, I/O,
-/// lock acquisition, or runtime/GC interaction in the callback will
-/// stall the reader, fill the kernel TCP receive buffer, and cause the
-/// vendor session to drop. Use only for trading loops with provably
-/// wait-free callbacks.
+/// # Current
 ///
-/// For every other workload (Python/Node/Go bindings, file logging,
+/// `tdx_unified_set_inline_callback` and `tdx_unified_set_callback`
+/// **currently deliver `callback` on the same thread** — the LMAX
+/// Disruptor consumer thread, with each invocation wrapped in
+/// [`std::panic::catch_unwind`]. The post-#513 single-queue rewrite
+/// folded the previous inline path into the SSOT pipeline; this entry
+/// point is retained behind the core SDK's `expert-mode` feature gate
+/// so a future TLS-reader-direct path can ship without an ABI
+/// rename.
+///
+/// # Future
+///
+/// A future revision will run `callback` directly on the FPSS reader
+/// thread, bypassing the Disruptor ring entirely. On that future
+/// path:
+///
+/// - The `catch_unwind` boundary will not be present — an unhandled
+///   panic from the C callback will terminate the reader and tear
+///   down the FPSS session.
+/// - Microsecond-budget contract: any allocation, I/O, lock
+///   acquisition, or runtime/GC interaction in the callback will
+///   stall the reader, fill the kernel TCP receive buffer, and cause
+///   the vendor session to drop.
+///
+/// Use only for trading loops with provably wait-free callbacks. For
+/// every other workload (Python/Node/Go bindings, file logging,
 /// WebSocket fan-out), call `tdx_unified_set_callback` instead.
 ///
 /// # `ctx` lifetime + thread affinity
@@ -455,11 +476,12 @@ pub unsafe extern "C" fn tdx_unified_set_callback(
 /// or (b) a successful subsequent call to `tdx_unified_set_callback` /
 /// `tdx_unified_set_inline_callback` replaces it.
 ///
-/// `ctx` is accessed from the FPSS reader thread directly (NOT a
-/// dispatcher drain thread). The reader invokes `callback(event, ctx)`
-/// serially on a single thread, so the user does not need internal
-/// locks for callback-private state. Freeing `ctx` early is undefined
-/// behavior.
+/// Today `ctx` is accessed from the Disruptor consumer thread (the
+/// `# Current` shape above); on the eventual `# Future` path it will
+/// be accessed from the FPSS reader thread directly. Either way the
+/// invocation is serialised on a single thread, so the user does not
+/// need internal locks for callback-private state. Freeing `ctx`
+/// early is undefined behavior.
 ///
 /// # Lifecycle contract (REPLACEMENT after stop)
 ///
@@ -1447,8 +1469,8 @@ where
 ///
 /// `ctx` is an opaque pointer passed back unchanged on every invocation.
 /// It MUST remain valid from this call until either
-/// `tdx_fpss_shutdown` returns or `tdx_fpss_free` returns; the dispatcher
-/// drain thread accesses it on every event and on every
+/// `tdx_fpss_shutdown` returns or `tdx_fpss_free` returns; the
+/// Disruptor consumer thread accesses it on every event and on every
 /// `tdx_fpss_reconnect`. Freeing `ctx` before shutdown is undefined
 /// behavior.
 ///
@@ -1515,21 +1537,41 @@ pub unsafe extern "C" fn tdx_fpss_set_callback(
 
 /// Register an inline FPSS callback and open the FPSS connection.
 ///
-/// `callback` fires directly on the FPSS reader thread, bypassing the
-/// dispatcher queue. Microsecond-budget contract: any allocation, I/O,
-/// lock acquisition, or runtime/GC interaction will stall the reader,
-/// fill the kernel TCP receive buffer, and cause the vendor session to
-/// drop. Use only for trading loops with provably wait-free callbacks.
+/// # Current
 ///
-/// `ctx` is an opaque pointer passed back unchanged on every invocation.
-/// It MUST remain valid from this call until either
-/// `tdx_fpss_shutdown` returns or `tdx_fpss_free` returns; the FPSS
-/// reader thread accesses it on every event and on every
+/// `tdx_fpss_set_inline_callback` and `tdx_fpss_set_callback`
+/// **currently deliver `callback` on the same thread** — the LMAX
+/// Disruptor consumer thread, with each invocation wrapped in
+/// [`std::panic::catch_unwind`]. The post-#513 single-queue rewrite
+/// folded the previous inline path into the SSOT pipeline; this entry
+/// point is retained behind the core SDK's `expert-mode` feature gate
+/// so a future TLS-reader-direct path can ship without an ABI
+/// rename.
+///
+/// # Future
+///
+/// A future revision will run `callback` directly on the FPSS reader
+/// thread, bypassing the Disruptor ring entirely. On that future
+/// path:
+///
+/// - The `catch_unwind` boundary will not be present — an unhandled
+///   panic from the C callback will terminate the reader and tear
+///   down the FPSS session.
+/// - Microsecond-budget contract: any allocation, I/O, lock
+///   acquisition, or runtime/GC interaction will stall the reader,
+///   fill the kernel TCP receive buffer, and cause the vendor session
+///   to drop.
+///
+/// Use only for trading loops with provably wait-free callbacks.
+///
+/// `ctx` is an opaque pointer passed back unchanged on every
+/// invocation. It MUST remain valid from this call until either
+/// `tdx_fpss_shutdown` returns or `tdx_fpss_free` returns; the
+/// invocation thread accesses it on every event and on every
 /// `tdx_fpss_reconnect`. Freeing `ctx` before shutdown is undefined
-/// behavior. Inline mode invokes `callback` serially on the FPSS
-/// reader thread (no dispatcher queue, no extra thread); the user is
-/// responsible for any cross-thread synchronization on `ctx` outside
-/// the callback.
+/// behavior. Either dispatch path (Current or Future) invokes
+/// `callback` serially on a single thread; the user is responsible
+/// for any cross-thread synchronization on `ctx` outside the callback.
 ///
 /// # Lifecycle contract (FPSS one-shot rule)
 ///

@@ -27,8 +27,8 @@ use std::io::Write;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
-use std::sync::{Arc, Mutex};
-use std::thread;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::thread::{self, ThreadId};
 use std::time::Duration;
 
 use disruptor::{build_single_producer, Producer, Sequence};
@@ -105,6 +105,7 @@ pub(in crate::fpss) fn io_loop<F>(
     active_full_subs: ActiveFullSubs,
     dropped: Arc<AtomicU64>,
     panics: Arc<AtomicU64>,
+    consumer_thread_id: Arc<OnceLock<ThreadId>>,
 ) where
     F: FnMut(&FpssEvent) + Send + 'static,
 {
@@ -129,10 +130,19 @@ pub(in crate::fpss) fn io_loop<F>(
     // unlocked-acquire / unlocked-release per event.
     let handler_cell = Mutex::new(handler);
     let panics_consumer = Arc::clone(&panics);
+    let consumer_thread_id_cell = Arc::clone(&consumer_thread_id);
 
     let mut producer = build_single_producer(ring_size, factory, wait_strategy)
         .handle_events_with(
             move |ring_event: &RingEvent, _sequence: Sequence, _eob: bool| {
+                // Capture the Disruptor consumer thread's `ThreadId`
+                // exactly once, on first dispatch. `FpssClient::drop`
+                // reads this to detect the self-join case (callback
+                // dropping the last `Arc<FpssClient>` from inside this
+                // closure) and detach the I/O-handle join onto a helper
+                // thread instead of deadlocking.
+                consumer_thread_id_cell.get_or_init(|| thread::current().id());
+
                 if let Some(ref evt) = ring_event.event {
                     // Filter out internal-only events (Issue #185).
                     match evt {

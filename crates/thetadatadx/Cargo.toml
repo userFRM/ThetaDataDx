@@ -46,6 +46,12 @@ live-tests = []
 # revision can introduce a true TLS-reader-direct dispatch path here
 # without a SemVer-breaking rename. Off by default.
 expert-mode = []
+# Internal, doc-hidden harness used by the integration-test crate
+# (`tests/streaming_soak.rs`) to exercise the real `FpssClient::Drop`
+# self-join guard against the real consumer-thread plumbing without a
+# live FPSS TLS connection. NOT part of the public API; the surfaces
+# under `#[cfg(feature = "test-harness")]` carry no SemVer guarantee.
+test-harness = []
 
 [dependencies]
 tdbe = { version = "0.13.0", path = "../tdbe" }
@@ -132,6 +138,12 @@ zeroize = { version = "1.8.2", features = ["derive"] }
 arc-swap = "1.7"
 
 [dev-dependencies]
+# Re-add ourselves with `test-harness` enabled so integration tests
+# under `tests/` see the doc-hidden `FpssClient::for_self_join_test`
+# constructor. Cargo merges these features with the host crate compile
+# only for the test build; the published crate exposes nothing under
+# `test-harness` in default builds.
+thetadatadx = { path = ".", features = ["test-harness"] }
 criterion = { version = "0.8.2", features = ["html_reports"] }
 proptest = "1.5"
 # Test-only: load captured-response fixtures and their sidecar .meta.toml

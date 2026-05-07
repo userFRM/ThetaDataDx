@@ -30,6 +30,24 @@ Resolved through an external multi-model audit.
   `Disconnected`) keep the original `publish` semantics so wire-order
   ordering relative to `LoginSuccess` is preserved.
 
+### Fixed
+
+- **Self-join deadlock when the user callback calls
+  `stop_streaming()`.** With the consumer-thread dispatch in place, a
+  callback that drops the last `Arc<FpssClient>` (which is what
+  `ThetaDataDx::stop_streaming()` does internally) used to block on
+  `FpssClient::Drop`'s `io_handle.join()`. The I/O thread's exit path
+  drops the Disruptor producer, and `disruptor::Producer::drop` joins
+  the consumer thread — the very thread running the callback. `Drop`
+  now captures the consumer thread's `ThreadId` on first dispatch
+  (`OnceLock`), detects the self-join case, and detaches the join
+  onto a helper thread named `fpss-shutdown-detach`. Cleanup completes
+  asynchronously; observers see `is_streaming()` flip to `false` once
+  the helper finishes, instead of `Drop` blocking forever.
+  `crates/thetadatadx/tests/streaming_soak.rs::callback_triggered_stop_does_not_self_join`
+  drives the real `FpssClient` through this path under a 5-second
+  watchdog.
+
 ### Added
 
 - `ThetaDataDx::panic_count()` and `FpssClient::panic_count()` — new
@@ -62,28 +80,50 @@ Resolved through an external multi-model audit.
 ### Performance
 
 - Per-event cost on the `start_streaming` path drops by removing the
-  `event.clone()` + `crossbeam` `try_send` + drain-thread wakeup hop
-  that previously sat between the Disruptor consumer and the user
-  callback. Microbenchmark numbers from
-  `crates/thetadatadx/benches/streaming_channels.rs` (100k
-  `FpssEvent::Empty` payloads per sample, criterion median, native
-  release build):
+  `event.clone()` + intermediate-channel `try_send` + drain-thread
+  wakeup hop that previously sat between the Disruptor consumer and
+  the user callback.
+
+  Microbenchmark methodology (`crates/thetadatadx/benches/streaming_channels.rs`):
+  each variant attempts 100k `FpssEvent::Empty` publishes per
+  Criterion sample. The Disruptor variants now retry on
+  `Producer::try_publish` overflow until every event lands, and each
+  variant tracks `delivered_events: AtomicU64` from inside the
+  consumer closure (or trampoline). `Throughput::Elements(100_000)`
+  combined with the retry loop gives correct ns-per-DELIVERED-event
+  numbers — earlier revisions divided by 100k attempts, which
+  silently understated cost when the consumer fell behind. A
+  `debug_assert!(delivered == 100_000)` per iteration gates that
+  invariant.
+
+  Indicative numbers from `cargo bench --bench streaming_channels --
+  --quick` on a recent x86-64 Linux laptop (Criterion median, native
+  release build, throughput per delivered event):
   - `disruptor_consumer_panic_isolated` (live SSOT path:
     `Producer::try_publish` + Disruptor consumer + `catch_unwind`):
-    ~113 µs / 100k ≈ 1.13 ns / event.
+    ≈ 1.46 ms / 100k ≈ 14.6 ns / delivered event
+    (≈ 68 Melem/s).
   - `disruptor_consumer_no_catch_unwind` (same pipeline without the
-    panic boundary, so the `catch_unwind` overhead is observable as
-    the delta against the row above): ~113 µs / 100k ≈ 1.13 ns /
-    event. The `catch_unwind` cost is below criterion's noise floor
-    on `Empty` events.
-  - `disruptor_cross_thread` (production-shape topology: producer
-    and consumer on separate OS threads): ~209 µs / 100k ≈ 2.09 ns /
-    event.
+    panic boundary): ≈ 1.47 ms / 100k ≈ 14.7 ns / delivered event
+    (≈ 68 Melem/s) — `catch_unwind` cost is below Criterion's
+    noise floor on `Empty` events.
+  - `disruptor_cross_thread` (production-shape topology: producer on
+    a worker thread, consumer on the Disruptor's own thread):
+    ≈ 1.49 ms / 100k ≈ 14.9 ns / delivered event
+    (≈ 67 Melem/s).
   - `direct_callback` (prospective TLS-reader-direct path modelled
-    via `Box<dyn Fn>` adapter): ~527 µs / 100k ≈ 5.27 ns / event on
-    the bench's per-iteration event construction; the live ring
-    publish path (variants above) is faster because the slot is
-    pre-allocated.
+    via `Box<dyn Fn>` adapter, no ring, no consumer thread):
+    ≈ 533 µs / 100k ≈ 5.3 ns / delivered event
+    (≈ 188 Melem/s).
+
+  Run `cargo bench --bench streaming_channels` for per-machine
+  numbers; the absolute values are sensitive to CPU model and
+  governor settings, so the SDK ships the methodology and the
+  variants rather than locking in figures that age out with each
+  hardware refresh. The earlier "1.13 ns / event" figure for the
+  Disruptor variants was an artefact of dividing wall-clock by
+  attempt count, not delivered events; the corrected number above
+  reflects per-callback-delivery cost.
 
 ## [9.0.2] - 2026-05-07
 
@@ -412,9 +452,10 @@ Resolved through an external multi-model audit.
 - **Internal version references in source comments** (`v8.0.10`, `v7.2.0`,
   `v8.0.3`, `v8.0.2`, `v6.0.1+`). Semantic content preserved; release
   metadata pruned out of code paths where it adds no maintenance value.
-- **Banned vocabulary `firehose`** removed from source doc comments,
-  README.md, and ROADMAP.md. Replaced with `full-stream` / `full-type`.
-  CHANGELOG history is intentionally untouched.
+- **Banned-vocabulary sweep on full-stream subscription wording** in
+  source doc comments, README.md, and ROADMAP.md. Replaced with
+  `full-stream` / `full-type`. CHANGELOG history is intentionally
+  untouched.
 
 ## [8.0.32] - 2026-05-06
 
@@ -1861,7 +1902,7 @@ Major release. Three headline groups land in one pass:
 - **Option contract wildcard rejection** (#284) -- before this release the SDK had no working path to the server's bulk-chain mode: `*` was rejected client-side by `validate_expiration`, and `0` was rejected server-side. The SDK vocabulary now covers the full cross-product the server accepts.
 - **Validator tier detection drift** (#289) -- dropped the static tier gate that classified legitimate server responses as SKIP. The runtime permission fallback still catches drift between docs and the wire (for example, `interest_rate_history_eod` being labelled `free` on docs but gated higher by the server).
 - **CI unbroken on `main`** (#299) -- fixed a `timeout_ms` TOML field mismatch and made the Go pin-test CRLF-robust.
-- **FPSS internal visibility tightening** -- `active_subs` and `active_full_subs` are now `pub(in crate::fpss)` rather than `pub(super)`, keeping per-contract and firehose subscription state visible only to the `fpss` module tree. The reconnect-delay tests also now assert against the `TOO_MANY_REQUESTS_DELAY_MS` / `RECONNECT_DELAY_MS` constants instead of hard-coded millisecond literals, so the tests cannot drift from the real protocol values.
+- **FPSS internal visibility tightening** -- `active_subs` and `active_full_subs` are now `pub(in crate::fpss)` rather than `pub(super)`, keeping per-contract and full-stream subscription state visible only to the `fpss` module tree. The reconnect-delay tests also now assert against the `TOO_MANY_REQUESTS_DELAY_MS` / `RECONNECT_DELAY_MS` constants instead of hard-coded millisecond literals, so the tests cannot drift from the real protocol values.
 
 ### Security
 
@@ -1913,7 +1954,7 @@ Major release. Three headline groups land in one pass:
 - **`generate_sdk_surfaces` restored as the checked-in surface authority** -- the standalone codegen binary is required again and is the canonical way to regenerate and verify generated SDK/FFI/tool surfaces from TOML.
 - **Streaming endpoints generated from TOML** -- hand-written streaming endpoint blocks in `direct.rs` replaced by TOML-driven codegen. Method signatures unchanged but internal dispatch is generated.
 - **Endpoint, utility, FPSS wrapper, and tick projection surfaces are spec-driven** -- Rust, FFI, Python, Go, C++, CLI, and MCP now project their generated public surfaces from `endpoint_surface.toml`, `sdk_surface.toml`, and `tick_schema.toml`.
-- Removed the misleading per-contract `subscribe_option_full_*` / `unsubscribe_option_full_*` FPSS methods from the C FFI, Go SDK, and C++ SDK. Per-contract streams use `subscribe_option_*`; full firehose streams remain `subscribe_full_*` by security type.
+- Removed the misleading per-contract `subscribe_option_full_*` / `unsubscribe_option_full_*` FPSS methods from the C FFI, Go SDK, and C++ SDK. Per-contract streams use `subscribe_option_*`; full-stream subscriptions remain `subscribe_full_*` by security type.
 - Python FPSS option subscription helpers now take `(symbol, expiration, strike, right)` to match Rust, Go, and C++ argument order.
 - **Go/C++ `contract_map` API replaced** -- `ContractMapJSON()` / `contract_map_json()` removed; replaced with typed `ContractMap()` / `contract_map()` returning `map[int32]string` / `std::map<int32_t, std::string>`. Callers of the old JSON variant will fail to compile.
 
@@ -2245,9 +2286,9 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 ### Added
 
-- `subscribe_full_open_interest(sec_type)` -- firehose open interest subscription (was missing, Java terminal has it)
-- `unsubscribe_full_trades(sec_type)` -- firehose trade unsubscribe (was missing)
-- `unsubscribe_full_open_interest(sec_type)` -- firehose OI unsubscribe (was missing)
+- `subscribe_full_open_interest(sec_type)` -- full-stream open interest subscription (was missing, Java terminal has it)
+- `unsubscribe_full_trades(sec_type)` -- full-stream trade unsubscribe (was missing)
+- `unsubscribe_full_open_interest(sec_type)` -- full-stream OI unsubscribe (was missing)
 - `reconnect_streaming(handler)` on `ThetaDataDx` -- saves active subscriptions, stops streaming, restarts with new handler, re-subscribes all per-contract and full-type subscriptions automatically
 - `active_full_subscriptions()` accessor for full-type subscription tracking
 - `docs/java-class-mapping.md` -- complete enumeration of all 588 Java terminal classes with Rust equivalents or justification for exclusion
