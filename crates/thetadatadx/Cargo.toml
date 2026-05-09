@@ -40,7 +40,7 @@ frames = ["polars", "arrow"]
 live-tests = []
 
 [dependencies]
-tdbe = { version = "0.13.0", path = "../tdbe" }
+tdbe = { version = "0.13.1", path = "../tdbe" }
 
 # gRPC + protobuf (tonic 0.14 extracted prost codec into tonic-prost)
 tonic = { version = "=0.14.5", features = ["tls-ring", "tls-native-roots", "channel", "transport"] }
@@ -153,7 +153,7 @@ prost-build = "=0.14.3"
 regex = "1.12.3"
 toml = "1.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
-tdbe = { version = "0.13.0", path = "../tdbe" }
+tdbe = { version = "0.13.1", path = "../tdbe" }
 
 [[bench]]
 name = "bench_decode"
