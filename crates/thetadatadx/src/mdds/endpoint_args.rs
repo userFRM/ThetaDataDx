@@ -376,8 +376,11 @@ impl From<Error> for EndpointError {
 impl From<EndpointError> for Error {
     fn from(value: EndpointError) -> Self {
         match value {
-            EndpointError::InvalidParams(message) | EndpointError::UnknownEndpoint(message) => {
-                Error::Config(message)
+            EndpointError::InvalidParams(message) => {
+                Error::config_invalid("endpoint.params", message)
+            }
+            EndpointError::UnknownEndpoint(message) => {
+                Error::config_invalid("endpoint.name", message)
             }
             EndpointError::Server(error) => error,
         }

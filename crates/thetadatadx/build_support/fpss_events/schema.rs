@@ -13,11 +13,11 @@ pub(crate) struct Schema {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct EventDef {
-    /// "data" (typed market-data tick), "simple" (diagnostic control /
-    /// fallback), or "raw_data" (unrecognized wire frame). Drives how the
-    /// generator places the variant in the `BufferedEvent` enum, maps it
-    /// to the `FpssEvent` source variant, and whether its typed struct
-    /// carries a `kind` discriminator getter.
+    /// "data" (typed market-data tick) or "control" (typed control /
+    /// lifecycle event mirroring `FpssControl::*` one-for-one). Drives
+    /// how the generator places the variant in the `BufferedEvent`
+    /// enum, maps it to the `FpssEvent` source variant, and whether
+    /// its typed struct carries a `kind` discriminator getter.
     #[serde(default = "default_kind")]
     pub(crate) kind: String,
     #[serde(default)]
@@ -50,9 +50,8 @@ pub(super) fn sorted_event_names(schema: &Schema) -> Vec<&str> {
 
 /// Names of `[events.*]` entries whose `kind = "data"` — the
 /// market-data tick variants. The TypeScript emitter uses this to
-/// skip the per-variant `#[napi(object)]` struct emission for the
-/// Simple / RawData variants, which have their own dedicated
-/// `FpssSimplePayload` / `FpssRawDataPayload` payloads on the
+/// pair the `kind = "data"` per-variant `#[napi(object)]` structs with
+/// the discriminated-union dispatcher that surfaces them on the flat
 /// `FpssEvent` wrapper.
 pub(super) fn sorted_data_event_names(schema: &Schema) -> Vec<&str> {
     let mut names: Vec<&str> = schema
@@ -74,6 +73,21 @@ pub(super) fn sorted_data_events(schema: &Schema) -> Vec<(&str, &EventDef)> {
         .events
         .iter()
         .filter(|(_, def)| def.kind == "data")
+        .map(|(n, d)| (n.as_str(), d))
+        .collect();
+    out.sort_by_key(|(n, _)| *n);
+    out
+}
+
+/// Iterate schema variants in a stable order, yielding only
+/// `kind = "control"` entries. Used by the Python and TypeScript
+/// emitters to render typed-per-variant control classes that mirror
+/// the core crate's `FpssControl::*` enum one-for-one.
+pub(super) fn sorted_control_events(schema: &Schema) -> Vec<(&str, &EventDef)> {
+    let mut out: Vec<(&str, &EventDef)> = schema
+        .events
+        .iter()
+        .filter(|(_, def)| def.kind == "control")
         .map(|(n, d)| (n.as_str(), d))
         .collect();
     out.sort_by_key(|(n, _)| *n);

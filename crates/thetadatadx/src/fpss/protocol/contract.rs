@@ -11,6 +11,7 @@
 //! Source: `Contract.toBytes()` and `Contract.fromBytes()` in decompiled terminal.
 
 use tdbe::types::enums::SecType;
+use tdbe::Right;
 
 use crate::error::Error;
 
@@ -40,98 +41,6 @@ pub struct Contract {
     /// Strike price in fixed-point (options only). The encoding matches
     /// `ThetaData`'s integer strike representation.
     pub strike: Option<i32>,
-}
-
-// ---------------------------------------------------------------------------
-// IntoOptionSpec — sealed trait for `Contract::option` polymorphic input
-// ---------------------------------------------------------------------------
-
-mod sealed {
-    pub trait Sealed {}
-}
-
-/// Sealed trait describing every input shape accepted by [`Contract::option`].
-///
-/// Two implementations:
-///
-/// - `(&str, &str, &str)` — `(expiration_yyyymmdd, strike_dollars, right)`
-///   for human-friendly construction. Performs the same parsing as the
-///   pre-9.0 `Contract::option`.
-/// - `(i32, bool, i32)` — `(expiration_yyyymmdd, is_call, strike_raw)`
-///   with the wire-format integer strike already scaled. Used by the
-///   in-process WS server which parses the wire format directly.
-///
-/// The trait is sealed; downstream crates cannot add their own input shapes.
-pub trait IntoOptionSpec: sealed::Sealed {
-    /// Convert this input into the canonical wire-format triple
-    /// `(expiration, is_call, strike_raw)`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Config`] when the parsed shape fails validation
-    /// (e.g. unparseable expiration, strike outside `i32` range, or a
-    /// non-strict right value).
-    fn into_spec(self) -> Result<(i32, bool, i32), Error>;
-}
-
-impl sealed::Sealed for (&str, &str, &str) {}
-impl IntoOptionSpec for (&str, &str, &str) {
-    fn into_spec(self) -> Result<(i32, bool, i32), Error> {
-        let (expiration, strike, right) = self;
-        let exp: i32 = expiration
-            .replace('-', "")
-            .parse()
-            .map_err(|e| Error::Config(format!("invalid expiration date {expiration:?}: {e}")))?;
-        let is_call = tdbe::right::parse_right_strict(right)?
-            .as_is_call()
-            .ok_or_else(|| {
-                Error::Config("parse_right_strict returned Both despite strict mode".to_string())
-            })?;
-        let strike_dollars: f64 = strike
-            .parse()
-            .map_err(|e| Error::Config(format!("invalid strike price {strike:?}: {e}")))?;
-        let strike_scaled = (strike_dollars * 1000.0).round();
-        if !strike_scaled.is_finite()
-            || strike_scaled < f64::from(i32::MIN)
-            || strike_scaled > f64::from(i32::MAX)
-        {
-            return Err(Error::Config(format!(
-                "strike {strike_dollars} out of i32 range after *1000 scaling"
-            )));
-        }
-        // Reason: bounds checked above.
-        #[allow(clippy::cast_possible_truncation)]
-        let strike_raw = strike_scaled as i32;
-        Ok((exp, is_call, strike_raw))
-    }
-}
-
-impl sealed::Sealed for (i32, bool, i32) {}
-impl IntoOptionSpec for (i32, bool, i32) {
-    fn into_spec(self) -> Result<(i32, bool, i32), Error> {
-        Ok(self)
-    }
-}
-
-// Owned-string variant — covers callers that already own `String`s
-// (the typical PyO3 / napi-rs binding shape, where parameters arrive
-// as `String`).
-impl sealed::Sealed for (String, String, String) {}
-impl IntoOptionSpec for (String, String, String) {
-    fn into_spec(self) -> Result<(i32, bool, i32), Error> {
-        let (e, s, r) = self;
-        (e.as_str(), s.as_str(), r.as_str()).into_spec()
-    }
-}
-
-// Reference-to-owned-string variant — covers binding code that holds
-// the `String`s and prefers to pass references rather than re-clone.
-impl sealed::Sealed for (&String, &String, &String) {}
-impl IntoOptionSpec for (&String, &String, &String) {
-    fn into_spec(self) -> Result<(i32, bool, i32), Error> {
-        let (e, s, r) = self;
-        (e.as_str(), s.as_str(), r.as_str()).into_spec()
-    }
 }
 
 impl Contract {
@@ -170,32 +79,124 @@ impl Contract {
         }
     }
 
-    /// Create an option contract from any [`IntoOptionSpec`] input shape.
+    /// Create an option contract from string-formatted parameters.
     ///
     /// # Arguments
     /// - `symbol`: Underlying ticker (e.g., `"AAPL"`)
-    /// - `spec`: Either of:
-    ///   - `(expiration_yyyymmdd, strike_dollars, right)` as `(&str, &str, &str)`
-    ///     for human-friendly construction (parses the strings).
-    ///   - `(expiration_yyyymmdd, is_call, strike_raw)` as `(i32, bool, i32)`
-    ///     for callers that already have wire-format integer triples (e.g.
-    ///     the in-process WS server parsing the JSON wire format).
+    /// - `expiration`: Expiration date as `YYYYMMDD` (dashes stripped)
+    /// - `strike`: Strike price in dollars (e.g., `"550"` or `"550.50"`)
+    /// - `right`: `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive)
+    ///
+    /// For callers that already hold wire-format integer triples (e.g.
+    /// the in-process WS server parsing the JSON wire format), use
+    /// [`Self::option_raw`] instead.
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Config`] when `spec` fails validation: unparseable
-    /// expiration, non-strict right value, unparseable strike, or strike
-    /// outside `i32` range after scaling. The integer triple variant is
-    /// infallible at the type level.
-    pub fn option(symbol: impl Into<String>, spec: impl IntoOptionSpec) -> Result<Self, Error> {
-        let (exp, is_call, strike_raw) = spec.into_spec()?;
-        Ok(Self {
+    /// Returns [`Error::Config`] on validation failure: unparseable
+    /// expiration, non-strict right value, unparseable strike, or
+    /// strike outside `i32` range after `*1000` scaling.
+    pub fn option(
+        symbol: impl Into<String>,
+        expiration: &str,
+        strike: &str,
+        right: &str,
+    ) -> Result<Self, Error> {
+        let exp: i32 = expiration.replace('-', "").parse().map_err(|e| {
+            Error::config_invalid(
+                "contract.expiration",
+                format!("invalid expiration date {expiration:?}: {e}"),
+            )
+        })?;
+        // H4: reject impossible expirations (00000000, 20260230,
+        // 19990431, …) on every public option-builder input. Uses the
+        // same canonical Gregorian validator the MDDS validator calls
+        // (`tdbe::time::is_valid_yyyymmdd`) so the two surfaces agree
+        // on what counts as a real calendar date.
+        if !tdbe::time::is_valid_yyyymmdd(exp) {
+            return Err(Error::config_invalid(
+                "contract.expiration",
+                format!(
+                    "invalid expiration date {expiration:?}: not a valid Gregorian date (YYYYMMDD with year 1900-2100, valid month, day-of-month including 4/100/400 leap rule)"
+                ),
+            ));
+        }
+        let is_call = tdbe::right::parse_right_strict(right)?
+            .as_is_call()
+            .ok_or_else(|| {
+                Error::config_internal("parse_right_strict returned Both despite strict mode")
+            })?;
+        let strike_dollars: f64 = strike.parse().map_err(|e| {
+            Error::config_invalid(
+                "contract.strike",
+                format!("invalid strike price {strike:?}: {e}"),
+            )
+        })?;
+        let strike_scaled = (strike_dollars * 1000.0).round();
+        if !strike_scaled.is_finite()
+            || strike_scaled < f64::from(i32::MIN)
+            || strike_scaled > f64::from(i32::MAX)
+        {
+            return Err(Error::config_invalid(
+                "contract.strike",
+                format!("strike {strike_dollars} out of i32 range after *1000 scaling"),
+            ));
+        }
+        // Reason: bounds checked above.
+        #[allow(clippy::cast_possible_truncation)]
+        let strike_raw = strike_scaled as i32;
+        Ok(Self::option_raw(symbol, exp, is_call, strike_raw))
+    }
+
+    /// Create an option contract from already-validated wire-format integers.
+    ///
+    /// Used by the in-process WS server which parses the wire format
+    /// directly. Infallible: every input range is enforced at the type
+    /// level.
+    ///
+    /// # Arguments
+    /// - `symbol`: Underlying ticker
+    /// - `expiration`: `YYYYMMDD` integer
+    /// - `is_call`: `true` for call, `false` for put
+    /// - `strike_raw`: Strike in thousandths of a dollar (i32)
+    pub fn option_raw(
+        symbol: impl Into<String>,
+        expiration: i32,
+        is_call: bool,
+        strike_raw: i32,
+    ) -> Self {
+        Self {
             symbol: symbol.into(),
             sec_type: SecType::Option,
-            expiration: Some(exp),
+            expiration: Some(expiration),
             is_call: Some(is_call),
             strike: Some(strike_raw),
-        })
+        }
+    }
+
+    /// Strike price in dollars as `f64`. Derived from the wire-level
+    /// `strike: Option<i32>` field which holds thousandths of a dollar
+    /// (a `$5,400.00` option carries `strike == Some(5_400_000)`); this
+    /// accessor divides by `1000.0` so user code reads the dollar
+    /// notation it writes when calling
+    /// `Contract::option(.., strike="5400.00", ..)`. Returns `None`
+    /// for non-option contracts.
+    #[must_use]
+    pub fn strike_dollars(&self) -> Option<f64> {
+        self.strike.map(|s| f64::from(s) / 1000.0)
+    }
+
+    /// Option side as the typed [`Right`] enum: `Some(Right::Call)` /
+    /// `Some(Right::Put)` for options, `None` for non-option contracts.
+    /// Derived from the wire-level `is_call` flag. This is the
+    /// user-facing accessor; non-Rust bindings surface it as the
+    /// language-idiomatic shape: string `"C"` / `"P"` in Python and
+    /// TypeScript, `char` in C / C++. Event-carried contracts never
+    /// return [`Right::Both`].
+    #[must_use]
+    pub fn right(&self) -> Option<Right> {
+        self.is_call
+            .map(|c| if c { Right::Call } else { Right::Put })
     }
 
     /// Synthetic marker used by `reconnect_streaming` to represent a failed
@@ -246,25 +247,34 @@ impl Contract {
     /// on failure.
     fn validate_root(input: &str, root: &str) -> Result<(), Error> {
         if root.is_empty() || root.len() > Self::MAX_ROOT_LEN {
-            return Err(Error::Config(format!(
-                "Contract::from_str: root must be 1..={} chars, got {} chars in {input:?}",
-                Self::MAX_ROOT_LEN,
-                root.len()
-            )));
+            return Err(Error::config_invalid(
+                "contract.symbol",
+                format!(
+                    "Contract::from_str: root must be 1..={} chars, got {} chars in {input:?}",
+                    Self::MAX_ROOT_LEN,
+                    root.len()
+                ),
+            ));
         }
         let mut dot_count = 0usize;
         for ch in root.chars() {
             if ch == '.' {
                 dot_count += 1;
                 if dot_count > 1 {
-                    return Err(Error::Config(format!(
-                        "Contract::from_str: root must contain at most one '.', got {root:?} in {input:?}"
-                    )));
+                    return Err(Error::config_invalid(
+                        "contract.symbol",
+                        format!(
+                            "Contract::from_str: root must contain at most one '.', got {root:?} in {input:?}"
+                        ),
+                    ));
                 }
             } else if !ch.is_ascii_uppercase() {
-                return Err(Error::Config(format!(
-                    "Contract::from_str: root must be ASCII A-Z (or '.'), got {ch:?} in {input:?}",
-                )));
+                return Err(Error::config_invalid(
+                    "contract.symbol",
+                    format!(
+                        "Contract::from_str: root must be ASCII A-Z (or '.'), got {ch:?} in {input:?}"
+                    ),
+                ));
             }
         }
         Ok(())
@@ -298,16 +308,20 @@ impl Contract {
     /// included.
     fn parse_occ21(input: &str) -> Result<Self, Error> {
         if input.len() != Self::OCC21_LEN {
-            return Err(Error::Config(format!(
-                "Contract::from_str: OCC-21 format must be exactly {} chars, got {} in {input:?}",
-                Self::OCC21_LEN,
-                input.len()
-            )));
+            return Err(Error::config_invalid(
+                "contract.occ21",
+                format!(
+                    "Contract::from_str: OCC-21 format must be exactly {} chars, got {} in {input:?}",
+                    Self::OCC21_LEN,
+                    input.len()
+                ),
+            ));
         }
         if !input.is_ascii() {
-            return Err(Error::Config(format!(
-                "Contract::from_str: OCC-21 identifier must be ASCII, got {input:?}"
-            )));
+            return Err(Error::config_invalid(
+                "contract.occ21",
+                format!("Contract::from_str: OCC-21 identifier must be ASCII, got {input:?}"),
+            ));
         }
         let bytes = input.as_bytes();
         // Root: bytes 0..6, right-padded with spaces.
@@ -318,14 +332,20 @@ impl Contract {
         // YYMMDD -> integer, then centuried to YYYYMMDD.
         let yymmdd_raw = &input[6..12];
         let yymmdd: i32 = yymmdd_raw.parse().map_err(|e| {
-            Error::Config(format!(
-                "Contract::from_str: expiration YYMMDD not numeric ({yymmdd_raw:?}, {e}) in {input:?}"
-            ))
+            Error::config_invalid(
+                "contract.expiration",
+                format!(
+                    "Contract::from_str: expiration YYMMDD not numeric ({yymmdd_raw:?}, {e}) in {input:?}"
+                ),
+            )
         })?;
         if !(0..1_000_000).contains(&yymmdd) {
-            return Err(Error::Config(format!(
-                "Contract::from_str: expiration YYMMDD out of range ({yymmdd}) in {input:?}"
-            )));
+            return Err(Error::config_invalid(
+                "contract.expiration",
+                format!(
+                    "Contract::from_str: expiration YYMMDD out of range ({yymmdd}) in {input:?}"
+                ),
+            ));
         }
         // Scope: 2000-2099. See the doc-comment `# Scope` section.
         // Any two-digit YY is interpreted as `2000 + YY`, so `99`
@@ -333,6 +353,18 @@ impl Contract {
         // ships contracts with future expirations, so pre-2000 OCC
         // symbols cannot reach this parser over the wire.
         let expiration: i32 = 20_000_000 + yymmdd;
+        // H4: reject impossible OCC-21 expirations (e.g. `260230`
+        // (Feb 30) or `260431` (Apr 31)) using the same canonical
+        // Gregorian validator as MDDS + `Contract::option`. Previously
+        // any 6-digit numeric string was accepted silently.
+        if !tdbe::time::is_valid_yyyymmdd(expiration) {
+            return Err(Error::config_invalid(
+                "contract.expiration",
+                format!(
+                    "Contract::from_str: OCC-21 expiration ({yymmdd_raw}) is not a valid Gregorian date in {input:?}"
+                ),
+            ));
+        }
 
         // Right byte.
         let right_byte = bytes[12];
@@ -340,10 +372,13 @@ impl Contract {
             b'C' => true,
             b'P' => false,
             other => {
-                return Err(Error::Config(format!(
-                    "Contract::from_str: expected 'C' or 'P' at position 12, got {:?} in {input:?}",
-                    other as char
-                )));
+                return Err(Error::config_invalid(
+                    "contract.right",
+                    format!(
+                        "Contract::from_str: expected 'C' or 'P' at position 12, got {:?} in {input:?}",
+                        other as char
+                    ),
+                ));
             }
         };
 
@@ -351,15 +386,21 @@ impl Contract {
         let strike_raw = &input[13..21];
         for ch in strike_raw.chars() {
             if !ch.is_ascii_digit() {
-                return Err(Error::Config(format!(
-                    "Contract::from_str: strike must be 8 ASCII digits, got {strike_raw:?} in {input:?}"
-                )));
+                return Err(Error::config_invalid(
+                    "contract.strike",
+                    format!(
+                        "Contract::from_str: strike must be 8 ASCII digits, got {strike_raw:?} in {input:?}"
+                    ),
+                ));
             }
         }
         let strike: i32 = strike_raw.parse().map_err(|e| {
-            Error::Config(format!(
-                "Contract::from_str: strike not numeric ({strike_raw:?}, {e}) in {input:?}"
-            ))
+            Error::config_invalid(
+                "contract.strike",
+                format!(
+                    "Contract::from_str: strike not numeric ({strike_raw:?}, {e}) in {input:?}"
+                ),
+            )
         })?;
 
         Ok(Self {
@@ -434,12 +475,15 @@ impl Contract {
     pub fn validate(&self) -> Result<(), Error> {
         let len = self.symbol.len();
         if len == 0 {
-            return Err(Error::Config("contract symbol is empty".into()));
+            return Err(Error::config_missing("contract.symbol"));
         }
         if len > 16 {
-            return Err(Error::Config(format!(
-                "contract symbol too long: {len} bytes (max 16 to match Java Contract.toBytes())"
-            )));
+            return Err(Error::config_invalid(
+                "contract.symbol",
+                format!(
+                    "contract symbol too long: {len} bytes (max 16 to match Java Contract.toBytes())"
+                ),
+            ));
         }
         Ok(())
     }
@@ -645,9 +689,10 @@ impl std::str::FromStr for Contract {
         // names the exact constraint that failed.
         let trimmed = input.trim();
         if trimmed.is_empty() {
-            return Err(Error::Config(format!(
-                "Contract::from_str: empty or whitespace-only input in {input:?}"
-            )));
+            return Err(Error::config_invalid(
+                "contract.input",
+                format!("Contract::from_str: empty or whitespace-only input in {input:?}"),
+            ));
         }
         if trimmed.len() == Self::OCC21_LEN {
             return Self::parse_occ21(trimmed);
@@ -732,7 +777,7 @@ mod tests {
 
     #[test]
     fn option_contract_roundtrip() {
-        let c = Contract::option("SPY", ("20261218", "60", "C")).unwrap();
+        let c = Contract::option("SPY", "20261218", "60", "C").unwrap();
         let bytes = c.to_bytes();
         // 12 + root.length() = 12 + 3 = 15 total bytes, size byte = 15.
         assert_eq!(bytes.len(), 15);
@@ -775,7 +820,7 @@ mod tests {
 
     #[test]
     fn contract_display_option() {
-        let c = Contract::option("SPY", ("20261218", "45", "P")).unwrap();
+        let c = Contract::option("SPY", "20261218", "45", "P").unwrap();
         assert_eq!(c.to_string(), "SPY OPTION 20261218 P 45000");
     }
 
@@ -800,7 +845,7 @@ mod tests {
         // root="SPY" (3 bytes), sec=OPTION, exp=20261218, isCall=true, strike=60000.
         // Allocates 12 + 3 = 15 bytes.
         // Wire: [15, 3, 'S','P','Y', sec_type, exp(4), is_call(1), strike(4)]
-        let c = Contract::option("SPY", ("20261218", "60", "C")).unwrap();
+        let c = Contract::option("SPY", "20261218", "60", "C").unwrap();
         let bytes = c.to_bytes();
         assert_eq!(bytes[0], 15); // size byte = 12 + root.length()
         assert_eq!(bytes[1], 3); // root_len
@@ -828,19 +873,48 @@ mod tests {
     #[test]
     fn option_rejects_invalid_strike() {
         // Garbage strike string -- must return Err, not panic.
-        assert!(Contract::option("SPY", ("20261218", "not-a-number", "C")).is_err());
+        assert!(Contract::option("SPY", "20261218", "not-a-number", "C").is_err());
     }
 
     #[test]
     fn option_rejects_overflowing_strike() {
         // Strike * 1000 exceeds i32::MAX. Must return Err, not wrap silently.
-        assert!(Contract::option("SPY", ("20261218", "3000000", "C")).is_err());
+        assert!(Contract::option("SPY", "20261218", "3000000", "C").is_err());
     }
 
     #[test]
     fn option_rejects_invalid_expiration() {
         // Non-numeric expiration -- must return Err, not panic.
-        assert!(Contract::option("SPY", ("not-a-date", "60", "C")).is_err());
+        assert!(Contract::option("SPY", "not-a-date", "60", "C").is_err());
+    }
+
+    #[test]
+    fn option_rejects_impossible_calendar_dates() {
+        // H4 regression: shape-only validation used to silently accept
+        // these. Both `Contract::option` and OCC-21 parsing now defer
+        // to the canonical Gregorian validator.
+        for bad in ["00000000", "20260230", "19990431", "21010101", "18991231"] {
+            assert!(
+                Contract::option("SPY", bad, "60", "C").is_err(),
+                "expected impossible expiration {bad} to be rejected",
+            );
+        }
+    }
+
+    #[test]
+    fn from_str_occ21_rejects_impossible_calendar_dates() {
+        use std::str::FromStr;
+        // OCC-21 with Feb 30 / Apr 31 — the encoded YYYYMMDD is invalid.
+        for bad in [
+            "SPY   260230C00550000", // Feb 30 2026
+            "SPY   260431P00550000", // Apr 31 2026
+        ] {
+            let err = Contract::from_str(bad).unwrap_err().to_string();
+            assert!(
+                err.contains("not a valid Gregorian date"),
+                "OCC-21 must reject impossible date in {bad}, got: {err}"
+            );
+        }
     }
 
     #[test]
@@ -1273,8 +1347,7 @@ mod tests {
                 1i32..=99_999_999,
             )
                 .prop_map(|(root, exp, is_call, strike)| {
-                    Contract::option(root, (exp, is_call, strike))
-                        .expect("integer triple is infallible by type")
+                    Contract::option_raw(root, exp, is_call, strike)
                 }),
         ]
     }

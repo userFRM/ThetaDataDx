@@ -14,7 +14,7 @@ use tdbe::types::enums::SecType;
 use thetadatadx::auth::Credentials;
 use thetadatadx::config::DirectConfig;
 use thetadatadx::fpss::{FpssData, FpssEvent};
-use thetadatadx::ThetaDataDx;
+use thetadatadx::ThetaDataDxClient;
 
 fn now_ns() -> u64 {
     SystemTime::now()
@@ -64,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tr2 = Arc::clone(&trades);
     let ls2 = Arc::clone(&lat_samples);
 
-    let tdx = ThetaDataDx::connect(&creds, cfg).await?;
+    let tdx = ThetaDataDxClient::connect(&creds, cfg).await?;
     tdx.start_streaming(move |ev: &FpssEvent| {
         let observed_ns = now_ns();
         t2.fetch_add(1, Ordering::Relaxed);
@@ -87,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     })?;
 
-    tdx.subscribe_full_trades(sec)?;
+    tdx.subscribe(thetadatadx::fpss::protocol::SecTypeExt::full_trades(sec))?;
 
     let start = Instant::now();
     let mut last_print = start;

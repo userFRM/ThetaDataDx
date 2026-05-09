@@ -113,15 +113,15 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
 
     Ok(vec![
         GeneratedSourceFile {
-            relative_path: "sdks/python/src/streaming_methods.rs",
+            relative_path: "sdks/python/src/_generated/streaming_methods.rs",
             contents: python::render_python_streaming_methods(&python_unified_methods),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/python/src/utility_functions.rs",
+            relative_path: "sdks/python/src/_generated/utility_functions.rs",
             contents: python::render_python_utility_functions(&python_utilities),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/typescript/src/streaming_methods.rs",
+            relative_path: "sdks/typescript/src/_generated/streaming_methods.rs",
             contents: typescript::render_ts_streaming_methods(&ts_napi_methods),
         },
         GeneratedSourceFile {

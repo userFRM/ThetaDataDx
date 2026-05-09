@@ -2,7 +2,7 @@
 
 Python bindings over the Rust core. Every call crosses the PyO3 boundary into Rust: gRPC communication, protobuf parsing, zstd decompression, FIT tick decoding, and TCP streaming run inside the `thetadatadx` crate.
 
-> **FLATFILES coverage:** the Python binding currently exposes the MDDS (historical) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired into Python under issue [#435](https://github.com/userFRM/ThetaDataDx/issues/435). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+> **Surface coverage:** the Python binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `tdx.flat_files.*()` with `.to_arrow()`, `.to_polars()`, `.to_pandas()`, and `.to_list()` terminals plus a `flatfile_to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
 
 ## Installation
 
@@ -34,12 +34,12 @@ Binary wheels use CPython's stable ABI (`abi3`) with a minimum Python version of
 ## Quick Start
 
 ```python
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 # Authenticate and connect
 creds = Credentials.from_file("creds.txt")
 # Or inline: creds = Credentials("user@example.com", "your-password")
-tdx = ThetaDataDx(creds, Config.production())
+tdx = ThetaDataDxClient(creds, Config.production())
 
 # Fetch end-of-day data
 eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
@@ -85,7 +85,7 @@ iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30/365, 8.50, "C")
 - `Config.dev()` - Dev FPSS servers (port 20200, infinite historical replay)
 - `Config.stage()` - Stage FPSS servers (port 20100, testing, unstable)
 
-### `ThetaDataDx(creds, config)`
+### `ThetaDataDxClient(creds, config)`
 
 Every historical endpoint is available. The tick-returning endpoints
 return typed `<TickName>List` wrappers (e.g. `EodTickList`,
@@ -190,101 +190,254 @@ return a `CalendarDayList`.
 |--------|-------------|
 | `interest_rate_history_eod(symbol, start_date, end_date)` | Interest rate EOD history |
 
-### Streaming (via `ThetaDataDx`)
-Real-time streaming is accessed through the same `ThetaDataDx` instance.
+### Streaming — fluent contract-first API (primary)
 
-#### Per-contract subscriptions (stocks)
+Real-time streaming is accessed through the same `ThetaDataDxClient` instance.
+The primary surface is the fluent contract / subscription model:
+
+```python
+from thetadatadx import Contract, SecType
+
+stock  = Contract.stock("AAPL")
+option = Contract.option("SPY", expiration="20260620", strike="550", right="C")
+
+with client.streaming(on_event) as session:
+    session.subscribe(stock.quote())
+    session.subscribe(option.trade())
+    session.subscribe(option.open_interest())
+    session.subscribe(SecType.OPTION.full_trades())
+
+    # Bulk install for many contracts:
+    session.subscribe_many([stock.quote(), option.quote()])
+```
+
+The `Subscription` value returned by `Contract.quote()` /
+`Contract.trade()` / `Contract.open_interest()` is typed and
+homogeneous — full-stream subscriptions returned by
+`SecType.OPTION.full_trades()` mix into the same `subscribe_many([...])`
+list, no string flags, no kwarg gymnastics.
+
+#### Fluent surface
 
 | Method | Description |
 |--------|-------------|
-| `subscribe_quotes(symbol)` | Subscribe to quote data for a stock |
-| `subscribe_trades(symbol)` | Subscribe to trade data for a stock |
-| `subscribe_open_interest(symbol)` | Subscribe to open interest data for a stock |
-| `unsubscribe_quotes(symbol)` | Unsubscribe from quote data for a stock |
-| `unsubscribe_trades(symbol)` | Unsubscribe from trade data for a stock |
-| `unsubscribe_open_interest(symbol)` | Unsubscribe from open interest data for a stock |
+| `Contract.stock(symbol)` | Stock contract |
+| `Contract.option(symbol, *, expiration, strike, right)` | Option contract |
+| `contract.quote()` / `.trade()` / `.open_interest()` | Per-contract `Subscription` |
+| `SecType.OPTION.full_trades()` / `.full_open_interest()` | Full-stream `Subscription` |
+| `client.subscribe(sub)` | Install one `Subscription` |
+| `client.subscribe_many([sub, ...])` | Install many `Subscription` values |
+| `client.unsubscribe(sub)` / `unsubscribe_many([...])` | Drop subscriptions |
 
-#### Per-contract subscriptions (options)
-
-| Method | Description |
-|--------|-------------|
-| `subscribe_option_quotes(symbol, expiration, strike, right)` | Subscribe to option quote data. `right`: accepts `"call"`, `"put"`, `"C"`, `"P"` (case-insensitive). `strike`: dollar string e.g. `"550"`. |
-| `subscribe_option_trades(symbol, expiration, strike, right)` | Subscribe to option trade data |
-| `subscribe_option_open_interest(symbol, expiration, strike, right)` | Subscribe to option OI data |
-| `unsubscribe_option_quotes(symbol, expiration, strike, right)` | Unsubscribe from option quotes |
-| `unsubscribe_option_trades(symbol, expiration, strike, right)` | Unsubscribe from option trades |
-| `unsubscribe_option_open_interest(symbol, expiration, strike, right)` | Unsubscribe from option OI |
-
-#### Full-type subscriptions
-
-| Method | Description |
-|--------|-------------|
-| `subscribe_full_trades(sec_type)` | Subscribe to ALL trades for a security type (`"STOCK"`, `"OPTION"`, `"INDEX"`) |
-| `subscribe_full_open_interest(sec_type)` | Subscribe to ALL OI for a security type |
-| `unsubscribe_full_trades(sec_type)` | Unsubscribe from ALL trades for a security type |
-| `unsubscribe_full_open_interest(sec_type)` | Unsubscribe from ALL OI for a security type |
-
-**Full trade stream behavior:** When subscribed via `subscribe_full_trades("OPTION")`, the ThetaData FPSS server sends a **bundle** for every trade across ALL option contracts:
+**Full trade stream behavior:** when subscribed via `client.subscribe(SecType.OPTION.full_trades())`, the ThetaData FPSS server sends a **bundle** for every trade across ALL option contracts:
 
 1. Pre-trade NBBO quote
 2. OHLC bar for the traded contract
 3. The trade itself
 4. Two post-trade NBBO quotes
 
-Events arrive as typed objects — `Quote`, `Trade`, `Ohlcvc`, `OpenInterest`
-for market data; `Simple` for control / diagnostic events
-(login_success, contract_assigned, disconnected, market_open/close, ...);
-`RawData` for unrecognized wire frames. Every variant carries a `.kind`
-discriminator matching the TypeScript SDK's `FpssEvent.kind` tag exactly
-(`"quote"`, `"trade"`, `"ohlcvc"`, `"open_interest"`, `"simple"`,
-`"raw_data"`). Concrete control-event names (`"login_success"`,
-`"contract_assigned"`, ...) live on `Simple.event_type` — mirroring
-`FpssSimplePayload.eventType` on the TS side. Filter on `event.kind` to
-route, then read attributes directly:
+Events arrive as typed pyclass instances — `Quote`, `Trade`, `Ohlcvc`,
+`OpenInterest` for market data; one typed class per control variant
+(`LoginSuccess`, `ContractAssigned`, `ReqResponse`, `MarketOpen`,
+`MarketClose`, `ServerError`, `Disconnected`, `Reconnecting`,
+`Reconnected`, `Error`, `UnknownFrame`, `Connected`, `Ping`,
+`ReconnectedServer`, `Restart`, `UnknownControl`). Each class mirrors
+its `FpssControl::*` / `FpssData::*` Rust variant one-for-one, so
+dispatch is a structural `match` — exactly the same shape Rust
+consumers use. Truncated / unrecognised wire frames are filtered before
+the callback fires and accounted on the
+`thetadatadx.fpss.decode_failures` metric counter; they never surface
+on the public event stream.
 
 ```python
+from thetadatadx import (
+    Quote, Trade, Ohlcvc, OpenInterest,
+    LoginSuccess, ContractAssigned, Disconnected,
+    Reconnecting, Reconnected, Restart,
+)
+
 # Build a contract ID -> symbol map as assignments arrive
 contracts = {}
 
 
 def on_event(event):
-    # Track contract assignments (control events go through `Simple`)
-    if event.kind == "simple" and event.event_type == "contract_assigned":
-        contracts[event.id] = event.detail
-        return
+    match event:
+        # Control / lifecycle events
+        case LoginSuccess(permissions=p):
+            print(f"logged in: bundle={p}")
+        case ContractAssigned(id=cid, contract=c):
+            contracts[cid] = c.symbol
+        case Disconnected(reason=r):
+            print(f"disconnected: reason={r}")
+        case Reconnecting(attempt=n, delay_ms=ms):
+            print(f"reconnect attempt {n} in {ms}ms")
+        case Reconnected() | Restart():
+            print("stream live again")
 
-    contract = contracts.get(getattr(event, "contract_id", None), "unknown")
+        # Market-data events — every variant carries its parsed `contract`.
+        case Trade(price=px, size=sz, contract=c):
+            print(f"[{c.symbol}] TRADE {px:.2f} x {sz}")
+        case Quote(bid=b, ask=a, contract=c):
+            print(f"[{c.symbol}] QUOTE bid={b:.2f} ask={a:.2f}")
 
-    # Filter by type - you choose what you want
-    if event.kind == "trade":
-        print(f"[{contract}] TRADE {event.price:.2f} x {event.size}")
-    elif event.kind == "quote":
-        print(f"[{contract}] QUOTE bid={event.bid:.2f} ask={event.ask:.2f}")
-    # Skip ohlcvc if you don't need bars
+        # Skip everything else (Ohlcvc bars, Ping heartbeats, ...)
+        case _:
+            pass
 
 
-tdx.start_streaming(callback=on_event)
-tdx.subscribe_full_trades("OPTION")
+from thetadatadx import SecType
 
-# `on_event` runs on the dispatcher's drain thread under the GIL.
-# Park the main thread while events flow.
-import time
-time.sleep(60)
+with tdx.streaming(on_event) as session:
+    session.subscribe(SecType.OPTION.full_trades())
 
-tdx.stop_streaming()
+    # `on_event` runs on the LMAX Disruptor consumer thread under the
+    # GIL, wrapped in `catch_unwind` so a Python exception is reported
+    # via `tracing::error!` and `panic_count()` rather than tearing
+    # down the consumer. Park the main thread while events flow.
+    import time
+    time.sleep(60)
+# `__exit__` calls `stop_streaming()` and then blocks on
+# `await_drain(5_000)` so the consumer thread has finished firing the
+# callback before control returns. If the drain barrier times out, a
+# `RuntimeWarning` is emitted but the `with` block still exits cleanly.
 ```
 
-You can also subscribe to per-contract streams if you only need specific symbols rather than the full firehose.
+The `with tdx.streaming(callback)` context manager is the recommended
+API. Subscription methods on the bound `session` proxy through to the
+underlying `ThetaDataDxClient` via `StreamingSession.__getattr__` -- the
+streaming surface is a single source of truth rooted in the Rust
+crate, with no hand-listed wrapper to drift.
+
+For the lower-level escape hatch (e.g. cross-process lifecycle
+management, custom shutdown ordering), call the lifecycle methods
+explicitly:
+
+```python
+tdx.start_streaming(callback=on_event)
+tdx.subscribe(SecType.OPTION.full_trades())
+import time
+time.sleep(60)
+tdx.stop_streaming()
+# Drain barrier: by the time `await_drain(5000)` returns, the consumer
+# thread is guaranteed to have finished firing `on_event`, so the
+# closure stack the callback closed over can be released without a
+# use-after-free race against the LMAX Disruptor consumer.
+tdx.await_drain(5_000)
+```
+
+You can also subscribe to per-contract streams if you only need specific symbols rather than the full-stream subscription.
+
+#### Pull-iter delivery — `for event in tdx.streaming_iter()` (high-throughput drain)
+
+Push-callback (`tdx.streaming(callback)` above) is the recommended
+default for low-latency single-event reaction. Pull-iter is the
+sibling delivery mode for high-throughput batch processing where the
+dominant cost is per-event Python work (tuple build, deque append,
+DataFrame ingest) rather than per-event vendor latency:
+
+```python
+from thetadatadx import Contract, SecType
+
+with tdx.streaming_iter() as iterator:
+    iterator.subscribe(SecType.OPTION.full_trades())
+    iterator.subscribe(Contract.stock("AAPL").quote())
+    for event in iterator:
+        match event:
+            case Trade(price=p, size=s, contract=c):
+                buf.append((c.symbol, p, s))
+            case _:
+                pass
+```
+
+`tdx.streaming_iter()` is a context manager that opens an FPSS
+session in pull-iter mode on enter and pairs `stop_streaming()` +
+`await_drain(5_000)` on exit, mirroring `tdx.streaming(callback)`.
+The bound `iterator` is also an `EventIterator` you can drain with
+`for event in iterator:`; `subscribe(...)` / `unsubscribe(...)`
+forward to the underlying `ThetaDataDxClient` through the same
+`__getattr__` proxy the callback session uses.
+
+The Disruptor consumer thread pushes each event into a per-client
+bounded queue; the `for event in iterator:` loop drains the queue
+under one GIL acquire across the whole batch instead of one GIL
+acquire per event. For the same per-event Python work (5-field
+tuple build + `deque.append`), the included `streaming_throughput`
+bench measures **~4.6 Melem/s for pull-iter** vs. **~1.1 Melem/s for
+push-callback** — a 4.1× win.
+
+Trade-off: pull-iter pays one queue hop of per-event latency for the
+batched-GIL throughput win. Push-callback remains the recommended
+default for sub-millisecond reaction loops; pick pull-iter when the
+integrator's per-event work dominates.
+
+Mode is chosen at start. Push and pull are mutually exclusive on a
+given client; switch by calling `stop_streaming()` first. Backpressure
+surfaces on the same `dropped_event_count()` counter as the callback
+path.
+
+#### Streaming buffering — Pattern A (`collections.deque`) vs Pattern B (`queue.Queue`)
+
+Both patterns drain the SDK callback into a Python-native data
+structure so business logic runs off the GIL-acquisition hot path.
+Pattern A is the institutional default — it matches the
+direct-callback shape used by every major market-data vendor's native
+API and runs ~2-5x faster than Pattern B because `deque.append` /
+`popleft` are GIL-atomic single ops with no condition-variable
+wake-up. Pattern B is the right pick when the consumer needs
+cross-thread blocking `get()` semantics.
+
+```python
+# Pattern A — collections.deque (lowest overhead, ring-buffer drop-oldest)
+from collections import deque
+
+buf = deque(maxlen=100_000)
+
+
+def cb(event):
+    buf.append(event)
+
+
+tdx.start_streaming(cb)
+# Consumer thread reads via buf.popleft() with retry-on-IndexError;
+# `maxlen` enforces drop-oldest semantics inside the deque itself.
+```
+
+```python
+# Pattern B — queue.Queue (cross-thread blocking get(), drop-newest backpressure)
+import queue
+
+q = queue.Queue(maxsize=100_000)
+
+
+def cb(event):
+    try:
+        q.put_nowait(event)
+    except queue.Full:
+        pass  # explicit drop on overflow — the SDK's own dropped_event_count()
+              # already counts ring-buffer overflow at the Rust layer.
+
+
+tdx.start_streaming(cb)
+# Consumer thread reads via q.get() (blocks until next event).
+```
+
+Trade-off: deque is the fastest queue in the standard library and
+loses the oldest event on overflow; `queue.Queue` is slower but gives
+you `get()` blocking semantics and an explicit drop-newest decision.
+Pick deque by default; reach for `queue.Queue` only when you need
+the blocking `get()`.
 
 #### State & lifecycle
 
 | Method | Description |
 |--------|-------------|
-| `contract_map()` | Get dict mapping contract IDs to string descriptions |
-| `contract_lookup(id)` | Look up a single contract by ID (returns str or None) |
 | `active_subscriptions()` | Get list of active subscriptions (list of dicts with "kind" and "contract") |
-| `start_streaming(callback)` | Register a callable; the dispatcher's drain thread invokes `callback(event)` under the GIL for every typed FPSS event (`Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData`). `event.kind` carries the same discriminator tag as the TypeScript SDK's `FpssEvent.kind`. |
-| `dropped_event_count()` | Cumulative count of events dropped because the bounded `StreamingDispatcher` queue (8192 slots) was full. Counter lives on the live dispatcher: it resets to 0 on `reconnect()` (which rebuilds the dispatcher) and reads 0 after `stop_streaming()`. Snapshot the value before reconnect if you need to accumulate drops across session boundaries. |
+| `streaming(callback)` | Open a context-managed streaming session. `with tdx.streaming(callback) as session:` registers `callback` via `start_streaming` on enter and pairs `stop_streaming()` + `await_drain(5_000)` on exit, mirroring the C++ RAII destructor. Subscription methods on the bound `session` proxy through to the underlying `ThetaDataDxClient` via `StreamingSession.__getattr__` -- single source of truth. |
+| `streaming_iter()` | Open a context-managed pull-iter streaming session. `with tdx.streaming_iter() as it:` opens FPSS in pull-iter delivery mode on enter and pairs `stop_streaming()` + `await_drain(5_000)` on exit. The bound `it` is an `EventIterator` — `for event in it:` drains the per-client queue under one GIL acquire per batch, ~4.1× faster than push-callback on tuple-build / deque-append integrators. Mutually exclusive with `start_streaming(callback)` on the same client. |
+| `start_streaming_iter()` | Lower-level pull-iter entry point. Returns a bare `EventIterator`; the caller is responsible for `stop_streaming()` + `await_drain()` on shutdown. Prefer `streaming_iter()` unless you need explicit lifecycle control. |
+| `start_streaming(callback)` | Register a callable; the LMAX Disruptor consumer thread invokes `callback(event)` under the GIL for every typed FPSS event. `event` is a `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` for market data or one of the typed control classes (`LoginSuccess`, `ContractAssigned`, `Disconnected`, `Reconnecting`, ...) for lifecycle events — dispatch via Python `match`. Truncated / unrecognised wire frames are filtered before the callback fires (counted on `thetadatadx.fpss.decode_failures`). Each invocation is wrapped in `catch_unwind`. `event.kind` carries the same discriminator tag as the TypeScript SDK's `FpssEvent.kind`. |
+| `await_drain(timeout_ms)` | Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns `True` if the drain completed within `timeout_ms`, `False` otherwise. Use after `stop_streaming()` or `reconnect()` from a thread other than the callback thread to confirm the callback closure can be safely released. The `with tdx.streaming(...)` context manager calls this for you with a 5_000 ms timeout. |
+| `dropped_event_count()` | Cumulative count of events the FPSS reader could not publish into the Disruptor ring because the consumer fell behind and the ring was full. Resets to 0 on `reconnect()` (which rebuilds the FPSS client) and reads 0 after `stop_streaming()`. Snapshot the value before reconnect if you need to accumulate drops across session boundaries. |
 | `reconnect()` | Reconnect streaming and re-register the previously installed callback; restores all subscriptions. |
 | `shutdown()` | Graceful shutdown — drops the registered callback. |
 
@@ -338,6 +491,41 @@ produce a zero-row frame with the full typed column schema — no
 ### `implied_volatility(spot, strike, rate, div_yield, tte, option_price, right)`
 `right` accepts `"C"`/`"P"` or `"call"`/`"put"` case-insensitively. Returns `(iv, error)` tuple.
 
+## Flat Files
+
+Whole-universe daily snapshots over the legacy MDDS port (port 12000).
+Available for `(SecType, ReqType)` pairs spanning option / stock data
+across `Quote`, `Trade`, `TradeQuote`, `Ohlc`, `OpenInterest`, `Eod`.
+
+The decoded schema is determined at runtime by the request type, so
+the binding follows the same `<List>` -> Arrow -> {pandas, polars}
+pipeline as the typed historical endpoints, with the Arrow schema
+inferred from the first row by `flatfiles::arrow::rows_to_arrow`.
+
+```python
+from thetadatadx import Credentials, Config, ThetaDataDxClient
+
+creds = Credentials.from_file("creds.txt")
+tdx = ThetaDataDxClient(creds, Config.production())
+
+# Decoded -> polars / pandas / pyarrow
+rows = tdx.flat_files.option_quote(date="20260428")
+print(len(rows))
+df = rows.to_polars()           # or .to_pandas() / .to_arrow() / .to_list()
+
+# Generic dispatcher when sec_type / req_type come from config
+oi = tdx.flat_files.request("OPTION", "OPEN_INTEREST", "20260428")
+
+# Raw vendor CSV / JSONL straight to disk (no decode, no row materialise)
+path = tdx.flatfile_to_path("OPTION", "QUOTE", "20260428",
+                            "/tmp/option-quote", format="csv")
+```
+
+Available `flat_files.*` methods: `option_quote`, `option_trade`,
+`option_trade_quote`, `option_ohlc`, `option_open_interest`,
+`option_eod`, `stock_quote`, `stock_trade`, `stock_trade_quote`,
+`stock_eod`, plus `request(sec_type, req_type, date)`.
+
 ## Architecture
 
 ```mermaid
@@ -353,30 +541,33 @@ No HTTP middleware, no Java terminal, no subprocess. Direct wire-protocol access
 Real-time market data via ThetaData's FPSS servers:
 
 ```python
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 creds = Credentials.from_file("creds.txt")
 # Or inline: creds = Credentials("user@example.com", "your-password")
-tdx = ThetaDataDx(creds, Config.production())
+tdx = ThetaDataDxClient(creds, Config.production())
 
 # Register a callback (typed pyclasses: `Quote`, `Trade`, `Ohlcvc`, ...).
-# The dispatcher's drain thread acquires the GIL to invoke `on_event`.
+# The LMAX Disruptor consumer thread acquires the GIL to invoke `on_event`,
+# with each invocation wrapped in `catch_unwind` so a Python exception
+# is counted on `panic_count()` rather than tearing down the consumer.
 def on_event(event):
     if event.kind == "quote":
-        print(f"Quote: contract_id={event.contract_id} bid={event.bid} ask={event.ask}")
+        print(f"Quote: {event.contract.symbol} bid={event.bid} ask={event.ask}")
     elif event.kind == "trade":
-        print(f"Trade: contract_id={event.contract_id} price={event.price} size={event.size}")
+        print(f"Trade: {event.contract.symbol} price={event.price} size={event.size}")
 
 
-tdx.start_streaming(callback=on_event)
-tdx.subscribe_quotes("AAPL")
-tdx.subscribe_trades("SPY")
+with tdx.streaming(on_event) as session:
+    session.subscribe(Contract.stock("AAPL").quote())
+    session.subscribe(Contract.stock("SPY").trade())
 
-# Park the main thread while events flow.
-import time
-time.sleep(60)
-
-tdx.stop_streaming()
+    # Park the main thread while events flow.
+    import time
+    time.sleep(60)
+# `__exit__` runs `stop_streaming()` + `await_drain(5_000)` so the
+# consumer thread has finished firing `on_event` before this scope
+# returns. Mirrors the C++ RAII destructor lifecycle.
 ```
 
 ## DataFrame Conversion (Arrow-Backed)
@@ -388,10 +579,10 @@ Arrow. On pandas 2.x the numeric DataFrame columns alias the Arrow
 buffers in place.
 
 ```python
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+tdx = ThetaDataDxClient(creds, Config.production())
 
 # Pandas -- zero-copy numeric columns on pandas 2.x.
 df  = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_pandas()

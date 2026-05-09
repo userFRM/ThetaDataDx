@@ -16,7 +16,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! thetadatadx = { version = "8", features = ["polars"] }
+//! thetadatadx = { version = "9", features = ["polars"] }
 //! ```
 //!
 //! Then chain off the decoder-owned `Vec<Tick>`:

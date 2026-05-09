@@ -138,7 +138,7 @@ fn normalize_interval(interval: &str) -> String {
 /// Convert `time_of_day` values into the canonical `HH:MM:SS.SSS` format.
 ///
 /// ThetaData's v3 at-time endpoints expect a formatted ET wall-clock time
-/// such as `"09:30:00.000"`. Older ThetaDataDx docs and examples used
+/// such as `"09:30:00.000"`. Older ThetaDataDxClient docs and examples used
 /// millisecond strings like `"34200000"`. To preserve compatibility while
 /// aligning the public contract, this helper accepts either form and
 /// normalizes to `HH:MM:SS.SSS`.

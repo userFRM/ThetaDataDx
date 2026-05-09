@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} implied_volatility=${t.implied_volatility} delta=${t.delta} theta=${t.theta} vega=${t.vega}`);
 }
 ```
-```go [Go]
-data, _ := client.OptionHistoryTradeGreeksFirstOrder("SPY", "20260417", "550", "C", "20260315")
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f theta=%.4f vega=%.4f rho=%.4f\n",
-        t.Date, t.MsOfDay, t.ImpliedVolatility, t.Delta, t.Theta, t.Vega, t.Rho)
-}
-```
 ```cpp [C++]
 auto data = client.option_history_trade_greeks_first_order("SPY", "20260417", "550", "C", "20260315");
 for (const auto& t : data) {

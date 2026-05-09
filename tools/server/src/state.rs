@@ -1,16 +1,14 @@
 //! Shared application state for the REST + WebSocket server.
 //!
-//! Holds the unified `ThetaDataDx` client, connection flags, per-client
+//! Holds the unified `ThetaDataDxClient` client, connection flags, per-client
 //! WebSocket channels, and shutdown plumbing. All fields are `Send + Sync`
 //! behind `Arc` so axum can cheaply clone state into each handler.
 
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use subtle::ConstantTimeEq;
-use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::ThetaDataDx;
+use thetadatadx::ThetaDataDxClient;
 use tokio::sync::{mpsc, RwLock};
 
 /// Per-client channel capacity. Matches the old `broadcast::channel(4096)`.
@@ -33,7 +31,7 @@ pub struct AppState {
 
 struct Inner {
     /// Unified client (historical via Deref to MddsClient, streaming via start_streaming).
-    tdx: ThetaDataDx,
+    tdx: ThetaDataDxClient,
     /// Whether MDDS is connected (true after successful init).
     mdds_connected: AtomicBool,
     /// Whether FPSS is connected (set by the FPSS bridge callback).
@@ -44,13 +42,6 @@ struct Inner {
     shutdown: tokio::sync::Notify,
     /// WebSocket single-connection enforcement.
     ws_connected: AtomicBool,
-    /// Server-assigned contract ID -> Contract mapping (updated by FPSS callback).
-    ///
-    /// Values are held as `Arc<Contract>` so the FPSS callback thread's
-    /// per-event snapshot (see `ws::start_fpss_bridge`) is a refcount bump
-    /// rather than cloning a `String` field. At 100k events/sec the Arc path
-    /// saves an allocation per event on the broadcast hot path.
-    contract_map: Arc<Mutex<HashMap<i32, Arc<Contract>>>>,
     /// Random token required by the shutdown endpoint.
     shutdown_token: String,
     /// Monotonic count of FPSS events dropped on the bounded
@@ -62,8 +53,8 @@ struct Inner {
 }
 
 impl AppState {
-    /// Create new app state wrapping a connected `ThetaDataDx`.
-    pub fn new(tdx: ThetaDataDx, shutdown_token: String) -> Self {
+    /// Create new app state wrapping a connected `ThetaDataDxClient`.
+    pub fn new(tdx: ThetaDataDxClient, shutdown_token: String) -> Self {
         Self {
             inner: Arc::new(Inner {
                 tdx,
@@ -72,7 +63,6 @@ impl AppState {
                 ws_clients: Arc::new(RwLock::new(Vec::new())),
                 shutdown: tokio::sync::Notify::new(),
                 ws_connected: AtomicBool::new(false),
-                contract_map: Arc::new(Mutex::new(HashMap::new())),
                 shutdown_token,
                 fpss_broadcast_dropped: AtomicU64::new(0),
             }),
@@ -97,8 +87,8 @@ impl AppState {
         self.inner.fpss_broadcast_dropped.load(Ordering::Relaxed)
     }
 
-    /// Borrow the unified `ThetaDataDx` client.
-    pub fn tdx(&self) -> &ThetaDataDx {
+    /// Borrow the unified `ThetaDataDxClient` client.
+    pub fn tdx(&self) -> &ThetaDataDxClient {
         &self.inner.tdx
     }
 
@@ -189,16 +179,6 @@ impl AppState {
             .write()
             .await
             .retain(|tx| !tx.is_closed());
-    }
-
-    /// Shared contract map for FPSS -> WS bridge JSON serialization.
-    ///
-    /// Returns an `Arc<Mutex<HashMap<i32, Arc<Contract>>>>` so the FPSS
-    /// callback thread can clone individual contracts by `Arc::clone`
-    /// (refcount bump, no heap allocation) instead of `Contract::clone`
-    /// (which would allocate the `root: String` per event).
-    pub fn contract_map(&self) -> Arc<Mutex<HashMap<i32, Arc<Contract>>>> {
-        Arc::clone(&self.inner.contract_map)
     }
 
     /// Try to acquire the single WebSocket connection slot.

@@ -281,7 +281,7 @@ impl RowSink for JsonlSink {
             obj.insert(key, v);
         }
         serde_json::to_writer(&mut self.out, &serde_json::Value::Object(obj))
-            .map_err(|e| Error::Config(format!("flatfiles: jsonl encode failed: {e}")))?;
+            .map_err(|e| Error::config_internal(format!("flatfiles: jsonl encode failed: {e}")))?;
         self.out.write_all(b"\n")?;
         Ok(())
     }

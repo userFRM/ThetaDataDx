@@ -1,8 +1,8 @@
 # thetadatadx-mcp
 
-MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM/ThetaDataDx) — gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
+MCP (Model Context Protocol) server for [ThetaDataDxClient](https://github.com/userFRM/ThetaDataDx) — gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
 
-> **FLATFILES coverage:** the MCP server currently exposes the MDDS (historical) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired into the MCP tool list under issue [#431](https://github.com/userFRM/ThetaDataDx/issues/431). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+> **FLATFILES coverage:** the MCP server advertises eleven FLATFILES tools — `tdx_flatfile_request` plus ten convenience wrappers (`tdx_flatfile_option_quote`, `tdx_flatfile_option_trade_quote`, `tdx_flatfile_stock_eod`, …). Each call writes the decoded CSV / JSONL blob to disk and returns the path. See [`ROADMAP.md`](../../docs/ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
 
 ## Architecture
 
@@ -11,12 +11,12 @@ LLM (any MCP-compatible client)
     |  JSON-RPC 2.0 over stdio
     v
 thetadatadx-mcp (long-running process)
-    |  Single ThetaDataDx client, authenticated once at startup
+    |  Single ThetaDataDxClient client, authenticated once at startup
     v
 ThetaData servers (MDDS gRPC + FPSS TCP)
 ```
 
-The server authenticates **once** at startup, keeps the `ThetaDataDx` client alive, and serves tool calls instantly with zero per-request auth overhead.
+The server authenticates **once** at startup, keeps the `ThetaDataDxClient` client alive, and serves tool calls instantly with zero per-request auth overhead.
 
 ## Install
 

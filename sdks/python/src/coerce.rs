@@ -103,4 +103,4 @@ impl<'py> FromPyObject<'_, 'py> for PySymbols {
     }
 }
 
-include!("enums_generated.rs");
+include!("_generated/enums_generated.rs");

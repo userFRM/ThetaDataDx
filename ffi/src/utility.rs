@@ -170,6 +170,132 @@ pub unsafe extern "C" fn tdx_implied_volatility(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+//  Condition / exchange / sequence helper accessors
+//
+//  Cross-language utility parity (issue #424). The lookup tables live in
+//  `tdbe::{conditions, exchange, sequences}`. The C ABI wraps them as
+//  string-returning entry points (returning `'static` UTF-8 NUL-terminated
+//  C strings — the underlying tables are `&'static str`, so the caller
+//  MUST NOT free the returned pointer) plus a couple of `bool`-returning
+//  predicates and integer accessors for trade-sequence math.
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Look up the human-readable trade condition name for `code`.
+///
+/// Returns a NUL-terminated `'static` UTF-8 C string. The pointer is
+/// owned by the library and MUST NOT be freed. Returns the literal
+/// `"UNKNOWN"` for codes outside the table.
+#[no_mangle]
+pub extern "C" fn tdx_condition_name(code: i32) -> *const c_char {
+    static_cstr(tdbe::conditions::condition_name(code))
+}
+
+/// Look up the human-readable trade condition description for `code`.
+///
+/// Returns a NUL-terminated `'static` UTF-8 C string (empty string for
+/// unknown codes). The pointer is owned by the library and MUST NOT be
+/// freed.
+#[no_mangle]
+pub extern "C" fn tdx_condition_description(code: i32) -> *const c_char {
+    static_cstr(tdbe::conditions::condition_description(code))
+}
+
+/// True if the trade condition code represents a cancellation.
+#[no_mangle]
+pub extern "C" fn tdx_condition_is_cancel(code: i32) -> bool {
+    tdbe::conditions::is_cancel(code)
+}
+
+/// True if the trade condition code updates the volume bar.
+#[no_mangle]
+pub extern "C" fn tdx_condition_updates_volume(code: i32) -> bool {
+    tdbe::conditions::updates_volume(code)
+}
+
+/// Look up the human-readable quote condition name for `code`.
+#[no_mangle]
+pub extern "C" fn tdx_quote_condition_name(code: i32) -> *const c_char {
+    static_cstr(tdbe::conditions::quote_condition_name(code))
+}
+
+/// Look up the human-readable quote condition description for `code`.
+#[no_mangle]
+pub extern "C" fn tdx_quote_condition_description(code: i32) -> *const c_char {
+    static_cstr(tdbe::conditions::quote_condition_description(code))
+}
+
+/// True if the quote condition is firm (binding).
+#[no_mangle]
+pub extern "C" fn tdx_quote_condition_is_firm(code: i32) -> bool {
+    tdbe::conditions::is_firm(code)
+}
+
+/// True if the quote condition indicates a trading halt.
+#[no_mangle]
+pub extern "C" fn tdx_quote_condition_is_halted(code: i32) -> bool {
+    tdbe::conditions::is_halted(code)
+}
+
+/// Look up the human-readable exchange name for a numeric code.
+#[no_mangle]
+pub extern "C" fn tdx_exchange_name(code: i32) -> *const c_char {
+    static_cstr(tdbe::exchange::exchange_name(code))
+}
+
+/// Look up the MIC-like symbol for a numeric exchange code.
+#[no_mangle]
+pub extern "C" fn tdx_exchange_symbol(code: i32) -> *const c_char {
+    static_cstr(tdbe::exchange::exchange_symbol(code))
+}
+
+/// Convert a signed wire-encoded trade-sequence value to its unsigned
+/// monotonic form. Mirrors `tdbe::sequences::signed_to_unsigned`.
+#[no_mangle]
+pub extern "C" fn tdx_sequence_signed_to_unsigned(signed: i64) -> u64 {
+    tdbe::sequences::signed_to_unsigned(signed)
+}
+
+/// Convert an unsigned monotonic trade-sequence value back to its
+/// signed wire encoding. Mirrors `tdbe::sequences::unsigned_to_signed`.
+#[no_mangle]
+pub extern "C" fn tdx_sequence_unsigned_to_signed(unsigned: u64) -> i64 {
+    tdbe::sequences::unsigned_to_signed(unsigned)
+}
+
+/// Convert a `&'static str` from the lookup tables into a stable
+/// `*const c_char` for FFI. The `tdbe` tables are compile-time arrays
+/// of NUL-free `&'static str`; we register one `CString` per distinct
+/// string in a process-lifetime `OnceLock<Mutex<HashMap<...>>>` and
+/// return the cached pointer so the C side can hold it indefinitely.
+fn static_cstr(s: &'static str) -> *const c_char {
+    use std::collections::HashMap;
+    use std::ffi::CString;
+    use std::sync::Mutex;
+    static CACHE: std::sync::OnceLock<Mutex<HashMap<&'static str, &'static CString>>> =
+        std::sync::OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut guard = cache
+        .lock()
+        .expect("static_cstr cache mutex poisoned -- previous holder panicked");
+    let cstr_ref: &'static CString = match guard.get(&s) {
+        Some(existing) => existing,
+        None => {
+            // Tables are compile-time `&'static str` literals known to
+            // be NUL-free; CString::new only fails on interior NULs.
+            let owned =
+                CString::new(s).expect("tdbe lookup-table strings must not contain interior NULs");
+            // Leak so the pointer is `'static` for the caller. There is
+            // a finite, small number of distinct entries (≤ a few hundred
+            // across all tables), so the leak is bounded.
+            let leaked: &'static CString = Box::leak(Box::new(owned));
+            guard.insert(s, leaked);
+            leaked
+        }
+    };
+    cstr_ref.as_ptr()
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 //  Test-only panic entry points (feature `testing-panic-boundary`)
 //
 //  These exist purely so the integration test at

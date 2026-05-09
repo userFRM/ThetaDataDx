@@ -5,6 +5,727 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Fluent contract-first streaming API. `Contract::stock("AAPL")`,
+  `Contract::option("SPY", "20260620", "550", "C")`, and the
+  `contract.quote()` / `.trade()` / `.open_interest()` methods return
+  a typed `Subscription` value. Full-stream subscriptions come from
+  `SecType::Option.full_trades()` /
+  `SecType::Option.full_open_interest()`. The new polymorphic
+  `client.subscribe(Subscription)`, `client.subscribe_many([...])`,
+  `client.unsubscribe(Subscription)`, and
+  `client.unsubscribe_many([...])` on `ThetaDataDxClient` (Rust),
+  `ThetaDataDxClient` (Python pyclass), `ThetaDataDxClient` (TypeScript
+  napi), and `tdx::UnifiedClient` / `tdx::FpssClient` (C++) accept
+  that value type directly.
+- Polymorphic C ABI: new `tdx_unified_subscribe` /
+  `tdx_unified_unsubscribe` / `tdx_fpss_subscribe` /
+  `tdx_fpss_unsubscribe` take a `TdxSubscriptionRequest` payload; one
+  entry point handles every per-contract or full-stream variant.
+- `AsyncThetaDataDxClient` Python class — async-only sibling of
+  `ThetaDataDxClient`. Attribute access is restricted to `*_async`
+  historical methods plus the streaming lifecycle helpers; the
+  synchronous historical surface raises `AttributeError` so callers
+  that opt into the async path do not accidentally block on a sync
+  method.
+- `thetadatadx::prelude` Rust module — re-exports `Credentials`,
+  `ThetaDataDxClient`, `Contract`, `Subscription`, `SecTypeExt`,
+  `SecType`, etc. for a one-import fluent path.
+
+### Changed
+
+- Public client name: previous unified-client struct name is gone
+  (no alias, no compat shim). Every binding ships only
+  `ThetaDataDxClient` (Rust struct, Python pyclass, TypeScript napi
+  class).
+- Python streaming: `client.streaming(on_event)` context manager is
+  the recommended path; the bound session forwards every public
+  `ThetaDataDxClient` method through `__getattr__`, so the new
+  polymorphic `subscribe` / `unsubscribe` are reachable on the
+  session with zero hand-listed mirror.
+
+### Removed
+
+Hard break — the typed subscribe / unsubscribe surface is gone.
+Every typed `subscribe_*` / `unsubscribe_*` and `subscribe_option_*`
+entry on the public client (Rust, Python, TypeScript, C++) plus the
+matching typed C ABI entry points (`tdx_unified_subscribe_*`,
+`tdx_fpss_subscribe_*`, `tdx_unified_unsubscribe_*`,
+`tdx_fpss_unsubscribe_*`, including the option-overload variants)
+have been deleted. Replacement is the polymorphic
+`subscribe(Subscription)` / `unsubscribe(Subscription)` /
+`subscribe_many([...])` / `unsubscribe_many([...])` paths.
+
+Migration map (documentation only — no compat layer ships):
+
+| Removed | Wave K replacement |
+|---|---|
+| Rust: `client.subscribe_quotes(&c)` | `client.subscribe(c.quote())` |
+| Rust: `client.subscribe_trades(&c)` | `client.subscribe(c.trade())` |
+| Rust: `client.subscribe_open_interest(&c)` | `client.subscribe(c.open_interest())` |
+| Rust: `client.subscribe_full_trades(SecType::Option)` | `client.subscribe(SecType::Option.full_trades())` |
+| Rust: `client.subscribe_full_open_interest(SecType::Option)` | `client.subscribe(SecType::Option.full_open_interest())` |
+| Rust: `client.subscribe_all(&c)` (quotes + trades batcher) | `client.subscribe_many(vec![c.quote(), c.trade()])` |
+| Python: `tdx.subscribe_quotes("AAPL")` | `tdx.subscribe(Contract.stock("AAPL").quote())` |
+| Python: `tdx.subscribe_option_trades("SPY", e, k, r)` | `tdx.subscribe(Contract.option("SPY", expiration=e, strike=k, right=r).trade())` |
+| Python: `tdx.subscribe_full_trades("OPTION")` | `tdx.subscribe(SecType.OPTION.full_trades())` |
+| TS: `tdx.subscribeQuotes("AAPL")` | `tdx.subscribe(ContractRef.stock("AAPL").quote())` |
+| TS: `tdx.subscribeFullTrades("OPTION")` | `tdx.subscribe(SecType.option().fullTrades())` |
+| C ABI: `tdx_unified_subscribe_quotes(h, sym)` | `tdx_unified_subscribe(h, &TdxSubscriptionRequest{...})` |
+| C ABI: every `tdx_*_subscribe_*` / `tdx_*_unsubscribe_*` typed entry point | `tdx_*_subscribe` / `tdx_*_unsubscribe` (polymorphic) |
+| C++: `fpss.subscribe_quotes("AAPL")` | `fpss.subscribe(tdx::Contract::stock("AAPL").quote())` |
+
+## [9.1.0] - 2026-05-07
+
+Single-queue SSOT for the FPSS streaming pipeline (closes #513). The
+prior topology composed two queues — the LMAX Disruptor ring plus an
+internal `crossbeam_channel::bounded(8192)` — with a per-tick
+`FpssEvent::clone` between them. The `start_streaming` path now
+invokes the user callback directly from the Disruptor consumer
+thread.
+
+### Migration from v9.0.x
+
+The flat `TdxFpssControl { kind, id, detail }` C ABI envelope is
+replaced by one typed `#[repr(C)]` struct per `FpssControl::*` Rust
+variant. Old code dispatched on `event.control.kind` then read
+`event.control.id` / `event.control.detail`; new code dispatches on
+`event.kind` then reads the matching `event.<variant>` payload.
+Field-by-field mapping for every control variant:
+
+| v9.0.x (flat envelope) | v9.1.0 (typed struct) |
+|---|---|
+| `kind == TDX_FPSS_CONTROL && control.kind == 0; control.detail` | `kind == TDX_FPSS_LOGIN_SUCCESS; login_success.permissions` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 1; control.id, control.detail` | `kind == TDX_FPSS_CONTRACT_ASSIGNED; contract_assigned.id, contract_assigned.contract` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 2; control.id, control.detail` | `kind == TDX_FPSS_REQ_RESPONSE; req_response.req_id, req_response.result` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 3` | `kind == TDX_FPSS_MARKET_OPEN` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 4` | `kind == TDX_FPSS_MARKET_CLOSE` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 5; control.detail` | `kind == TDX_FPSS_SERVER_ERROR; server_error.message` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 6; control.detail (formatted)` | `kind == TDX_FPSS_DISCONNECTED; disconnected.reason` (i32 RemoveReason) |
+| `kind == TDX_FPSS_CONTROL && control.kind == 8; control.id, control.detail` | `kind == TDX_FPSS_RECONNECTING; reconnecting.reason, reconnecting.attempt, reconnecting.delay_ms` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 9` | `kind == TDX_FPSS_RECONNECTED` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 10; control.detail` | `kind == TDX_FPSS_ERROR; error.message` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 11; control.id, control.detail (hex)` | `kind == TDX_FPSS_UNKNOWN_FRAME; unknown_frame.code, unknown_frame.payload, unknown_frame.payload_len` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 12` | `kind == TDX_FPSS_UNKNOWN_CONTROL` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 13` | `kind == TDX_FPSS_CONNECTED` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 14; control.detail (hex)` | `kind == TDX_FPSS_PING; ping.payload, ping.payload_len` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 15` | `kind == TDX_FPSS_RECONNECTED_SERVER` |
+| `kind == TDX_FPSS_CONTROL && control.kind == 16` | `kind == TDX_FPSS_RESTART` |
+
+Field-by-field mapping for the data-variant `contract_id` removal
+and the hidden internal-only `RawData` / `Empty` variants:
+
+| v9.0.x | v9.1.0 |
+|---|---|
+| `event.quote.contract_id` (i32, wire-internal) | `event.quote.contract.symbol` (and `expiration` / `strike` / `is_call` for options) — same for `trade`, `open_interest`, `ohlcvc` |
+| Rust: `FpssData::Quote { contract_id, contract, .. }` | `FpssData::Quote { contract, .. }` (id removed) |
+| Python: `event.contract_id` | `event.contract.symbol` |
+| TypeScript: `event.quote.contract_id` | `event.quote.contract.symbol` |
+| C: `event.quote.contract_id` | `event.quote.contract.symbol` (NUL-terminated, may be null pre-`ContractAssigned`) |
+| C++: `event.quote.contract_id` | `event.quote.contract.symbol` |
+| `FpssEvent::RawData { code, payload }` matched on user callback | Removed; truncated FIT frames bump `thetadatadx.fpss.decode_failures` and never reach the callback. Unrecognised wire codes still surface as `FpssControl::UnknownFrame { code, payload }` (typed control variant). |
+| `FpssEvent::Empty` ring-slot placeholder visible to user code | Removed; ring slots use the crate-private `FpssEventInternal::Empty`, filtered before user delivery. |
+
+Numeric values of `TdxFpssEventKind` renumber alphabetically; reach
+for the symbolic names (`TDX_FPSS_LOGIN_SUCCESS` in C,
+`FpssLoginSuccessEvent` in Go) — they are stable across the rename.
+C++ consumers using `tdx::Fpss<Variant>` aliases get the same
+borrowed-pointer ownership rules as before: pointers are valid only
+for the duration of the user callback. Python and TypeScript consumer
+code does not change.
+
+### Changed
+
+- FPSS control events surface as typed-per-variant classes across
+  every language binding — Python, TypeScript, AND the C / C++ / Go
+  FFI surface — mirroring the Rust `FpssControl` enum one-for-one.
+  Replaces the previous flattened `Simple` event type and the flat
+  `TdxFpssControl { kind, id, detail }` C ABI. Python users dispatch
+  via `match event: case LoginSuccess(permissions=p): ... case
+  Disconnected(reason=r): ...`; TypeScript users dispatch via the
+  discriminated union's `kind` field with one typed payload per
+  variant (`event.loginSuccess`, `event.disconnected`,
+  `event.reconnecting`, ...). C consumers dispatch via `event->kind`
+  into the matching `event-><variant>` payload
+  (`event->login_success.permissions`, `event->disconnected.reason`,
+  `event->reconnecting.{reason, attempt, delay_ms}`, ...). C++
+  consumers read the same fields through the re-exported
+  `tdx::Fpss<Variant>` aliases; Go consumers read the matching
+  `event.<Variant>` pointer (`event.LoginSuccess.Permissions`,
+  `event.Disconnected.Reason`, ...). The `TdxFpssEventKind` enum
+  gains one discriminant per control variant — numeric values
+  renumber alphabetically; symbolic names
+  (`TDX_FPSS_LOGIN_SUCCESS`, `FpssLoginSuccessEvent`, etc.) are
+  stable. Schema bumped to version 5
+  (`crates/thetadatadx/fpss_event_schema.toml`); generated outputs
+  regenerated; codegen idempotency check enforced in CI. See the
+  v9.0.x → v9.1.0 migration table for the old→new field mapping.
+- `ThetaDataDxClient::start_streaming` now invokes the user callback directly
+  from the LMAX Disruptor consumer thread, with each invocation wrapped
+  in `std::panic::catch_unwind`. There is exactly ONE queue between the
+  TLS reader and the user callback (the Disruptor ring); the per-tick
+  `FpssEvent::clone` shim in `client.rs` is gone.
+- `dropped_event_count()` keeps the same public signature but now
+  reports `Producer::try_publish` failures (ring-buffer overflow when
+  the consumer falls behind) instead of `crossbeam_channel::Full`
+  rejections.
+- The TLS reader uses `Producer::try_publish` for every data event so
+  a slow user callback can never block the reader. Handshake-time
+  control frames (`Connected`, `Ping`, `LoginSuccess`, `Reconnecting`,
+  `Disconnected`) keep the original `publish` semantics so wire-order
+  ordering relative to `LoginSuccess` is preserved.
+- `tdx_unified_free` and `tdx_fpss_free` now apply the drain barrier
+  internally before destroying the handle. `_free` calls the equivalent
+  of `stop_streaming` (or `shutdown` for FPSS) and then polls the
+  drain flag with a 5-second timeout; on overrun it logs a
+  `tracing::error!` and proceeds. Callers no longer need to call
+  `_await_drain` before `_free` to keep the callback `ctx` alive.
+  The C++ wrapper's `FpssClient` move-assign now invokes
+  `tdx_fpss_await_drain` between `tdx_fpss_shutdown` and releasing the
+  staged `std::function` storage, closing an analogous use-after-free
+  window.
+- The `FpssConfig` tuning knobs `timeout_ms`, `connect_timeout_ms`,
+  and `ping_interval_ms` are now wired into the runtime. Previous
+  releases shipped these as no-op fields whose values were ignored —
+  the FPSS pipeline used hardcoded protocol-level constants
+  (`READ_TIMEOUT_MS`, `CONNECT_TIMEOUT_MS`, `PING_INTERVAL_MS`) for
+  every connection. Each knob now flows through `FpssConnectArgs` to
+  the connection (TCP `connect_timeout`), framing (mid-frame stall
+  budget + I/O loop overall deadline), and ping-heartbeat layers, and
+  validates its range at config-load time:
+  `timeout_ms` `[100, 60_000]`, `connect_timeout_ms` `[1_000, 60_000]`,
+  `ping_interval_ms` `[100, 300_000]`. `DirectConfig::validate` now
+  returns `Result<Self, Error>`; the production / dev / stage presets
+  remain infallible by construction. The redundant pre-Disruptor
+  `FpssConfig::queue_depth` knob (and its `fpss_queue_depth()`
+  accessor) is removed: the post-SSOT pipeline has exactly one queue
+  (the Disruptor `ring_size`), so a separate event-channel-depth knob
+  is dead. TOML configs that set `[fpss] queue_depth = ...` should
+  switch to `ring_size`.
+- The cross-language response-shape agreement validator
+  (`scripts/validate_agreement.py`) now consumes a TypeScript
+  shape manifest alongside the Python / CLI / C++ runtime artifacts.
+  The TS SDK emits its public-surface field set from `index.d.ts`
+  via `sdks/typescript/scripts/emit_validator_manifest.mjs`; the
+  diff engine treats shape-only artifacts as field-presence-only
+  (values do not contribute to value-vs-value diffs, status-PASS
+  entries do not fold into runtime status disagreements). Any
+  TypeScript public-surface drift relative to the runtime SDKs now
+  surfaces as a pre-merge agreement failure rather than going
+  unnoticed until a downstream consumer hit the missing / extra
+  field.
+- Repo hygiene pass. Root tree trimmed to standard institutional shape
+  (matches the databento-rs layout): moved `ROADMAP.md` → `docs/`,
+  moved `config.default.toml` → `crates/thetadatadx/`, deleted unused
+  `cliff.toml`. Architecture ADRs inlined into source-code comments at
+  their relevant locations; `docs/architecture/` removed. Generated
+  SDK files moved to `_generated/` subdirectories under each SDK
+  (`sdks/python/src/_generated/`, `sdks/typescript/src/_generated/`)
+  so hand-written code leads the public surface listing — the SSOT
+  codegen for cross-language parity is preserved unchanged, only the
+  output paths moved. `docs/java-parity-checklist.md` removed
+  (historical artifact; parity is shipped).
+- Typed `Error` enum: `Error::Decode`, `Error::Decompress`,
+  `Error::Config`, and `Error::Grpc` now carry structured `kind`
+  fields (`DecodeErrorKind`, `DecompressErrorKind`,
+  `ConfigErrorKind`, `GrpcStatusKind`) instead of bare `String`
+  payloads. Callers can pattern-match on the kind for programmatic
+  recovery without parsing error messages — e.g. distinguish a
+  `DecodeErrorKind::TruncatedRow { row_idx, expected_columns,
+  actual_columns }` from a `Protobuf(String)` codec failure, or
+  branch on `GrpcStatusKind::DeadlineExceeded` vs. `Unauthenticated`
+  without re-implementing the `tonic::Code` Debug-string mapping.
+  `From<tonic::Status>` populates `Error::Grpc { kind: GrpcStatusKind::from_code(s.code()), .. }`
+  so the retry classifier and Python exception mapper share the same
+  typed dispatch path. Migration: replace
+  `if let Error::Decode(msg) = err { ... }` with
+  `if let Error::Decode { kind, message } = err { match kind { DecodeErrorKind::TruncatedRow { .. } => ..., _ => ... } }`;
+  `Error::Config(format!(...))` constructions become
+  `Error::config_invalid(field, message)` /
+  `Error::config_out_of_range(field, value, min, max)` /
+  `Error::config_missing(field)` etc. (helper constructors on
+  `Error`). The Python `to_py_err` mapper preserves its existing
+  `thetadatadx.SchemaMismatchError` / `RateLimitError` /
+  `SubscriptionError` leaf classes — only the internal dispatch
+  switched from string-comparing `status` to matching the typed
+  `kind`.
+
+### Fixed
+
+- **Round-3 review caught two pull-iter regressions left over from the
+  Wave-M iterator surface.** (a) The `EventIterator` terminal predicate
+  keyed off the raw `client.shutdown` flag, which `stop_streaming()`
+  flipped BEFORE the Disruptor consumer thread had finished pushing
+  the tail of in-flight events into the iterator's `ArrayQueue`. Any
+  caller polling `next_timeout` between those two moments saw an empty
+  queue + asserted shutdown and returned `Closed`, dropping tail events
+  on the floor. Replaced with a dedicated `iter_closed: Arc<AtomicBool>`
+  flag flipped by a drop guard captured inside the Disruptor consumer
+  closure — the guard fires only when the producer is dropped at
+  io_loop exit, which only happens after the consumer thread has
+  joined and every in-flight event has been pushed. Soak test
+  `crates/thetadatadx/src/fpss/streaming_soak_tests.rs::iter_does_not_false_eof_during_drain`
+  pins the contract: 100 pre-queued tail events with the global
+  shutdown asserted MUST surface as `Ready` before the iterator
+  signals `Closed`. (b) Six docs files taught a non-existent
+  `events()` API on the client; corrected to the actual public entries
+  (`start_streaming_iter()` Rust/Python/C++; `startStreamingIter()`
+  TypeScript; `streaming_iter()` context manager on Python).
+- **External multi-model audit: pull-iter `next_timeout` conflated
+  timeout with terminal close.** `EventIterator::next_timeout()` now
+  returns a typed three-state `NextEvent` enum (`Ready` / `Timeout` /
+  `Closed`) instead of `Option<FpssEvent>`. Pre-fix, `None` overloaded
+  "deadline expired on a quiet-but-live stream" with "upstream shut
+  down + queue drained", which propagated into every binding:
+  - C ABI `tdx_fpss_event_iter_next` returned `-1` (terminal) on a
+    quiet live stream, so C consumers saw false EOF.
+  - C++ `EventIterator::ended_` latched on the false EOF; the STL
+    `for (const auto& e : iter)` adapter terminated on the first
+    timeout instead of re-polling.
+  - Python `__next__` retried indefinitely after `stop_streaming()`
+    because every 50 ms slice returned `None` (timeout-shaped) and
+    the loop never observed a terminal signal.
+  - TypeScript async `next()` had the same defect: the Promise spun
+    forever once the upstream queue closed.
+  Fixed by lifting `NextEvent` through the C ABI's three-state return
+  (`0` ready / `1` timeout / `-1` closed), only latching the C++
+  wrapper's `ended_` on `-1`, looping the C++ STL adapter on `1`,
+  raising `StopIteration` from Python on `Closed`, and resolving the
+  TS promise to `null` on `Closed`. Soak tests
+  `crates/thetadatadx/src/fpss/streaming_soak_tests.rs::iter_returns_timeout_then_event_on_quiet_then_active_stream`
+  and `iter_returns_closed_after_stop_streaming` pin both branches;
+  Python `tests/test_iter_mode.py::test_iter_terminates_after_stop`
+  asserts the Python `for event in iterator:` loop exits within 1 s
+  of `stop_streaming()`. The blocking `Iterator::next` impl on
+  `EventIterator` (no timeout) is unchanged — `None` there
+  unambiguously means terminal because that path blocks until either
+  an event arrives or the queue closes.
+- **Docs site lead-pages still referenced the pre-Wave-K
+  `ThetaDataDx` API class name and the removed `subscribe_quotes` /
+  `subscribe_trades` / `subscribe_option_quotes` per-kind methods.**
+  `docs-site/docs/getting-started/installation.md`,
+  `docs-site/docs/getting-started/quickstart.md`, and
+  `docs-site/docs/streaming/reconnection.md` now lead with
+  `ThetaDataDxClient` plus the unified contract-first
+  `client.subscribe(contract.quote())` /
+  `client.subscribe(contract.trade())` API across Rust, Python,
+  TypeScript, and C++. Event-payload examples switched from the
+  removed `event.contract_id` (wire-internal) to
+  `event.contract.symbol`. Migration tables in the CHANGELOG /
+  release notes intentionally retain the old names — those document
+  the rename, not the post-rename API.
+- **External audit: single-slot drain barrier could falsely report
+  quiescence under stacked lifecycle transitions.** The
+  `prev_drained` slot tracked only the most recently retired session's
+  flag, so a `start → stop → start → stop` sequence in which the
+  earlier session was still draining when the later one retired
+  silently lost the earlier flag. `await_drain()` then returned `true`
+  based on the latest generation while the earlier callback could
+  still be firing on the FFI `ctx` — a use-after-free vector under
+  reconnect-storm scenarios. The slot is now a
+  `Mutex<Vec<Arc<AtomicBool>>>`; every retired session's flag is
+  pushed onto the Vec, and `await_drain()` / `tdx_*_free` walk the
+  full set, lazily GC'ing flags that have flipped. Mirrored on the
+  FFI handle's `prev_drained` field. Regression coverage:
+  `crates/thetadatadx/src/fpss/streaming_soak_tests.rs::multi_gen_drain_waits_for_all_retired_sessions`
+  drives three real `FpssClient` instances back-to-back with slow
+  callbacks and asserts the barrier waits for every generation.
+- **WS payload now carries `unresolved_contract_id` for
+  pre-`ContractAssigned` ticks.** Pre-Wave-G the WS bridge surfaced
+  the wire-internal numeric id; post-removal of the public `contract_id`
+  field, ticks that arrived before the matching `ContractAssigned`
+  frame serialised as an empty `Contract` envelope with no diagnostic
+  channel for operators to correlate. The decoder now builds an
+  unresolved-contract sentinel whose `symbol` is `__pending:<id>`
+  (the canonical `sec_type == SecType::Unknown` check still gates
+  consumer code paths); the WS formatter detects the prefix, emits
+  `contract: {"status": "pending"}`, and surfaces the parsed wire id
+  as a top-level `unresolved_contract_id` integer. The public SDK
+  callback signature is unchanged — `__pending:` is a diagnostic
+  payload, not a stable identifier.
+- **WS `/subscribe` option path now runs the canonical Gregorian
+  validator.** The Wave H `tdbe::time::is_valid_yyyymmdd` calendar
+  check ran on the historical / REST surfaces but not on the WS
+  option-subscribe path, which only applied the cheap
+  `is_valid_yyyymmdd_range` bounds check. Impossible dates like
+  `20260230` (Feb 30), `20260431` (Apr 31), or `20251301` (month 13)
+  leaked through. Both gates now run; the bounds check is the
+  precheck, the calendar validator is the real gate.
+- **Python and TypeScript bindings: stop / shutdown clear the
+  registered callback.** The unified C API preserves the callback
+  across stop/reconnect, but the high-level bindings deliberately
+  diverge: `stop_streaming()` and `shutdown()` clear the stored
+  callback, so a subsequent `reconnect()` raises until the caller
+  re-registers via `start_streaming(callback)`. Documented on every
+  affected method (`stop_streaming`, `shutdown`, `reconnect` on both
+  bindings) so the explicit-handoff model is no longer surprising.
+- **`stop_streaming()` race that could resurrect streaming after
+  stop returned.** The `ArcSwap` slot accepted `Stopped → Live`, so
+  an in-flight `start_streaming*()` that began before
+  `stop_streaming()` could install a fresh `Live` slot AFTER stop
+  observed `Stopped`. Each `stop_streaming` now bumps an
+  `AtomicU64` generation counter; each `start_streaming*()`
+  snapshots the counter at entry, and the `install_live` rcu
+  closure refuses to install when the snapshot no longer matches.
+  Regression tests in `crates/thetadatadx/src/client.rs::tests`
+  pin both branches of the gate.
+- **MDDS `validate_date` accepted impossible Gregorian dates**
+  (`00000000`, `20260230`, `19990431`, `21010101`). The shape-only
+  check (length + ASCII digits) is now followed by a real calendar
+  check via the new `tdbe::time::is_valid_gregorian_date` /
+  `is_valid_yyyymmdd` validator (year ∈ 1900..=2100, valid month,
+  day-of-month including the 4 / 100 / 400 leap rule). The
+  `flatfiles::request::validate_date` helper routes through the
+  same canonical validator.
+- **FPSS `Contract::option` and OCC-21 parsing accepted impossible
+  expirations** silently. Both paths now defer to the same
+  canonical Gregorian validator as MDDS, so dates like Feb 30,
+  Apr 31, or `00000000` fail at construction with an explicit
+  error naming the offending input.
+- **Silent `SystemTime::now()` failure in the FPSS frame decoder.**
+  A clock skew before `UNIX_EPOCH` used to silently produce
+  `received_at_ns = 0`; the path now logs a rate-limited
+  `tracing::warn!` (target `thetadatadx::fpss::decode`, every 1024
+  failures) and falls back to `0` only after surfacing the
+  condition to operators. Same treatment for the WS server's
+  `sonic_rs::to_string` failure path: a new
+  `json_serialize_failures` counter is exposed alongside the
+  existing `broadcast_dropped` counter on
+  `GET /v3/system/fpss/status`, and the failure path emits a
+  rate-limited `tracing::error!`.
+- **Self-join deadlock when the user callback calls
+  `stop_streaming()`.** With the consumer-thread dispatch in place, a
+  callback that drops the last `Arc<FpssClient>` (which is what
+  `ThetaDataDxClient::stop_streaming()` does internally) used to block on
+  `FpssClient::Drop`'s `io_handle.join()`. The I/O thread's exit path
+  drops the Disruptor producer, and `disruptor::Producer::drop` joins
+  the consumer thread — the very thread running the callback. `Drop`
+  now captures the consumer thread's `ThreadId` on first dispatch
+  (`OnceLock`), detects the self-join case, and detaches the join
+  onto a helper thread named `fpss-shutdown-detach`. Cleanup completes
+  asynchronously: `is_streaming()` flips to `false` immediately on
+  the `Live → Stopped` swap, BEFORE the helper has joined; the new
+  `ThetaDataDxClient::await_drain` / `tdx_*_await_drain` barrier (see
+  Added) is the way to confirm full quiescence — i.e. that the
+  previous user callback has stopped firing.
+  `crates/thetadatadx/src/fpss/streaming_soak_tests.rs::callback_triggered_stop_does_not_self_join`
+  drives the real `FpssClient` through this path under a 5-second
+  watchdog, and `callback_triggered_stop_then_await_drain_completes`
+  asserts the new barrier returns `true` within budget and no further
+  callback invocations happen after it returns.
+- **Round-2 review caught two follow-up gaps.** (a) The non-blocking
+  C ABI poll path (`tdx_fpss_event_iter_next(.., 0)`) was still
+  collapsing timeout + closed via `try_next()` returning
+  `Option<FpssEvent>`. Fixed by promoting `EventIterator::try_next()`
+  to also return the typed `NextEvent` enum (symmetric with
+  `next_timeout`); the FFI now drives off the typed shape uniformly,
+  so a C client polling after `stop_streaming()` sees rc `-1`
+  (terminal) instead of rc `1` (timeout) forever. The C++ wrapper's
+  `try_next()` calls the C ABI directly with `timeout_ms = 0` and
+  latches `ended_` only on rc `-1`. The Python `try_next` and
+  TypeScript `tryNext` keep their `Option<…>` public surfaces by
+  collapsing both `Timeout` and `Closed` to `None` / `null` (single-
+  state non-blocking polling stays the documented contract). New
+  soak test
+  `crates/thetadatadx/src/fpss/streaming_soak_tests.rs::iter_try_next_returns_closed_after_drain`
+  pins the contract: `try_next()` returns `Closed` (not `Timeout`)
+  once the queue is drained on a stopped session, and stays sticky
+  on subsequent calls. (b) Front-door docs-site pages still taught
+  the pre-Wave-K API. Updated
+  `docs-site/docs/index.md`, `docs-site/docs/api-reference.md`,
+  `docs-site/docs/getting-started/{authentication,first-query,streaming}.md`,
+  and `docs-site/docs/streaming/{index,connection,events}.md` to use
+  `ThetaDataDxClient` (Rust / Python / TypeScript) plus
+  `tdx::UnifiedClient` (C++), the polymorphic
+  `client.subscribe(contract.quote())` /
+  `client.subscribe(sec_type.full_trades())` API, the
+  `client.start_streaming_iter()` / `client.streaming_iter()` pull-iter idiom, and
+  `event.contract.symbol` on data events. Migration tables in this
+  CHANGELOG and the v9.1.0 release notes intentionally retain the
+  pre-Wave-K names — those document the rename, not the post-rename
+  surface.
+
+### Added
+
+- Flat-files ecosystem coverage across the tools surface. The `tdx` CLI
+  gains a `flatfile` subcommand group (`quotes`, `trades`, `trade_quote`,
+  `ohlc`, `open_interest`, `eod`, the four `stock_*` equivalents, and
+  the generic `request` arm). Each subcommand takes a single `YYYYMMDD`
+  date plus `--format csv|jsonl` and `-o/--output` flags; missing
+  `-o` streams the bytes to stdout. (closes #433)
+- REST server adds `GET /v3/flatfile/{sec_type}/{req_type}?date=...&format=...`
+  and `POST /v3/flatfile/request` route handlers. The bytes ride a
+  chunked response body (`tokio_util::io::ReaderStream`) so even
+  hundred-MB blobs do not pin server memory; `Content-Type` is
+  `text/csv; charset=utf-8` for CSV or `application/x-ndjson; charset=utf-8`
+  for JSONL. Flat files are batch downloads, not streaming
+  subscriptions, so the WebSocket surface is unchanged. (closes #432)
+- MCP server exposes eleven flat-file tools mirroring the Rust
+  convenience methods: `tdx_flatfile_request` (generic) plus
+  `tdx_flatfile_option_quote` / `_trade` / `_trade_quote` / `_ohlc` /
+  `_open_interest` / `_eod` and the four `tdx_flatfile_stock_*`
+  shortcuts. Each tool writes the decoded blob to disk and returns
+  the path so the LLM client can hand the file off to a downstream
+  consumer that already speaks CSV / JSONL. (closes #431)
+- Cross-language utility helpers (`condition_name`, `condition_description`,
+  `is_cancel`, `updates_volume`, `quote_condition_name`,
+  `quote_condition_description`, `is_firm`, `is_halted`, `exchange_name`,
+  `exchange_symbol`, `sequence_signed_to_unsigned`,
+  `sequence_unsigned_to_signed`) now exposed in every binding. Python
+  surfaces them as `thetadatadx.util.*`; TypeScript as the `Util` class
+  with camelCase methods (`Util.conditionName(0)`); C++ as inline
+  wrappers in the `tdx::util::*` namespace; the C ABI as
+  `tdx_condition_name`, `tdx_exchange_name`, `tdx_sequence_signed_to_unsigned`,
+  etc. The Rust source-of-truth tables in `tdbe::{conditions, exchange,
+  sequences}` drive every binding directly — no language-specific
+  duplication of the lookup data. (closes #424)
+- docs-site dedicated FLATFILES section under
+  `docs-site/docs/flatfiles/` (overview, quickstart, API reference)
+  with code samples in Python, TypeScript, C++, the `tdx` CLI, the
+  REST server, and the MCP server. Wired into the VitePress sidebar
+  alongside Real-Time Streaming. (closes #441)
+- The query-builder docs page now covers FLATFILES request
+  construction alongside the per-contract MDDS builder, including the
+  parameter table, every snippet shape, and the bandwidth caveats.
+  (closes #442)
+- ROADMAP gains a Binding Coverage Matrix tracking which features are
+  exposed in each SDK / tool surface (Rust, Python, TypeScript, C, C++,
+  MCP, CLI, REST/WS). Wave O flips the FLATFILES-tools and
+  cross-language-utils rows to shipped. (closes #446)
+- Pull-iter delivery mode restored (was deleted in v8.0.30; now
+  back as a sibling to push-callback). Adds
+  `ThetaDataDxClient::start_streaming_iter()` returning a
+  `thetadatadx::EventIterator` in Rust; `start_streaming_iter()`
+  / `with tdx.streaming_iter() as it:` returning the same iterator
+  on Python (`for event in it:`); `startStreamingIter()` returning
+  an async-iterable `EventIterator` napi class on TypeScript
+  (`for await (const event of iter)`); and
+  `tdx_unified_start_streaming_iter` / `tdx_fpss_event_iter_next`
+  / `tdx_fpss_event_iter_close` / `tdx_fpss_event_iter_free` in
+  the C ABI plus a move-only `tdx::EventIterator` with STL-iterator
+  adapters in the C++ wrapper.
+
+  The Disruptor consumer thread `force_push`es each event into a
+  `crossbeam_queue::ArrayQueue` sized to match the ring; the user
+  thread drains the queue under one lock acquisition per batch. On
+  the Python binding this collapses N per-event GIL acquires into
+  one acquire across the whole drain, which is the dominant
+  throughput cost for tuple-build / deque-append integrators —
+  `streaming_throughput.rs::pyo3_iter_next_drain` measures
+  ~4.6 Melem/s vs. ~1.1 Melem/s for the equivalent push-callback
+  shape (`pyo3_deque_append`), a 4.1× win on the same per-event
+  Python work.
+
+  Push-callback (`start_streaming(callback)`) remains the
+  recommended low-latency default; pull-iter is for high-throughput
+  batch processing where amortising the lock cost dominates.
+  Backpressure semantics match the callback path: when the iterator
+  falls behind and the queue saturates, the consumer drops the new
+  event and increments the same `dropped_event_count()` counter
+  callbacks already surface. Mode is chosen at start; push and pull
+  are mutually exclusive on a given client. Switch by stopping
+  streaming and starting again.
+- `ThetaDataDxClient::panic_count()` and `FpssClient::panic_count()` — new
+  public methods that snapshot the count of user-callback panics
+  caught by the Disruptor consumer's `catch_unwind` boundary. Each
+  panic is also surfaced via `tracing::error!` with target
+  `thetadatadx::fpss::io_loop`.
+- `ThetaDataDxClient::await_drain(timeout)` — Rust quiescence barrier.
+  Polls the previous streaming session's drain flag (set after the
+  I/O thread + Disruptor consumer have joined) and returns `true`
+  when the previous user callback is guaranteed to have stopped
+  firing. Pair with `stop_streaming` / `reconnect_streaming` from a
+  thread other than the consumer thread when the application needs
+  to free a captured context, replace the callback closure, or
+  otherwise depend on full quiescence.
+- `tdx_unified_await_drain(handle, timeout_ms)` and
+  `tdx_fpss_await_drain(handle, timeout_ms)` — C ABI mirror of
+  `await_drain`. Returns `1` once the previous Disruptor consumer
+  thread has joined, `0` on timeout. Required between
+  `tdx_*_stop_streaming` / `_reconnect` / `_shutdown` and freeing
+  `ctx`; the FFI `ctx` lifetime contract is now explicit that
+  stop / reconnect are asynchronous on the consumer side.
+- `FpssClient::drained_flag()` — exposes the shared `Arc<AtomicBool>`
+  the higher-level barrier polls; useful for binding-layer code that
+  wants to wire its own quiescence semantics.
+- Python `await_drain(timeout_ms) -> bool` and `with tdx.streaming(callback)
+  as session:` context manager. TypeScript `awaitDrain(timeoutMs)` and
+  `await using session = await tdx.streaming(callback)` (TC39 explicit
+  resource management). Both auto-call `stop_streaming` + `await_drain`
+  on scope exit, mirroring the C++ RAII destructor lifecycle. The
+  bound `session` proxies every `subscribe_*` / `unsubscribe_*` call
+  to the underlying client (Python `__getattr__`, TypeScript `Proxy`)
+  so the streaming surface stays a single source of truth rooted in
+  the Rust crate. Drain timeouts emit a `RuntimeWarning` (Python) or
+  `console.warn` (TypeScript) without masking exceptions raised inside
+  the body.
+- `RingSizeError` (`TooSmall { provided, minimum }` /
+  `NotPowerOfTwo { provided, suggested }`) — surfaced through
+  `Error::Config` from `FpssClient::connect` so a misconfigured
+  buffer budget fails closed at construction with the offending
+  value and the nearest valid size (ADR-002).
+- `crates/thetadatadx/src/fpss/streaming_soak_tests.rs` — four soak
+  tests (slow callback, panicking callback, callback-triggered stop,
+  burst overload) plus the await-drain quiescence and free-blocks-
+  until-drain tests, all exercising the consumer-thread wiring
+  without a live FPSS connection. Lives inside the crate (rather
+  than `tests/`) so the harness constructor stays `#[cfg(test)]`-only.
+- Python SDK: "Streaming buffering" section in `sdks/python/README.md`
+  documenting the `collections.deque` (Pattern A, default) and
+  `queue.Queue` (Pattern B, cross-thread blocking) consumer patterns.
+- Vendor failure-mode resilience: capture+replay test harness against
+  recorded FPSS bytes (`tests/replay_capture.rs`), mid-frame TLS
+  disconnect injection (`tests/midframe_disconnect.rs`),
+  reconnect-storm test (`tests/reconnect_storm.rs`), vendor schema-drift
+  coverage (`tests/vendor_schema_drift.rs`), property-based frame-decoder
+  fuzz target (`tests/decode_fuzz_property.rs`), callback-watchdog API
+  + slow-callback counter + rate-limited tracing warn
+  (`tests/callback_watchdog.rs`).
+- `ThetaDataDxClient::set_slow_callback_threshold(Duration)` and
+  `ThetaDataDxClient::slow_callback_count() -> u64` (mirrored on
+  `FpssClient`) — opt-in observability for user callbacks that exceed
+  a wall-clock threshold. The Disruptor consumer measures every
+  callback's elapsed time and increments a counter when over budget;
+  a `tracing::warn!` fires rate-limited per 1024 over-budget events to
+  avoid log amplification. Observability only — Rust cannot safely
+  cancel arbitrary user code, so the watchdog never kills the consumer.
+  `Duration::ZERO` disables the timer path entirely.
+- Flat-file SDK parity across Python, TypeScript, and C++. New
+  `tdx.flat_files.*` (Python) / `tdx.flatFiles.*` (TypeScript) /
+  `tdx.UnifiedClient::flat_files()` (C++) namespace returning a
+  row-list with `.to_arrow()` / `.to_pandas()` / `.to_polars()` /
+  `.to_list()` (Python) / `.toArrowIpc()` / `.toJson()` (TypeScript) /
+  `.to_arrow_ipc()` (C++) terminals plus a generic `request(sec_type,
+  req_type, date)` dispatcher and `flatfile_to_path` raw-bytes helper.
+  The dynamic schema (columns determined at runtime by `(SecType,
+  ReqType)`) is implemented as hand-written thin wrappers over
+  `crates/thetadatadx/src/flatfiles/arrow.rs::rows_to_arrow` rather
+  than through the SSOT codegen pipelines (`build_support/sdk_surface/`,
+  `build_support/endpoints/`), which target static-schema surfaces only.
+
+### Removed
+
+- `contract_id: i32` removed from every `FpssData::*` variant across
+  every binding (Rust, Python, TypeScript, C, C++). The wire-internal
+  numeric id the FPSS server assigns is no longer surfaced on data
+  events; consumers read `event.contract.symbol` (or other `Contract`
+  fields — `expiration`, `strike`, `is_call`) for identity. Code that
+  needs an id-keyed map builds it from the
+  `FpssControl::ContractAssigned` event stream. The
+  `fpss_event_schema.toml` SSOT bumps to `version = 5`; every
+  generated binding regenerates without a `contract_id` field.
+- `FpssEvent::{RawData, Empty}` no longer in the public type. The
+  decoder filters truncated FIT payloads onto the
+  `thetadatadx.fpss.decode_failures` metric counter, and ring-buffer
+  pre-allocation slots use the crate-private `FpssEventInternal`
+  layout-compatible companion enum (`#[repr(C, u8)]` shared
+  discriminants — see `events::FpssEventInternal::as_public`). The
+  Disruptor consumer reborrows `&FpssEvent` from
+  `&FpssEventInternal` zero-clone, so the H1-era hot-path cost is
+  preserved. `tools/server/AppState::contract_map` and the
+  `ws::contract_map` map-and-relookup pattern are deleted: the
+  contract `Arc` rides on the event itself, eliminating the
+  reconnect/market-close TOCTOU race on the WS bridge.
+- **Go SDK** (`sdks/go/`) deleted end-to-end. The previous half-state
+  (Go files shipped, but no CI / no live validation / not advertised
+  on the Rust core README badges) was SSOT drift; the C ABI in
+  `ffi/` remains the supported integration path for any third-party
+  C / C++ consumer. The unused `build_support/ticks/go.rs` generator
+  is also removed.
+- `crates/thetadatadx/src/fpss/dispatcher.rs` and its public exports.
+  Panic isolation, drop counting, and consumer-thread invariants now
+  live on the Disruptor consumer in `io_loop`.
+- `crossbeam-channel` runtime dependency on `thetadatadx`.
+- `expert-mode` and `test-harness` Cargo features on `thetadatadx`.
+  The C ABI no longer exposes `tdx_*_set_inline_callback`; the
+  queued and inline paths shared the same Disruptor-consumer
+  pipeline post-#513, so the parallel entry points were theatre.
+  The test-harness constructor (`for_self_join_test`) is now
+  `#[cfg(test)]`-only and lives alongside the soak tests inside
+  the crate.
+- `IntoOptionSpec` sealed trait. `Contract::option(symbol,
+  expiration, strike, right)` returns to its explicit four-argument
+  form; callers holding wire-format integer triples use
+  `Contract::option_raw(symbol, expiration, is_call, strike_raw)`
+  instead.
+- `FpssConnectArgs::Default` impl. The previous impl manufactured
+  empty-string credentials inside a `OnceLock` so callers could
+  spread `..Default::default()`; that produced a struct that could
+  not actually connect. Use `FpssConnectArgs::new(&creds, &hosts)`
+  and override the optional fields explicitly.
+
+### Changed (continued)
+
+- TypeScript CI now runs `npm test` on every advertised platform
+  (Linux, macOS, Windows) instead of gating to Linux only. CI parity
+  with the Python and Rust matrices: every platform we ship a
+  prebuilt addon for has its tests run on that platform.
+- `README.md`, `crates/thetadatadx/README.md`, `docs/architecture.md`,
+  `sdks/README.md`, `docs-site/docs/streaming/events.md` no longer
+  advertise Go SDK support; the Rust install examples in
+  `README.md`, `crates/thetadatadx/src/frames/mod.rs`, and
+  `docs-site/docs/getting-started/{quickstart,installation}.md` now
+  show `thetadatadx = "9"`.
+- `FpssClient::connect` now rejects a non-power-of-two `ring_size`
+  with `Error::Config` rather than silently rounding to the next
+  power of two (ADR-002). Default configs (`131_072`) are unchanged.
+- `Contract::option(symbol, expiration, strike, right)` reverts to
+  the explicit four-argument signature; the wire-format integer
+  triple constructor moves to `Contract::option_raw(...)`.
+
+### Performance
+
+- Per-event cost on the `start_streaming` path drops by removing the
+  `event.clone()` + intermediate-channel `try_send` + drain-thread
+  wakeup hop that previously sat between the Disruptor consumer and
+  the user callback.
+
+  Microbenchmark methodology (`crates/thetadatadx/benches/streaming_channels.rs`):
+  each variant retries `Producer::try_publish` on overflow until
+  exactly `EVENTS_PER_ITER` (= 100_000) successful publishes have
+  landed per Criterion sample, and the consumer closure (or
+  trampoline) increments a `delivered_events: AtomicU64`. The
+  retry-on-overflow loop guarantees `delivered == EVENTS_PER_ITER`
+  by construction, so `Throughput::Elements(EVENTS_PER_ITER)` is
+  exact and the reported figures are per-DELIVERED-event cost.
+  Earlier revisions divided wall-clock by attempt count, which
+  silently understated cost when the consumer fell behind. A
+  `debug_assert_eq!(delivered, EVENTS_PER_ITER)` per iteration
+  cross-checks the invariant in debug builds (it is a no-op in
+  release-mode bench runs).
+
+  Indicative numbers from `cargo bench --bench streaming_channels --
+  --quick` on a recent x86-64 Linux laptop (Criterion median, native
+  release build, throughput per delivered event):
+  - `disruptor_consumer_panic_isolated` (live SSOT path:
+    `Producer::try_publish` + Disruptor consumer + `catch_unwind`):
+    ≈ 1.46 ms / 100k ≈ 14.6 ns / delivered event
+    (≈ 68 Melem/s).
+  - `disruptor_consumer_no_catch_unwind` (same pipeline without the
+    panic boundary): ≈ 1.47 ms / 100k ≈ 14.7 ns / delivered event
+    (≈ 68 Melem/s) — `catch_unwind` cost is below Criterion's
+    noise floor on `Empty` events.
+  - `disruptor_cross_thread` (production-shape topology: producer on
+    a worker thread, consumer on the Disruptor's own thread):
+    ≈ 1.49 ms / 100k ≈ 14.9 ns / delivered event
+    (≈ 67 Melem/s).
+  - `direct_callback` (prospective TLS-reader-direct path modelled
+    via `Box<dyn Fn>` adapter, no ring, no consumer thread):
+    ≈ 533 µs / 100k ≈ 5.3 ns / delivered event
+    (≈ 188 Melem/s).
+
+  Run `cargo bench --bench streaming_channels` for per-machine
+  numbers; the absolute values are sensitive to CPU model and
+  governor settings, so the SDK ships the methodology and the
+  variants rather than locking in figures that age out with each
+  hardware refresh. The earlier "1.13 ns / event" figure for the
+  Disruptor variants was an artefact of dividing wall-clock by
+  attempt count, not delivered events; the corrected number above
+  reflects per-callback-delivery cost.
+
 ## [9.0.2] - 2026-05-07
 
 ### Added
@@ -100,7 +821,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
 - **Wire-internal `contract_id: i32` removed from every public surface.**
-  Dropped from Rust (`ThetaDataDx::contract_map`, `ThetaDataDx::contract_lookup`,
+  Dropped from Rust (`ThetaDataDxClient::contract_map`, `ThetaDataDxClient::contract_lookup`,
   `FpssClient::contract_map`, `FpssClient::contract_lookup`), C ABI
   (`tdx_unified_contract_map`, `tdx_unified_contract_lookup`,
   `tdx_fpss_contract_map`, `tdx_fpss_contract_lookup`,
@@ -183,14 +904,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Contract::option_raw` (folded into `Contract::option` via
   `IntoOptionSpec`).
-- `ThetaDataDx::contract_map`, `ThetaDataDx::contract_lookup`,
+- `ThetaDataDxClient::contract_map`, `ThetaDataDxClient::contract_lookup`,
   `FpssClient::contract_map`, `FpssClient::contract_lookup`.
 - C ABI: `tdx_unified_contract_map`, `tdx_unified_contract_lookup`,
   `tdx_fpss_contract_map`, `tdx_fpss_contract_lookup`,
   `tdx_contract_map_array_free`, `TdxContractMapArray`,
   `TdxContractMapEntry`.
-- Python SDK: `ThetaDataDx.contract_map`, `ThetaDataDx.contract_lookup`.
-- TypeScript SDK: `ThetaDataDx.contractMap`, `ThetaDataDx.contractLookup`.
+- Python SDK: `ThetaDataDxClient.contract_map`, `ThetaDataDxClient.contract_lookup`.
+- TypeScript SDK: `ThetaDataDxClient.contractMap`, `ThetaDataDxClient.contractLookup`.
 - C++ SDK: `FpssClient::contract_map`, `FpssClient::contract_lookup`.
 - `pub mod proto` (now `pub(crate)`; consumers use `thetadatadx::wire`).
 - `pub mod fpss::{connection, framing, dispatcher, ring}` (now
@@ -217,7 +938,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Streaming state machine collapsed into a single `ArcSwap<StreamingSlot>`.**
-  `ThetaDataDx`'s prior 3-field state (`Mutex<Option<FpssClient>>`,
+  `ThetaDataDxClient`'s prior 3-field state (`Mutex<Option<FpssClient>>`,
   `Mutex<Option<StreamingDispatcher>>`, `AtomicBool was_streaming`) is
   now one `ArcSwap` of an `Idle` / `Live` / `Stopped` enum. Read paths
   (`is_streaming`, `connection_status`, `with_streaming`, every
@@ -247,7 +968,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `impl Iterator<Item = Option<T>>` would force every caller to deal
   with the iterator shape and lose the missing-header early-return the
   warn-log path relies on.
-- (LOW 3.9) `Drop::drop` on `ThetaDataDx` documents its idempotency
+- (LOW 3.9) `Drop::drop` on `ThetaDataDxClient` documents its idempotency
   invariant. The `Idle` / `Live` / `Stopped` state machine guarantees
   the FPSS / dispatcher shutdown sequence runs at most once across
   `stop_streaming` + `Drop`.
@@ -332,9 +1053,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Internal version references in source comments** (`v8.0.10`, `v7.2.0`,
   `v8.0.3`, `v8.0.2`, `v6.0.1+`). Semantic content preserved; release
   metadata pruned out of code paths where it adds no maintenance value.
-- **Banned vocabulary `firehose`** removed from source doc comments,
-  README.md, and ROADMAP.md. Replaced with `full-stream` / `full-type`.
-  CHANGELOG history is intentionally untouched.
+- **Banned-vocabulary sweep on full-stream subscription wording** in
+  source doc comments, README.md, and ROADMAP.md. Replaced with
+  `full-stream` / `full-type`. CHANGELOG history is intentionally
+  untouched.
 
 ## [8.0.32] - 2026-05-06
 
@@ -406,7 +1128,7 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
   Python binding now wires straight through the SSOT
   `StreamingDispatcher`. Drop counter is exposed via
   `tdx.dropped_event_count()` (forwarded to
-  `thetadatadx::ThetaDataDx::dropped_event_count`). The Python
+  `thetadatadx::ThetaDataDxClient::dropped_event_count`). The Python
   binding deliberately does NOT expose `start_streaming_inline`:
   GIL acquisition can block, and a slow Python callback on the
   FPSS reader thread would fill the kernel TCP receive buffer and
@@ -814,7 +1536,7 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
   exposed via `GET /v3/system/fpss/status` as `broadcast_dropped`, and
   warn-logged once per 1024 drops to surface back-pressure without
   flooding stderr.
-- **`ThetaDataDx::reconnect_streaming` now fails explicitly on partial
+- **`ThetaDataDxClient::reconnect_streaming` now fails explicitly on partial
   re-subscription.** The re-subscribe loop in
   `crates/thetadatadx/src/unified.rs` previously logged failures via
   `tracing::warn!` and returned `Ok(())`, hiding partial reconnects
@@ -979,8 +1701,8 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 
 ### Changed
 
-- `tools/mcp` replaced `Arc<RwLock<Option<ThetaDataDx>>>` with
-  `Arc<OnceCell<ThetaDataDx>>`. The JSON-RPC handler no longer holds
+- `tools/mcp` replaced `Arc<RwLock<Option<ThetaDataDxClient>>>` with
+  `Arc<OnceCell<ThetaDataDxClient>>`. The JSON-RPC handler no longer holds
   a read guard across awaited tool execution; `OnceCell::get` is
   lock-free.
 - `tools/cli` `get_arg()` now uses `unreachable!()` with an explicit
@@ -1040,7 +1762,7 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
   `format`, `types`, `writer`, `datatype` submodules.
 - Three free-function entry points: `flatfile_request`,
   `flatfile_request_decoded`, `flatfile_request_raw`. Mirror methods
-  on the unified `ThetaDataDx` client. Convenience methods for the
+  on the unified `ThetaDataDxClient` client. Convenience methods for the
   option / stock × `{open_interest, trade_quote, trade, quote, eod}`
   matrix.
 - Public types: `FlatFileFormat::{Csv, Jsonl}`, `SecType`, `ReqType`,
@@ -1380,7 +2102,7 @@ FFI surfaces. `tdbe` bumps to `0.12.0` (public module removed).
   `normalize_time_of_day`, and `contract_spec!` macro move next to
   their generated consumers in `crates/thetadatadx/src/mdds/endpoints.rs`.
 - `fpss::session::reconnect` — 90 LOC public function, zero callers.
-  `ThetaDataDx::reconnect_streaming` remains the reconnect entry point.
+  `ThetaDataDxClient::reconnect_streaming` remains the reconnect entry point.
   `reconnect_delay` is kept (used by `fpss::decode`).
 - The crate-local right-parser re-export shim was removed.
   `parse_right`, `parse_right_strict`, and `ParsedRight` stay at the
@@ -1392,7 +2114,7 @@ FFI surfaces. `tdbe` bumps to `0.12.0` (public module removed).
   used items (`HTTP_STATUS_CODE_KEY`, `error_from_http_code`) are now
   reachable at `tdbe::error::*`; the unused `error_name` helper and
   the `errors` module itself are gone.
-- 24 `FpssClient` / `ThetaDataDx` per-security shortcut methods (and
+- 24 `FpssClient` / `ThetaDataDxClient` per-security shortcut methods (and
   their unsubscribe twins). Callers use the
   `Contract`-taking `subscribe_quotes` / `subscribe_trades` /
   `subscribe_open_interest` methods directly.
@@ -1415,7 +2137,7 @@ FFI surfaces. `tdbe` bumps to `0.12.0` (public module removed).
 ### Changed
 
 - `pub mod unified` and `pub mod registry` narrowed to `pub(crate)`.
-  The documented types (`ThetaDataDx`, `SubscriptionInfo`,
+  The documented types (`ThetaDataDxClient`, `SubscriptionInfo`,
   `ConnectionStatus`, `EndpointMeta`, `ParamMeta`, `ParamType`,
   `ReturnType`, `ENDPOINTS`, plus `by_category`, `find`,
   `param_type_to_json_type`, `CATEGORIES` for the CLI / MCP tools)
@@ -1527,7 +2249,7 @@ unchanged; the additive surface opens new opt-in paths.
 ### Added
 
 - **Async Python surface — every historical endpoint gains an `_async` companion.** `client.stock_history_eod_async(...)` returns an awaitable built on `pyo3_async_runtimes::tokio::future_into_py`. Sync and async paths share the same `OnceLock<tokio::runtime::Runtime>` singleton — one runtime, one connection pool, one request semaphore.
-- **Fluent builders — `tdx.<endpoint>_builder(...)` returns a per-endpoint `#[pyclass]` with chainable setters and `.list()` / `.arrow()` / `.pandas()` / `.polars()` terminals plus `_async` companions.** Builder holds `Arc<thetadatadx::ThetaDataDx>` so every terminal drives the original client without re-authenticating.
+- **Fluent builders — `tdx.<endpoint>_builder(...)` returns a per-endpoint `#[pyclass]` with chainable setters and `.list()` / `.arrow()` / `.pandas()` / `.polars()` terminals plus `_async` companions.** Builder holds `Arc<thetadatadx::ThetaDataDxClient>` so every terminal drives the original client without re-authenticating.
 - **`decode_response_bytes(endpoint, chunks)`** — generator-emitted `#[pyfunction]` that feeds recorded `Vec<&[u8]>` `proto::ResponseData` frames through the Rust decoder and returns the typed pyclass list, so external parity benches can attribute wall-clock cost between network and decode without an MDDS round-trip. Auto-wired for every endpoint that has a typed decoder.
 - **Layered exception hierarchy** — `thetadatadx.ThetaDataError` root plus nine leaves: `AuthenticationError`, `InvalidCredentialsError`, `SubscriptionError`, `RateLimitError`, `SchemaMismatchError`, `NetworkError`, `TimeoutError`, `NoDataFoundError`, `StreamError`. `to_py_err` maps every `thetadatadx::Error` variant (plus gRPC status strings) onto the correct leaf. `#[non_exhaustive]` catch-all.
 - **Python logging bridge** — `tracing_subscriber::Layer` that forwards every `tracing` event to `logging.getLogger(target).log(...)`. Filter-first via `isEnabledFor(level)` so default WARN loggers pay a single bool check per event with no formatting. Installed at module init.
@@ -1535,7 +2257,7 @@ unchanged; the additive surface opens new opt-in paths.
 - **`RetryPolicy`** — initial_delay 250 ms, max_delay 30 s, max_attempts 5, full jitter by default. Retries only on `Unavailable` / `DeadlineExceeded` / `ResourceExhausted`. Unit-tested backoff math, jitter bounds, and the `disabled()` shortcut.
 - **Session auto-refresh** — `auth::SessionToken` holds the session UUID behind a `tokio::sync::Mutex` + monotonic version counter. On `Unauthenticated` the retry loop snapshots the token, re-auths via Nexus, swaps the UUID in place, and retries exactly once. A second 401 fails permanently. Concurrent 401s dedupe into a single Nexus round-trip via version-check short-circuit.
 - **Environment-variable config matrix** — `DirectConfig::production()` layers env vars on the hardcoded defaults: `THETADATA_MDDS_HOST`, `THETADATA_MDDS_PORT` (upstream-compat), plus DX extensions `THETADATA_NEXUS_URL`, `THETADATA_FPSS_HOST`, `THETADATA_FPSS_PORT`, `THETADATA_CLIENT_TYPE`. Precedence: explicit builder setter > env var > hardcoded default.
-- **Optional `metrics-prometheus` cargo feature** — pulls `metrics-exporter-prometheus` and wires an HTTP `/metrics` listener on `DirectConfig::metrics_port`. Exporter starts inside `ThetaDataDx::connect` so the first RPC counter is already covered. Feature-gated; default build stays dep-free.
+- **Optional `metrics-prometheus` cargo feature** — pulls `metrics-exporter-prometheus` and wires an HTTP `/metrics` listener on `DirectConfig::metrics_port`. Exporter starts inside `ThetaDataDxClient::connect` so the first RPC counter is already covered. Feature-gated; default build stays dep-free.
 - **Vendor docstring lift** — 60 endpoint docstrings threaded through `endpoint_surface.toml` → model → parser → generator so sync / async / builder variants share one SSOT. Attribution recorded in `docs/ATTRIBUTION.md`.
 - **`split_date_range(start, end)`** — pure Rust 365-day-window splitter exposed as `thetadatadx.split_date_range` for tooling and the auto-chunk pre-flight. Tested on single-day, exact boundary, multi-year contiguity, leap-day, and invalid input.
 - **Capture fixtures** — seven `tests/fixtures/captures/<endpoint>.{pb.zst,meta.toml}` pairs anchor expected row counts, exact server header lists, and first-row field values. `tests/test_decode_captures.rs` feeds each fixture through the same `decode_data_table` → tick-parser path the `MddsClient` uses and asserts three invariants per fixture. Two regression guards ensure `MissingRequiredHeader` fires on non-empty schema drift and empty responses still return `Ok(vec![])`.
@@ -1563,7 +2285,7 @@ unchanged; the additive surface opens new opt-in paths.
 Major release. Three headline groups land in one pass:
 
 1. **FPSS events now carry a parsed `Arc<Contract>`** (#389). Every `FpssData::{Quote,Trade,OpenInterest,Ohlcvc}` replaces the `symbol: Arc<str>` field with `contract: Arc<Contract>`, and the `contract_map` lifts from `HashMap<i32, Contract>` to `HashMap<i32, Arc<Contract>>`. Decoded events carry the full typed contract (`root`, `sec_type`, `exp_date?`, `is_call?`, `strike?`) at refcount cost rather than a bare symbol string; every language SDK exposes a matching typed `Contract`. `SecType::Unknown` is added as the sentinel for not-yet-assigned contract IDs so exhaustive matches stay sound.
-2. **`impl FromStr for Contract` plus historical FPSS subscribe shortcuts** (#389). `"AAPL".parse::<Contract>()?` yields a stock contract; `"SPY   260417C00550000".parse::<Contract>()?` parses the OCC 21-char option identifier (2000–2099 scope, trim-tolerant 20-char pad, every parse failure returns `Error::Config` with the offending input). `FpssClient` and `ThetaDataDx` gained per-security subscribe and unsubscribe shortcuts — one-liners over the underlying typed subscribe machinery.
+2. **`impl FromStr for Contract` plus historical FPSS subscribe shortcuts** (#389). `"AAPL".parse::<Contract>()?` yields a stock contract; `"SPY   260417C00550000".parse::<Contract>()?` parses the OCC 21-char option identifier (2000–2099 scope, trim-tolerant 20-char pad, every parse failure returns `Error::Config` with the offending input). `FpssClient` and `ThetaDataDxClient` gained per-security subscribe and unsubscribe shortcuts — one-liners over the underlying typed subscribe machinery.
 3. **FPSS control codes 4 / 10 / 13 / 31 decode into typed variants** (#389). `FpssControl::{Connected, Ping { payload }, ReconnectedServer, Restart}` replace the `UnknownFrame` fallthrough these codes used to hit. The `Restart` arm clears delta decode state so subsequent ticks no longer decode against a stale baseline. FFI kind tags grow 13..=16; every SDK mirrors the new constants.
 
 ### Removed
@@ -1581,7 +2303,7 @@ Major release. Three headline groups land in one pass:
 - **Top-level `README.md` rewritten** as a professional SDK landing page: tagline, highlights, per-SDK quickstart (Rust / Python / TypeScript / Go / C++), architecture diagram, Java parity note. Neutral technical framing throughout.
 - **`docs/java-parity-checklist.md` added** as the single source of truth for Java terminal parity — feature-by-feature table (parity / deviation / partial) covering wire protocol, authentication, control events, reconnection, FPSS streaming, tick decoding, Greeks, validation, and intentional improvements over the Java terminal. Three earlier stand-alone documents (`docs/jvm-deviations.md`, `docs/java-class-mapping.md`, and a prior protocol-archaeology note) folded in.
 - **Internal `docs/dev/` design notes removed** (no longer load-bearing).
-- **`DirectClient` renamed to `MddsClient`** (#383) — the historical-data gRPC client now carries the name of the service it actually speaks to (MDDS = Market Data Delivery Service). `use thetadatadx::DirectClient` call sites break; update to `use thetadatadx::MddsClient`. The `DirectConfig` associated config type keeps its name. High-level consumers of `ThetaDataDx` (Python / TypeScript / Go / C++ / Rust facade) are unaffected.
+- **`DirectClient` renamed to `MddsClient`** (#383) — the historical-data gRPC client now carries the name of the service it actually speaks to (MDDS = Market Data Delivery Service). `use thetadatadx::DirectClient` call sites break; update to `use thetadatadx::MddsClient`. The `DirectConfig` associated config type keeps its name. High-level consumers of `ThetaDataDxClient` (Python / TypeScript / Go / C++ / Rust facade) are unaffected.
 - **`crates/thetadatadx/src/direct.rs` split into `crates/thetadatadx/src/mdds/` module** (#383) — 732-line monolith broken into six concern-separated files (`client`, `endpoints`, `endpoint_arg_ext`, `normalize`, `validate`, `mod`). Pure move; wire behavior unchanged; all 304 workspace tests pass.
 - **`crates/thetadatadx/proto/external.proto` renamed to `mdds.proto`** (#385) — the proto file described only MDDS (`BetaEndpoints`) messages; the filename now reflects that. `tonic::include_proto!("beta_endpoints")` and every downstream Rust import resolve unchanged (package declaration drove the module name, not the filename). `build.rs`, `proto_parser`, generated-header strings, `MAINTENANCE.md`, `CONTRIBUTING.md`, `ROADMAP.md`, and every `docs/` reference updated (17 files, 51 lines).
 - **`fpss_event_schema.toml` schema version bumped 2 → 3** (#389) — carries the new nested `Contract` column type for every data-event variant. Every SDK Contract type (Python pyclass, TypeScript `#[napi(object)]`, Go struct with `*int32`/`*bool` pointer optionals, C/C++ typedef with `has_*` tagged-optional flags, Rust FFI `#[repr(C)] TdxContract` with `CString`-backed root pointer) is generator-emitted from the updated schema.
@@ -1590,7 +2312,7 @@ Major release. Three headline groups land in one pass:
 
 - **Parsed `Arc<Contract>` on every FPSS data event** (#389) — `FpssData::{Quote,Trade,OpenInterest,Ohlcvc}::contract: Arc<Contract>` replaces the former `symbol: Arc<str>`. Option events now expose `event.contract.exp_date`, `.strike`, `.is_call` without a second lookup; stock events read `event.contract.root`. Refcount-only per-event clone. Mirrors `net.thetadata.fpssclient.Contract` from the Java terminal without the JSON round-trip. `contract_lookup` and `contract_map` return `Arc<Contract>` / `HashMap<i32, Arc<Contract>>` on every SDK.
 - **`impl FromStr for Contract`** (#389) — `"AAPL".parse::<Contract>()?` yields a stock contract (1..=6 ASCII A-Z, `.` permitted); `"SPY   260417C00550000".parse::<Contract>()?` parses the OCC 21-char institutional option identifier (6-byte root right-padded with spaces, 6-byte YYMMDD century-adjusted to 2000–2099 YYYYMMDD, single-byte `C`/`P`, 8-byte strike in thousandths of a dollar). 20-byte inputs are tolerated with a trailing-space pad. Parse failures return `Error::Config` naming the offending input and the specific failure (length, root charset, expiration digits, right byte, strike digits).
-- **Historical FPSS subscribe shortcuts** (#389) — per-security subscribe and matching unsubscribe counterparts were added on `FpssClient` and `ThetaDataDx`. Each wraps the `Contract` builder plus the typed `subscribe` / `unsubscribe` call into one line; no duplicate request-ID or frame-build machinery.
+- **Historical FPSS subscribe shortcuts** (#389) — per-security subscribe and matching unsubscribe counterparts were added on `FpssClient` and `ThetaDataDxClient`. Each wraps the `Contract` builder plus the typed `subscribe` / `unsubscribe` call into one line; no duplicate request-ID or frame-build machinery.
 - **Typed decoding of FPSS control codes 4 / 10 / 13 / 31** (#389) — `FpssControl::Connected` (4), `FpssControl::Ping { payload }` (10), `FpssControl::ReconnectedServer` (13 — server-side ack, distinct from the client-side auto-reconnect `Reconnected` variant), and `FpssControl::Restart` (31) replace the `UnknownFrame` fallthrough these codes used to hit. The `Restart` arm clears delta decode state so subsequent ticks no longer decode against a stale baseline. FFI `TdxFpssControl` kind tags grow 13..=16; Go `FpssCtrl*` constants mirror them.
 - **`Contract` type surfaced on every language SDK** (#389) — Python pyclass (`Py<Contract>` embedded in each event, cloned via `clone_ref(py)`), TypeScript `#[napi(object)]`, Go struct with `*int32` / `*bool` pointer optional fields, C/C++ typedef with `has_*` tagged-optional flags, Rust FFI `#[repr(C)] TdxContract` with a `CString`-backed `root` pointer. `Contract.sec_type == SecType::Unknown` is the sentinel for not-yet-assigned contract IDs; every SDK exposes the new variant.
 - **`thetadatadx.to_arrow(ticks) -> pyarrow.Table`** (#379) — new public Python entry point that returns the Arrow table directly, for users wiring DuckDB / Arrow-Flight / cuDF / polars-arrow pipelines without a pandas or polars roundtrip. Requires `pip install thetadatadx[arrow]` (pyarrow only).
@@ -1598,13 +2320,13 @@ Major release. Three headline groups land in one pass:
 - **Generated `#[new]` constructors on every tick pyclass** (#379) — `EodTick(ms_of_day=1, volume=1_000_000, ...)`, `OhlcTick(...)`, `TradeTick(...)`, etc. All fields are keyword-only with zero / empty-string defaults, so test fixtures and user-side data construction are possible from Python (previously pyclass instances could only be produced by Rust endpoints).
 - **`AllGreeks` pyclass** (#378) — `all_greeks(...)` now returns a frozen `AllGreeks` pyclass with 22 `#[pyo3(get)]` f64 fields (value / iv / delta / gamma / theta / vega / rho plus every second- and third-order Greek) and a `__repr__` showing the six most-referenced values. Replaces the untyped 22-key `PyDict` that was the sole remaining dict-typed public return in the Python SDK.
 - **`__repr__` on every FPSS event pyclass** (#380) — `Ohlcvc`, `Quote`, `Trade`, `OpenInterest`, `Simple`, `RawData` now render up to six live field values at the Jupyter / print boundary (matching the pattern already on tick pyclasses). Opaque `Vec<u8>` payloads and `received_at_ns` skipped as noise.
-- **`dropped_events()` counter on every streaming SDK** (#377) — `Arc<AtomicU64>` hoisted onto `ThetaDataDx` survives reconnect and is exposed as `tdx.dropped_events() -> int` (Python), `tdx.droppedEvents(): bigint` (TypeScript), `client.DroppedEvents() uint64` (Go), `client.dropped_events() -> uint64_t` (C++), `tdx_fpss_dropped_events(handle)` / `tdx_unified_dropped_events(handle)` (FFI). Previously silent `let _ = tx.send(buffered)` call-sites now bump the counter and emit `tracing::debug!` on target `thetadatadx::sdk::streaming`.
+- **`dropped_events()` counter on every streaming SDK** (#377) — `Arc<AtomicU64>` hoisted onto `ThetaDataDxClient` survives reconnect and is exposed as `tdx.dropped_events() -> int` (Python), `tdx.droppedEvents(): bigint` (TypeScript), `client.DroppedEvents() uint64` (Go), `client.dropped_events() -> uint64_t` (C++), `tdx_fpss_dropped_events(handle)` / `tdx_unified_dropped_events(handle)` (FFI). Previously silent `let _ = tx.send(buffered)` call-sites now bump the counter and emit `tracing::debug!` on target `thetadatadx::sdk::streaming`.
 - **`POST /v3/system/shutdown` endpoint on `thetadatadx-server`** (#377) — graceful shutdown over a privileged route gated by a per-startup random UUID `X-Shutdown-Token` header (constant-time compared via `subtle::ConstantTimeEq`). Prints the token to stderr at startup only; never into structured logs. Dedicated governor allows one attempt per hour, burst 3. Method is `POST` (not `GET`) so the action is neither cached nor prefetched.
 
 ### Changed
 
 - **DataFrame adapter migrated to Apache Arrow columnar pipeline** (#379) — `to_dataframe(ticks)` / `to_polars(ticks)` / `to_arrow(ticks)` build a single `arrow::RecordBatch` in Rust and hand it to pyarrow via the Arrow C Data Interface (zero-copy at the pyo3 boundary). pandas 2.x aliases the numeric columns in place; polars consumes via `polars.from_arrow`. At 100k x 20 `EodTick` rows wall-clock drops from ~300-500 ms (legacy dict-of-lists) to ~8 ms — substantially. SSOT preserved: Arrow schema + converters are generated from `tick_schema.toml`; no hand-maintained Arrow code.
-- **Per-endpoint DataFrame convenience wrappers removed** (#379) — the four per-endpoint `stock_history_{eod,ohlc,trade,quote}` Rust-tick-slice fast-path helpers on `ThetaDataDx` were deleted. The unified recipe is one extra line with identical performance:
+- **Per-endpoint DataFrame convenience wrappers removed** (#379) — the four per-endpoint `stock_history_{eod,ohlc,trade,quote}` Rust-tick-slice fast-path helpers on `ThetaDataDxClient` were deleted. The unified recipe is one extra line with identical performance:
 
   ```python
   ticks = client.stock_history_eod("AAPL", "20240101", "20240301")
@@ -1640,7 +2362,7 @@ Major release. Three headline groups land in one pass:
 ### Changed
 
 - **`thetadatadx::direct` module removed; replaced by `thetadatadx::mdds`** — the 732-line flat `src/direct.rs` is split into a concern-separated `src/mdds/` module that mirrors the existing `fpss/` layout: `client.rs` (struct + connect), `stream.rs` (gRPC response helpers), `validate.rs` (param validators), `normalize.rs` (wire-format canonicalizers + `contract_spec!` macro), `endpoints.rs` (generated `include!` sites). The generator module `build_support/endpoints/render/direct.rs` is renamed to `render/mdds.rs` and now emits `mdds_*_generated.rs` into `OUT_DIR`; the template directory `templates/direct/` is renamed to `templates/mdds/`. "MDDS" is the actual upstream gRPC service name — "direct" conveyed nothing.
-- **`DirectClient` renamed to `MddsClient`** — the struct inside the (now) `mdds/` module takes its module's name. Re-exported at the crate root as `thetadatadx::MddsClient`. `ThetaDataDx` still `Deref<Target = MddsClient>`s, so every historical endpoint method is reached unchanged via the unified client.
+- **`DirectClient` renamed to `MddsClient`** — the struct inside the (now) `mdds/` module takes its module's name. Re-exported at the crate root as `thetadatadx::MddsClient`. `ThetaDataDxClient` still `Deref<Target = MddsClient>`s, so every historical endpoint method is reached unchanged via the unified client.
 
 ### Changed
 
@@ -1659,9 +2381,9 @@ Major release. Three headline groups land in one pass:
 
 - **FFI boundary catches Rust panics** (#380) — zero `catch_unwind` existed across the FFI crate before this change. A Rust panic crossing an `extern "C"` boundary on Rust 1.81+ aborts the host process — C / Go / Python / C++ callers died with no way to recover. New `ffi_boundary!` macro wraps every extern body in `std::panic::catch_unwind(AssertUnwindSafe(|| { ... }))`. Panic payloads are downcast to `&'static str` then `String`, routed to `tracing::error!` on target `thetadatadx::ffi::panic`, written to the thread-local `LAST_ERROR` slot via the existing `set_error`, and the fn returns the caller-declared default (`ptr::null_mut()` / `-1` / `0` / sentinel-empty-array). **Coverage: 145 production `extern "C"` functions wrapped** — 84 in `ffi/src/lib.rs` plus 61 in the generated `ffi/src/endpoint_with_options.rs`. Generator-emitted so future regeneration preserves parity. Regression tests at `ffi/tests/panic_boundary.rs`.
 - **Python `next_event(timeout_ms)` honours Ctrl+C within 100 ms** (#380) — previously the generator emitted a single `recv_timeout(Duration::from_millis(timeout_ms))` with the GIL released for the full user-supplied timeout (up to 5 minutes), so Ctrl+C was swallowed for the duration of the wait. `build_support/sdk_surface.rs` now emits a 100 ms polling loop that calls `Python::check_signals()?` per iteration and returns on deadline.
-- **`ThetaDataDx::new` constructor is cancellable** (#380) — swapped `run_in_tokio_blocking` for `run_blocking(py, async { connect(...).await })` so a TLS / auth handshake hang stays Ctrl+C-interruptible.
+- **`ThetaDataDxClient::new` constructor is cancellable** (#380) — swapped `run_in_tokio_blocking` for `run_blocking(py, async { connect(...).await })` so a TLS / auth handshake hang stays Ctrl+C-interruptible.
 - **FPSS TLS: SPKI pinning replaces `NoVerifier`** (#377) — `PinnedVerifier` parses the leaf cert via `x509-parser`, computes SHA-256 over the SubjectPublicKeyInfo DER bytes, and constant-time compares (`subtle::ConstantTimeEq`) against the captured `FPSS_SPKI_SHA256` (verified identical across prod `nj-a:20000` / `nj-b:20000`, dev `:20200`, stage `:20100` — single keypair across every FPSS environment). Rejects with `CertificateError::NotValidForName` on hostname mismatch (allowlist) or `RustlsError::General("FPSS SPKI pin mismatch: ...")` on pin mismatch. `verify_tls12_signature` / `verify_tls13_signature` delegate to rustls' proper signature verification. Previously any on-path attacker terminating TLS to `nj-a.thetadata.us:20000` could present any cert and harvest the plaintext `StreamMsgType::Credentials` frame.
-- **Password `Zeroizing<String>`** (#377) — `Credentials.password` wrapped in `zeroize::Zeroizing<String>`. Every clone (`ThetaDataDx`, `io_loop`, reconnect re-serialise) now wipes the backing buffer on drop. Core dump / `/proc/<pid>/mem` no longer recovers the password after `Credentials` drops. `Deref<Target = str>` means call-sites are unchanged.
+- **Password `Zeroizing<String>`** (#377) — `Credentials.password` wrapped in `zeroize::Zeroizing<String>`. Every clone (`ThetaDataDxClient`, `io_loop`, reconnect re-serialise) now wipes the backing buffer on drop. Core dump / `/proc/<pid>/mem` no longer recovers the password after `Credentials` drops. `Deref<Target = str>` means call-sites are unchanged.
 - **CSV formula injection defused on `thetadatadx-server` exports** (#377) — `escape_csv_field` now prefixes cells whose first byte is `=`, `+`, `-`, `@`, or `\t` with a single-quote `'` and encloses in CSV quotes. Defuses `=cmd|'/C calc'!A1`, `@SUM(A1:A10)`, `+1+cmd|...` etc from executing in Excel downloads. Regression test covers all five payload shapes.
 - **FPSS `io_loop`: Java-parity mid-frame read retry with per-read deadline reset** (#370) — previously a mid-frame read timeout desynced the decoder. The client now retries transparently with the per-read deadline reset, matching the Java terminal's reconnect behaviour.
 - **WS subscribe strike / expiration use `i32::try_from`** (#377) — client-supplied expiration / strike no longer silently narrow via `as i32`. Returns `REQ_RESPONSE { response: "ERROR", ... }` with a descriptive message on overflow. Validates `exp` against `[19000101, 21000101]` YYYYMMDD bounds and `strike > 0` before building the FPSS frame (#378).
@@ -1781,7 +2503,7 @@ Major release. Three headline groups land in one pass:
 - **Option contract wildcard rejection** (#284) -- before this release the SDK had no working path to the server's bulk-chain mode: `*` was rejected client-side by `validate_expiration`, and `0` was rejected server-side. The SDK vocabulary now covers the full cross-product the server accepts.
 - **Validator tier detection drift** (#289) -- dropped the static tier gate that classified legitimate server responses as SKIP. The runtime permission fallback still catches drift between docs and the wire (for example, `interest_rate_history_eod` being labelled `free` on docs but gated higher by the server).
 - **CI unbroken on `main`** (#299) -- fixed a `timeout_ms` TOML field mismatch and made the Go pin-test CRLF-robust.
-- **FPSS internal visibility tightening** -- `active_subs` and `active_full_subs` are now `pub(in crate::fpss)` rather than `pub(super)`, keeping per-contract and firehose subscription state visible only to the `fpss` module tree. The reconnect-delay tests also now assert against the `TOO_MANY_REQUESTS_DELAY_MS` / `RECONNECT_DELAY_MS` constants instead of hard-coded millisecond literals, so the tests cannot drift from the real protocol values.
+- **FPSS internal visibility tightening** -- `active_subs` and `active_full_subs` are now `pub(in crate::fpss)` rather than `pub(super)`, keeping per-contract and full-stream subscription state visible only to the `fpss` module tree. The reconnect-delay tests also now assert against the `TOO_MANY_REQUESTS_DELAY_MS` / `RECONNECT_DELAY_MS` constants instead of hard-coded millisecond literals, so the tests cannot drift from the real protocol values.
 
 ### Security
 
@@ -1821,7 +2543,7 @@ Major release. Three headline groups land in one pass:
 - **Corrected 31 subscription-tier badges across `docs-site/docs/historical/**/*.md`** (#276) -- audit against ThetaData's canonical `openapiv3.yaml` (`x-min-subscription` field) found 31 of 57 endpoint docs advertised the wrong subscription tier. Fixed against upstream truth.
 - **Renamed misnamed doc file** (#276) -- `historical/option/at-time/ohlc.md` actually documented the `option_at_time_quote` endpoint; renamed to `quote.md`, fixed the nav link in `docs-site/docs/.vitepress/config.ts`, and updated the sole inbound reference in `historical/option/index.md`.
 - **New `scripts/check_tier_badges.py`** (#276) -- validates every `<TierBadge>` in the historical docs against `scripts/upstream_tiers.json`, a checked-in snapshot of ThetaData's authoritative `x-min-subscription` map (with `_source` and `_captured_at` keys for traceability). Wired into `scripts/check_docs_consistency.py` so the existing `Extended Surfaces` CI job gates tier drift automatically. No network calls at CI time.
-- **Deleted orphan docs-site pages** (#272) -- removed top-level single-page versions (`getting-started.md`, `historical.md`, `historical/{stock,option,index-data,calendar}.md`, `streaming.md`, `tools/index.md`) superseded by the subdirectory navigation. Added a `## Client Model` section to `docs-site/docs/streaming/index.md` that makes the per-SDK split (Rust/Python unified `ThetaDataDx`, Go/C++ standalone `FpssClient`) unmistakable. Removed `ignoreDeadLinks: true` from `docs-site/docs/.vitepress/config.ts` so future link rot fails the VitePress build.
+- **Deleted orphan docs-site pages** (#272) -- removed top-level single-page versions (`getting-started.md`, `historical.md`, `historical/{stock,option,index-data,calendar}.md`, `streaming.md`, `tools/index.md`) superseded by the subdirectory navigation. Added a `## Client Model` section to `docs-site/docs/streaming/index.md` that makes the per-SDK split (Rust/Python unified `ThetaDataDxClient`, Go/C++ standalone `FpssClient`) unmistakable. Removed `ignoreDeadLinks: true` from `docs-site/docs/.vitepress/config.ts` so future link rot fails the VitePress build.
 - **Sidebar landings for Historical Data and Tools sections** (#274) -- added `link:` fields on both top-level sidebar entries so clicking the section headers lands on the category overview. Created a new `tools/index.md` overview describing the CLI / MCP / REST Server trio.
 
 ## [7.0.0] - 2026-04-14
@@ -1833,7 +2555,7 @@ Major release. Three headline groups land in one pass:
 - **`generate_sdk_surfaces` restored as the checked-in surface authority** -- the standalone codegen binary is required again and is the canonical way to regenerate and verify generated SDK/FFI/tool surfaces from TOML.
 - **Streaming endpoints generated from TOML** -- hand-written streaming endpoint blocks in `direct.rs` replaced by TOML-driven codegen. Method signatures unchanged but internal dispatch is generated.
 - **Endpoint, utility, FPSS wrapper, and tick projection surfaces are spec-driven** -- Rust, FFI, Python, Go, C++, CLI, and MCP now project their generated public surfaces from `endpoint_surface.toml`, `sdk_surface.toml`, and `tick_schema.toml`.
-- Removed the misleading per-contract `subscribe_option_full_*` / `unsubscribe_option_full_*` FPSS methods from the C FFI, Go SDK, and C++ SDK. Per-contract streams use `subscribe_option_*`; full firehose streams remain `subscribe_full_*` by security type.
+- Removed the misleading per-contract `subscribe_option_full_*` / `unsubscribe_option_full_*` FPSS methods from the C FFI, Go SDK, and C++ SDK. Per-contract streams use `subscribe_option_*`; full-stream subscriptions remain `subscribe_full_*` by security type.
 - Python FPSS option subscription helpers now take `(symbol, expiration, strike, right)` to match Rust, Go, and C++ argument order.
 - **Go/C++ `contract_map` API replaced** -- `ContractMapJSON()` / `contract_map_json()` removed; replaced with typed `ContractMap()` / `contract_map()` returning `map[int32]string` / `std::map<int32_t, std::string>`. Callers of the old JSON variant will fail to compile.
 
@@ -2086,7 +2808,7 @@ Major release. Three headline groups land in one pass:
 ### Fixed
 
 - 30 documentation findings from production audit (version pins, method tables, CHANGELOG, SECURITY)
-- 14 public methods missing doc comments on `ThetaDataDx`
+- 14 public methods missing doc comments on `ThetaDataDxClient`
 - Python SDK `lock().unwrap()` changed to poison recovery
 - Legacy `config.default.properties` removed (v2 artifact)
 
@@ -2165,10 +2887,10 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 ### Added
 
-- `subscribe_full_open_interest(sec_type)` -- firehose open interest subscription (was missing, Java terminal has it)
-- `unsubscribe_full_trades(sec_type)` -- firehose trade unsubscribe (was missing)
-- `unsubscribe_full_open_interest(sec_type)` -- firehose OI unsubscribe (was missing)
-- `reconnect_streaming(handler)` on `ThetaDataDx` -- saves active subscriptions, stops streaming, restarts with new handler, re-subscribes all per-contract and full-type subscriptions automatically
+- `subscribe_full_open_interest(sec_type)` -- full-stream open interest subscription (was missing, Java terminal has it)
+- `unsubscribe_full_trades(sec_type)` -- full-stream trade unsubscribe (was missing)
+- `unsubscribe_full_open_interest(sec_type)` -- full-stream OI unsubscribe (was missing)
+- `reconnect_streaming(handler)` on `ThetaDataDxClient` -- saves active subscriptions, stops streaming, restarts with new handler, re-subscribes all per-contract and full-type subscriptions automatically
 - `active_full_subscriptions()` accessor for full-type subscription tracking
 - `docs/java-class-mapping.md` -- complete enumeration of all 588 Java terminal classes with Rust equivalents or justification for exclusion
 
@@ -2259,27 +2981,27 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 ### Removed
 
-- **Unified `ThetaDataDx` client** — single entry point replacing `DirectClient` + `FpssClient`.
+- **Unified `ThetaDataDxClient` client** — single entry point replacing `DirectClient` + `FpssClient`.
   Connect once, auth once. Historical available immediately, streaming connects lazily.
-- **`DirectClient` removed from crate root re-exports** — still accessible as `thetadatadx::direct::DirectClient` but all methods available via `ThetaDataDx` (Deref)
+- **`DirectClient` removed from crate root re-exports** — still accessible as `thetadatadx::direct::DirectClient` but all methods available via `ThetaDataDxClient` (Deref)
 - **`FpssClient` removed from crate root re-exports** — use `tdx.start_streaming(handler)` instead
-- **Python SDK**: `DirectClient` and `FpssClient` classes removed. Use `ThetaDataDx` only.
+- **Python SDK**: `DirectClient` and `FpssClient` classes removed. Use `ThetaDataDxClient` only.
 
 ### Added
 
-- `ThetaDataDx::connect(creds, config)` — one auth, gRPC channel ready, no FPSS yet
+- `ThetaDataDxClient::connect(creds, config)` — one auth, gRPC channel ready, no FPSS yet
 - `tdx.start_streaming(handler)` — lazy FPSS connection on demand (reads `derive_ohlcvc` from config)
 - `tdx.stop_streaming()` — clean shutdown of streaming, historical stays alive
 - `tdx.is_streaming()` — check if FPSS is active
 - All 61 historical methods via `Deref<Target = DirectClient>`
-- All streaming methods (subscribe/unsubscribe) directly on `ThetaDataDx`
+- All streaming methods (subscribe/unsubscribe) directly on `ThetaDataDxClient`
 - FFI: `tdx_unified_connect()`, `tdx_unified_start_streaming()`, `tdx_unified_stop_streaming()`
 - Server: graceful `stop_streaming()` on shutdown
 
 ### Fixed
 
 - Server shutdown now calls `stop_streaming()` before notifying waiters
-- Python SDK: removed duplicate method definitions (DirectClient + ThetaDataDx had same methods)
+- Python SDK: removed duplicate method definitions (DirectClient + ThetaDataDxClient had same methods)
 
 ## [2.0.0] - 2026-03-27
 
@@ -2536,7 +3258,7 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 ### Changed
 
 - Renamed crate from `thetadx` to `thetadatadx` (crates.io + PyPI)
-- Renamed repository from `thetadx` to `ThetaDataDx`
+- Renamed repository from `thetadx` to `ThetaDataDxClient`
 - Changed license metadata
 - Updated top-level README
 - README updated with GitHub callouts (NOTE, TIP, IMPORTANT, WARNING, CAUTION)

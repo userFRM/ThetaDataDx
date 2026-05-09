@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} speed=${t.speed} zomma=${t.zomma} color=${t.color} ultima=${t.ultima}`);
 }
 ```
-```go [Go]
-data, _ := client.OptionHistoryTradeGreeksThirdOrder("SPY", "20260417", "550", "C", "20260315")
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d speed=%.4f zomma=%.4f color=%.4f ultima=%.4f\n",
-        t.Date, t.MsOfDay, t.Speed, t.Zomma, t.Color, t.Ultima)
-}
-```
 ```cpp [C++]
 auto data = client.option_history_trade_greeks_third_order("SPY", "20260417", "550", "C", "20260315");
 for (const auto& t : data) {

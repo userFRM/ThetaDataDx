@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} gamma=${t.gamma} vanna=${t.vanna} charm=${t.charm} vomma=${t.vomma}`);
 }
 ```
-```go [Go]
-data, _ := client.OptionSnapshotGreeksSecondOrder("SPY", "20260417", "550", "C")
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d gamma=%.4f vanna=%.4f charm=%.4f vomma=%.4f veta=%.4f expiration=%d strike=%.2f\n",
-        t.Date, t.MsOfDay, t.Gamma, t.Vanna, t.Charm, t.Vomma, t.Veta, t.Expiration, t.Strike)
-}
-```
 ```cpp [C++]
 auto data = client.option_snapshot_greeks_second_order("SPY", "20260417", "550", "C");
 for (const auto& t : data) {

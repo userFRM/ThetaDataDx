@@ -24,25 +24,25 @@ Streaming is delivered through a **different client surface in each SDK**, by de
 
 | SDK | Streaming client | Notes |
 |-----|------------------|-------|
-| **Rust** | `ThetaDataDx` (the main client) | `start_streaming(callback)`, `subscribe_*`, `stop_streaming` are methods on the unified client. The streaming connection is established lazily. |
-| **Python** | `ThetaDataDx` (the main client) | Same unified client. Call `start_streaming()`, then poll `next_event()`. |
-| **TypeScript/Node.js** | `ThetaDataDx` (the main client) | Same unified client. Call `startStreaming()`, then poll `nextEvent()`. |
-| **C++** | **`tdx::FpssClient`** (separate type) | The C++ `tdx::Client` is historical-only. Construct a standalone `tdx::FpssClient(creds, config)` for streaming. |
+| **Rust** | `ThetaDataDxClient` (the main client) | `start_streaming(callback)`, `subscribe(...)`, `stop_streaming` are methods on the unified client. The streaming connection is established lazily. |
+| **Python** | `ThetaDataDxClient` (the main client) | Same unified client. Pick push (`start_streaming(callback)`) or pull (`with client.streaming_iter() as it:`). |
+| **TypeScript/Node.js** | `ThetaDataDxClient` (the main client) | Same unified client. Pick push (`startStreaming(callback)`) or pull (`for await (const event of client.startStreamingIter())`). |
+| **C++** | `tdx::UnifiedClient` (the main client) | Same unified client surface. Push (`start_streaming(lambda)`) and pull (`auto iter = client.start_streaming_iter();`) are both available. |
 
-This is not a drift or API mismatch -- it is the intentional per-language surface. Rust and Python can afford a unified client because both compile or bind against the same Rust core. C++ uses a thin FFI and splits the surface to keep each handle's lifetime and memory ownership unambiguous.
+The unified `ThetaDataDxClient` surface is identical across every binding: one connect call, one `subscribe()` polymorphic over typed subscription specs, two equivalent delivery modes (push callback OR pull iterator) backed by the same SPSC ring on the Rust side.
 
 ::: tip
-If you are porting code between SDKs: anywhere a Rust, Python, or TypeScript example calls `tdx.subscribe_quotes(...)` / `tdx.subscribeQuotes(...)` on the main client, the C++ equivalent calls `fpss.subscribe_quotes(...)` on a separate `FpssClient` handle.
+If you are porting code between SDKs: anywhere a Rust example calls `client.subscribe(Contract::stock("AAPL").quote())`, the Python / TypeScript / C++ equivalents call the same polymorphic `subscribe(...)` on the same client type with the same typed subscription spec.
 :::
 
 ## SDK Streaming Models
 
-| SDK | Model | Event Type | Details |
-|-----|-------|------------|---------|
-| **Rust** | Synchronous callback | `&FpssEvent` enum | Disruptor ring buffer dispatch. No Tokio on the hot path. |
-| **Python** | Polling | typed pyclass | `next_event()` returns typed `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData` objects. |
-| **TypeScript/Node.js** | Polling | `object` | `nextEvent()` returns events as JS objects with all fields. |
-| **C++** | Polling | `FpssEventPtr` | `next_event()` returns `unique_ptr<TdxFpssEvent>` (RAII). `#[repr(C)]` layout. |
+| SDK | Push (callback) | Pull (iterator) | Event shape |
+|-----|-----------------|-----------------|-------------|
+| **Rust** | `client.start_streaming(\|event\| ...)` | `let iter = client.start_streaming_iter()?;` then `for event in iter { ... }` | `&FpssEvent` enum |
+| **Python** | `client.start_streaming(callback)` | `with client.streaming_iter() as it: for event in it:` | typed pyclass — iterator raises `StopIteration` once the queue drains on a stopped session |
+| **TypeScript/Node.js** | `client.startStreaming(callback)` | `for await (const event of client.startStreamingIter())` | JS object — async iterable resolves `done: true` on terminal end-of-stream |
+| **C++** | `client.start_streaming(lambda)` | `client.start_streaming_iter().next(timeout)` | `TdxFpssEvent` — `next(timeout)` returns `std::optional<TdxFpssEvent>`; `ended()` flips on terminal close |
 
 ::: warning No JSON in FFI
 C++ receives typed `#[repr(C)]` structs directly from Rust -- not JSON. All field access is zero-copy struct member access.
@@ -65,7 +65,7 @@ Events are either **data** (market ticks) or **control** (lifecycle/protocol):
 
 - **Data events**: `Quote`, `Trade`, `OpenInterest`, `Ohlcvc` -- every one carries `received_at_ns`
 - **Control events**: `LoginSuccess`, `ContractAssigned`, `ReqResponse`, `MarketOpen`, `MarketClose`, `ServerError`, `Disconnected`, `Error`
-- **RawData**: undecoded fallback for corrupt or unrecognized frames
+- **UnknownFrame**: typed control variant the SDK emits for any frame whose wire code is not yet recognised; carries the raw `code: u8` and `payload: Vec<u8>` for diagnostic logging.
 
 ## Flush Mode
 
@@ -80,60 +80,59 @@ Events are either **data** (market ticks) or **control** (lifecycle/protocol):
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
-let creds = Credentials::from_file("creds.txt")?;
-let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let creds = Credentials::from_file("creds.txt")?;
+    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
-tdx.start_streaming(|event: &FpssEvent| {
-    match event {
-        FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
-            println!("Quote: contract={contract_id} bid={bid:.2} ask={ask:.2}");
+    client.start_streaming(|event: &FpssEvent| {
+        match event {
+            FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
+                println!("Quote: {} bid={bid:.2} ask={ask:.2}", contract.symbol);
+            }
+            FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
+                println!("Trade: {} price={price:.2} size={size}", contract.symbol);
+            }
+            _ => {}
         }
-        FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => {
-            println!("Trade: contract={contract_id} price={price:.2} size={size}");
-        }
-        _ => {}
-    }
-})?;
+    })?;
 
-tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
-tdx.subscribe_trades(&Contract::stock("MSFT"))?;
+    client.subscribe(Contract::stock("AAPL").quote())?;
+    client.subscribe(Contract::stock("MSFT").trade())?;
 
-std::thread::park(); // block until interrupted
-tdx.stop_streaming();
+    std::thread::park(); // block until interrupted
+    client.stop_streaming();
     Ok(())
 }
 ```
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient, Contract
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
-tdx.start_streaming()
+client = ThetaDataDxClient(creds, Config.production())
 
-tdx.subscribe_quotes("AAPL")
-tdx.subscribe_trades("MSFT")
+client.subscribe(Contract.stock("AAPL").quote())
+client.subscribe(Contract.stock("MSFT").trade())
 
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue
-    if event.kind == "quote":
-        print(f"Quote: contract={event.contract_id} "
-              f"bid={event.bid:.2f} ask={event.ask:.2f}")
-    elif event.kind == "trade":
-        print(f"Trade: contract={event.contract_id} "
-              f"price={event.price:.2f} size={event.size}")
-    elif event.kind == "simple" and event.event_type == "disconnected":
-        break
-
-tdx.stop_streaming()
+# Pull-iter mode: context-managed typed iterator over the SPSC
+# queue. The iterator raises StopIteration once `stop_streaming()`
+# fires AND the queue is fully drained; the `with` block pairs
+# `stop_streaming()` + `await_drain()` automatically on exit.
+with client.streaming_iter() as it:
+    for event in it:
+        if event.kind == "quote":
+            print(f"Quote: {event.contract.symbol} "
+                  f"bid={event.bid:.2f} ask={event.ask:.2f}")
+        elif event.kind == "trade":
+            print(f"Trade: {event.contract.symbol} "
+                  f"price={event.price:.2f} size={event.size}")
+        elif event.kind == "disconnected":
+            break
 ```
 ```cpp [C++]
 #include "thetadx.hpp"
@@ -142,28 +141,26 @@ tdx.stop_streaming()
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
     auto config = tdx::Config::production();
-    tdx::FpssClient fpss(creds, config);
+    auto client = tdx::UnifiedClient::connect(creds, config);
 
-    fpss.subscribe_quotes("AAPL");
-    fpss.subscribe_trades("MSFT");
+    client.subscribe(tdx::Contract::stock("AAPL").quote());
+    client.subscribe(tdx::Contract::stock("MSFT").trade());
 
-    while (true) {
-        auto event = fpss.next_event(5000);
+    auto iter = client.start_streaming_iter();
+    while (!iter.ended()) {
+        auto event = iter.next(std::chrono::milliseconds(5000));
         if (!event) continue;
 
         switch (event->kind) {
         case TDX_FPSS_QUOTE: {
             auto& q = event->quote;
-            
-            
-            std::cout << "Quote: contract=" << q.contract_id
+            std::cout << "Quote: " << q.contract.symbol
                       << " bid=" << q.bid << " ask=" << q.ask << std::endl;
             break;
         }
         case TDX_FPSS_TRADE: {
             auto& t = event->trade;
-            
-            std::cout << "Trade: contract=" << t.contract_id
+            std::cout << "Trade: " << t.contract.symbol
                       << " price=" << t.price << " size=" << t.size << std::endl;
             break;
         }
@@ -171,7 +168,7 @@ int main() {
         }
     }
 
-    fpss.shutdown();
+    client.stop_streaming();
 }
 ```
 :::

@@ -14,36 +14,44 @@ use super::protocol::Contract;
 /// These are the hot-path events decoded from FIT wire format and
 /// delta-decompressed. All price fields are decoded to `f64` at parse time.
 ///
-/// Every variant carries the fully parsed [`Contract`] as `Arc<Contract>`.
+/// Every variant carries the fully parsed [`Contract`] as `Arc<Contract>` —
+/// users identify the contract via `contract.symbol`, `contract.expiration`,
+/// `contract.strike`, `contract.is_call`. The wire-internal numeric id the
+/// FPSS server assigns is no longer surfaced on data events; downstream code
+/// that needs an id-keyed map builds it from the
+/// [`FpssControl::ContractAssigned`] event stream.
+///
 /// The I/O thread populates an internal `contract_id -> Arc<Contract>` cache
 /// on [`FpssControl::ContractAssigned`] so each decoded event only pays a
 /// refcount bump — matching the Java terminal's behaviour where each
 /// event listener receives the full `net.thetadata.fpssclient.Contract`
 /// alongside the payload.
 ///
-/// # Empty-contract sentinel
+/// # Unresolved-contract sentinel
 ///
 /// When a data frame arrives before the matching `ContractAssigned`
-/// frame, the `contract` field holds a shared empty-contract
-/// placeholder. Detect it via
-/// `contract.sec_type == tdbe::types::enums::SecType::Unknown` —
-/// this is the canonical check documented in `fpss::decode`. The
-/// secondary `contract.symbol.is_empty()` check is kept for
-/// backwards-compatibility, but the `SecType::Unknown` match survives
-/// future contract-root relaxations (e.g. unicode roots, numeric-prefix
-/// tickers) where an empty root might coincidentally appear on a real
-/// contract.
+/// frame, the `contract` field holds an unresolved-contract sentinel.
+/// Detect it via
+/// `contract.sec_type == tdbe::types::enums::SecType::Unknown` — the
+/// canonical, type-safe check.
+///
+/// The sentinel's `symbol` carries the wire-internal contract id under
+/// the `__pending:` prefix (e.g. `"__pending:42"`). Production
+/// callbacks should NOT parse this prefix — it is a diagnostic payload
+/// that the WS bridge surfaces as `unresolved_contract_id` for
+/// operator visibility. SDK consumers identify contracts by
+/// `(symbol, expiration, right, strike)` per the removal of
+/// wire ids from public data events.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum FpssData {
     /// Decoded quote tick (code 21).
     Quote {
-        contract_id: i32,
-        /// Full parsed contract resolved from `contract_id` via the FPSS
-        /// contract cache. Holds the empty-contract sentinel
-        /// (`sec_type == SecType::Unknown`; secondary mention:
-        /// `root.is_empty()`) when the server has not yet sent the
-        /// matching `ContractAssigned` frame for this id.
+        /// Full parsed contract for this tick. Holds the unresolved-
+        /// contract sentinel (`sec_type == SecType::Unknown`; the
+        /// `symbol` carries `__pending:<id>` for diagnostic surfacing)
+        /// when the server has not yet sent the matching
+        /// `ContractAssigned` frame.
         contract: Arc<Contract>,
         ms_of_day: i32,
         bid_size: i32,
@@ -60,12 +68,11 @@ pub enum FpssData {
     },
     /// Decoded trade tick (code 22).
     Trade {
-        contract_id: i32,
-        /// Full parsed contract resolved from `contract_id` via the FPSS
-        /// contract cache. Holds the empty-contract sentinel
-        /// (`sec_type == SecType::Unknown`; secondary mention:
-        /// `root.is_empty()`) when the matching `ContractAssigned`
-        /// frame has not yet arrived.
+        /// Full parsed contract for this tick. Holds the unresolved-
+        /// contract sentinel (`sec_type == SecType::Unknown`; the
+        /// `symbol` carries `__pending:<id>` for diagnostic surfacing)
+        /// when the matching `ContractAssigned` frame has not yet
+        /// arrived.
         contract: Arc<Contract>,
         ms_of_day: i32,
         sequence: i32,
@@ -87,12 +94,11 @@ pub enum FpssData {
     },
     /// Decoded open interest tick (code 23).
     OpenInterest {
-        contract_id: i32,
-        /// Full parsed contract resolved from `contract_id` via the FPSS
-        /// contract cache. Holds the empty-contract sentinel
-        /// (`sec_type == SecType::Unknown`; secondary mention:
-        /// `root.is_empty()`) when the matching `ContractAssigned`
-        /// frame has not yet arrived.
+        /// Full parsed contract for this tick. Holds the unresolved-
+        /// contract sentinel (`sec_type == SecType::Unknown`; the
+        /// `symbol` carries `__pending:<id>` for diagnostic surfacing)
+        /// when the matching `ContractAssigned` frame has not yet
+        /// arrived.
         contract: Arc<Contract>,
         ms_of_day: i32,
         open_interest: i32,
@@ -104,12 +110,11 @@ pub enum FpssData {
     ///
     /// `volume` and `count` are `i64` to avoid overflow on high-volume symbols.
     Ohlcvc {
-        contract_id: i32,
-        /// Full parsed contract resolved from `contract_id` via the FPSS
-        /// contract cache. Holds the empty-contract sentinel
-        /// (`sec_type == SecType::Unknown`; secondary mention:
-        /// `root.is_empty()`) when the matching `ContractAssigned`
-        /// frame has not yet arrived.
+        /// Full parsed contract for this tick. Holds the unresolved-
+        /// contract sentinel (`sec_type == SecType::Unknown`; the
+        /// `symbol` carries `__pending:<id>` for diagnostic surfacing)
+        /// when the matching `ContractAssigned` frame has not yet
+        /// arrived.
         contract: Arc<Contract>,
         ms_of_day: i32,
         open: f64,
@@ -210,24 +215,225 @@ pub enum FpssControl {
 ///
 /// Subscribers receive these through the Disruptor callback. The enum is
 /// non-exhaustive to allow adding new event types without breaking downstream.
-#[derive(Debug, Clone, Default)]
+///
+/// # Layout
+///
+/// Declared `#[repr(C, u8)]` with explicit discriminants so the in-memory
+/// layout is shared with [`FpssEventInternal`]: both enums encode `Data`
+/// at discriminant `0` and `Control` at discriminant `1`, with identical
+/// payload positions. The I/O loop publishes `FpssEventInternal` into the
+/// Disruptor ring (so it can also carry decode-fallback / placeholder
+/// variants without surfacing them publicly), then delivers a
+/// `&FpssEvent` reference to the user callback for `Data`/`Control` slots
+/// only — see [`FpssEventInternal::as_public`] for the layout-compatible
+/// reborrow that makes that zero-clone.
+#[derive(Debug, Clone)]
+#[repr(C, u8)]
 #[non_exhaustive]
 pub enum FpssEvent {
     /// Tick data event (quote, trade, open interest, OHLCVC).
-    Data(FpssData),
+    Data(FpssData) = FPSS_EVENT_TAG_DATA,
     /// Control/lifecycle event (login, contract assignment, market open/close, etc.).
-    Control(FpssControl),
-    /// Raw undecoded data (fallback for payloads too short or corrupt to decode).
+    Control(FpssControl) = FPSS_EVENT_TAG_CONTROL,
+}
+
+// Discriminant tags shared between `FpssEvent` and `FpssEventInternal`.
+// `pub(crate)` so the I/O loop, ring, and decode layers can match on the
+// same source of truth as the enum definitions.
+pub(crate) const FPSS_EVENT_TAG_DATA: u8 = 0;
+pub(crate) const FPSS_EVENT_TAG_CONTROL: u8 = 1;
+pub(crate) const FPSS_EVENT_TAG_UNPARSEABLE: u8 = 2;
+pub(crate) const FPSS_EVENT_TAG_EMPTY: u8 = 3;
+
+/// Internal event type stored in the Disruptor ring.
+///
+/// **Not part of the supported public API.** Marked `#[doc(hidden)]`
+/// because the SDK exports a `__test_internals` shim that re-exports
+/// it solely for soak-test infrastructure (capture+replay,
+/// reconnect-storm, schema-drift). Production consumers must not name
+/// this type — its variants and layout discipline can change without a
+/// SemVer bump.
+///
+/// Carries the same `Data` / `Control` variants as the public
+/// [`FpssEvent`] (and at the same discriminant + layout, see the
+/// `repr(C, u8)` clause), plus two crate-private variants the SDK never
+/// surfaces to the user callback:
+///
+/// * [`FpssEventInternal::Unparseable`] — truncated / corrupt FIT
+///   payload that the decoder accounts on the
+///   `thetadatadx.fpss.decode_failures` metric. Kept as a typed event
+///   for soak-test introspection without leaking raw bytes through the
+///   public API.
+/// * [`FpssEventInternal::Empty`] — pre-allocation placeholder for
+///   ring-buffer slots that have never been written; the previous
+///   `Option<FpssEvent>` slot wrapper is collapsed into this variant
+///   so the consumer closure can avoid the `Option` discriminant test.
+///
+/// The I/O thread builds `FpssEventInternal` directly from the wire
+/// decoder; the Disruptor consumer reborrows the slot reference to a
+/// `&FpssEvent` via [`Self::as_public`] (zero-clone, layout-compatible)
+/// and only invokes the user callback when that reborrow succeeds.
+#[derive(Debug, Clone)]
+#[repr(C, u8)]
+#[doc(hidden)]
+pub enum FpssEventInternal {
+    /// Same payload + discriminant as [`FpssEvent::Data`].
+    Data(FpssData) = FPSS_EVENT_TAG_DATA,
+    /// Same payload + discriminant as [`FpssEvent::Control`].
+    Control(FpssControl) = FPSS_EVENT_TAG_CONTROL,
+    /// Decoder rejected this frame (truncated FIT payload). Filtered
+    /// before user callbacks; surfaced on the
+    /// `thetadatadx.fpss.decode_failures` metric counter and visible
+    /// to soak tests that assert on the internal stream shape.
+    Unparseable = FPSS_EVENT_TAG_UNPARSEABLE,
+    /// Ring-buffer slot placeholder. Filtered before user callbacks.
+    Empty = FPSS_EVENT_TAG_EMPTY,
+}
+
+impl Default for FpssEventInternal {
+    #[inline]
+    fn default() -> Self {
+        Self::Empty
+    }
+}
+
+impl FpssEventInternal {
+    /// Borrow this internal event as a public [`FpssEvent`] reference,
+    /// or return `None` for the internal-only variants.
     ///
-    /// Filtered from user callbacks -- only visible to internal code.
-    #[doc(hidden)]
-    RawData { code: u8, payload: Vec<u8> },
-    /// Placeholder default for ring buffer pre-allocation.
+    /// # Safety / soundness
     ///
-    /// Filtered from user callbacks -- only visible to internal code.
-    #[doc(hidden)]
-    #[default]
-    Empty,
+    /// Both `FpssEvent` and `FpssEventInternal` are
+    /// `#[repr(C, u8)]`, share the same discriminant constants for the
+    /// `Data` and `Control` arms ([`FPSS_EVENT_TAG_DATA`],
+    /// [`FPSS_EVENT_TAG_CONTROL`]), and carry the same payload type at
+    /// each shared discriminant. Per the Rust reference's
+    /// "Primitive representation of enums with fields" section, two
+    /// `#[repr(C, u8)]` enums with matching discriminants and matching
+    /// per-variant payload types have identical in-memory layout for
+    /// those variants — the layout is `(u8 tag, padding, payload)`
+    /// where `padding` is determined entirely by the alignment of the
+    /// payload type, which is the same for both enums (same payload
+    /// type ⇒ same alignment ⇒ same padding). Casting a
+    /// `&FpssEventInternal` to a `&FpssEvent` is therefore sound when
+    /// the discriminant is `Data` or `Control`.
+    ///
+    /// The cast is gated on the discriminant tag, so the
+    /// `Unparseable` / `Empty` arms (with discriminants
+    /// [`FPSS_EVENT_TAG_UNPARSEABLE`], [`FPSS_EVENT_TAG_EMPTY`]) can
+    /// never escape into the public type — they map to `None`.
+    ///
+    /// The static assertions in [`assert_layout_compat`] (run in the
+    /// crate's unit tests) verify size + alignment + discriminant
+    /// equality at compile time so a future divergence — e.g. someone
+    /// adding a private field to `FpssData` only on the internal side
+    /// — fails the build before it can corrupt a user callback.
+    #[inline]
+    pub fn as_public(&self) -> Option<&FpssEvent> {
+        // Gate the layout-compatibility cast on a real `match`. The
+        // arm bindings (`_d`, `_c`) read the variant payload bytes
+        // through `discriminant_data_offset` / `discriminant_control_offset`
+        // — those helpers ensure static dead-code analysis observes
+        // the field, complementing the unsafe reborrow that hands the
+        // bytes back to the caller via the public type.
+        match self {
+            Self::Data(d) => {
+                // Touch the variant payload so dead-code analysis
+                // sees a field read alongside the layout-compat
+                // reborrow below. `core::hint::black_box` is the
+                // canonical "use this value" marker that survives
+                // optimisation; it compiles to a no-op move on every
+                // backend Rust ships.
+                core::hint::black_box(d);
+                // SAFETY: this arm proves the discriminant is
+                // `FPSS_EVENT_TAG_DATA`. Both `FpssEvent` and
+                // `FpssEventInternal` are `#[repr(C, u8)]` with
+                // identical `Data(FpssData)` payloads at that
+                // discriminant, so the layout is shared (Rust
+                // reference, "Primitive representation of enums with
+                // fields"). The reborrow inherits the `&self`
+                // lifetime; aliasing rules treat it like the
+                // original borrow.
+                Some(unsafe { &*(self as *const Self as *const FpssEvent) })
+            }
+            Self::Control(c) => {
+                // Same field-read marker as the `Data` arm.
+                core::hint::black_box(c);
+                // SAFETY: same layout-compatibility argument as the
+                // `Data` arm — same `#[repr(C, u8)]` discipline,
+                // same payload type at this discriminant.
+                Some(unsafe { &*(self as *const Self as *const FpssEvent) })
+            }
+            Self::Unparseable | Self::Empty => None,
+        }
+    }
+}
+
+impl From<FpssEvent> for FpssEventInternal {
+    #[inline]
+    fn from(evt: FpssEvent) -> Self {
+        match evt {
+            FpssEvent::Data(d) => Self::Data(d),
+            FpssEvent::Control(c) => Self::Control(c),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Delivery — push (callback) vs pull (iterator queue) selection
+// ---------------------------------------------------------------------------
+
+/// Delivery mode chosen at [`super::FpssClient::connect`] time.
+///
+/// Mutually exclusive on a given client. The Disruptor consumer
+/// closure dispatches on the variant once per event:
+///
+/// * [`Delivery::Callback`] — invoke the user-supplied `FnMut(&FpssEvent)`
+///   closure under `catch_unwind` (push-callback delivery, the default
+///   recommended for low-latency consumption).
+/// * [`Delivery::Queue`] — `force_push` the public [`FpssEvent`] clone
+///   onto a lock-free [`crossbeam_queue::ArrayQueue`] sized at the same
+///   ring capacity, increment a shared `dropped` counter on overflow,
+///   and let an [`super::EventIterator`] drain the queue from the user
+///   thread (pull-iter delivery, equivalent to databento's
+///   `for record in client:` pattern but bypassing their intermediate
+///   `queue.Queue`).
+///
+/// Both modes share the same Disruptor producer + ring + reader, so the
+/// upstream pipeline is identical and the only branch is the per-event
+/// dispatch inside the consumer closure. Switching between modes requires
+/// `stop_streaming()` + a fresh `start_streaming*()`; live mode swap is
+/// not supported because it would require synchronising the consumer
+/// closure mid-flight.
+pub(crate) enum Delivery {
+    /// Push-callback delivery. The captured closure runs on the
+    /// Disruptor consumer thread.
+    Callback(Box<dyn FnMut(&FpssEvent) + Send + 'static>),
+    /// Pull-iter delivery. The closure clones the public event into the
+    /// shared bounded queue; an [`super::EventIterator`] drains it on the
+    /// user thread.
+    Queue {
+        /// Same capacity as the Disruptor ring so backpressure semantics
+        /// match the callback path. Drained by an
+        /// [`super::EventIterator`] on the user thread.
+        queue: std::sync::Arc<crossbeam_queue::ArrayQueue<FpssEvent>>,
+        /// Set to `true` by the Disruptor consumer thread's drop guard
+        /// AFTER the consume loop has exited and all in-flight events
+        /// have been pushed onto `queue`. The [`super::EventIterator`]
+        /// uses this — not the global shutdown flag — as its terminal
+        /// predicate, so a `stop_streaming()` followed by a tail of
+        /// not-yet-consumed events cannot false-EOF the iterator
+        /// mid-drain.
+        ///
+        /// The flag is owned by a `move`-captured drop guard inside the
+        /// consumer closure; when the Disruptor producer is dropped at
+        /// io_loop exit, the consumer thread joins, the closure is
+        /// dropped, the guard's `Drop` runs, and the flag flips. This
+        /// is the only point in the system where "no more pushes will
+        /// happen" is observable, which is why the EventIterator keys
+        /// off it instead of the I/O-thread shutdown signal.
+        iter_closed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -250,9 +456,155 @@ mod tests {
     use super::*;
     use tdbe::types::price::Price;
 
+    /// Pin the layout-compatibility invariant
+    /// `FpssEventInternal::as_public` relies on. Any future change that
+    /// breaks size, alignment, or discriminant equality between
+    /// `FpssEvent` and the public-facing variants of
+    /// `FpssEventInternal` must trip this test before it can corrupt a
+    /// reborrow.
     #[test]
-    fn fpss_event_default_exists() {
-        let _evt: FpssEvent = Default::default();
+    fn fpss_event_internal_layout_matches_public() {
+        // Same `#[repr(C, u8)]` declaration on both enums plus
+        // identical payload types ⇒ identical size + alignment.
+        assert_eq!(
+            std::mem::size_of::<FpssEvent>(),
+            std::mem::size_of::<FpssEventInternal>(),
+            "FpssEvent and FpssEventInternal must have identical size for the layout-compat reborrow",
+        );
+        assert_eq!(
+            std::mem::align_of::<FpssEvent>(),
+            std::mem::align_of::<FpssEventInternal>(),
+            "FpssEvent and FpssEventInternal must have identical alignment",
+        );
+
+        // Discriminant-byte equality. The `as_public` reborrow assumes
+        // a constructed `FpssEventInternal::Data(_)` shares the same
+        // first-byte tag as `FpssEvent::Data(_)`, and likewise for
+        // `Control`. If a contributor reorders the explicit
+        // `= FPSS_EVENT_TAG_*` discriminants on either enum (or removes
+        // the explicit tag) this fires before silent corruption ships.
+        let contract = Arc::new(Contract::stock("DISC"));
+        let internal_data = FpssEventInternal::Data(FpssData::Quote {
+            contract: Arc::clone(&contract),
+            ms_of_day: 0,
+            bid_size: 0,
+            bid_exchange: 0,
+            bid: 0.0,
+            bid_condition: 0,
+            ask_size: 0,
+            ask_exchange: 0,
+            ask: 0.0,
+            ask_condition: 0,
+            date: 0,
+            received_at_ns: 0,
+        });
+        let internal_control = FpssEventInternal::Control(FpssControl::LoginSuccess {
+            permissions: String::new(),
+        });
+        let public_data = FpssEvent::Data(FpssData::Quote {
+            contract: Arc::clone(&contract),
+            ms_of_day: 0,
+            bid_size: 0,
+            bid_exchange: 0,
+            bid: 0.0,
+            bid_condition: 0,
+            ask_size: 0,
+            ask_exchange: 0,
+            ask: 0.0,
+            ask_condition: 0,
+            date: 0,
+            received_at_ns: 0,
+        });
+        let public_control = FpssEvent::Control(FpssControl::LoginSuccess {
+            permissions: String::new(),
+        });
+        let tag = |p: *const u8| unsafe { *p };
+        assert_eq!(
+            tag(&internal_data as *const _ as *const u8),
+            FPSS_EVENT_TAG_DATA,
+            "FpssEventInternal::Data discriminant byte must equal FPSS_EVENT_TAG_DATA",
+        );
+        assert_eq!(
+            tag(&public_data as *const _ as *const u8),
+            FPSS_EVENT_TAG_DATA,
+            "FpssEvent::Data discriminant byte must equal FPSS_EVENT_TAG_DATA",
+        );
+        assert_eq!(
+            tag(&internal_control as *const _ as *const u8),
+            FPSS_EVENT_TAG_CONTROL,
+            "FpssEventInternal::Control discriminant byte must equal FPSS_EVENT_TAG_CONTROL",
+        );
+        assert_eq!(
+            tag(&public_control as *const _ as *const u8),
+            FPSS_EVENT_TAG_CONTROL,
+            "FpssEvent::Control discriminant byte must equal FPSS_EVENT_TAG_CONTROL",
+        );
+    }
+
+    /// Verify that constructing a `Data` / `Control` `FpssEventInternal`
+    /// and reborrowing it via `as_public` yields a value-equal
+    /// `FpssEvent`. Round-trips data + control payloads through the
+    /// reborrow so payload bytes (Arc pointers, scalar fields) are not
+    /// corrupted by the cast.
+    #[test]
+    fn fpss_event_internal_roundtrips_data_and_control() {
+        let contract = Arc::new(Contract::stock("MSFT"));
+        let internal = FpssEventInternal::Data(FpssData::Trade {
+            contract: Arc::clone(&contract),
+            ms_of_day: 12_345,
+            sequence: 7,
+            ext_condition1: 0,
+            ext_condition2: 0,
+            ext_condition3: 0,
+            ext_condition4: 0,
+            condition: 0,
+            size: 100,
+            exchange: 1,
+            price: 150.0,
+            condition_flags: 0,
+            price_flags: 0,
+            volume_type: 0,
+            records_back: 0,
+            date: 20_260_507,
+            received_at_ns: 99,
+        });
+        let public = internal
+            .as_public()
+            .expect("Data variant must reborrow as public");
+        match public {
+            FpssEvent::Data(FpssData::Trade {
+                contract: pub_contract,
+                ms_of_day,
+                sequence,
+                price,
+                ..
+            }) => {
+                assert!(
+                    Arc::ptr_eq(pub_contract, &contract),
+                    "reborrow must preserve the Arc<Contract> pointer identity",
+                );
+                assert_eq!(*ms_of_day, 12_345);
+                assert_eq!(*sequence, 7);
+                assert!((*price - 150.0).abs() < f64::EPSILON);
+            }
+            other => panic!("expected Data(Trade) after reborrow, got {other:?}"),
+        }
+
+        let internal_ctrl = FpssEventInternal::Control(FpssControl::MarketOpen);
+        assert!(matches!(
+            internal_ctrl.as_public(),
+            Some(FpssEvent::Control(FpssControl::MarketOpen)),
+        ));
+    }
+
+    /// The `Unparseable` and `Empty` variants must NEVER escape into a
+    /// public `FpssEvent` reference — `as_public` maps them to `None`.
+    /// Pinning the filter at the type level is the whole point of the
+    /// internal/public split.
+    #[test]
+    fn fpss_event_internal_filters_internal_only_variants() {
+        assert!(FpssEventInternal::Unparseable.as_public().is_none());
+        assert!(FpssEventInternal::Empty.as_public().is_none());
     }
 
     #[test]
@@ -286,7 +638,6 @@ mod tests {
     fn fpss_event_split_data_control() {
         let contract = Arc::new(Contract::stock("AAPL"));
         let data_evt = FpssEvent::Data(FpssData::Trade {
-            contract_id: 42,
             contract: Arc::clone(&contract),
             ms_of_day: 0,
             sequence: 0,
@@ -307,12 +658,8 @@ mod tests {
         });
         match &data_evt {
             FpssEvent::Data(FpssData::Trade {
-                contract_id,
-                contract,
-                price,
-                ..
+                contract, price, ..
             }) => {
-                assert_eq!(*contract_id, 42);
                 assert_eq!(contract.symbol, "AAPL");
                 assert!((*price - 150.25).abs() < f64::EPSILON);
             }

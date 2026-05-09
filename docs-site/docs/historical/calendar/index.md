@@ -33,11 +33,6 @@ const result1 = tdx.calendarOpenToday();
 const result2 = tdx.calendarOnDate('20240315');
 const result3 = tdx.calendarYear('2024');
 ```
-```go [Go]
-result, _ := client.CalendarOpenToday()
-result, _ = client.CalendarOnDate("20240315")
-result, _ = client.CalendarYear("2024")
-```
 ```cpp [C++]
 auto today = client.calendar_open_today();
 auto date_info = client.calendar_on_date("20240315");

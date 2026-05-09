@@ -52,7 +52,7 @@ impl ReqType {
     }
 }
 
-/// Reason a [`ThetaDataDx::flatfile_request`](crate::ThetaDataDx::flatfile_request)
+/// Reason a [`ThetaDataDxClient::flatfile_request`](crate::ThetaDataDxClient::flatfile_request)
 /// call cannot return CSV.
 ///
 /// Returned inside `Error::FlatFilesUnavailable` so callers can decide

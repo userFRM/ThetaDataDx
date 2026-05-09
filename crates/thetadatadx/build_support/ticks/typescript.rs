@@ -1,4 +1,4 @@
-//! Emit `sdks/typescript/src/tick_classes.rs` — typed `#[napi(object)]`
+//! Emit `sdks/typescript/src/_generated/tick_classes.rs` — typed `#[napi(object)]`
 //! tick structs + `Vec` factories. Replaces the old `serde_json` columnar
 //! returns with concrete TypeScript types in `index.d.ts`.
 //!

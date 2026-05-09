@@ -121,7 +121,7 @@ def check_static_docs() -> None:
     # Version strings in getting-started docs must match the workspace version.
     expect_contains(
         ROOT / "docs-site/docs/getting-started/installation.md",
-        'thetadatadx = "7.3"',
+        'thetadatadx = "9"',
     )
     expect_contains(
         ROOT / "docs-site/docs/tools/mcp.md",
@@ -161,7 +161,15 @@ def check_static_docs() -> None:
     sdk_overview = ROOT / "sdks/README.md"
     expect_contains(sdk_overview, "`TdxUnified` / `TdxFpssHandle`")
     expect_contains(sdk_overview, "| **Unified** | `tdx_unified_connect`, `tdx_unified_historical`, `tdx_unified_*`, `tdx_unified_free` |")
-    expect_contains(sdk_overview, "26 functions: `tdx_fpss_connect`")
+    # Wave K consolidated 8 subscribe_* + 8 unsubscribe_* surface into the
+    # polymorphic tdx_fpss_subscribe / _unsubscribe pair on
+    # TdxSubscriptionRequest, so the standalone FPSS surface dropped from
+    # 25 to 11 entry points. Wave M added 4 more for pull-iter delivery
+    # (tdx_unified_start_streaming_iter, tdx_fpss_event_iter_next /
+    # _close / _free) but those live under the unified row, not the
+    # standalone FPSS row. The contract here is "the standalone-FPSS
+    # row leads with tdx_fpss_connect" — exact wording sufficient.
+    expect_contains(sdk_overview, "**Standalone FPSS** | `tdx_fpss_connect`")
 
     option_docs = list((ROOT / "docs-site/docs/historical/option").rglob("*.md"))
     strike_docs = option_docs + [
@@ -219,9 +227,13 @@ def check_static_docs() -> None:
         ROOT / "docs-site/docs/api-reference.md",
         "Python only (FFI only supports symbol-level)",
     )
+    # Wave K replaced the per-tick subscribe_* family with the polymorphic
+    # subscribe(Subscription) entry point that takes a typed value built
+    # via Contract.option(...).quote() / .trade() / .open_interest(). The
+    # README now documents the new shape; the assertion below pins it.
     expect_contains(
         ROOT / "sdks/python/README.md",
-        "`subscribe_option_quotes(symbol, expiration, strike, right)`",
+        "`Contract.option(symbol, *, expiration, strike, right)`",
     )
     # Streaming method-reference guards (retargeted after the top-level
     # streaming.md orphan was deleted in favor of the streaming/*.md subdirectory).
@@ -235,15 +247,49 @@ def check_static_docs() -> None:
         expect_not_contains(streaming_page, "Python does not expose reconnect_streaming() directly.")
         expect_not_contains(streaming_page, "C++ does not expose reconnect_streaming() directly.")
         expect_not_contains(streaming_page, "| `active_subscriptions` | `() -> std::string` |")
-    expect_contains(ROOT / "docs-site/docs/streaming/events.md", "| `Reconnect` | `() error` |")
+    # v9.1.0: Streaming Methods Reference now reflects the real public
+    # surfaces — Rust/Python pull-iter via `start_streaming_iter()`, C++
+    # `start_streaming_iter` on `tdx::UnifiedClient`. The Go SDK was
+    # removed in Wave H, so its row is absent. Pin the new shape.
     expect_contains(
         ROOT / "docs-site/docs/streaming/events.md",
-        "| `contract_map` | `() -> std::map<int32_t, std::string>` |",
+        "| `start_streaming_iter()` | Pull-iter mode: returns an `EventIterator`",
     )
     expect_contains(
         ROOT / "docs-site/docs/streaming/events.md",
-        "| `SubscribeOptionQuotes` | `(symbol, expiration, strike, right string) (int, error)` |",
+        "| `streaming_iter()` | Context-manager wrapper",
     )
+    expect_contains(
+        ROOT / "docs-site/docs/streaming/events.md",
+        "| `start_streaming_iter` | `() -> EventIterator` |",
+    )
+    # Forbidden Go-era residue must stay out of streaming docs.
+    for streaming_page in [
+        ROOT / "docs-site/docs/streaming/connection.md",
+        ROOT / "docs-site/docs/streaming/events.md",
+        ROOT / "docs-site/docs/streaming/reconnection.md",
+        ROOT / "docs-site/docs/streaming/latency.md",
+    ]:
+        expect_not_contains(streaming_page, "```go [Go]")
+        expect_not_contains(streaming_page, "contract_map")
+        expect_not_contains(streaming_page, "contract_lookup")
+        expect_not_contains(streaming_page, "SubscribeOptionQuotes")
+        # Pre-Wave-G `Simple` shim — replaced by typed pyclasses with
+        # snake_case `kind` discriminators per FpssControl variant.
+        expect_not_contains(streaming_page, 'event.kind == "simple"')
+        expect_not_contains(streaming_page, "event.event_type")
+        # `RawData` is hidden from the public surface; the
+        # unrecognised-wire-frame fallback now flows through
+        # `FpssControl::UnknownFrame`.
+        expect_not_contains(streaming_page, "FpssEvent::RawData")
+        expect_not_contains(streaming_page, "RawData (undecoded fallback)")
+        # Pre-rename callback-thread description.
+        expect_not_contains(streaming_page, "ring-reader thread")
+        # Removed subscribe_*-family.
+        expect_not_contains(streaming_page, "subscribe_option_")
+        expect_not_contains(streaming_page, "subscribe_quotes")
+        expect_not_contains(streaming_page, "subscribe_trades")
+        expect_not_contains(streaming_page, "subscribe_full_trades")
     expect_contains(
         ROOT / "docs-site/docs/streaming/reconnection.md",
         "Python, TypeScript/Node.js, and C++ expose `reconnect()` on their public streaming clients.",

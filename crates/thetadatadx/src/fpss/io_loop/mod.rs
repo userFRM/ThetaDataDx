@@ -24,10 +24,11 @@ pub(in crate::fpss) use ping::ping_loop;
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::Write;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
-use std::sync::{Arc, Mutex};
-use std::thread;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::thread::{self, ThreadId};
 use std::time::Duration;
 
 use disruptor::{build_single_producer, Producer, Sequence};
@@ -41,10 +42,12 @@ use crate::error::Error;
 use super::connection;
 use super::decode::decode_frame;
 use super::delta::DeltaState;
-use super::events::{FpssControl, FpssEvent, IoCommand};
+#[cfg(test)]
+use super::events::FpssEvent;
+use super::events::{Delivery, FpssControl, FpssEventInternal, IoCommand};
 use super::framing::{
-    self, is_drain_yield, read_frame_into, write_frame, write_raw_frame, write_raw_frame_no_flush,
-    Frame, FrameReadState,
+    self, is_drain_yield, read_frame_into_with_stall_timeout, write_frame, write_raw_frame,
+    write_raw_frame_no_flush, Frame, FrameReadState,
 };
 use super::protocol::{self, build_credentials_payload, Contract};
 use super::reconnect_delay;
@@ -79,45 +82,246 @@ pub(in crate::fpss) const MAX_RECONNECT_ATTEMPTS: u32 = 5;
 ///
 /// This thread IS the Disruptor producer. Events flow directly from the TLS
 /// socket into the ring buffer with zero intermediate channels.
-// Reason: all parameters are moved into this function from a spawned thread closure.
-#[allow(
-    clippy::too_many_arguments,
-    clippy::needless_pass_by_value,
-    clippy::too_many_lines
-)]
-pub(in crate::fpss) fn io_loop<F>(
-    stream: connection::FpssStream,
-    cmd_rx: std_mpsc::Receiver<IoCommand>,
-    mut handler: F,
-    ring_size: usize,
-    shutdown: Arc<AtomicBool>,
-    authenticated: Arc<AtomicBool>,
-    permissions: String,
-    mut pending_control: Vec<FpssControl>,
-    _server_addr: String,
-    derive_ohlcvc: bool,
-    flush_mode: FpssFlushMode,
-    policy: ReconnectPolicy,
-    creds: Credentials,
-    hosts: Vec<(String, u16)>,
-    active_subs: ActiveSubs,
-    active_full_subs: ActiveFullSubs,
-) where
-    F: FnMut(&FpssEvent) + Send + 'static,
-{
-    let ring_size = ring::next_power_of_two(ring_size.max(ring::MIN_RING_SIZE));
+///
+/// Argument bundle for [`io_loop`].
+///
+/// `connect_timeout` and `read_timeout` plumb the user-supplied
+/// [`crate::config::FpssConfig`] tuning into the auto-reconnect path
+/// (so manual [`std::net::TcpStream::connect_timeout`] re-attempts and
+/// the framing-layer mid-frame stall budget honour the configured
+/// values, not the Java-parity hardcoded defaults).
+///
+/// `delivery` selects between push-callback and pull-iter modes; see
+/// [`super::events::Delivery`]. The io_loop itself is mode-agnostic
+/// after this dispatch — both modes share the same Disruptor ring,
+/// reader, and producer.
+pub(in crate::fpss) struct IoLoopArgs {
+    pub stream: connection::FpssStream,
+    pub cmd_rx: std_mpsc::Receiver<IoCommand>,
+    pub delivery: Delivery,
+    pub ring_size: usize,
+    pub shutdown: Arc<AtomicBool>,
+    pub authenticated: Arc<AtomicBool>,
+    pub permissions: String,
+    pub pending_control: Vec<FpssControl>,
+    pub _server_addr: String,
+    pub derive_ohlcvc: bool,
+    pub flush_mode: FpssFlushMode,
+    pub policy: ReconnectPolicy,
+    pub creds: Credentials,
+    pub hosts: Vec<(String, u16)>,
+    pub active_subs: ActiveSubs,
+    pub active_full_subs: ActiveFullSubs,
+    pub dropped: Arc<AtomicU64>,
+    pub panics: Arc<AtomicU64>,
+    pub consumer_thread_id: Arc<OnceLock<ThreadId>>,
+    pub slow_callback_threshold_ns: Arc<AtomicU64>,
+    pub slow_callback_count: Arc<AtomicU64>,
+    pub connect_timeout: Duration,
+    pub read_timeout: Duration,
+}
 
-    let factory = || RingEvent { event: None };
+// Reason: all parameters are moved into this function from a spawned thread closure.
+#[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
+pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
+    let IoLoopArgs {
+        stream,
+        cmd_rx,
+        delivery,
+        ring_size,
+        shutdown,
+        authenticated,
+        permissions,
+        mut pending_control,
+        _server_addr,
+        derive_ohlcvc,
+        flush_mode,
+        policy,
+        creds,
+        hosts,
+        active_subs,
+        active_full_subs,
+        dropped,
+        panics,
+        consumer_thread_id,
+        slow_callback_threshold_ns,
+        slow_callback_count,
+        connect_timeout,
+        read_timeout,
+    } = args;
+    // `ring_size` was validated upstream by `ring::check_ring_size` at
+    // the public `FpssClient::connect` boundary; silent rounding here
+    // would rewrite the caller's stated buffer budget after the fact.
+    debug_assert!(
+        ring_size >= ring::MIN_RING_SIZE && ring_size.is_power_of_two(),
+        "io_loop received unvalidated ring_size {ring_size}; check upstream FpssClient::connect",
+    );
+
+    let factory = RingEvent::default;
     let wait_strategy = AdaptiveWaitStrategy::fpss_default();
+
+    // The Disruptor consumer thread is the SINGLE consumer between the
+    // TLS reader and the user-facing delivery sink. The reader publishes
+    // events into the ring; this closure runs on the consumer thread,
+    // filters internal-only events, and dispatches to the
+    // [`Delivery`] mode chosen at `connect` time:
+    //
+    // * [`Delivery::Callback`] — invoke the user closure under
+    //   `catch_unwind` so a panic from user code (or binding glue such
+    //   as PyO3 / napi `ThreadsafeFunction`) is counted on `panics` and
+    //   surfaced via `tracing::error!` rather than killing the consumer.
+    // * [`Delivery::Queue`] — `force_push` the cloned public event into
+    //   the bounded `ArrayQueue` shared with the
+    //   [`super::EventIterator`], incrementing the shared `dropped`
+    //   counter when overflow forces an evict-oldest.
+    //
+    // The `Mutex` wrap on the [`Delivery`] sink mirrors the previous
+    // `Mutex<F>` shape — `Producer::handle_events_with` requires the
+    // closure to be `Fn`, so the captured sink lives behind a Mutex even
+    // though the Disruptor's single consumer thread is the only acquirer
+    // (single-locker pattern; the lock collapses to one unlocked
+    // acquire/release per event).
+    // Pull-iter mode wires a drop guard into the consumer closure that
+    // flips an `Arc<AtomicBool>` when the closure is dropped — i.e.,
+    // when the Disruptor producer is dropped at io_loop exit and the
+    // consumer thread is wound down. That moment is the ONLY observable
+    // "no more `queue.push` will ever fire" point in the system, which
+    // is what the [`super::EventIterator`] needs as its terminal-EOF
+    // predicate. Earlier the iterator polled the global I/O-thread
+    // shutdown flag instead, which fired BEFORE the consumer had
+    // finished pushing the tail of in-flight events into the queue and
+    // produced false-EOFs that dropped tail events. See
+    // `super::events::Delivery::Queue::iter_closed` for the wiring.
+    let iter_closed_for_guard: Option<Arc<AtomicBool>> = match &delivery {
+        Delivery::Queue { iter_closed, .. } => Some(Arc::clone(iter_closed)),
+        Delivery::Callback(_) => None,
+    };
+    let delivery_cell = Mutex::new(delivery);
+    let panics_consumer = Arc::clone(&panics);
+    let dropped_consumer = Arc::clone(&dropped);
+    let consumer_thread_id_cell = Arc::clone(&consumer_thread_id);
+    let slow_threshold_ns_consumer = Arc::clone(&slow_callback_threshold_ns);
+    let slow_count_consumer = Arc::clone(&slow_callback_count);
+
+    // Drop guard captured by the consumer closure. Its `Drop` impl
+    // flips `iter_closed` to `true` AFTER the closure has finished its
+    // last dispatch — i.e., after the final `queue.push`. The closure
+    // is `move`d into `handle_events_with`, the disruptor crate keeps
+    // it alive on the consumer thread, and drops it when the producer
+    // is dropped at io_loop exit (line ~785). Wrapping the guard in
+    // an `Option` keeps the closure shape symmetric for the callback
+    // path (no flag to flip) without paying an `Arc::clone` per event.
+    struct IterCloseGuard {
+        iter_closed: Arc<AtomicBool>,
+    }
+    impl Drop for IterCloseGuard {
+        fn drop(&mut self) {
+            // Release ordering pairs with the iterator's Acquire
+            // load: every `queue.push` that happened before the
+            // guard runs must be visible to a thread that observes
+            // the flag set.
+            self.iter_closed.store(true, Ordering::Release);
+        }
+    }
+    let iter_close_guard: Option<IterCloseGuard> =
+        iter_closed_for_guard.map(|iter_closed| IterCloseGuard { iter_closed });
 
     let mut producer = build_single_producer(ring_size, factory, wait_strategy)
         .handle_events_with(
             move |ring_event: &RingEvent, _sequence: Sequence, _eob: bool| {
-                if let Some(ref evt) = ring_event.event {
-                    // Filter out internal-only events (Issue #185).
-                    match evt {
-                        FpssEvent::Empty | FpssEvent::RawData { .. } => {}
-                        _ => handler(evt),
+                // Touch the guard so the closure captures it (and so it
+                // is dropped on consumer-thread exit). The branch is
+                // never taken — `Option::None` for the callback path,
+                // and the guard never matches `Some(_)`-returning
+                // cleanup logic at runtime.
+                let _guard_anchor = &iter_close_guard;
+                // Capture the Disruptor consumer thread's `ThreadId`
+                // exactly once, on first dispatch. `FpssClient::drop`
+                // reads this to detect the self-join case (callback
+                // dropping the last `Arc<FpssClient>` from inside this
+                // closure) and detach the I/O-handle join onto a helper
+                // thread instead of deadlocking.
+                consumer_thread_id_cell.get_or_init(|| thread::current().id());
+
+                // Reborrow the ring slot to the public `&FpssEvent`.
+                // `as_public` returns `None` for the `Empty`
+                // ring-buffer placeholder and the `Unparseable`
+                // decode-fallback variant, so neither escapes into the
+                // delivery sink. Discriminants `Data` and `Control`
+                // are layout-compatible with the public enum (both
+                // `#[repr(C, u8)]`, see `events::FpssEventInternal`),
+                // which is what makes the reborrow zero-clone.
+                if let Some(evt) = ring_event.event.as_public() {
+                    let mut delivery = delivery_cell
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    match &mut *delivery {
+                        Delivery::Callback(handler) => {
+                            let threshold_ns = slow_threshold_ns_consumer.load(Ordering::Relaxed);
+                            // `AssertUnwindSafe` is sound here because
+                            // the user callback's captured state lives
+                            // behind the `Mutex<Delivery>`; any side
+                            // effects observable across a panic
+                            // boundary are the user's responsibility,
+                            // not the SDK's.
+                            let start = if threshold_ns > 0 {
+                                Some(std::time::Instant::now())
+                            } else {
+                                None
+                            };
+                            if catch_unwind(AssertUnwindSafe(|| handler(evt))).is_err() {
+                                panics_consumer.fetch_add(1, Ordering::Relaxed);
+                                tracing::error!(
+                                    target: "thetadatadx::fpss::io_loop",
+                                    "user callback panicked on Disruptor consumer thread; \
+                                     panic_count incremented, consumer continuing",
+                                );
+                            }
+                            if let Some(start) = start {
+                                // Resilience: slow-callback
+                                // observability. Threshold is opt-in
+                                // via `set_slow_callback_threshold`.
+                                let elapsed_ns =
+                                    u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX);
+                                if elapsed_ns > threshold_ns {
+                                    let prev = slow_count_consumer.fetch_add(1, Ordering::Relaxed);
+                                    // Rate-limit per 1024 over-budget
+                                    // events so a sustained slow
+                                    // callback regression does not
+                                    // amplify the log stream.
+                                    if prev.is_multiple_of(1024) {
+                                        tracing::warn!(
+                                            target: "thetadatadx::fpss::io_loop",
+                                            elapsed_ns,
+                                            threshold_ns,
+                                            slow_callback_count = prev + 1,
+                                            "user callback exceeded slow-callback threshold",
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        Delivery::Queue { queue, .. } => {
+                            // Pull-iter delivery. Clone the public event
+                            // into the bounded queue; `Arc<Contract>` /
+                            // `String` payloads collapse the clone to
+                            // refcount bumps so the per-event cost stays
+                            // in the low hundreds of nanoseconds.
+                            //
+                            // `push` returns `Err(ev)` when the queue is
+                            // full — symmetric with the callback path's
+                            // `Producer::try_publish` ring-full handling:
+                            // the new event is dropped (rather than
+                            // overwriting an unread older event) and the
+                            // shared `dropped` counter increments. Both
+                            // delivery modes therefore surface
+                            // ring/queue overflow on the same
+                            // [`super::FpssClient::dropped_count`]
+                            // counter.
+                            if queue.push(evt.clone()).is_err() {
+                                dropped_consumer.fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
                     }
                 }
             },
@@ -133,15 +337,13 @@ pub(in crate::fpss) fn io_loop<F>(
     // before the post-login `decode_frame` dispatch ran.
     for ctrl in pending_control.drain(..) {
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::Control(ctrl));
+            slot.event = FpssEventInternal::Control(ctrl);
         });
     }
 
     // Publish login success event.
     producer.publish(|slot| {
-        slot.event = Some(FpssEvent::Control(FpssControl::LoginSuccess {
-            permissions,
-        }));
+        slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess { permissions });
     });
 
     // Split the stream into buffered read + buffered write.
@@ -171,9 +373,22 @@ pub(in crate::fpss) fn io_loop<F>(
     // On involuntary disconnect, the policy decides whether to reconnect.
     let mut reconnect_attempt: u32 = 0;
 
+    // Per-iteration short blocking-read timeout. 50 ms is short enough
+    // that pings (default 100 ms cadence) are serviced promptly but
+    // long enough to avoid burning CPU during quiet periods. The
+    // overall user-configured deadline is enforced by counting
+    // consecutive 50 ms timeouts up to `max_consecutive_timeouts`.
+    let io_read_slice = Duration::from_millis(50);
+    // Convert the user-configured `read_timeout` into the matching
+    // count of `io_read_slice`-sized timeouts that must elapse without
+    // any data before the I/O loop publishes
+    // [`tdbe::types::enums::RemoveReason::TimedOut`]. Bottoms out at 1
+    // so a hypothetical sub-50ms `read_timeout` still triggers exactly
+    // one cycle of timeout-then-disconnect rather than zero.
+    let read_timeout_ms_total = u64::try_from(read_timeout.as_millis()).unwrap_or(u64::MAX);
+    let max_consecutive_timeouts = (read_timeout_ms_total / 50).max(1);
+
     'session: loop {
-        // Track consecutive read timeouts to detect the 10s overall timeout.
-        let max_consecutive_timeouts = (protocol::READ_TIMEOUT_MS / 50).max(1);
         let mut consecutive_timeouts: u64 = 0;
 
         // --- Inner read/write loop for one connection session ---
@@ -184,7 +399,12 @@ pub(in crate::fpss) fn io_loop<F>(
             }
 
             // --- Phase 1: Try to read a frame (short blocking read) ---
-            match read_frame_into(&mut reader, &mut frame_buf, &mut frame_state) {
+            match read_frame_into_with_stall_timeout(
+                &mut reader,
+                &mut frame_buf,
+                &mut frame_state,
+                read_timeout,
+            ) {
                 Ok(Some((code, payload_len))) => {
                     consecutive_timeouts = 0;
                     // Reset reconnect counter on successful data reception.
@@ -201,23 +421,39 @@ pub(in crate::fpss) fn io_loop<F>(
                     );
 
                     if let Some(evt) = primary {
-                        producer.publish(|slot| {
-                            slot.event = Some(evt);
-                        });
+                        if producer
+                            .try_publish(|slot| {
+                                slot.event = evt;
+                            })
+                            .is_err()
+                        {
+                            // Ring buffer full: consumer fell behind.
+                            // Count the drop and keep reading — the
+                            // alternative (blocking `publish`) would
+                            // stall the TLS reader and cause the
+                            // vendor session to drop on a slow
+                            // user callback.
+                            dropped.fetch_add(1, Ordering::Relaxed);
+                        }
                     }
                     if let Some(evt) = secondary {
-                        producer.publish(|slot| {
-                            slot.event = Some(evt);
-                        });
+                        if producer
+                            .try_publish(|slot| {
+                                slot.event = evt;
+                            })
+                            .is_err()
+                        {
+                            dropped.fetch_add(1, Ordering::Relaxed);
+                        }
                     }
                 }
                 Ok(None) => {
                     // Clean EOF
                     tracing::warn!("FPSS connection closed by server");
                     producer.publish(|slot| {
-                        slot.event = Some(FpssEvent::Control(FpssControl::Disconnected {
+                        slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
                             reason: RemoveReason::Unspecified,
-                        }));
+                        });
                     });
                     authenticated.store(false, Ordering::Release);
                     break 'inner RemoveReason::Unspecified;
@@ -226,14 +462,14 @@ pub(in crate::fpss) fn io_loop<F>(
                     consecutive_timeouts += 1;
                     if consecutive_timeouts >= max_consecutive_timeouts {
                         tracing::warn!(
-                            timeout_ms = protocol::READ_TIMEOUT_MS,
+                            timeout_ms = read_timeout_ms_total,
                             "FPSS read timed out (no data for {}ms)",
                             consecutive_timeouts * 50
                         );
                         producer.publish(|slot| {
-                            slot.event = Some(FpssEvent::Control(FpssControl::Disconnected {
+                            slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
                                 reason: RemoveReason::TimedOut,
-                            }));
+                            });
                         });
                         authenticated.store(false, Ordering::Release);
                         break 'inner RemoveReason::TimedOut;
@@ -260,9 +496,9 @@ pub(in crate::fpss) fn io_loop<F>(
                 Err(e) => {
                     tracing::error!(error = %e, "FPSS read error");
                     producer.publish(|slot| {
-                        slot.event = Some(FpssEvent::Control(FpssControl::Disconnected {
+                        slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
                             reason: RemoveReason::Unspecified,
-                        }));
+                        });
                     });
                     authenticated.store(false, Ordering::Release);
                     break 'inner RemoveReason::Unspecified;
@@ -365,11 +601,11 @@ pub(in crate::fpss) fn io_loop<F>(
         );
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::Control(FpssControl::Reconnecting {
+            slot.event = FpssEventInternal::Control(FpssControl::Reconnecting {
                 reason,
                 attempt: reconnect_attempt,
                 delay_ms,
-            }));
+            });
         });
 
         thread::sleep(delay);
@@ -381,7 +617,7 @@ pub(in crate::fpss) fn io_loop<F>(
         // --- Attempt new TLS connection and re-authenticate ---
         let new_stream = {
             let borrowed: Vec<(&str, u16)> = hosts.iter().map(|(h, p)| (h.as_str(), *p)).collect();
-            connection::connect_to_servers(&borrowed)
+            connection::connect_to_servers(&borrowed, connect_timeout, read_timeout)
         };
 
         let mut new_stream = match new_stream {
@@ -446,7 +682,8 @@ pub(in crate::fpss) fn io_loop<F>(
                         "permanent login rejection on reconnect -- exiting I/O loop"
                     );
                     producer.publish(|slot| {
-                        slot.event = Some(FpssEvent::Control(FpssControl::Disconnected { reason }));
+                        slot.event =
+                            FpssEventInternal::Control(FpssControl::Disconnected { reason });
                     });
                     shutdown.store(true, Ordering::Release);
                     break 'session;
@@ -455,9 +692,10 @@ pub(in crate::fpss) fn io_loop<F>(
             }
         };
 
-        // Set the short I/O read timeout on the new stream.
-        let io_read_timeout = Duration::from_millis(50);
-        if let Err(e) = new_stream.sock.set_read_timeout(Some(io_read_timeout)) {
+        // Set the short I/O read timeout on the new stream so the io
+        // loop can drain commands between reads. Matches the
+        // initial-connect path in `FpssClient::connect_with_stream`.
+        if let Err(e) = new_stream.sock.set_read_timeout(Some(io_read_slice)) {
             tracing::warn!(error = %e, "failed to set read timeout on reconnect");
             continue 'session;
         }
@@ -474,16 +712,16 @@ pub(in crate::fpss) fn io_loop<F>(
         // order matches the fresh-session bootstrap above.
         for ctrl in reconnect_pending_control.drain(..) {
             producer.publish(|slot| {
-                slot.event = Some(FpssEvent::Control(ctrl));
+                slot.event = FpssEventInternal::Control(ctrl);
             });
         }
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::Control(FpssControl::LoginSuccess {
+            slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess {
                 permissions: new_permissions,
-            }));
+            });
         });
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::Control(FpssControl::Reconnected));
+            slot.event = FpssEventInternal::Control(FpssControl::Reconnected);
         });
 
         // Replace the reader with the new stream.

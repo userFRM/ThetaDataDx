@@ -4,8 +4,7 @@
 //! full-type subscribe, ping, stop). Parsers cover the server->client
 //! responses (REQ_RESPONSE, DISCONNECTED, CONTRACT).
 //!
-//! See ADR-001 (`docs/architecture/ADR-001-java-terminal-parity.md`) for the
-//! Java terminal parity reverse-engineering source.
+//! Behaviour mirrors the upstream Java terminal.
 
 use tdbe::types::enums::{RemoveReason, SecType, StreamResponseType};
 
@@ -261,7 +260,7 @@ mod tests {
         let contract = Contract::stock("ABCDEFGHIJKLMNOPQ"); // 17 chars
         let err = build_subscribe_payload(1, &contract).expect_err("too-long root must error");
         match err {
-            Error::Config(msg) => assert!(msg.contains("too long")),
+            Error::Config { message, .. } => assert!(message.contains("too long")),
             other => panic!("expected Error::Config, got {other:?}"),
         }
     }
@@ -271,7 +270,10 @@ mod tests {
         let contract = Contract::stock("");
         let err = build_subscribe_payload(1, &contract).expect_err("empty root must error");
         match err {
-            Error::Config(msg) => assert!(msg.contains("empty")),
+            Error::Config { kind, .. } => assert!(matches!(
+                kind,
+                crate::error::ConfigErrorKind::MissingField(_)
+            )),
             other => panic!("expected Error::Config, got {other:?}"),
         }
     }

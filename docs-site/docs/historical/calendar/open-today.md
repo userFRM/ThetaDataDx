@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} is_open=${t.is_open} open_time=${t.open_time} close_time=${t.close_time}`);
 }
 ```
-```go [Go]
-data, _ := client.CalendarOpenToday()
-for _, t := range data {
-    fmt.Printf("date=%d is_open=%d open_time=%d close_time=%d\n",
-        t.Date, t.IsOpen, t.OpenTime, t.CloseTime)
-}
-```
 ```cpp [C++]
 auto data = client.calendar_open_today();
 for (const auto& t : data) {

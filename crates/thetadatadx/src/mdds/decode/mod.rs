@@ -9,7 +9,7 @@
 //! | [`transport`]| `decompress_response` / `decode_data_table` zstd path         |
 //! | [`extract`]  | `extract_{number,text,price}_column` column projections       |
 //! | [`cell`]     | Per-cell strict decoders (`row_*`) + generated parser surface |
-//! | [`v3`]       | Hand-written v3 parsers (`parse_option_contracts_v3`, …)      |
+//! | [`dual_type_columns`] | Hand-written parsers for columns that arrive as either `Number` or `Text` on the v3 wire (`parse_option_contracts_v3`, …) |
 //!
 //! Public API surface is preserved at `thetadatadx::decode::*` via the
 //! crate-root re-export of this module. Eastern-time / DST primitives
@@ -17,20 +17,20 @@
 //! the FPSS latency path.
 
 pub mod cell;
+pub mod dual_type_columns;
 pub mod error;
 pub mod extract;
 pub mod headers;
 pub mod transport;
-pub mod v3;
 
-pub use error::DecodeError;
-pub use extract::{extract_number_column, extract_price_column, extract_text_column};
-pub use transport::{decode_data_table, decompress_response};
-pub use v3::{
+pub use dual_type_columns::{
     parse_calendar_days_v3, parse_option_contracts_v3, CALENDAR_STATUS_EARLY_CLOSE,
     CALENDAR_STATUS_FULL_CLOSE, CALENDAR_STATUS_OPEN, CALENDAR_STATUS_UNKNOWN,
     CALENDAR_STATUS_WEEKEND,
 };
+pub use error::DecodeError;
+pub use extract::{extract_number_column, extract_price_column, extract_text_column};
+pub use transport::{decode_data_table, decompress_response};
 
 // Re-export the macro-generated parser functions (`parse_trade_ticks`,
 // `parse_eod_ticks`, etc.) at this module's top level so external consumers

@@ -1,10 +1,10 @@
 [package]
 name = "thetadatadx-cli"
-version = "9.0.2"
+version = "9.1.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-description = "CLI for ThetaDataDx — query ThetaData from your terminal"
+description = "CLI for ThetaDataDxClient — query ThetaData from your terminal"
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true

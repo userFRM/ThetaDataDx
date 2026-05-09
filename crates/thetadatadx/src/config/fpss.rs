@@ -12,6 +12,18 @@ pub enum FpssFlushMode {
 }
 
 /// FPSS streaming client tuning.
+///
+/// All four legacy `*_ms` knobs (`timeout_ms`, `ping_interval_ms`,
+/// `connect_timeout_ms`) and the disruptor `ring_size` are wired into
+/// the runtime: the values flow through [`crate::fpss::FpssConnectArgs`]
+/// into [`crate::fpss::FpssClient::connect`], which threads them to the
+/// connection, framing, and ping layers. [`DirectConfig::validate`]
+/// rejects out-of-range values before the connect attempt.
+///
+/// The pre-Disruptor `queue_depth` knob (a separate event channel size)
+/// was removed in 9.1.0: the post-SSOT pipeline has exactly ONE queue
+/// (the Disruptor ring), so `ring_size` is the single source of truth
+/// for the streaming buffer budget.
 #[derive(Debug, Clone)]
 pub struct FpssConfig {
     /// FPSS TCP hosts with round-robin failover.
@@ -20,40 +32,42 @@ pub struct FpssConfig {
     /// iterates through these on connection failure.
     pub hosts: Vec<(String, u16)>,
 
-    /// FPSS connection/read timeout in milliseconds.
+    /// FPSS read timeout in milliseconds.
     ///
-    /// Source: `FPSS_TIMEOUT=10000` in `config_0.properties`.
+    /// Source: `FPSS_TIMEOUT=10000` in `config_0.properties`. Drives
+    /// the per-connection initial socket read timeout, the framing
+    /// layer's mid-frame stall budget, and the I/O loop's overall
+    /// "no data received" deadline that triggers
+    /// [`tdbe::types::enums::RemoveReason::TimedOut`]. Validated to
+    /// the range `[100, 60_000]` ms.
     pub timeout_ms: u64,
 
-    /// FPSS event channel buffer depth.
-    /// Caller should pass this to `FpssClient::connect(creds, queue_depth)`.
-    /// Increase if stream events are being dropped under high volume.
+    /// FPSS disruptor ring buffer size (slots).
     ///
-    /// JVM equivalent: `FPSS_QUEUE_DEPTH=1000000` in `config_0.properties`.
-    ///
-    /// NOTE: Not automatically wired — caller must pass to `FpssClient::connect()`.
-    pub queue_depth: usize,
-
-    /// FPSS disruptor ring buffer size (slots, will be rounded up to a power of 2).
-    ///
-    /// The LMAX Disruptor ring buffer used for lock-free event dispatch requires
-    /// a power-of-2 size. This value is rounded up automatically. Larger rings
-    /// absorb more burst traffic but use more memory (~`ring_size * sizeof(Option<FpssEvent>)`).
-    ///
-    /// Derived from `queue_depth` by default. Override for fine-grained control.
+    /// MUST be a power of two (the Disruptor wraps the index with
+    /// `i & (cap - 1)`) and at least `64`. `FpssClient::connect`
+    /// returns [`crate::error::Error::Config`] on a non-power-of-two
+    /// or below-minimum value — silent rounding is rejected so the
+    /// caller's stated buffer budget is never rewritten under their
+    /// feet. Larger rings absorb more burst traffic but use more
+    /// memory (~`ring_size * sizeof(Option<FpssEvent>)`).
     pub ring_size: usize,
 
     /// FPSS heartbeat ping interval in milliseconds.
-    /// The protocol requires pings every 100ms; changing this may cause disconnects.
     ///
-    /// NOTE: Not automatically wired — the ping loop uses `protocol::PING_INTERVAL_MS`.
-    /// Override that constant or pass this value when a configurable ping loop is added.
+    /// Default `100` matches the Java terminal's `scheduleAtFixedRate`
+    /// cadence; the FPSS server expects a heartbeat at this rhythm and
+    /// may disconnect if it falls silent. Validated to the range
+    /// `[100, 300_000]` ms — sub-100 ms values are rejected so a
+    /// misconfiguration does not flood the upstream.
     pub ping_interval_ms: u64,
 
     /// Per-server TCP connect timeout in milliseconds. Default `2000`.
     ///
-    /// NOTE: Not automatically wired — the connection module uses `protocol::CONNECT_TIMEOUT_MS`.
-    /// Override that constant or pass this value when a configurable connect is added.
+    /// Plumbed through [`std::net::TcpStream::connect_timeout`] in the
+    /// connection layer so a slow / unreachable host fails fast and the
+    /// next configured host gets a try. Validated to the range
+    /// `[1_000, 60_000]` ms.
     pub connect_timeout_ms: u64,
 
     /// Controls when the FPSS write buffer is flushed.
@@ -86,7 +100,6 @@ impl FpssConfig {
                 ("nj-b.thetadata.us".to_string(), 20001),
             ],
             timeout_ms: 10_000,
-            queue_depth: 1_000_000,
             ring_size: 131_072,
             ping_interval_ms: 100,
             connect_timeout_ms: 2_000,
@@ -94,6 +107,17 @@ impl FpssConfig {
             derive_ohlcvc: true,
         }
     }
+}
+
+/// Validation bounds for the wired FPSS knobs. Out-of-range values
+/// are rejected at config-load time by [`crate::config::DirectConfig::validate`].
+pub mod bounds {
+    /// Allowed range for [`super::FpssConfig::timeout_ms`], in milliseconds.
+    pub const TIMEOUT_MS: std::ops::RangeInclusive<u64> = 100..=60_000;
+    /// Allowed range for [`super::FpssConfig::connect_timeout_ms`], in milliseconds.
+    pub const CONNECT_TIMEOUT_MS: std::ops::RangeInclusive<u64> = 1_000..=60_000;
+    /// Allowed range for [`super::FpssConfig::ping_interval_ms`], in milliseconds.
+    pub const PING_INTERVAL_MS: std::ops::RangeInclusive<u64> = 100..=300_000;
 }
 
 impl Default for FpssConfig {

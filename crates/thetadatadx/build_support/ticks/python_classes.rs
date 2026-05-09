@@ -1,4 +1,4 @@
-//! Emit `sdks/python/src/tick_classes.rs` — typed `#[pyclass]` structs,
+//! Emit `sdks/python/src/_generated/tick_classes.rs` — typed `#[pyclass]` structs,
 //! `<Tick>List` wrapper pyclasses, and list converters.
 //!
 //! Matches the typed-struct approach used by Rust core, TypeScript, Go,

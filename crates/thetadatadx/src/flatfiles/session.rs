@@ -50,8 +50,10 @@ pub(crate) async fn connect_tls(target: MddsHost<'_>) -> Result<TlsStream<TcpStr
         .with_custom_certificate_verifier(MddsSpkiVerifier::new())
         .with_no_client_auth();
     let connector = TlsConnector::from(Arc::new(cfg));
-    let server_name: ServerName<'static> = ServerName::try_from(target.host.to_string())
-        .map_err(|e| Error::Config(format!("invalid SNI {}: {e}", target.host)))?;
+    let server_name: ServerName<'static> =
+        ServerName::try_from(target.host.to_string()).map_err(|e| {
+            Error::config_invalid("mdds.sni", format!("invalid SNI {}: {e}", target.host))
+        })?;
 
     let tcp = TcpStream::connect((target.host, target.port)).await?;
     tcp.set_nodelay(true)?;
@@ -181,7 +183,7 @@ pub(crate) async fn connect_and_login<'a>(
             Err(e) => last_err = Some(e),
         }
     }
-    Err(last_err.unwrap_or_else(|| Error::Config("no MDDS hosts configured".into())))
+    Err(last_err.unwrap_or_else(|| Error::config_missing("mdds.hosts")))
 }
 
 /// A login error the server has authoritatively decided — no point

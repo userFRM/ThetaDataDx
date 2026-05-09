@@ -66,14 +66,12 @@ pub fn decompress_response(response: &proto::ResponseData) -> Result<Vec<u8>, Er
                 buf.resize(original_size, 0);
                 let n = dec
                     .decompress_to_buffer(&response.compressed_data, buf)
-                    .map_err(|e| Error::Decompress(e.to_string()))?;
+                    .map_err(|e| Error::decompress_zstd(e.to_string()))?;
                 buf.truncate(n);
                 Ok(buf.clone())
             })
         }
-        _ => Err(Error::Decompress(format!(
-            "unknown compression algorithm: {algo_raw}"
-        ))),
+        _ => Err(Error::decompress_unknown_algorithm(algo_raw)),
     }
 }
 
@@ -85,7 +83,7 @@ pub fn decompress_response(response: &proto::ResponseData) -> Result<Vec<u8>, Er
 /// if protobuf deserialization fails.
 pub fn decode_data_table(response: &proto::ResponseData) -> Result<proto::DataTable, Error> {
     let bytes = decompress_response(response)?;
-    let table: proto::DataTable =
-        prost::Message::decode(bytes.as_slice()).map_err(|e| Error::Decode(e.to_string()))?;
+    let table: proto::DataTable = prost::Message::decode(bytes.as_slice())
+        .map_err(|e| Error::decode_protobuf(e.to_string()))?;
     Ok(table)
 }

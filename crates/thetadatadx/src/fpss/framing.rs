@@ -173,11 +173,12 @@ const MAX_CONSECUTIVE_UNKNOWN_CODES: usize = 5;
 fn read_header<R: Read>(
     reader: &mut R,
     state: &mut FrameReadState,
+    stall_timeout: Duration,
 ) -> Result<Option<[u8; 2]>, crate::error::Error> {
     read_header_with_timeout(
         reader,
         state,
-        Duration::from_millis(READ_TIMEOUT_MS),
+        stall_timeout,
         Duration::from_millis(MID_FRAME_DRAIN_WINDOW_MS),
     )
 }
@@ -299,12 +300,13 @@ fn read_exact_payload<R: Read>(
     reader: &mut R,
     buf: &mut [u8],
     state: &mut FrameReadState,
+    stall_timeout: Duration,
 ) -> Result<(), crate::error::Error> {
     read_exact_payload_with_timeout(
         reader,
         buf,
         state,
-        Duration::from_millis(READ_TIMEOUT_MS),
+        stall_timeout,
         Duration::from_millis(MID_FRAME_DRAIN_WINDOW_MS),
     )
 }
@@ -438,12 +440,30 @@ pub fn read_frame_into<R: Read>(
     buf: &mut Vec<u8>,
     state: &mut FrameReadState,
 ) -> Result<Option<(StreamMsgType, usize)>, crate::error::Error> {
+    read_frame_into_with_stall_timeout(reader, buf, state, Duration::from_millis(READ_TIMEOUT_MS))
+}
+
+/// Like [`read_frame_into`] but takes the per-stall mid-frame timeout
+/// from the caller instead of the Java-parity [`READ_TIMEOUT_MS`]
+/// default. The I/O loop threads the user-supplied
+/// [`crate::config::FpssConfig::timeout_ms`] through this entry point
+/// so the public knob actually controls the framing stall budget.
+///
+/// # Errors
+///
+/// Returns an error on network, authentication, or parsing failure.
+pub fn read_frame_into_with_stall_timeout<R: Read>(
+    reader: &mut R,
+    buf: &mut Vec<u8>,
+    state: &mut FrameReadState,
+    stall_timeout: Duration,
+) -> Result<Option<(StreamMsgType, usize)>, crate::error::Error> {
     loop {
         // Header phase: read bytes into `state.header_buf` until we
         // have both. A drain-yield here preserves partial progress
         // via `state.header_read`.
         if !state.payload_phase {
-            let Some(header) = read_header(reader, state)? else {
+            let Some(header) = read_header(reader, state, stall_timeout)? else {
                 // Clean EOF before any byte of this frame — reset the
                 // state to idle so the next caller-driven frame starts
                 // fresh if the stream reopens (reconnect path).
@@ -468,7 +488,7 @@ pub fn read_frame_into<R: Read>(
         let payload_len = state.payload_len;
         let code_byte = state.header_buf[1];
         if payload_len > 0 {
-            read_exact_payload(reader, &mut buf[..payload_len], state)?;
+            read_exact_payload(reader, &mut buf[..payload_len], state, stall_timeout)?;
         }
 
         // Frame complete — decide how to return based on the code.

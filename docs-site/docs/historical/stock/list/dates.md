@@ -27,12 +27,6 @@ for item in data:
 const data = tdx.stockListDates('TRADE', 'SPY');
 console.log(data);
 ```
-```go [Go]
-data, _ := client.StockListDates("TRADE", "SPY")
-for _, item := range data {
-    fmt.Println(item)
-}
-```
 ```cpp [C++]
 auto data = client.stock_list_dates("TRADE", "SPY");
 for (const auto& item : data) {

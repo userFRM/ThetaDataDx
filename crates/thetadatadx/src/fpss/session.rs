@@ -10,7 +10,7 @@ use super::protocol::{RECONNECT_DELAY_MS, TOO_MANY_REQUESTS_DELAY_MS};
 /// The classifier maps a `RemoveReason` to a retry delay (or `None` for
 /// permanent errors).
 ///
-/// # Intentional divergence from upstream parity (see docs/java-parity-checklist.md)
+/// # Intentional divergence from upstream
 ///
 /// Upstream only treats `AccountAlreadyConnected` (code 6) as a permanent
 /// error, retrying forever on invalid credentials — which burns rate limits
@@ -22,7 +22,8 @@ pub fn reconnect_delay(reason: RemoveReason) -> Option<u64> {
     match reason {
         // Permanent errors -- no amount of reconnection will fix bad credentials.
         // Upstream only checks AccountAlreadyConnected here; we extend this to
-        // all credential errors. See docs/java-parity-checklist.md (Reconnection).
+        // all credential errors as a deliberate improvement on upstream's
+        // burn-rate-limit-on-bad-creds behaviour.
         RemoveReason::AccountAlreadyConnected
         | RemoveReason::InvalidCredentials
         | RemoveReason::InvalidLoginValues

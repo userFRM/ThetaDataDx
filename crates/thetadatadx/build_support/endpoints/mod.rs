@@ -37,7 +37,7 @@ pub use render::{check_sdk_generated_files, generate_all, write_sdk_generated_fi
 /// `"CalendarDays"`) that are reached by any snapshot-kind endpoint in
 /// `endpoint_surface.toml`. Consumed by the `ticks` generator to decide
 /// which tick types get a `<tick>_vec_to_pylist` fast-path converter
-/// emitted into `sdks/python/src/tick_classes.rs` — emitting for every
+/// emitted into `sdks/python/src/_generated/tick_classes.rs` — emitting for every
 /// tick type would leave dead-code fns (each `_vec_to_pylist` is only
 /// called from snapshot-endpoint pymethods, so a tick type with no
 /// snapshot endpoint has no caller).

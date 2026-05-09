@@ -44,6 +44,7 @@ use tower_governor::GovernorLayer;
 use crate::state::AppState;
 
 pub use broadcast::start_fpss_bridge;
+pub use format::json_serialize_failure_count;
 
 /// Mirrors `router::GLOBAL_CONCURRENCY_LIMIT` — single constant would cross
 /// the module boundary gratuitously. 256 is chosen for the same reason:

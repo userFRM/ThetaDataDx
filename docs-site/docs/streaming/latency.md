@@ -90,31 +90,30 @@ tdx.start_streaming(|event: &FpssEvent| {
 ```
 ```python [Python]
 import time
-from thetadatadx import ThetaDataDx, Credentials, Config
+from thetadatadx import ThetaDataDxClient, Credentials, Config, Contract
 
-tdx = ThetaDataDx(Credentials.from_file("creds.txt"), Config.production())
-tdx.start_streaming()
-tdx.subscribe_quotes("SPY")
+client = ThetaDataDxClient(Credentials.from_file("creds.txt"), Config.production())
+client.subscribe(Contract.stock("SPY").quote())
 
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue
-    if event.kind == "quote":
-        received_ns = event.received_at_ns
-        # received_at_ns is the Rust-side receive time.
-        # The delta to time.time_ns() measures Rust-to-Python bridging
-        # overhead (typically <1ms). True wire latency is best computed
-        # on the Rust side using tdbe::latency::latency_ns().
-        now_ns = time.time_ns()
-        approx_latency_ms = (now_ns - received_ns) / 1_000_000
-        print(f"SPY {event.bid:.2f}/{event.ask:.2f}  "
-              f"received_at_ns={received_ns}  "
-              f"since_receive={approx_latency_ms:.1f}ms")
+# Pull-iter mode: context-managed typed iterator over the SPSC queue.
+with client.streaming_iter() as it:
+    for event in it:
+        if event.kind == "quote":
+            received_ns = event.received_at_ns
+            # received_at_ns is the Rust-side receive time.
+            # The delta to time.time_ns() measures Rust-to-Python bridging
+            # overhead (typically <1ms). True wire latency is best computed
+            # on the Rust side using tdbe::latency::latency_ns().
+            now_ns = time.time_ns()
+            approx_latency_ms = (now_ns - received_ns) / 1_000_000
+            print(f"{event.contract.symbol} {event.bid:.2f}/{event.ask:.2f}  "
+                  f"received_at_ns={received_ns}  "
+                  f"since_receive={approx_latency_ms:.1f}ms")
 ```
 ```cpp [C++]
-while (true) {
-    auto event = fpss.next_event(5000);
+auto iter = client.start_streaming_iter();
+while (!iter.ended()) {
+    auto event = iter.next(std::chrono::milliseconds(5000));
     if (!event) continue;
 
     if (event->kind == TDX_FPSS_QUOTE) {
@@ -140,7 +139,7 @@ For the absolute lowest latency:
 
 2. **Keep the callback fast** -- the Disruptor callback runs on the consumer thread. Push to your own queue for heavy processing.
 
-3. **Use the Rust SDK directly** -- Python, TypeScript/Node.js, and C++ add an mpsc channel hop between the Disruptor and `next_event()`.
+3. **Use the Rust SDK directly** -- the Disruptor → SPSC `ArrayQueue` → user-thread iterator path is a single-queue Rust pipeline (no mpsc / FFI hop). The Python / TypeScript / C++ pull-iter handles returned by `start_streaming_iter()` only add the per-binding GIL acquire / event-loop wakeup / FFI marshalling cost at the consumer-side boundary.
 
 ## Network Physics: Minimum Achievable Latency
 
@@ -167,7 +166,7 @@ For latency-sensitive applications:
 
 1. **Colocate near NJ** -- AWS us-east-1 (N. Virginia) or any NJ/NYC-area datacenter gets sub-5ms
 2. **`FpssFlushMode::Immediate`** reduces software batching latency by up to 100ms, but cannot beat physics
-3. **Use the Rust SDK directly** -- eliminates the FFI channel hop present in Python/TypeScript/C++ (adds <1ms)
+3. **Use the Rust SDK directly** -- removes the per-event GIL acquire (Python) / event-loop wakeup (Node) / FFI marshalling (C/C++) on the consumer-side boundary; the underlying Disruptor → SPSC queue path is identical (adds <1ms total at typical wire rates).
 
 ## Latency Histogram Example
 
@@ -180,7 +179,7 @@ use tdbe::latency::latency_ns;
 let buckets = Arc::new(Mutex::new(vec![0u64; 20])); // 0-10ms, 10-20ms, ...
 let b = buckets.clone();
 
-tdx.start_streaming(move |event: &FpssEvent| {
+client.start_streaming(move |event: &FpssEvent| {
     if let FpssEvent::Data(FpssData::Quote { ms_of_day, date, received_at_ns, .. }) = event {
         let lat_ms = latency_ns(*ms_of_day, *date, *received_at_ns) / 1_000_000;
         let bucket = (lat_ms as usize / 10).min(19);
@@ -188,11 +187,11 @@ tdx.start_streaming(move |event: &FpssEvent| {
     }
 })?;
 
-tdx.subscribe_quotes(&Contract::stock("SPY"))?;
+client.subscribe(Contract::stock("SPY").quote())?;
 
 // After collecting data:
 std::thread::sleep(std::time::Duration::from_secs(60));
-tdx.stop_streaming();
+client.stop_streaming();
 
 let h = buckets.lock().unwrap();
 for (i, count) in h.iter().enumerate() {
@@ -203,29 +202,29 @@ for (i, count) in h.iter().enumerate() {
 ```
 ```python [Python]
 import time
-from thetadatadx import ThetaDataDx, Credentials, Config
+from thetadatadx import ThetaDataDxClient, Credentials, Config, Contract
 
-tdx = ThetaDataDx(Credentials.from_file("creds.txt"), Config.production())
-tdx.start_streaming()
-tdx.subscribe_quotes("SPY")
+client = ThetaDataDxClient(Credentials.from_file("creds.txt"), Config.production())
+client.subscribe(Contract.stock("SPY").quote())
 
 buckets = [0] * 20  # 0-10ms, 10-20ms, ...
 
 deadline = time.time() + 60  # collect for 60 seconds
-while time.time() < deadline:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue
-    if event.kind == "quote":
-        # Approximate: time.time_ns() - received_at_ns measures
-        # Rust-to-Python overhead, not true wire latency.
-        now_ns = time.time_ns()
-        lat_ns = max(0, now_ns - event.received_at_ns)
-        lat_ms = lat_ns // 1_000_000
-        bucket = min(lat_ms // 10, 19)
-        buckets[bucket] += 1
-
-tdx.stop_streaming()
+with client.streaming_iter() as it:
+    for event in it:
+        if time.time() >= deadline:
+            client.stop_streaming()
+            # Drain residual then break — the iterator raises StopIteration
+            # once the queue empties on a stopped session.
+            continue
+        if event.kind == "quote":
+            # Approximate: time.time_ns() - received_at_ns measures
+            # Rust-to-Python overhead, not true wire latency.
+            now_ns = time.time_ns()
+            lat_ns = max(0, now_ns - event.received_at_ns)
+            lat_ms = lat_ns // 1_000_000
+            bucket = min(lat_ms // 10, 19)
+            buckets[bucket] += 1
 
 for i, count in enumerate(buckets):
     if count > 0:
@@ -241,15 +240,16 @@ for i, count in enumerate(buckets):
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
     auto config = tdx::Config::production();
-    tdx::FpssClient fpss(creds, config);
+    auto client = tdx::UnifiedClient::connect(creds, config);
 
-    fpss.subscribe_quotes("SPY");
+    client.subscribe(tdx::Contract::stock("SPY").quote());
 
     std::array<uint64_t, 20> buckets{}; // 0-10ms, 10-20ms, ...
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
 
-    while (std::chrono::steady_clock::now() < deadline) {
-        auto event = fpss.next_event(5000);
+    auto iter = client.start_streaming_iter();
+    while (std::chrono::steady_clock::now() < deadline && !iter.ended()) {
+        auto event = iter.next(std::chrono::milliseconds(5000));
         if (!event) continue;
 
         if (event->kind == TDX_FPSS_QUOTE) {
@@ -264,7 +264,7 @@ int main() {
         }
     }
 
-    fpss.shutdown();
+    client.stop_streaming();
 
     for (size_t i = 0; i < buckets.size(); ++i) {
         if (buckets[i] > 0) {

@@ -67,14 +67,14 @@ npm install thetadatadx
 ::: code-group
 
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
-    let quotes = tdx.stock_history_quote("AAPL", "20250115", "60000").await?;
+    let quotes = client.stock_history_quote("AAPL", "20250115", "60000").await?;
     for q in &quotes {
         println!("{}: bid={} ask={}", q.date, q.bid, q.ask);
     }
@@ -83,22 +83,22 @@ async fn main() -> Result<(), thetadatadx::Error> {
 ```
 
 ```python [Python]
-from thetadatadx import ThetaDataDx, Credentials, Config
+from thetadatadx import ThetaDataDxClient, Credentials, Config
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+client = ThetaDataDxClient(creds, Config.production())
 
-quotes = tdx.stock_history_quote("AAPL", "20250115", "60000")
+quotes = client.stock_history_quote("AAPL", "20250115", "60000")
 for q in quotes:
     print(f"{q.date}: bid={q.bid:.2f} ask={q.ask:.2f}")
 ```
 
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 
-const quotes = tdx.stockHistoryQuote('AAPL', '20250115', '60000');
+const quotes = client.stockHistoryQuote('AAPL', '20250115', '60000');
 for (const q of quotes) {
     console.log(`${q.date}: bid=${q.bid} ask=${q.ask}`);
 }

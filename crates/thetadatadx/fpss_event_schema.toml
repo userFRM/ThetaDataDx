@@ -14,10 +14,15 @@
 #
 # Variant classification:
 #   - `kind = "data"`     — typed market-data payload (Quote / Trade / ...)
-#   - `kind = "simple"`   — diagnostic control events (login, disconnect,
-#                           market_open, unknown-data fallback) flattened
-#                           into one struct with `event_type`, `detail`, `id`.
-#   - `kind = "raw_data"` — raw frame bytes for unrecognized wire codes.
+#   - `kind = "control"`  — typed control / lifecycle event mirroring a
+#                           `FpssControl::*` Rust variant one-for-one.
+#                           Each variant declares its own fields so the
+#                           Python and TypeScript SDKs surface the same
+#                           shape Rust consumers see (no flat
+#                           `event_type` / `detail` envelope).
+#                           Frames the decoder cannot parse are surfaced
+#                           through `FpssControl::UnknownFrame` (typed
+#                           control variant with `code` + `payload`).
 #
 # Column type `Contract` is a nested struct: every language emits a
 # Contract struct/class with (root, sec_type, exp_date?, is_call?, strike?).
@@ -26,7 +31,7 @@
 # in Python via pyo3 `Option<..>`, `*T` pointer in Go, `std::optional<..>`
 # in C++).
 
-version = 3
+version = 5
 
 # ── Data variants — market-data ticks ─────────────────────────────────
 
@@ -34,7 +39,6 @@ version = 3
 kind = "data"
 doc = "FPSS Quote tick. Mirrors `FpssData::Quote`."
 columns = [
-    { name = "contract_id",   type = "i32" },
     { name = "contract",      type = "Contract" },
     { name = "ms_of_day",     type = "i32" },
     { name = "bid_size",      type = "i32" },
@@ -53,7 +57,6 @@ columns = [
 kind = "data"
 doc = "FPSS Trade tick. Mirrors `FpssData::Trade`."
 columns = [
-    { name = "contract_id",     type = "i32" },
     { name = "contract",        type = "Contract" },
     { name = "ms_of_day",       type = "i32" },
     { name = "sequence",        type = "i32" },
@@ -77,7 +80,6 @@ columns = [
 kind = "data"
 doc = "FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`."
 columns = [
-    { name = "contract_id",   type = "i32" },
     { name = "contract",      type = "Contract" },
     { name = "ms_of_day",     type = "i32" },
     { name = "open_interest", type = "i32" },
@@ -89,7 +91,6 @@ columns = [
 kind = "data"
 doc = "FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`."
 columns = [
-    { name = "contract_id",    type = "i32" },
     { name = "contract",       type = "Contract" },
     { name = "ms_of_day",      type = "i32" },
     { name = "open",           type = "f64" },
@@ -102,21 +103,120 @@ columns = [
     { name = "received_at_ns", type = "u64" },
 ]
 
-# ── Non-data variants — control / raw fallbacks ───────────────────────
+# ── Control variants — typed mirror of `FpssControl::*` ────────────────
+#
+# Each [events.<Variant>] section maps to a Rust `FpssControl::<Variant>`
+# arm. Field names + scalar types match the Rust enum exactly. Python
+# users dispatch via `match event: case LoginSuccess(): ...`; TypeScript
+# users discriminate on `event.kind`. The converter in `buffered.rs`
+# generator pattern-matches each `FpssControl` arm directly into the
+# matching `BufferedEvent::<Variant>` arm — no flat `event_type` /
+# `detail` string envelope.
+#
+# `RemoveReason` (on `Disconnected.reason` and `Reconnecting.reason`) is
+# `#[repr(i16)]` upstream; we surface it as `i32` matching how `sec_type`
+# on `Contract` carries the `SecType` enum's discriminant. Consumers
+# compare against `tdbe::types::enums::RemoveReason as i32`.
 
-[events.Simple]
-kind = "simple"
-doc = "FPSS control / diagnostic event. Flattened from every `FpssControl` variant (login_success, contract_assigned, req_response, market_open/close, server_error, disconnected, reconnecting, reconnected, error, unknown_frame) and from the unknown-data / unknown-control fallbacks. `event_type` carries the concrete variant name; `detail` is a free-form diagnostic string (None when the variant carries no payload); `id` is the contract_id / req_id / reconnect attempt number where applicable."
+[events.LoginSuccess]
+kind = "control"
+doc = "FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate)."
 columns = [
-    { name = "event_type", type = "String" },
-    { name = "detail",     type = "Option<String>" },
-    { name = "id",         type = "Option<i32>" },
+    { name = "permissions", type = "String" },
 ]
 
-[events.RawData]
-kind = "raw_data"
-doc = "FPSS raw-bytes event for frames the decoder did not recognize. `code` is the wire message code; `payload` is the full frame body."
+[events.ContractAssigned]
+kind = "control"
+doc = "FPSS server assigned a contract id. Mirrors `FpssControl::ContractAssigned`. The `contract` payload carries the full resolved `Contract` (root, sec_type, expiration / strike / right for options)."
+columns = [
+    { name = "id",       type = "i32" },
+    { name = "contract", type = "Contract" },
+]
+
+[events.ReqResponse]
+kind = "control"
+doc = "FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms)."
+columns = [
+    { name = "req_id", type = "i32" },
+    { name = "result", type = "i32" },
+]
+
+[events.MarketOpen]
+kind = "control"
+doc = "FPSS market-open signal (wire code 30). Mirrors `FpssControl::MarketOpen`. Carries no payload."
+columns = []
+
+[events.MarketClose]
+kind = "control"
+doc = "FPSS market-close signal (wire code 32). Mirrors `FpssControl::MarketClose`. Carries no payload."
+columns = []
+
+[events.ServerError]
+kind = "control"
+doc = "FPSS server-error message (wire code 11). Mirrors `FpssControl::ServerError`."
+columns = [
+    { name = "message", type = "String" },
+]
+
+[events.Disconnected]
+kind = "control"
+doc = "FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `tdbe::types::enums::RemoveReason as i32` for symbolic interpretation."
+columns = [
+    { name = "reason", type = "i32" },
+]
+
+[events.Reconnecting]
+kind = "control"
+doc = "FPSS auto-reconnect is about to attempt reconnection. Mirrors `FpssControl::Reconnecting`. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at `i32::MAX` if the reconnect loop exceeds 2^31 attempts."
+columns = [
+    { name = "reason",   type = "i32" },
+    { name = "attempt",  type = "i32" },
+    { name = "delay_ms", type = "u64" },
+]
+
+[events.Reconnected]
+kind = "control"
+doc = "FPSS auto-reconnect succeeded — connection is live again. Mirrors `FpssControl::Reconnected`. Carries no payload."
+columns = []
+
+[events.Error]
+kind = "control"
+doc = "FPSS protocol-level parse error. Mirrors `FpssControl::Error`."
+columns = [
+    { name = "message", type = "String" },
+]
+
+[events.UnknownFrame]
+kind = "control"
+doc = "FPSS server sent a frame with an unrecognised wire code. Mirrors `FpssControl::UnknownFrame`. Raw bytes preserved for diagnostics / upstream bug reports."
 columns = [
     { name = "code",    type = "u8" },
     { name = "payload", type = "Vec<u8>" },
 ]
+
+[events.Connected]
+kind = "control"
+doc = "FPSS server connection ack (wire code 4, `StreamMsgType::Connected`). Mirrors `FpssControl::Connected`. Carries no payload."
+columns = []
+
+[events.Ping]
+kind = "control"
+doc = "FPSS server heartbeat (wire code 10, `StreamMsgType::Ping`). Mirrors `FpssControl::Ping`. The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics."
+columns = [
+    { name = "payload", type = "Vec<u8>" },
+]
+
+[events.ReconnectedServer]
+kind = "control"
+doc = "FPSS server-side reconnect ack (wire code 13). Mirrors `FpssControl::ReconnectedServer`. Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated."
+columns = []
+
+[events.Restart]
+kind = "control"
+doc = "FPSS server stream restart (wire code 31, `StreamMsgType::Restart`). Mirrors `FpssControl::Restart`. The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt."
+columns = []
+
+[events.UnknownControl]
+kind = "control"
+doc = "FPSS control variant the SDK does not yet recognise. Surfaced when the core crate adds a new `FpssControl::*` arm — keep dispatch logic forward-compatible by handling this variant. Carries no payload."
+columns = []

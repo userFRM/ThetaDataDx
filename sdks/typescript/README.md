@@ -4,7 +4,7 @@ Node.js SDK for ThetaData market data. napi-rs bindings over the `thetadatadx` R
 
 Every call crosses the napi boundary into compiled Rust: gRPC, protobuf, zstd, FIT decoding, and TCP streaming run inside the `thetadatadx` crate.
 
-> **FLATFILES coverage:** the TypeScript binding currently exposes the MDDS (historical) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired into TypeScript under issue [#436](https://github.com/userFRM/ThetaDataDx/issues/436). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+> **Surface coverage:** the TypeScript binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `tdx.flatFiles.*()` with `.toArrowIpc()` and `.toJson()` terminals plus a `tdx.flatFileToPath(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
 
 ## Install
 
@@ -20,12 +20,12 @@ Pre-built binaries are downloaded automatically for your platform. Supported:
 ## Usage
 
 ```js
-const { ThetaDataDx } = require('thetadatadx');
+const { ThetaDataDxClient } = require('thetadatadx');
 
 async function main() {
   // Connect (requires ThetaData credentials)
-  const tdx = ThetaDataDx.connectFromFile('creds.txt');
-  // Or: const tdx = ThetaDataDx.connect('user@example.com', 'password');
+  const tdx = ThetaDataDxClient.connectFromFile('creds.txt');
+  // Or: const tdx = ThetaDataDxClient.connect('user@example.com', 'password');
 
   // Historical endpoints return an array of typed tick objects
   // (`OhlcTick[]`, `QuoteTick[]`, ...). Index into the array to
@@ -36,24 +36,89 @@ async function main() {
   // With timeout
   const snap = tdx.stockSnapshotQuote(['AAPL', 'MSFT'], null, null, 5000);
 
-  // Streaming — register a callback. napi-rs `ThreadsafeFunction`
-  // routes every event through libuv's `uv_async_t` queue onto the
-  // Node main thread; the callback runs there, decoupled from the
-  // FPSS reader thread. A slow callback fills the SSOT dispatcher's
-  // bounded queue and overflow events are dropped (observable via
-  // `tdx.droppedEventCount()`); the FPSS TLS reader is never blocked.
-  tdx.startStreaming((event) => {
+  // Streaming — primary fluent contract-first API.
+  // `Contract.stock("AAPL").quote()` returns a typed `Subscription`
+  // value the polymorphic `client.subscribe(...)` accepts directly,
+  // matching the documented Rust / Python shape.
+  const stock  = ContractRef.stock('AAPL');
+  const option = ContractRef.option('SPY', '20260620', '550', 'C');
+
+  await using session = await tdx.streaming((event) => {
     if (event.kind === 'quote') {
       console.log(event.quote.bid, event.quote.ask);
     }
   });
-  tdx.subscribeQuotes('AAPL');
+  tdx.subscribe(stock.quote());
+  tdx.subscribe(option.trade());
+  tdx.subscribe(SecType.option().fullTrades());
+  tdx.subscribeMany([stock.quote(), option.quote()]);
   // ...do other work; the callback fires on incoming events...
-  tdx.stopStreaming();
+  // `[Symbol.asyncDispose]` runs on scope exit:
+  //   stopStreaming(); await awaitDrain(5000);
+  // If the drain barrier times out, `console.warn` fires but the
+  // `using` scope still exits cleanly.
 }
 
 main().catch(console.error);
 ```
+
+The `await using` form is the recommended API. The `StreamingSession`
+forwards every method call (`subscribe`, `subscribeMany`,
+`unsubscribe`, `unsubscribeMany`, `activeSubscriptions`,
+`droppedEventCount`, `reconnect`, ...) to the underlying `ThetaDataDxClient`
+through a `Proxy`, so adding a new method to the napi binding makes it
+callable through the session automatically -- the streaming surface is
+a single source of truth rooted in the Rust crate.
+
+For the lower-level escape hatch (e.g. cross-process lifecycle
+management, custom shutdown ordering), call the lifecycle methods
+explicitly:
+
+```ts
+tdx.startStreaming((event) => { /* ... */ });
+tdx.subscribe(ContractRef.stock('AAPL').quote());
+// ...do other work...
+tdx.stopStreaming();
+// Drain barrier: by the time `awaitDrain(5000)` resolves, the
+// consumer thread is guaranteed to have finished firing the
+// callback, so the JS closure can be released without a
+// use-after-free race against the LMAX Disruptor consumer.
+const drained = await tdx.awaitDrain(5000);
+if (!drained) console.warn('drain timed out');
+```
+
+### Pull-iter delivery — `for await (const event of iter)` (high-throughput drain)
+
+Push-callback (`tdx.streaming(callback)` above) is the recommended
+default for low-latency single-event reaction. Pull-iter is the
+sibling delivery mode for high-throughput batch processing where
+the dominant cost is per-event JS work rather than per-event vendor
+latency:
+
+```ts
+const iter = tdx.startStreamingIter();
+tdx.subscribe(SecType.option().fullTrades());
+for await (const event of iter) {
+  if (event.kind === 'trade') {
+    buf.push([event.trade.price, event.trade.size]);
+  }
+}
+// Stop the streaming session when done. The async-iterator
+// protocol handles `break` cleanly via `return()`, which calls
+// `iter.close()` so the worker thread stops blocking on the queue.
+tdx.stopStreaming();
+await tdx.awaitDrain(5000);
+```
+
+The Disruptor consumer pushes events into a per-client bounded
+queue; the `for await` loop drains the queue from the Node main
+thread in batches, with the actual queue wait happening on
+`tokio::task::spawn_blocking` so the event loop is never blocked.
+
+Mode is chosen at start. Push and pull are mutually exclusive on a
+given client; switch by calling `stopStreaming()` first. Backpressure
+surfaces on the same `droppedEventCount()` counter as the callback
+path.
 
 ## TypeScript types
 
@@ -72,22 +137,50 @@ discriminated `FpssEvent`, narrowed on `event.kind`:
 ```ts
 tdx.startStreaming((event: FpssEvent) => {
   switch (event.kind) {
-    case 'quote':    /* event.quote is Quote */    break;
-    case 'trade':    /* event.trade is Trade */    break;
-    case 'ohlcvc':   /* event.ohlcvc is Ohlcvc */  break;
-    case 'open_interest': /* event.openInterest is OpenInterest */ break;
-    case 'simple':   /* event.simple is FpssSimplePayload */ break;
-    case 'raw_data': /* event.rawData is FpssRawDataPayload */ break;
+    // Market-data ticks
+    case 'quote':         /* event.quote is Quote */                    break;
+    case 'trade':         /* event.trade is Trade */                    break;
+    case 'ohlcvc':        /* event.ohlcvc is Ohlcvc */                  break;
+    case 'open_interest': /* event.openInterest is OpenInterest */      break;
+
+    // Control / lifecycle events — one typed payload per FpssControl variant
+    case 'login_success':       /* event.loginSuccess is LoginSuccess */              break;
+    case 'contract_assigned':   /* event.contractAssigned is ContractAssigned */      break;
+    case 'req_response':        /* event.reqResponse is ReqResponse */                break;
+    case 'market_open':         /* event.marketOpen is MarketOpen */                  break;
+    case 'market_close':        /* event.marketClose is MarketClose */                break;
+    case 'server_error':        /* event.serverError is ServerError */                break;
+    case 'disconnected':        /* event.disconnected is Disconnected */              break;
+    case 'reconnecting':        /* event.reconnecting is Reconnecting */              break;
+    case 'reconnected':         /* event.reconnected is Reconnected */                break;
+    case 'error':               /* event.error is Error */                            break;
+    case 'unknown_frame':       /* event.unknownFrame is UnknownFrame */              break;
+    case 'connected':           /* event.connected is Connected */                    break;
+    case 'ping':                /* event.ping is Ping */                              break;
+    case 'reconnected_server':  /* event.reconnectedServer is ReconnectedServer */    break;
+    case 'restart':             /* event.restart is Restart */                        break;
+    case 'unknown_control':     /* event.unknownControl is UnknownControl */          break;
   }
 });
 ```
 
-The `kind` field is typed as the string-literal union
-`'ohlcvc' | 'open_interest' | 'quote' | 'trade' | 'simple' | 'raw_data'`
-— plain strings, not a TS `enum` (the previous `const enum FpssEventKind`
-was removed in #376 because it broke downstream consumers with
-`"isolatedModules": true`), so it works in every toolchain
-including Vite, esbuild, ts-jest, and Next.js.
+Truncated / unrecognised wire frames are filtered before the callback
+fires and accounted on the `thetadatadx.fpss.decode_failures` metric
+counter on the Rust side; they never surface as an `FpssEvent`.
+
+The `kind` field is typed as a string-literal union narrowed by the
+generated `index.d.ts` — plain strings, not a TS `enum` (the previous
+`const enum FpssEventKind` was removed in #376 because it broke
+downstream consumers with `"isolatedModules": true`), so it works in
+every toolchain including Vite, esbuild, ts-jest, and Next.js.
+
+Each typed control payload mirrors the corresponding `FpssControl::*`
+Rust variant one-for-one — `Disconnected.reason` / `Reconnecting.reason`
+carry the `RemoveReason` discriminant as `i32`, `Reconnecting.delayMs` is
+`bigint` (`u64`), `Ping.payload` and `UnknownFrame.payload` are
+`Buffer`-backed byte arrays. Both Python and TypeScript surfaces are
+generated from `fpss_event_schema.toml`, so consumer code ports between
+the two languages without a discriminator rewrite.
 
 ### `bigint` fields
 
@@ -98,12 +191,40 @@ OHLC / EOD tick, `droppedEventCount()` on the streaming client, and
 (`42n`) for comparisons or widen to `Number(x)` at the point of
 display (watch for loss of precision beyond 2^53).
 
-`FpssSimplePayload.eventType` carries the concrete control-event name
-(`"login_success"`, `"contract_assigned"`, `"disconnected"`,
-`"market_open"`, `"market_close"`, ...). The wire tag set matches the
-Python SDK's `next_event` pyclasses byte-for-byte — both surfaces are
-generated from `fpss_event_schema.toml`, so consumer code ports between
-the two languages without a discriminator rewrite.
+## Flat Files
+
+Whole-universe daily snapshots over the legacy MDDS port. Decoded schema
+is determined at runtime by `(SecType, ReqType)`, so the binding emits
+Arrow IPC stream bytes — pair with `apache-arrow`'s `tableFromIPC` to
+materialise a typed `Table`.
+
+```ts
+import { ThetaDataDxClient } from "thetadatadx";
+import { tableFromIPC } from "apache-arrow"; // peer dep
+
+const tdx = ThetaDataDxClient.connectFromFile("creds.txt");
+
+const rows = tdx.flatFiles.optionQuote("20260428");
+console.log(rows.len());
+
+const ipc = rows.toArrowIpc();
+const table = tableFromIPC(ipc);
+
+// Or skip Arrow and emit a JSON array of objects
+const json = JSON.parse(rows.toJson());
+
+// Generic dispatcher
+const oi = tdx.flatFiles.request("OPTION", "OPEN_INTEREST", "20260428");
+
+// Raw vendor CSV / JSONL straight to disk
+tdx.flatfileToPath("OPTION", "QUOTE", "20260428",
+                   "/tmp/option-quote", "csv");
+```
+
+Available `flatFiles.*` methods: `optionQuote`, `optionTrade`,
+`optionTradeQuote`, `optionOhlc`, `optionOpenInterest`, `optionEod`,
+`stockQuote`, `stockTrade`, `stockTradeQuote`, `stockEod`, plus
+`request(secType, reqType, date)`.
 
 ## Building from source
 
@@ -117,7 +238,7 @@ npm run build          # requires Rust stable + protoc
 
 ## API reference
 
-Every historical endpoint from `endpoint_surface.toml` is exposed as a camelCase method on `ThetaDataDx`. See `index.d.ts` for the complete method list with JSDoc comments.
+Every historical endpoint from `endpoint_surface.toml` is exposed as a camelCase method on `ThetaDataDxClient`. See `index.d.ts` for the complete method list with JSDoc comments.
 
 ## Docs
 

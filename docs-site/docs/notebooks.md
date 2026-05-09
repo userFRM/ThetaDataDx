@@ -37,7 +37,7 @@ Install with `thetadatadx[all]` to get both pandas and polars support. If you on
 
 **[`101_getting_started.ipynb`](https://github.com/userFRM/ThetaDataDx/blob/main/notebooks/101_getting_started.ipynb)**
 
-Authentication, connecting, your first EOD and OHLC queries. Covers `Credentials`, `Config`, `ThetaDataDx`, and basic DataFrame conversion.
+Authentication, connecting, your first EOD and OHLC queries. Covers `Credentials`, `Config`, `ThetaDataDxClient`, and basic DataFrame conversion.
 
 ### 102 - Historical Analysis
 
@@ -61,7 +61,7 @@ Volatility surfaces and Greeks visualization. Uses `all_greeks()` to compute IV 
 
 **[`105_realtime_streaming.ipynb`](https://github.com/userFRM/ThetaDataDx/blob/main/notebooks/105_realtime_streaming.ipynb)**
 
-FPSS streaming in a notebook: connecting, subscribing to quotes and trades, processing events with `next_event()`, and building a live quote table.
+FPSS streaming in a notebook: connecting, subscribing to quotes and trades via `client.subscribe(contract.quote())`, iterating events with `with client.streaming_iter() as it: for event in it:`, and building a live quote table.
 
 ::: warning
 Real-time streaming notebooks require market hours (9:30 AM - 4:00 PM ET on trading days) to receive live data. Outside market hours, you will only see heartbeat events.
@@ -77,4 +77,4 @@ Combines historical option data with real-time FPSS streaming to build a live-up
 
 **[`107_full_trade_stream.ipynb`](https://github.com/userFRM/ThetaDataDx/blob/main/notebooks/107_full_trade_stream.ipynb)**
 
-Full trade stream processing: subscribing to all stock trades via `subscribe_full_trades`, aggregating volume, and detecting unusual trade activity.
+Full trade stream processing: subscribing to all stock trades via `client.subscribe(SecType.Stock.full_trades())`, aggregating volume, and detecting unusual trade activity.

@@ -1,4 +1,4 @@
-//! Emit `sdks/python/src/fpss_event_classes.rs` — typed `#[pyclass]`
+//! Emit `sdks/python/src/_generated/fpss_event_classes.rs` — typed `#[pyclass]`
 //! structs per Data variant + `buffered_event_to_typed` dispatcher.
 
 use std::fmt::Write as _;
@@ -12,39 +12,44 @@ use super::schema::{sorted_event_names, ColumnDef, EventDef, Schema};
 /// normal pyo3 getter machinery.
 fn render_contract_pyclass() -> &'static str {
     "/// FPSS contract identifier. Surfaced on every decoded FPSS data\n\
-/// event as `event.contract`. Matches the shape of the Rust\n\
-/// `thetadatadx::fpss::protocol::Contract` struct one-for-one.\n\
+/// event as `event.contract`. Reads `symbol`, `sec_type` (symbolic\n\
+/// string, e.g. `\"STOCK\"` / `\"OPTION\"`), `expiration`,\n\
+/// `right` (`\"C\"` / `\"P\"` / `None`), `strike_dollars` (option strike\n\
+/// in dollars), and `strike` (wire integer, thousandths of a dollar)\n\
+/// directly. User code reads the same notation it writes when\n\
+/// calling `Contract.option(symbol, expiration=..., strike=\"5400\", right=\"C\")`.\n\
 #[must_use]\n\
 #[pyclass(module = \"thetadatadx\", frozen, skip_from_py_object)]\n\
 #[derive(Clone)]\n\
 pub(crate) struct Contract {\n\
     #[pyo3(get)] pub symbol: String,\n\
-    #[pyo3(get)] pub sec_type: i32,\n\
+    #[pyo3(get)] pub sec_type: String,\n\
     #[pyo3(get)] pub expiration: Option<i32>,\n\
-    #[pyo3(get)] pub is_call: Option<bool>,\n\
+    #[pyo3(get)] pub right: Option<String>,\n\
+    #[pyo3(get)] pub strike_dollars: Option<f64>,\n\
     #[pyo3(get)] pub strike: Option<i32>,\n\
 }\n\
 #[pymethods]\n\
 impl Contract {\n\
     fn __repr__(&self) -> String {\n\
         format!(\n\
-            \"Contract(symbol={:?}, sec_type={}, expiration={:?}, is_call={:?}, strike={:?})\",\n\
-            self.symbol, self.sec_type, self.expiration, self.is_call, self.strike\n\
+            \"Contract(symbol={:?}, sec_type={:?}, expiration={:?}, right={:?}, strike_dollars={:?})\",\n\
+            self.symbol, self.sec_type, self.expiration, self.right, self.strike_dollars\n\
         )\n\
     }\n\
 }\n\
 impl Contract {\n\
     /// Build from the core `thetadatadx::fpss::protocol::Contract` value\n\
-    /// carried by each `BufferedEvent::*` Data arm. The `sec_type` enum\n\
-    /// is cast to its `#[repr(i32)]` discriminant; Python consumers get\n\
-    /// a plain int and can compare against `tdbe.types.enums.SecType`\n\
-    /// exports if they need a symbolic reading.\n\
+    /// carried by each `BufferedEvent::*` Data arm. `sec_type` is the\n\
+    /// symbolic uppercase name (`\"STOCK\"` / `\"OPTION\"` / `\"INDEX\"` /\n\
+    /// `\"RATE\"` / `\"UNKNOWN\"`).\n\
     pub(crate) fn from_core(c: &fpss::protocol::Contract) -> Self {\n\
         Self {\n\
             symbol: c.symbol.clone(),\n\
-            sec_type: c.sec_type as i32,\n\
+            sec_type: c.sec_type.as_str().to_string(),\n\
             expiration: c.expiration,\n\
-            is_call: c.is_call,\n\
+            right: c.right().map(|r| r.as_char().to_string()),\n\
+            strike_dollars: c.strike_dollars(),\n\
             strike: c.strike,\n\
         }\n\
     }\n\
@@ -126,12 +131,21 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
     // code even if it compiled.
     out.push_str("#[must_use]\n");
     out.push_str("#[pyclass(module = \"thetadatadx\", frozen, skip_from_py_object)]\n");
-    writeln!(out, "pub(crate) struct {event_name} {{").unwrap();
-    for column in &def.columns {
-        let ty = python_rust_field_type(&column.r#type, event_name, &column.name);
-        writeln!(out, "    #[pyo3(get)] pub {}: {},", column.name, ty).unwrap();
+    if def.columns.is_empty() {
+        // Unit-style control variant (`MarketOpen`, `Reconnected`, ...).
+        // Empty struct is still a fully-fledged pyclass — `match
+        // event: case MarketOpen():` works because pyo3 exposes
+        // `MarketOpen()` as a callable Python type with the same
+        // class-pattern semantics as a fielded class.
+        writeln!(out, "pub(crate) struct {event_name};").unwrap();
+    } else {
+        writeln!(out, "pub(crate) struct {event_name} {{").unwrap();
+        for column in &def.columns {
+            let ty = python_rust_field_type(&column.r#type, event_name, &column.name);
+            writeln!(out, "    #[pyo3(get)] pub {}: {},", column.name, ty).unwrap();
+        }
+        out.push_str("}\n");
     }
-    out.push_str("}\n");
     writeln!(out, "#[pymethods]").unwrap();
     writeln!(out, "impl {event_name} {{").unwrap();
     // `__repr__` surfaces live per-instance field values (mirroring the
@@ -139,9 +153,10 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
     // so pdb, Jupyter, pytest short-repr, and print()-based debugging
     // show actionable diagnostic data instead of an opaque
     // `"Ohlcvc(...)"` placeholder. Cap at six columns to stay one-line
-    // readable; `Vec<u8>` payload columns (only on `RawData`) and
-    // `received_at_ns` are skipped because the first is unbounded and
-    // the second is a timestamp that dwarfs the other fields visually.
+    // readable; `Vec<u8>` payload columns (e.g. `UnknownFrame.payload`)
+    // and `received_at_ns` are skipped because the first is unbounded
+    // and the second is a timestamp that dwarfs the other fields
+    // visually.
     let repr_fields = fpss_event_repr_fields(&def.columns, 6);
     if repr_fields.is_empty() {
         // Defensive fallback — every schema event has columns, but keep
@@ -189,6 +204,23 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
         "    fn kind(&self) -> &'static str {{ \"{kind_tag}\" }}"
     )
     .unwrap();
+    // Symbolic name accessor for control variants whose `reason: i32`
+    // column is the wire encoding of `tdbe::types::enums::RemoveReason`.
+    // Lets Python users branch on the variant name (`event.reason_name
+    // == "TooManyRequests"`) instead of looking up the integer.
+    if matches!(event_name, "Disconnected" | "Reconnecting") {
+        out.push_str(
+            "\n    /// Resolved `RemoveReason` variant name (e.g. `\"TooManyRequests\"`,\n",
+        );
+        out.push_str("    /// `\"InvalidCredentials\"`, `\"Unspecified\"` for unknown codes).\n");
+        out.push_str("    /// Derived from the wire-level `reason` integer.\n");
+        out.push_str("    #[getter]\n");
+        out.push_str("    fn reason_name(&self) -> &'static str {\n");
+        out.push_str(
+            "        tdbe::types::enums::RemoveReason::from_code(self.reason as i16).as_str()\n",
+        );
+        out.push_str("    }\n");
+    }
     out.push_str("}\n");
     out
 }
@@ -245,6 +277,16 @@ fn fpss_event_repr_fields<'a>(
 
 fn render_python_buffered_match_arm(event_name: &str, def: &EventDef) -> String {
     let mut out = String::new();
+    // Unit-style variant: the BufferedEvent arm has no field pattern
+    // and the constructed pyclass is also unit-style.
+    if def.columns.is_empty() {
+        writeln!(
+            out,
+            "        BufferedEvent::{event_name} => Py::new(py, {event_name})\n            .map(|p| p.into_any()),",
+        )
+        .unwrap();
+        return out;
+    }
     // Pattern binds each schema field to a same-named local.
     writeln!(out, "        BufferedEvent::{event_name} {{").unwrap();
     for column in &def.columns {

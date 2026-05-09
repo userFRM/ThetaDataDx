@@ -27,12 +27,6 @@ for item in data:
 const data = tdx.optionListDates('TRADE', 'SPY', '20260417', '550', 'C');
 console.log(data);
 ```
-```go [Go]
-data, _ := client.OptionListDates("TRADE", "SPY", "20260417", "550", "C")
-for _, item := range data {
-    fmt.Println(item)
-}
-```
 ```cpp [C++]
 auto data = client.option_list_dates("TRADE", "SPY", "20260417", "550", "C");
 for (const auto& item : data) {

@@ -5,9 +5,40 @@
 pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {
     use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent};
 
+    fn unknown_control_event() -> FfiBufferedEvent {
+        FfiBufferedEvent {
+            event: TdxFpssEvent {
+                kind: TdxFpssEventKind::UnknownControl,
+                unknown_control: ZERO_UNKNOWN_CONTROL,
+                ohlcvc: ZERO_OHLCVC,
+                open_interest: ZERO_OI,
+                quote: ZERO_QUOTE,
+                trade: ZERO_TRADE,
+                connected: ZERO_CONNECTED,
+                contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                disconnected: ZERO_DISCONNECTED,
+                error: ZERO_ERROR,
+                login_success: ZERO_LOGIN_SUCCESS,
+                market_close: ZERO_MARKET_CLOSE,
+                market_open: ZERO_MARKET_OPEN,
+                ping: ZERO_PING,
+                reconnected: ZERO_RECONNECTED,
+                reconnected_server: ZERO_RECONNECTED_SERVER,
+                reconnecting: ZERO_RECONNECTING,
+                req_response: ZERO_REQ_RESPONSE,
+                restart: ZERO_RESTART,
+                server_error: ZERO_SERVER_ERROR,
+                unknown_frame: ZERO_UNKNOWN_FRAME,
+            },
+            _contract_symbol: None,
+            _login_permissions: None,
+            _control_message: None,
+            _payload_bytes: None,
+        }
+    }
+
     match event {
         FpssEvent::Data(FpssData::Ohlcvc {
-            contract_id,
             contract,
             ms_of_day,
             open,
@@ -33,40 +64,54 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 sec_type: contract.sec_type as i32,
                 has_expiration: contract.expiration.is_some(),
                 expiration: contract.expiration.unwrap_or(0),
-                has_is_call: contract.is_call.is_some(),
-                is_call: contract.is_call.unwrap_or(false),
+                has_right: contract.is_call.is_some(),
+                right: contract.right().map_or(0, |r| r.as_char() as c_char),
                 has_strike: contract.strike.is_some(),
                 strike: contract.strike.unwrap_or(0),
             };
             FfiBufferedEvent {
-            event: TdxFpssEvent {
-                kind: TdxFpssEventKind::Ohlcvc,
-                ohlcvc: TdxFpssOhlcvc {
-                    contract_id: *contract_id,
-                    contract: tdx_contract,
-                    ms_of_day: *ms_of_day,
-                    open: *open,
-                    high: *high,
-                    low: *low,
-                    close: *close,
-                    volume: *volume,
-                    count: *count,
-                    date: *date,
-                    received_at_ns: *received_at_ns,
+                event: TdxFpssEvent {
+                    kind: TdxFpssEventKind::Ohlcvc,
+                    ohlcvc: TdxFpssOhlcvc {
+                        contract: tdx_contract,
+                        ms_of_day: *ms_of_day,
+                        open: *open,
+                        high: *high,
+                        low: *low,
+                        close: *close,
+                        volume: *volume,
+                        count: *count,
+                        date: *date,
+                        received_at_ns: *received_at_ns,
+                    },
+                    open_interest: ZERO_OI,
+                    quote: ZERO_QUOTE,
+                    trade: ZERO_TRADE,
+                    connected: ZERO_CONNECTED,
+                    contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                    disconnected: ZERO_DISCONNECTED,
+                    error: ZERO_ERROR,
+                    login_success: ZERO_LOGIN_SUCCESS,
+                    market_close: ZERO_MARKET_CLOSE,
+                    market_open: ZERO_MARKET_OPEN,
+                    ping: ZERO_PING,
+                    reconnected: ZERO_RECONNECTED,
+                    reconnected_server: ZERO_RECONNECTED_SERVER,
+                    reconnecting: ZERO_RECONNECTING,
+                    req_response: ZERO_REQ_RESPONSE,
+                    restart: ZERO_RESTART,
+                    server_error: ZERO_SERVER_ERROR,
+                    unknown_control: ZERO_UNKNOWN_CONTROL,
+                    unknown_frame: ZERO_UNKNOWN_FRAME,
                 },
-                open_interest: ZERO_OI,
-                quote: ZERO_QUOTE,
-                trade: ZERO_TRADE,
-                control: ZERO_CONTROL,
-                raw_data: ZERO_RAW,
-            },
-            _detail_string: contract_symbol_cstring,
-            _raw_payload: None,
-        }
+                _contract_symbol: contract_symbol_cstring,
+                _login_permissions: None,
+                _control_message: None,
+                _payload_bytes: None,
+            }
         }
 
         FpssEvent::Data(FpssData::OpenInterest {
-            contract_id,
             contract,
             ms_of_day,
             open_interest,
@@ -87,35 +132,49 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 sec_type: contract.sec_type as i32,
                 has_expiration: contract.expiration.is_some(),
                 expiration: contract.expiration.unwrap_or(0),
-                has_is_call: contract.is_call.is_some(),
-                is_call: contract.is_call.unwrap_or(false),
+                has_right: contract.is_call.is_some(),
+                right: contract.right().map_or(0, |r| r.as_char() as c_char),
                 has_strike: contract.strike.is_some(),
                 strike: contract.strike.unwrap_or(0),
             };
             FfiBufferedEvent {
-            event: TdxFpssEvent {
-                kind: TdxFpssEventKind::OpenInterest,
-                open_interest: TdxFpssOpenInterest {
-                    contract_id: *contract_id,
-                    contract: tdx_contract,
-                    ms_of_day: *ms_of_day,
-                    open_interest: *open_interest,
-                    date: *date,
-                    received_at_ns: *received_at_ns,
+                event: TdxFpssEvent {
+                    kind: TdxFpssEventKind::OpenInterest,
+                    open_interest: TdxFpssOpenInterest {
+                        contract: tdx_contract,
+                        ms_of_day: *ms_of_day,
+                        open_interest: *open_interest,
+                        date: *date,
+                        received_at_ns: *received_at_ns,
+                    },
+                    ohlcvc: ZERO_OHLCVC,
+                    quote: ZERO_QUOTE,
+                    trade: ZERO_TRADE,
+                    connected: ZERO_CONNECTED,
+                    contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                    disconnected: ZERO_DISCONNECTED,
+                    error: ZERO_ERROR,
+                    login_success: ZERO_LOGIN_SUCCESS,
+                    market_close: ZERO_MARKET_CLOSE,
+                    market_open: ZERO_MARKET_OPEN,
+                    ping: ZERO_PING,
+                    reconnected: ZERO_RECONNECTED,
+                    reconnected_server: ZERO_RECONNECTED_SERVER,
+                    reconnecting: ZERO_RECONNECTING,
+                    req_response: ZERO_REQ_RESPONSE,
+                    restart: ZERO_RESTART,
+                    server_error: ZERO_SERVER_ERROR,
+                    unknown_control: ZERO_UNKNOWN_CONTROL,
+                    unknown_frame: ZERO_UNKNOWN_FRAME,
                 },
-                ohlcvc: ZERO_OHLCVC,
-                quote: ZERO_QUOTE,
-                trade: ZERO_TRADE,
-                control: ZERO_CONTROL,
-                raw_data: ZERO_RAW,
-            },
-            _detail_string: contract_symbol_cstring,
-            _raw_payload: None,
-        }
+                _contract_symbol: contract_symbol_cstring,
+                _login_permissions: None,
+                _control_message: None,
+                _payload_bytes: None,
+            }
         }
 
         FpssEvent::Data(FpssData::Quote {
-            contract_id,
             contract,
             ms_of_day,
             bid_size,
@@ -143,42 +202,56 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 sec_type: contract.sec_type as i32,
                 has_expiration: contract.expiration.is_some(),
                 expiration: contract.expiration.unwrap_or(0),
-                has_is_call: contract.is_call.is_some(),
-                is_call: contract.is_call.unwrap_or(false),
+                has_right: contract.is_call.is_some(),
+                right: contract.right().map_or(0, |r| r.as_char() as c_char),
                 has_strike: contract.strike.is_some(),
                 strike: contract.strike.unwrap_or(0),
             };
             FfiBufferedEvent {
-            event: TdxFpssEvent {
-                kind: TdxFpssEventKind::Quote,
-                quote: TdxFpssQuote {
-                    contract_id: *contract_id,
-                    contract: tdx_contract,
-                    ms_of_day: *ms_of_day,
-                    bid_size: *bid_size,
-                    bid_exchange: *bid_exchange,
-                    bid: *bid,
-                    bid_condition: *bid_condition,
-                    ask_size: *ask_size,
-                    ask_exchange: *ask_exchange,
-                    ask: *ask,
-                    ask_condition: *ask_condition,
-                    date: *date,
-                    received_at_ns: *received_at_ns,
+                event: TdxFpssEvent {
+                    kind: TdxFpssEventKind::Quote,
+                    quote: TdxFpssQuote {
+                        contract: tdx_contract,
+                        ms_of_day: *ms_of_day,
+                        bid_size: *bid_size,
+                        bid_exchange: *bid_exchange,
+                        bid: *bid,
+                        bid_condition: *bid_condition,
+                        ask_size: *ask_size,
+                        ask_exchange: *ask_exchange,
+                        ask: *ask,
+                        ask_condition: *ask_condition,
+                        date: *date,
+                        received_at_ns: *received_at_ns,
+                    },
+                    ohlcvc: ZERO_OHLCVC,
+                    open_interest: ZERO_OI,
+                    trade: ZERO_TRADE,
+                    connected: ZERO_CONNECTED,
+                    contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                    disconnected: ZERO_DISCONNECTED,
+                    error: ZERO_ERROR,
+                    login_success: ZERO_LOGIN_SUCCESS,
+                    market_close: ZERO_MARKET_CLOSE,
+                    market_open: ZERO_MARKET_OPEN,
+                    ping: ZERO_PING,
+                    reconnected: ZERO_RECONNECTED,
+                    reconnected_server: ZERO_RECONNECTED_SERVER,
+                    reconnecting: ZERO_RECONNECTING,
+                    req_response: ZERO_REQ_RESPONSE,
+                    restart: ZERO_RESTART,
+                    server_error: ZERO_SERVER_ERROR,
+                    unknown_control: ZERO_UNKNOWN_CONTROL,
+                    unknown_frame: ZERO_UNKNOWN_FRAME,
                 },
-                ohlcvc: ZERO_OHLCVC,
-                open_interest: ZERO_OI,
-                trade: ZERO_TRADE,
-                control: ZERO_CONTROL,
-                raw_data: ZERO_RAW,
-            },
-            _detail_string: contract_symbol_cstring,
-            _raw_payload: None,
-        }
+                _contract_symbol: contract_symbol_cstring,
+                _login_permissions: None,
+                _control_message: None,
+                _payload_bytes: None,
+            }
         }
 
         FpssEvent::Data(FpssData::Trade {
-            contract_id,
             contract,
             ms_of_day,
             sequence,
@@ -211,151 +284,596 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBuff
                 sec_type: contract.sec_type as i32,
                 has_expiration: contract.expiration.is_some(),
                 expiration: contract.expiration.unwrap_or(0),
-                has_is_call: contract.is_call.is_some(),
-                is_call: contract.is_call.unwrap_or(false),
+                has_right: contract.is_call.is_some(),
+                right: contract.right().map_or(0, |r| r.as_char() as c_char),
                 has_strike: contract.strike.is_some(),
                 strike: contract.strike.unwrap_or(0),
             };
             FfiBufferedEvent {
-            event: TdxFpssEvent {
-                kind: TdxFpssEventKind::Trade,
-                trade: TdxFpssTrade {
-                    contract_id: *contract_id,
-                    contract: tdx_contract,
-                    ms_of_day: *ms_of_day,
-                    sequence: *sequence,
-                    ext_condition1: *ext_condition1,
-                    ext_condition2: *ext_condition2,
-                    ext_condition3: *ext_condition3,
-                    ext_condition4: *ext_condition4,
-                    condition: *condition,
-                    size: *size,
-                    exchange: *exchange,
-                    price: *price,
-                    condition_flags: *condition_flags,
-                    price_flags: *price_flags,
-                    volume_type: *volume_type,
-                    records_back: *records_back,
-                    date: *date,
-                    received_at_ns: *received_at_ns,
-                },
-                ohlcvc: ZERO_OHLCVC,
-                open_interest: ZERO_OI,
-                quote: ZERO_QUOTE,
-                control: ZERO_CONTROL,
-                raw_data: ZERO_RAW,
-            },
-            _detail_string: contract_symbol_cstring,
-            _raw_payload: None,
-        }
-        }
-
-        FpssEvent::RawData { code, payload } => {
-            let owned = payload.clone();
-            let ptr = owned.as_ptr();
-            let len = owned.len();
-            FfiBufferedEvent {
                 event: TdxFpssEvent {
-                    kind: TdxFpssEventKind::RawData,
-                    raw_data: TdxFpssRawData {
-                        code: *code,
-                        payload: ptr,
-                        payload_len: len,
+                    kind: TdxFpssEventKind::Trade,
+                    trade: TdxFpssTrade {
+                        contract: tdx_contract,
+                        ms_of_day: *ms_of_day,
+                        sequence: *sequence,
+                        ext_condition1: *ext_condition1,
+                        ext_condition2: *ext_condition2,
+                        ext_condition3: *ext_condition3,
+                        ext_condition4: *ext_condition4,
+                        condition: *condition,
+                        size: *size,
+                        exchange: *exchange,
+                        price: *price,
+                        condition_flags: *condition_flags,
+                        price_flags: *price_flags,
+                        volume_type: *volume_type,
+                        records_back: *records_back,
+                        date: *date,
+                        received_at_ns: *received_at_ns,
                     },
                     ohlcvc: ZERO_OHLCVC,
                     open_interest: ZERO_OI,
                     quote: ZERO_QUOTE,
-                    trade: ZERO_TRADE,
-                    control: ZERO_CONTROL,
+                    connected: ZERO_CONNECTED,
+                    contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                    disconnected: ZERO_DISCONNECTED,
+                    error: ZERO_ERROR,
+                    login_success: ZERO_LOGIN_SUCCESS,
+                    market_close: ZERO_MARKET_CLOSE,
+                    market_open: ZERO_MARKET_OPEN,
+                    ping: ZERO_PING,
+                    reconnected: ZERO_RECONNECTED,
+                    reconnected_server: ZERO_RECONNECTED_SERVER,
+                    reconnecting: ZERO_RECONNECTING,
+                    req_response: ZERO_REQ_RESPONSE,
+                    restart: ZERO_RESTART,
+                    server_error: ZERO_SERVER_ERROR,
+                    unknown_control: ZERO_UNKNOWN_CONTROL,
+                    unknown_frame: ZERO_UNKNOWN_FRAME,
                 },
-                _detail_string: None,
-                _raw_payload: Some(owned),
+                _contract_symbol: contract_symbol_cstring,
+                _login_permissions: None,
+                _control_message: None,
+                _payload_bytes: None,
             }
         }
 
-        FpssEvent::Control(ctrl) => {
-            let (kind, id, detail_str) = match ctrl {
-                FpssControl::LoginSuccess { permissions } => (0, 0, Some(permissions.clone())),
-                FpssControl::ContractAssigned { id, contract } => (1, *id, Some(format!("{contract}"))),
-                FpssControl::ReqResponse { req_id, result } => (2, *req_id, Some(format!("{result:?}"))),
-                FpssControl::MarketOpen => (3, 0, None),
-                FpssControl::MarketClose => (4, 0, None),
-                FpssControl::ServerError { message } => (5, 0, Some(message.clone())),
-                FpssControl::Disconnected { reason } => (6, 0, Some(format!("{reason:?}"))),
-                FpssControl::Reconnecting {
-                    reason,
-                    attempt,
-                    delay_ms,
-                } => (8, *attempt as i32, Some(format!("{reason:?} delay={delay_ms}ms"))),
-                FpssControl::Reconnected => (9, 0, None),
-                FpssControl::Error { message } => (10, 0, Some(message.clone())),
-                FpssControl::UnknownFrame { code, payload } => (
-                    11,
-                    *code as i32,
-                    Some(
-                        payload
-                            .iter()
-                            .map(|b| format!("{b:02x}"))
-                            .collect::<String>(),
-                    ),
-                ),
-                FpssControl::Connected => (13, 0, None),
-                FpssControl::Ping { payload } => (
-                    14,
-                    0,
-                    Some(
-                        payload
-                            .iter()
-                            .map(|b| format!("{b:02x}"))
-                            .collect::<String>(),
-                    ),
-                ),
-                FpssControl::ReconnectedServer => (15, 0, None),
-                FpssControl::Restart => (16, 0, None),
-                _ => (99, 0, None), // unknown control
-            };
-            let cstring = detail_str.and_then(|s| std::ffi::CString::new(s).ok());
-            let detail_ptr = cstring.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
-            FfiBufferedEvent {
-                event: TdxFpssEvent {
-                    kind: TdxFpssEventKind::Control,
-                    control: TdxFpssControl {
-                        kind,
-                        id,
-                        detail: detail_ptr,
+        FpssEvent::Control(ctrl) => match ctrl {
+            FpssControl::Connected => {
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::Connected,
+                        connected: TdxFpssConnected {
+                            _padding: 0,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
                     },
-                    ohlcvc: ZERO_OHLCVC,
-                    open_interest: ZERO_OI,
-                    quote: ZERO_QUOTE,
-                    trade: ZERO_TRADE,
-                    raw_data: ZERO_RAW,
-                },
-                _detail_string: cstring,
-                _raw_payload: None,
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: None,
+                }
             }
-        }
+            FpssControl::ContractAssigned { id, contract } => {
+                let contract_symbol_cstring = if contract.symbol.is_empty() {
+                    None
+                } else {
+                    std::ffi::CString::new(contract.symbol.as_str()).ok()
+                };
+                let contract_symbol_ptr = contract_symbol_cstring
+                    .as_ref()
+                    .map_or(ptr::null(), |cs| cs.as_ptr());
+                let tdx_contract = TdxContract {
+                    symbol: contract_symbol_ptr,
+                    sec_type: contract.sec_type as i32,
+                    has_expiration: contract.expiration.is_some(),
+                    expiration: contract.expiration.unwrap_or(0),
+                    has_right: contract.is_call.is_some(),
+                    right: contract.right().map_or(0, |r| r.as_char() as c_char),
+                    has_strike: contract.strike.is_some(),
+                    strike: contract.strike.unwrap_or(0),
+                };
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::ContractAssigned,
+                        contract_assigned: TdxFpssContractAssigned {
+                            id: *id,
+                            contract: tdx_contract,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: contract_symbol_cstring,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::Disconnected { reason } => {
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::Disconnected,
+                        disconnected: TdxFpssDisconnected {
+                            reason: *reason as i32,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::Error { message } => {
+                let cstring_owned = std::ffi::CString::new(message.as_str()).ok();
+                let message_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::Error,
+                        error: TdxFpssError {
+                            message: message_ptr,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: cstring_owned,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::LoginSuccess { permissions } => {
+                let cstring_owned = std::ffi::CString::new(permissions.as_str()).ok();
+                let permissions_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::LoginSuccess,
+                        login_success: TdxFpssLoginSuccess {
+                            permissions: permissions_ptr,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: cstring_owned,
+                    _control_message: None,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::MarketClose => {
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::MarketClose,
+                        market_close: TdxFpssMarketClose {
+                            _padding: 0,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::MarketOpen => {
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::MarketOpen,
+                        market_open: TdxFpssMarketOpen {
+                            _padding: 0,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::Ping { payload } => {
+                let bytes_owned = payload.clone();
+                let payload_ptr = bytes_owned.as_ptr();
+                let payload_len_val = bytes_owned.len();
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::Ping,
+                        ping: TdxFpssPing {
+                            payload: payload_ptr,
+                            payload_len: payload_len_val,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: Some(bytes_owned),
+                }
+            }
+            FpssControl::Reconnected => {
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::Reconnected,
+                        reconnected: TdxFpssReconnected {
+                            _padding: 0,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::ReconnectedServer => {
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::ReconnectedServer,
+                        reconnected_server: TdxFpssReconnectedServer {
+                            _padding: 0,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::Reconnecting { reason, attempt, delay_ms } => {
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::Reconnecting,
+                        reconnecting: TdxFpssReconnecting {
+                            reason: *reason as i32,
+                            attempt: i32::try_from(*attempt).unwrap_or(i32::MAX),
+                            delay_ms: *delay_ms,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::ReqResponse { req_id, result } => {
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::ReqResponse,
+                        req_response: TdxFpssReqResponse {
+                            req_id: *req_id,
+                            result: *result as i32,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::Restart => {
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::Restart,
+                        restart: TdxFpssRestart {
+                            _padding: 0,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::ServerError { message } => {
+                let cstring_owned = std::ffi::CString::new(message.as_str()).ok();
+                let message_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::ServerError,
+                        server_error: TdxFpssServerError {
+                            message: message_ptr,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                        unknown_frame: ZERO_UNKNOWN_FRAME,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: cstring_owned,
+                    _payload_bytes: None,
+                }
+            }
+            FpssControl::UnknownFrame { code, payload } => {
+                let bytes_owned = payload.clone();
+                let payload_ptr = bytes_owned.as_ptr();
+                let payload_len_val = bytes_owned.len();
+                FfiBufferedEvent {
+                    event: TdxFpssEvent {
+                        kind: TdxFpssEventKind::UnknownFrame,
+                        unknown_frame: TdxFpssUnknownFrame {
+                            code: *code,
+                            payload: payload_ptr,
+                            payload_len: payload_len_val,
+                        },
+                        ohlcvc: ZERO_OHLCVC,
+                        open_interest: ZERO_OI,
+                        quote: ZERO_QUOTE,
+                        trade: ZERO_TRADE,
+                        connected: ZERO_CONNECTED,
+                        contract_assigned: ZERO_CONTRACT_ASSIGNED,
+                        disconnected: ZERO_DISCONNECTED,
+                        error: ZERO_ERROR,
+                        login_success: ZERO_LOGIN_SUCCESS,
+                        market_close: ZERO_MARKET_CLOSE,
+                        market_open: ZERO_MARKET_OPEN,
+                        ping: ZERO_PING,
+                        reconnected: ZERO_RECONNECTED,
+                        reconnected_server: ZERO_RECONNECTED_SERVER,
+                        reconnecting: ZERO_RECONNECTING,
+                        req_response: ZERO_REQ_RESPONSE,
+                        restart: ZERO_RESTART,
+                        server_error: ZERO_SERVER_ERROR,
+                        unknown_control: ZERO_UNKNOWN_CONTROL,
+                    },
+                    _contract_symbol: None,
+                    _login_permissions: None,
+                    _control_message: None,
+                    _payload_bytes: Some(bytes_owned),
+                }
+            }
+            _ => unknown_control_event(),
+        },
 
-        _ => {
-            // Empty / unknown event — surface as a control with kind=12.
-            // kind=12 is the canonical unknown-event sentinel; see doc
-            // comment on `TdxFpssControl` for the full mapping.
-            FfiBufferedEvent {
-                event: TdxFpssEvent {
-                    kind: TdxFpssEventKind::Control,
-                    control: TdxFpssControl {
-                        kind: 12,
-                        id: 0,
-                        detail: ptr::null(),
-                    },
-                    ohlcvc: ZERO_OHLCVC,
-                    open_interest: ZERO_OI,
-                    quote: ZERO_QUOTE,
-                    trade: ZERO_TRADE,
-                    raw_data: ZERO_RAW,
-                },
-                _detail_string: None,
-                _raw_payload: None,
-            }
-        }
+        _ => unknown_control_event(),
     }
 }

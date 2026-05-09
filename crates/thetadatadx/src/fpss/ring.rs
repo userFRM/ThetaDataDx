@@ -35,7 +35,7 @@ use std::thread;
 
 use disruptor::Sequence;
 
-use super::FpssEvent;
+use super::events::FpssEventInternal;
 
 /// Adaptive wait strategy inspired by LMAX Disruptor's `PhasedBackoffWaitStrategy`.
 ///
@@ -98,35 +98,96 @@ impl disruptor::wait_strategies::WaitStrategy for AdaptiveWaitStrategy {
 
 /// FPSS event stored in the disruptor ring buffer.
 ///
-/// Slots are pre-allocated by the ring buffer and reused. The `event` field
-/// holds `None` for unused slots and `Some(FpssEvent)` for published events.
+/// Slots are pre-allocated by the ring buffer and reused. The `event`
+/// field is an [`FpssEventInternal`] — its `Empty` variant marks an
+/// unwritten / drained slot, while `Data`, `Control`, and `Unparseable`
+/// carry decoder output. The Disruptor consumer reborrows `Data` /
+/// `Control` slots to a public `&FpssEvent` via
+/// [`FpssEventInternal::as_public`] and skips the internal-only
+/// (`Empty`, `Unparseable`) discriminants.
 ///
 /// # Why not store `FpssEvent` directly?
 ///
-/// `FpssEvent` has variants with `Vec<u8>` payloads and `String` fields that
-/// cannot be meaningfully pre-allocated. Using `Option<FpssEvent>` lets us
-/// pre-allocate the slot metadata while the event data is set on publish.
+/// The public `FpssEvent` enum hides the ring-buffer pre-allocation
+/// placeholder and the decode-failure fallback by design;
+/// only `FpssEventInternal` carries those slots. `FpssEventInternal`
+/// also dispenses with the `Option<FpssEvent>` discriminant by folding
+/// the `None` case into its `Empty` variant, so the consumer pays one
+/// branch instead of two.
 #[derive(Default)]
-pub struct RingEvent {
-    /// The FPSS event occupying this slot, or `None` for an empty pre-allocated slot.
-    pub event: Option<FpssEvent>,
+pub(crate) struct RingEvent {
+    /// The FPSS event occupying this slot. Defaults to
+    /// [`FpssEventInternal::Empty`] for unwritten / drained slots.
+    pub(crate) event: FpssEventInternal,
 }
 
-// SAFETY: FpssEvent is Clone + Send; RingEvent is only accessed through the
-// disruptor's sequencing guarantees (exclusive write, shared read).
+// SAFETY: FpssEventInternal is Clone + Send; RingEvent is only accessed
+// through the disruptor's sequencing guarantees (exclusive write, shared read).
 unsafe impl Sync for RingEvent {}
 
 /// Minimum ring size (power of 2).
 pub(crate) const MIN_RING_SIZE: usize = 64;
 
-/// Round up to the next power of 2 (required by disruptor ring buffer).
-pub(crate) fn next_power_of_two(n: usize) -> usize {
-    if n.is_power_of_two() {
-        n
-    } else {
-        n.next_power_of_two()
+/// Validate that `n` is a power of two no smaller than [`MIN_RING_SIZE`].
+///
+/// Returns `Ok(n)` on success. Returns the wrapped variant of
+/// [`RingSizeError`] on failure, naming the offending value and the
+/// nearest valid size so the caller can correct the configuration
+/// without grep-fishing.
+///
+/// Silent rounding to the next power of two is rejected because it
+/// rewrites caller intent. Construction-time validation is the
+/// institutional pattern — fail closed at config-time, never silently
+/// rewrite the buffer budget. Index wrap on the steady-state read path
+/// is `i & (cap - 1)` (one AND, branchless); a non-power-of-two would
+/// force a modulo (~20 cycles per tick on x86_64) and break the ILP
+/// the read path relies on.
+pub(crate) fn check_ring_size(n: usize) -> Result<usize, RingSizeError> {
+    if n < MIN_RING_SIZE {
+        return Err(RingSizeError::TooSmall {
+            provided: n,
+            minimum: MIN_RING_SIZE,
+        });
+    }
+    if !n.is_power_of_two() {
+        return Err(RingSizeError::NotPowerOfTwo {
+            provided: n,
+            suggested: n.next_power_of_two(),
+        });
+    }
+    Ok(n)
+}
+
+/// Failures rejected by [`check_ring_size`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RingSizeError {
+    /// `provided` is smaller than [`MIN_RING_SIZE`].
+    TooSmall { provided: usize, minimum: usize },
+    /// `provided` is not a power of two. `suggested` is the nearest
+    /// valid power of two `>= provided` so the caller can pick the
+    /// next viable budget without recomputing it.
+    NotPowerOfTwo { provided: usize, suggested: usize },
+}
+
+impl std::fmt::Display for RingSizeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TooSmall { provided, minimum } => write!(
+                f,
+                "FPSS ring_size {provided} is below the minimum of {minimum}"
+            ),
+            Self::NotPowerOfTwo {
+                provided,
+                suggested,
+            } => write!(
+                f,
+                "FPSS ring_size {provided} must be a power of two; nearest valid value is {suggested}"
+            ),
+        }
     }
 }
+
+impl std::error::Error for RingSizeError {}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -134,6 +195,7 @@ pub(crate) fn next_power_of_two(n: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use super::super::events::FpssEventInternal;
     use super::*;
     use crate::fpss::{FpssControl, FpssData, FpssEvent};
     use disruptor::{build_single_producer, Producer};
@@ -155,30 +217,47 @@ mod tests {
     }
 
     #[test]
-    fn ring_event_default_is_none() {
+    fn ring_event_default_is_empty() {
         let e = RingEvent::default();
-        assert!(e.event.is_none());
+        assert!(matches!(e.event, FpssEventInternal::Empty));
     }
 
     #[test]
-    fn next_power_of_two_already_power() {
-        assert_eq!(next_power_of_two(64), 64);
-        assert_eq!(next_power_of_two(1024), 1024);
+    fn check_ring_size_accepts_powers_of_two() {
+        assert_eq!(check_ring_size(64), Ok(64));
+        assert_eq!(check_ring_size(1024), Ok(1024));
+        assert_eq!(check_ring_size(131_072), Ok(131_072));
     }
 
     #[test]
-    fn next_power_of_two_rounds_up() {
-        assert_eq!(next_power_of_two(65), 128);
-        assert_eq!(next_power_of_two(1000), 1024);
-        assert_eq!(next_power_of_two(100_000), 131_072);
+    fn check_ring_size_rejects_non_power_of_two() {
+        let err = check_ring_size(65).unwrap_err();
+        assert_eq!(
+            err,
+            RingSizeError::NotPowerOfTwo {
+                provided: 65,
+                suggested: 128,
+            }
+        );
     }
 
     #[test]
-    fn ring_size_respects_minimum() {
-        // Even if caller requests a tiny ring, we enforce MIN_RING_SIZE.
-        let size = next_power_of_two(1_usize.max(MIN_RING_SIZE));
-        assert!(size >= MIN_RING_SIZE);
-        assert!(size.is_power_of_two());
+    fn check_ring_size_rejects_below_minimum() {
+        let err = check_ring_size(32).unwrap_err();
+        assert_eq!(
+            err,
+            RingSizeError::TooSmall {
+                provided: 32,
+                minimum: MIN_RING_SIZE,
+            }
+        );
+    }
+
+    #[test]
+    fn check_ring_size_error_messages_name_offender() {
+        let msg = check_ring_size(1000).unwrap_err().to_string();
+        assert!(msg.contains("1000"));
+        assert!(msg.contains("1024"));
     }
 
     #[test]
@@ -186,13 +265,13 @@ mod tests {
         let counter = Arc::new(AtomicUsize::new(0));
         let counter_clone = Arc::clone(&counter);
 
-        let factory = || RingEvent { event: None };
+        let factory = RingEvent::default;
         let wait_strategy = AdaptiveWaitStrategy::fpss_default();
 
         let mut producer = build_single_producer(64, factory, wait_strategy)
             .handle_events_with(
                 move |ring_event: &RingEvent, _sequence: Sequence, _eob: bool| {
-                    if ring_event.event.is_some() {
+                    if !matches!(ring_event.event, FpssEventInternal::Empty) {
                         counter_clone.fetch_add(1, Ordering::Relaxed);
                     }
                 },
@@ -200,15 +279,15 @@ mod tests {
             .build();
 
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::Control(FpssControl::MarketOpen));
+            slot.event = FpssEventInternal::Control(FpssControl::MarketOpen);
         });
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::Control(FpssControl::MarketClose));
+            slot.event = FpssEventInternal::Control(FpssControl::MarketClose);
         });
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::Control(FpssControl::ServerError {
+            slot.event = FpssEventInternal::Control(FpssControl::ServerError {
                 message: "test".to_string(),
-            }));
+            });
         });
 
         // Drop the producer to drain the ring and join consumer thread.
@@ -224,13 +303,13 @@ mod tests {
         let received = Arc::new(StdMutex::new(Vec::new()));
         let received_clone = Arc::clone(&received);
 
-        let factory = || RingEvent { event: None };
+        let factory = RingEvent::default;
         let wait_strategy = AdaptiveWaitStrategy::fpss_default();
 
         let mut producer = build_single_producer(64, factory, wait_strategy)
             .handle_events_with(
                 move |ring_event: &RingEvent, _sequence: Sequence, _eob: bool| {
-                    if let Some(ref evt) = ring_event.event {
+                    if let Some(evt) = ring_event.event.as_public() {
                         received_clone.lock().unwrap().push(evt.clone());
                     }
                 },
@@ -239,8 +318,7 @@ mod tests {
 
         let ring_contract = std::sync::Arc::new(crate::fpss::protocol::Contract::stock("AAPL"));
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::Data(FpssData::Quote {
-                contract_id: 42,
+            slot.event = FpssEventInternal::Data(FpssData::Quote {
                 contract: std::sync::Arc::clone(&ring_contract),
                 ms_of_day: 34200000,
                 bid_size: 100,
@@ -253,7 +331,7 @@ mod tests {
                 ask_condition: 0,
                 date: 20240315,
                 received_at_ns: 0,
-            }));
+            });
         });
 
         drop(producer);
@@ -262,12 +340,9 @@ mod tests {
         assert_eq!(events.len(), 1);
         match &events[0] {
             FpssEvent::Data(FpssData::Quote {
-                contract_id,
-                bid,
-                ask,
-                ..
+                contract, bid, ask, ..
             }) => {
-                assert_eq!(*contract_id, 42);
+                assert_eq!(contract.symbol, "AAPL");
                 assert!((bid - 150.25).abs() < f64::EPSILON);
                 assert!((ask - 150.30).abs() < f64::EPSILON);
             }
@@ -282,13 +357,13 @@ mod tests {
         let received = Arc::new(StdMutex::new(Vec::new()));
         let received_clone = Arc::clone(&received);
 
-        let factory = || RingEvent { event: None };
+        let factory = RingEvent::default;
         let wait_strategy = AdaptiveWaitStrategy::fpss_default();
 
         let mut producer = build_single_producer(64, factory, wait_strategy)
             .handle_events_with(
                 move |ring_event: &RingEvent, _sequence: Sequence, _eob: bool| {
-                    if let Some(ref evt) = ring_event.event {
+                    if let Some(evt) = ring_event.event.as_public() {
                         received_clone.lock().unwrap().push(evt.clone());
                     }
                 },
@@ -296,9 +371,9 @@ mod tests {
             .build();
 
         producer.publish(|slot| {
-            slot.event = Some(FpssEvent::Control(FpssControl::Disconnected {
+            slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
                 reason: RemoveReason::ServerRestarting,
-            }));
+            });
         });
 
         drop(producer);
@@ -318,13 +393,13 @@ mod tests {
         let counter = Arc::new(AtomicUsize::new(0));
         let counter_clone = Arc::clone(&counter);
 
-        let factory = || RingEvent { event: None };
+        let factory = RingEvent::default;
         let wait_strategy = AdaptiveWaitStrategy::fpss_default();
 
         let mut producer = build_single_producer(4096, factory, wait_strategy)
             .handle_events_with(
                 move |ring_event: &RingEvent, _sequence: Sequence, _eob: bool| {
-                    if ring_event.event.is_some() {
+                    if !matches!(ring_event.event, FpssEventInternal::Empty) {
                         counter_clone.fetch_add(1, Ordering::Relaxed);
                     }
                 },
@@ -336,11 +411,10 @@ mod tests {
         // throughput test doesn't allocate per event (matches real
         // hot-path behaviour after v8).
         let throughput_contract = std::sync::Arc::new(crate::fpss::protocol::Contract::stock(""));
-        for i in 0..count {
+        for _ in 0..count {
             let contract_clone = std::sync::Arc::clone(&throughput_contract);
             producer.publish(|slot| {
-                slot.event = Some(FpssEvent::Data(FpssData::Quote {
-                    contract_id: i as i32,
+                slot.event = FpssEventInternal::Data(FpssData::Quote {
                     contract: contract_clone,
                     ms_of_day: 0,
                     bid_size: 0,
@@ -353,7 +427,7 @@ mod tests {
                     ask_condition: 0,
                     date: 0,
                     received_at_ns: 0,
-                }));
+                });
             });
         }
 
@@ -372,13 +446,13 @@ mod tests {
         let counter = Arc::new(AtomicUsize::new(0));
         let counter_clone = Arc::clone(&counter);
 
-        let factory = || RingEvent { event: None };
+        let factory = RingEvent::default;
         let wait_strategy = AdaptiveWaitStrategy::fpss_default();
 
         let mut producer = build_single_producer(64, factory, wait_strategy)
             .handle_events_with(
                 move |ring_event: &RingEvent, _sequence: Sequence, _eob: bool| {
-                    if ring_event.event.is_some() {
+                    if !matches!(ring_event.event, FpssEventInternal::Empty) {
                         counter_clone.fetch_add(1, Ordering::Relaxed);
                     }
                 },
@@ -392,7 +466,7 @@ mod tests {
                     break;
                 }
                 producer.publish(|slot| {
-                    slot.event = Some(FpssEvent::Control(FpssControl::MarketOpen));
+                    slot.event = FpssEventInternal::Control(FpssControl::MarketOpen);
                 });
             }
             // Producer dropped here -> consumer drains and joins.

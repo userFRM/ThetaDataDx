@@ -27,12 +27,6 @@ for item in data:
 const data = tdx.optionListExpirations('SPY');
 console.log(data);
 ```
-```go [Go]
-data, _ := client.OptionListExpirations("SPY")
-for _, item := range data {
-    fmt.Println(item)
-}
-```
 ```cpp [C++]
 auto data = client.option_list_expirations("SPY");
 for (const auto& item : data) {

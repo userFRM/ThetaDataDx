@@ -2,9 +2,9 @@
 //!
 //! Reads `fpss_event_schema.toml` and emits:
 //!
-//! - `sdks/python/src/fpss_event_classes.rs` — `#[pyclass]` per Data variant
+//! - `sdks/python/src/_generated/fpss_event_classes.rs` — `#[pyclass]` per Data variant
 //!   + `buffered_event_to_typed` dispatcher + `register_fpss_event_classes`.
-//! - `sdks/typescript/src/fpss_event_classes.rs` — `#[napi(object)]` per
+//! - `sdks/typescript/src/_generated/fpss_event_classes.rs` — `#[napi(object)]` per
 //!   Data variant + a flat `FpssEvent` wrapper struct with optional typed
 //!   payload fields + a `buffered_event_to_typed` dispatcher that converts
 //!   an internal `BufferedEvent` into one. Control/simple/raw-data events
@@ -88,19 +88,19 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
     let buffered = buffered::render_buffered_event_file(&schema);
     Ok(vec![
         GeneratedSourceFile {
-            relative_path: "sdks/python/src/buffered_event.rs",
+            relative_path: "sdks/python/src/_generated/buffered_event.rs",
             contents: buffered.clone(),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/typescript/src/buffered_event.rs",
+            relative_path: "sdks/typescript/src/_generated/buffered_event.rs",
             contents: buffered,
         },
         GeneratedSourceFile {
-            relative_path: "sdks/python/src/fpss_event_classes.rs",
+            relative_path: "sdks/python/src/_generated/fpss_event_classes.rs",
             contents: python::render_python_fpss_event_classes(&schema),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/typescript/src/fpss_event_classes.rs",
+            relative_path: "sdks/typescript/src/_generated/fpss_event_classes.rs",
             contents: typescript::render_ts_fpss_event_classes(&schema),
         },
         // Rust FFI `#[repr(C)]` structs + ZERO consts. Included from

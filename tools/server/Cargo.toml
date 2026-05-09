@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-server"
-version = "9.0.2"
+version = "9.1.0"
 edition = "2021"
 rust-version = "1.88"
 authors = ["userFRM"]
@@ -33,6 +33,10 @@ serde = { version = "1.0.228", features = ["derive"] }
 tower = { version = "0.5.3", features = ["limit"] }
 tower-http = { version = "0.6.8", features = ["cors"] }
 tower_governor = "0.8.0"
+# Streaming flatfile bytes back to clients via `ReaderStream` (issue #432).
+# Transitive dep of axum already; declared directly so the route module's
+# `tokio_util::io::ReaderStream` import is sourced from a pinned version.
+tokio-util = { version = "0.7.18", features = ["io"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # `serde_urlencoded` parses the raw query string inside the custom

@@ -36,15 +36,14 @@
 //! - [`wire`] — payload builders / parsers (credentials, subscribe, ping, stop, REQ_RESPONSE, CONTRACT, DISCONNECTED).
 //! - [`subscription`] — `SubscriptionKind` enum (Quote / Trade / OpenInterest).
 //!
-//! See ADR-001 (`docs/architecture/ADR-001-java-terminal-parity.md`) for the
-//! Java terminal parity reverse-engineering source.
+//! Behaviour mirrors the upstream Java terminal.
 
 pub mod contract;
 pub mod subscription;
 pub mod wire;
 
-pub use self::contract::{Contract, ContractParseError, IntoOptionSpec};
-pub use self::subscription::SubscriptionKind;
+pub use self::contract::{Contract, ContractParseError};
+pub use self::subscription::{FullSubscriptionKind, SecTypeExt, Subscription, SubscriptionKind};
 pub use self::wire::{
     build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,
     build_stop_payload, build_subscribe_payload, parse_contract_message, parse_disconnect_reason,

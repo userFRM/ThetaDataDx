@@ -4,7 +4,7 @@ Runs a local HTTP REST server and WebSocket server that expose the ThetaData `/v
 
 Existing clients using the current `/v3/*` local terminal routes can point at this binary on the same port.
 
-> **FLATFILES coverage:** the REST/WS server currently exposes the MDDS and FPSS surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired into the route surface under issue [#432](https://github.com/userFRM/ThetaDataDx/issues/432). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+> **FLATFILES coverage:** the REST server exposes FLATFILES whole-universe daily blobs at `GET /v3/flatfile/{sec_type}/{req_type}?date=YYYYMMDD&format=csv|jsonl` and `POST /v3/flatfile/request`. Bytes are streamed back via a chunked response body so large blobs do not pin server memory. Flat files are batch downloads, not streaming subscriptions; the WebSocket surface is unchanged. See [`ROADMAP.md`](../../docs/ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
 
 ## Quick start
 
@@ -139,7 +139,7 @@ External apps (Python, Excel, browsers)
     |
 thetadatadx-server (Rust binary)
     |
-    |--- ThetaDataDx (MDDS gRPC + FPSS TCP)
+    |--- ThetaDataDxClient (MDDS gRPC + FPSS TCP)
     |    historical data + real-time streaming
     |
 ThetaData upstream servers (NJ datacenter)

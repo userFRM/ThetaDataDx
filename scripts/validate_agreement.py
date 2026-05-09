@@ -129,7 +129,29 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_DIR = ROOT / "artifacts"
 
-LANGS = ("python", "cli", "cpp")
+LANGS = ("python", "cli", "cpp", "typescript")
+
+# Languages whose `first_row` carries a SHAPE manifest (field-name set
+# only) rather than runtime values. The diff engine compares only the
+# field-name SET for these — value-vs-value diffs are suppressed
+# because the manifest cannot carry a real bid price / volume / etc.
+# This is what lets the TypeScript public-surface declarations
+# participate in the same agreement table as the runtime Python / CLI
+# / C++ artifacts without spinning up a per-method live-traffic
+# validator on the napi-rs side.
+SHAPE_ONLY_LANGS: frozenset[str] = frozenset({"typescript"})
+# The TypeScript artifact is emitted from a public-surface shape
+# manifest (`sdks/typescript/scripts/emit_validator_manifest.mjs`)
+# rather than a live-traffic runtime validator. The runtime artifacts
+# carry actual values; the TS manifest carries sentinel placeholders
+# the canonicalizer collapses to `None` (date 0, ms_of_day -1,
+# strike 0.0, right ""). After canonicalisation only the FIELD SET
+# remains, which is the load-bearing comparison: a TS-side response
+# shape drift surfaces as a missing or new field name relative to the
+# runtime SDKs. The full per-cell live-traffic path is intentionally
+# out of scope -- duplicating `endpoint_surface.toml` for napi-rs
+# would multiply CI cost without strengthening the shape-drift
+# assertion. See the script's preamble for the full rationale.
 
 # Rounding precision for float comparison in canonicalized first rows.
 # 6 decimals matches the canonicalization contract documented in the
@@ -441,6 +463,13 @@ def _diff_first_row(
 
     Input: {lang: first_row_dict}. Output: list of (field_path,
     {lang: value_or_MISSING}) tuples, one per field that disagrees.
+
+    Languages listed in [`SHAPE_ONLY_LANGS`] participate in the
+    field-PRESENCE comparison only; their values do not contribute to
+    value-vs-value diffs. This lets a TypeScript public-surface
+    manifest catch shape drift (a runtime SDK emitting a field the TS
+    `index.d.ts` does not advertise, or vice versa) without spurious
+    value mismatches against the runtime SDKs' real bid / volume / etc.
     """
     flat_per_lang = {lang: _flatten(fr) for lang, fr in first_rows.items()}
     all_fields: set[str] = set()
@@ -451,10 +480,25 @@ def _diff_first_row(
     for field in sorted(all_fields):
         values = {lang: flat.get(field, MISSING) for lang, flat in flat_per_lang.items()}
         langs = list(values)
+        # Shape-only languages cannot disagree on values, only on
+        # field presence. Build a parallel "presence-only" view that
+        # collapses every non-MISSING entry to a single sentinel for
+        # those langs, leaving value langs untouched.
+        comp_values: dict[str, Any] = {}
+        for lang, value in values.items():
+            if lang in SHAPE_ONLY_LANGS and not isinstance(value, _Missing):
+                comp_values[lang] = _PRESENT
+            else:
+                comp_values[lang] = value
         agree = True
         for i in range(len(langs)):
             for j in range(i + 1, len(langs)):
-                if not _values_equal(values[langs[i]], values[langs[j]]):
+                if not _shape_aware_equal(
+                    langs[i],
+                    langs[j],
+                    comp_values[langs[i]],
+                    comp_values[langs[j]],
+                ):
                     agree = False
                     break
             if not agree:
@@ -462,6 +506,44 @@ def _diff_first_row(
         if not agree:
             diffs.append((field, values))
     return diffs
+
+
+# Marker for "TS manifest emitted this field; the value is sentinel,
+# don't compare it value-vs-value against runtime SDKs". Distinct
+# identity so the diff engine can treat presence as a separate axis.
+class _Present:
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "<present>"
+
+
+_PRESENT = _Present()
+
+
+def _shape_aware_equal(lang_a: str, lang_b: str, a: Any, b: Any) -> bool:
+    """Equality contract for cross-language fields:
+
+    * If at least one side is shape-only AND the other side has a
+      non-MISSING value, count as agreement (the TS manifest has no
+      values to compare; presence on both sides is enough).
+    * If both sides are MISSING, they agree (the field is absent
+      from this cell on both producers).
+    * If exactly one side is MISSING, they disagree (a shape-set
+      drift -- the TS manifest advertises a field the runtime SDK
+      doesn't emit, or vice versa).
+    * Otherwise, fall through to the existing value comparator.
+    """
+    a_shape = lang_a in SHAPE_ONLY_LANGS
+    b_shape = lang_b in SHAPE_ONLY_LANGS
+    a_missing = isinstance(a, _Missing)
+    b_missing = isinstance(b, _Missing)
+    if a_shape or b_shape:
+        # Both missing => agree. Exactly one missing => disagree.
+        if a_missing != b_missing:
+            return False
+        return True
+    return _values_equal(a, b)
 
 
 def _fmt_value(v: Any) -> str:
@@ -552,22 +634,50 @@ def _classify_cell(present: dict[str, dict]) -> str | None:
     first_row - status + row_count match but first_row fields differ
     mixed     - status agrees but both row_count and first_row disagree
     """
-    statuses = {rec.get("status") for rec in present.values()}
+    # Status comparison excludes shape-only langs: a TypeScript shape
+    # manifest always reports `PASS` for any method whose return type
+    # parses; it can't observe runtime FAIL / SKIP semantics. Folding
+    # it into the status set would false-flag every status disagreement
+    # the runtime artifacts surfaced.
+    runtime_present = {
+        lang: rec for lang, rec in present.items() if lang not in SHAPE_ONLY_LANGS
+    }
+    statuses = {rec.get("status") for rec in runtime_present.values()}
     if len(statuses) > 1:
         return "status"
 
-    pass_recs = {lang: rec for lang, rec in present.items() if rec.get("status") == "PASS"}
+    pass_recs = {
+        lang: rec for lang, rec in runtime_present.items() if rec.get("status") == "PASS"
+    }
     if len(pass_recs) < 2:
+        # No two RUNTIME SDKs at PASS; nothing meaningful for the TS
+        # manifest to agree or disagree with at the value / row-count
+        # axes. Field-presence comparison still happens below if the
+        # TS manifest is present alongside at least one runtime PASS.
+        first_rows_with_ts = {
+            lang: rec["first_row"]
+            for lang, rec in present.items()
+            if isinstance(rec.get("first_row"), dict)
+        }
+        if len(first_rows_with_ts) >= 2:
+            field_diffs = _diff_first_row(first_rows_with_ts)
+            return "first_row" if field_diffs else None
         return None
 
     row_counts = {rec.get("row_count", 0) for rec in pass_recs.values()}
     row_count_differs = len(row_counts) > 1
 
+    # The TS shape manifest's first_row participates in the field-set
+    # diff alongside the runtime PASS first_rows.
     first_rows = {
         lang: rec["first_row"]
         for lang, rec in pass_recs.items()
         if isinstance(rec.get("first_row"), dict)
     }
+    for lang in SHAPE_ONLY_LANGS:
+        rec = present.get(lang)
+        if rec and isinstance(rec.get("first_row"), dict):
+            first_rows[lang] = rec["first_row"]
     first_row_differs = False
     if len(first_rows) >= 2:
         field_diffs = _diff_first_row(first_rows)

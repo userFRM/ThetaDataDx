@@ -1,4 +1,4 @@
-//! MCP (Model Context Protocol) server for ThetaDataDx.
+//! MCP (Model Context Protocol) server for ThetaDataDxClient.
 //!
 //! Gives any MCP-compatible LLM client instant access to ThetaData market
 //! data via structured tool calls over stdio JSON-RPC 2.0.
@@ -9,12 +9,12 @@
 //!     |  JSON-RPC 2.0 over stdio
 //!     v
 //! thetadatadx-mcp (long-running process)
-//!     |  Single ThetaDataDx client, authenticated once
+//!     |  Single ThetaDataDxClient client, authenticated once
 //!     v
 //! ThetaData servers (MDDS gRPC + FPSS TCP)
 //! ```
 //!
-//! The server authenticates ONCE at startup, keeps the ThetaDataDx client alive,
+//! The server authenticates ONCE at startup, keeps the ThetaDataDxClient client alive,
 //! and serves tool calls instantly with no per-request auth overhead.
 //!
 //! Tool definitions and dispatch are driven by the shared endpoint registry
@@ -31,7 +31,7 @@ use tokio::sync::OnceCell;
 
 use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 use thetadatadx::{
-    param_type_to_json_type, Credentials, DirectConfig, EndpointMeta, ParamMeta, ThetaDataDx,
+    param_type_to_json_type, Credentials, DirectConfig, EndpointMeta, ParamMeta, ThetaDataDxClient,
     ENDPOINTS,
 };
 
@@ -212,7 +212,7 @@ const MAX_ERROR_LEN: usize = 200;
 ///
 /// Also truncates to [`MAX_ERROR_LEN`] chars to avoid leaking verbose
 /// backtraces or internal state.
-fn sanitize_error(msg: &str) -> String {
+pub(crate) fn sanitize_error(msg: &str) -> String {
     let mut result = String::with_capacity(msg.len().min(MAX_ERROR_LEN + 16));
     let bytes = msg.as_bytes();
     let len = bytes.len();
@@ -342,6 +342,7 @@ fn tool_definitions() -> Vec<Value> {
     }
 
     push_generated_utility_tool_definitions(&mut tools);
+    flatfile_tools::push_flatfile_tool_definitions(&mut tools);
 
     tools
 }
@@ -826,7 +827,7 @@ fn convert_endpoint_args(args: &Value) -> Result<EndpointArgs, String> {
 //  Tool execution — registry-driven dispatch
 // ═══════════════════════════════════════════════════════════════════════════
 
-enum ToolError {
+pub(crate) enum ToolError {
     /// -32602: Invalid params
     InvalidParams(String),
     /// -32000: Server error
@@ -841,13 +842,19 @@ macro_rules! param {
 
 include!("utilities.rs");
 
+mod flatfile_tools;
+
 async fn execute_tool(
-    client: Option<&ThetaDataDx>,
+    client: Option<&ThetaDataDxClient>,
     name: &str,
     args: &Value,
     start_time: std::time::Instant,
 ) -> Result<Value, ToolError> {
     if let Some(result) = try_execute_generated_utility(client, name, args, start_time).await {
+        return result;
+    }
+
+    if let Some(result) = flatfile_tools::try_execute_flatfile_tool(client, name, args).await {
         return result;
     }
 
@@ -881,7 +888,7 @@ async fn execute_tool(
 
 async fn handle_request(
     req: &JsonRpcRequest,
-    client: &Arc<OnceCell<ThetaDataDx>>,
+    client: &Arc<OnceCell<ThetaDataDxClient>>,
     start_time: std::time::Instant,
 ) -> JsonRpcResponse {
     // OnceCell::get is lock-free; no guard is held across the awaits below.
@@ -949,7 +956,7 @@ async fn handle_request(
 /// failure as a JSON-RPC `-32603` Internal Error so the LLM client never
 /// receives a successful but empty `tools/call` result. Lifted out of the
 /// `tools/call` arm so the regression test for issue #459 can exercise the
-/// canonicalisation path without spinning up a live `ThetaDataDx` client.
+/// canonicalisation path without spinning up a live `ThetaDataDxClient` client.
 fn build_tool_call_response(id: Value, result: &mut Value) -> JsonRpcResponse {
     match tdbe::json_canon::canonicalize_and_serialize(result) {
         Ok(text) => JsonRpcResponse::success(
@@ -1074,12 +1081,12 @@ async fn main() {
     // on the ThetaData gRPC handshake (~800 ms).  Wrap the client in an
     // Arc<RwLock> so the background task can populate it while the stdin loop
     // is already running.
-    let client: Arc<OnceCell<ThetaDataDx>> = Arc::new(OnceCell::new());
+    let client: Arc<OnceCell<ThetaDataDxClient>> = Arc::new(OnceCell::new());
 
     if let Some(creds) = creds {
         let client_bg = Arc::clone(&client);
         tokio::spawn(async move {
-            match ThetaDataDx::connect(&creds, DirectConfig::production()).await {
+            match ThetaDataDxClient::connect(&creds, DirectConfig::production()).await {
                 Ok(c) => {
                     tracing::info!("connected to ThetaData MDDS");
                     if client_bg.set(c).is_err() {

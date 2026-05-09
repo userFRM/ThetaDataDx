@@ -1,8 +1,6 @@
 //! MDDS (gRPC) sub-configuration.
 //!
-//! Defaults match what the v3 terminal sends in production. See ADR-001
-//! (`docs/architecture/ADR-001-java-terminal-parity.md`) for the Java
-//! terminal parity reverse-engineering source.
+//! Defaults match what the v3 terminal sends in production.
 
 /// MDDS gRPC client tuning.
 #[derive(Debug, Clone)]

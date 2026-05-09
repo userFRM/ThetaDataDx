@@ -3,6 +3,7 @@
 use axum::extract::ws::WebSocket;
 use sonic_rs::prelude::*;
 
+use tdbe::time::is_valid_yyyymmdd;
 use tdbe::types::enums::SecType;
 use thetadatadx::fpss::protocol::Contract;
 
@@ -195,6 +196,15 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         // the FPSS contract-map keyspace with garbage ids. `i32::try_from`
         // already fenced the width; this fences the semantic range before
         // it reaches `Contract::option_raw`.
+        //
+        // PR #514 LOW-001: range-check ALONE accepts impossible Gregorian
+        // dates like 20260230 (Feb 30) or 20260431 (Apr 31). Run the
+        // canonical `tdbe::time::is_valid_yyyymmdd` validator alongside
+        // so the WS subscribe path enforces the same calendar discipline
+        // the REST validator does on the historical endpoints.
+        // Both checks must pass: the bounds gate is the cheap precheck
+        // (single comparison), the calendar gate catches the bad-day-of-
+        // month classes the bounds check cannot see.
         if !is_valid_yyyymmdd_range(exp) {
             tracing::warn!(
                 expiration = exp,
@@ -203,6 +213,27 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             let err_msg = format!(
                 "'exp' out of range (expected YYYYMMDD {}..={}; got {exp})",
                 MIN_OPTION_EXP, MAX_OPTION_EXP
+            );
+            let resp = sonic_rs::json!({
+                "header": {
+                    "type": "REQ_RESPONSE",
+                    "response": "ERROR",
+                    "req_id": req_id,
+                    "error": err_msg.as_str(),
+                }
+            });
+            send_response(socket, &resp, "bad_request_reply").await;
+            return;
+        }
+        if !is_valid_yyyymmdd(exp) {
+            tracing::warn!(
+                expiration = exp,
+                "WS subscribe: option expiration is not a real Gregorian date"
+            );
+            let err_msg = format!(
+                "'exp' is not a valid YYYYMMDD calendar date (got {exp}; \
+                 reject reason: month/day decomposition is not a real \
+                 Gregorian day, e.g. Feb 30 or Apr 31)"
             );
             let resp = sonic_rs::json!({
                 "header": {
@@ -296,53 +327,49 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 return;
             }
         };
-        match Contract::option(symbol, (exp, is_call, strike)) {
-            Ok(c) => c,
-            Err(e) => {
-                let err_msg = format!("invalid option spec: {e}");
-                let resp = sonic_rs::json!({
-                    "header": {
-                        "type": "REQ_RESPONSE",
-                        "response": "ERROR",
-                        "req_id": req_id,
-                        "error": err_msg.as_str(),
-                    }
-                });
-                send_response(socket, &resp, "bad_request_reply").await;
-                return;
-            }
-        }
+        Contract::option_raw(symbol, exp, is_call, strike)
     } else {
         Contract::stock(symbol)
     };
 
     let tdx = state.tdx();
     if tdx.is_streaming() {
+        use thetadatadx::fpss::protocol::{
+            FullSubscriptionKind, Subscription, SubscriptionKind,
+        };
+        let kind = match req_type.as_str() {
+            "QUOTE" => Some(SubscriptionKind::Quote),
+            "TRADE" => Some(SubscriptionKind::Trade),
+            "OPEN_INTEREST" => Some(SubscriptionKind::OpenInterest),
+            _ => None,
+        };
         let result = if is_add {
-            match req_type.as_str() {
-                "QUOTE" => tdx.subscribe_quotes(&contract),
-                "TRADE" => tdx.subscribe_trades(&contract),
-                "OPEN_INTEREST" => tdx.subscribe_open_interest(&contract),
-                "FULL_TRADES" => {
-                    let st = match sec_type.as_str() {
-                        "OPTION" => SecType::Option,
-                        "INDEX" => SecType::Index,
-                        _ => SecType::Stock,
-                    };
-                    tdx.subscribe_full_trades(st)
-                }
-                _ => {
-                    tracing::warn!(req_type = %req_type, "unknown req_type for subscription");
-                    Ok(())
-                }
+            if let Some(k) = kind {
+                tdx.subscribe(Subscription::Contract {
+                    contract: contract.clone(),
+                    kind: k,
+                })
+            } else if req_type == "FULL_TRADES" {
+                let st = match sec_type.as_str() {
+                    "OPTION" => SecType::Option,
+                    "INDEX" => SecType::Index,
+                    _ => SecType::Stock,
+                };
+                tdx.subscribe(Subscription::Full {
+                    sec_type: st,
+                    kind: FullSubscriptionKind::Trades,
+                })
+            } else {
+                tracing::warn!(req_type = %req_type, "unknown req_type for subscription");
+                Ok(())
             }
+        } else if let Some(k) = kind {
+            tdx.unsubscribe(Subscription::Contract {
+                contract: contract.clone(),
+                kind: k,
+            })
         } else {
-            match req_type.as_str() {
-                "QUOTE" => tdx.unsubscribe_quotes(&contract),
-                "TRADE" => tdx.unsubscribe_trades(&contract),
-                "OPEN_INTEREST" => tdx.unsubscribe_open_interest(&contract),
-                _ => Ok(()),
-            }
+            Ok(())
         };
 
         let resp = match result {
@@ -411,6 +438,42 @@ mod tests {
         assert!(!is_valid_yyyymmdd_range(99999999));
         assert!(!is_valid_yyyymmdd_range(MAX_OPTION_EXP + 1));
         assert!(!is_valid_yyyymmdd_range(i32::MAX));
+    }
+
+    // -----------------------------------------------------------------------
+    //  PR #514 LOW-001 — canonical Gregorian validator on the WS path
+    // -----------------------------------------------------------------------
+
+    /// The  Gregorian validator now runs on the WS option-subscribe
+    /// path. Impossible calendar dates like 20260230 (Feb 30) or
+    /// 20260431 (Apr 31) used to leak through because the WS path only
+    /// applied the cheap `is_valid_yyyymmdd_range` bounds check; the
+    /// REST handlers ran the full `tdbe::time::is_valid_yyyymmdd`
+    /// calendar check alongside. Pin both behaviours here.
+    #[test]
+    fn ws_canonical_validator_rejects_impossible_gregorian_dates() {
+        // Bounds-check passes — these dates are inside the 1900-2100
+        // window the WS path accepts as "plausible YYYYMMDD".
+        assert!(is_valid_yyyymmdd_range(20260230));
+        assert!(is_valid_yyyymmdd_range(20260431));
+        assert!(is_valid_yyyymmdd_range(20260132)); // Jan 32
+        assert!(is_valid_yyyymmdd_range(20251301)); // month 13
+
+        // ...but the canonical Gregorian validator (the REAL gate) rejects
+        // them because no such calendar day exists.
+        assert!(!is_valid_yyyymmdd(20260230));
+        assert!(!is_valid_yyyymmdd(20260431));
+        assert!(!is_valid_yyyymmdd(20260132));
+        assert!(!is_valid_yyyymmdd(20251301));
+
+        // Sanity: a real date passes both gates.
+        assert!(is_valid_yyyymmdd_range(20260417));
+        assert!(is_valid_yyyymmdd(20260417));
+
+        // Leap-year semantics: 2024 is a leap year (Feb 29 is real),
+        // 2026 is not.
+        assert!(is_valid_yyyymmdd(20240229));
+        assert!(!is_valid_yyyymmdd(20260229));
     }
 
     // -----------------------------------------------------------------------

@@ -72,3 +72,6 @@ target_link_libraries(thetadatadx_validate PRIVATE thetadatadx_cpp)
 
 add_executable(thetadatadx_fpss_smoke examples/fpss_smoke.cpp)
 target_link_libraries(thetadatadx_fpss_smoke PRIVATE thetadatadx_cpp)
+
+add_executable(thetadatadx_flatfiles_example examples/flatfiles_quotes_to_arrow.cpp)
+target_link_libraries(thetadatadx_flatfiles_example PRIVATE thetadatadx_cpp)

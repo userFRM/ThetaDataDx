@@ -1,4 +1,4 @@
-//! TypeScript (napi-rs) streaming methods for `sdks/typescript/src/streaming_methods.rs`.
+//! TypeScript (napi-rs) streaming methods for `sdks/typescript/src/_generated/streaming_methods.rs`.
 
 use std::fmt::Write as _;
 
@@ -9,7 +9,7 @@ pub(super) fn render_ts_streaming_methods(methods: &[&MethodSpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
     out.push_str("#[napi]\n");
-    out.push_str("impl ThetaDataDx {\n");
+    out.push_str("impl ThetaDataDxClient {\n");
     for method in methods {
         out.push_str(&ts_streaming_method(method));
         out.push('\n');
@@ -38,22 +38,20 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 "    ",
                 "Start FPSS streaming and register a JS callback for incoming events.\n\
                  \n\
-                 The dispatcher's drain thread routes every typed FPSS\n\
-                 event through napi-rs `ThreadsafeFunction` to the Node\n\
-                 main thread, where the user's `callback(event)` runs.\n\
-                 The FPSS reader thread itself never touches V8: events\n\
-                 cross the bounded `crossbeam_channel(8192)` queue\n\
-                 inside the SSOT `StreamingDispatcher` first.\n\
+                 The LMAX Disruptor consumer thread routes every typed\n\
+                 FPSS event through napi-rs `ThreadsafeFunction` to the\n\
+                 Node main thread, where the user's `callback(event)`\n\
+                 runs. The FPSS TLS reader thread itself never touches\n\
+                 V8: events cross the Disruptor ring first, with the\n\
+                 consumer thread invoking the callback under\n\
+                 `catch_unwind`.\n\
                  \n\
                  Node's libuv requires JS callbacks on the main thread,\n\
                  so `ThreadsafeFunction` (with its internal `uv_async_t`\n\
-                 queue) is the only safe path. This binding deliberately\n\
-                 does NOT expose a `start_streaming_inline` opt-in:\n\
-                 calling into V8 from any thread other than the main\n\
-                 loop is undefined behavior.\n\
+                 queue) is the only safe path.\n\
                  \n\
-                 Backpressure: a slow callback fills the dispatcher\n\
-                 queue and overflow events are dropped, observable via\n\
+                 Backpressure: a slow callback fills the Disruptor ring\n\
+                 and overflow events are dropped, observable via\n\
                  `droppedEventCount()`. The FPSS TLS reader is never\n\
                  blocked — vendor disconnects on slow consumers cannot\n\
                  happen on this path.",
@@ -116,7 +114,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             out.push_str("    ) -> napi::Result<()> {\n");
             writeln!(
                 out,
-                "        let contract = fpss::protocol::Contract::option(&{}, (&{}, &{}, &{})).map_err(to_napi_err)?;",
+                "        let contract = fpss::protocol::Contract::option(&{}, &{}, &{}, &{}).map_err(to_napi_err)?;",
                 method.params[0].name,
                 method.params[1].name,
                 method.params[2].name,
@@ -190,8 +188,25 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                  Requires a prior `startStreaming(callback)`; throws if\n\
                  no callback is registered. All active subscriptions are\n\
                  restored on the new connection — see\n\
-                 `thetadatadx::ThetaDataDx::reconnect_streaming` for\n\
-                 partial-failure semantics.",
+                 `thetadatadx::ThetaDataDxClient::reconnect_streaming` for\n\
+                 partial-failure semantics.\n\
+                 \n\
+                 # Callback lifetime across `stopStreaming`\n\
+                 \n\
+                 `stopStreaming()` and `shutdown()` clear the registered\n\
+                 callback. To resume streaming on this client after\n\
+                 `stopStreaming()`, you MUST call `startStreaming(callback)`\n\
+                 again with a freshly bound function; `reconnect()` throws\n\
+                 because no callback is held.\n\
+                 \n\
+                 This explicit-handoff model matches the C++ wrapper's RAII\n\
+                 destructor and the Python `with` block's `__exit__`: the\n\
+                 resource (the JS callback handle) is cleared at the same\n\
+                 scope boundary the application observes. The unified C API\n\
+                 preserves the callback across stop/reconnect, but the\n\
+                 TypeScript and Python bindings deliberately diverge to enforce\n\
+                 the explicit handoff and avoid retaining captured references\n\
+                 past a teardown the caller has already observed.",
             );
             writeln!(out, "    #[napi(js_name = \"reconnect\")]").unwrap();
             writeln!(
@@ -201,6 +216,33 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             )
             .unwrap();
             out.push_str(include_str!("templates/typescript/reconnect_body.rs.tmpl"));
+        }
+        MethodKind::AwaitDrain => {
+            let js_name = to_ts_camel_case(&method.name);
+            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
+            // Wrap the polling barrier in `tokio::task::spawn_blocking` and
+            // expose it as an async napi method so JS can `await` it
+            // without blocking the Node main thread. napi-rs maps the
+            // returned `napi::Result<bool>` on an `async fn` to a
+            // `Promise<boolean>` on the JS side.
+            writeln!(
+                out,
+                "    pub async fn {}(&self, timeout_ms: u32) -> napi::Result<bool> {{",
+                method.name,
+            )
+            .unwrap();
+            // Clone the Arc<thetadatadx::ThetaDataDxClient> so the blocking
+            // closure can outlive `&self` — `spawn_blocking` requires
+            // `'static`. The polling itself is cheap (1 ms sleep loop)
+            // and the Arc clone is one atomic bump.
+            out.push_str("        let tdx = self.tdx.clone();\n");
+            out.push_str(
+                "        let timeout = std::time::Duration::from_millis(u64::from(timeout_ms));\n",
+            );
+            out.push_str("        tokio::task::spawn_blocking(move || tdx.await_drain(timeout))\n");
+            out.push_str("            .await\n");
+            out.push_str("            .map_err(|e| napi::Error::from_reason(format!(\"await_drain task panicked: {e}\")))\n");
+            out.push_str("    }\n");
         }
         MethodKind::StopStreaming | MethodKind::Shutdown => {
             let js_name = to_ts_camel_case(&method.name);

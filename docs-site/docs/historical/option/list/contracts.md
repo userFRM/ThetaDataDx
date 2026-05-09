@@ -28,13 +28,6 @@ for t in data:
 const data = tdx.optionListContracts('TRADE', 'SPY', '20260402');
 console.log(data);
 ```
-```go [Go]
-data, _ := client.OptionListContracts("TRADE", "SPY", "20260402")
-for _, t := range data {
-    fmt.Printf("symbol=%s expiration=%d strike=%.2f right=%s\n",
-        t.Symbol, t.Expiration, t.Strike, t.Right)
-}
-```
 ```cpp [C++]
 auto data = client.option_list_contracts("TRADE", "SPY", "20260402");
 for (const auto& t : data) {

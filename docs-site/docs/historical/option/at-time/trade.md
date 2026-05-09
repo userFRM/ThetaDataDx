@@ -30,12 +30,6 @@ for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} price=${t.price} size=${t.size}`);
 }
 ```
-```go [Go]
-data, _ := client.OptionAtTimeTrade("SPY", "20260417", "550", "C", "20260101", "20260301", "09:30:00.000")
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d price=%.2f size=%d\n", t.Date, t.MsOfDay, t.Price, t.Size)
-}
-```
 ```cpp [C++]
 auto data = client.option_at_time_trade("SPY", "20260417", "550", "C", "20260101", "20260301", "09:30:00.000");
 for (const auto& t : data) {

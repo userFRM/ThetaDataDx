@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} open=${t.open} high=${t.high} low=${t.low} close=${t.close}`);
 }
 ```
-```go [Go]
-data, _ := client.IndexHistoryOHLC("SPX", "20260101", "20260301", "60000")
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f\n",
-        t.Date, t.MsOfDay, t.Open, t.High, t.Low, t.Close)
-}
-```
 ```cpp [C++]
 auto data = client.index_history_ohlc("SPX", "20260101", "20260301", "60000");
 for (const auto& t : data) {

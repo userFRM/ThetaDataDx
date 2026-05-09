@@ -79,7 +79,7 @@ pub(crate) fn parse_header(blob: &[u8]) -> Result<BlobHeader, Error> {
     let mut cur = Cursor::new(blob);
     let fmt_count = read_i32(&mut cur)?;
     if !(0..=4096).contains(&fmt_count) {
-        return Err(Error::Config(format!(
+        return Err(Error::config_internal(format!(
             "flatfiles: fmt_count {fmt_count} out of plausible range"
         )));
     }
@@ -91,7 +91,7 @@ pub(crate) fn parse_header(blob: &[u8]) -> Result<BlobHeader, Error> {
     let index_byte_len = read_i64(&mut cur)?;
     let data_byte_len = read_i64(&mut cur)?;
     if index_byte_len < 0 || data_byte_len < 0 {
-        return Err(Error::Config(format!(
+        return Err(Error::config_internal(format!(
             "flatfiles: negative section length(s) — index={index_byte_len}, data={data_byte_len}"
         )));
     }

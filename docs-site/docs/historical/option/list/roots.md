@@ -27,12 +27,6 @@ for item in data:
 const data = tdx.optionListSymbols();
 console.log(data);
 ```
-```go [Go]
-data, _ := client.OptionListSymbols()
-for _, item := range data {
-    fmt.Println(item)
-}
-```
 ```cpp [C++]
 auto data = client.option_list_symbols();
 for (const auto& item : data) {

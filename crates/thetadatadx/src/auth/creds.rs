@@ -69,7 +69,7 @@ impl Credentials {
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
         let contents = Zeroizing::new(std::fs::read_to_string(path).map_err(|e| {
-            Error::Config(format!(
+            Error::config_io(format!(
                 "failed to read credentials file {}: {}",
                 path.display(),
                 e

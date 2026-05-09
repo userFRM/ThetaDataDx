@@ -130,22 +130,22 @@ async fn try_run_generated_utility(
         Some(("greeks", sub_m)) => {
             let spot: f64 = get_arg(sub_m, "spot")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid spot: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.spot", format!("invalid spot: {e}")))?;
             let strike: f64 = get_arg(sub_m, "strike")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid strike: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.strike", format!("invalid strike: {e}")))?;
             let rate: f64 = get_arg(sub_m, "rate")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid rate: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.rate", format!("invalid rate: {e}")))?;
             let div_yield: f64 = get_arg(sub_m, "dividend")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid dividend: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.dividend", format!("invalid dividend: {e}")))?;
             let tte: f64 = get_arg(sub_m, "time")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid time: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.time", format!("invalid time: {e}")))?;
             let option_price: f64 = get_arg(sub_m, "option_price")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.option_price", format!("invalid option_price: {e}")))?;
             let right = get_arg(sub_m, "right");
             let g = tdbe::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right).map_err(thetadatadx::Error::from)?;
             let mut td = TabularData::new(vec!["greek", "value"]);
@@ -183,22 +183,22 @@ async fn try_run_generated_utility(
         Some(("iv", sub_m)) => {
             let spot: f64 = get_arg(sub_m, "spot")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid spot: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.spot", format!("invalid spot: {e}")))?;
             let strike: f64 = get_arg(sub_m, "strike")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid strike: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.strike", format!("invalid strike: {e}")))?;
             let rate: f64 = get_arg(sub_m, "rate")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid rate: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.rate", format!("invalid rate: {e}")))?;
             let div_yield: f64 = get_arg(sub_m, "dividend")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid dividend: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.dividend", format!("invalid dividend: {e}")))?;
             let tte: f64 = get_arg(sub_m, "time")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid time: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.time", format!("invalid time: {e}")))?;
             let option_price: f64 = get_arg(sub_m, "option_price")
                 .parse()
-                .map_err(|e| thetadatadx::Error::Config(format!("invalid option_price: {e}")))?;
+                .map_err(|e| thetadatadx::Error::config_invalid("cli.option_price", format!("invalid option_price: {e}")))?;
             let right = get_arg(sub_m, "right");
             let (iv, iv_error) = tdbe::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, right).map_err(thetadatadx::Error::from)?;
             let mut td = TabularData::new(vec!["iv", "iv_error"]);

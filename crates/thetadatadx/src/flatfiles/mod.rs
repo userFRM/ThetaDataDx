@@ -14,7 +14,7 @@
 //! - [`flatfile_request_raw`] — pull only; write the raw INDEX + DATA blob
 //!   to disk for callers that want to run their own decoder.
 //!
-//! All three are also reachable via the [`crate::ThetaDataDx`] client.
+//! All three are also reachable via the [`crate::ThetaDataDxClient`] client.
 //!
 //! # Wire protocol
 //!
@@ -68,6 +68,15 @@ pub(crate) mod request;
 pub(crate) mod session;
 pub(crate) mod types;
 pub(crate) mod writer;
+
+/// Dynamic-schema Arrow conversion for [`FlatFileRow`] collections.
+///
+/// Gated behind the `arrow` feature alongside [`crate::frames`]. Exposed
+/// as `pub` (not `pub(crate)`) so the language bindings (Python, TypeScript,
+/// C++ FFI) can route their `to_arrow` terminals through one SSOT
+/// implementation rather than re-deriving the schema on each surface.
+#[cfg(feature = "arrow")]
+pub mod arrow;
 
 pub use decoded::{default_output_filename, flatfile_request, flatfile_request_decoded};
 pub use decoded_row::{FlatFileRow, FlatFileValue};

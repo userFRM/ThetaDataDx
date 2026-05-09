@@ -98,11 +98,11 @@ fn render_sdk_generated_files(
             // Arrow columnar pipeline: `pyclass_list_to_arrow_table` dispatcher
             // + typed Arrow schema map. Single alloc per column, zero-copy to
             // pyarrow via the Arrow C Data Interface.
-            relative_path: "sdks/python/src/tick_arrow.rs",
+            relative_path: "sdks/python/src/_generated/tick_arrow.rs",
             contents: python_arrow::render_python_tick_arrow(&schema),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/python/src/tick_classes.rs",
+            relative_path: "sdks/python/src/_generated/tick_classes.rs",
             contents: python_classes::render_python_tick_classes(&schema, snapshot_return_types),
         },
         GeneratedSourceFile {
@@ -140,7 +140,7 @@ fn render_sdk_generated_files(
             contents: cli_headers::render_cli_raw_headers(&schema),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/typescript/src/tick_classes.rs",
+            relative_path: "sdks/typescript/src/_generated/tick_classes.rs",
             contents: typescript::render_ts_tick_classes(&schema),
         },
     ])

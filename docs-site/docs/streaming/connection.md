@@ -25,14 +25,14 @@ FPSS TLS uses SPKI (Subject Public Key Info) pinning via a constant-time SHA-256
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
 let creds = Credentials::from_file("creds.txt")?;
-let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
-tdx.start_streaming(|event: &FpssEvent| {
+client.start_streaming(|event: &FpssEvent| {
     match event {
         // Every data event carries an `Arc<Contract>` — read the symbol
         // directly, no contract-ID map lookup required.
@@ -50,38 +50,28 @@ tdx.start_streaming(|event: &FpssEvent| {
 })?;
 ```
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+client = ThetaDataDxClient(creds, Config.production())
 
-tdx.start_streaming()
-```
-```go [Go]
-creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-defer creds.Close()
-
-config := thetadatadx.ProductionConfig()
-defer config.Close()
-
-fpss, _ := thetadatadx.NewFpssClient(creds, config)
-defer fpss.Close()
+client.start_streaming(lambda event: print(event))
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
 auto config = tdx::Config::production();
-tdx::FpssClient fpss(creds, config);
+auto client = tdx::UnifiedClient::connect(creds, config);
 ```
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
-tdx.startStreaming();
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
+client.startStreaming((event) => console.log(event));
 ```
 :::
 
 ::: tip
-The Rust SDK uses a callback model where you provide a closure to `start_streaming`. Python, TypeScript/Node.js, Go, and C++ use a polling model where you call `next_event()` / `nextEvent()` / `NextEvent()` in a loop.
+Every binding offers two equivalent delivery modes on the unified `ThetaDataDxClient`: push (`start_streaming(callback)`) for low-latency dispatch, and pull (`start_streaming_iter()` in Rust/Python/C++, `startStreamingIter()` in TypeScript) for the iterator idiom. Pick one per session — the modes are mutually exclusive on the client.
 :::
 
 ## Connect (Dev Server)
@@ -90,24 +80,19 @@ The dev server replays historical data at maximum speed -- ideal for testing whe
 
 ::: code-group
 ```rust [Rust]
-let tdx = ThetaDataDx::connect(&creds, DirectConfig::dev()).await?;
+let client = ThetaDataDxClient::connect(&creds, DirectConfig::dev()).await?;
 ```
 ```python [Python]
-tdx = ThetaDataDx(creds, Config.dev())
-```
-```go [Go]
-config := thetadatadx.DevConfig()
-defer config.Close()
-fpss, _ := thetadatadx.NewFpssClient(creds, config)
+client = ThetaDataDxClient(creds, Config.dev())
 ```
 ```cpp [C++]
 auto config = tdx::Config::dev();
-tdx::FpssClient fpss(creds, config);
+auto client = tdx::UnifiedClient::connect(creds, config);
 ```
 ```typescript [TypeScript]
 // Dev server config is not yet exposed in the TypeScript SDK.
 // connectFromFile() always uses production config.
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 ```
 :::
 
@@ -119,24 +104,19 @@ The dev server sends a simplified 8-field trade format instead of the full 16-fi
 
 ::: code-group
 ```rust [Rust]
-let tdx = ThetaDataDx::connect(&creds, DirectConfig::stage()).await?;
+let client = ThetaDataDxClient::connect(&creds, DirectConfig::stage()).await?;
 ```
 ```python [Python]
-tdx = ThetaDataDx(creds, Config.stage())
-```
-```go [Go]
-config := thetadatadx.StageConfig()
-defer config.Close()
-fpss, _ := thetadatadx.NewFpssClient(creds, config)
+client = ThetaDataDxClient(creds, Config.stage())
 ```
 ```cpp [C++]
 auto config = tdx::Config::stage();
-tdx::FpssClient fpss(creds, config);
+auto client = tdx::UnifiedClient::connect(creds, config);
 ```
 ```typescript [TypeScript]
 // Stage server config is not yet exposed in the TypeScript SDK.
 // connectFromFile() always uses production config.
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 ```
 :::
 
@@ -155,29 +135,23 @@ use thetadatadx::config::FpssFlushMode;
 
 let mut config = DirectConfig::production();
 config.fpss_flush_mode = FpssFlushMode::Immediate; // lowest latency
-let tdx = ThetaDataDx::connect(&creds, config).await?;
+let client = ThetaDataDxClient::connect(&creds, config).await?;
 ```
 ```python [Python]
 # Flush mode cannot currently be changed from the Python SDK.
 # It defaults to Batched (flush on PING frames, ~100ms).
 # Use the Rust SDK directly if you need Immediate mode.
-tdx = ThetaDataDx(creds, Config.production())
-```
-```go [Go]
-config := thetadatadx.ProductionConfig()
-config.SetFlushMode(thetadatadx.FlushModeImmediate)
-defer config.Close()
-fpss, _ := thetadatadx.NewFpssClient(creds, config)
+client = ThetaDataDxClient(creds, Config.production())
 ```
 ```cpp [C++]
 auto config = tdx::Config::production();
 config.set_flush_mode(tdx::FlushMode::Immediate);
-tdx::FpssClient fpss(creds, config);
+auto client = tdx::UnifiedClient::connect(creds, config);
 ```
 ```typescript [TypeScript]
 // Flush mode cannot currently be changed from the TypeScript SDK.
 // It defaults to Batched (flush on PING frames, ~100ms).
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 ```
 :::
 
@@ -192,7 +166,7 @@ config.fpss_hosts = vec![
     ("custom-host-a.example.com".to_string(), 20000),
     ("custom-host-b.example.com".to_string(), 20000),
 ];
-let tdx = ThetaDataDx::connect(&creds, config).await?;
+let client = ThetaDataDxClient::connect(&creds, config).await?;
 
 // Or parse from a comma-separated string (same format as config_0.properties):
 let hosts = DirectConfig::parse_fpss_hosts("host-a:20000,host-b:20001")?;
@@ -203,17 +177,7 @@ let hosts = DirectConfig::parse_fpss_hosts("host-a:20000,host-b:20001")?;
 # Set hosts in config.toml:
 #   [fpss]
 #   hosts = ["host-a.example.com:20000", "host-b.example.com:20001"]
-tdx = ThetaDataDx(creds, Config.production())
-```
-```go [Go]
-// Custom hosts are configured at the Rust level via DirectConfig or
-// TOML config file. Go inherits them from the config at connection time.
-// Set hosts in config.toml:
-//   [fpss]
-//   hosts = ["host-a.example.com:20000", "host-b.example.com:20001"]
-config := thetadatadx.ProductionConfig()
-defer config.Close()
-fpss, _ := thetadatadx.NewFpssClient(creds, config)
+client = ThetaDataDxClient(creds, Config.production())
 ```
 ```cpp [C++]
 // Custom hosts are configured at the Rust level via DirectConfig or
@@ -222,7 +186,7 @@ fpss, _ := thetadatadx.NewFpssClient(creds, config)
 //   [fpss]
 //   hosts = ["host-a.example.com:20000", "host-b.example.com:20001"]
 auto config = tdx::Config::production();
-tdx::FpssClient fpss(creds, config);
+auto client = tdx::UnifiedClient::connect(creds, config);
 ```
 ```typescript [TypeScript]
 // Custom hosts are configured at the Rust level via DirectConfig or
@@ -230,7 +194,7 @@ tdx::FpssClient fpss(creds, config);
 // Set hosts in config.toml:
 //   [fpss]
 //   hosts = ["host-a.example.com:20000", "host-b.example.com:20001"]
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 ```
 :::
 
@@ -251,13 +215,13 @@ ThetaDataDx uses two different concurrency models for its two data paths:
 |------|---------|-----|
 | `connect()` + all historical methods | **async** (tokio) | gRPC/tonic requires tokio for HTTP/2 multiplexing |
 | `start_streaming()` + callbacks | **sync** (OS threads) | Dedicated I/O thread + LMAX Disruptor ring buffer for lowest latency |
-| TypeScript `nextEvent()` | **Promise** (napi-rs) | Returns `Promise<FpssEvent \| null>` so Node's event loop stays unblocked during the 50ms read timeout |
+| TypeScript `EventIterator.next()` | **Promise** (napi-rs) | Returns `Promise<FpssEvent \| null>` (`null` = timeout / drained) so Node's event loop stays unblocked during the read timeout |
 
 **What this means for your code:**
 
 - You need a tokio runtime for `connect()` and any historical data call (`stock_history_eod`, etc.).
 - The streaming callback (`FnMut(&FpssEvent)`) runs on a plain OS thread -- no async executor involved. This eliminates all executor scheduling jitter from the hot path.
-- `subscribe_quotes()` and other subscription methods are synchronous -- they send a command through an internal channel to the I/O thread.
+- `subscribe()` and `unsubscribe()` are synchronous — they send a command through an internal channel to the I/O thread.
 
 ```text
 tokio runtime
@@ -275,214 +239,178 @@ Disruptor consumer thread
   +-- your callback(FnMut(&FpssEvent))
 ```
 
-You can safely call `subscribe_*()` from any thread -- the command is sent through an `mpsc` channel and executed by the I/O thread.
+You can safely call `subscribe(spec)` / `unsubscribe(spec)` from any thread -- the command is sent through an `mpsc` channel and executed by the I/O thread.
 
 ## Subscribe
 
+Every binding exposes a single polymorphic `subscribe()` method on the unified `ThetaDataDxClient`. Build a typed subscription spec by calling a topic helper — `quote()`, `trade()`, `open_interest()` — on a `Contract`, or `full_trades()` / `full_open_interest()` on a `SecType`, and hand the result to `subscribe()`.
+
 ::: code-group
 ```rust [Rust]
 // Stock quotes
-tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
+client.subscribe(Contract::stock("AAPL").quote())?;
 
 // Stock trades
-tdx.subscribe_trades(&Contract::stock("MSFT"))?;
+client.subscribe(Contract::stock("MSFT").trade())?;
 
 // Quotes + trades in one call
-tdx.subscribe_all(&Contract::stock("TSLA"))?;
+client.subscribe(Contract::stock("TSLA").all())?;
 
 // Option quotes
 let opt = Contract::option("SPY", "20261218", "600", "C")?;
-tdx.subscribe_quotes(&opt)?;
+client.subscribe(opt.quote())?;
 
 // Open interest
-tdx.subscribe_open_interest(&Contract::stock("AAPL"))?;
+client.subscribe(Contract::stock("AAPL").open_interest())?;
 
 // All trades for a security type (firehose)
-tdx.subscribe_full_trades(SecType::Stock)?;
+client.subscribe(SecType::Stock.full_trades())?;
 
 // All open interest for a security type (firehose)
-tdx.subscribe_full_open_interest(SecType::Option)?;
+client.subscribe(SecType::Option.full_open_interest())?;
 ```
 ```python [Python]
-tdx.subscribe_quotes("AAPL")
-tdx.subscribe_trades("MSFT")
-tdx.subscribe_open_interest("SPY")
-tdx.subscribe_full_trades("STOCK")
-tdx.subscribe_full_open_interest("OPTION")
-```
-```go [Go]
-// Stock quotes
-_, err := fpss.SubscribeQuotes("AAPL")
-
-// Stock trades
-fpss.SubscribeTrades("MSFT")
-
-// Open interest
-fpss.SubscribeOpenInterest("AAPL")
-
-// All trades for a security type (firehose)
-fpss.SubscribeFullTrades("STOCK")
-
-// All open interest for a security type
-fpss.SubscribeFullOpenInterest("OPTION")
+client.subscribe(Contract.stock("AAPL").quote())
+client.subscribe(Contract.stock("MSFT").trade())
+client.subscribe(Contract.stock("SPY").open_interest())
+client.subscribe(SecType.Stock.full_trades())
+client.subscribe(SecType.Option.full_open_interest())
 ```
 ```cpp [C++]
-// Stock quotes (returns 0 on success, -1 on error)
-fpss.subscribe_quotes("AAPL");
+// Stock quotes
+client.subscribe(tdx::Contract::stock("AAPL").quote());
 
 // Stock trades
-fpss.subscribe_trades("MSFT");
+client.subscribe(tdx::Contract::stock("MSFT").trade());
 
 // Open interest
-fpss.subscribe_open_interest("AAPL");
+client.subscribe(tdx::Contract::stock("AAPL").open_interest());
 
 // All trades for a security type (firehose)
-fpss.subscribe_full_trades("STOCK");
+client.subscribe(tdx::SecType::Stock.full_trades());
 
 // All open interest for a security type
-fpss.subscribe_full_open_interest("OPTION");
+client.subscribe(tdx::SecType::Option.full_open_interest());
 ```
 ```typescript [TypeScript]
 // Stock quotes
-tdx.subscribeQuotes('AAPL');
+client.subscribe(Contract.stock('AAPL').quote());
 
 // Stock trades
-tdx.subscribeTrades('MSFT');
+client.subscribe(Contract.stock('MSFT').trade());
 
 // Open interest
-tdx.subscribeOpenInterest('AAPL');
+client.subscribe(Contract.stock('AAPL').openInterest());
 
 // All trades for a security type (firehose)
-tdx.subscribeFullTrades('STOCK');
+client.subscribe(SecType.Stock.fullTrades());
 
 // All open interest for a security type
-tdx.subscribeFullOpenInterest('OPTION');
+client.subscribe(SecType.Option.fullOpenInterest());
 ```
 :::
 
-## Contract ID Mapping
+## Typed Contract on Data Events
 
-FPSS assigns integer IDs to contracts. Use `ContractAssigned` events to build a mapping from IDs to contract details.
+FPSS assigns integer IDs to contracts on the wire, but the SDK resolves every data event's contract before user code sees it. `Quote` / `Trade` / `OpenInterest` / `Ohlcvc` events carry a typed contract with `symbol`, `sec_type`, `expiration`, `strike` / `strike_dollars`, and the option side. Each field surfaces in the language-idiomatic shape:
+
+- **Rust**: `Contract { symbol: String, sec_type: SecType, expiration: Option<i32>, is_call: Option<bool>, strike: Option<i32> }` plus the derived accessors `right() -> Option<Right>` and `strike_dollars() -> Option<f64>`.
+- **Python**: `event.contract` exposes `symbol: str`, `sec_type: str` (`"STOCK"` / `"OPTION"` / `"INDEX"` / `"RATE"`), `expiration: Optional[int]`, `right: Optional[str]` (`"C"` / `"P"`), `strike_dollars: Optional[float]`, and the wire-level `strike: Optional[int]`.
+- **TypeScript**: same field set as Python (`secType: string`, `right: string | null`, `strikeDollars: number | null`, `strike: number | null`).
+- **C / C++**: `TdxContract { const char* symbol; int32_t sec_type; bool has_expiration; int32_t expiration; bool has_right; char right; bool has_strike; int32_t strike; }`. Strike stays in the wire integer form on the C ABI for layout stability; convert to dollars with `strike / 1000.0` (or use the `tdx::Contract` C++ wrapper's accessors).
+
+User code reads the symbol directly off the event without a side-table lookup.
 
 ::: code-group
 ```rust [Rust]
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-
-let contracts: Arc<Mutex<HashMap<i32, Contract>>> = Arc::new(Mutex::new(HashMap::new()));
-let contracts_clone = contracts.clone();
-
-tdx.start_streaming(move |event: &FpssEvent| {
+client.start_streaming(|event: &FpssEvent| {
     match event {
-        FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
-            contracts_clone.lock().unwrap().insert(*id, (**contract).clone());
-        }
-        // Preferred: read `contract.symbol` directly off the data event.
+        // Read the typed contract directly off the event; no integer
+        // ID lookup required.
         FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
             println!("{}: bid={bid:.2} ask={ask:.2}", contract.symbol);
+        }
+        FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
+            println!("{}: price={price:.2} size={size}", contract.symbol);
         }
         _ => {}
     }
 })?;
 
-// Or use the built-in method (returns `Arc<Contract>`):
-let map = tdx.contract_map()?;
+// Snapshot active subscriptions — useful for diagnostics dashboards.
+let subs = client.active_subscriptions()?;
+for (kind, contract) in subs {
+    println!("  {kind:?}: {}", contract.symbol);
+}
 ```
 ```python [Python]
-# Build a mapping as events arrive
-contracts = {}
+# Pull-iter mode: read `event.contract.symbol` directly off the
+# typed event.
+with client.streaming_iter() as it:
+    for event in it:
+        if event.kind == "quote":
+            print(f"[QUOTE] {event.contract.symbol}: bid={event.bid} ask={event.ask}")
+        elif event.kind == "trade":
+            print(f"[TRADE] {event.contract.symbol}: price={event.price} size={event.size}")
 
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue
-
-    # Control events flatten into `Simple` pyclass — `event.kind`
-    # is "simple" and `event.event_type` carries the concrete variant.
-    # `event.detail` holds the formatted contract string for
-    # contract_assigned; `event.id` is the contract_id.
-    if event.kind == "simple" and event.event_type == "contract_assigned":
-        contracts[event.id] = event.detail
-    elif event.kind == "quote":
-        name = contracts.get(event.contract_id, "?")
-        print(f"[QUOTE] {name}: bid={event.bid} ask={event.ask}")
-```
-```go [Go]
-// Look up a contract by its server-assigned ID
-contract, err := fpss.ContractLookup(42)
-if err != nil {
-    log.Fatal(err)
-}
-fmt.Println("Contract:", contract)
-
-// List all active subscriptions as typed structs
-subs, _ := fpss.ActiveSubscriptions()
-for _, s := range subs {
-    fmt.Printf("  %s: %s\n", s.Kind, s.Contract)
-}
+# Snapshot active subscriptions.
+for sub in client.active_subscriptions():
+    print(sub)
 ```
 ```cpp [C++]
-// Look up a contract by its server-assigned ID
-auto contract = fpss.contract_lookup(42);
-if (contract.has_value()) {
-    std::cout << "Contract: " << contract.value() << std::endl;
-}
+// Pull-iter: each event carries event->quote.contract.symbol etc.
+// directly — `has_expiration` / `has_right` / `has_strike` gate
+// the option-only fields.
 
-// List all active subscriptions
-auto subs = fpss.active_subscriptions();
+// Snapshot active subscriptions.
+auto subs = client.active_subscriptions();
 for (const auto& sub : subs) {
-    std::cout << "  " << sub.kind << ": " << sub.contract << std::endl;
+    std::cout << "  " << static_cast<int>(sub.kind)
+              << ": " << sub.contract.symbol << std::endl;
 }
 ```
 ```typescript [TypeScript]
-// Get the full contract map
-const contracts = tdx.contractMap();
+// Each event carries the resolved typed contract directly — read
+// event.contract.symbol off the event in your callback or async
+// iterator loop, no side-table lookup required.
 
-// Look up a single contract by ID
-const contract = tdx.contractLookup(42);
-
-// List all active subscriptions
-const subs = tdx.activeSubscriptions();
+// Snapshot active subscriptions.
+const subs = client.activeSubscriptions();
 ```
 :::
 
 ## Unsubscribe
 
+Unsubscribe takes the same typed subscription spec as `subscribe()` — pass the matching `quote()` / `trade()` / `open_interest()` / `full_trades()` / `full_open_interest()` topic.
+
 ::: code-group
 ```rust [Rust]
-tdx.unsubscribe_quotes(&Contract::stock("AAPL"))?;
-tdx.unsubscribe_trades(&Contract::stock("MSFT"))?;
-tdx.unsubscribe_open_interest(&Contract::stock("AAPL"))?;
-tdx.unsubscribe_full_trades(SecType::Stock)?;
-tdx.unsubscribe_full_open_interest(SecType::Option)?;
+client.unsubscribe(Contract::stock("AAPL").quote())?;
+client.unsubscribe(Contract::stock("MSFT").trade())?;
+client.unsubscribe(Contract::stock("AAPL").open_interest())?;
+client.unsubscribe(SecType::Stock.full_trades())?;
+client.unsubscribe(SecType::Option.full_open_interest())?;
 ```
 ```python [Python]
-tdx.unsubscribe_quotes("AAPL")
-tdx.unsubscribe_trades("MSFT")
-tdx.unsubscribe_open_interest("SPY")
-tdx.unsubscribe_full_trades("STOCK")
-tdx.unsubscribe_full_open_interest("OPTION")
-```
-```go [Go]
-fpss.UnsubscribeQuotes("AAPL")
-fpss.UnsubscribeTrades("MSFT")
-fpss.UnsubscribeOpenInterest("AAPL")
-fpss.UnsubscribeFullTrades("STOCK")
-fpss.UnsubscribeFullOpenInterest("OPTION")
+client.unsubscribe(Contract.stock("AAPL").quote())
+client.unsubscribe(Contract.stock("MSFT").trade())
+client.unsubscribe(Contract.stock("SPY").open_interest())
+client.unsubscribe(SecType.Stock.full_trades())
+client.unsubscribe(SecType.Option.full_open_interest())
 ```
 ```cpp [C++]
-fpss.unsubscribe_quotes("AAPL");
-fpss.unsubscribe_trades("MSFT");
-fpss.unsubscribe_open_interest("AAPL");
-fpss.unsubscribe_full_trades("STOCK");
-fpss.unsubscribe_full_open_interest("OPTION");
+client.unsubscribe(tdx::Contract::stock("AAPL").quote());
+client.unsubscribe(tdx::Contract::stock("MSFT").trade());
+client.unsubscribe(tdx::Contract::stock("AAPL").open_interest());
+client.unsubscribe(tdx::SecType::Stock.full_trades());
+client.unsubscribe(tdx::SecType::Option.full_open_interest());
 ```
 ```typescript [TypeScript]
-tdx.unsubscribeQuotes('AAPL');
-tdx.unsubscribeTrades('MSFT');
-tdx.unsubscribeOpenInterest('AAPL');
-tdx.unsubscribeFullTrades('STOCK');
-tdx.unsubscribeFullOpenInterest('OPTION');
+client.unsubscribe(Contract.stock('AAPL').quote());
+client.unsubscribe(Contract.stock('MSFT').trade());
+client.unsubscribe(Contract.stock('AAPL').openInterest());
+client.unsubscribe(SecType.Stock.fullTrades());
+client.unsubscribe(SecType.Option.fullOpenInterest());
 ```
 :::
 
@@ -490,19 +418,16 @@ tdx.unsubscribeFullOpenInterest('OPTION');
 
 ::: code-group
 ```rust [Rust]
-tdx.stop_streaming();
+client.stop_streaming();
 ```
 ```python [Python]
-tdx.stop_streaming()
-```
-```go [Go]
-fpss.Shutdown()
+client.stop_streaming()
 ```
 ```cpp [C++]
-fpss.shutdown();
-// RAII also handles cleanup: the FpssClient destructor calls shutdown() automatically.
+client.stop_streaming();
+// RAII also handles cleanup: the ThetaDataDxClient destructor stops streaming on drop.
 ```
 ```typescript [TypeScript]
-tdx.stopStreaming();
+client.stopStreaming();
 ```
 :::

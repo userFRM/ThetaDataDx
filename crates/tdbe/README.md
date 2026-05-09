@@ -49,7 +49,7 @@ println!("IV: {:.4}, Delta: {:.4}", result.iv, result.delta);
 
 `thetadatadx` depends on `tdbe` for all data types and codecs, then adds
 networking (gRPC historical via MDDS, real-time streaming via FPSS), authentication,
-and the unified `ThetaDataDx` client. If you only need types and offline Greeks,
+and the unified `ThetaDataDxClient` client. If you only need types and offline Greeks,
 depend on `tdbe` alone.
 
 ## License

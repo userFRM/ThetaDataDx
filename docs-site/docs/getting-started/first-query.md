@@ -11,14 +11,14 @@ One historical call, every SDK, side by side. Each snippet assumes you have a `c
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
-    let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+    let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
     for tick in &eod {
         println!("{}: O={:.2} H={:.2} L={:.2} C={:.2} V={}",
             tick.date, tick.open, tick.high, tick.low, tick.close, tick.volume);
@@ -27,22 +27,22 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }
 ```
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+client = ThetaDataDxClient(creds, Config.production())
 
-eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
+eod = client.stock_history_eod("AAPL", "20240101", "20240301")
 for tick in eod:
     print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
           f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
 ```
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 
-const eod = tdx.stockHistoryEOD('AAPL', '20240101', '20240301');
+const eod = client.stockHistoryEOD('AAPL', '20240101', '20240301');
 for (const tick of eod) {
     console.log(`${tick.date}: O=${tick.open} H=${tick.high} L=${tick.low} C=${tick.close} V=${tick.volume}`);
 }

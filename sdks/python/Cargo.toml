@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-py"
-version = "9.0.2"
+version = "9.1.0"
 edition = "2021"
 rust-version = "1.88"
 description = "Python bindings for thetadatadx — native ThetaData SDK powered by Rust"
@@ -19,7 +19,7 @@ doc = false
 
 [dependencies]
 # The Rust SDK we're wrapping
-thetadatadx = { path = "../../crates/thetadatadx" }
+thetadatadx = { path = "../../crates/thetadatadx", features = ["arrow"] }
 tdbe = { version = "0.13.0", path = "../../crates/tdbe" }
 
 # Direct prost dep for decoding `thetadatadx::proto::ResponseData` bytes in

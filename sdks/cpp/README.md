@@ -4,7 +4,7 @@ C++ SDK for ThetaData market data. Header-only RAII wrappers over the `thetadata
 
 Every call crosses the C ABI boundary into compiled Rust: gRPC communication, protobuf parsing, zstd decompression, and TCP streaming run inside the `thetadatadx` crate.
 
-> **FLATFILES coverage:** the C++ binding currently exposes the MDDS (historical) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired through the FFI layer (issue [#434](https://github.com/userFRM/ThetaDataDx/issues/434)) into C++ under issue [#438](https://github.com/userFRM/ThetaDataDx/issues/438). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+> **Surface coverage:** the C++ binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `unified.flat_files().*()` with `.to_arrow_ipc()` terminals plus a `flat_files().to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
 
 ## Prerequisites
 
@@ -280,9 +280,9 @@ int main() {
     // Create a streaming client (separate from the historical Client)
     tdx::FpssClient fpss(creds, config);
 
-    // Register a queued callback. The dispatcher drain thread invokes
-    // `fn` for every event; the FPSS reader thread never blocks on
-    // user code.
+    // Register a queued callback. The LMAX Disruptor consumer thread
+    // invokes `fn` for every event under `catch_unwind`; the FPSS
+    // reader thread never blocks on user code.
     fpss.set_callback([](const tdx::FpssEvent& event) {
         if (event.kind == TDX_FPSS_QUOTE) {
             std::cout << "quote bid=" << event.quote.bid
@@ -290,7 +290,16 @@ int main() {
         }
     });
 
-    fpss.subscribe_quotes("AAPL");
+    // Fluent contract-first subscriptions (primary surface).
+    auto stock  = tdx::Contract::stock("AAPL");
+    auto option = tdx::Contract::option("SPY", "20260620", "550", "C");
+
+    unified.subscribe(stock.quote());
+    unified.subscribe(option.trade());
+    unified.subscribe(tdx::SecType::option().full_trades());
+
+    // Bulk install:
+    unified.subscribe_many({stock.quote(), option.quote()});
 
     // ... let the callback run ...
 
@@ -300,44 +309,74 @@ int main() {
 
 All prices in streaming events are `double` (f64) -- decoded during parsing. Access them directly: `event.quote.bid`, `event.trade.price`, etc. No `price_type` decoding needed.
 
-### Inline callback (power user)
+### Pull-iter delivery — `EventIterator` (high-throughput drain)
 
-`set_inline_callback` is the opt-in alternative. Instead of routing events through the bounded crossbeam queue and dispatcher drain thread, the callback fires directly from the FPSS reader thread. This skips the queueing overhead but inverts the safety contract: the callback MUST return within microseconds. Any allocation, lock acquisition, syscall, or blocking I/O stalls the reader, fills the kernel TCP receive buffer, and causes the vendor to disconnect. Reach for this path only inside provably wait-free trading loops.
+Push-callback (`fpss.set_callback(fn)` / `unified.set_callback(fn)`
+above) is the recommended default for low-latency single-event
+reaction. Pull-iter is the sibling delivery mode for high-throughput
+batch processing: the user thread drains a per-client bounded queue
+populated by the Disruptor consumer.
 
 ```cpp
-fpss.set_inline_callback([](const tdx::FpssEvent& event) {
-    // wait-free hot loop -- no allocation, no locks, no I/O
-});
+#include "thetadx.hpp"
+#include <chrono>
+#include <iostream>
+
+int main() {
+    auto unified = tdx::UnifiedClient::connect(
+        tdx::Credentials::from_file("creds.txt"),
+        tdx::Config::production());
+
+    auto iter = unified.start_streaming_iter();
+    unified.subscribe(tdx::SecType::option().full_trades());
+
+    // Range-for adapter — 1-second per-pop timeout by default.
+    for (const auto& event : iter) {
+        if (event.kind == TDX_FPSS_TRADE) {
+            std::cout << "trade " << event.trade.price
+                      << " x " << event.trade.size << std::endl;
+        }
+    }
+
+    // Or explicit poll with caller-chosen deadline:
+    while (auto event = iter.next(std::chrono::milliseconds(500))) {
+        // ... process *event ...
+    }
+    if (iter.ended()) {
+        // terminal end-of-stream — the streaming session shut down
+        // and the queue is drained.
+    }
+}
 ```
 
-### FpssClient API
+`tdx::EventIterator` is move-only; the destructor frees the
+underlying C handle. Mutually exclusive with the push-callback
+methods on the same client; switch by stopping streaming and
+starting again.
+
+### Fluent contract-first API
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `tdx::Contract::stock(symbol)` | `Contract` | Stock contract |
+| `tdx::Contract::option(symbol, exp, strike, right)` | `Contract` | Option contract |
+| `contract.quote()` / `.trade()` / `.open_interest()` | `SubscriptionRef` | Per-contract subscription |
+| `tdx::SecType::option().full_trades()` / `.full_open_interest()` | `SubscriptionRef` | Full-stream subscription |
+| `unified.subscribe(sub)` | `void` | Install a subscription |
+| `unified.subscribe_many({sub, ...})` | `void` | Install many subscriptions |
+| `unified.unsubscribe(sub)` / `unsubscribe_many({...})` | `void` | Drop subscriptions |
+| `fpss.subscribe(sub)` / `subscribe_many({...})` | `void` | Same shape on the standalone FpssClient |
+| `fpss.unsubscribe(sub)` / `unsubscribe_many({...})` | `void` | Standalone-FpssClient drop |
+
+### FpssClient lifecycle
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `FpssClient(creds, config)` | - | Connect to FPSS streaming servers |
-| `subscribe_quotes(symbol)` | `int` | Subscribe to quote data for a stock symbol |
-| `subscribe_trades(symbol)` | `int` | Subscribe to trade data for a stock symbol |
-| `subscribe_open_interest(symbol)` | `int` | Subscribe to open interest data for a stock symbol |
-| `subscribe_option_quotes(symbol, expiration, strike, right)` | `int` | Subscribe to option quote data |
-| `subscribe_option_trades(symbol, expiration, strike, right)` | `int` | Subscribe to option trade data |
-| `subscribe_option_open_interest(symbol, expiration, strike, right)` | `int` | Subscribe to option open interest data |
-| `subscribe_full_trades(sec_type)` | `int` | Subscribe to all trades for a security type (`"STOCK"`, `"OPTION"`, `"INDEX"`) |
-| `subscribe_full_open_interest(sec_type)` | `int` | Subscribe to all OI for a security type |
-| `unsubscribe_full_trades(sec_type)` | `int` | Unsubscribe from all trades for a security type |
-| `unsubscribe_full_open_interest(sec_type)` | `int` | Unsubscribe from all OI for a security type |
-| `unsubscribe_quotes(symbol)` | `int` | Unsubscribe from quote data |
-| `unsubscribe_trades(symbol)` | `int` | Unsubscribe from trade data |
-| `unsubscribe_open_interest(symbol)` | `int` | Unsubscribe from open interest data |
-| `unsubscribe_option_quotes(symbol, expiration, strike, right)` | `int` | Unsubscribe from option quote data |
-| `unsubscribe_option_trades(symbol, expiration, strike, right)` | `int` | Unsubscribe from option trade data |
-| `unsubscribe_option_open_interest(symbol, expiration, strike, right)` | `int` | Unsubscribe from option open interest data |
 | `is_authenticated()` | `bool` | Check if the client is currently authenticated |
-| `contract_lookup(id)` | `optional<string>` | Look up a contract by server-assigned ID |
-| `contract_map()` | `map<int32_t, string>` | Get the full contract ID mapping |
 | `active_subscriptions()` | `vector<Subscription>` | Get active subscriptions as typed structs |
-| `set_callback(std::function<void(const FpssEvent&)>)` | `void` | Queued path: dispatcher drain thread invokes `fn`, reader never blocks |
-| `set_inline_callback(std::function<void(const FpssEvent&)>)` | `void` | Inline path: `fn` fires on the FPSS reader thread (microsecond-budget contract) |
-| `dropped_events()` | `uint64_t` | Cumulative count of events the dispatcher dropped on queue overflow (0 for inline path) |
+| `set_callback(std::function<void(const FpssEvent&)>)` | `void` | Disruptor consumer thread invokes `fn` under `catch_unwind`; reader never blocks |
+| `dropped_events()` | `uint64_t` | Cumulative ring-buffer overflow count (`Producer::try_publish` failures) |
 | `reconnect()` | `void` | Reconnect streaming and restore subscriptions |
 | `shutdown()` | `void` | Shut down the FPSS client |
 
@@ -345,13 +384,66 @@ fpss.set_inline_callback([](const tdx::FpssEvent& event) {
 
 | Type | Fields | Used when |
 |------|--------|-----------|
-| `TdxFpssQuote` | contract_id, ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, date, received_at_ns | `kind == TDX_FPSS_QUOTE` |
-| `TdxFpssTrade` | contract_id, ms_of_day, sequence, ext_condition1-4, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, date, received_at_ns | `kind == TDX_FPSS_TRADE` |
-| `TdxFpssOpenInterest` | contract_id, ms_of_day, open_interest, date, received_at_ns | `kind == TDX_FPSS_OPEN_INTEREST` |
-| `TdxFpssOhlcvc` | contract_id, ms_of_day, open, high, low, close, volume (i64), count (i64), date, received_at_ns | `kind == TDX_FPSS_OHLCVC` |
-| `TdxFpssControl` | kind (0-7), id, detail (nullable string) | `kind == TDX_FPSS_CONTROL` |
+| `TdxFpssQuote` | contract, ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size, ask_exchange, ask, ask_condition, date, received_at_ns | `kind == TDX_FPSS_QUOTE` |
+| `TdxFpssTrade` | contract, ms_of_day, sequence, ext_condition1-4, condition, size, exchange, price, condition_flags, price_flags, volume_type, records_back, date, received_at_ns | `kind == TDX_FPSS_TRADE` |
+| `TdxFpssOpenInterest` | contract, ms_of_day, open_interest, date, received_at_ns | `kind == TDX_FPSS_OPEN_INTEREST` |
+| `TdxFpssOhlcvc` | contract, ms_of_day, open, high, low, close, volume (i64), count (i64), date, received_at_ns | `kind == TDX_FPSS_OHLCVC` |
+| `TdxFpssLoginSuccess` | permissions (nullable C string) | `kind == TDX_FPSS_LOGIN_SUCCESS` |
+| `TdxFpssContractAssigned` | id (i32), contract (TdxContract) | `kind == TDX_FPSS_CONTRACT_ASSIGNED` |
+| `TdxFpssReqResponse` | req_id (i32), result (i32) | `kind == TDX_FPSS_REQ_RESPONSE` |
+| `TdxFpssMarketOpen` | (none) | `kind == TDX_FPSS_MARKET_OPEN` |
+| `TdxFpssMarketClose` | (none) | `kind == TDX_FPSS_MARKET_CLOSE` |
+| `TdxFpssServerError` | message (nullable C string) | `kind == TDX_FPSS_SERVER_ERROR` |
+| `TdxFpssDisconnected` | reason (i32 RemoveReason) | `kind == TDX_FPSS_DISCONNECTED` |
+| `TdxFpssReconnecting` | reason (i32), attempt (i32), delay_ms (u64) | `kind == TDX_FPSS_RECONNECTING` |
+| `TdxFpssReconnected` | (none) | `kind == TDX_FPSS_RECONNECTED` |
+| `TdxFpssError` | message (nullable C string) | `kind == TDX_FPSS_ERROR` |
+| `TdxFpssUnknownFrame` | code (u8), payload (`uint8_t*`), payload_len (size_t) | `kind == TDX_FPSS_UNKNOWN_FRAME` |
+| `TdxFpssConnected` | (none) | `kind == TDX_FPSS_CONNECTED` |
+| `TdxFpssPing` | payload (`uint8_t*`), payload_len (size_t) | `kind == TDX_FPSS_PING` |
+| `TdxFpssReconnectedServer` | (none) | `kind == TDX_FPSS_RECONNECTED_SERVER` |
+| `TdxFpssRestart` | (none) | `kind == TDX_FPSS_RESTART` |
+| `TdxFpssUnknownControl` | (none) | `kind == TDX_FPSS_UNKNOWN_CONTROL` |
+
+Truncated / unrecognised wire frames are filtered before the user
+callback fires and accounted on the `thetadatadx.fpss.decode_failures`
+metric counter on the Rust side; they never surface through the C ABI
+event stream.
 
 `FpssClient` is non-copyable but movable. The destructor calls `shutdown()` automatically.
+
+## Flat Files
+
+Whole-universe daily snapshots over the legacy MDDS port. Decoded
+schema is determined at runtime by `(SecType, ReqType)`, so the C++
+wrapper exposes Arrow IPC stream bytes — pair with arrow-cpp on the
+consumer side to materialise an `arrow::Table`.
+
+```cpp
+#include "thetadx.hpp"
+
+auto creds = tdx::Credentials::from_file("creds.txt");
+auto config = tdx::Config::production();
+auto unified = tdx::UnifiedClient::connect(creds, config);
+
+auto rows = unified.flat_files().option_quote("20260428");
+auto ipc = rows.to_arrow_ipc();              // std::vector<uint8_t>
+
+// Generic dispatcher
+auto oi = unified.flat_files().request("OPTION", "OPEN_INTEREST", "20260428");
+
+// Raw vendor CSV / JSONL straight to disk
+unified.flat_files().to_path("OPTION", "QUOTE", "20260428",
+                             "/tmp/option-quote", "csv");
+```
+
+Available `flat_files().*` methods: `option_quote`, `option_trade`,
+`option_trade_quote`, `option_ohlc`, `option_open_interest`,
+`option_eod`, `stock_quote`, `stock_trade`, `stock_trade_quote`,
+`stock_eod`, plus `request(sec_type, req_type, date)` and
+`to_path(...)`. The `tdx::UnifiedClient` wraps `TdxUnified`; the
+existing `tdx::Client` (wrapping `TdxClient`) remains the
+historical-only entry point.
 
 ## Architecture
 

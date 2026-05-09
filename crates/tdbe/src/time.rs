@@ -20,6 +20,66 @@
 //! Transition points are computed in UTC and compared, so callers do not
 //! need to round-trip through a timezone library.
 
+/// Whether `(year, month, day)` is a real Gregorian calendar date.
+///
+/// Validates:
+/// - `year` ∈ `1900..=2100` (the practical range every market-data
+///   surface in this workspace exercises — older / newer values
+///   indicate a corrupt input, not a real date);
+/// - `month` ∈ `1..=12`;
+/// - `day` is in range for the month, including the 4 / 100 / 400
+///   leap-year rule for February.
+///
+/// Used by [`crate::time::is_valid_yyyymmdd`] and by the
+/// `thetadatadx` MDDS + FPSS validators to reject impossible
+/// expirations (`00000000`, `20260230`, `19990431`, …) on every
+/// public user input. Internal sentinel uses (e.g. an
+/// implementation-detail "unset" date written to the wire) live
+/// behind their own paths and don't run through this function.
+#[must_use]
+pub fn is_valid_gregorian_date(year: i32, month: u32, day: u32) -> bool {
+    if !(1900..=2100).contains(&year) {
+        return false;
+    }
+    if !(1..=12).contains(&month) {
+        return false;
+    }
+    if day == 0 {
+        return false;
+    }
+    let dim = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+            if leap {
+                29
+            } else {
+                28
+            }
+        }
+        _ => unreachable!("month bounded by the 1..=12 check above"),
+    };
+    day <= dim
+}
+
+/// Whether `yyyymmdd` decomposes into a real Gregorian calendar date
+/// per [`is_valid_gregorian_date`]. Convenience wrapper for the common
+/// "single-i32 packed date" shape this codebase carries on the wire.
+#[must_use]
+pub fn is_valid_yyyymmdd(yyyymmdd: i32) -> bool {
+    if yyyymmdd <= 0 {
+        return false;
+    }
+    let year = yyyymmdd / 10_000;
+    let month = (yyyymmdd / 100) % 100;
+    let day = yyyymmdd % 100;
+    // month / day are non-negative because yyyymmdd > 0 implies the
+    // numerator is non-negative; cast through u32 is sound.
+    #[allow(clippy::cast_sign_loss)]
+    is_valid_gregorian_date(year, month as u32, day as u32)
+}
+
 /// Eastern Time UTC offset in milliseconds for a given `epoch_ms`.
 ///
 /// Returns `-4 * 3_600_000` (EDT) when DST is in effect for the civil
@@ -173,6 +233,45 @@ pub fn timestamp_to_date(epoch_ms: u64) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gregorian_validator_accepts_real_dates() {
+        // Common reference points from this codebase's tests.
+        assert!(is_valid_gregorian_date(2024, 1, 1));
+        assert!(is_valid_gregorian_date(2024, 2, 29)); // leap year (4 | not 100)
+        assert!(is_valid_gregorian_date(2000, 2, 29)); // leap year (400 rule)
+        assert!(is_valid_gregorian_date(2026, 4, 17));
+        assert!(is_valid_gregorian_date(1900, 1, 1));
+        assert!(is_valid_gregorian_date(2100, 12, 31));
+    }
+
+    #[test]
+    fn gregorian_validator_rejects_impossible_dates() {
+        // The exact garbage shapes the codex audit flagged as silently accepted.
+        assert!(!is_valid_gregorian_date(0, 0, 0)); // 00000000 sentinel
+        assert!(!is_valid_gregorian_date(2026, 2, 30)); // Feb 30 never exists
+        assert!(!is_valid_gregorian_date(1999, 4, 31)); // April only has 30
+                                                        // Leap-year edge cases.
+        assert!(!is_valid_gregorian_date(1900, 2, 29)); // /100 not /400 = not leap
+        assert!(!is_valid_gregorian_date(2023, 2, 29)); // not a multiple of 4
+                                                        // Out-of-range fields.
+        assert!(!is_valid_gregorian_date(2026, 13, 1));
+        assert!(!is_valid_gregorian_date(2026, 0, 1));
+        assert!(!is_valid_gregorian_date(2026, 1, 0));
+        assert!(!is_valid_gregorian_date(2026, 1, 32));
+        // Year out of practical range.
+        assert!(!is_valid_gregorian_date(1899, 6, 15));
+        assert!(!is_valid_gregorian_date(2101, 6, 15));
+    }
+
+    #[test]
+    fn yyyymmdd_validator_rejects_zeros_and_negatives() {
+        assert!(!is_valid_yyyymmdd(0));
+        assert!(!is_valid_yyyymmdd(-1));
+        assert!(!is_valid_yyyymmdd(20260230));
+        assert!(is_valid_yyyymmdd(20260417));
+        assert!(is_valid_yyyymmdd(20240229));
+    }
 
     #[test]
     // Reason: ms_of_day fits in i32; epoch_ms is in valid market data range.

@@ -13,7 +13,7 @@ ThetaDataDx ships four language surfaces from one Rust core. Pick your language 
 ```toml [Rust]
 # Add to your Cargo.toml
 [dependencies]
-thetadatadx = "7.3"
+thetadatadx = "9"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 ```bash [Python]
@@ -98,27 +98,27 @@ Methods throw `std::runtime_error` on failure.
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let _tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let _tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
     println!("Connected successfully");
     Ok(())
 }
 ```
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+tdx = ThetaDataDxClient(creds, Config.production())
 print("Connected successfully")
 ```
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+const tdx = await ThetaDataDxClient.connectFromFile('creds.txt');
 console.log('Connected successfully');
 ```
 ```cpp [C++]

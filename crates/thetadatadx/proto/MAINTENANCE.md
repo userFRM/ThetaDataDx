@@ -1,6 +1,6 @@
 # Proto & Schema Maintenance Guide
 
-This directory contains the protobuf definitions that drive the entire ThetaDataDx SDK.
+This directory contains the protobuf definitions that drive the entire ThetaDataDxClient SDK.
 When you update these files, the build system automatically regenerates gRPC stubs, tick
 type structs, and DataTable parsers across all languages.
 
@@ -150,7 +150,7 @@ cargo test         # verify nothing broke
 cargo clippy       # zero warnings
 ```
 
-The new endpoint is now available on `ThetaDataDx` via `Deref` to `MddsClient`.
+The new endpoint is now available on `ThetaDataDxClient` via `Deref` to `MddsClient`.
 
 ## How to: replace `mdds.proto`
 

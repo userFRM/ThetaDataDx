@@ -27,6 +27,21 @@ pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), Endpoin
             "'{param_name}' must be exactly 8 digits (YYYYMMDD), got: '{value}'"
         )));
     }
+    // Shape passed; now apply the calendar check. Rejects the
+    // `00000000` sentinel and impossible dates like `20260230` or
+    // `19990431` that the shape-only check used to silently accept.
+    // The leap-year / month-length logic lives in `tdbe::time` so MDDS
+    // and FPSS share one canonical Gregorian validator (H3 + H4).
+    let yyyymmdd: i32 = value.parse().map_err(|_| {
+        EndpointError::InvalidParams(format!(
+            "'{param_name}' must be 8 digits (YYYYMMDD), got: '{value}'"
+        ))
+    })?;
+    if !tdbe::time::is_valid_yyyymmdd(yyyymmdd) {
+        return Err(EndpointError::InvalidParams(format!(
+            "'{param_name}' is not a valid Gregorian date (YYYYMMDD with year 1900-2100, valid month, day-of-month including 4/100/400 leap rule), got: '{value}'"
+        )));
+    }
     Ok(())
 }
 
@@ -149,7 +164,22 @@ mod tests {
     fn validate_date_required_valid() {
         assert!(validate_date_required("20240101").is_ok());
         assert!(validate_date_required("20231231").is_ok());
-        assert!(validate_date_required("00000000").is_ok());
+        // Leap-year boundaries — the calendar check accepts these.
+        assert!(validate_date_required("20240229").is_ok());
+        assert!(validate_date_required("20000229").is_ok());
+    }
+
+    #[test]
+    fn validate_date_required_rejects_impossible_calendar_dates() {
+        // The exact garbage shapes the H3 codex finding called out:
+        // shape-only validation used to silently accept these.
+        assert!(validate_date_required("00000000").is_err());
+        assert!(validate_date_required("20260230").is_err()); // Feb 30
+        assert!(validate_date_required("19990431").is_err()); // Apr 31
+        assert!(validate_date_required("20231300").is_err()); // month 13
+        assert!(validate_date_required("19000229").is_err()); // /100 non-leap
+        assert!(validate_date_required("18991231").is_err()); // year < 1900
+        assert!(validate_date_required("21010101").is_err()); // year > 2100
     }
 
     fn assert_validate_date_required_err(input: &str) {
@@ -157,13 +187,13 @@ mod tests {
             // `validate_date` returns `EndpointError::InvalidParams`,
             // which converts to `Error::Config` (see `impl
             // From<EndpointError> for Error` in `mdds::endpoint_args`).
-            Err(Error::Config(message)) => {
+            Err(Error::Config { message, .. }) => {
                 assert!(
                     message.contains("date"),
                     "error message should name the 'date' param, got {message:?}"
                 );
             }
-            other => panic!("expected Error::Config(..) for input {input:?}, got {other:?}"),
+            other => panic!("expected Error::Config {{ .. }} for input {input:?}, got {other:?}"),
         }
     }
 
@@ -187,7 +217,17 @@ mod tests {
         for good in ["*", "0", "20260417", "2026-04-17"] {
             assert!(validate_expiration(good, "expiration").is_ok(), "{good}");
         }
-        for bad in ["", "abc", "202604175", "2026/04/17"] {
+        for bad in [
+            "",
+            "abc",
+            "202604175",
+            "2026/04/17",
+            // H3: shape-only validation used to accept these. The
+            // Gregorian check now rejects them on every public input.
+            "20260230",
+            "19990431",
+            "00000000",
+        ] {
             assert!(validate_expiration(bad, "expiration").is_err(), "{bad}");
         }
     }

@@ -59,7 +59,7 @@ MDDS is a standard gRPC service over TLS, operating on port 443.
 
 - **Package**: `BetaEndpoints`
 - **Service**: `BetaThetaTerminal`
-- **Methods**: current gRPC RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps the full current gRPC surface plus the convenience range-query variant on `ThetaDataDx`, generated from the checked-in endpoint surface spec (`endpoint_surface.toml`) validated against `mdds.proto`. The internal `MddsClient` still uses macro-generated builders, but endpoint declarations are no longer hand-maintained.
+- **Methods**: current gRPC RPCs, all server-streaming (returning `stream ResponseData`). thetadatadx wraps the full current gRPC surface plus the convenience range-query variant on `ThetaDataDxClient`, generated from the checked-in endpoint surface spec (`endpoint_surface.toml`) validated against `mdds.proto`. The internal `MddsClient` still uses macro-generated builders, but endpoint declarations are no longer hand-maintained.
 - **Categories**: Stock, Option, Index, Interest Rate, Calendar - each with List, History, Snapshot, AtTime, and Greeks sub-categories
 
 ### Request Structure
@@ -100,7 +100,7 @@ The gRPC channel configures `initial_connection_window_size` and `initial_stream
 
 ### Concurrent Request Limiting
 
-ThetaDataDx enforces a semaphore (`mdds_concurrent_requests`) that limits the number of in-flight gRPC requests. The default is dynamically derived from the user's subscription tier via `2^tier` (matching the Java terminal's concurrency model), but can be overridden in `DirectConfig`. Each endpoint method acquires a permit before sending and releases it when the response is fully consumed.
+ThetaDataDxClient enforces a semaphore (`mdds_concurrent_requests`) that limits the number of in-flight gRPC requests. The default is dynamically derived from the user's subscription tier via `2^tier` (matching the Java terminal's concurrency model), but can be overridden in `DirectConfig`. Each endpoint method acquires a permit before sending and releases it when the response is fully consumed.
 
 ### Response Structure
 
@@ -156,7 +156,7 @@ Three response processing modes are available:
 
 ### Build-time Generation Pipeline
 
-ThetaDataDx has two generation pipelines at build time:
+ThetaDataDxClient has two generation pipelines at build time:
 - tick parser generation from `tick_schema.toml`
 - endpoint surface generation from `endpoint_surface.toml` validated against `mdds.proto`
 
@@ -339,9 +339,8 @@ FPSS event dispatch uses a lock-free disruptor ring buffer (`disruptor-rs` v4), 
 Events delivered through the ring buffer use a split enum:
 - **`FpssEvent::Data(FpssData)`** — market data: `Quote`, `Trade`, `OpenInterest`, `Ohlcvc`
 - **`FpssEvent::Control(FpssControl)`** — lifecycle: `LoginSuccess`, `ContractAssigned`, `ReqResponse`, `MarketOpen`, `MarketClose`, `ServerError`, `Disconnected`, `Error`
-- **`FpssEvent::RawData`** — unparsed frames
 
-This split enables callers to `match` on data events without touching lifecycle logic, and vice versa.
+This split enables callers to `match` on data events without touching lifecycle logic, and vice versa. Truncated / unrecognised wire frames are accounted on the `thetadatadx.fpss.decode_failures` metric counter (carried internally as `FpssEventInternal::Unparseable`) and filtered before reaching the public callback.
 
 ### OHLCVC-from-Trade Derivation
 
@@ -353,13 +352,12 @@ The `OhlcvcAccumulator` derives OHLCVC bars from trade ticks in real time. Behav
 
 This matches the Java terminal's behavior: OHLCVC bars are never emitted purely from trades without a server-provided seed.
 
-FPSS streaming uses separate `FpssClient` wrappers in Go/C++ (not the historical `Client`):
-- **Rust**: `tdx.start_streaming(callback)` launches a disruptor-backed event receiver
-- **Python**: `tdx.start_streaming()`, `tdx.subscribe_quotes()`, `tdx.subscribe_option_*()`, `tdx.contract_map()`, `tdx.reconnect()`, `tdx.next_event()`, `tdx.stop_streaming()`
-- **TypeScript/Node.js**: `tdx.startStreaming()`, `tdx.subscribeQuotes()`, `tdx.nextEvent()`, `tdx.stopStreaming()`
-- **Go**: `FpssClient` wrapping 26 FFI FPSS functions, including option-level subscribe/unsubscribe, `ContractMap()`, and `Reconnect()`
-- **C++**: `FpssClient` RAII class wrapping 26 FFI FPSS functions, including option-level subscribe/unsubscribe, `contract_map()`, and `reconnect()`
-- **C FFI**: `extern "C"` functions (`tdx_fpss_connect`, `tdx_fpss_subscribe_*`, `tdx_fpss_unsubscribe_*`, `tdx_fpss_contract_map`, `tdx_fpss_reconnect`, `tdx_fpss_set_callback`, `tdx_fpss_set_inline_callback`, `tdx_fpss_shutdown`, `tdx_fpss_free`, etc.)
+FPSS streaming is delivered through the unified `ThetaDataDxClient` (Rust / Python / TypeScript) and `tdx::UnifiedClient` (C++). Every binding offers two equivalent paths: push-callback (`start_streaming(callback)`) for low-latency dispatch, and pull-iter (`start_streaming_iter()` in Rust/Python/C++, `startStreamingIter()` in TypeScript) for the iterator idiom.
+- **Rust**: `client.start_streaming(callback)` (push) or `let iter = client.start_streaming_iter()?; for event in iter { ... }` (pull); both backed by the same Disruptor SPSC ring
+- **Python**: `client.start_streaming(callback)` (push) or `with client.streaming_iter() as it: for event in it:` (pull, also `client.start_streaming_iter()` for explicit lifecycle control); `client.subscribe(sub)`, `client.subscribe_many([sub, ...])`, `client.unsubscribe(sub)`, `client.reconnect()`, `client.stop_streaming()`
+- **TypeScript/Node.js**: `client.startStreaming(callback)` (push) or `const iter = client.startStreamingIter(); for await (const event of iter) { ... }` (pull); `client.subscribe(sub)`, `client.subscribeMany([...])`, `client.stopStreaming()`
+- **C++**: `tdx::UnifiedClient` exposes `start_streaming(lambda)` (push) and `start_streaming_iter()` returning an `EventIterator` whose `next(timeout)` yields `std::optional<TdxFpssEvent>` and whose `ended()` flips on terminal end-of-stream
+- **C FFI**: `extern "C"` functions (`tdx_fpss_connect`, `tdx_fpss_set_callback`, `tdx_fpss_subscribe`, `tdx_fpss_unsubscribe`, `tdx_fpss_reconnect`, `tdx_fpss_await_drain`, `tdx_fpss_shutdown`, `tdx_fpss_free`, etc.)
 
 ### Reconnection
 
@@ -501,7 +499,7 @@ Every SDK lives over the same Rust core (`thetadatadx` + `tdbe`) — Python via 
 
 ### Typed pyclass surface (Python)
 
-All tick-returning historical endpoints return a typed `<TickName>List` wrapper — `EodTickList`, `OhlcTickList`, `TradeTickList`, `QuoteTickList`, `TradeQuoteTickList`, `OpenInterestTickList`, `MarketValueTickList`, `GreeksTickList`, `IvTickList`, `PriceTickList`, `InterestRateTickList`, plus `OptionContractList` (from `option_list_contracts`) and `CalendarDayList` (from `calendar_on_date` / `calendar_year`). Each wraps an owned `Vec<Tick>` and implements the Python sequence protocol (`__len__`, `__bool__`, `__repr__`, `__getitem__` with negative indexing, `__iter__`). Element access materialises a typed pyclass on demand (`EodTick`, `OhlcTick`, `TradeTick`, ...) with attribute access (`t.close`, `t.bid`, `t.volume`) and generated `__repr__` / `__new__` constructors. The eight list-of-string endpoints (`stock_list_symbols`, `stock_list_dates`, `option_list_symbols`, `option_list_dates`, `option_list_expirations`, `option_list_strikes`, `index_list_symbols`, `index_list_dates`) return a single generic `StringList` whose `column_name` drives the DataFrame column name on the Arrow terminal. Streaming `next_event(timeout_ms)` returns one of `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData`, all typed pyclasses. `all_greeks(...)` returns an `AllGreeks` pyclass with 22 f64 fields. Zero `PyDict` allocations on the public surface.
+All tick-returning historical endpoints return a typed `<TickName>List` wrapper — `EodTickList`, `OhlcTickList`, `TradeTickList`, `QuoteTickList`, `TradeQuoteTickList`, `OpenInterestTickList`, `MarketValueTickList`, `GreeksTickList`, `IvTickList`, `PriceTickList`, `InterestRateTickList`, plus `OptionContractList` (from `option_list_contracts`) and `CalendarDayList` (from `calendar_on_date` / `calendar_year`). Each wraps an owned `Vec<Tick>` and implements the Python sequence protocol (`__len__`, `__bool__`, `__repr__`, `__getitem__` with negative indexing, `__iter__`). Element access materialises a typed pyclass on demand (`EodTick`, `OhlcTick`, `TradeTick`, ...) with attribute access (`t.close`, `t.bid`, `t.volume`) and generated `__repr__` / `__new__` constructors. The eight list-of-string endpoints (`stock_list_symbols`, `stock_list_dates`, `option_list_symbols`, `option_list_dates`, `option_list_expirations`, `option_list_strikes`, `index_list_symbols`, `index_list_dates`) return a single generic `StringList` whose `column_name` drives the DataFrame column name on the Arrow terminal. Streaming `with client.streaming_iter() as it: for event in it:` (or push-callback `start_streaming(callback)`) yields one typed pyclass per `FpssData` / `FpssControl` variant — `Quote`, `Trade`, `Ohlcvc`, `OpenInterest` for data, plus `LoginSuccess`, `ContractAssigned`, `Disconnected`, `Reconnecting`, `Reconnected`, `MarketOpen`, `MarketClose`, `ServerError`, `Error`, `UnknownFrame`, `UnknownControl`, `Connected`, `Ping`, `ReconnectedServer`, `Restart`, and `ReqResponse` for control. `all_greeks(...)` returns an `AllGreeks` pyclass with 22 f64 fields. Zero `PyDict` allocations on the public surface.
 
 ### Arrow columnar adapter (Python)
 
@@ -557,7 +555,7 @@ graph TD
             F_RING["ring.rs<br/><i>Disruptor ring buffer</i>"]
         end
 
-        UNIFIED["unified.rs<br/><i>ThetaDataDx — unified entry point<br/>Deref to MddsClient</i>"]
+        UNIFIED["unified.rs<br/><i>ThetaDataDxClient — unified entry point<br/>Deref to MddsClient</i>"]
         DIRECT["mdds/<br/><i>MddsClient (internal) — generated endpoint declarations<br/>on top of builder macros</i>"]
         ENDPOINT_RT["endpoint.rs<br/><i>shared endpoint runtime</i>"]
         CONFIG["config.rs<br/><i>DirectConfig</i>"]

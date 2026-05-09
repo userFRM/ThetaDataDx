@@ -29,12 +29,6 @@ for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} price=${t.price}`);
 }
 ```
-```go [Go]
-data, _ := client.IndexSnapshotPrice([]string{"SPX"})
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d price=%.2f\n", t.Date, t.MsOfDay, t.Price)
-}
-```
 ```cpp [C++]
 auto data = client.index_snapshot_price({"SPX"});
 for (const auto& t : data) {

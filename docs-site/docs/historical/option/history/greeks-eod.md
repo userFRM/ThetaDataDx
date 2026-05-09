@@ -50,21 +50,6 @@ for (const t of data) {
     console.log(`date=${t.date} implied_volatility=${t.implied_volatility} delta=${t.delta} gamma=${t.gamma} theta=${t.theta} vega=${t.vega}`);
 }
 ```
-```go [Go]
-data, _ := client.OptionHistoryGreeksEODWithOptions(
-    "SPY",
-    "20260417",
-    "0",
-    "C",
-    "20260101",
-    "20260301",
-    &thetadatadx.EndpointRequestOptions{StrikeRange: thetadatadx.Int32(5)},
-)
-for _, t := range data {
-    fmt.Printf("date=%d implied_volatility=%.4f delta=%.4f gamma=%.4f theta=%.4f vega=%.4f rho=%.4f\n",
-        t.Date, t.ImpliedVolatility, t.Delta, t.Gamma, t.Theta, t.Vega, t.Rho)
-}
-```
 ```cpp [C++]
 tdx::EndpointRequestOptions options;
 options.strike_range = 5;
