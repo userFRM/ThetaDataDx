@@ -5,24 +5,45 @@
 // include site.
 
 /// FPSS event kind tag. Check this to determine which field of
-/// `TdxFpssEvent` is valid.
+/// `TdxFpssEvent` is valid. One discriminant per data variant
+/// (Quote / Trade / OpenInterest / Ohlcvc) and one per control
+/// variant (LoginSuccess / ContractAssigned / ...). Schema-driven
+/// from `fpss_event_schema.toml`; values are stable for the
+/// lifetime of the v9.x C ABI but may renumber on a future major
+/// bump.
 #[repr(C)]
 pub enum TdxFpssEventKind {
-    Quote = 0,
-    Trade = 1,
-    OpenInterest = 2,
-    Ohlcvc = 3,
-    Control = 4,
-    RawData = 5,
+    Connected = 0,
+    ContractAssigned = 1,
+    Disconnected = 2,
+    Error = 3,
+    LoginSuccess = 4,
+    MarketClose = 5,
+    MarketOpen = 6,
+    Ohlcvc = 7,
+    OpenInterest = 8,
+    Ping = 9,
+    Quote = 10,
+    Reconnected = 11,
+    ReconnectedServer = 12,
+    Reconnecting = 13,
+    ReqResponse = 14,
+    Restart = 15,
+    ServerError = 16,
+    Trade = 17,
+    UnknownControl = 18,
+    UnknownFrame = 19,
 }
 
 /// FPSS `Contract` shared across every data event.
 /// 
 /// `symbol` is a NUL-terminated C string; may be null when the SDK has not
 /// yet resolved the server-assigned contract_id to a `ContractAssigned`
-/// frame. Optional option fields (`expiration`, `is_call`, `strike`) use a
+/// frame. Optional option fields (`expiration`, `right`, `strike`) use a
 /// tagged-present bool because `#[repr(C)]` cannot express `Option<T>`
-/// directly.
+/// directly. `right` is the ASCII byte `b'C'` / `b'P'` (`0` when
+/// `has_right` is false) so consumers see the same notation the public
+/// option builder takes.
 #[repr(C)]
 pub struct TdxContract {
 /// Ticker symbol (e.g. "AAPL"). Null until ContractAssigned arrives.
@@ -32,9 +53,10 @@ pub sec_type: i32,
 /// Whether `expiration` is meaningful (options only).
 pub has_expiration: bool,
 pub expiration: i32,
-/// Whether `is_call` is meaningful (options only).
-pub has_is_call: bool,
-pub is_call: bool,
+/// Whether `right` is meaningful (options only).
+pub has_right: bool,
+/// Option side as ASCII: `b'C'` / `b'P'` (`0` when `has_right` is false).
+pub right: c_char,
 /// Whether `strike` is meaningful (options only).
 pub has_strike: bool,
 pub strike: i32,
@@ -45,8 +67,8 @@ symbol: ptr::null(),
 sec_type: 0,
 has_expiration: false,
 expiration: 0,
-has_is_call: false,
-is_call: false,
+has_right: false,
+right: 0,
 has_strike: false,
 strike: 0,
 };
@@ -54,7 +76,6 @@ strike: 0,
 /// FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`.
 #[repr(C)]
 pub struct TdxFpssOhlcvc {
-    pub contract_id: i32,
     pub contract: TdxContract,
     pub ms_of_day: i32,
     pub open: f64,
@@ -70,7 +91,6 @@ pub struct TdxFpssOhlcvc {
 /// FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`.
 #[repr(C)]
 pub struct TdxFpssOpenInterest {
-    pub contract_id: i32,
     pub contract: TdxContract,
     pub ms_of_day: i32,
     pub open_interest: i32,
@@ -81,7 +101,6 @@ pub struct TdxFpssOpenInterest {
 /// FPSS Quote tick. Mirrors `FpssData::Quote`.
 #[repr(C)]
 pub struct TdxFpssQuote {
-    pub contract_id: i32,
     pub contract: TdxContract,
     pub ms_of_day: i32,
     pub bid_size: i32,
@@ -99,7 +118,6 @@ pub struct TdxFpssQuote {
 /// FPSS Trade tick. Mirrors `FpssData::Trade`.
 #[repr(C)]
 pub struct TdxFpssTrade {
-    pub contract_id: i32,
     pub contract: TdxContract,
     pub ms_of_day: i32,
     pub sequence: i32,
@@ -119,41 +137,125 @@ pub struct TdxFpssTrade {
     pub received_at_ns: u64,
 }
 
-/// `#[repr(C)]` FPSS control event.
-///
-/// `kind` encodes the control sub-type:
-///   `0=login_success`, `1=contract_assigned`, `2=req_response`,
-///   `3=market_open`, `4=market_close`, `5=server_error`,
-///   `6=disconnected`, `8=reconnecting`, `9=reconnected`,
-///   `10=error`, `11=unknown_frame`, `12=unknown_event` (non-Data /
-///   non-Control / non-RawData fallback; carries no payload),
-///   `13=connected` (server CONNECTED ack, wire code 4),
-///   `14=ping` (server heartbeat, wire code 10 — detail is the
-///   hex-encoded payload),
-///   `15=reconnected_server` (server RECONNECTED ack, wire code 13 —
-///   distinct from `9=reconnected` which is the client-side
-///   auto-reconnect completion),
-///   `16=restart` (server RESTART, wire code 31).
-///   Value `7` is reserved for future use. `99` is an internal sentinel
-///   for "unknown control-variant" — kept for backward compat; new
-///   consumers should treat `12` as the canonical unknown marker.
-///
-/// `id` carries the `contract_id`, `req_id`, reconnect attempt number,
-/// or unknown-frame code where applicable (0 otherwise).
-/// `detail` is a NUL-terminated C string (may be null).
+/// FPSS server connection ack (wire code 4, `StreamMsgType::Connected`). Mirrors `FpssControl::Connected`. Carries no payload.
 #[repr(C)]
-pub struct TdxFpssControl {
-    pub kind: i32,
-    pub id: i32,
-    pub detail: *const c_char,
+pub struct TdxFpssConnected {
+    /// Placeholder so the struct has size 1 on every C compiler.
+    /// Empty `#[repr(C)]` structs are size 0 on Rust but size 1 on
+    /// MSVC; the byte keeps the layout consistent across both.
+    pub _padding: u8,
 }
 
-/// `#[repr(C)]` FPSS raw/undecoded data event.
-///
-/// `code` is the wire message code. `payload` is a pointer to the raw
-/// bytes and `payload_len` is the number of bytes.
+/// FPSS server assigned a contract id. Mirrors `FpssControl::ContractAssigned`. The `contract` payload carries the full resolved `Contract` (root, sec_type, expiration / strike / right for options).
 #[repr(C)]
-pub struct TdxFpssRawData {
+pub struct TdxFpssContractAssigned {
+    pub id: i32,
+    pub contract: TdxContract,
+}
+
+/// FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `tdbe::types::enums::RemoveReason as i32` for symbolic interpretation.
+#[repr(C)]
+pub struct TdxFpssDisconnected {
+    pub reason: i32,
+}
+
+/// FPSS protocol-level parse error. Mirrors `FpssControl::Error`.
+#[repr(C)]
+pub struct TdxFpssError {
+    pub message: *const c_char,
+}
+
+/// FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate).
+#[repr(C)]
+pub struct TdxFpssLoginSuccess {
+    pub permissions: *const c_char,
+}
+
+/// FPSS market-close signal (wire code 32). Mirrors `FpssControl::MarketClose`. Carries no payload.
+#[repr(C)]
+pub struct TdxFpssMarketClose {
+    /// Placeholder so the struct has size 1 on every C compiler.
+    /// Empty `#[repr(C)]` structs are size 0 on Rust but size 1 on
+    /// MSVC; the byte keeps the layout consistent across both.
+    pub _padding: u8,
+}
+
+/// FPSS market-open signal (wire code 30). Mirrors `FpssControl::MarketOpen`. Carries no payload.
+#[repr(C)]
+pub struct TdxFpssMarketOpen {
+    /// Placeholder so the struct has size 1 on every C compiler.
+    /// Empty `#[repr(C)]` structs are size 0 on Rust but size 1 on
+    /// MSVC; the byte keeps the layout consistent across both.
+    pub _padding: u8,
+}
+
+/// FPSS server heartbeat (wire code 10, `StreamMsgType::Ping`). Mirrors `FpssControl::Ping`. The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
+#[repr(C)]
+pub struct TdxFpssPing {
+    pub payload: *const u8,
+    pub payload_len: usize,
+}
+
+/// FPSS auto-reconnect succeeded — connection is live again. Mirrors `FpssControl::Reconnected`. Carries no payload.
+#[repr(C)]
+pub struct TdxFpssReconnected {
+    /// Placeholder so the struct has size 1 on every C compiler.
+    /// Empty `#[repr(C)]` structs are size 0 on Rust but size 1 on
+    /// MSVC; the byte keeps the layout consistent across both.
+    pub _padding: u8,
+}
+
+/// FPSS server-side reconnect ack (wire code 13). Mirrors `FpssControl::ReconnectedServer`. Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated.
+#[repr(C)]
+pub struct TdxFpssReconnectedServer {
+    /// Placeholder so the struct has size 1 on every C compiler.
+    /// Empty `#[repr(C)]` structs are size 0 on Rust but size 1 on
+    /// MSVC; the byte keeps the layout consistent across both.
+    pub _padding: u8,
+}
+
+/// FPSS auto-reconnect is about to attempt reconnection. Mirrors `FpssControl::Reconnecting`. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at `i32::MAX` if the reconnect loop exceeds 2^31 attempts.
+#[repr(C)]
+pub struct TdxFpssReconnecting {
+    pub reason: i32,
+    pub attempt: i32,
+    pub delay_ms: u64,
+}
+
+/// FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
+#[repr(C)]
+pub struct TdxFpssReqResponse {
+    pub req_id: i32,
+    pub result: i32,
+}
+
+/// FPSS server stream restart (wire code 31, `StreamMsgType::Restart`). Mirrors `FpssControl::Restart`. The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt.
+#[repr(C)]
+pub struct TdxFpssRestart {
+    /// Placeholder so the struct has size 1 on every C compiler.
+    /// Empty `#[repr(C)]` structs are size 0 on Rust but size 1 on
+    /// MSVC; the byte keeps the layout consistent across both.
+    pub _padding: u8,
+}
+
+/// FPSS server-error message (wire code 11). Mirrors `FpssControl::ServerError`.
+#[repr(C)]
+pub struct TdxFpssServerError {
+    pub message: *const c_char,
+}
+
+/// FPSS control variant the SDK does not yet recognise. Surfaced when the core crate adds a new `FpssControl::*` arm — keep dispatch logic forward-compatible by handling this variant. Carries no payload.
+#[repr(C)]
+pub struct TdxFpssUnknownControl {
+    /// Placeholder so the struct has size 1 on every C compiler.
+    /// Empty `#[repr(C)]` structs are size 0 on Rust but size 1 on
+    /// MSVC; the byte keeps the layout consistent across both.
+    pub _padding: u8,
+}
+
+/// FPSS server sent a frame with an unrecognised wire code. Mirrors `FpssControl::UnknownFrame`. Raw bytes preserved for diagnostics / upstream bug reports.
+#[repr(C)]
+pub struct TdxFpssUnknownFrame {
     pub code: u8,
     pub payload: *const u8,
     pub payload_len: usize,
@@ -161,7 +263,10 @@ pub struct TdxFpssRawData {
 
 /// Tagged FPSS event for FFI. Check `kind` then read the corresponding
 /// field. Only the field matching `kind` contains valid data — this is
-/// a flat struct (not a C union) for simplicity and safety.
+/// a flat struct (not a C union) for simplicity and safety. The
+/// per-variant control payloads (LoginSuccess, ContractAssigned, ...)
+/// mirror the Rust `FpssControl::*` enum one-for-one; consumers
+/// dispatch via `kind` and read the matching `event.<variant>` field.
 #[repr(C)]
 pub struct TdxFpssEvent {
     pub kind: TdxFpssEventKind,
@@ -169,13 +274,26 @@ pub struct TdxFpssEvent {
     pub open_interest: TdxFpssOpenInterest,
     pub quote: TdxFpssQuote,
     pub trade: TdxFpssTrade,
-    pub control: TdxFpssControl,
-    pub raw_data: TdxFpssRawData,
+    pub connected: TdxFpssConnected,
+    pub contract_assigned: TdxFpssContractAssigned,
+    pub disconnected: TdxFpssDisconnected,
+    pub error: TdxFpssError,
+    pub login_success: TdxFpssLoginSuccess,
+    pub market_close: TdxFpssMarketClose,
+    pub market_open: TdxFpssMarketOpen,
+    pub ping: TdxFpssPing,
+    pub reconnected: TdxFpssReconnected,
+    pub reconnected_server: TdxFpssReconnectedServer,
+    pub reconnecting: TdxFpssReconnecting,
+    pub req_response: TdxFpssReqResponse,
+    pub restart: TdxFpssRestart,
+    pub server_error: TdxFpssServerError,
+    pub unknown_control: TdxFpssUnknownControl,
+    pub unknown_frame: TdxFpssUnknownFrame,
 }
 
 // Zero-initialized defaults for inactive union-style fields.
 pub(crate) const ZERO_OHLCVC: TdxFpssOhlcvc = TdxFpssOhlcvc {
-    contract_id: 0,
     contract: ZERO_CONTRACT_STRUCT,
     ms_of_day: 0,
     open: 0.0,
@@ -188,7 +306,6 @@ pub(crate) const ZERO_OHLCVC: TdxFpssOhlcvc = TdxFpssOhlcvc {
     received_at_ns: 0,
 };
 pub(crate) const ZERO_OI: TdxFpssOpenInterest = TdxFpssOpenInterest {
-    contract_id: 0,
     contract: ZERO_CONTRACT_STRUCT,
     ms_of_day: 0,
     open_interest: 0,
@@ -196,7 +313,6 @@ pub(crate) const ZERO_OI: TdxFpssOpenInterest = TdxFpssOpenInterest {
     received_at_ns: 0,
 };
 pub(crate) const ZERO_QUOTE: TdxFpssQuote = TdxFpssQuote {
-    contract_id: 0,
     contract: ZERO_CONTRACT_STRUCT,
     ms_of_day: 0,
     bid_size: 0,
@@ -211,7 +327,6 @@ pub(crate) const ZERO_QUOTE: TdxFpssQuote = TdxFpssQuote {
     received_at_ns: 0,
 };
 pub(crate) const ZERO_TRADE: TdxFpssTrade = TdxFpssTrade {
-    contract_id: 0,
     contract: ZERO_CONTRACT_STRUCT,
     ms_of_day: 0,
     sequence: 0,
@@ -230,12 +345,57 @@ pub(crate) const ZERO_TRADE: TdxFpssTrade = TdxFpssTrade {
     date: 0,
     received_at_ns: 0,
 };
-pub(crate) const ZERO_CONTROL: TdxFpssControl = TdxFpssControl {
-    kind: 0,
-    id: 0,
-    detail: ptr::null(),
+pub(crate) const ZERO_CONNECTED: TdxFpssConnected = TdxFpssConnected {
+    _padding: 0,
 };
-pub(crate) const ZERO_RAW: TdxFpssRawData = TdxFpssRawData {
+pub(crate) const ZERO_CONTRACT_ASSIGNED: TdxFpssContractAssigned = TdxFpssContractAssigned {
+    id: 0,
+    contract: ZERO_CONTRACT_STRUCT,
+};
+pub(crate) const ZERO_DISCONNECTED: TdxFpssDisconnected = TdxFpssDisconnected {
+    reason: 0,
+};
+pub(crate) const ZERO_ERROR: TdxFpssError = TdxFpssError {
+    message: ptr::null(),
+};
+pub(crate) const ZERO_LOGIN_SUCCESS: TdxFpssLoginSuccess = TdxFpssLoginSuccess {
+    permissions: ptr::null(),
+};
+pub(crate) const ZERO_MARKET_CLOSE: TdxFpssMarketClose = TdxFpssMarketClose {
+    _padding: 0,
+};
+pub(crate) const ZERO_MARKET_OPEN: TdxFpssMarketOpen = TdxFpssMarketOpen {
+    _padding: 0,
+};
+pub(crate) const ZERO_PING: TdxFpssPing = TdxFpssPing {
+    payload: ptr::null(),
+    payload_len: 0,
+};
+pub(crate) const ZERO_RECONNECTED: TdxFpssReconnected = TdxFpssReconnected {
+    _padding: 0,
+};
+pub(crate) const ZERO_RECONNECTED_SERVER: TdxFpssReconnectedServer = TdxFpssReconnectedServer {
+    _padding: 0,
+};
+pub(crate) const ZERO_RECONNECTING: TdxFpssReconnecting = TdxFpssReconnecting {
+    reason: 0,
+    attempt: 0,
+    delay_ms: 0,
+};
+pub(crate) const ZERO_REQ_RESPONSE: TdxFpssReqResponse = TdxFpssReqResponse {
+    req_id: 0,
+    result: 0,
+};
+pub(crate) const ZERO_RESTART: TdxFpssRestart = TdxFpssRestart {
+    _padding: 0,
+};
+pub(crate) const ZERO_SERVER_ERROR: TdxFpssServerError = TdxFpssServerError {
+    message: ptr::null(),
+};
+pub(crate) const ZERO_UNKNOWN_CONTROL: TdxFpssUnknownControl = TdxFpssUnknownControl {
+    _padding: 0,
+};
+pub(crate) const ZERO_UNKNOWN_FRAME: TdxFpssUnknownFrame = TdxFpssUnknownFrame {
     code: 0,
     payload: ptr::null(),
     payload_len: 0,

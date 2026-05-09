@@ -29,12 +29,6 @@ for (const t of data) {
     console.log(`date=${t.date} rate=${t.rate}`);
 }
 ```
-```go [Go]
-data, _ := client.InterestRateHistoryEOD("SOFR", "20260101", "20260301")
-for _, t := range data {
-    fmt.Printf("date=%d rate=%.4f\n", t.Date, t.Rate)
-}
-```
 ```cpp [C++]
 auto data = client.interest_rate_history_eod("SOFR", "20260101", "20260301");
 for (const auto& t : data) {

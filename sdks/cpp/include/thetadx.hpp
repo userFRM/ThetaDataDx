@@ -17,10 +17,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 #include <utility>
 #include <stdexcept>
@@ -62,9 +62,9 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 // ABI-level drift (padding, alignment, scalar widths) the schema alone
 // cannot express.
 
-// Every data variant gained an embedded `TdxContract contract` field
-// immediately after `contract_id`. On LP64 (x86_64 / aarch64 Linux,
-// macOS), `TdxContract` is 32 bytes {
+// Every data variant carries an embedded `TdxContract contract` as
+// the first member. On LP64 (x86_64 / aarch64 Linux, macOS),
+// `TdxContract` is 32 bytes {
 //   const char *root         offset  0, size 8
 //   int32_t sec_type         offset  8, size 4
 //   bool has_exp_date        offset 12, size 1
@@ -74,10 +74,12 @@ using TradeQuoteTick = TdxTradeQuoteTick;
 //   bool has_strike          offset 22, size 1
 //   int32_t strike           offset 24, size 4 (1 byte tail pad)
 // }
-// so every field below the embedded `contract` shifted by +32 vs the
-// pre-contract layout. Numbers below recomputed from the exact struct
-// under `-O2` with the generated `fpss_event_structs.h.inc` types on
-// an LP64 host; CI re-validates the asserts on every build.
+// Removed the wire-internal `contract_id` field from every
+// data variant; identity rides on `contract.symbol` (and the
+// option-only `expiration` / `strike` / `is_call` flags) instead.
+// Numbers below recomputed from the exact struct under `-O2` with the
+// generated `fpss_event_structs.h.inc` types on an LP64 host; CI
+// re-validates the asserts on every build.
 
 // Generated layout guards for the FPSS event C mirror structs.
 #include "fpss_layout_asserts.hpp.inc"
@@ -313,85 +315,144 @@ private:
 };
 
 // ── FPSS event types (re-exported from thetadx.h) ──
+//
+// Replaced the flat `TdxFpssControl { kind, id, detail }`
+// envelope with one typed C struct per `FpssControl::*` Rust variant.
+// Consumers dispatch via `event.kind` and read the matching
+// `event.<variant>` payload (`event.login_success.permissions`,
+// `event.disconnected.reason`, etc.). The aliases below mirror every
+// generated type so C++ users can stay in the `tdx::` namespace.
 
 using FpssEventKind = TdxFpssEventKind;
 using FpssQuote = TdxFpssQuote;
 using FpssTrade = TdxFpssTrade;
 using FpssOpenInterest = TdxFpssOpenInterest;
 using FpssOhlcvc = TdxFpssOhlcvc;
-using FpssControl = TdxFpssControl;
-using FpssRawData = TdxFpssRawData;
+// Typed control variants — one alias per `FpssControl::*` Rust variant.
+using FpssConnected = TdxFpssConnected;
+using FpssContractAssigned = TdxFpssContractAssigned;
+using FpssDisconnected = TdxFpssDisconnected;
+using FpssError = TdxFpssError;
+using FpssLoginSuccess = TdxFpssLoginSuccess;
+using FpssMarketClose = TdxFpssMarketClose;
+using FpssMarketOpen = TdxFpssMarketOpen;
+using FpssPing = TdxFpssPing;
+using FpssReconnected = TdxFpssReconnected;
+using FpssReconnectedServer = TdxFpssReconnectedServer;
+using FpssReconnecting = TdxFpssReconnecting;
+using FpssReqResponse = TdxFpssReqResponse;
+using FpssRestart = TdxFpssRestart;
+using FpssServerError = TdxFpssServerError;
+using FpssUnknownControl = TdxFpssUnknownControl;
+using FpssUnknownFrame = TdxFpssUnknownFrame;
 using FpssEvent = TdxFpssEvent;
 
 // ── FPSS real-time streaming client ──
 //
-// Event delivery is callback-driven. Two paths are available:
-//
-// * `set_callback(fn)` — default queued path. Events flow
-//   `FPSS reader -> bounded(8192) crossbeam queue -> dispatcher drain
-//   thread -> user fn`. The reader thread never blocks on user code; on
-//   queue overflow events are dropped and counted via `dropped_events()`.
-//
-// * `set_inline_callback(fn)` — power-user opt-in. `fn` fires directly
-//   from the FPSS reader thread. The caller MUST guarantee `fn` returns
-//   within microseconds; a slow `fn` blocks the reader, fills the kernel
-//   TCP receive buffer, and causes the vendor to disconnect.
+// Event delivery is callback-driven via `set_callback(fn)`. Events flow
+// `FPSS reader -> LMAX Disruptor ring -> consumer thread ->
+// catch_unwind(fn)`. The reader thread never blocks on user code; on
+// ring overflow events are dropped and counted via `dropped_events()`.
 //
 // The Client owns the `std::function`. A free `extern "C"` shim retrieves
 // the stored function from the registered `void* ctx` and invokes it with
 // the event reference. The shim converts `const TdxFpssEvent*` (the C ABI
 // payload type) to `const FpssEvent&` (the C++ alias) at the boundary.
-// Callback storage outlives any FPSS reader / dispatcher thread because
-// `~FpssClient` calls `tdx_fpss_shutdown` before the storage is freed.
+// Callback storage outlives any FPSS reader / Disruptor consumer thread
+// because the destruction path always routes through `tdx_fpss_free`,
+// which performs an internal drain barrier (5 s timeout) so the
+// consumer has stopped firing the callback before the storage is
+// released.
 
 class FpssClient {
 public:
     #include "fpss.hpp.inc"
+
+    /// Polymorphic subscribe — primary fluent entry point. Forward
+    /// declared here; the inline implementation appears below the
+    /// fluent type definitions.
+    inline void subscribe(const class FluentSubscription& sub) const;
+    inline void subscribe_many(std::initializer_list<class FluentSubscription> subs) const;
+    inline void unsubscribe(const class FluentSubscription& sub) const;
+    inline void unsubscribe_many(std::initializer_list<class FluentSubscription> subs) const;
+
     ~FpssClient();
 
     FpssClient(const FpssClient&) = delete;
     FpssClient& operator=(const FpssClient&) = delete;
     FpssClient(FpssClient&& other) noexcept
-        : handle_(std::move(other.handle_)),
-          callback_(std::move(other.callback_)) {}
+        // Initialiser order MUST follow declaration order; see the
+        // ordering invariant comment above the member declarations.
+        : callback_(std::move(other.callback_)),
+          handle_(std::move(other.handle_)) {}
     /** Move-assign. The receiver may already hold a live FPSS handle
      *  with a registered callback whose `ctx` points into our existing
      *  `callback_` storage. We must drain that wiring on the C ABI side
      *  BEFORE destroying the old `callback_`, otherwise the Rust
-     *  dispatcher / inline reader could invoke through a dangling
-     *  `void*` ctx. `tdx_fpss_shutdown` drops the FPSS reader and joins
-     *  the dispatcher drain thread before returning, so once it
-     *  completes no thread observes the old ctx. */
+     *  Disruptor consumer could invoke through a dangling `void*` ctx.
+     *  `tdx_fpss_shutdown` returns asynchronously, so we follow it with
+     *  `tdx_fpss_await_drain` (5 s budget, matching the free contract)
+     *  to confirm the consumer thread has stopped firing the callback
+     *  before releasing the storage.
+     *
+     *  Drain timeout (rare, indicates a wedged user callback): we MUST
+     *  NOT reset `callback_` synchronously because a still-firing
+     *  consumer would invoke through a dangling ctx. Instead we detach
+     *  the callback storage onto a helper thread that holds it for an
+     *  extra 30 s grace window before dropping it. The Rust-side detach
+     *  helper bounds the consumer's worst-case lifetime to its own ring
+     *  drain, so 30 s is a generous upper bound and lets the move
+     *  proceed without observable liveness loss to the caller. */
     FpssClient& operator=(FpssClient&& other) noexcept {
         if (this != &other) {
             if (handle_) {
                 tdx_fpss_shutdown(handle_.get());
+                // Block until the consumer thread quiesces. The 5 s
+                // budget matches `tdx_fpss_free`'s internal barrier.
+                int drained = tdx_fpss_await_drain(handle_.get(), 5000);
+                if (drained == 0) {
+                    // Drain barrier timed out: the Disruptor consumer
+                    // may still be firing through `callback_`'s
+                    // storage. Detach storage to a helper thread for
+                    // a 30 s grace window so destruction happens off
+                    // the move path; the consumer is bounded by its
+                    // own ring drain and will quiesce well within
+                    // that window even on a heavily backlogged ring.
+                    std::thread([cb = std::move(callback_)]() mutable {
+                        std::this_thread::sleep_for(std::chrono::seconds(30));
+                        // `cb` destructs here, off the move path.
+                    }).detach();
+                } else {
+                    callback_.reset();
+                }
+            } else {
+                callback_.reset();
             }
-            // Now safe to drop the old callback storage; no Rust thread
-            // can still be holding its address.
-            callback_.reset();
             handle_ = std::move(other.handle_);
             callback_ = std::move(other.callback_);
         }
         return *this;
     }
 
-    /** Register a queued FPSS callback and open the FPSS connection.
-     *  `fn` runs on the dispatcher drain thread, never on the FPSS
-     *  reader. The reader thread cannot be blocked by user code: on
-     *  overflow events are dropped and counted via `dropped_events()`.
-     *  Throws on registration failure.
+    /** Register an FPSS callback and open the FPSS connection.
+     *  `fn` runs on the LMAX Disruptor consumer thread under
+     *  `catch_unwind`, never on the FPSS reader. The reader thread
+     *  cannot be blocked by user code: on ring overflow events are
+     *  dropped and counted via `dropped_events()`. Throws on
+     *  registration failure.
      *
      *  ## Callback storage + thread affinity
      *
      *  The wrapper owns a `std::unique_ptr<std::function>` whose
-     *  address is what the Rust dispatcher receives as `ctx`. That
-     *  address must outlive every dispatcher-thread invocation; the
-     *  destructor / move-assign teardown drains the C ABI side via
-     *  `tdx_fpss_shutdown` BEFORE freeing the storage, so no thread
-     *  can observe a dangling ctx. The dispatcher invokes `fn`
-     *  serially on a single drain thread — no internal locks are
-     *  needed for callback-private state.
+     *  address is what the Rust Disruptor consumer receives as `ctx`.
+     *  That address must outlive every consumer-thread invocation;
+     *  destruction routes through `tdx_fpss_free`, which performs the
+     *  shutdown + drain barrier internally, and move-assign calls
+     *  `tdx_fpss_shutdown` followed by `tdx_fpss_await_drain` (5 s
+     *  budget) before releasing the storage — so no thread can
+     *  observe a dangling ctx. The consumer invokes `fn` serially on
+     *  a single thread, so no internal locks are needed for
+     *  callback-private state.
      *
      *  ## Lifecycle contract (FPSS one-shot rule)
      *
@@ -414,39 +475,10 @@ public:
         callback_ = std::move(staged);
     }
 
-    /** Register an inline FPSS callback and open the FPSS connection.
-     *  `fn` fires directly from the FPSS reader thread. Caller MUST
-     *  guarantee `fn` returns within microseconds; a slow `fn` stalls
-     *  the reader and the vendor will drop the session. Throws on
-     *  registration failure.
-     *
-     *  ## Callback storage + thread affinity
-     *
-     *  Same staged-then-adopt discipline as `set_callback`: only swap
-     *  into `callback_` after the FFI reports success, so a rejected
-     *  re-registration cannot dangle the still-active Rust ctx. The
-     *  inline path invokes `fn` directly from the FPSS reader thread
-     *  (no dispatcher queue, no extra thread); since the reader is
-     *  single-threaded, no internal locks are needed for
-     *  callback-private state.
-     *
-     *  ## Lifecycle contract (FPSS one-shot rule)
-     *
-     *  Same one-shot / terminal-shutdown rules as `set_callback`. */
-    void set_inline_callback(std::function<void(const FpssEvent&)> fn) {
-        auto staged = std::make_unique<std::function<void(const FpssEvent&)>>(std::move(fn));
-        int rc = tdx_fpss_set_inline_callback(handle_.get(), &FpssClient::callback_shim, staged.get());
-        if (rc < 0) {
-            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
-        }
-        callback_ = std::move(staged);
-    }
-
-    /** Cumulative count of FPSS events dropped by the streaming dispatcher
-     *  because the bounded(8192) queue was full when the FPSS reader
-     *  thread tried to enqueue. Returns 0 when no callback has been
-     *  installed or when the inline path was taken (no queue). Safe to
-     *  call on a moved-from client. */
+    /** Cumulative count of FPSS events the TLS reader could not publish
+     *  into the LMAX Disruptor ring because the consumer fell behind
+     *  and the ring was full. Returns 0 when no callback has been
+     *  installed yet. Safe to call on a moved-from client. */
     uint64_t dropped_events() const {
         return handle_ ? tdx_fpss_dropped_events(handle_.get()) : 0;
     }
@@ -466,15 +498,863 @@ private:
         }
     }
 
-    std::unique_ptr<TdxFpssHandle, FpssHandleDeleter> handle_;
-    // `unique_ptr` so the address handed to the C ABI as `ctx` is stable
-    // across moves of the owning `FpssClient`.
+    // ── Member ordering invariant (do not reorder) ──
+    //
+    // C++ destructs members in REVERSE declaration order. The C ABI
+    // contract for `tdx_fpss_free` is "drain the user-callback path
+    // before this call returns" — the FFI's deleter runs that drain
+    // barrier internally (5 s budget). For the barrier to be safe the
+    // `std::function` storage backing the registered `void* ctx` MUST
+    // still be alive while `tdx_fpss_free` is polling the drain flag,
+    // because the Disruptor consumer may still be invoking through it.
+    //
+    // We therefore declare `handle_` AFTER `callback_`: reverse-order
+    // destruction destroys `handle_` first → `tdx_fpss_free` runs and
+    // its drain barrier returns → `callback_` storage is then released.
+    // Reordering these two members reintroduces the use-after-free.
+    //
+    // `callback_` is a `unique_ptr<std::function<...>>` so the address
+    // handed to the C ABI as `ctx` is stable across moves of the owning
+    // `FpssClient`.
     std::unique_ptr<std::function<void(const FpssEvent&)>> callback_;
+    std::unique_ptr<TdxFpssHandle, FpssHandleDeleter> handle_;
 };
 
 // ── Standalone Greeks functions ──
 
 #include "utilities.hpp.inc"
+
+// ── FLATFILES surface ────────────────────────────────────────────────
+//
+// Thin RAII wrappers over the C ABI in `thetadx.h`. The dynamic schema
+// (one column set per (sec_type, req_type)) is opaque on the C++ side
+// — typed access is via the Arrow IPC bytes returned by
+// `FlatFileRowList::to_arrow_ipc()`. Pair with arrow-cpp on the
+// consumer side to materialise an `arrow::Table`.
+
+struct FlatFileRowListDeleter {
+    void operator()(TdxFlatFileRowList* p) const {
+        if (p) tdx_flatfile_rowlist_free(p);
+    }
+};
+
+/// RAII wrapper around an opaque `TdxFlatFileRowList*`. Move-only.
+/// Built by `FlatFiles::request(...)`; expose either Arrow IPC bytes
+/// via `to_arrow_ipc()` or use the free `to_path` variant on the
+/// owning `Client`.
+class FlatFileRowList {
+public:
+    FlatFileRowList(FlatFileRowList&&) = default;
+    FlatFileRowList& operator=(FlatFileRowList&&) = default;
+    FlatFileRowList(const FlatFileRowList&) = delete;
+    FlatFileRowList& operator=(const FlatFileRowList&) = delete;
+
+    /// Number of decoded rows. 0 on a moved-from / null handle.
+    size_t size() const noexcept {
+        return handle_ ? tdx_flatfile_rows_count(handle_.get()) : 0;
+    }
+
+    /// Serialise the rows as Arrow IPC stream bytes. Throws on
+    /// schema-inference / serialisation failure. The returned vector
+    /// owns its memory; the underlying FFI buffer is freed before
+    /// return so the caller never has to invoke `tdx_flatfile_bytes_free`.
+    std::vector<uint8_t> to_arrow_ipc() const {
+        if (!handle_) {
+            throw std::runtime_error("thetadatadx: FlatFileRowList moved-from");
+        }
+        TdxFlatFileBytes raw = tdx_flatfile_rows_to_arrow_ipc(handle_.get());
+        if (raw.data == nullptr) {
+            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        }
+        std::vector<uint8_t> out(raw.data, raw.data + raw.len);
+        tdx_flatfile_bytes_free(raw);
+        return out;
+    }
+
+    /// Raw handle accessor for advanced consumers that want to call
+    /// the C ABI directly (e.g. zero-copy bridges into custom Arrow
+    /// converters). Ownership remains with this object.
+    const TdxFlatFileRowList* get() const noexcept { return handle_.get(); }
+
+private:
+    friend class FlatFiles;
+    explicit FlatFileRowList(TdxFlatFileRowList* h) : handle_(h) {}
+    std::unique_ptr<TdxFlatFileRowList, FlatFileRowListDeleter> handle_;
+};
+
+/// Namespace handle exposing the FLATFILES surface for a connected
+/// unified client. Cheap to construct — borrows the parent handle.
+class FlatFiles {
+public:
+    /// Generic dispatcher. `sec_type` is "OPTION" / "STOCK" / "INDEX";
+    /// `req_type` is "EOD" / "QUOTE" / "OPEN_INTEREST" / "OHLC" /
+    /// "TRADE" / "TRADE_QUOTE"; `date` is "YYYYMMDD".
+    FlatFileRowList request(const std::string& sec_type,
+                            const std::string& req_type,
+                            const std::string& date) const {
+        TdxFlatFileRowList* h = tdx_flatfile_request_decoded(
+            handle_, sec_type.c_str(), req_type.c_str(), date.c_str());
+        if (h == nullptr) {
+            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        }
+        return FlatFileRowList(h);
+    }
+
+    FlatFileRowList option_quote(const std::string& date) const {
+        return request("OPTION", "QUOTE", date);
+    }
+    FlatFileRowList option_trade(const std::string& date) const {
+        return request("OPTION", "TRADE", date);
+    }
+    FlatFileRowList option_trade_quote(const std::string& date) const {
+        return request("OPTION", "TRADE_QUOTE", date);
+    }
+    FlatFileRowList option_ohlc(const std::string& date) const {
+        return request("OPTION", "OHLC", date);
+    }
+    FlatFileRowList option_open_interest(const std::string& date) const {
+        return request("OPTION", "OPEN_INTEREST", date);
+    }
+    FlatFileRowList option_eod(const std::string& date) const {
+        return request("OPTION", "EOD", date);
+    }
+    FlatFileRowList stock_quote(const std::string& date) const {
+        return request("STOCK", "QUOTE", date);
+    }
+    FlatFileRowList stock_trade(const std::string& date) const {
+        return request("STOCK", "TRADE", date);
+    }
+    FlatFileRowList stock_trade_quote(const std::string& date) const {
+        return request("STOCK", "TRADE_QUOTE", date);
+    }
+    FlatFileRowList stock_eod(const std::string& date) const {
+        return request("STOCK", "EOD", date);
+    }
+
+    /// Pull a flat-file blob and write the requested vendor format
+    /// (`csv` / `jsonl`) directly to `path`. Throws on FFI failure.
+    void to_path(const std::string& sec_type,
+                 const std::string& req_type,
+                 const std::string& date,
+                 const std::string& path,
+                 const std::string& format = "csv") const {
+        int rc = tdx_flatfile_request_to_path(
+            handle_, sec_type.c_str(), req_type.c_str(),
+            date.c_str(), path.c_str(), format.c_str());
+        if (rc != 0) {
+            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        }
+    }
+
+private:
+    friend class UnifiedClient;
+    explicit FlatFiles(const TdxUnified* h) : handle_(h) {}
+    const TdxUnified* handle_;
+};
+
+struct UnifiedDeleter {
+    void operator()(TdxUnified* p) const {
+        if (p) tdx_unified_free(p);
+    }
+};
+
+/// RAII wrapper around a unified client handle (`TdxUnified*`).
+/// The unified handle owns both the historical (gRPC/MDDS) and
+/// streaming (FPSS) sub-clients; the C++ wrapper exposes the
+/// FLATFILES surface, the polymorphic `subscribe(spec)` /
+/// `unsubscribe(spec)` API, and the `start_streaming_iter()`
+/// pull-iter entry point through this class. For pure-historical
+/// gRPC use, `Client` remains the recommended entry point. For
+/// push-callback streaming or `await_drain` on the unified handle,
+/// drive the C ABI (`tdx_unified_set_callback` /
+/// `tdx_unified_await_drain`) directly via `get()`.
+class UnifiedClient {
+public:
+    /// Connect a unified client. Throws on auth / handshake failure.
+    static UnifiedClient connect(const Credentials& creds, const Config& config) {
+        TdxUnified* h = tdx_unified_connect(creds.get(), config.get());
+        if (h == nullptr) {
+            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        }
+        return UnifiedClient(h);
+    }
+
+    /// Namespace handle for the FLATFILES surface. Cheap — borrows the
+    /// underlying C ABI handle, so the lifetime of the returned
+    /// `FlatFiles` value is bounded by `*this`.
+    FlatFiles flat_files() const { return FlatFiles(handle_.get()); }
+
+    /// Polymorphic subscribe — primary fluent entry point. Defined
+    /// inline below the fluent class declarations.
+    inline void subscribe(const class FluentSubscription& sub) const;
+
+    /// Bulk-subscribe an initializer list of `Subscription` values.
+    /// Stops at the first error and throws.
+    inline void subscribe_many(std::initializer_list<class FluentSubscription> subs) const;
+
+    /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
+    inline void unsubscribe(const class FluentSubscription& sub) const;
+
+    /// Bulk-unsubscribe an initializer list of `Subscription` values.
+    inline void unsubscribe_many(std::initializer_list<class FluentSubscription> subs) const;
+
+    /// Raw handle for advanced consumers that want to call the C ABI
+    /// directly. Ownership remains with this object.
+    const TdxUnified* get() const noexcept { return handle_.get(); }
+
+    /// Start FPSS streaming in pull-iter delivery mode. Returns a
+    /// move-only [`EventIterator`] handle; iterate with
+    /// `while (auto event = it.next(timeout)) { ... }` or use the
+    /// STL-iterator adapters `it.begin()` / `it.end()` for a
+    /// range-for loop.
+    ///
+    /// Mutually exclusive with `tdx_unified_set_callback` on the same
+    /// handle; switch by stopping streaming and starting again.
+    /// Throws `std::runtime_error` on connection / state failure.
+    inline class EventIterator start_streaming_iter() const;
+
+private:
+    explicit UnifiedClient(TdxUnified* h) : handle_(h) {}
+    std::unique_ptr<TdxUnified, UnifiedDeleter> handle_;
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+// Pull-iter delivery — RAII wrapper around `TdxFpssEventIterator*`
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Sibling of the push-callback path on `UnifiedClient`. Drains the
+// per-client bounded queue on the caller's own thread; each `next()`
+// blocks up to a user-supplied timeout for the next typed
+// `TdxFpssEvent`. The class is move-only — copying would silently
+// fan out queue draining across multiple consumers, which is not the
+// design.
+//
+// Two surfaces:
+//   * Explicit polling: `auto event = it.next(std::chrono::seconds(1));`
+//     — `std::optional<TdxFpssEvent>` so the caller can branch on
+//     timeout vs. terminal end-of-stream.
+//   * Range-for: `for (auto& event : it) { ... }` — uses the
+//     STL-iterator adapters below; the implicit timeout is "block
+//     indefinitely until terminal end-of-stream", which matches the
+//     idiomatic Python `for event in iter:` shape.
+//
+// The borrowed pointer fields inside `TdxFpssEvent` (`Contract.symbol`,
+// payload byte slices, etc.) reference heap memory owned by the
+// iterator handle. They are valid until the next `next()` call OR
+// until the iterator is destroyed. Copy any fields the consumer
+// wants to outlive the next pop.
+
+struct EventIteratorDeleter {
+    void operator()(TdxFpssEventIterator* p) const {
+        if (p) tdx_fpss_event_iter_free(p);
+    }
+};
+
+class EventIterator {
+public:
+    EventIterator(EventIterator&&) noexcept = default;
+    EventIterator& operator=(EventIterator&&) noexcept = default;
+    EventIterator(const EventIterator&) = delete;
+    EventIterator& operator=(const EventIterator&) = delete;
+
+    /// Pop the next event with a deadline. Returns `std::nullopt` on
+    /// timeout (non-terminal — the upstream is still live and the
+    /// caller can re-poll) and on terminal end-of-stream (the
+    /// streaming session has shut down and the queue is drained).
+    /// Distinguish via [`Self::ended`] after the call: `ended()` flips
+    /// to `true` ONLY on terminal close (C ABI rc `-1`), never on
+    /// timeout (rc `1`). A loop that re-polls on timeout therefore
+    /// will not falsely terminate on a quiet-but-live upstream.
+    std::optional<TdxFpssEvent> next(std::chrono::milliseconds timeout) {
+        TdxFpssEvent out{};
+        const int32_t ms = timeout.count() < 0
+                               ? 0
+                               : static_cast<int32_t>(std::min<long long>(
+                                     timeout.count(), static_cast<long long>(INT32_MAX)));
+        const int rc = tdx_fpss_event_iter_next(handle_.get(), &out, ms);
+        if (rc == 0) {
+            return out;
+        }
+        // rc == 1 — timeout; rc == -1 — terminal end-of-stream.
+        // Only the terminal case latches `ended_`; the timeout case
+        // is a soft re-poll signal the caller can act on.
+        if (rc == -1) {
+            ended_ = true;
+        }
+        return std::nullopt;
+    }
+
+    /// Non-blocking pop. Returns `std::nullopt` immediately on either
+    /// an empty-but-live queue (rc `1`, soft re-poll signal) or a
+    /// terminal end-of-stream (rc `-1`, queue drained on a stopped
+    /// session). Distinguish via [`Self::ended`] after the call:
+    /// `ended()` flips to `true` ONLY on terminal close, never on the
+    /// quiet-but-live empty path. A polling integration should
+    /// therefore loop on `try_next()` returning `nullopt` while
+    /// `!ended()` and exit cleanly when `ended()` flips. Earlier the
+    /// underlying core's `try_next()` returned `Option<FpssEvent>` and
+    /// overloaded `None` to mean both, so the C ABI mapped every empty
+    /// poll to `Timeout` (rc `1`) and a C++ caller draining after
+    /// `stop_streaming()` would never observe `ended() == true`.
+    std::optional<TdxFpssEvent> try_next() {
+        TdxFpssEvent out{};
+        const int rc = tdx_fpss_event_iter_next(handle_.get(), &out, 0);
+        if (rc == 0) {
+            return out;
+        }
+        // rc == 1 — empty-but-live; rc == -1 — terminal end-of-stream.
+        // Only the terminal case latches `ended_`; mirrors the
+        // `next(timeout)` code path so the two entry points have a
+        // consistent end-of-stream contract.
+        if (rc == -1) {
+            ended_ = true;
+        }
+        return std::nullopt;
+    }
+
+    /// Whether the iterator has observed terminal end-of-stream.
+    /// Once `true`, subsequent `next()` calls always return
+    /// `std::nullopt`.
+    bool ended() const noexcept { return ended_; }
+
+    /// Mark the iterator closed. Subsequent `next()` calls return
+    /// `std::nullopt` once the residual queue drains, without
+    /// shutting down the underlying streaming session.
+    void close() {
+        if (handle_) {
+            tdx_fpss_event_iter_close(handle_.get());
+        }
+    }
+
+    /// STL-compatible input-iterator adapter. Not bidirectional or
+    /// random-access — single-pass over the streaming queue.
+    class Sentinel {};
+    class IterAdapter {
+    public:
+        IterAdapter(EventIterator* parent, std::chrono::milliseconds timeout)
+            : parent_(parent), timeout_(timeout) {
+            advance();
+        }
+        const TdxFpssEvent& operator*() const { return current_; }
+        const TdxFpssEvent* operator->() const { return &current_; }
+        IterAdapter& operator++() {
+            advance();
+            return *this;
+        }
+        bool operator!=(const Sentinel&) const { return !done_; }
+
+    private:
+        void advance() {
+            // Re-poll on timeout — `next()` returns `std::nullopt`
+            // for both timeout and terminal close, but only the
+            // terminal case latches `parent_->ended()`. A `for (auto&
+            // event : iter)` loop must keep advancing on timeout so
+            // a quiet-but-live upstream doesn't falsely end the
+            // iteration (earlier the C ABI conflated the two,
+            // which is what made this distinction necessary).
+            for (;;) {
+                auto evt = parent_->next(timeout_);
+                if (evt.has_value()) {
+                    current_ = *evt;
+                    done_ = false;
+                    return;
+                }
+                if (parent_->ended()) {
+                    done_ = true;
+                    return;
+                }
+                // Timeout — upstream still live. Continue waiting on
+                // the next slice.
+            }
+        }
+        EventIterator* parent_;
+        std::chrono::milliseconds timeout_;
+        TdxFpssEvent current_{};
+        bool done_ = false;
+    };
+
+    /// `for (const auto& event : it)` adapter. Uses a 1-second
+    /// per-pop timeout so a stalled upstream surfaces as a soft
+    /// re-poll rather than blocking the iteration forever; callers
+    /// who need a different cadence drive `next()` directly.
+    IterAdapter begin() { return IterAdapter(this, std::chrono::milliseconds(1000)); }
+    Sentinel end() { return Sentinel{}; }
+
+    /// Raw handle for advanced consumers. Ownership stays with this
+    /// object.
+    TdxFpssEventIterator* get() const noexcept { return handle_.get(); }
+
+private:
+    friend class UnifiedClient;
+    explicit EventIterator(TdxFpssEventIterator* h) : handle_(h) {}
+    std::unique_ptr<TdxFpssEventIterator, EventIteratorDeleter> handle_;
+    bool ended_ = false;
+};
+
+// Definition of `UnifiedClient::start_streaming_iter` deferred until
+// after `EventIterator` is fully declared.
+inline EventIterator UnifiedClient::start_streaming_iter() const {
+    TdxFpssEventIterator* it = tdx_unified_start_streaming_iter(handle_.get());
+    if (it == nullptr) {
+        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    }
+    return EventIterator(it);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Fluent contract-first API
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Mirrors the Rust target shape from
+// `report/ThetaDataDxClient_API_DX_Review_Rust_Python.md`:
+//
+//     auto stock  = tdx::Contract::stock("AAPL");
+//     auto option = tdx::Contract::option("SPY", "20260620", "550", "C");
+//     client.subscribe(stock.quote());
+//     client.subscribe(option.trade());
+//     client.subscribe(tdx::SecType::option().full_trades());
+//
+// Pure-header layer over the existing C ABI subscribe entry points
+// (`tdx_unified_subscribe` / `_unsubscribe`, polymorphic over
+// `TdxSubscriptionRequest`). No
+// new C ABI symbols — the value type just routes the existing call
+// dispatch by stored kind + payload.
+
+class FluentContract;
+class FluentSubscription;
+class FluentSecType;
+
+/// Typed market-data subscription. Returned by `Contract::quote` /
+/// `Contract::trade` / `Contract::open_interest` (per-contract) or by
+/// `SecType::option().full_trades()` /
+/// `.full_open_interest()` (full-stream). Pass into
+/// `UnifiedClient::subscribe(sub)` or `subscribe_many(...)`.
+class FluentSubscription {
+public:
+    enum class Scope { Contract, Full };
+    enum class Kind { Quote, Trade, OpenInterest };
+
+    Scope scope() const noexcept { return scope_; }
+    Kind kind() const noexcept { return kind_; }
+    const std::string& symbol() const noexcept { return symbol_; }
+    const std::string& expiration() const noexcept { return expiration_; }
+    const std::string& strike() const noexcept { return strike_; }
+    const std::string& right() const noexcept { return right_; }
+    const std::string& sec_type() const noexcept { return sec_type_; }
+    bool is_option() const noexcept { return is_option_; }
+
+private:
+    friend class FluentContract;
+    friend class FluentSecType;
+
+    static FluentSubscription per_contract_stock(std::string symbol, Kind k) {
+        FluentSubscription s;
+        s.scope_ = Scope::Contract;
+        s.kind_ = k;
+        s.symbol_ = std::move(symbol);
+        s.is_option_ = false;
+        return s;
+    }
+    static FluentSubscription per_contract_option(
+        std::string symbol, std::string expiration,
+        std::string strike, std::string right, Kind k) {
+        FluentSubscription s;
+        s.scope_ = Scope::Contract;
+        s.kind_ = k;
+        s.symbol_ = std::move(symbol);
+        s.expiration_ = std::move(expiration);
+        s.strike_ = std::move(strike);
+        s.right_ = std::move(right);
+        s.is_option_ = true;
+        return s;
+    }
+    static FluentSubscription full_stream(std::string sec_type, Kind k) {
+        FluentSubscription s;
+        s.scope_ = Scope::Full;
+        s.kind_ = k;
+        s.sec_type_ = std::move(sec_type);
+        return s;
+    }
+
+    Scope scope_{Scope::Contract};
+    Kind kind_{Kind::Quote};
+    std::string symbol_;
+    std::string expiration_;
+    std::string strike_;
+    std::string right_;
+    std::string sec_type_;
+    bool is_option_{false};
+};
+
+/// Fluent contract identifier — stock or option.
+class FluentContract {
+public:
+    /// Construct a stock contract.
+    static FluentContract stock(std::string symbol) {
+        return FluentContract{std::move(symbol), false, "", "", ""};
+    }
+    /// Construct an index contract. Routes through the stock-shape
+    /// wire encoder; the C ABI layer treats them identically (no
+    /// per-index subscribe call exists today).
+    static FluentContract index(std::string symbol) {
+        return FluentContract{std::move(symbol), false, "", "", ""};
+    }
+    /// Construct an option contract. `right` accepts `"C"` / `"CALL"`
+    /// / `"P"` / `"PUT"` (case-insensitive).
+    static FluentContract option(std::string symbol, std::string expiration,
+                                  std::string strike, std::string right) {
+        return FluentContract{std::move(symbol), true, std::move(expiration),
+                              std::move(strike), std::move(right)};
+    }
+
+    FluentSubscription quote() const {
+        if (is_option_) {
+            return FluentSubscription::per_contract_option(
+                symbol_, expiration_, strike_, right_,
+                FluentSubscription::Kind::Quote);
+        }
+        return FluentSubscription::per_contract_stock(
+            symbol_, FluentSubscription::Kind::Quote);
+    }
+    FluentSubscription trade() const {
+        if (is_option_) {
+            return FluentSubscription::per_contract_option(
+                symbol_, expiration_, strike_, right_,
+                FluentSubscription::Kind::Trade);
+        }
+        return FluentSubscription::per_contract_stock(
+            symbol_, FluentSubscription::Kind::Trade);
+    }
+    FluentSubscription open_interest() const {
+        if (is_option_) {
+            return FluentSubscription::per_contract_option(
+                symbol_, expiration_, strike_, right_,
+                FluentSubscription::Kind::OpenInterest);
+        }
+        return FluentSubscription::per_contract_stock(
+            symbol_, FluentSubscription::Kind::OpenInterest);
+    }
+
+    const std::string& symbol() const noexcept { return symbol_; }
+    bool is_option() const noexcept { return is_option_; }
+    const std::string& expiration() const noexcept { return expiration_; }
+    const std::string& strike() const noexcept { return strike_; }
+    const std::string& right() const noexcept { return right_; }
+
+private:
+    FluentContract(std::string symbol, bool is_option,
+                   std::string expiration, std::string strike, std::string right)
+        : symbol_(std::move(symbol)), is_option_(is_option),
+          expiration_(std::move(expiration)), strike_(std::move(strike)),
+          right_(std::move(right)) {}
+
+    std::string symbol_;
+    bool is_option_;
+    std::string expiration_;
+    std::string strike_;
+    std::string right_;
+};
+
+/// Fluent security-type accessor for full-stream subscriptions.
+class FluentSecType {
+public:
+    static FluentSecType stock()  { return FluentSecType{"STOCK"}; }
+    static FluentSecType option() { return FluentSecType{"OPTION"}; }
+    static FluentSecType index()  { return FluentSecType{"INDEX"}; }
+
+    FluentSubscription full_trades() const {
+        return FluentSubscription::full_stream(sec_type_,
+            FluentSubscription::Kind::Trade);
+    }
+    FluentSubscription full_open_interest() const {
+        return FluentSubscription::full_stream(sec_type_,
+            FluentSubscription::Kind::OpenInterest);
+    }
+
+    const std::string& name() const noexcept { return sec_type_; }
+
+private:
+    explicit FluentSecType(std::string s) : sec_type_(std::move(s)) {}
+    std::string sec_type_;
+};
+
+// User-facing aliases — the documented surface (`Contract`, `SecType`)
+// per `report/...md`. The class names above are prefixed `Fluent*` to
+// keep them out of the namespace search path of any user code that
+// might also `using namespace tdx;` together with a free-standing
+// `Contract` from another library.
+using Contract = FluentContract;
+// `Subscription` is already taken in this namespace by the active-
+// subscription descriptor — alias the fluent value type with a
+// distinct name. Users still write `client.subscribe(c.quote())`
+// because `subscribe(...)` accepts the `FluentSubscription` value
+// directly; the alias is only needed when the type name needs to
+// appear at a call site.
+using SubscriptionRef = FluentSubscription;
+using SecType = FluentSecType;
+
+// ── UnifiedClient::subscribe(...) inline definitions ───────────────────
+//
+// Implemented out-of-class so the class body can reference the fluent
+// types by forward declaration, then dispatch at the call site through
+// the polymorphic C ABI (`tdx_unified_subscribe` /
+// `tdx_unified_unsubscribe`) which mirrors the Rust `subscribe`
+// signature one-for-one.
+
+namespace detail {
+
+inline TdxSubscriptionRequest build_subscription_request(const FluentSubscription& sub) {
+    TdxSubscriptionRequest req{};
+    req.symbol = nullptr;
+    req.expiration = nullptr;
+    req.strike = nullptr;
+    req.right = nullptr;
+    req.sec_type = nullptr;
+    using K = FluentSubscription::Kind;
+    switch (sub.kind()) {
+        case K::Quote:        req.kind = TDX_SUB_KIND_QUOTE;         break;
+        case K::Trade:        req.kind = TDX_SUB_KIND_TRADE;         break;
+        case K::OpenInterest: req.kind = TDX_SUB_KIND_OPEN_INTEREST; break;
+    }
+    if (sub.scope() == FluentSubscription::Scope::Full) {
+        req.scope = TDX_SUB_SCOPE_FULL;
+        req.sec_type = sub.sec_type().c_str();
+    } else {
+        req.scope = TDX_SUB_SCOPE_CONTRACT;
+        req.symbol = sub.symbol().c_str();
+        if (sub.is_option()) {
+            req.expiration = sub.expiration().c_str();
+            req.strike = sub.strike().c_str();
+            req.right = sub.right().c_str();
+        }
+    }
+    return req;
+}
+
+} // namespace detail
+
+inline void UnifiedClient::subscribe(const FluentSubscription& sub) const {
+    auto req = detail::build_subscription_request(sub);
+    if (tdx_unified_subscribe(handle_.get(), &req) != 0) {
+        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    }
+}
+
+inline void UnifiedClient::subscribe_many(
+    std::initializer_list<FluentSubscription> subs) const {
+    for (const auto& s : subs) subscribe(s);
+}
+
+inline void UnifiedClient::unsubscribe(const FluentSubscription& sub) const {
+    auto req = detail::build_subscription_request(sub);
+    if (tdx_unified_unsubscribe(handle_.get(), &req) != 0) {
+        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    }
+}
+
+inline void UnifiedClient::unsubscribe_many(
+    std::initializer_list<FluentSubscription> subs) const {
+    for (const auto& s : subs) unsubscribe(s);
+}
+
+// ── FpssClient::subscribe(...) inline definitions ─────────────────────
+
+inline void FpssClient::subscribe(const FluentSubscription& sub) const {
+    auto req = detail::build_subscription_request(sub);
+    if (tdx_fpss_subscribe(handle_.get(), &req) != 0) {
+        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    }
+}
+
+inline void FpssClient::subscribe_many(
+    std::initializer_list<FluentSubscription> subs) const {
+    for (const auto& s : subs) subscribe(s);
+}
+
+inline void FpssClient::unsubscribe(const FluentSubscription& sub) const {
+    auto req = detail::build_subscription_request(sub);
+    if (tdx_fpss_unsubscribe(handle_.get(), &req) != 0) {
+        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    }
+}
+
+inline void FpssClient::unsubscribe_many(
+    std::initializer_list<FluentSubscription> subs) const {
+    for (const auto& s : subs) unsubscribe(s);
+}
+
+// ── Cross-language utility helpers (issue #424) ─────────────────────────
+//
+// Thin std::string wrappers over the `'static` C-string accessors in
+// `thetadx.h`. Each call copies the table entry once into a
+// std::string so consumers don't need to think about C-string
+// lifetimes. The underlying C functions are zero-cost lookups
+// (no heap allocation, table-bounded).
+
+namespace util {
+
+/// Trade condition human-readable name. Returns "UNKNOWN" for unknown codes.
+inline std::string condition_name(int32_t code) {
+    return std::string(tdx_condition_name(code));
+}
+
+/// Trade condition description. Returns "" for unknown codes.
+inline std::string condition_description(int32_t code) {
+    return std::string(tdx_condition_description(code));
+}
+
+/// True if the trade condition code represents a cancellation.
+inline bool is_cancel(int32_t code) {
+    return tdx_condition_is_cancel(code);
+}
+
+/// True if the trade condition code updates the volume bar.
+inline bool updates_volume(int32_t code) {
+    return tdx_condition_updates_volume(code);
+}
+
+/// Quote condition human-readable name. Returns "UNKNOWN" for unknown codes.
+inline std::string quote_condition_name(int32_t code) {
+    return std::string(tdx_quote_condition_name(code));
+}
+
+/// Quote condition description. Returns "" for unknown codes.
+inline std::string quote_condition_description(int32_t code) {
+    return std::string(tdx_quote_condition_description(code));
+}
+
+/// True if the quote condition is firm (binding).
+inline bool is_firm(int32_t code) {
+    return tdx_quote_condition_is_firm(code);
+}
+
+/// True if the quote condition indicates a trading halt.
+inline bool is_halted(int32_t code) {
+    return tdx_quote_condition_is_halted(code);
+}
+
+/// Exchange human-readable name (e.g. 3 -> "NewYorkStockExchange").
+/// Returns "UNKNOWN" for unknown codes.
+inline std::string exchange_name(int32_t code) {
+    return std::string(tdx_exchange_name(code));
+}
+
+/// Exchange MIC-like symbol (e.g. 3 -> "NYSE"). Returns "UNKNOWN" for unknown codes.
+inline std::string exchange_symbol(int32_t code) {
+    return std::string(tdx_exchange_symbol(code));
+}
+
+/// Convert a signed wire-encoded trade-sequence value to its unsigned
+/// monotonic form. Mirrors `tdbe::sequences::signed_to_unsigned`.
+inline uint64_t sequence_signed_to_unsigned(int64_t signed_value) {
+    return tdx_sequence_signed_to_unsigned(signed_value);
+}
+
+/// Convert an unsigned monotonic trade-sequence value back to its
+/// signed wire encoding. Mirrors `tdbe::sequences::unsigned_to_signed`.
+inline int64_t sequence_unsigned_to_signed(uint64_t unsigned_value) {
+    return tdx_sequence_unsigned_to_signed(unsigned_value);
+}
+
+} // namespace util
+
+// ── Fluent accessors over the C-ABI event structs ────────────────────
+//
+// C++ users get the same fluent surface Python and TypeScript see —
+// `strike_dollars`, the option side as a `char`, `sec_type` as a
+// symbolic uppercase name, and `reason_name` for `RemoveReason`
+// values — without us widening the wire `#[repr(C)]` structs (which
+// would break ABI parity with the Rust mirror). These inline helpers
+// take the C struct by reference and return the same shape Python /
+// TypeScript bindings expose as fields.
+
+/// Strike price in dollars. Returns `std::nullopt` for non-option
+/// contracts. The wire field is an `int32_t` in thousandths of a
+/// dollar (`5_400_000` for a `$5,400.00` strike); this divides by
+/// `1000.0` so user code reads the dollar notation it writes when
+/// calling `tdx::Contract::option(symbol, expiration, strike, right)`.
+inline std::optional<double> strike_dollars(const TdxContract& c) noexcept {
+    if (!c.has_strike) {
+        return std::nullopt;
+    }
+    return static_cast<double>(c.strike) / 1000.0;
+}
+
+/// Option side as a single-character ASCII byte (`'C'` / `'P'`).
+/// Returns `std::nullopt` for non-option contracts. Mirrors the
+/// Python / TypeScript `right` field surface.
+inline std::optional<char> right(const TdxContract& c) noexcept {
+    if (!c.has_right) {
+        return std::nullopt;
+    }
+    return c.right;
+}
+
+/// Security type as a symbolic uppercase name (`"STOCK"` /
+/// `"OPTION"` / `"INDEX"` / `"RATE"` / `"UNKNOWN"`). Mirrors
+/// `SecType::as_str()` on the Rust core and the Python / TypeScript
+/// `sec_type` string surface. Returns `"UNKNOWN"` for unrecognised
+/// discriminants so callers stay total.
+inline std::string_view sec_type_name(int32_t sec_type) noexcept {
+    switch (sec_type) {
+        case 0:
+            return "STOCK";
+        case 1:
+            return "OPTION";
+        case 2:
+            return "INDEX";
+        case 3:
+            return "RATE";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+/// Disconnect reason name (`"TooManyRequests"`, `"InvalidCredentials"`,
+/// ...). Mirrors `tdbe::types::enums::RemoveReason::as_str()` on the
+/// Rust core and the Python / TypeScript `reason_name` field surface.
+/// Returns `"Unspecified"` for unrecognised discriminants so callers
+/// stay total.
+inline std::string_view reason_name(int32_t reason) noexcept {
+    switch (reason) {
+        case 0:
+            return "InvalidCredentials";
+        case 1:
+            return "InvalidLoginValues";
+        case 2:
+            return "InvalidLoginSize";
+        case 3:
+            return "GeneralValidationError";
+        case 4:
+            return "TimedOut";
+        case 5:
+            return "ClientForcedDisconnect";
+        case 6:
+            return "AccountAlreadyConnected";
+        case 7:
+            return "SessionTokenExpired";
+        case 8:
+            return "InvalidSessionToken";
+        case 9:
+            return "FreeAccount";
+        case 12:
+            return "TooManyRequests";
+        case 13:
+            return "NoStartDate";
+        case 14:
+            return "LoginTimedOut";
+        case 15:
+            return "ServerRestarting";
+        case 16:
+            return "SessionTokenNotFound";
+        case 17:
+            return "ServerUserDoesNotExist";
+        case 18:
+            return "InvalidCredentialsNullUser";
+        default:
+            return "Unspecified";
+    }
+}
 
 } // namespace tdx
 

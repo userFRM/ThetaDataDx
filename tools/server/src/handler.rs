@@ -326,6 +326,10 @@ pub async fn system_fpss_status(State(state): State<AppState>) -> Response {
         // can scrape one number to detect WS-side back-pressure without
         // tailing logs. Mirrors the FPSS SDK's `dropped_events()` surface.
         "broadcast_dropped": state.fpss_broadcast_dropped(),
+        // M1 fix: surface the JSON-serialization-failure counter so a
+        // sonic_rs::to_string regression on the hot path is visible
+        // alongside the broadcast drop counter rather than swallowed.
+        "json_serialize_failures": crate::ws::json_serialize_failure_count(),
     });
     json_response(&mut body)
 }

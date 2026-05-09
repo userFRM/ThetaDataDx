@@ -473,4 +473,60 @@ pub enum RemoveReason {
     InvalidCredentialsNullUser = 18,
 }
 
+impl RemoveReason {
+    /// Resolve a wire-level i16 code to the typed variant. Returns
+    /// `RemoveReason::Unspecified` for unknown codes so callers stay
+    /// total without having to handle `Option`.
+    #[must_use]
+    pub fn from_code(code: i16) -> Self {
+        match code {
+            0 => Self::InvalidCredentials,
+            1 => Self::InvalidLoginValues,
+            2 => Self::InvalidLoginSize,
+            3 => Self::GeneralValidationError,
+            4 => Self::TimedOut,
+            5 => Self::ClientForcedDisconnect,
+            6 => Self::AccountAlreadyConnected,
+            7 => Self::SessionTokenExpired,
+            8 => Self::InvalidSessionToken,
+            9 => Self::FreeAccount,
+            12 => Self::TooManyRequests,
+            13 => Self::NoStartDate,
+            14 => Self::LoginTimedOut,
+            15 => Self::ServerRestarting,
+            16 => Self::SessionTokenNotFound,
+            17 => Self::ServerUserDoesNotExist,
+            18 => Self::InvalidCredentialsNullUser,
+            _ => Self::Unspecified,
+        }
+    }
+
+    /// Symbolic UpperCamelCase name (`"TooManyRequests"`,
+    /// `"InvalidCredentials"`, …). Used by Python and TypeScript
+    /// bindings to surface the wire i16 as a readable string.
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "Unspecified",
+            Self::InvalidCredentials => "InvalidCredentials",
+            Self::InvalidLoginValues => "InvalidLoginValues",
+            Self::InvalidLoginSize => "InvalidLoginSize",
+            Self::GeneralValidationError => "GeneralValidationError",
+            Self::TimedOut => "TimedOut",
+            Self::ClientForcedDisconnect => "ClientForcedDisconnect",
+            Self::AccountAlreadyConnected => "AccountAlreadyConnected",
+            Self::SessionTokenExpired => "SessionTokenExpired",
+            Self::InvalidSessionToken => "InvalidSessionToken",
+            Self::FreeAccount => "FreeAccount",
+            Self::TooManyRequests => "TooManyRequests",
+            Self::NoStartDate => "NoStartDate",
+            Self::LoginTimedOut => "LoginTimedOut",
+            Self::ServerRestarting => "ServerRestarting",
+            Self::SessionTokenNotFound => "SessionTokenNotFound",
+            Self::ServerUserDoesNotExist => "ServerUserDoesNotExist",
+            Self::InvalidCredentialsNullUser => "InvalidCredentialsNullUser",
+        }
+    }
+}
+
 include!("generated/enums_endpoint.rs");

@@ -25,7 +25,8 @@ pub(super) const OHLCVC_FIELDS: usize = 9;
 /// FIT uses delta compression: the first tick for a contract is absolute,
 /// subsequent ticks carry only the difference from the previous tick.
 /// We maintain the last absolute values per `(msg_type, contract_id)`.
-pub(super) struct DeltaState {
+#[doc(hidden)]
+pub struct DeltaState {
     /// Key: `(StreamMsgType as u8, contract_id)`, Value: last absolute field values.
     prev: HashMap<(u8, i32), Vec<i32>>,
     /// Per-contract OHLCVC accumulators.
@@ -51,7 +52,8 @@ pub(super) struct DeltaState {
 const STOP_SUPPRESS_DURATION: Duration = Duration::from_secs(5);
 
 impl DeltaState {
-    pub(super) fn new() -> Self {
+    #[doc(hidden)]
+    pub fn new() -> Self {
         // Pre-allocate for the largest tick type (Trade = 16 fields + 1 contract_id).
         Self {
             prev: HashMap::new(),

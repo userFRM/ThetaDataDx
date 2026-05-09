@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} market_bid=${t.market_bid} market_ask=${t.market_ask} market_price=${t.market_price}`);
 }
 ```
-```go [Go]
-data, _ := client.StockSnapshotMarketValue([]string{"SPY"})
-for _, t := range data {
-    fmt.Printf("date=%d market_bid=%.4f market_ask=%.4f market_price=%.4f\n",
-        t.Date, t.MarketBid, t.MarketAsk, t.MarketPrice)
-}
-```
 ```cpp [C++]
 auto data = client.stock_snapshot_market_value({"SPY"});
 for (const auto& t : data) {

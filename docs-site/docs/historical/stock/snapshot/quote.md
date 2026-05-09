@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} bid=${t.bid} bid_size=${t.bid_size} ask=${t.ask} ask_size=${t.ask_size}`);
 }
 ```
-```go [Go]
-data, _ := client.StockSnapshotQuote([]string{"SPY", "MSFT", "GOOGL"})
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d bid=%.2f bid_size=%d ask=%.2f ask_size=%d midpoint=%.2f\n",
-        t.Date, t.MsOfDay, t.Bid, t.BidSize, t.Ask, t.AskSize, t.Midpoint)
-}
-```
 ```cpp [C++]
 auto data = client.stock_snapshot_quote({"SPY", "MSFT", "GOOGL"});
 for (const auto& t : data) {

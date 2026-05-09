@@ -31,10 +31,6 @@ eod = tdx.index_history_eod("SPX", "20240101", "20240301")
 const symbols = tdx.indexListSymbols();
 const eod = tdx.indexHistoryEOD('SPX', '20240101', '20240301');
 ```
-```go [Go]
-symbols, _ := client.IndexListSymbols()
-eod, _ := client.IndexHistoryEOD("SPX", "20240101", "20240301")
-```
 ```cpp [C++]
 auto symbols = client.index_list_symbols();
 auto eod = client.index_history_eod("SPX", "20240101", "20240301");

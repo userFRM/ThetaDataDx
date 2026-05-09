@@ -22,9 +22,9 @@ ThetaDataError (base)
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, Error};
+use thetadatadx::{ThetaDataDxClient, Error};
 
-match tdx.option_history_greeks_all("SPY", "20240419", "500", "C", "20240101", "20240301").await {
+match client.option_history_greeks_all("SPY", "20240419", "500", "C", "20240101", "20240301").await {
     Ok(ticks) => process(ticks),
     Err(Error::RateLimited { wait_ms, .. }) => {
         tokio::time::sleep(std::time::Duration::from_millis(wait_ms)).await;
@@ -71,22 +71,6 @@ try {
     } else {
         throw e;
     }
-}
-```
-```go [Go]
-ticks, err := client.OptionHistoryGreeksAll("SPY", "20240419", "500", "C",
-    "20240101", "20240301")
-
-var rateErr *thetadatadx.RateLimitError
-var authErr *thetadatadx.AuthError
-switch {
-case errors.As(err, &rateErr):
-    time.Sleep(time.Duration(rateErr.WaitMs) * time.Millisecond)
-    // retry
-case errors.As(err, &authErr):
-    refreshCredentials()
-case err != nil:
-    return err
 }
 ```
 ```cpp [C++]

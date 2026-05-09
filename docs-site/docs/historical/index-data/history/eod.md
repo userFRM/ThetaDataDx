@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} open=${t.open} high=${t.high} low=${t.low} close=${t.close} volume=${t.volume}`);
 }
 ```
-```go [Go]
-data, _ := client.IndexHistoryEOD("SPX", "20260101", "20260301")
-for _, t := range data {
-    fmt.Printf("date=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d\n",
-        t.Date, t.Open, t.High, t.Low, t.Close, t.Volume)
-}
-```
 ```cpp [C++]
 auto data = client.index_history_eod("SPX", "20260101", "20260301");
 for (const auto& t : data) {

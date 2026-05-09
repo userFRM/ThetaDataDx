@@ -255,6 +255,15 @@ export default withMermaid(defineConfig({
         ],
       },
       {
+        text: 'Flat Files',
+        collapsed: true,
+        items: [
+          { text: 'Overview', link: '/flatfiles/' },
+          { text: 'Quickstart', link: '/flatfiles/quickstart' },
+          { text: 'API Reference', link: '/flatfiles/api-reference' },
+        ],
+      },
+      {
         text: 'More',
         collapsed: true,
         items: [

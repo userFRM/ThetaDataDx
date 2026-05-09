@@ -7,12 +7,12 @@ description: Handle FPSS disconnects, implement reconnection logic with reconnec
 
 ## Reconnection APIs
 
-Rust exposes `reconnect_streaming(handler)` on the unified `ThetaDataDx` client.
+Rust exposes `reconnect_streaming(handler)` on the unified `ThetaDataDxClient` client.
 Python, TypeScript/Node.js, and C++ expose `reconnect()` on their public streaming clients.
 
 ## Reconnection with `reconnect_streaming()` (Rust)
 
-The unified `ThetaDataDx` client provides `reconnect_streaming()` which handles the full reconnection cycle automatically:
+The unified `ThetaDataDxClient` client provides `reconnect_streaming()` which handles the full reconnection cycle automatically:
 
 1. Saves all active per-contract and firehose subscriptions
 2. Stops the current streaming connection
@@ -20,7 +20,7 @@ The unified `ThetaDataDx` client provides `reconnect_streaming()` which handles 
 4. Re-subscribes everything that was previously active
 
 ```rust
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use tdbe::types::enums::RemoveReason;
 
@@ -36,8 +36,8 @@ match thetadatadx::fpss::reconnect_delay(reason) {
         tdx.reconnect_streaming(|event: &FpssEvent| {
             // Your event handler -- same signature as start_streaming()
             match event {
-                FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
-                    println!("Quote: {contract_id} {bid:.2}/{ask:.2}");
+                FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
+                    println!("Quote: {} {bid:.2}/{ask:.2}", contract.symbol);
                 }
                 _ => {}
             }
@@ -47,23 +47,29 @@ match thetadatadx::fpss::reconnect_delay(reason) {
 ```
 
 ::: tip
-`reconnect_streaming()` uses the same `DirectConfig` (including `fpss_hosts`) that was passed at `ThetaDataDx::connect()` time. If hosts change, create a new `ThetaDataDx` instance.
+`reconnect_streaming()` uses the same `DirectConfig` (including `fpss_hosts`) that was passed at `ThetaDataDxClient::connect()` time. If hosts change, create a new `ThetaDataDxClient` instance.
 :::
 
 ## Reconnection with `reconnect()` (Python, C++)
 
 ::: code-group
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient, Contract
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+tdx = ThetaDataDxClient(creds, Config.production())
 
-tdx.start_streaming()
-tdx.subscribe_quotes("AAPL")
-tdx.subscribe_option_quotes("SPY", "20260116", "600", "C")
+def on_event(event):
+    print(event)
 
-# reconnect() restores the existing subscription set
+tdx.start_streaming(on_event)
+tdx.subscribe(Contract.stock("AAPL").quote())
+tdx.subscribe(Contract.option(
+    "SPY", expiration="20260116", strike="600", right="C"
+).quote())
+
+# reconnect() restores the existing subscription set; the callback
+# registered above is reused on the new session.
 tdx.reconnect()
 ```
 ```cpp [C++]
@@ -73,9 +79,12 @@ int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
     auto config = tdx::Config::production();
 
+    // FpssClient owns the streaming + reconnect surface.
     tdx::FpssClient fpss(creds, config);
-    fpss.subscribe_quotes("AAPL");
-    fpss.subscribe_option_quotes("SPY", "20260116", "600", "C");
+    fpss.subscribe(tdx::Contract::stock("AAPL").quote());
+    fpss.subscribe(tdx::Contract::option(
+        "SPY", "20260116", "600", "C"
+    ).quote());
 
     fpss.reconnect();
 }
@@ -149,40 +158,28 @@ All other codes indicate temporary issues (network glitch, server restart, etc.)
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
-
-    let contracts: Arc<Mutex<HashMap<i32, Contract>>> = Arc::new(Mutex::new(HashMap::new()));
-    let contracts_clone = contracts.clone();
+    let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
     tdx.start_streaming(move |event: &FpssEvent| {
         match event {
-            FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
-                contracts_clone.lock().unwrap().insert(*id, contract.clone());
-            }
             FpssEvent::Data(FpssData::Quote {
-                contract_id, bid, ask, received_at_ns, ..
+                contract, bid, ask, received_at_ns, ..
             }) => {
-                if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
-                    println!("[QUOTE] {}: bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns",
-                        c.symbol);
-                }
+                println!("[QUOTE] {}: bid={bid:.2} ask={ask:.2} rx={received_at_ns}ns",
+                    contract.symbol);
             }
             FpssEvent::Data(FpssData::Trade {
-                contract_id, price, size, received_at_ns, ..
+                contract, price, size, received_at_ns, ..
             }) => {
-                if let Some(c) = contracts_clone.lock().unwrap().get(contract_id) {
-                    println!("[TRADE] {}: price={price:.2} size={size} rx={received_at_ns}ns",
-                        c.symbol);
-                }
+                println!("[TRADE] {}: price={price:.2} size={size} rx={received_at_ns}ns",
+                    contract.symbol);
             }
             FpssEvent::Control(FpssControl::Disconnected { reason }) => {
                 eprintln!("Disconnected: {:?}", reason);
@@ -192,9 +189,9 @@ async fn main() -> Result<(), thetadatadx::Error> {
         }
     })?;
 
-    tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
-    tdx.subscribe_trades(&Contract::stock("AAPL"))?;
-    tdx.subscribe_quotes(&Contract::stock("MSFT"))?;
+    tdx.subscribe(Contract::stock("AAPL").quote())?;
+    tdx.subscribe(Contract::stock("AAPL").trade())?;
+    tdx.subscribe(Contract::stock("MSFT").quote())?;
 
     // Block until interrupted
     std::thread::park();
@@ -203,15 +200,12 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }
 ```
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient, Contract
 import signal
 import sys
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
-
-# Start streaming
-tdx.start_streaming()
+tdx = ThetaDataDxClient(creds, Config.production())
 
 # Graceful shutdown on Ctrl+C
 def shutdown_handler(sig, frame):
@@ -220,36 +214,26 @@ def shutdown_handler(sig, frame):
 
 signal.signal(signal.SIGINT, shutdown_handler)
 
-# Subscribe to multiple streams
-tdx.subscribe_quotes("AAPL")
-tdx.subscribe_trades("AAPL")
-tdx.subscribe_quotes("MSFT")
+# Subscribe to multiple streams via the unified contract-first API.
+tdx.subscribe(Contract.stock("AAPL").quote())
+tdx.subscribe(Contract.stock("AAPL").trade())
+tdx.subscribe(Contract.stock("MSFT").quote())
 
-contracts = {}
-
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue
-
-    # Control events flatten into `Simple` pyclass — branch on
-    # `event.kind == "simple"` then inspect `event.event_type`.
-    if event.kind == "simple" and event.event_type == "contract_assigned":
-        # event.id -> contract_id, event.detail -> formatted contract string
-        contracts[event.id] = event.detail
-    elif event.kind == "quote":
-        name = contracts.get(event.contract_id, "?")
-        print(f"[QUOTE] {name}: bid={event.bid} ask={event.ask} "
-              f"rx={event.received_at_ns}ns")
-    elif event.kind == "trade":
-        name = contracts.get(event.contract_id, "?")
-        print(f"[TRADE] {name}: price={event.price} size={event.size} "
-              f"rx={event.received_at_ns}ns")
-    elif event.kind == "simple" and event.event_type == "disconnected":
-        print(f"Disconnected: {event.detail}")
-        break
-
-tdx.stop_streaming()
+# Pull-iter mode: context-managed typed iterator over the SPSC
+# queue. The iterator raises StopIteration on terminal end-of-stream
+# so the for-loop exits cleanly when the shutdown handler fires; the
+# `with` block pairs `stop_streaming()` + `await_drain()` on exit.
+with tdx.streaming_iter() as it:
+    for event in it:
+        if event.kind == "quote":
+            print(f"[QUOTE] {event.contract.symbol}: bid={event.bid} ask={event.ask} "
+                  f"rx={event.received_at_ns}ns")
+        elif event.kind == "trade":
+            print(f"[TRADE] {event.contract.symbol}: price={event.price} size={event.size} "
+                  f"rx={event.received_at_ns}ns")
+        elif event.kind == "disconnected":
+            print(f"Disconnected: reason={event.reason}")
+            break
 ```
 ```cpp [C++]
 #include "thetadx.hpp"
@@ -259,16 +243,18 @@ int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
     auto config = tdx::Config::production();
 
-    tdx::FpssClient fpss(creds, config);
+    auto client = tdx::UnifiedClient::connect(creds, config);
 
-    // Subscribe to quotes and trades
-    fpss.subscribe_quotes("AAPL");
-    fpss.subscribe_trades("AAPL");
-    fpss.subscribe_trades("MSFT");
+    // Subscribe via the unified contract-first API.
+    client.subscribe(tdx::Contract::stock("AAPL").quote());
+    client.subscribe(tdx::Contract::stock("AAPL").trade());
+    client.subscribe(tdx::Contract::stock("MSFT").trade());
 
-    // Process typed events
-    while (true) {
-        auto event = fpss.next_event(5000);
+    // Pull-iter mode: typed iterator over the SPSC queue. `iter.ended()`
+    // flips to true on terminal end-of-stream so the loop exits cleanly.
+    auto iter = client.start_streaming_iter();
+    while (!iter.ended()) {
+        auto event = iter.next(std::chrono::milliseconds(5000));
         if (!event) {
             continue;
         }
@@ -276,35 +262,30 @@ int main() {
         switch (event->kind) {
         case TDX_FPSS_QUOTE: {
             auto& q = event->quote;
-            
-            
-            std::cout << "[QUOTE] contract=" << q.contract_id
+            std::cout << "[QUOTE] " << q.contract.symbol
                       << " bid=" << q.bid << " ask=" << q.ask
                       << " rx=" << q.received_at_ns << "ns" << std::endl;
             break;
         }
         case TDX_FPSS_TRADE: {
             auto& t = event->trade;
-            
-            std::cout << "[TRADE] contract=" << t.contract_id
+            std::cout << "[TRADE] " << t.contract.symbol
                       << " price=" << t.price << " size=" << t.size << std::endl;
             break;
         }
-        case TDX_FPSS_CONTROL: {
-            auto& c = event->control;
-            if (c.kind == 6) { // Disconnected
-                std::cout << "Disconnected";
-                if (c.detail) std::cout << ": " << c.detail;
-                std::cout << std::endl;
-            }
+        case TDX_FPSS_DISCONNECTED:
+            // Typed control variants — one C struct per FpssControl::*
+            // Rust variant. Dispatch on event->kind, read the matching
+            // event-><variant> payload.
+            std::cout << "Disconnected: reason=" << event->disconnected.reason
+                      << std::endl;
             break;
-        }
         default:
             break;
         }
     }
 
-    fpss.shutdown();
+    client.stop_streaming();
 }
 ```
 :::

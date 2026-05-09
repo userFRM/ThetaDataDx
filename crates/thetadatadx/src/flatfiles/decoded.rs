@@ -55,7 +55,7 @@ pub async fn flatfile_request(
         decode_to_file(&raw_for_decode, sec, &final_for_decode, format)
     })
     .await
-    .map_err(|e| Error::Config(format!("flatfiles: decode task panicked: {e}")))??;
+    .map_err(|e| Error::config_internal(format!("flatfiles: decode task panicked: {e}")))??;
 
     // Step 4: scratch cleanup. A failure here is non-fatal — the user
     // gets the decoded file regardless, and the raw blob is mostly
@@ -81,7 +81,7 @@ pub(crate) fn decode_to_file(
 
     let to_usize = |v: u64, field: &str| {
         usize::try_from(v).map_err(|_| {
-            Error::Config(format!(
+            Error::config_internal(format!(
                 "flatfiles: header field {field}={v} does not fit in usize on this target"
             ))
         })
@@ -90,18 +90,18 @@ pub(crate) fn decode_to_file(
     let index_byte_len = to_usize(hdr.index_byte_len, "index_byte_len")?;
     let data_byte_len = to_usize(hdr.data_byte_len, "data_byte_len")?;
     let index_end = index_start.checked_add(index_byte_len).ok_or_else(|| {
-        Error::Config(format!(
+        Error::config_internal(format!(
             "flatfiles: header lengths overflow usize (index_offset={index_start}, index_byte_len={index_byte_len})"
         ))
     })?;
     let data_start = index_end;
     let data_end = data_start.checked_add(data_byte_len).ok_or_else(|| {
-        Error::Config(format!(
+        Error::config_internal(format!(
             "flatfiles: header lengths overflow usize (data_start={data_start}, data_byte_len={data_byte_len})"
         ))
     })?;
     if data_end > blob.len() {
-        return Err(Error::Config(format!(
+        return Err(Error::config_internal(format!(
             "flatfiles: blob truncated — header expected {} bytes total, got {}",
             data_end,
             blob.len()
@@ -133,7 +133,7 @@ pub(crate) fn decode_to_file(
         let bs = entry.block_start as usize;
         let be = entry.block_end as usize;
         if be > data_bytes.len() || bs > be {
-            return Err(Error::Config(format!(
+            return Err(Error::config_internal(format!(
                 "flatfiles: INDEX block bounds [{bs}, {be}) escape DATA section ({} bytes)",
                 data_bytes.len()
             )));
@@ -180,7 +180,7 @@ pub async fn flatfile_request_decoded(
     let scratch_for_decode = scratch.clone();
     let rows = tokio::task::spawn_blocking(move || decode_to_memory(&scratch_for_decode, sec))
         .await
-        .map_err(|e| Error::Config(format!("flatfiles: decode task panicked: {e}")))??;
+        .map_err(|e| Error::config_internal(format!("flatfiles: decode task panicked: {e}")))??;
     let _ = tokio::fs::remove_file(&scratch).await;
     Ok(rows)
 }
@@ -192,7 +192,7 @@ pub(crate) fn decode_to_memory(raw_path: &Path, sec: SecType) -> Result<Vec<Flat
 
     let to_usize = |v: u64, field: &str| {
         usize::try_from(v).map_err(|_| {
-            Error::Config(format!(
+            Error::config_internal(format!(
                 "flatfiles: header field {field}={v} does not fit in usize on this target"
             ))
         })
@@ -202,13 +202,13 @@ pub(crate) fn decode_to_memory(raw_path: &Path, sec: SecType) -> Result<Vec<Flat
     let data_byte_len = to_usize(hdr.data_byte_len, "data_byte_len")?;
     let index_end = index_start
         .checked_add(index_byte_len)
-        .ok_or_else(|| Error::Config("flatfiles: header lengths overflow usize".into()))?;
+        .ok_or_else(|| Error::config_internal("flatfiles: header lengths overflow usize"))?;
     let data_start = index_end;
     let data_end = data_start
         .checked_add(data_byte_len)
-        .ok_or_else(|| Error::Config("flatfiles: header lengths overflow usize".into()))?;
+        .ok_or_else(|| Error::config_internal("flatfiles: header lengths overflow usize"))?;
     if data_end > blob.len() {
-        return Err(Error::Config(format!(
+        return Err(Error::config_internal(format!(
             "flatfiles: blob truncated — header expected {} bytes total, got {}",
             data_end,
             blob.len()
@@ -226,7 +226,7 @@ pub(crate) fn decode_to_memory(raw_path: &Path, sec: SecType) -> Result<Vec<Flat
         let bs = entry.block_start as usize;
         let be = entry.block_end as usize;
         if be > data_bytes.len() || bs > be {
-            return Err(Error::Config(format!(
+            return Err(Error::config_internal(format!(
                 "flatfiles: INDEX block bounds [{bs}, {be}) escape DATA section ({} bytes)",
                 data_bytes.len()
             )));

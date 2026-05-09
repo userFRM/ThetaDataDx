@@ -138,6 +138,12 @@ pub fn build(state: AppState) -> Router {
             post(handler::system_shutdown).route_layer(GovernorLayer::new(shutdown_governor)),
         );
 
+    // FLATFILES routes — issue #432. Whole-universe daily blobs over
+    // HTTP. Not a WebSocket subscription stream; flat files are batch
+    // downloads and the bytes ride a streaming response body so the
+    // server doesn't pin multi-hundred-MB blobs in RAM.
+    app = crate::flatfile_routes::add_flatfile_routes(app);
+
     // Global per-IP governor (outermost rate limit). All routes inherit
     // this; the shutdown route additionally enforces the per-route governor
     // above.

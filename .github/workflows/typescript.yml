@@ -59,10 +59,31 @@ jobs:
       - name: Build native addon
         working-directory: sdks/typescript
         run: npx napi build --platform --release --target ${{ matrix.target }} --strip
+      # H9: run `npm test` on every advertised platform (Linux,
+      # macOS, Windows) rather than gating to Linux only. CI parity
+      # with the Python and Rust matrices: every platform we ship a
+      # prebuilt addon for has its tests run on that platform.
       - name: Test
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
         working-directory: sdks/typescript
         run: npm test
+      # H9: emit the public-surface shape manifest so the
+      # cross-language agreement validator (`scripts/validate_agreement.py`)
+      # can compare TypeScript field sets against the Python / CLI /
+      # C++ runtime artifacts. Manifest is platform-independent —
+      # only run on Linux to avoid duplicate uploads.
+      - name: Emit TypeScript shape manifest
+        if: matrix.os == 'ubuntu-latest'
+        run: node sdks/typescript/scripts/emit_validator_manifest.mjs
+      - name: Validator self-test (Python diff engine)
+        if: matrix.os == 'ubuntu-latest'
+        run: python3 scripts/validate_agreement_test.py
+      - name: Upload TypeScript shape manifest
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: validator-typescript
+          path: artifacts/validator_typescript.json
+          if-no-files-found: error
       - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}

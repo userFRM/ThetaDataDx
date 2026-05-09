@@ -102,7 +102,7 @@ pub fn register_exceptions(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<
 /// future variants to `ThetaDataError` so upstream SDK additions never
 /// break the Python wheel build.
 pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
-    use thetadatadx::error::{AuthErrorKind, FpssErrorKind};
+    use thetadatadx::error::{AuthErrorKind, FpssErrorKind, GrpcStatusKind};
 
     match &e {
         thetadatadx::Error::Auth { kind, .. } => match kind {
@@ -113,13 +113,13 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
             // Future `AuthErrorKind` variants land on the parent family.
             _ => AuthenticationError::new_err(e.to_string()),
         },
-        thetadatadx::Error::Grpc { status, .. } => match status.as_str() {
-            "PermissionDenied" => SubscriptionError::new_err(e.to_string()),
-            "ResourceExhausted" => RateLimitError::new_err(e.to_string()),
-            "NotFound" => NoDataFoundError::new_err(e.to_string()),
-            "DeadlineExceeded" => TimeoutError::new_err(e.to_string()),
-            "Unauthenticated" => AuthenticationError::new_err(e.to_string()),
-            "Unavailable" => NetworkError::new_err(e.to_string()),
+        thetadatadx::Error::Grpc { kind, .. } => match kind {
+            GrpcStatusKind::PermissionDenied => SubscriptionError::new_err(e.to_string()),
+            GrpcStatusKind::ResourceExhausted => RateLimitError::new_err(e.to_string()),
+            GrpcStatusKind::NotFound => NoDataFoundError::new_err(e.to_string()),
+            GrpcStatusKind::DeadlineExceeded => TimeoutError::new_err(e.to_string()),
+            GrpcStatusKind::Unauthenticated => AuthenticationError::new_err(e.to_string()),
+            GrpcStatusKind::Unavailable => NetworkError::new_err(e.to_string()),
             _ => ThetaDataError::new_err(e.to_string()),
         },
         thetadatadx::Error::NoData => NoDataFoundError::new_err(e.to_string()),
@@ -128,9 +128,9 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
         thetadatadx::Error::Tls(_) => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Io(_) => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Http(_) => NetworkError::new_err(e.to_string()),
-        thetadatadx::Error::Decode(_) => SchemaMismatchError::new_err(e.to_string()),
-        thetadatadx::Error::Decompress(_) => SchemaMismatchError::new_err(e.to_string()),
-        thetadatadx::Error::Config(_) => ThetaDataError::new_err(e.to_string()),
+        thetadatadx::Error::Decode { .. } => SchemaMismatchError::new_err(e.to_string()),
+        thetadatadx::Error::Decompress { .. } => SchemaMismatchError::new_err(e.to_string()),
+        thetadatadx::Error::Config { .. } => ThetaDataError::new_err(e.to_string()),
         thetadatadx::Error::Fpss { kind, .. } => match kind {
             FpssErrorKind::TooManyRequests => RateLimitError::new_err(e.to_string()),
             FpssErrorKind::Timeout => TimeoutError::new_err(e.to_string()),
@@ -156,7 +156,7 @@ mod tests {
     //! instantiable.
 
     use super::*;
-    use thetadatadx::error::{AuthErrorKind, FpssErrorKind};
+    use thetadatadx::error::{AuthErrorKind, FpssErrorKind, GrpcStatusKind};
 
     /// Helper: check that `err` is an instance of the named Python
     /// exception class. Equivalent to `isinstance(err, cls)` in Python.
@@ -213,7 +213,7 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let err = to_py_err(thetadatadx::Error::Grpc {
-                status: "PermissionDenied".into(),
+                kind: GrpcStatusKind::PermissionDenied,
                 message: "tier insufficient".into(),
             });
             assert_exception_class(py, &err, "SubscriptionError");
@@ -225,7 +225,7 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let err = to_py_err(thetadatadx::Error::Grpc {
-                status: "ResourceExhausted".into(),
+                kind: GrpcStatusKind::ResourceExhausted,
                 message: "429".into(),
             });
             assert_exception_class(py, &err, "RateLimitError");
@@ -237,7 +237,7 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let err = to_py_err(thetadatadx::Error::Grpc {
-                status: "NotFound".into(),
+                kind: GrpcStatusKind::NotFound,
                 message: "no rows".into(),
             });
             assert_exception_class(py, &err, "NoDataFoundError");
@@ -266,7 +266,7 @@ mod tests {
     fn decode_error_maps_to_schema_mismatch() {
         Python::initialize();
         Python::attach(|py| {
-            let err = to_py_err(thetadatadx::Error::Decode("cell type mismatch".into()));
+            let err = to_py_err(thetadatadx::Error::decode_codec("cell type mismatch"));
             assert_exception_class(py, &err, "SchemaMismatchError");
         });
     }
@@ -299,7 +299,7 @@ mod tests {
     fn config_error_maps_to_root_class() {
         Python::initialize();
         Python::attach(|py| {
-            let err = to_py_err(thetadatadx::Error::Config("invalid URI".into()));
+            let err = to_py_err(thetadatadx::Error::config_invalid("mdds.uri", "invalid URI"));
             assert_exception_class(py, &err, "ThetaDataError");
         });
     }

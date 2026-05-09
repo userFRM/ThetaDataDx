@@ -590,15 +590,15 @@ function symsListRust(): string {
 }
 
 function pyHeader(): string {
-  return `from thetadatadx import ThetaDataDx, Credentials, Config
+  return `from thetadatadx import ThetaDataDxClient, Credentials, Config
 
 creds = Credentials.from_file("creds.txt")
 # Or inline: creds = Credentials("user@example.com", "your-password")
-tdx = ThetaDataDx(creds, Config.production())`
+client = ThetaDataDxClient(creds, Config.production())`
 }
 
 function rustHeader(): string {
-  return `use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};`
+  return `use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};`
 }
 
 function rustMain(body: string): string {
@@ -608,7 +608,7 @@ function rustMain(body: string): string {
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
     // Or inline: let creds = Credentials::new("user@example.com", "your-password");
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
 ${body}
     Ok(())
@@ -625,12 +625,12 @@ function genPython(): string {
 symbol = "${sym()}"
 
 # EOD bars (date range)
-eod = tdx.stock_history_eod(symbol, "${startDate()}", "${endDate()}")
+eod = client.stock_history_eod(symbol, "${startDate()}", "${endDate()}")
 for tick in eod:
     print(f"{tick.date}: open={tick.open} high={tick.high} low={tick.low} close={tick.close} vol={tick.volume}")
 
 # Intraday OHLC (interval: ${interval()})
-ohlc = tdx.stock_history_ohlc(symbol, "${endDate()}", "${interval()}")
+ohlc = client.stock_history_ohlc(symbol, "${endDate()}", "${interval()}")
 for tick in ohlc:
     print(f"{tick.date} ms={tick.ms_of_day}: open={tick.open} close={tick.close} vol={tick.volume}")`
 
@@ -640,14 +640,14 @@ symbol = "${sym()}"
 exp    = "${exp()}"
 
 # Get all strikes for this expiration
-strikes = tdx.option_list_strikes(symbol, exp)
+strikes = client.option_list_strikes(symbol, exp)
 print(f"Found {len(strikes)} strikes for {symbol} {exp}")
 
 # Fetch Greeks for each strike (calls + puts)
 chain = []
 for strike in strikes:
     for right in ["C", "P"]:
-        greeks = tdx.option_snapshot_greeks_all(symbol, exp, strike, right)
+        greeks = client.option_snapshot_greeks_all(symbol, exp, strike, right)
         if greeks:
             chain.append({
                 "strike": int(strike) / 1000,  # scaled int -> dollars
@@ -664,13 +664,13 @@ print(df[["strike", "right", "implied_volatility", "delta", "gamma", "theta", "v
 symbol = "${sym()}"
 exp    = "${exp()}"
 
-strikes  = tdx.option_list_strikes(symbol, exp)
+strikes  = client.option_list_strikes(symbol, exp)
 
 gex_data = []
 for strike in strikes:
     for right in ["C", "P"]:
-        greeks = tdx.option_snapshot_greeks_all(symbol, exp, strike, right)
-        oi     = tdx.option_snapshot_open_interest(symbol, exp, strike, right)
+        greeks = client.option_snapshot_greeks_all(symbol, exp, strike, right)
+        oi     = client.option_snapshot_open_interest(symbol, exp, strike, right)
         if greeks and oi:
             gamma        = greeks[0]["gamma"]
             open_interest = oi[0]["open_interest"]
@@ -695,14 +695,14 @@ print(f"\\nNet GEX: {df['gex'].sum():.2f}")`
 symbol = "${sym()}"
 
 # Get all available expirations
-exps = tdx.option_list_expirations(symbol)
+exps = client.option_list_expirations(symbol)
 print(f"Found {len(exps)} expirations")
 
 surface = []
 for exp in exps[:8]:  # first 8 expirations for a manageable surface
-    strikes = tdx.option_list_strikes(symbol, exp)
+    strikes = client.option_list_strikes(symbol, exp)
     for strike in strikes:
-        iv_data = tdx.option_snapshot_greeks_implied_volatility(symbol, exp, strike, "C")
+        iv_data = client.option_snapshot_greeks_implied_volatility(symbol, exp, strike, "C")
         if iv_data and iv_data[0]["implied_volatility"] > 0:
             surface.append({
                 "expiration": exp,
@@ -721,7 +721,7 @@ symbol = "${sym()}"
 date   = "${singleDate()}"
 
 # Get all option contracts that traded on this date
-contracts = tdx.option_list_contracts("TRADE", symbol, date)
+contracts = client.option_list_contracts("TRADE", symbol, date)
 print(f"Scanning {len(contracts)} contracts...")
 
 unusual = []
@@ -730,8 +730,8 @@ for c in contracts:
     strike_c = c["strike"]
     right_c  = c["right"]
 
-    oi_data = tdx.option_history_open_interest(symbol, str(exp_c), str(strike_c), right_c, date)
-    trades  = tdx.option_history_trade(symbol, str(exp_c), str(strike_c), right_c, date)
+    oi_data = client.option_history_open_interest(symbol, str(exp_c), str(strike_c), right_c, date)
+    trades  = client.option_history_trade(symbol, str(exp_c), str(strike_c), right_c, date)
 
     if oi_data and trades:
         total_volume = len(trades)
@@ -758,7 +758,7 @@ else:
 symbol = "${sym()}"
 exp    = "${exp()}"
 
-strikes = tdx.option_list_strikes(symbol, exp)
+strikes = client.option_list_strikes(symbol, exp)
 
 total_call_vol = 0
 total_put_vol  = 0
@@ -767,8 +767,8 @@ total_put_oi   = 0
 
 for strike in strikes:
     for right in ["C", "P"]:
-        snap = tdx.option_snapshot_trade(symbol, exp, strike, right)
-        oi   = tdx.option_snapshot_open_interest(symbol, exp, strike, right)
+        snap = client.option_snapshot_trade(symbol, exp, strike, right)
+        oi   = client.option_snapshot_open_interest(symbol, exp, strike, right)
 
         if snap:
             if right == "C":
@@ -802,7 +802,7 @@ strike = "${strike()}"
 right  = "${right()}"  # "C" for call, "P" for put
 
 # Fetch historical Greeks at ${interval()} interval
-ticks = tdx.option_history_greeks_all(symbol, exp, strike, right, "${singleDate()}", "${interval()}")
+ticks = client.option_history_greeks_all(symbol, exp, strike, right, "${singleDate()}", "${interval()}")
 for tick in ticks:
     print(
         f"{tick.date} ms={tick.ms_of_day:>8}: "
@@ -840,7 +840,7 @@ while current <= end_dt:
     current += timedelta(days=1)
 
 for trading_date in exps:
-    trades = tdx.stock_history_trade(symbol, trading_date)
+    trades = client.stock_history_trade(symbol, trading_date)
     for t in trades:
         # Round price to nearest $0.25 bucket
         bucket = round(t.price * 4) / 4
@@ -860,7 +860,7 @@ for price, vol in sorted_profile:
     case 'market_calendar': return `${h}
 
 # Get all trading days, holidays, and early closes for ${yearVal()}
-days = tdx.calendar_year("${yearVal()}")
+days = client.calendar_year("${yearVal()}")
 
 trading_days = [d for d in days if d["is_open"]]
 holidays     = [d for d in days if not d["is_open"]]
@@ -882,26 +882,21 @@ for d in early_closes:
 
     case 'live_quote_monitor': return `${h}
 
-tdx.start_streaming()
-
-# Subscribe to multiple symbols
+# Subscribe before entering the pull-iter context so the queue
+# starts filling immediately after start_streaming_iter() fires.
 symbols = [${symsListPy()}]
 for sym in symbols:
-    tdx.subscribe_quotes(sym)
+    client.subscribe(Contract.stock(sym).quote())
 
 print(f"Monitoring quotes for: {symbols}")
 print(f"{'Symbol':<8}  {'Bid':>8}  {'Ask':>8}  {'Spread':>8}  {'Mid':>8}")
 print("-" * 50)
 
-contracts = {}
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue
-    if event.kind == "simple" and event.event_type == "contract_assigned":
-        contracts[event.id] = event.detail
-    elif event.kind == "quote":
-        name   = contracts.get(event.contract_id, "?")
+with client.streaming_iter() as it:
+    for event in it:
+        if event.kind != "quote":
+            continue
+        name   = event.contract.symbol
         bid    = event.bid
         ask    = event.ask
         spread = ask - bid
@@ -910,90 +905,78 @@ while True:
 
     case 'trade_tape': return `${h}
 
-tdx.start_streaming()
-
-# Subscribe to trade stream for each symbol
 symbols = [${symsListPy()}]
 for sym in symbols:
-    tdx.subscribe_trades(sym)
+    client.subscribe(Contract.stock(sym).trade())
 
 print(f"Trade tape for: {symbols}")
 print(f"{'Time':>12}  {'Symbol':<8}  {'Price':>8}  {'Size':>8}  {'Cond'}")
 print("-" * 55)
 
-contracts = {}
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue
-    if event.kind == "simple" and event.event_type == "contract_assigned":
-        contracts[event.id] = event.detail
-    elif event.kind == "trade":
-        name  = contracts.get(event.contract_id, "?")
-        price = event.price
-        size  = event.size
-        ms    = getattr(event, "ms_of_day", 0)
+with client.streaming_iter() as it:
+    for event in it:
+        if event.kind != "trade":
+            continue
+        name         = event.contract.symbol
+        price        = event.price
+        size         = event.size
+        ms           = event.ms_of_day
         h, remainder = divmod(ms, 3600000)
         m, s_ms      = divmod(remainder, 60000)
         s            = s_ms // 1000
         time_str     = f"{h:02d}:{m:02d}:{s:02d}"
-        cond         = getattr(event, "condition", "")
+        cond         = event.condition
         print(f"{time_str:>12}  {name:<8}  {price:>8.2f}  {size:>8,}  {cond}")`
 
     case 'option_flow_scanner': return `${h}
 
-tdx.start_streaming()
-tdx.subscribe_full_trades("OPTION")
+# Subscribe to the option-trade firehose; the contract on each event
+# carries symbol / expiration / strike / is_call directly.
+client.subscribe(SecType.Option.full_trades())
 
 print(f"Option Flow Scanner — alerting on size >= ${minSize()}")
 print(f"{'Contract':<35}  {'Size':>6}  {'Price':>8}  {'Premium':>12}")
 print("-" * 70)
 
-contracts = {}
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue
-    if event.kind == "simple" and event.event_type == "contract_assigned":
-        contracts[event.id] = event.detail
-    elif event.kind == "trade":
-        contract = contracts.get(event.contract_id, "?")
-        size     = event.size
-        price    = event.price
+with client.streaming_iter() as it:
+    for event in it:
+        if event.kind != "trade":
+            continue
+        size  = event.size
+        price = event.price
 
         if size >= ${minSize()}:
-            premium = price * size * 100
+            c        = event.contract
+            contract = f"{c.symbol} {c.expiration} {c.strike_dollars:g} {c.right}"
+            premium  = price * size * 100
             print(f"{contract:<35}  {size:>6,}  {price:>8.2f}  \${premium:>11,.0f}")`
 
     case 'live_option_chain': return `${h}
 
-tdx.start_streaming()
-
 symbol = "${sym()}"
 exp    = "${exp()}"
 
-# Get all strikes, then subscribe to option quotes for each contract
-strikes = tdx.option_list_strikes(symbol, exp)
+# Pull every strike and subscribe quote streams across both rights.
+strikes = client.option_list_strikes(symbol, exp)
 for strike in strikes:
     for right in ["C", "P"]:
-        tdx.subscribe_option_quotes(symbol, exp, strike, right)
+        client.subscribe(
+            Contract.option(symbol, expiration=exp, strike=str(strike), right=right).quote()
+        )
 
 print(f"Live chain: {symbol} {exp}  ({len(strikes) * 2} contracts)")
 print(f"{'Contract':<30}  {'Bid':>8}  {'Ask':>8}  {'Spread':>8}  {'Mid':>8}")
 print("-" * 75)
 
 chain_state: dict = {}
-contracts = {}
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue
-    if event.kind == "simple" and event.event_type == "contract_assigned":
-        contracts[event.id] = event.detail
-    elif event.kind == "quote":
-        name = contracts.get(event.contract_id, "?")
-        bid  = event.bid
-        ask  = event.ask
+with client.streaming_iter() as it:
+    for event in it:
+        if event.kind != "quote":
+            continue
+        c    = event.contract
+        name = f"{c.symbol} {c.expiration} {c.strike_dollars:g} {c.right}"
+        bid   = event.bid
+        ask   = event.ask
         chain_state[name] = {"bid": bid, "ask": ask}
         # Reprint sorted by contract name
         print("\\033[H\\033[J", end="")  # clear screen
@@ -1018,7 +1001,7 @@ function genRust(): string {
     case 'stock_price_history': return rustMain(`    let symbol = "${sym()}";
 
     // EOD bars (date range)
-    let eod = tdx.stock_history_eod(symbol, "${startDate()}", "${endDate()}").await?;
+    let eod = client.stock_history_eod(symbol, "${startDate()}", "${endDate()}").await?;
     println!("EOD bars: {} records", eod.len());
     for tick in &eod {
         println!("{}: open={} high={} low={} close={} vol={}",
@@ -1027,7 +1010,7 @@ function genRust(): string {
     }
 
     // Intraday OHLC (interval: ${interval()})
-    let ohlc = tdx.stock_history_ohlc(symbol, "${endDate()}", "${interval()}").await?;
+    let ohlc = client.stock_history_ohlc(symbol, "${endDate()}", "${interval()}").await?;
     for tick in &ohlc {
         println!("{} ms={}: open={} close={} vol={}",
             tick.date, tick.ms_of_day, tick.open, tick.close, tick.volume);
@@ -1037,13 +1020,13 @@ function genRust(): string {
     let exp    = "${exp()}";
 
     // Get all strikes for this expiration
-    let strikes = tdx.option_list_strikes(symbol, exp).await?;
+    let strikes = client.option_list_strikes(symbol, exp).await?;
     println!("Found {} strikes for {} {}", strikes.len(), symbol, exp);
 
     // Fetch Greeks for each strike (calls + puts)
     for strike in &strikes {
         for right in &["C", "P"] {
-            if let Ok(greeks) = tdx.option_snapshot_greeks_all(symbol, exp, strike, right).await {
+            if let Ok(greeks) = client.option_snapshot_greeks_all(symbol, exp, strike, right).await {
                 if let Some(g) = greeks.first() {
                     // Strike is a scaled integer: divide by 1000 for dollar price
                     let strike_f = strike.parse::<f64>().unwrap_or(0.0) / 1000.0;
@@ -1058,13 +1041,13 @@ function genRust(): string {
     case 'gamma_exposure': return rustMain(`    let symbol = "${sym()}";
     let exp    = "${exp()}";
 
-    let strikes = tdx.option_list_strikes(symbol, exp).await?;
+    let strikes = client.option_list_strikes(symbol, exp).await?;
 
     let mut net_gex: f64 = 0.0;
     for strike in &strikes {
         for right in &["C", "P"] {
-            let greeks_res = tdx.option_snapshot_greeks_all(symbol, exp, strike, right).await;
-            let oi_res     = tdx.option_snapshot_open_interest(symbol, exp, strike, right).await;
+            let greeks_res = client.option_snapshot_greeks_all(symbol, exp, strike, right).await;
+            let oi_res     = client.option_snapshot_open_interest(symbol, exp, strike, right).await;
 
             if let (Ok(greeks), Ok(oi)) = (greeks_res, oi_res) {
                 if let (Some(g), Some(o)) = (greeks.first(), oi.first()) {
@@ -1085,14 +1068,14 @@ function genRust(): string {
     case 'vol_surface': return rustMain(`    let symbol = "${sym()}";
 
     // Fetch all available expirations
-    let exps = tdx.option_list_expirations(symbol).await?;
+    let exps = client.option_list_expirations(symbol).await?;
     println!("Found {} expirations", exps.len());
 
     // Build vol surface — first 8 expirations
     for exp in exps.iter().take(8) {
-        let strikes = tdx.option_list_strikes(symbol, exp).await?;
+        let strikes = client.option_list_strikes(symbol, exp).await?;
         for strike in &strikes {
-            if let Ok(iv_data) = tdx.option_snapshot_greeks_implied_volatility(symbol, exp, strike, "C").await {
+            if let Ok(iv_data) = client.option_snapshot_greeks_implied_volatility(symbol, exp, strike, "C").await {
                 if let Some(iv) = iv_data.first() {
                     if iv.implied_volatility > 0.0 {
                         // Strike is scaled: divide by 1000 for dollar price
@@ -1109,15 +1092,15 @@ function genRust(): string {
     let date   = "${singleDate()}";
 
     // Get all contracts that traded on this date
-    let contracts = tdx.option_list_contracts("TRADE", symbol, date).await?;
+    let contracts = client.option_list_contracts("TRADE", symbol, date).await?;
     println!("Scanning {} contracts...", contracts.len());
 
     let mut unusual = Vec::new();
     for c in &contracts {
         let right_str = if c.right == 0 { "C" } else { "P" };
-        let oi_res = tdx.option_history_open_interest(
+        let oi_res = client.option_history_open_interest(
             symbol, &c.expiration.to_string(), &c.strike.to_string(), right_str, date).await;
-        let trades_res = tdx.option_history_trade(
+        let trades_res = client.option_history_trade(
             symbol, &c.expiration.to_string(), &c.strike.to_string(), right_str, date).await;
 
         if let (Ok(oi), Ok(trades)) = (oi_res, trades_res) {
@@ -1143,19 +1126,19 @@ function genRust(): string {
     case 'put_call_ratio': return rustMain(`    let symbol = "${sym()}";
     let exp    = "${exp()}";
 
-    let strikes = tdx.option_list_strikes(symbol, exp).await?;
+    let strikes = client.option_list_strikes(symbol, exp).await?;
 
     let (mut call_vol, mut put_vol, mut call_oi, mut put_oi) = (0u64, 0u64, 0u64, 0u64);
 
     for strike in &strikes {
         for right in &["C", "P"] {
             let is_call = *right == "C";
-            if let Ok(snap) = tdx.option_snapshot_trade(symbol, exp, strike, right).await {
+            if let Ok(snap) = client.option_snapshot_trade(symbol, exp, strike, right).await {
                 if let Some(s) = snap.first() {
                     if is_call { call_vol += s.size as u64; } else { put_vol += s.size as u64; }
                 }
             }
-            if let Ok(oi_data) = tdx.option_snapshot_open_interest(symbol, exp, strike, right).await {
+            if let Ok(oi_data) = client.option_snapshot_open_interest(symbol, exp, strike, right).await {
                 if let Some(o) = oi_data.first() {
                     if is_call { call_oi += o.open_interest as u64; } else { put_oi += o.open_interest as u64; }
                 }
@@ -1179,7 +1162,7 @@ function genRust(): string {
     let strike = "${strike()}";
     let right  = "${right()}";  // "C" for call, "P" for put
 
-    let ticks = tdx.option_history_greeks_all(
+    let ticks = client.option_history_greeks_all(
         symbol, exp, strike, right, "${singleDate()}", "${interval()}").await?;
 
     println!("Historical Greeks: {} ticks", ticks.len());
@@ -1199,11 +1182,11 @@ function genRust(): string {
     let mut price_buckets: BTreeMap<u64, u64> = BTreeMap::new();
 
     // Fetch EOD list to know which dates had data
-    let eod = tdx.stock_history_eod(symbol, "${startDate()}", "${endDate()}").await?;
+    let eod = client.stock_history_eod(symbol, "${startDate()}", "${endDate()}").await?;
     println!("Fetching trades for {} trading days...", eod.len());
 
     for day in &eod {
-        if let Ok(trades) = tdx.stock_history_trade(symbol, &day.date.to_string()).await {
+        if let Ok(trades) = client.stock_history_trade(symbol, &day.date.to_string()).await {
             for t in &trades {
                 // Bucket to nearest $0.25 — price is raw f64
                 let price_f = t.price;
@@ -1224,7 +1207,7 @@ function genRust(): string {
     }`)
 
     case 'market_calendar': return rustMain(`    // Get all trading days, holidays, and early closes for ${yearVal()}
-    let days = tdx.calendar_year("${yearVal()}").await?;
+    let days = client.calendar_year("${yearVal()}").await?;
 
     let trading: Vec<_> = days.iter().filter(|d| d.is_open).collect();
     let holidays: Vec<_> = days.iter().filter(|d| !d.is_open).collect();
@@ -1243,44 +1226,30 @@ function genRust(): string {
     for d in &early { println!("  {}  closes={}", d.date, d.close_time); }`)
 
     case 'live_quote_monitor': return `${rustHeader()}
-use thetadatadx::fpss::{FpssEvent, FpssData, FpssControl};
+use thetadatadx::fpss::{FpssEvent, FpssData};
 use thetadatadx::fpss::protocol::Contract;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
-
-    let contracts: Arc<Mutex<HashMap<i32, String>>> = Arc::new(Mutex::new(HashMap::new()));
-    let contracts_clone = contracts.clone();
+    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
     println!("Monitoring quotes for: [${symsListRust()}]");
     println!("{:<8}  {:>8}  {:>8}  {:>8}  {:>8}", "Symbol", "Bid", "Ask", "Spread", "Mid");
     println!("{}", "-".repeat(50));
 
-    tdx.start_streaming(move |event: &FpssEvent| {
-        match event {
-            FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
-                contracts_clone.lock().unwrap().insert(*id, format!("{contract}"));
-            }
-            FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
-                let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                let bid_f = *bid;
-                let ask_f = *ask;
-                let spread = ask_f - bid_f;
-                let mid = (bid_f + ask_f) / 2.0;
-                println!("{:<8}  {:>8.2}  {:>8.2}  {:>8.4}  {:>8.2}", name, bid_f, ask_f, spread, mid);
-            }
-            _ => {}
+    client.start_streaming(|event: &FpssEvent| {
+        if let FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) = event {
+            let spread = ask - bid;
+            let mid = (bid + ask) / 2.0;
+            println!("{:<8}  {:>8.2}  {:>8.2}  {:>8.4}  {:>8.2}",
+                contract.symbol, bid, ask, spread, mid);
         }
     })?;
 
     let symbols = vec![${symsListRust()}];
     for sym in &symbols {
-        tdx.subscribe_quotes(&Contract::stock(sym))?;
+        client.subscribe(Contract::stock(*sym).quote())?;
     }
 
     std::thread::park();
@@ -1288,45 +1257,33 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }`
 
     case 'trade_tape': return `${rustHeader()}
-use thetadatadx::fpss::{FpssEvent, FpssData, FpssControl};
+use thetadatadx::fpss::{FpssEvent, FpssData};
 use thetadatadx::fpss::protocol::Contract;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
-
-    let contracts: Arc<Mutex<HashMap<i32, String>>> = Arc::new(Mutex::new(HashMap::new()));
-    let contracts_clone = contracts.clone();
+    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
     println!("Trade tape for: [${symsListRust()}]");
     println!("{:>12}  {:<8}  {:>8}  {:>8}", "Time", "Symbol", "Price", "Size");
     println!("{}", "-".repeat(45));
 
-    tdx.start_streaming(move |event: &FpssEvent| {
-        match event {
-            FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
-                contracts_clone.lock().unwrap().insert(*id, format!("{contract}"));
-            }
-            FpssEvent::Data(FpssData::Trade { contract_id, price, size, ms_of_day, .. }) => {
-                let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                let price_f = *price;
-                let h = ms_of_day / 3_600_000;
-                let m = (ms_of_day % 3_600_000) / 60_000;
-                let s = (ms_of_day % 60_000) / 1_000;
-                println!("{:02}:{:02}:{:02}       {:<8}  {:>8.2}  {:>8}",
-                    h, m, s, name, price_f, size);
-            }
-            _ => {}
+    client.start_streaming(|event: &FpssEvent| {
+        if let FpssEvent::Data(FpssData::Trade {
+            contract, price, size, ms_of_day, ..
+        }) = event {
+            let h = ms_of_day / 3_600_000;
+            let m = (ms_of_day % 3_600_000) / 60_000;
+            let s = (ms_of_day % 60_000) / 1_000;
+            println!("{:02}:{:02}:{:02}       {:<8}  {:>8.2}  {:>8}",
+                h, m, s, contract.symbol, price, size);
         }
     })?;
 
     let symbols = vec![${symsListRust()}];
     for sym in &symbols {
-        tdx.subscribe_quotes(&Contract::stock(sym))?;
+        client.subscribe(Contract::stock(*sym).trade())?;
     }
 
     std::thread::park();
@@ -1334,90 +1291,76 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }`
 
     case 'option_flow_scanner': return `${rustHeader()}
-use thetadatadx::fpss::{FpssEvent, FpssData, FpssControl};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use thetadatadx::fpss::{FpssEvent, FpssData};
+use tdbe::types::SecType;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
-    let min_size: u32 = ${minSize()};
-    let contracts: Arc<Mutex<HashMap<i32, String>>> = Arc::new(Mutex::new(HashMap::new()));
-    let contracts_clone = contracts.clone();
+    let min_size: i32 = ${minSize()};
 
     println!("Option Flow Scanner — alerting on size >= {}", min_size);
     println!("{:<35}  {:>6}  {:>8}  {:>12}", "Contract", "Size", "Price", "Premium");
     println!("{}", "-".repeat(70));
 
-    tdx.start_streaming(move |event: &FpssEvent| {
-        match event {
-            FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
-                contracts_clone.lock().unwrap().insert(*id, format!("{contract}"));
+    client.start_streaming(move |event: &FpssEvent| {
+        if let FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) = event {
+            if *size >= min_size {
+                let name = format!(
+                    "{} {} {} {}",
+                    contract.symbol,
+                    contract.expiration.unwrap_or(0),
+                    contract.strike_dollars().unwrap_or(0.0),
+                    contract.right().map_or('?', |r| r.as_char()),
+                );
+                let premium = price * (*size as f64) * 100.0;
+                println!("{:<35}  {:>6}  {:>8.2}  \${:>11,.0}",
+                    name, size, price, premium);
             }
-            FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => {
-                if *size >= min_size {
-                    let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                    let price_f = *price;
-                    let premium = price_f * *size as f64 * 100.0;
-                    println!("{:<35}  {:>6}  {:>8.2}  \${:>11,.0}",
-                        name, size, price_f, premium);
-                }
-            }
-            _ => {}
         }
     })?;
 
-    tdx.subscribe_full_trades(tdbe::SecType::Option)?;
+    client.subscribe(SecType::Option.full_trades())?;
 
     std::thread::park();
     Ok(())
 }`
 
     case 'live_option_chain': return `${rustHeader()}
-use thetadatadx::fpss::{FpssEvent, FpssData, FpssControl};
+use thetadatadx::fpss::{FpssEvent, FpssData};
 use thetadatadx::fpss::protocol::Contract;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    // Or inline: let creds = Credentials::new("user@example.com", "your-password");
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
     let symbol = "${sym()}";
     let exp    = "${exp()}";
 
-    let contracts: Arc<Mutex<HashMap<i32, String>>> = Arc::new(Mutex::new(HashMap::new()));
-    let contracts_clone = contracts.clone();
-
-    tdx.start_streaming(move |event: &FpssEvent| {
-        match event {
-            FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) => {
-                contracts_clone.lock().unwrap().insert(*id, format!("{contract}"));
-            }
-            FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
-                let name = contracts_clone.lock().unwrap().get(contract_id).cloned().unwrap_or_default();
-                let bid_f = *bid;
-                let ask_f = *ask;
-                let spread = ask_f - bid_f;
-                let mid = (bid_f + ask_f) / 2.0;
-                println!("{:<30}  {:>8.2}  {:>8.2}  {:>8.4}  {:>8.2}",
-                    name, bid_f, ask_f, spread, mid);
-            }
-            _ => {}
+    client.start_streaming(|event: &FpssEvent| {
+        if let FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) = event {
+            let name = format!(
+                "{} {} {} {}",
+                contract.symbol,
+                contract.expiration.unwrap_or(0),
+                contract.strike.unwrap_or(0),
+                contract.right().map_or('?', |r| r.as_char()),
+            );
+            let spread = ask - bid;
+            let mid = (bid + ask) / 2.0;
+            println!("{:<30}  {:>8.2}  {:>8.2}  {:>8.4}  {:>8.2}",
+                name, bid, ask, spread, mid);
         }
     })?;
 
-    // Get all strikes, subscribe to option quotes for each contract
-    let strikes = tdx.option_list_strikes(symbol, exp).await?;
+    let strikes = client.option_list_strikes(symbol, exp).await?;
     for strike in &strikes {
-        // Subscribe to both calls and puts
-        tdx.subscribe_quotes(&Contract::option(symbol, exp, strike, "C")?)?;
-        tdx.subscribe_quotes(&Contract::option(symbol, exp, strike, "P")?)?;
+        let strike_str = strike.to_string();
+        client.subscribe(Contract::option(symbol, exp, &strike_str, "C")?.quote())?;
+        client.subscribe(Contract::option(symbol, exp, &strike_str, "P")?.quote())?;
     }
     println!("Live chain: {} {}  ({} contracts)", symbol, exp, strikes.len() * 2);
 

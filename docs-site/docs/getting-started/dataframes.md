@@ -8,15 +8,15 @@ description: Convert ThetaDataDx endpoint results to Arrow, Polars, or Pandas Da
 Every historical endpoint on the Python SDK returns a typed list wrapper (`EodTickList`, `OhlcTickList`, `StringList`, ...). DataFrame conversion happens via chained terminals on the wrapper — no free-function round-trip.
 
 ```python
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+client = ThetaDataDxClient(creds, Config.production())
 
-df  = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_polars()
-pdf = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_pandas()
-tbl = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
-lst = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_list()
+df  = client.stock_history_eod("AAPL", "20240101", "20240301").to_polars()
+pdf = client.stock_history_eod("AAPL", "20240101", "20240301").to_pandas()
+tbl = client.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
+lst = client.stock_history_eod("AAPL", "20240101", "20240301").to_list()
 ```
 
 The terminals share one Rust implementation that walks the decoder-owned `Vec<Tick>` directly into Arrow columnar buffers, then hands the `RecordBatch` off to `pyarrow.Table` via the Arrow C Data Interface. `.to_pandas()` and `.to_polars()` then call through `pyarrow.Table` for the final dtype.

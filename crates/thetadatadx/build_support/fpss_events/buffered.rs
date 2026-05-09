@@ -7,17 +7,21 @@
 use std::fmt::Write as _;
 
 use super::common::{is_option, rust_field_type};
-use super::schema::{sorted_event_names, EventDef, Schema};
+use super::schema::{sorted_control_events, sorted_event_names, EventDef, Schema};
 
 /// Emit the `BufferedEvent` enum + the `fpss_event_to_buffered` converter
 /// in a form both the Python (`pyo3`) and TypeScript (`napi-rs`) SDKs can
 /// `include!`.
 ///
-/// Data variants + field names come from `fpss_event_schema.toml`
-/// directly. Control / raw-data variants are stable and documented
-/// inline; `FpssControl` itself is `#[non_exhaustive]`, so the converter
-/// also has a wildcard arm that routes unknown control variants through
-/// the `Simple` variant with `event_type = "unknown_control"`.
+/// Variants + field names come from `fpss_event_schema.toml` directly —
+/// data variants mirror `FpssData::*`, control variants mirror
+/// `FpssControl::*` one-for-one (no flat `Simple { event_type, detail,
+/// id }` envelope). `FpssControl` itself is `#[non_exhaustive]`, so
+/// the converter routes any unknown future variant through
+/// `BufferedEvent::UnknownControl` (also schema-declared, so the
+/// routing arm is generator-emitted, not hand-rolled). Decode-fallback
+/// frames never reach this dispatcher post Wave H7 — the public
+/// `FpssEvent` only carries `Data` / `Control`.
 pub(super) fn render_buffered_event_file(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(
@@ -39,12 +43,17 @@ pub(super) fn render_buffered_event_file(schema: &Schema) -> String {
                 writeln!(out, "    /// {line}").unwrap();
             }
         }
-        writeln!(out, "    {event_name} {{").unwrap();
-        for column in &def.columns {
-            let ty = rust_field_type(&column.r#type, event_name, &column.name);
-            writeln!(out, "        {}: {},", column.name, ty).unwrap();
+        if def.columns.is_empty() {
+            // Unit-style variant — no field block.
+            writeln!(out, "    {event_name},").unwrap();
+        } else {
+            writeln!(out, "    {event_name} {{").unwrap();
+            for column in &def.columns {
+                let ty = rust_field_type(&column.r#type, event_name, &column.name);
+                writeln!(out, "        {}: {},", column.name, ty).unwrap();
+            }
+            out.push_str("    },\n");
         }
-        out.push_str("    },\n");
     }
     out.push_str("}\n\n");
 
@@ -63,32 +72,22 @@ pub(super) fn render_buffered_event_file(schema: &Schema) -> String {
         out.push_str(&render_data_match_arm(event_name, def));
     }
     // `FpssData` is `#[non_exhaustive]`; route unknown data variants
-    // through `Simple` so downstream consumers observe them instead of
-    // panicking.
-    out.push_str("            _ => BufferedEvent::Simple {\n");
-    out.push_str("                event_type: \"unknown_data\".to_string(),\n");
-    out.push_str("                detail: None,\n");
-    out.push_str("                id: None,\n");
-    out.push_str("            },\n");
+    // through `UnknownControl` so downstream consumers observe them
+    // without panicking. (Strictly speaking these are unknown DATA
+    // variants — but the typed `UnknownControl` carries no payload, so
+    // it absorbs the case losslessly without inventing a separate
+    // `UnknownData` schema entry.)
+    out.push_str("            _ => BufferedEvent::UnknownControl,\n");
     out.push_str("        },\n");
 
-    // Control variants → BufferedEvent::Simple.
-    out.push_str(&render_control_match_arms());
+    // Control variants → typed BufferedEvent arms.
+    out.push_str(&render_control_match_arms(schema));
 
-    // Raw-data → BufferedEvent::RawData.
-    out.push_str(
-        "        fpss::FpssEvent::RawData { code, payload } => BufferedEvent::RawData {\n",
-    );
-    out.push_str("            code: *code,\n");
-    out.push_str("            payload: payload.clone(),\n");
-    out.push_str("        },\n");
-
-    // `FpssEvent` itself is `#[non_exhaustive]`; same unknown-event route.
-    out.push_str("        _ => BufferedEvent::Simple {\n");
-    out.push_str("            event_type: \"unknown\".to_string(),\n");
-    out.push_str("            detail: None,\n");
-    out.push_str("            id: None,\n");
-    out.push_str("        },\n");
+    // `FpssEvent` itself is `#[non_exhaustive]`; route through
+    // `UnknownControl` (typed, payload-less). Decode-fallback frames
+    // are filtered before reaching this dispatcher (see Wave H7), so
+    // the public `FpssEvent` only ever carries `Data` / `Control`.
+    out.push_str("        _ => BufferedEvent::UnknownControl,\n");
 
     out.push_str("    }\n");
     out.push_str("}\n");
@@ -124,17 +123,118 @@ fn render_data_match_arm(event_name: &str, def: &EventDef) -> String {
     out
 }
 
-fn render_control_match_arms() -> String {
-    // FpssControl variant → BufferedEvent::Simple event_type tag mapping.
-    // Payload extraction uses `Some(...).clone()` for diagnostic strings.
-    // Stable — last changed by #368 when Reconnecting/Reconnected were
-    // added. `FpssControl` is `#[non_exhaustive]`, so the trailing `_ =>`
-    // catches any future variant the core crate adds.
-    //
-    // `attempt: u32` truncates silently with `as i32` above `i32::MAX`.
-    // Saturate instead so the diagnostic id stays non-negative even in
-    // the (implausible but allowed) case of a very long-lived reconnect
-    // loop — the typed `FpssSimplePayload.id` field is `i32` on the SDK
-    // surface and we cannot widen it without a breaking type change.
-    include_str!("templates/buffered/control_match_arms.rs.tmpl").to_string()
+/// Emit one `fpss::FpssControl::*` match arm per schema control variant.
+/// Each arm constructs the matching typed `BufferedEvent::*` value from
+/// the Rust enum's bound fields. Variant-specific shape adjustments
+/// (e.g. `RemoveReason` → `i32` discriminant cast, `Reconnecting.attempt`
+/// `u32` → `i32` saturate, `StreamResponseType` → `i32`) live here so
+/// the schema-driven side stays declarative.
+///
+/// Stable order: the `_ => BufferedEvent::UnknownControl` wildcard arm
+/// is emitted last to absorb any future `FpssControl::*` variant the
+/// core crate adds (`FpssControl` is `#[non_exhaustive]`).
+fn render_control_match_arms(schema: &Schema) -> String {
+    let mut out = String::new();
+    out.push_str("        fpss::FpssEvent::Control(ctrl) => match ctrl {\n");
+    for (event_name, def) in sorted_control_events(schema) {
+        if event_name == "UnknownControl" {
+            // `UnknownControl` is the schema-declared landing pad for
+            // future `FpssControl::*` variants; emitted as the trailing
+            // wildcard arm below, not as a named-variant match.
+            continue;
+        }
+        out.push_str(&render_control_match_arm(event_name, def));
+    }
+    out.push_str("            _ => BufferedEvent::UnknownControl,\n");
+    out.push_str("        },\n");
+    out
+}
+
+/// Render a single `fpss::FpssControl::<Variant> { ... } => BufferedEvent::<Variant> { ... }`
+/// arm. The bound-field list comes from a hand-coded mapping per
+/// variant because the Rust enum's field shapes don't always line up
+/// with the schema columns one-for-one (e.g. `Disconnected.reason` is
+/// `RemoveReason` upstream / `i32` in the schema).
+fn render_control_match_arm(event_name: &str, def: &EventDef) -> String {
+    let mut out = String::new();
+    let (rust_pattern, field_assigns) = control_variant_mapping(event_name, def);
+    if def.columns.is_empty() {
+        writeln!(
+            out,
+            "            fpss::FpssControl::{event_name} => BufferedEvent::{event_name},",
+        )
+        .unwrap();
+    } else {
+        writeln!(
+            out,
+            "            fpss::FpssControl::{event_name} {{ {rust_pattern} }} => BufferedEvent::{event_name} {{",
+        )
+        .unwrap();
+        for assign in field_assigns {
+            writeln!(out, "                {assign},").unwrap();
+        }
+        out.push_str("            },\n");
+    }
+    out
+}
+
+/// Per-variant Rust-pattern + field-assignment mapping. Keeps the
+/// translation from the core `FpssControl` enum's field shapes to the
+/// schema's flat scalar columns in one auditable table.
+///
+/// Returned tuple: (Rust-side `match` pattern body inside `{ ... }`,
+/// list of `field: rhs` assignments for the BufferedEvent constructor).
+fn control_variant_mapping(event_name: &str, _def: &EventDef) -> (&'static str, Vec<String>) {
+    match event_name {
+        "LoginSuccess" => (
+            "permissions",
+            vec!["permissions: permissions.clone()".to_string()],
+        ),
+        "ContractAssigned" => (
+            "id, contract",
+            vec![
+                "id: *id".to_string(),
+                "contract: (**contract).clone()".to_string(),
+            ],
+        ),
+        "ReqResponse" => (
+            "req_id, result",
+            vec![
+                "req_id: *req_id".to_string(),
+                "result: *result as i32".to_string(),
+            ],
+        ),
+        "ServerError" => ("message", vec!["message: message.clone()".to_string()]),
+        "Disconnected" => ("reason", vec!["reason: *reason as i32".to_string()]),
+        "Reconnecting" => (
+            "reason, attempt, delay_ms",
+            vec![
+                "reason: *reason as i32".to_string(),
+                // `attempt: u32` truncates silently with `as i32` above
+                // `i32::MAX`. Saturate instead so the diagnostic value
+                // stays non-negative even in the (implausible but
+                // allowed) case of a very long-lived reconnect loop.
+                "attempt: i32::try_from(*attempt).unwrap_or(i32::MAX)".to_string(),
+                "delay_ms: *delay_ms".to_string(),
+            ],
+        ),
+        "Error" => ("message", vec!["message: message.clone()".to_string()]),
+        "UnknownFrame" => (
+            "code, payload",
+            vec![
+                "code: *code".to_string(),
+                "payload: payload.clone()".to_string(),
+            ],
+        ),
+        "Ping" => ("payload", vec!["payload: payload.clone()".to_string()]),
+        // Unit variants: pattern body is empty, no fields. Returned
+        // here for completeness, but the caller checks
+        // `def.columns.is_empty()` and emits `=>` shorthand instead.
+        "MarketOpen" | "MarketClose" | "Reconnected" | "Connected" | "ReconnectedServer"
+        | "Restart" | "UnknownControl" => ("", vec![]),
+        other => panic!(
+            "control variant '{other}' has no Rust→BufferedEvent mapping; \
+             add it to control_variant_mapping in build_support/fpss_events/buffered.rs"
+        ),
+    }
 }

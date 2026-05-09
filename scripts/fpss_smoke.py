@@ -4,47 +4,31 @@
 from __future__ import annotations
 
 import argparse
+import queue
 import sys
+import threading
 import time
-
-
-def _require_data_event(client, *, timeout_secs: float) -> tuple[int | None, str]:
-    deadline = time.monotonic() + timeout_secs
-    last_kind = "none"
-    while time.monotonic() < deadline:
-        event = client.next_event(timeout_ms=500)
-        if event is None:
-            continue
-        kind = str(event.kind)
-        last_kind = kind
-        if kind in {"quote", "trade", "open_interest", "ohlcvc"}:
-            return getattr(event, "contract_id", None), kind
-    raise RuntimeError(f"timed out waiting for FPSS data event (last kind={last_kind})")
-
-
-def _require_data_event_with_retry(
-    client, *, timeout_secs: float, attempts: int = 3
-) -> tuple[int | None, str]:
-    last_error: RuntimeError | None = None
-    for attempt in range(1, attempts + 1):
-        try:
-            return _require_data_event(client, timeout_secs=timeout_secs)
-        except RuntimeError as exc:
-            last_error = exc
-            if attempt == attempts:
-                break
-            print(
-                f"fpss smoke retry {attempt}/{attempts - 1}: {exc}",
-                file=sys.stderr,
-            )
-            client.reconnect()
-            time.sleep(1.0)
-    assert last_error is not None
-    raise last_error
 
 
 def _subscriptions_snapshot(client) -> set[tuple[str, str]]:
     return {(entry["kind"], entry["contract"]) for entry in client.active_subscriptions()}
+
+
+def _drain_data_kind(events: "queue.Queue", *, timeout_secs: float) -> tuple[str, str]:
+    """Block on the queue until a data event surfaces. Returns
+    `(symbol, kind)` so the caller can sanity-check the typed
+    contract carried on every data event without a side-table."""
+    deadline = time.monotonic() + timeout_secs
+    last_kind = "none"
+    while time.monotonic() < deadline:
+        try:
+            event = events.get(timeout=0.5)
+        except queue.Empty:
+            continue
+        last_kind = event.kind
+        if last_kind in {"quote", "trade", "open_interest", "ohlcvc"}:
+            return event.contract.symbol, last_kind
+    raise RuntimeError(f"timed out waiting for FPSS data event (last kind={last_kind})")
 
 
 def main() -> int:
@@ -53,40 +37,55 @@ def main() -> int:
     parser.add_argument("--symbol", default="AAPL", help="Stock symbol for live replay checks")
     parser.add_argument("--option-symbol", default="SPY", help="Option root for subscription API smoke")
     parser.add_argument("--expiration", default="20260417", help="Option expiration YYYYMMDD")
-    parser.add_argument("--strike", default="550", help="Option strike")
-    parser.add_argument("--right", default="C", help="Option right")
+    parser.add_argument("--strike", default="550", help="Option strike (dollars)")
+    parser.add_argument("--right", default="C", help="Option right (`C` or `P`)")
     args = parser.parse_args()
 
-    from thetadatadx import Config, Credentials, ThetaDataDx  # type: ignore
+    from thetadatadx import Config, Contract, Credentials, ThetaDataDxClient  # type: ignore
 
     cfg = Config.dev()
     cfg.reconnect_policy = "manual"
     cfg.derive_ohlcvc = False
-    client = ThetaDataDx(Credentials.from_file(args.creds), cfg)
+    client = ThetaDataDxClient(Credentials.from_file(args.creds), cfg)
+
+    # Push-callback delivery — fan events into a thread-safe queue so
+    # the main thread can drive the smoke assertions synchronously
+    # while the Disruptor consumer thread keeps producing.
+    events: "queue.Queue" = queue.Queue(maxsize=4096)
+    stop_consuming = threading.Event()
+
+    def on_event(event):
+        if stop_consuming.is_set():
+            return
+        try:
+            events.put_nowait(event)
+        except queue.Full:
+            pass
+
+    client.start_streaming(on_event)
 
     try:
-        client.start_streaming()
-        client.subscribe_quotes(args.symbol)
-        client.subscribe_trades(args.symbol)
-        client.subscribe_option_quotes(
-            args.option_symbol, args.expiration, args.strike, args.right
+        client.subscribe(Contract.stock(args.symbol).quote())
+        client.subscribe(Contract.stock(args.symbol).trade())
+        client.subscribe(
+            Contract.option(
+                args.option_symbol,
+                expiration=args.expiration,
+                strike=args.strike,
+                right=args.right,
+            ).quote()
         )
 
         expected_subs = _subscriptions_snapshot(client)
         if len(expected_subs) < 3:
             raise RuntimeError(f"expected at least 3 active subscriptions, got {expected_subs!r}")
 
-        contract_id, first_kind = _require_data_event_with_retry(
-            client, timeout_secs=20.0
-        )
-        if contract_id is not None and not client.contract_lookup(contract_id):
+        symbol, first_kind = _drain_data_kind(events, timeout_secs=20.0)
+        if not symbol:
             raise RuntimeError(
-                f"contract_lookup({contract_id}) returned nothing after first {first_kind} event"
+                f"first {first_kind} event carried an empty contract.symbol — "
+                "data variants must surface the resolved typed Contract"
             )
-
-        contract_map = client.contract_map()
-        if not contract_map:
-            raise RuntimeError("contract_map() returned no entries after first data event")
 
         client.reconnect()
         after = _subscriptions_snapshot(client)
@@ -95,15 +94,15 @@ def main() -> int:
                 f"subscriptions drifted across reconnect: expected {expected_subs!r}, got {after!r}"
             )
 
-        contract_id, second_kind = _require_data_event_with_retry(
-            client, timeout_secs=20.0
-        )
-        if contract_id is not None and not client.contract_lookup(contract_id):
+        symbol, second_kind = _drain_data_kind(events, timeout_secs=20.0)
+        if not symbol:
             raise RuntimeError(
-                f"contract_lookup({contract_id}) returned nothing after reconnect {second_kind} event"
+                f"reconnect {second_kind} event carried an empty contract.symbol"
             )
     finally:
-        client.shutdown()
+        stop_consuming.set()
+        client.stop_streaming()
+        client.await_drain(5_000)
 
     print(
         "python fpss smoke: ok "

@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx"
-version = "9.0.2"
+version = "9.1.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -96,6 +96,13 @@ regex = "1.12.3"
 # Lock-free ring buffer (LMAX Disruptor pattern) for FPSS event dispatch
 disruptor = "4.1.0"
 
+# Lock-free MPMC bounded queue used by the pull-iter delivery mode
+# (`ThetaDataDxClient::start_streaming_iter`). The Disruptor consumer
+# closure pushes events into the queue and `EventIterator::next` pops
+# them on the user thread, draining a batch under one GIL acquire on
+# the Python binding.
+crossbeam-queue = "0.3.12"
+
 # Optional DataFrame / Arrow extension traits (`frames` module).
 # polars: minimal feature set — just enough to build `DataFrame::new(vec![Series::new(...).into()])`.
 # No lazy, no I/O, no parquet, no SQL, no compute kernels. `default-features = false`
@@ -116,21 +123,11 @@ serde_json = "1.0.137"
 # `/proc/<pid>/mem` after the struct goes out of scope.
 zeroize = { version = "1.8.2", features = ["derive"] }
 
-# Lock-free bounded MPMC channel used by the FPSS streaming dispatcher
-# (`fpss::dispatcher::StreamingDispatcher`). The dispatcher decouples the
-# FPSS reader thread from user callbacks: the reader does `try_send` on a
-# `bounded(8192)` queue, a dedicated drain thread invokes the callback,
-# and overflow drops are counted instead of blocking the reader. See
-# `benches/streaming_channels.rs::crossbeam_bounded_8192` for the per-event
-# cost benchmark.
-crossbeam-channel = "0.5.15"
-
 # Lock-free atomic swap of an `Arc<StreamingSlot>` for the streaming
-# state machine on `ThetaDataDx`. Replaces three coordinated fields
-# (`Mutex<Option<FpssClient>>`, `Mutex<Option<StreamingDispatcher>>`,
-# `AtomicBool was_streaming`) with a single atomic load on the read
-# path — `is_streaming`, `connection_status`, `dropped_event_count` and
-# the `with_streaming` helper all collapse to one `state.load()`.
+# state machine on `ThetaDataDxClient`. Carries the `Arc<FpssClient>` so the
+# hot read paths (`is_streaming`, `connection_status`,
+# `dropped_event_count`, `panic_count`, `with_streaming`) all collapse
+# to a single `state.load()`.
 arc-swap = "1.7"
 
 [dev-dependencies]
@@ -142,6 +139,12 @@ proptest = "1.5"
 # dev-dependencies lets the tests pull the same version without the
 # `config-file` feature gate.
 toml = "1.1.2"
+# PyO3 with `auto-initialize` so the `streaming_throughput` bench can
+# acquire the GIL without an explicit `Py_Initialize`. Pinned to the
+# same patch as the Python SDK shim under `sdks/python/` so the
+# dev-dependency graph stays consistent. dev-only — never enters the
+# published crate graph.
+pyo3 = { version = "=0.28.2", features = ["auto-initialize"] }
 
 [build-dependencies]
 # tonic 0.14 extracted build integration into tonic-prost-build
@@ -174,6 +177,10 @@ harness = false
 
 [[bench]]
 name = "streaming_channels"
+harness = false
+
+[[bench]]
+name = "streaming_throughput"
 harness = false
 
 [[bin]]

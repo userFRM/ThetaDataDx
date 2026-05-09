@@ -45,11 +45,6 @@ import { allGreeks } from 'thetadatadx';
 const g = allGreeks(450.0, 455.0, 0.05, 0.015, 30 / 365, 8.50, 'C');
 console.log(`IV=${g.iv.toFixed(4)} delta=${g.delta.toFixed(4)} gamma=${g.gamma.toFixed(6)}`);
 ```
-```go [Go]
-g, err := thetadatadx.AllGreeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C")
-if err != nil { log.Fatal(err) }
-fmt.Printf("IV=%.4f delta=%.4f gamma=%.6f\n", g.IV, g.Delta, g.Gamma)
-```
 ```cpp [C++]
 auto g = tdx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
 std::cout << "IV=" << g.iv << " delta=" << g.delta << " gamma=" << g.gamma << std::endl;

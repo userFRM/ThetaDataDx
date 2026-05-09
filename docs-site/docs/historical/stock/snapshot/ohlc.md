@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} open=${t.open} high=${t.high} low=${t.low} close=${t.close}`);
 }
 ```
-```go [Go]
-data, _ := client.StockSnapshotOHLC([]string{"SPY", "MSFT"})
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d count=%d\n",
-        t.Date, t.MsOfDay, t.Open, t.High, t.Low, t.Close, t.Volume, t.Count)
-}
-```
 ```cpp [C++]
 auto data = client.stock_snapshot_ohlc({"SPY", "MSFT"});
 for (const auto& t : data) {

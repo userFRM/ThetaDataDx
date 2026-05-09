@@ -27,12 +27,6 @@ for item in data:
 const data = tdx.indexListSymbols();
 console.log(data);
 ```
-```go [Go]
-data, _ := client.IndexListSymbols()
-for _, item := range data {
-    fmt.Println(item)
-}
-```
 ```cpp [C++]
 auto data = client.index_list_symbols();
 for (const auto& item : data) {

@@ -129,7 +129,11 @@ pub(super) fn rust_field_type(
 /// the matching `<cstdint>` alias so both sides have the same layout.
 ///
 /// `Contract` is a nested `#[repr(C)]` struct emitted once per language
-/// and embedded by value in every data event.
+/// and embedded by value in every data event. `String` / `Vec<u8>`
+/// only appear on `kind = "control"` variants (e.g. `UnknownFrame`,
+/// `Ping`) and are represented as borrowed C pointers — the backing
+/// storage lives on the `FfiBufferedEvent` wrapper alongside the event
+/// for the duration of the user callback.
 pub(super) fn rust_ffi_scalar(
     column_type: &str,
     event_name: &str,
@@ -142,9 +146,16 @@ pub(super) fn rust_ffi_scalar(
         "u8" => "u8",
         "f64" => "f64",
         "Contract" => "TdxContract",
+        // String → borrowed C string, backed by an Option<CString> on
+        // `FfiBufferedEvent`. Null when the source variant has no
+        // string payload (zero-fill case for inactive variants).
+        "String" => "*const c_char",
+        // Vec<u8> emits as a (ptr, len) pair via the dedicated
+        // `rust_ffi_emit_struct_field` path; this scalar mapping is
+        // unreachable because the column expansion handles the pair.
         other => panic!(
-            "unsupported Rust FFI column type '{other}' in {event_name}.{column_name} \
-             (data variants must be pure scalars or Contract; strings/bytes belong on control/raw variants)"
+            "unsupported Rust FFI scalar mapping for column type '{other}' \
+             in {event_name}.{column_name}"
         ),
     }
 }
@@ -155,6 +166,7 @@ pub(super) fn rust_ffi_zero_literal(column_type: &str) -> &'static str {
         "i32" | "i64" | "u64" | "u8" => "0",
         "f64" => "0.0",
         "Contract" => "ZERO_CONTRACT_STRUCT",
+        "String" => "ptr::null()",
         other => panic!("no FFI zero literal for column type '{other}'"),
     }
 }
@@ -168,8 +180,22 @@ pub(super) fn c_ffi_scalar(column_type: &str, event_name: &str, column_name: &st
         "u8" => "uint8_t",
         "f64" => "double",
         "Contract" => "TdxContract",
-        other => panic!("unsupported C FFI column type '{other}' in {event_name}.{column_name}"),
+        // Borrowed C string, NUL-terminated. May be null on inactive
+        // variants. Never freed by the consumer.
+        "String" => "const char *",
+        other => panic!(
+            "unsupported C FFI scalar mapping for column type '{other}' \
+             in {event_name}.{column_name}"
+        ),
     }
+}
+
+/// True when the column's wire type expands to a `(*const u8, size_t)`
+/// pair on both the C and Rust FFI sides. The schema column carries one
+/// logical name; the emitted struct gets `<name>` (pointer) and
+/// `<name>_len` (size_t).
+pub(super) fn is_byte_buffer(column_type: &str) -> bool {
+    column_type == "Vec<u8>"
 }
 
 /// Schema primitive → Go scalar (match the `C.` cgo type promotions the

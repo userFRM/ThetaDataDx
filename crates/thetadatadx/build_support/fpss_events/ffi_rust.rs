@@ -1,12 +1,50 @@
 //! Rust FFI emitters for `ffi/src/fpss_event_structs.rs` +
 //! `ffi/src/fpss_event_converter.rs`.
+//!
+//! Wave G (typed FpssControl variants on the C/C++/Go FFI surface)
+//! flattens every `kind = "control"` schema variant into its own
+//! `#[repr(C)]` struct alongside the existing data-variant structs. The
+//! tagged `TdxFpssEvent` wrapper embeds all of them by value; only the
+//! field matching `kind` carries valid data on each delivered event.
+//! Empty control variants get a single `_padding: u8` so their C-side
+//! `sizeof` is portable across GCC / Clang / MSVC (Rust `#[repr(C)]`
+//! treats a zero-field struct as size 0; C does not).
 
 use std::fmt::Write as _;
 
 use super::common::{
-    is_contract, rust_ffi_scalar, rust_ffi_zero_literal, snake_case, zero_const_name,
+    is_byte_buffer, is_contract, rust_ffi_scalar, rust_ffi_zero_literal, snake_case,
+    zero_const_name,
 };
-use super::schema::{sorted_data_events, Schema};
+use super::schema::{
+    sorted_control_events, sorted_data_events, sorted_event_names, ColumnDef, EventDef, Schema,
+};
+
+/// Emit the kind-enum: one discriminant per data variant + one per
+/// control variant. Schema-driven so adding a control variant to
+/// `fpss_event_schema.toml` propagates automatically. Names emitted in
+/// the same alphabetical order every other emitter consumes
+/// (`sorted_event_names`). The schema no longer carries a `RawData`
+/// fallback variant — decoder failures are filtered before the FFI
+/// boundary (Wave H7) and accounted on the
+/// `thetadatadx.fpss.decode_failures` metric.
+fn render_kind_enum_rust(schema: &Schema) -> String {
+    let mut out = String::new();
+    out.push_str("/// FPSS event kind tag. Check this to determine which field of\n");
+    out.push_str("/// `TdxFpssEvent` is valid. One discriminant per data variant\n");
+    out.push_str("/// (Quote / Trade / OpenInterest / Ohlcvc) and one per control\n");
+    out.push_str("/// variant (LoginSuccess / ContractAssigned / ...). Schema-driven\n");
+    out.push_str("/// from `fpss_event_schema.toml`; values are stable for the\n");
+    out.push_str("/// lifetime of the v9.x C ABI but may renumber on a future major\n");
+    out.push_str("/// bump.\n");
+    out.push_str("#[repr(C)]\n");
+    out.push_str("pub enum TdxFpssEventKind {\n");
+    for (idx, name) in sorted_event_names(schema).iter().enumerate() {
+        writeln!(out, "    {name} = {idx},").unwrap();
+    }
+    out.push_str("}\n\n");
+    out
+}
 
 /// Emit the `TdxContract` struct + `ZERO_CONTRACT_STRUCT` const that every
 /// event's `contract` field points at. Uses `#[repr(C)]` so the C header
@@ -17,15 +55,16 @@ use super::schema::{sorted_data_events, Schema};
 /// pointer stays valid for the lifetime of the buffered event. Optional
 /// fields use a tagged-optional pattern (`has_*: bool` + value) because
 /// `#[repr(C)]` rejects `Option<T>` for Rust->C interop.
-fn render_contract_struct_rust() -> String {
-    String::from(
-        "/// FPSS `Contract` shared across every data event.\n\
+fn render_contract_struct_rust() -> &'static str {
+    "/// FPSS `Contract` shared across every data event.\n\
 /// \n\
 /// `symbol` is a NUL-terminated C string; may be null when the SDK has not\n\
 /// yet resolved the server-assigned contract_id to a `ContractAssigned`\n\
-/// frame. Optional option fields (`expiration`, `is_call`, `strike`) use a\n\
+/// frame. Optional option fields (`expiration`, `right`, `strike`) use a\n\
 /// tagged-present bool because `#[repr(C)]` cannot express `Option<T>`\n\
-/// directly.\n\
+/// directly. `right` is the ASCII byte `b'C'` / `b'P'` (`0` when\n\
+/// `has_right` is false) so consumers see the same notation the public\n\
+/// option builder takes.\n\
 #[repr(C)]\n\
 pub struct TdxContract {\n\
     /// Ticker symbol (e.g. \"AAPL\"). Null until ContractAssigned arrives.\n\
@@ -35,9 +74,10 @@ pub struct TdxContract {\n\
     /// Whether `expiration` is meaningful (options only).\n\
     pub has_expiration: bool,\n\
     pub expiration: i32,\n\
-    /// Whether `is_call` is meaningful (options only).\n\
-    pub has_is_call: bool,\n\
-    pub is_call: bool,\n\
+    /// Whether `right` is meaningful (options only).\n\
+    pub has_right: bool,\n\
+    /// Option side as ASCII: `b'C'` / `b'P'` (`0` when `has_right` is false).\n\
+    pub right: c_char,\n\
     /// Whether `strike` is meaningful (options only).\n\
     pub has_strike: bool,\n\
     pub strike: i32,\n\
@@ -48,12 +88,73 @@ pub(crate) const ZERO_CONTRACT_STRUCT: TdxContract = TdxContract {\n\
     sec_type: 0,\n\
     has_expiration: false,\n\
     expiration: 0,\n\
-    has_is_call: false,\n\
-    is_call: false,\n\
+    has_right: false,\n\
+    right: 0,\n\
     has_strike: false,\n\
     strike: 0,\n\
-};\n\n",
+};\n\n"
+}
+
+/// Render one `#[repr(C)]` struct for a data or control variant. For
+/// `Vec<u8>` columns the schema's single logical name expands into two
+/// physical fields: `<name>: *const u8` and `<name>_len: usize`. Empty
+/// (unit) control variants get a single `_padding: u8` so their size is
+/// 1 on every C compiler — Rust's zero-field `#[repr(C)]` is size 0,
+/// which would mismatch MSVC's mandatory size-1 minimum.
+fn render_event_struct_rust(out: &mut String, event_name: &str, def: &EventDef) {
+    let doc_text = if def.doc.is_empty() {
+        format!("`#[repr(C)]` FPSS {event_name} event.")
+    } else {
+        def.doc.clone()
+    };
+    for line in doc_text.lines() {
+        writeln!(out, "/// {line}").unwrap();
+    }
+    out.push_str("#[repr(C)]\n");
+    writeln!(out, "pub struct TdxFpss{event_name} {{").unwrap();
+    if def.columns.is_empty() {
+        out.push_str("    /// Placeholder so the struct has size 1 on every C compiler.\n");
+        out.push_str("    /// Empty `#[repr(C)]` structs are size 0 on Rust but size 1 on\n");
+        out.push_str("    /// MSVC; the byte keeps the layout consistent across both.\n");
+        out.push_str("    pub _padding: u8,\n");
+    } else {
+        for column in &def.columns {
+            if is_byte_buffer(&column.r#type) {
+                writeln!(out, "    pub {}: *const u8,", column.name).unwrap();
+                writeln!(out, "    pub {}_len: usize,", column.name).unwrap();
+            } else {
+                let ty = rust_ffi_scalar(&column.r#type, event_name, &column.name);
+                writeln!(out, "    pub {}: {ty},", column.name).unwrap();
+            }
+        }
+    }
+    out.push_str("}\n\n");
+}
+
+/// Render the matching `ZERO_*` const for one variant. All scalars zero,
+/// pointers null, lengths zero, contracts `ZERO_CONTRACT_STRUCT`, byte
+/// buffers `(null, 0)`, padding bytes 0.
+fn render_event_zero_const(out: &mut String, event_name: &str, def: &EventDef) {
+    let const_name = zero_const_name(event_name);
+    writeln!(
+        out,
+        "pub(crate) const {const_name}: TdxFpss{event_name} = TdxFpss{event_name} {{"
     )
+    .unwrap();
+    if def.columns.is_empty() {
+        out.push_str("    _padding: 0,\n");
+    } else {
+        for column in &def.columns {
+            if is_byte_buffer(&column.r#type) {
+                writeln!(out, "    {}: ptr::null(),", column.name).unwrap();
+                writeln!(out, "    {}_len: 0,", column.name).unwrap();
+            } else {
+                let lit = rust_ffi_zero_literal(&column.r#type);
+                writeln!(out, "    {}: {lit},", column.name).unwrap();
+            }
+        }
+    }
+    out.push_str("};\n");
 }
 
 /// Emit the `#[repr(C)]` FPSS event structs + `ZERO_*` consts + tagged
@@ -74,44 +175,31 @@ pub(super) fn render_ffi_fpss_event_structs(schema: &Schema) -> String {
     out.push_str("// Expects `std::os::raw::c_char`, `std::ptr` already in scope at the\n");
     out.push_str("// include site.\n\n");
 
-    // Kind enum — order matches the C header + Go enum below.
-    out.push_str(include_str!("templates/ffi_rust/kind_enum.rs.tmpl"));
+    // Kind enum — schema-driven; one discriminant per variant.
+    out.push_str(&render_kind_enum_rust(schema));
 
     // Contract struct — every data variant's `contract` field points here.
-    out.push_str(&render_contract_struct_rust());
+    out.push_str(render_contract_struct_rust());
 
     // One #[repr(C)] struct per data variant.
     for (event_name, def) in sorted_data_events(schema) {
-        let doc_text = if def.doc.is_empty() {
-            format!("`#[repr(C)]` FPSS {event_name} event.")
-        } else {
-            def.doc.clone()
-        };
-        for line in doc_text.lines() {
-            writeln!(out, "/// {line}").unwrap();
-        }
-        out.push_str("#[repr(C)]\n");
-        writeln!(out, "pub struct TdxFpss{event_name} {{").unwrap();
-        for column in &def.columns {
-            let ty = rust_ffi_scalar(&column.r#type, event_name, &column.name);
-            writeln!(out, "    pub {}: {},", column.name, ty).unwrap();
-        }
-        out.push_str("}\n\n");
+        render_event_struct_rust(&mut out, event_name, def);
     }
 
-    // Control + RawData are fixed shapes — the schema-defined Simple /
-    // RawData variants model them on the Python/TS side, but the FFI
-    // surface keeps the Control-kind-integer + optional-`detail` pattern
-    // that every downstream SDK already speaks. Documented inline to keep
-    // the kind-integer mapping next to the struct definition.
-    out.push_str(include_str!("templates/ffi_rust/control_struct.rs.tmpl"));
-    out.push_str(include_str!("templates/ffi_rust/raw_data_struct.rs.tmpl"));
+    // One #[repr(C)] struct per control variant. Empty variants get a
+    // single _padding byte.
+    for (event_name, def) in sorted_control_events(schema) {
+        render_event_struct_rust(&mut out, event_name, def);
+    }
 
     // Tagged union-style wrapper. Flat struct (not a C union) so the
     // layout is trivially FFI-safe.
     out.push_str("/// Tagged FPSS event for FFI. Check `kind` then read the corresponding\n");
     out.push_str("/// field. Only the field matching `kind` contains valid data — this is\n");
-    out.push_str("/// a flat struct (not a C union) for simplicity and safety.\n");
+    out.push_str("/// a flat struct (not a C union) for simplicity and safety. The\n");
+    out.push_str("/// per-variant control payloads (LoginSuccess, ContractAssigned, ...)\n");
+    out.push_str("/// mirror the Rust `FpssControl::*` enum one-for-one; consumers\n");
+    out.push_str("/// dispatch via `kind` and read the matching `event.<variant>` field.\n");
     out.push_str("#[repr(C)]\n");
     out.push_str("pub struct TdxFpssEvent {\n");
     out.push_str("    pub kind: TdxFpssEventKind,\n");
@@ -119,37 +207,360 @@ pub(super) fn render_ffi_fpss_event_structs(schema: &Schema) -> String {
         let field = snake_case(event_name);
         writeln!(out, "    pub {field}: TdxFpss{event_name},").unwrap();
     }
-    out.push_str("    pub control: TdxFpssControl,\n");
-    out.push_str("    pub raw_data: TdxFpssRawData,\n");
+    for (event_name, _) in sorted_control_events(schema) {
+        let field = snake_case(event_name);
+        writeln!(out, "    pub {field}: TdxFpss{event_name},").unwrap();
+    }
     out.push_str("}\n\n");
 
     // Zero-initialised defaults for inactive fields.
     out.push_str("// Zero-initialized defaults for inactive union-style fields.\n");
     for (event_name, def) in sorted_data_events(schema) {
-        let const_name = zero_const_name(event_name);
-        writeln!(
-            out,
-            "pub(crate) const {const_name}: TdxFpss{event_name} = TdxFpss{event_name} {{"
-        )
-        .unwrap();
-        for column in &def.columns {
-            let lit = rust_ffi_zero_literal(&column.r#type);
-            writeln!(out, "    {}: {lit},", column.name).unwrap();
-        }
-        out.push_str("};\n");
+        render_event_zero_const(&mut out, event_name, def);
     }
-    out.push_str(include_str!("templates/ffi_rust/zero_consts.rs.tmpl"));
+    for (event_name, def) in sorted_control_events(schema) {
+        render_event_zero_const(&mut out, event_name, def);
+    }
 
     out
+}
+
+/// True if a control variant carries a backing `String` field — i.e.
+/// the `FfiBufferedEvent` for this variant must own a `CString` to keep
+/// the borrowed `*const c_char` alive across the user callback.
+fn control_has_string(columns: &[ColumnDef]) -> Option<&str> {
+    columns
+        .iter()
+        .find(|c| c.r#type == "String")
+        .map(|c| c.name.as_str())
+}
+
+/// True if a control variant carries a backing `Vec<u8>` field — i.e.
+/// the `FfiBufferedEvent` for this variant must own a `Vec<u8>` to keep
+/// the borrowed `*const u8` alive across the user callback.
+fn control_has_byte_buffer(columns: &[ColumnDef]) -> Option<&str> {
+    columns
+        .iter()
+        .find(|c| c.r#type == "Vec<u8>")
+        .map(|c| c.name.as_str())
+}
+
+/// True if a control variant embeds a `Contract`. Only `ContractAssigned`
+/// hits this today, but the codegen handles it by-schema so future
+/// `Contract`-bearing control variants drop in without touching this
+/// file.
+fn control_has_contract(columns: &[ColumnDef]) -> Option<&str> {
+    columns
+        .iter()
+        .find(|c| is_contract(&c.r#type))
+        .map(|c| c.name.as_str())
+}
+
+/// Emit the data-event match arm. Each arm fills the matching
+/// `TdxFpss{Variant}` field, captures the contract symbol into
+/// `_contract_symbol`, and zero-fills every sibling field.
+fn render_data_arm(out: &mut String, schema: &Schema, event_name: &str, def: &EventDef) {
+    let has_contract = def.columns.iter().any(|c| is_contract(&c.r#type));
+    writeln!(out, "        FpssEvent::Data(FpssData::{event_name} {{").unwrap();
+    for column in &def.columns {
+        writeln!(out, "            {},", column.name).unwrap();
+    }
+    out.push_str("            ..\n");
+    out.push_str("        }) => {\n");
+
+    if has_contract {
+        out.push_str(
+            "            let contract_symbol_cstring = if contract.symbol.is_empty() {\n                None\n            } else {\n                std::ffi::CString::new(contract.symbol.as_str()).ok()\n            };\n            let contract_symbol_ptr = contract_symbol_cstring\n                .as_ref()\n                .map_or(ptr::null(), |cs| cs.as_ptr());\n            let tdx_contract = TdxContract {\n                symbol: contract_symbol_ptr,\n                sec_type: contract.sec_type as i32,\n                has_expiration: contract.expiration.is_some(),\n                expiration: contract.expiration.unwrap_or(0),\n                has_right: contract.is_call.is_some(),\n                right: contract.right().map_or(0, |r| r.as_char() as c_char),\n                has_strike: contract.strike.is_some(),\n                strike: contract.strike.unwrap_or(0),\n            };\n",
+        );
+    }
+
+    out.push_str("            FfiBufferedEvent {\n");
+    out.push_str("                event: TdxFpssEvent {\n");
+    writeln!(
+        out,
+        "                    kind: TdxFpssEventKind::{event_name},"
+    )
+    .unwrap();
+    let field = snake_case(event_name);
+    writeln!(out, "                    {field}: TdxFpss{event_name} {{").unwrap();
+    for column in &def.columns {
+        if is_contract(&column.r#type) {
+            writeln!(
+                out,
+                "                        {}: tdx_contract,",
+                column.name
+            )
+            .unwrap();
+        } else {
+            writeln!(
+                out,
+                "                        {}: *{},",
+                column.name, column.name
+            )
+            .unwrap();
+        }
+    }
+    out.push_str("                    },\n");
+    // Zero-fill all sibling data + control + raw fields.
+    render_zero_fill_siblings(out, schema, event_name, "                    ");
+    out.push_str("                },\n");
+    render_zero_buffered_storage(
+        out,
+        "                ",
+        if has_contract {
+            "contract_symbol_cstring"
+        } else {
+            "None"
+        },
+        "None",
+        "None",
+        "None",
+    );
+    out.push_str("            }\n");
+    out.push_str("        }\n\n");
+}
+
+/// Emit the control-event match arms. One arm per `kind = "control"`
+/// schema variant. Each arm constructs the corresponding typed
+/// `TdxFpss{Variant}` payload, captures any `String` into
+/// `_*_string`, any `Vec<u8>` into `_*_bytes`, and zero-fills every
+/// sibling field on the tagged event.
+fn render_control_arms(out: &mut String, schema: &Schema) {
+    out.push_str("        FpssEvent::Control(ctrl) => match ctrl {\n");
+    for (event_name, def) in sorted_control_events(schema) {
+        if event_name == "UnknownControl" {
+            // Wildcard arm at the end; FpssControl is #[non_exhaustive].
+            continue;
+        }
+        render_control_arm(out, schema, event_name, def);
+    }
+    // UnknownControl wildcard for any future / non-recognised variant.
+    out.push_str("            _ => unknown_control_event(),\n");
+    out.push_str("        },\n\n");
+}
+
+/// Per-variant Rust pattern (the brace-body) and the field-construction
+/// list for the typed payload. Mirrors `control_variant_mapping` in
+/// `buffered.rs` but renders into the FFI tagged-struct world rather
+/// than the buffered-event world.
+fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<&'static str>) {
+    match event_name {
+        "LoginSuccess" => ("permissions", vec!["permissions: permissions_ptr"]),
+        "ContractAssigned" => ("id, contract", vec!["id: *id", "contract: tdx_contract"]),
+        "ReqResponse" => (
+            "req_id, result",
+            vec!["req_id: *req_id", "result: *result as i32"],
+        ),
+        "ServerError" => ("message", vec!["message: message_ptr"]),
+        "Disconnected" => ("reason", vec!["reason: *reason as i32"]),
+        "Reconnecting" => (
+            "reason, attempt, delay_ms",
+            vec![
+                "reason: *reason as i32",
+                "attempt: i32::try_from(*attempt).unwrap_or(i32::MAX)",
+                "delay_ms: *delay_ms",
+            ],
+        ),
+        "Error" => ("message", vec!["message: message_ptr"]),
+        "UnknownFrame" => (
+            "code, payload",
+            vec![
+                "code: *code",
+                "payload: payload_ptr",
+                "payload_len: payload_len_val",
+            ],
+        ),
+        "Ping" => (
+            "payload",
+            vec!["payload: payload_ptr", "payload_len: payload_len_val"],
+        ),
+        "MarketOpen" | "MarketClose" | "Reconnected" | "Connected" | "ReconnectedServer"
+        | "Restart" => ("", vec!["_padding: 0"]),
+        other => panic!(
+            "control variant '{other}' has no Rust→FFI mapping; \
+             add it to control_variant_mapping in build_support/fpss_events/ffi_rust.rs"
+        ),
+    }
+}
+
+fn render_control_arm(out: &mut String, schema: &Schema, event_name: &str, def: &EventDef) {
+    let (rust_pattern, field_assigns) = control_variant_mapping(event_name);
+    let has_string = control_has_string(&def.columns);
+    let has_bytes = control_has_byte_buffer(&def.columns);
+    let has_contract = control_has_contract(&def.columns);
+
+    if rust_pattern.is_empty() {
+        writeln!(out, "            FpssControl::{event_name} => {{").unwrap();
+    } else {
+        writeln!(
+            out,
+            "            FpssControl::{event_name} {{ {rust_pattern} }} => {{"
+        )
+        .unwrap();
+    }
+
+    // Stage backing storage for any borrowed pointer fields.
+    if let Some(field) = has_string {
+        writeln!(
+            out,
+            "                let cstring_owned = std::ffi::CString::new({field}.as_str()).ok();"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "                let {field}_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());"
+        )
+        .unwrap();
+    }
+    if let Some(field) = has_bytes {
+        writeln!(out, "                let bytes_owned = {field}.clone();").unwrap();
+        writeln!(
+            out,
+            "                let payload_ptr = bytes_owned.as_ptr();"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "                let payload_len_val = bytes_owned.len();"
+        )
+        .unwrap();
+    }
+    if let Some(field) = has_contract {
+        writeln!(
+            out,
+            "                let contract_symbol_cstring = if {field}.symbol.is_empty() {{\n                    None\n                }} else {{\n                    std::ffi::CString::new({field}.symbol.as_str()).ok()\n                }};"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "                let contract_symbol_ptr = contract_symbol_cstring\n                    .as_ref()\n                    .map_or(ptr::null(), |cs| cs.as_ptr());"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "                let tdx_contract = TdxContract {{\n                    symbol: contract_symbol_ptr,\n                    sec_type: {field}.sec_type as i32,\n                    has_expiration: {field}.expiration.is_some(),\n                    expiration: {field}.expiration.unwrap_or(0),\n                    has_right: {field}.is_call.is_some(),\n                    right: {field}.right().map_or(0, |r| r.as_char() as c_char),\n                    has_strike: {field}.strike.is_some(),\n                    strike: {field}.strike.unwrap_or(0),\n                }};"
+        )
+        .unwrap();
+    }
+
+    out.push_str("                FfiBufferedEvent {\n");
+    out.push_str("                    event: TdxFpssEvent {\n");
+    writeln!(
+        out,
+        "                        kind: TdxFpssEventKind::{event_name},"
+    )
+    .unwrap();
+    let field = snake_case(event_name);
+    writeln!(
+        out,
+        "                        {field}: TdxFpss{event_name} {{"
+    )
+    .unwrap();
+    for assign in field_assigns {
+        writeln!(out, "                            {assign},").unwrap();
+    }
+    out.push_str("                        },\n");
+    render_zero_fill_siblings(out, schema, event_name, "                        ");
+    out.push_str("                    },\n");
+
+    let contract_slot = if has_contract.is_some() {
+        "contract_symbol_cstring"
+    } else {
+        "None"
+    };
+    let permissions_slot = if event_name == "LoginSuccess" {
+        "cstring_owned"
+    } else {
+        "None"
+    };
+    let message_slot = if matches!(event_name, "ServerError" | "Error") {
+        "cstring_owned"
+    } else {
+        "None"
+    };
+    let bytes_slot = if has_bytes.is_some() {
+        "Some(bytes_owned)"
+    } else {
+        "None"
+    };
+    render_zero_buffered_storage(
+        out,
+        "                    ",
+        contract_slot,
+        permissions_slot,
+        message_slot,
+        bytes_slot,
+    );
+    out.push_str("                }\n");
+    out.push_str("            }\n");
+}
+
+/// Helper: render the per-variant zero-fill block listing every sibling
+/// field on the tagged `TdxFpssEvent` struct, skipping the active one.
+/// Indent governs how many spaces precede each emitted line.
+fn render_zero_fill_siblings(out: &mut String, schema: &Schema, active_event: &str, indent: &str) {
+    for (other_name, _) in sorted_data_events(schema) {
+        if other_name == active_event {
+            continue;
+        }
+        let other_field = snake_case(other_name);
+        let other_zero = zero_const_name(other_name);
+        writeln!(out, "{indent}{other_field}: {other_zero},").unwrap();
+    }
+    for (other_name, _) in sorted_control_events(schema) {
+        if other_name == active_event {
+            continue;
+        }
+        let other_field = snake_case(other_name);
+        let other_zero = zero_const_name(other_name);
+        writeln!(out, "{indent}{other_field}: {other_zero},").unwrap();
+    }
+}
+
+/// Helper: render the four backing-storage slot assignments on the
+/// `FfiBufferedEvent`. The caller passes the indent string so the same
+/// helper works for the data-arm body (16 spaces) and the control-arm
+/// body (16 spaces — control arms are nested one extra level inside
+/// `match ctrl { ... }` but the buffered-event braces sit at the same
+/// depth as the data arms because the `FfiBufferedEvent` struct lives
+/// inside the variant arm regardless).
+fn render_zero_buffered_storage(
+    out: &mut String,
+    indent: &str,
+    contract_symbol: &str,
+    login_permissions: &str,
+    control_message: &str,
+    payload_bytes: &str,
+) {
+    writeln!(out, "{indent}_contract_symbol: {contract_symbol},").unwrap();
+    writeln!(out, "{indent}_login_permissions: {login_permissions},").unwrap();
+    writeln!(out, "{indent}_control_message: {control_message},").unwrap();
+    writeln!(out, "{indent}_payload_bytes: {payload_bytes},").unwrap();
+}
+
+/// Helper invoked from both the `_ => UnknownControl` wildcard inside the
+/// Control arm and the outer `_ => ` fallback for non-exhaustive
+/// `FpssEvent`. Surfaces a payload-less `UnknownControl` event so
+/// downstream consumers see every variant the SDK does not yet
+/// recognise without losing the kind discriminator.
+fn render_unknown_control_helper(out: &mut String, schema: &Schema) {
+    out.push_str("    fn unknown_control_event() -> FfiBufferedEvent {\n");
+    out.push_str("        FfiBufferedEvent {\n");
+    out.push_str("            event: TdxFpssEvent {\n");
+    out.push_str("                kind: TdxFpssEventKind::UnknownControl,\n");
+    out.push_str("                unknown_control: ZERO_UNKNOWN_CONTROL,\n");
+    render_zero_fill_siblings(out, schema, "UnknownControl", "                ");
+    out.push_str("            },\n");
+    render_zero_buffered_storage(out, "            ", "None", "None", "None", "None");
+    out.push_str("        }\n");
+    out.push_str("    }\n\n");
 }
 
 /// Emit `fpss_event_to_ffi`, which converts a `thetadatadx::fpss::FpssEvent`
 /// into an `FfiBufferedEvent` ready to box + cast across the FFI boundary.
 ///
 /// `include!`'d from `ffi/src/lib.rs` AFTER `FfiBufferedEvent` is defined
-/// so it can name the backing-memory wrapper. The Control-variant → (kind,
-/// id, detail) table is kept in a single `match` so the mapping lives next
-/// to the doc-comment on `TdxFpssControl`.
+/// so it can name the backing-memory wrapper.
 pub(super) fn render_ffi_fpss_event_converter(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(
@@ -160,145 +571,19 @@ pub(super) fn render_ffi_fpss_event_converter(schema: &Schema) -> String {
 
     out.push_str("pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::FpssEvent) -> FfiBufferedEvent {\n");
     out.push_str("    use thetadatadx::fpss::{FpssControl, FpssData, FpssEvent};\n\n");
+
+    render_unknown_control_helper(&mut out, schema);
+
     out.push_str("    match event {\n");
 
-    let data_events = sorted_data_events(schema);
-
-    // One match arm per `FpssData::*` variant. Each arm fills the matching
-    // TdxFpss{Variant} field and zero-fills the rest. Non-`Copy` columns
-    // would need `.clone()` — all `data` variants use pure scalars so
-    // dereference is always sufficient.
-    for (event_name, def) in &data_events {
-        let has_contract = def.columns.iter().any(|c| is_contract(&c.r#type));
-        writeln!(out, "        FpssEvent::Data(FpssData::{event_name} {{").unwrap();
-        for column in &def.columns {
-            writeln!(out, "            {},", column.name).unwrap();
-        }
-        // `..` rest pattern so the core crate can add internal decode
-        // cursors / auxiliary fields without breaking the FFI conversion.
-        out.push_str("            ..\n");
-        out.push_str("        }) => {\n");
-        // Stage the CString backing the Contract.symbol pointer so it
-        // outlives the TdxFpssEvent inside the FfiBufferedEvent. The
-        // backing-memory wrapper already has a `_detail_string` slot we
-        // repurpose here — only one owned CString per event, and
-        // Contract.symbol is mutually exclusive with Control.detail on
-        // Data variants.
-        if has_contract {
-            out.push_str(
-                "            let contract_symbol_cstring = if contract.symbol.is_empty() {\n                None\n            } else {\n                std::ffi::CString::new(contract.symbol.as_str()).ok()\n            };\n            let contract_symbol_ptr = contract_symbol_cstring\n                .as_ref()\n                .map_or(ptr::null(), |cs| cs.as_ptr());\n            let tdx_contract = TdxContract {\n                symbol: contract_symbol_ptr,\n                sec_type: contract.sec_type as i32,\n                has_expiration: contract.expiration.is_some(),\n                expiration: contract.expiration.unwrap_or(0),\n                has_is_call: contract.is_call.is_some(),\n                is_call: contract.is_call.unwrap_or(false),\n                has_strike: contract.strike.is_some(),\n                strike: contract.strike.unwrap_or(0),\n            };\n",
-            );
-        }
-        out.push_str("            FfiBufferedEvent {\n");
-        out.push_str("            event: TdxFpssEvent {\n");
-        writeln!(out, "                kind: TdxFpssEventKind::{event_name},").unwrap();
-        // The variant-specific typed payload.
-        let field = snake_case(event_name);
-        writeln!(out, "                {field}: TdxFpss{event_name} {{").unwrap();
-        for column in &def.columns {
-            if is_contract(&column.r#type) {
-                writeln!(
-                    out,
-                    "                    {name}: tdx_contract,",
-                    name = column.name
-                )
-                .unwrap();
-            } else {
-                writeln!(
-                    out,
-                    "                    {name}: *{name},",
-                    name = column.name
-                )
-                .unwrap();
-            }
-        }
-        out.push_str("                },\n");
-        // Zero-fill every sibling data field + control + raw_data.
-        for (other_name, _) in &data_events {
-            if other_name == event_name {
-                continue;
-            }
-            let other_field = snake_case(other_name);
-            let other_zero = zero_const_name(other_name);
-            writeln!(out, "                {other_field}: {other_zero},").unwrap();
-        }
-        out.push_str("                control: ZERO_CONTROL,\n");
-        out.push_str("                raw_data: ZERO_RAW,\n");
-        out.push_str("            },\n");
-        if has_contract {
-            out.push_str("            _detail_string: contract_symbol_cstring,\n");
-        } else {
-            out.push_str("            _detail_string: None,\n");
-        }
-        out.push_str("            _raw_payload: None,\n");
-        out.push_str("        }\n");
-        out.push_str("        }\n\n");
+    for (event_name, def) in sorted_data_events(schema) {
+        render_data_arm(&mut out, schema, event_name, def);
     }
 
-    // Raw-data arm. Clones the payload into owned storage so the `*const u8`
-    // pointer stays valid for the lifetime of `FfiBufferedEvent`.
-    out.push_str("        FpssEvent::RawData { code, payload } => {\n");
-    out.push_str("            let owned = payload.clone();\n");
-    out.push_str("            let ptr = owned.as_ptr();\n");
-    out.push_str("            let len = owned.len();\n");
-    out.push_str("            FfiBufferedEvent {\n");
-    out.push_str("                event: TdxFpssEvent {\n");
-    out.push_str("                    kind: TdxFpssEventKind::RawData,\n");
-    out.push_str("                    raw_data: TdxFpssRawData {\n");
-    out.push_str("                        code: *code,\n");
-    out.push_str("                        payload: ptr,\n");
-    out.push_str("                        payload_len: len,\n");
-    out.push_str("                    },\n");
-    for (event_name, _) in &data_events {
-        let field = snake_case(event_name);
-        let zero = zero_const_name(event_name);
-        writeln!(out, "                    {field}: {zero},").unwrap();
-    }
-    out.push_str("                    control: ZERO_CONTROL,\n");
-    out.push_str("                },\n");
-    out.push_str("                _detail_string: None,\n");
-    out.push_str("                _raw_payload: Some(owned),\n");
-    out.push_str("            }\n");
-    out.push_str("        }\n\n");
+    render_control_arms(&mut out, schema);
 
-    // Control arm. The (kind, id, detail) mapping is kept here — the doc
-    // comment on `TdxFpssControl` documents the same integer tags. Any
-    // divergence between the two would be a review finding.
-    out.push_str("        FpssEvent::Control(ctrl) => {\n");
-    out.push_str("            let (kind, id, detail_str) = match ctrl {\n");
-    out.push_str(include_str!(
-        "templates/ffi_rust/control_match_table.rs.tmpl"
-    ));
-    // `FpssControl` is `#[non_exhaustive]`.
-    for (event_name, _) in &data_events {
-        let field = snake_case(event_name);
-        let zero = zero_const_name(event_name);
-        writeln!(out, "                    {field}: {zero},").unwrap();
-    }
-    out.push_str("                    raw_data: ZERO_RAW,\n");
-    out.push_str("                },\n");
-    out.push_str("                _detail_string: cstring,\n");
-    out.push_str("                _raw_payload: None,\n");
-    out.push_str("            }\n");
-    out.push_str("        }\n\n");
-
-    // Non-Data, non-Control, non-RawData fallback. `FpssEvent` itself is
-    // `#[non_exhaustive]`, so a future variant lands here; kind=12 is the
-    // canonical unknown-event sentinel (NOT 8 — 8 is Reconnecting).
-    out.push_str(include_str!(
-        "templates/ffi_rust/unknown_event_arm_prelude.rs.tmpl"
-    ));
-    for (event_name, _) in &data_events {
-        let field = snake_case(event_name);
-        let zero = zero_const_name(event_name);
-        writeln!(out, "                    {field}: {zero},").unwrap();
-    }
-    out.push_str("                    raw_data: ZERO_RAW,\n");
-    out.push_str("                },\n");
-    out.push_str("                _detail_string: None,\n");
-    out.push_str("                _raw_payload: None,\n");
-    out.push_str("            }\n");
-    out.push_str("        }\n");
+    // FpssEvent itself is `#[non_exhaustive]`.
+    out.push_str("        _ => unknown_control_event(),\n");
 
     out.push_str("    }\n");
     out.push_str("}\n");

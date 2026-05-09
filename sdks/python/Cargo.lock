@@ -567,10 +567,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "crossbeam-channel"
-version = "0.5.15"
+name = "crossbeam-queue"
+version = "0.3.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
+checksum = "0f58bbc28f91df819d0aa2a2c00cd19754769c2fad90579b3592b1c9ba7a3115"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -2500,10 +2500,12 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "9.0.2"
+version = "9.1.0"
 dependencies = [
  "arc-swap",
- "crossbeam-channel",
+ "arrow-array",
+ "arrow-schema",
+ "crossbeam-queue",
  "disruptor",
  "metrics",
  "pastey",
@@ -2536,7 +2538,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-py"
-version = "9.0.2"
+version = "9.1.0"
 dependencies = [
  "arrow",
  "arrow-array",

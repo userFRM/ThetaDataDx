@@ -1,7 +1,6 @@
 //! TLS TCP connection to FPSS servers.
 //!
-//! See ADR-001 (`docs/architecture/ADR-001-java-terminal-parity.md`) for the
-//! Java terminal parity reverse-engineering source.
+//! Behaviour mirrors the upstream Java terminal.
 //!
 //! # Transport
 //!
@@ -24,11 +23,42 @@ use std::time::Duration;
 use rustls::pki_types::ServerName;
 use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
+use crate::auth::Credentials;
+use crate::config::FpssFlushMode;
+use crate::config::ReconnectPolicy;
+
 use super::pinning::PinnedVerifier;
-use super::protocol::{CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS};
+#[cfg(test)]
+use super::protocol::CONNECT_TIMEOUT_MS;
 
 /// Type alias for the TLS-wrapped TCP stream (blocking).
 pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;
+
+/// Parameter bundle for [`super::FpssClient::connect_with_stream`].
+///
+/// Carries every connection-side knob plus the user callback. Bundled
+/// into a struct so the call site stays linear instead of as a
+/// positional list of a dozen heterogeneous arguments — and so the
+/// configurable timeouts (`connect_timeout`, `read_timeout`,
+/// `ping_interval`) plumbed in 9.1.0 don't grow the call signature.
+pub(crate) struct ConnectWithStreamArgs<'a> {
+    pub creds: &'a Credentials,
+    pub stream: FpssStream,
+    pub server_addr: String,
+    pub hosts: &'a [(String, u16)],
+    pub ring_size: usize,
+    pub derive_ohlcvc: bool,
+    pub flush_mode: FpssFlushMode,
+    pub policy: ReconnectPolicy,
+    pub connect_timeout: Duration,
+    pub read_timeout: Duration,
+    pub ping_interval: Duration,
+    /// Push-callback (`Delivery::Callback`) or pull-iter (`Delivery::Queue`)
+    /// delivery of decoded events. Captured at connect time and held
+    /// for the lifetime of the [`super::FpssClient`]; switching modes
+    /// requires `stop_streaming()` followed by a fresh `start_streaming*`.
+    pub delivery: super::events::Delivery,
+}
 
 /// Install the process-global rustls crypto provider exactly once.
 ///
@@ -58,11 +88,11 @@ fn ensure_rustls_crypto_provider() {
 /// Returns an error on network, authentication, or parsing failure.
 pub fn connect_to_servers(
     servers: &[(&str, u16)],
+    connect_timeout: Duration,
+    read_timeout: Duration,
 ) -> Result<(FpssStream, String), crate::error::Error> {
     ensure_rustls_crypto_provider();
     let mut last_err = None;
-    let connect_timeout = Duration::from_millis(CONNECT_TIMEOUT_MS);
-    let read_timeout = Duration::from_millis(READ_TIMEOUT_MS);
 
     for &(host, port) in servers {
         let addr = format!("{host}:{port}");
@@ -199,6 +229,38 @@ mod tests {
 
     #[test]
     fn connect_timeout_matches_java() {
+        // Java parity reference: terminal hardcodes `socket.connect(addr, 2000)`.
+        // Used as the default seed for `FpssConfig::connect_timeout_ms`; the
+        // public knob now overrides this constant for callers who need to
+        // dial in a different per-server connect deadline.
         assert_eq!(CONNECT_TIMEOUT_MS, 2_000);
+    }
+
+    /// `connect_to_servers` honours the caller-supplied connect timeout.
+    ///
+    /// We dial a non-routable RFC-5737 address. With a short
+    /// `connect_timeout` the call must fail within that budget plus
+    /// kernel scheduling slack; without timeout plumbing it would block
+    /// for the kernel default (~75 s on Linux).
+    ///
+    /// This is the load-bearing assertion that `connect_timeout_ms`
+    /// flows from `FpssConnectArgs` -> `connect_to_servers` ->
+    /// `TcpStream::connect_timeout`.
+    #[test]
+    fn connect_to_servers_honors_configured_connect_timeout() {
+        // 192.0.2.0/24 is the RFC-5737 TEST-NET-1 block — guaranteed
+        // to be unroutable. A connect against any address in this
+        // range must hit the configured deadline.
+        let servers = [("192.0.2.1", 1)];
+        let connect_timeout = Duration::from_millis(150);
+        let read_timeout = Duration::from_millis(10_000);
+        let start = std::time::Instant::now();
+        let res = connect_to_servers(&servers, connect_timeout, read_timeout);
+        let elapsed = start.elapsed();
+        assert!(res.is_err(), "unroutable host must fail to connect");
+        assert!(
+            elapsed < Duration::from_millis(2_000),
+            "connect_timeout = 150 ms but elapsed = {elapsed:?}; the knob is not wired"
+        );
     }
 }

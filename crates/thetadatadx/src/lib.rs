@@ -25,11 +25,11 @@
 //!
 //! ## Quick Start
 //!
-//! The recommended entry point is [`ThetaDataDx`], which authenticates once and
+//! The recommended entry point is [`ThetaDataDxClient`], which authenticates once and
 //! provides both historical and streaming through a single object:
 //!
 //! ```rust,ignore
-//! use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+//! use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 //! use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
 //! use thetadatadx::fpss::protocol::Contract;
 //!
@@ -39,7 +39,7 @@
 //!     // Or inline: let creds = Credentials::new("user@example.com", "your-password");
 //!
 //!     // Connect -- authenticates once, historical ready immediately
-//!     let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+//!     let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 //!
 //!     // Historical (MDDS gRPC) -- every generated method via Deref
 //!     let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
@@ -47,14 +47,14 @@
 //!     // Streaming (FPSS TCP) -- connects lazily on first call
 //!     tdx.start_streaming(|event: &FpssEvent| {
 //!         match event {
-//!             FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => {
-//!                 println!("Trade: {contract_id} @ {price} x {size}");
+//!             FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
+//!                 println!("Trade: {} @ {price} x {size}", contract.symbol);
 //!             }
 //!             _ => {}
 //!         }
 //!     })?;
 //!
-//!     tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
+//!     tdx.subscribe(Contract::stock("AAPL").quote())?;
 //!
 //!     // ... when done:
 //!     tdx.stop_streaming();
@@ -63,14 +63,14 @@
 //! ```
 //!
 //! For historical-only usage, just skip `start_streaming()` -- every historical
-//! methods are available directly on `ThetaDataDx` via `Deref<Target = MddsClient>`:
+//! methods are available directly on `ThetaDataDxClient` via `Deref<Target = MddsClient>`:
 //!
 //! ```rust,ignore
-//! use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+//! use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 //!
 //! let creds = Credentials::from_file("creds.txt")?;
 //! // Or inline: let creds = Credentials::new("user@example.com", "your-password");
-//! let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+//! let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 //! let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 //! ```
 //!
@@ -148,7 +148,36 @@ pub mod wire {
 }
 
 pub use auth::Credentials;
-pub use client::{ConnectionStatus, SubscriptionInfo, ThetaDataDx};
+pub use client::{ConnectionStatus, SubscriptionInfo, ThetaDataDxClient};
+pub use fpss::protocol::{
+    Contract, ContractParseError, FullSubscriptionKind, SecTypeExt, Subscription, SubscriptionKind,
+};
+pub use fpss::{EventIterator, NextEvent};
+
+/// Convenience prelude for the fluent contract-first API.
+///
+/// ```rust,no_run
+/// use thetadatadx::prelude::*;
+/// # async fn doc() -> Result<(), thetadatadx::Error> {
+/// let creds  = Credentials::from_file("creds.txt")?;
+/// let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+/// let stock  = Contract::stock("AAPL");
+/// let option = Contract::option("SPY", "20260620", "550", "C")?;
+/// client.subscribe(stock.quote())?;
+/// client.subscribe(option.trade())?;
+/// client.subscribe(SecType::Option.full_trades())?;
+/// # Ok(()) }
+/// ```
+pub mod prelude {
+    pub use crate::auth::Credentials;
+    pub use crate::client::{ConnectionStatus, ThetaDataDxClient};
+    pub use crate::config::DirectConfig;
+    pub use crate::error::Error;
+    pub use crate::fpss::protocol::{
+        Contract, FullSubscriptionKind, SecTypeExt, Subscription, SubscriptionKind,
+    };
+    pub use tdbe::types::enums::SecType;
+}
 pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use flatfiles::{
@@ -173,7 +202,7 @@ pub use tdbe::greeks::{all_greeks, implied_volatility, GreeksResult};
 
 // Re-export every tick / row type returned by the SDK's network methods.
 // These all live in `tdbe::types::tick`, but consumers of the high-level
-// `ThetaDataDx` / `MddsClient` surface should not need a second crate in
+// `ThetaDataDxClient` / `MddsClient` surface should not need a second crate in
 // their `Cargo.toml` just to name a return type. `tdbe` remains a
 // standalone crate for offline use cases (Greeks math, format primitives,
 // no network); customers consuming the SDK get every type they need

@@ -1,4 +1,4 @@
-# Explicit endpoint surface specification for ThetaDataDx.
+# Explicit endpoint surface specification for ThetaDataDxClient.
 #
 # This file is the normalized source of truth for endpoint metadata,
 # parameter semantics, REST paths, projection call-shapes, and reusable

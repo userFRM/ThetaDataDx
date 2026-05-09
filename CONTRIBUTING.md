@@ -8,7 +8,7 @@ The SDK speaks three independent ThetaData surfaces — MDDS (gRPC), FPSS
 an issue or PR that touches any of them, name the surface in the title
 prefix: `feat(mdds): ...`, `feat(fpss): ...`, `feat(flatfiles): ...`.
 Cross-language binding parity is tracked under separate per-binding
-issues; see [`ROADMAP.md`](./ROADMAP.md#flatfiles--binding-coverage)
+issues; see [`docs/ROADMAP.md`](docs/ROADMAP.md#flatfiles--binding-coverage)
 for the FLATFILES coverage matrix.
 
 ## Prerequisites

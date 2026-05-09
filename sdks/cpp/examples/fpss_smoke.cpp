@@ -24,16 +24,47 @@ constexpr const char* kRight = "C";
 constexpr auto kCollectFor = std::chrono::seconds(5);
 constexpr int kMaxEventsPrinted = 25;
 
+// Replaced the flat `TDX_FPSS_CONTROL` discriminant with
+// one kind per typed `FpssControl::*` variant. Returning a friendly
+// short name keeps the smoke test's stdout compact.
 const char* event_kind_name(tdx::FpssEventKind kind) {
     switch (kind) {
         case TDX_FPSS_QUOTE: return "quote";
         case TDX_FPSS_TRADE: return "trade";
         case TDX_FPSS_OPEN_INTEREST: return "open_interest";
         case TDX_FPSS_OHLCVC: return "ohlcvc";
-        case TDX_FPSS_CONTROL: return "control";
-        case TDX_FPSS_RAW_DATA: return "raw_data";
+        case TDX_FPSS_CONNECTED: return "connected";
+        case TDX_FPSS_CONTRACT_ASSIGNED: return "contract_assigned";
+        case TDX_FPSS_DISCONNECTED: return "disconnected";
+        case TDX_FPSS_ERROR: return "error";
+        case TDX_FPSS_LOGIN_SUCCESS: return "login_success";
+        case TDX_FPSS_MARKET_CLOSE: return "market_close";
+        case TDX_FPSS_MARKET_OPEN: return "market_open";
+        case TDX_FPSS_PING: return "ping";
+        case TDX_FPSS_RECONNECTED: return "reconnected";
+        case TDX_FPSS_RECONNECTED_SERVER: return "reconnected_server";
+        case TDX_FPSS_RECONNECTING: return "reconnecting";
+        case TDX_FPSS_REQ_RESPONSE: return "req_response";
+        case TDX_FPSS_RESTART: return "restart";
+        case TDX_FPSS_SERVER_ERROR: return "server_error";
+        case TDX_FPSS_UNKNOWN_CONTROL: return "unknown_control";
+        case TDX_FPSS_UNKNOWN_FRAME: return "unknown_frame";
     }
     return "unknown";
+}
+
+// Returns true when the kind is one of the typed control variants
+// (everything except the four data variants).
+bool is_control_kind(tdx::FpssEventKind kind) {
+    switch (kind) {
+        case TDX_FPSS_QUOTE:
+        case TDX_FPSS_TRADE:
+        case TDX_FPSS_OPEN_INTEREST:
+        case TDX_FPSS_OHLCVC:
+            return false;
+        default:
+            return true;
+    }
 }
 
 } // namespace
@@ -52,7 +83,7 @@ int main(int argc, char** argv) {
 
         fpss.set_callback([&](const tdx::FpssEvent& event) {
             const int seq = total_events.fetch_add(1, std::memory_order_relaxed);
-            if (event.kind != TDX_FPSS_CONTROL && event.kind != TDX_FPSS_RAW_DATA) {
+            if (!is_control_kind(event.kind)) {
                 data_events.fetch_add(1, std::memory_order_relaxed);
             }
             if (seq >= kMaxEventsPrinted) return;
@@ -60,44 +91,89 @@ int main(int argc, char** argv) {
             std::cout << "[" << seq << "] kind=" << event_kind_name(event.kind);
             switch (event.kind) {
                 case TDX_FPSS_QUOTE:
-                    std::cout << " contract_id=" << event.quote.contract_id
+                    std::cout << " symbol="
+                              << (event.quote.contract.symbol ? event.quote.contract.symbol : "")
                               << " bid=" << event.quote.bid
                               << " ask=" << event.quote.ask;
                     break;
                 case TDX_FPSS_TRADE:
-                    std::cout << " contract_id=" << event.trade.contract_id
+                    std::cout << " symbol="
+                              << (event.trade.contract.symbol ? event.trade.contract.symbol : "")
                               << " price=" << event.trade.price
                               << " size=" << event.trade.size;
                     break;
                 case TDX_FPSS_OPEN_INTEREST:
-                    std::cout << " contract_id=" << event.open_interest.contract_id
+                    std::cout << " symbol="
+                              << (event.open_interest.contract.symbol
+                                      ? event.open_interest.contract.symbol
+                                      : "")
                               << " open_interest=" << event.open_interest.open_interest;
                     break;
                 case TDX_FPSS_OHLCVC:
-                    std::cout << " contract_id=" << event.ohlcvc.contract_id
+                    std::cout << " symbol="
+                              << (event.ohlcvc.contract.symbol ? event.ohlcvc.contract.symbol : "")
                               << " close=" << event.ohlcvc.close;
                     break;
-                case TDX_FPSS_CONTROL:
-                    std::cout << " control_kind=" << event.control.kind;
-                    if (event.control.detail) std::cout << " detail=" << event.control.detail;
+                case TDX_FPSS_LOGIN_SUCCESS:
+                    if (event.login_success.permissions) {
+                        std::cout << " permissions=" << event.login_success.permissions;
+                    }
                     break;
-                case TDX_FPSS_RAW_DATA:
-                    std::cout << " code=" << static_cast<int>(event.raw_data.code)
-                              << " len=" << event.raw_data.payload_len;
+                case TDX_FPSS_CONTRACT_ASSIGNED:
+                    std::cout << " id=" << event.contract_assigned.id;
+                    if (event.contract_assigned.contract.symbol) {
+                        std::cout << " symbol=" << event.contract_assigned.contract.symbol;
+                    }
+                    break;
+                case TDX_FPSS_REQ_RESPONSE:
+                    std::cout << " req_id=" << event.req_response.req_id
+                              << " result=" << event.req_response.result;
+                    break;
+                case TDX_FPSS_DISCONNECTED:
+                    std::cout << " reason=" << event.disconnected.reason;
+                    break;
+                case TDX_FPSS_RECONNECTING:
+                    std::cout << " reason=" << event.reconnecting.reason
+                              << " attempt=" << event.reconnecting.attempt
+                              << " delay_ms=" << event.reconnecting.delay_ms;
+                    break;
+                case TDX_FPSS_SERVER_ERROR:
+                    if (event.server_error.message) {
+                        std::cout << " message=" << event.server_error.message;
+                    }
+                    break;
+                case TDX_FPSS_ERROR:
+                    if (event.error.message) {
+                        std::cout << " message=" << event.error.message;
+                    }
+                    break;
+                case TDX_FPSS_UNKNOWN_FRAME:
+                    std::cout << " code=" << static_cast<int>(event.unknown_frame.code)
+                              << " len=" << event.unknown_frame.payload_len;
+                    break;
+                case TDX_FPSS_PING:
+                    std::cout << " len=" << event.ping.payload_len;
+                    break;
+                case TDX_FPSS_MARKET_OPEN:
+                case TDX_FPSS_MARKET_CLOSE:
+                case TDX_FPSS_CONNECTED:
+                case TDX_FPSS_RECONNECTED:
+                case TDX_FPSS_RECONNECTED_SERVER:
+                case TDX_FPSS_RESTART:
+                case TDX_FPSS_UNKNOWN_CONTROL:
+                    // Payload-less variants — discriminator alone carries
+                    // the meaning.
                     break;
             }
             std::cout << std::endl;
         });
 
-        if (fpss.subscribe_quotes(kSymbol) < 0) {
-            throw std::runtime_error("subscribe_quotes failed");
-        }
-        if (fpss.subscribe_trades(kSymbol) < 0) {
-            throw std::runtime_error("subscribe_trades failed");
-        }
-        if (fpss.subscribe_option_quotes(kOptionSymbol, kExpiration, kStrike, kRight) < 0) {
-            throw std::runtime_error("subscribe_option_quotes failed");
-        }
+        // Fluent contract-first subscriptions.
+        auto stock = tdx::Contract::stock(kSymbol);
+        auto option = tdx::Contract::option(kOptionSymbol, kExpiration, kStrike, kRight);
+        fpss.subscribe(stock.quote());
+        fpss.subscribe(stock.trade());
+        fpss.subscribe(option.quote());
 
         std::this_thread::sleep_for(kCollectFor);
 

@@ -5,33 +5,53 @@
 
 #include <stdbool.h>
 
+/* FPSS event kind tag. Schema-driven from fpss_event_schema.toml.
+* Check `event.kind` then read the matching `event.<variant>` field on
+* `TdxFpssEvent`. Values are stable across the v9.x C ABI but may
+* renumber on a future major bump. */
 typedef enum {
-    TDX_FPSS_QUOTE = 0,
-    TDX_FPSS_TRADE = 1,
-    TDX_FPSS_OPEN_INTEREST = 2,
-    TDX_FPSS_OHLCVC = 3,
-    TDX_FPSS_CONTROL = 4,
-    TDX_FPSS_RAW_DATA = 5,
+    TDX_FPSS_CONNECTED = 0,
+    TDX_FPSS_CONTRACT_ASSIGNED = 1,
+    TDX_FPSS_DISCONNECTED = 2,
+    TDX_FPSS_ERROR = 3,
+    TDX_FPSS_LOGIN_SUCCESS = 4,
+    TDX_FPSS_MARKET_CLOSE = 5,
+    TDX_FPSS_MARKET_OPEN = 6,
+    TDX_FPSS_OHLCVC = 7,
+    TDX_FPSS_OPEN_INTEREST = 8,
+    TDX_FPSS_PING = 9,
+    TDX_FPSS_QUOTE = 10,
+    TDX_FPSS_RECONNECTED = 11,
+    TDX_FPSS_RECONNECTED_SERVER = 12,
+    TDX_FPSS_RECONNECTING = 13,
+    TDX_FPSS_REQ_RESPONSE = 14,
+    TDX_FPSS_RESTART = 15,
+    TDX_FPSS_SERVER_ERROR = 16,
+    TDX_FPSS_TRADE = 17,
+    TDX_FPSS_UNKNOWN_CONTROL = 18,
+    TDX_FPSS_UNKNOWN_FRAME = 19,
 } TdxFpssEventKind;
 
 /* FPSS Contract shared across every data event. `symbol` is a
 * NUL-terminated C string (may be null when not yet resolved);
 * optional option fields use a tagged-present bool because C has no
-* Option<T>. Layout is byte-identical to Rust's #[repr(C)] TdxContract.
+* Option<T>. `right` is `'C'` / `'P'` (NUL when `has_right` is false)
+* — the same notation the public option builder takes. Layout is
+* byte-identical to Rust's #[repr(C)] TdxContract.
 */
 typedef struct {
 const char *symbol;
 int32_t sec_type;
 bool has_expiration;
 int32_t expiration;
-bool has_is_call;
-bool is_call;
+bool has_right;
+char right;
 bool has_strike;
 int32_t strike;
 } TdxContract;
 
+/* FPSS OHLCVC bar. Mirrors `FpssData::Ohlcvc`. */
 typedef struct {
-    int32_t contract_id;
     TdxContract contract;
     int32_t ms_of_day;
     double open;
@@ -44,8 +64,8 @@ typedef struct {
     uint64_t received_at_ns;
 } TdxFpssOhlcvc;
 
+/* FPSS OpenInterest tick. Mirrors `FpssData::OpenInterest`. */
 typedef struct {
-    int32_t contract_id;
     TdxContract contract;
     int32_t ms_of_day;
     int32_t open_interest;
@@ -53,8 +73,8 @@ typedef struct {
     uint64_t received_at_ns;
 } TdxFpssOpenInterest;
 
+/* FPSS Quote tick. Mirrors `FpssData::Quote`. */
 typedef struct {
-    int32_t contract_id;
     TdxContract contract;
     int32_t ms_of_day;
     int32_t bid_size;
@@ -69,8 +89,8 @@ typedef struct {
     uint64_t received_at_ns;
 } TdxFpssQuote;
 
+/* FPSS Trade tick. Mirrors `FpssData::Trade`. */
 typedef struct {
-    int32_t contract_id;
     TdxContract contract;
     int32_t ms_of_day;
     int32_t sequence;
@@ -90,24 +110,123 @@ typedef struct {
     uint64_t received_at_ns;
 } TdxFpssTrade;
 
+/* FPSS server connection ack (wire code 4, `StreamMsgType::Connected`). Mirrors `FpssControl::Connected`. Carries no payload. */
 typedef struct {
-    int32_t kind;
-    int32_t id;
-    const char* detail;
-} TdxFpssControl;
+    /* Placeholder so the struct has portable size 1. */
+    uint8_t _padding;
+} TdxFpssConnected;
 
+/* FPSS server assigned a contract id. Mirrors `FpssControl::ContractAssigned`. The `contract` payload carries the full resolved `Contract` (root, sec_type, expiration / strike / right for options). */
+typedef struct {
+    int32_t id;
+    TdxContract contract;
+} TdxFpssContractAssigned;
+
+/* FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `tdbe::types::enums::RemoveReason as i32` for symbolic interpretation. */
+typedef struct {
+    int32_t reason;
+} TdxFpssDisconnected;
+
+/* FPSS protocol-level parse error. Mirrors `FpssControl::Error`. */
+typedef struct {
+    const char * message;
+} TdxFpssError;
+
+/* FPSS login succeeded. Mirrors `FpssControl::LoginSuccess`. `permissions` is the server's opaque `Bundle` string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers (see `FpssControl::LoginSuccess` doc on the core crate). */
+typedef struct {
+    const char * permissions;
+} TdxFpssLoginSuccess;
+
+/* FPSS market-close signal (wire code 32). Mirrors `FpssControl::MarketClose`. Carries no payload. */
+typedef struct {
+    /* Placeholder so the struct has portable size 1. */
+    uint8_t _padding;
+} TdxFpssMarketClose;
+
+/* FPSS market-open signal (wire code 30). Mirrors `FpssControl::MarketOpen`. Carries no payload. */
+typedef struct {
+    /* Placeholder so the struct has portable size 1. */
+    uint8_t _padding;
+} TdxFpssMarketOpen;
+
+/* FPSS server heartbeat (wire code 10, `StreamMsgType::Ping`). Mirrors `FpssControl::Ping`. The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics. */
+typedef struct {
+    const uint8_t *payload;
+    size_t payload_len;
+} TdxFpssPing;
+
+/* FPSS auto-reconnect succeeded — connection is live again. Mirrors `FpssControl::Reconnected`. Carries no payload. */
+typedef struct {
+    /* Placeholder so the struct has portable size 1. */
+    uint8_t _padding;
+} TdxFpssReconnected;
+
+/* FPSS server-side reconnect ack (wire code 13). Mirrors `FpssControl::ReconnectedServer`. Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated. */
+typedef struct {
+    /* Placeholder so the struct has portable size 1. */
+    uint8_t _padding;
+} TdxFpssReconnectedServer;
+
+/* FPSS auto-reconnect is about to attempt reconnection. Mirrors `FpssControl::Reconnecting`. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at `i32::MAX` if the reconnect loop exceeds 2^31 attempts. */
+typedef struct {
+    int32_t reason;
+    int32_t attempt;
+    uint64_t delay_ms;
+} TdxFpssReconnecting;
+
+/* FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms). */
+typedef struct {
+    int32_t req_id;
+    int32_t result;
+} TdxFpssReqResponse;
+
+/* FPSS server stream restart (wire code 31, `StreamMsgType::Restart`). Mirrors `FpssControl::Restart`. The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt. */
+typedef struct {
+    /* Placeholder so the struct has portable size 1. */
+    uint8_t _padding;
+} TdxFpssRestart;
+
+/* FPSS server-error message (wire code 11). Mirrors `FpssControl::ServerError`. */
+typedef struct {
+    const char * message;
+} TdxFpssServerError;
+
+/* FPSS control variant the SDK does not yet recognise. Surfaced when the core crate adds a new `FpssControl::*` arm — keep dispatch logic forward-compatible by handling this variant. Carries no payload. */
+typedef struct {
+    /* Placeholder so the struct has portable size 1. */
+    uint8_t _padding;
+} TdxFpssUnknownControl;
+
+/* FPSS server sent a frame with an unrecognised wire code. Mirrors `FpssControl::UnknownFrame`. Raw bytes preserved for diagnostics / upstream bug reports. */
 typedef struct {
     uint8_t code;
-    const uint8_t* payload;
+    const uint8_t *payload;
     size_t payload_len;
-} TdxFpssRawData;
+} TdxFpssUnknownFrame;
 
+/* Tagged FPSS event. Read `kind` first, then access only the
+ * matching `event.<variant>` field. Per-variant control payloads
+ * mirror the Rust `FpssControl::*` enum one-for-one. */
 typedef struct {
     TdxFpssEventKind kind;
     TdxFpssOhlcvc ohlcvc;
     TdxFpssOpenInterest open_interest;
     TdxFpssQuote quote;
     TdxFpssTrade trade;
-    TdxFpssControl control;
-    TdxFpssRawData raw_data;
+    TdxFpssConnected connected;
+    TdxFpssContractAssigned contract_assigned;
+    TdxFpssDisconnected disconnected;
+    TdxFpssError error;
+    TdxFpssLoginSuccess login_success;
+    TdxFpssMarketClose market_close;
+    TdxFpssMarketOpen market_open;
+    TdxFpssPing ping;
+    TdxFpssReconnected reconnected;
+    TdxFpssReconnectedServer reconnected_server;
+    TdxFpssReconnecting reconnecting;
+    TdxFpssReqResponse req_response;
+    TdxFpssRestart restart;
+    TdxFpssServerError server_error;
+    TdxFpssUnknownControl unknown_control;
+    TdxFpssUnknownFrame unknown_frame;
 } TdxFpssEvent;

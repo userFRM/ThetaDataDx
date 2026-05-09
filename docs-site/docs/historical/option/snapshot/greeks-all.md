@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} implied_volatility=${t.implied_volatility} delta=${t.delta} gamma=${t.gamma} theta=${t.theta}`);
 }
 ```
-```go [Go]
-data, _ := client.OptionSnapshotGreeksAll("SPY", "20260417", "550", "C")
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d implied_volatility=%.4f delta=%.4f gamma=%.4f theta=%.4f vega=%.4f rho=%.4f vanna=%.4f charm=%.4f vomma=%.4f veta=%.4f speed=%.4f zomma=%.4f color=%.4f ultima=%.4f epsilon=%.4f lambda=%.4f expiration=%d strike=%.2f\n",
-        t.Date, t.MsOfDay, t.ImpliedVolatility, t.Delta, t.Gamma, t.Theta, t.Vega, t.Rho, t.Vanna, t.Charm, t.Vomma, t.Veta, t.Speed, t.Zomma, t.Color, t.Ultima, t.Epsilon, t.Lambda, t.Expiration, t.Strike)
-}
-```
 ```cpp [C++]
 auto data = client.option_snapshot_greeks_all("SPY", "20260417", "550", "C");
 for (const auto& t : data) {

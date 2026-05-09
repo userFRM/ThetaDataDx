@@ -13,7 +13,7 @@
 //! INDEX walking, FIT decoding, and on-disk / in-memory output paths
 //! live in [`crate::flatfiles`] under the `index`, `decode`, `writer`,
 //! and `decoded` modules. Callers that want decoded vendor-format
-//! output use the higher-level [`crate::ThetaDataDx::flatfile_request`]
+//! output use the higher-level [`crate::ThetaDataDxClient::flatfile_request`]
 //! entry point; callers that want the raw binary stream for a custom
 //! pipeline use this entry point directly.
 
@@ -57,12 +57,28 @@ fn build_flat_file_payload(id: i64, sec: SecType, req: ReqType, date: &str) -> V
     .into_bytes()
 }
 
-/// Validate that `date` is exactly 8 ASCII digits in YYYYMMDD shape.
+/// Validate that `date` is exactly 8 ASCII digits AND a real Gregorian
+/// calendar date. Rejects shape-only matches like `"00000000"` or
+/// `"20260230"` via the canonical `tdbe::time::is_valid_yyyymmdd`
+/// validator shared with MDDS + FPSS (H3 + H4).
 fn validate_date(date: &str) -> Result<(), Error> {
     if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(Error::Config(format!(
-            "flatfiles: date {date:?} must be YYYYMMDD digits"
-        )));
+        return Err(Error::config_invalid(
+            "flatfiles.date",
+            format!("date {date:?} must be YYYYMMDD digits"),
+        ));
+    }
+    let yyyymmdd: i32 = date.parse().map_err(|_| {
+        Error::config_invalid(
+            "flatfiles.date",
+            format!("date {date:?} must be YYYYMMDD digits"),
+        )
+    })?;
+    if !tdbe::time::is_valid_yyyymmdd(yyyymmdd) {
+        return Err(Error::config_invalid(
+            "flatfiles.date",
+            format!("date {date:?} is not a valid Gregorian date"),
+        ));
     }
     Ok(())
 }
@@ -75,9 +91,10 @@ fn validate_date(date: &str) -> Result<(), Error> {
 /// **Output format**: a raw concatenation of every FLAT_FILE chunk
 /// payload, in receive order, **without** the framing headers. This is the
 /// same byte sequence the vendor jar accumulates internally before walking
-/// the index — to convert it to CSV one must implement the INDEX walker
-/// and per-data-type FIT decoder. Both are tracked as TODOs in
-/// [`crate::flatfiles`].
+/// the index. The INDEX walker and per-`(SecType, ReqType)` FIT decoder
+/// are exposed via [`crate::flatfiles::flatfile_request_decoded`];
+/// this function returns the raw bytes for callers that want to keep the
+/// on-disk vendor format unchanged.
 pub async fn flatfile_request_raw(
     creds: &Credentials,
     sec: SecType,
@@ -147,7 +164,7 @@ pub async fn flatfile_request_raw(
         if frame.id != request_id && frame.msg != msg::PING {
             // The server may interleave heartbeats; everything else with a
             // foreign id is a protocol violation we want to surface.
-            return Err(Error::Config(format!(
+            return Err(Error::config_internal(format!(
                 "flatfiles: unexpected response id={} (expected {request_id}) msg={}",
                 frame.id, frame.msg
             )));
@@ -181,7 +198,7 @@ pub async fn flatfile_request_raw(
                 ));
             }
             other => {
-                return Err(Error::Config(format!(
+                return Err(Error::config_internal(format!(
                     "flatfiles: unexpected msg={other} during FLAT_FILE stream"
                 )));
             }
@@ -217,5 +234,10 @@ mod tests {
         assert!(validate_date("2026-04-28").is_err());
         assert!(validate_date("abcdefgh").is_err());
         assert!(validate_date("").is_err());
+        // H3 follow-through: shape-only acceptance was the old bug;
+        // calendar-impossible dates must now be rejected here too.
+        assert!(validate_date("00000000").is_err());
+        assert!(validate_date("20260230").is_err());
+        assert!(validate_date("19990431").is_err());
     }
 }

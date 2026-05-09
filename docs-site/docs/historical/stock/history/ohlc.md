@@ -34,13 +34,6 @@ for (const t of data) {
     console.log(`date=${t.date} open=${t.open} high=${t.high} low=${t.low} close=${t.close} volume=${t.volume}`);
 }
 ```
-```go [Go]
-data, _ := client.StockHistoryOHLC("SPY", "20260315", "60000")
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d count=%d\n",
-        t.Date, t.MsOfDay, t.Open, t.High, t.Low, t.Close, t.Volume, t.Count)
-}
-```
 ```cpp [C++]
 auto data = client.stock_history_ohlc("SPY", "20260315", "60000");
 for (const auto& t : data) {
@@ -70,13 +63,6 @@ for t in data:
 const data = tdx.stockHistoryOHLCRange('SPY', '20260101', '20260301', '300000');
 for (const t of data) {
     console.log(`date=${t.date} open=${t.open} high=${t.high} low=${t.low} close=${t.close} volume=${t.volume}`);
-}
-```
-```go [Go]
-data, _ := client.StockHistoryOHLCRange("SPY", "20260101", "20260301", "300000")
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d open=%.2f high=%.2f low=%.2f close=%.2f volume=%d count=%d\n",
-        t.Date, t.MsOfDay, t.Open, t.High, t.Low, t.Close, t.Volume, t.Count)
 }
 ```
 ```cpp [C++]

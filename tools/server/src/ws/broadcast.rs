@@ -1,7 +1,6 @@
 //! FPSS event fan-out: Disruptor callback -> broadcast task -> WS clients.
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{FpssControl, FpssEvent};
@@ -28,7 +27,7 @@ const FPSS_BROADCAST_CAPACITY: usize = 65_536;
 /// stderr at the per-event rate.
 const WARN_EVERY_N: u64 = 1024;
 
-/// Start the FPSS -> WebSocket bridge via `ThetaDataDx::start_streaming()`.
+/// Start the FPSS -> WebSocket bridge via `ThetaDataDxClient::start_streaming()`.
 ///
 /// The Disruptor callback runs on a blocking consumer thread and must stay
 /// cheap. It only: (1) updates the contract map and connection flags,
@@ -47,28 +46,18 @@ const WARN_EVERY_N: u64 = 1024;
 /// and a rate-limited `tracing::warn!` (one warning per [`WARN_EVERY_N`]
 /// drops).
 ///
-/// # TOCTOU safety
+/// # Contract identity
 ///
-/// The `(FpssEvent, Option<Arc<Contract>>)` tuple pins the contract snapshot
-/// captured **at the exact moment the callback thread saw the event**.
-/// Before this change, the broadcast task re-looked up the contract just
-/// before serialization — which meant a concurrent map `clear()` triggered
-/// by a reconnect or market-close could race in between, erasing the
-/// contract and silently producing `{"id": N}` JSON with no root / strike /
-/// right. That silent degradation is unacceptable across market-close /
-/// reconnect boundaries. Peeking-before-send removes the race entirely:
-/// the `Arc<Contract>` refcount holds the snapshot alive even after the
-/// map is cleared or rewritten.
-///
-/// # Hot-path cost
-///
-/// Values in the contract map are stored as `Arc<Contract>`. The per-event
-/// snapshot `Arc::clone` is a single refcount bump — no heap allocation,
-/// no `String::clone` on `Contract::root`. At 100k events/sec this is the
-/// difference between zero hot-path allocations and 100k `String` allocs/sec.
+/// Every `FpssData::*` variant now carries `contract: Arc<Contract>`
+/// directly — the SDK's I/O thread populates it from its internal
+/// contract cache at decode time. The bridge no longer maintains its
+/// own `contract_id -> Arc<Contract>` map: the contract reference
+/// rides on the event itself, so a concurrent reconnect or
+/// market-close cannot race in between callback-time and
+/// serialisation-time the way the previous map-and-relookup pattern
+/// allowed. `Arc::clone` is still a refcount bump, so the per-event
+/// hot-path cost is unchanged.
 pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
-    let contract_map: Arc<Mutex<HashMap<i32, Arc<Contract>>>> = state.contract_map();
-    let map_for_cb = Arc::clone(&contract_map);
     let state_for_cb = state.clone();
     let state_for_task = state.clone();
 
@@ -94,18 +83,6 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
     });
 
     state.tdx().start_streaming(move |event: &FpssEvent| {
-        // Track contract assignments. Must happen on the callback thread so
-        // the broadcast task sees the mapping before it serializes the next
-        // event that references it.
-        if let FpssEvent::Control(FpssControl::ContractAssigned { id, contract }) = event {
-            // Recover from poisoning rather than silently dropping all
-            // future ContractAssigned events. If a previous lock-holder
-            // panicked, the map state may be partial but that is strictly
-            // less bad than losing every subsequent symbol assignment.
-            let mut map = map_for_cb.lock().unwrap_or_else(|e| e.into_inner());
-            map.insert(*id, Arc::clone(contract));
-        }
-
         // Update connection status.
         match event {
             FpssEvent::Control(FpssControl::LoginSuccess { .. }) => {
@@ -117,10 +94,9 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             _ => {}
         }
 
-        // Peek the contract for this event NOW, while the callback thread
-        // still holds the causal ordering with `ContractAssigned` /
-        // reconnect clears.
-        let peeked = lookup_event_contract(event, &map_for_cb);
+        // Resolve the event's contract — for `FpssData::*` it rides on
+        // the event directly; for control variants there is none.
+        let peeked = lookup_event_contract(event);
 
         // Bounded handoff with explicit overrun handling. `Full` means the
         // broadcast task is lagging — bump the drop counter and walk away,

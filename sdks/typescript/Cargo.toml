@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-napi"
-version = "9.0.2"
+version = "9.1.0"
 edition = "2021"
 rust-version = "1.88"
 description = "TypeScript/Node.js bindings for thetadatadx — native ThetaData SDK powered by Rust"
@@ -13,10 +13,13 @@ readme = "README.md"
 crate-type = ["cdylib"]
 
 [dependencies]
-thetadatadx = { path = "../../crates/thetadatadx" }
+thetadatadx = { path = "../../crates/thetadatadx", features = ["arrow"] }
 tdbe = { version = "0.13.0", path = "../../crates/tdbe" }
 
 napi = { version = "3.8.5", features = ["async", "tokio_rt", "serde-json", "napi6", "chrono_date"] }
+arrow-array = "58.1.0"
+arrow-ipc = "58.1.0"
+arrow-schema = "58.1.0"
 napi-derive = "3.5.4"
 chrono = { version = "=0.4.44", default-features = false, features = ["alloc", "clock"] }
 

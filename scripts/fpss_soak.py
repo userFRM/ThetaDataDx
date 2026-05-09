@@ -4,20 +4,22 @@
 from __future__ import annotations
 
 import argparse
+import queue
+import threading
 import time
 
 
-def _require_data_event(client, *, timeout_secs: float) -> tuple[int | None, str]:
+def _drain_data_kind(events: "queue.Queue", *, timeout_secs: float) -> tuple[str, str]:
     deadline = time.monotonic() + timeout_secs
     last_kind = "none"
     while time.monotonic() < deadline:
-        event = client.next_event(timeout_ms=500)
-        if event is None:
+        try:
+            event = events.get(timeout=0.5)
+        except queue.Empty:
             continue
-        kind = event.kind
-        last_kind = str(kind)
-        if kind in {"quote", "trade", "open_interest", "ohlcvc"}:
-            return getattr(event, "contract_id", None), str(kind)
+        last_kind = event.kind
+        if last_kind in {"quote", "trade", "open_interest", "ohlcvc"}:
+            return event.contract.symbol, last_kind
     raise RuntimeError(f"timed out waiting for data event (last kind={last_kind})")
 
 
@@ -44,12 +46,25 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    from thetadatadx import Config, Credentials, ThetaDataDx  # type: ignore
+    from thetadatadx import Config, Contract, Credentials, ThetaDataDxClient  # type: ignore
 
     cfg = Config.dev()
     cfg.reconnect_policy = "manual"
     cfg.derive_ohlcvc = False
-    client = ThetaDataDx(Credentials.from_file(args.creds), cfg)
+    client = ThetaDataDxClient(Credentials.from_file(args.creds), cfg)
+
+    events: "queue.Queue" = queue.Queue(maxsize=8192)
+    stop_consuming = threading.Event()
+
+    def on_event(event):
+        if stop_consuming.is_set():
+            return
+        try:
+            events.put_nowait(event)
+        except queue.Full:
+            pass
+
+    client.start_streaming(on_event)
 
     reconnect_count = 0
     data_events = 0
@@ -57,19 +72,16 @@ def main() -> int:
     expected_subs: set[tuple[str, str]] = set()
 
     try:
-        client.start_streaming()
-        client.subscribe_quotes(args.symbol)
-        client.subscribe_trades(args.symbol)
+        client.subscribe(Contract.stock(args.symbol).quote())
+        client.subscribe(Contract.stock(args.symbol).trade())
         expected_subs = _subscriptions_snapshot(client)
         if len(expected_subs) < 2:
             raise RuntimeError(f"expected 2 active subscriptions, got {expected_subs!r}")
 
-        contract_id, kind = _require_data_event(client, timeout_secs=20.0)
+        symbol, _ = _drain_data_kind(events, timeout_secs=20.0)
         data_events += 1
-        if contract_id is not None:
-            contract = client.contract_lookup(contract_id)
-            if not contract:
-                raise RuntimeError(f"contract_lookup({contract_id}) returned nothing after {kind}")
+        if not symbol:
+            raise RuntimeError("first data event carried an empty contract.symbol")
 
         interval = max(5.0, args.duration_secs / max(args.reconnects + 1, 1))
         next_reconnect = time.monotonic() + interval
@@ -83,17 +95,18 @@ def main() -> int:
                     raise RuntimeError(
                         f"subscriptions drifted across reconnect: expected {expected_subs!r}, got {after!r}"
                     )
-                contract_id, _ = _require_data_event(client, timeout_secs=20.0)
+                symbol, _ = _drain_data_kind(events, timeout_secs=20.0)
                 data_events += 1
-                if contract_id is not None and not client.contract_lookup(contract_id):
+                if not symbol:
                     raise RuntimeError(
-                        f"contract_lookup({contract_id}) returned nothing after reconnect {reconnect_count}"
+                        f"data event after reconnect {reconnect_count} carried an empty contract.symbol"
                     )
                 next_reconnect += interval
                 continue
 
-            event = client.next_event(timeout_ms=500)
-            if event is None:
+            try:
+                event = events.get(timeout=0.5)
+            except queue.Empty:
                 continue
             if event.kind in {"quote", "trade", "open_interest", "ohlcvc"}:
                 data_events += 1
@@ -107,7 +120,9 @@ def main() -> int:
                 f"observed insufficient data events after reconnects: {data_events} events, {reconnect_count} reconnects"
             )
     finally:
-        client.shutdown()
+        stop_consuming.set()
+        client.stop_streaming()
+        client.await_drain(5_000)
 
     print(
         f"fpss soak: ok ({reconnect_count} reconnects, {data_events} data events, symbol={args.symbol})"

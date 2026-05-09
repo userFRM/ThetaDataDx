@@ -266,7 +266,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     out.push_str("        let _metrics_start = std::time::Instant::now();\n");
     out.push_str("        let _permit = client.request_semaphore.acquire().await\n");
     out.push_str(
-        "            .map_err(|_| Error::Config(\"request semaphore closed\".into()))?;\n",
+        "            .map_err(|_| Error::config_internal(\"request semaphore closed\"))?;\n",
     );
     writeln!(
         out,

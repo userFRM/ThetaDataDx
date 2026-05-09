@@ -10,7 +10,7 @@ Rust SDK for ThetaData market data — single Rust core, four language surfaces 
 [![Docs](https://img.shields.io/docsrs/thetadatadx)](https://docs.rs/thetadatadx)
 [![Discord](https://img.shields.io/badge/Discord-community-5865F2.svg?logo=discord&logoColor=white)](https://discord.thetadata.us/)
 
-`thetadatadx` is a native Rust SDK for [ThetaData](https://thetadata.us) market data. It connects directly to ThetaData's three public surfaces — MDDS (historical request/response over gRPC), FPSS (real-time streaming over TCP), and FLATFILES (whole-universe daily blobs over the legacy MDDS port) — decodes ticks in-process, and exposes a typed API across Rust, Python, TypeScript, and C++ from a single Rust core. No JVM, no subprocess, no IPC serialization. Go consumers can build a thin cgo wrapper against the unchanged C ABI in [`ffi/`](ffi/) — header at [`sdks/cpp/include/thetadx.h`](sdks/cpp/include/thetadx.h), all FFI types and free fns exported as `tdx_*` symbols.
+`thetadatadx` is a native Rust SDK for [ThetaData](https://thetadata.us) market data. It connects directly to ThetaData's three public surfaces — MDDS (historical request/response over gRPC), FPSS (real-time streaming over TCP), and FLATFILES (whole-universe daily blobs over the legacy MDDS port) — decodes ticks in-process, and exposes a typed API across Rust, Python, TypeScript, and C++ from a single Rust core. No JVM, no subprocess, no IPC serialization. Third-party C consumers can integrate against the unchanged C ABI in [`ffi/`](ffi/) — header at [`sdks/cpp/include/thetadx.h`](sdks/cpp/include/thetadx.h), all FFI types and free functions exported as `tdx_*` symbols.
 
 > [!IMPORTANT]
 > A valid [ThetaData](https://thetadata.us) subscription is required. The SDK authenticates against ThetaData's Nexus API using your account credentials.
@@ -30,8 +30,8 @@ Rust SDK for ThetaData market data — single Rust core, four language surfaces 
 - **Arrow-backed DataFrames.** Python `to_arrow()` / `to_pandas()` / `to_polars()` pipe through shared Arrow buffers.
 - **SPKI-pinned FPSS TLS.** Public-key pinning on the FPSS streaming handshake.
 - **FIT decoder + SPSC ring buffer** on the FPSS path. Decode cost is measured in the benchmarks under `crates/thetadatadx/benches/`.
-- **Shared FFI layer.** C++ and Node.js go through the same `extern "C"` layer; the Python wheel uses PyO3 ABI3 directly. The C ABI is also the supported integration path for any third-party Go/C/other-language consumer that wants to roll their own wrapper.
-- **Covers all three public surfaces.** MDDS gRPC endpoints, FPSS wire format with reconnect semantics, and the FLATFILES daily-blob protocol — every transport speaks directly to ThetaData's production servers from a single client. See the [parity checklist](docs/java-parity-checklist.md) and the [vendor flat-file reference](https://http-docs.thetadata.us/operations/get-v2-flat-file-getting-started.html).
+- **Shared FFI layer.** C++ and Node.js go through the same `extern "C"` layer; the Python wheel uses PyO3 ABI3 directly. The C ABI is also the supported integration path for any third-party C / C++ consumer.
+- **Covers all three public surfaces.** MDDS gRPC endpoints, FPSS wire format with reconnect semantics, and the FLATFILES daily-blob protocol — every transport speaks directly to ThetaData's production servers from a single client. See the [vendor flat-file reference](https://http-docs.thetadata.us/operations/get-v2-flat-file-getting-started.html).
 - **FLATFILES daily blobs.** Pull whole-universe `(sec_type, req_type, date)` blobs over the legacy MDDS port; decode to vendor-byte CSV, JSONL, or a typed `Vec<FlatFileRow>` in memory. Cross-language coverage is tracked under the binding issues; the Rust core is shipped today.
 
 ## Quick start
@@ -43,17 +43,17 @@ Rust SDK for ThetaData market data — single Rust core, four language surfaces 
 
 ```toml
 [dependencies]
-thetadatadx = "8"
+thetadatadx = "9"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ```rust
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
     let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
     for tick in &eod {
         println!("{}: O={} H={} L={} C={} V={}",
@@ -67,7 +67,7 @@ Opt into chainable DataFrame ergonomics by enabling the `polars` and/or `arrow` 
 
 ```toml
 [dependencies]
-thetadatadx = { version = "8", features = ["polars"] }
+thetadatadx = { version = "9", features = ["polars"] }
 ```
 
 ```rust
@@ -86,9 +86,9 @@ pip install thetadatadx
 ```
 
 ```python
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
-tdx = ThetaDataDx(Credentials.from_file("creds.txt"), Config.production())
+tdx = ThetaDataDxClient(Credentials.from_file("creds.txt"), Config.production())
 for tick in tdx.stock_history_eod("AAPL", "20240101", "20240301"):
     print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
           f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
@@ -101,9 +101,9 @@ npm install thetadatadx
 ```
 
 ```typescript
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+const tdx = await ThetaDataDxClient.connectFromFile('creds.txt');
 for (const t of tdx.stockHistoryEOD('AAPL', '20240101', '20240301')) {
     console.log(`${t.date}: O=${t.open} H=${t.high} L=${t.low} C=${t.close} V=${t.volume}`);
 }
@@ -116,7 +116,7 @@ for (const t of tdx.stockHistoryEOD('AAPL', '20240101', '20240301')) {
 #include <cstdio>
 
 int main() {
-    auto tdx = thetadatadx::ThetaDataDx::connect_from_file("creds.txt");
+    auto tdx = thetadatadx::ThetaDataDxClient::connect_from_file("creds.txt");
     for (const auto& t : tdx.stock_history_eod("AAPL", "20240101", "20240301")) {
         std::printf("%d: O=%.2f H=%.2f L=%.2f C=%.2f V=%lld\n",
             t.date, t.open, t.high, t.low, t.close, (long long)t.volume);
@@ -128,28 +128,39 @@ int main() {
 
 One connection, one auth. Historical queries are available immediately; streaming connects lazily on first subscription. The client auto-reconnects and re-subscribes all active contracts on involuntary disconnect.
 
+The primary streaming surface is the **fluent contract-first API** —
+`Contract::stock("AAPL").quote()` returns a typed `Subscription` value
+that the polymorphic `client.subscribe(...)` accepts directly:
+
 ```rust
 use thetadatadx::fpss::{FpssData, FpssEvent};
-use thetadatadx::fpss::protocol::Contract;
+use thetadatadx::prelude::*;
 
 tdx.start_streaming(|event: &FpssEvent| {
     match event {
-        FpssEvent::Data(FpssData::Quote { contract_id, bid, ask, .. }) => {
-            println!("Quote: {contract_id} bid={bid} ask={ask}");
+        FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
+            println!("Quote: {} bid={bid} ask={ask}", contract.symbol);
         }
-        FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) => {
-            println!("Trade: {contract_id} @ {price} x {size}");
-        }
-        FpssEvent::Data(FpssData::Ohlcvc { contract_id, open, high, low, close, volume, .. }) => {
-            println!("OHLCVC: {contract_id} O={open} H={high} L={low} C={close} V={volume}");
+        FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
+            println!("Trade: {} @ {price} x {size}", contract.symbol);
         }
         _ => {}
     }
 })?;
 
-tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
-tdx.subscribe_trades(&Contract::stock("AAPL"))?;
+let stock  = Contract::stock("AAPL");
+let option = Contract::option("SPY", "20260620", "550", "C")?;
+
+tdx.subscribe(stock.quote())?;
+tdx.subscribe(option.trade())?;
+tdx.subscribe(SecType::Option.full_open_interest())?;
+
+// Bulk install:
+tdx.subscribe_many(vec![stock.quote(), option.quote()])?;
 ```
+
+All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64`, decoded during parsing.
+
 
 All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64`, decoded during parsing.
 
@@ -200,20 +211,16 @@ flowchart TB
 |-------|-----------------|---------|
 | Encoding / types | [`crates/tdbe`](crates/tdbe/) | Tick structs, FIT/FIE codecs, Greeks, Price |
 | Core SDK | [`crates/thetadatadx`](crates/thetadatadx/) | MDDS gRPC client, FPSS streaming, auth |
-| C FFI | [`ffi/`](ffi/) | Stable `extern "C"` layer consumed by C++, Node.js, and any third-party C/Go consumer |
+| C FFI | [`ffi/`](ffi/) | Stable `extern "C"` layer consumed by C++, Node.js, and any third-party C / C++ consumer |
 | Python | [`sdks/python`](sdks/python/) | PyO3 / maturin wheel with Arrow DataFrame adapter |
 | TypeScript | [`sdks/typescript`](sdks/typescript/) | napi-rs prebuilt binary |
 | C++ | [`sdks/cpp`](sdks/cpp/) | RAII header-only wrapper |
 | CLI | [`tools/cli`](tools/cli/) | `tdx` CLI — every generated historical endpoint from the command line |
 | MCP | [`tools/mcp`](tools/mcp/) | MCP server - gives clients access to every generated historical endpoint plus offline tools over JSON-RPC |
 | Server | [`tools/server`](tools/server/) | REST + WebSocket server exposing the `/v3/*` route surface |
-| Docs | [`docs/`](docs/) | API reference, architecture, Java parity checklist |
+| Docs | [`docs/`](docs/) | API reference, architecture, attribution |
 | Website | [`docs-site/`](docs-site/) | VitePress documentation site (deployed to GitHub Pages) |
 | Notebooks | [`notebooks/`](notebooks/) | 7 Jupyter notebooks (101-107) |
-
-## Protocol parity
-
-`thetadatadx` implements the ThetaData MDDS and FPSS wire protocols and covers the terminal endpoint surface. Feature-by-feature parity and intentional deviations are tracked in [`docs/java-parity-checklist.md`](docs/java-parity-checklist.md).
 
 ## Documentation
 
@@ -221,9 +228,9 @@ flowchart TB
 |----------|-------------|
 | [API Reference](docs/api-reference.md) | All typed methods, streaming builders, generated tick types, and configuration options |
 | [Architecture](docs/architecture.md) | System design, wire protocols, TOML codegen pipeline |
-| [Parity Checklist](docs/java-parity-checklist.md) | Feature-by-feature protocol and endpoint parity notes |
 | [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |
 | [Proto Maintenance](crates/thetadatadx/proto/MAINTENANCE.md) | Guide for updating proto files |
+| [Roadmap](docs/ROADMAP.md) | Per-binding coverage status |
 | [Changelog](CHANGELOG.md) | Release notes with breaking changes, features, and fixes |
 
 ## Contributing

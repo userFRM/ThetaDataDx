@@ -20,6 +20,7 @@
 //! ThetaData upstream servers
 //! ```
 
+mod flatfile_routes;
 mod format;
 mod handler;
 mod router;
@@ -34,7 +35,7 @@ use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 use zeroize::Zeroizing;
 
-use thetadatadx::{Credentials, DirectConfig, ThetaDataDx};
+use thetadatadx::{Credentials, DirectConfig, ThetaDataDxClient};
 
 use crate::state::AppState;
 
@@ -115,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Startup banner matching the Java terminal style.
     let version = env!("CARGO_PKG_VERSION");
     eprintln!();
-    eprintln!("ThetaDataDx Server v{version}");
+    eprintln!("ThetaDataDxClient Server v{version}");
     eprintln!("Configuration: {}", args.fpss_region);
     eprintln!("REST API: http://{}:{}/", args.bind, args.http_port);
     eprintln!("WebSocket: ws://{}:{}/v1/events", args.bind, args.ws_port);
@@ -200,7 +201,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Step 3: Connect unified client (gRPC historical).
-    let tdx = ThetaDataDx::connect(&creds, config).await?;
+    let tdx = ThetaDataDxClient::connect(&creds, config).await?;
     tracing::info!("MDDS connected");
 
     // Step 4: Build shared state.

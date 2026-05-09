@@ -82,10 +82,10 @@ pub struct DirectConfig {
 
     // FPSS (Real-Time TCP)
     pub fpss_hosts: Vec<(String, u16)>,     // server failover list
-    pub fpss_timeout_ms: u64,               // read timeout
-    pub fpss_queue_depth: usize,            // event ring buffer size
-    pub fpss_ping_interval_ms: u64,         // heartbeat interval (100ms)
-    pub fpss_connect_timeout_ms: u64,       // TCP connect timeout
+    pub fpss_timeout_ms: u64,               // read timeout (ms)
+    pub fpss_ring_size: usize,              // Disruptor ring buffer size (events; power of two, >= 64)
+    pub fpss_ping_interval_ms: u64,         // heartbeat interval (default 100ms)
+    pub fpss_connect_timeout_ms: u64,       // TCP connect timeout (ms)
 
     // Reconnection
     pub reconnect_wait_ms: u64,             // base reconnect delay (2000ms)

@@ -769,6 +769,132 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("contract", err)
 
 
+    # ------------------------------------------------------------------
+    # H9 -- TypeScript shape-only manifest participation. The TS SDK
+    # cannot run a per-cell live-traffic validator without duplicating
+    # the napi-rs surface, so it ships a public-surface shape manifest
+    # (`sdks/typescript/scripts/emit_validator_manifest.mjs`) that the
+    # agreement validator reads as a field-presence-only artifact:
+    # values are sentinels, only the field set is load-bearing. These
+    # tests pin down the contract.
+    # ------------------------------------------------------------------
+
+    def test_typescript_shape_matches_runtime_field_set_agrees(self) -> None:
+        # Runtime SDKs emit real values; TS manifest emits null for the
+        # same field SET. Field-presence agreement must hold; values
+        # do not contribute to the diff for shape-only langs.
+        runtime_row = {"bid": 685.86, "ask": 685.88, "bid_size": 100, "ask_size": 200}
+        for lang in ("python", "cli", "cpp"):
+            _write_artifact(
+                self.artifacts,
+                lang,
+                [_base_record("stock_snapshot_quote", "concrete", first_row=dict(runtime_row))],
+            )
+        ts_row = {"bid": None, "ask": None, "bid_size": None, "ask_size": None}
+        _write_artifact(
+            self.artifacts,
+            "typescript",
+            [_base_record("stock_snapshot_quote", "concrete", first_row=ts_row)],
+        )
+        code, out, _ = self._run()
+        self.assertEqual(code, 0, f"shape-only TS must not value-diff against runtime SDKs; out={out!r}")
+        self.assertIn("1 cells agree across", out)
+
+    def test_typescript_shape_drift_extra_field_disagrees(self) -> None:
+        # TS manifest advertises a field name no runtime SDK emits.
+        # That IS shape drift; the diff must surface it.
+        runtime_row = {"bid": 685.86, "ask": 685.88}
+        for lang in ("python", "cli", "cpp"):
+            _write_artifact(
+                self.artifacts,
+                lang,
+                [_base_record("stock_snapshot_quote", "concrete", first_row=dict(runtime_row))],
+            )
+        ts_row = {"bid": None, "ask": None, "ghost_field": None}
+        _write_artifact(
+            self.artifacts,
+            "typescript",
+            [_base_record("stock_snapshot_quote", "concrete", first_row=ts_row)],
+        )
+        code, _, err = self._run()
+        self.assertEqual(code, 1, "extra TS-only field is shape drift")
+        self.assertIn("ghost_field", err)
+
+    def test_typescript_shape_drift_missing_field_disagrees(self) -> None:
+        # Runtime SDKs emit a field the TS public surface does not
+        # advertise. Same shape-drift signal in the other direction.
+        runtime_row = {"bid": 685.86, "ask": 685.88, "novel_field": 42}
+        for lang in ("python", "cli", "cpp"):
+            _write_artifact(
+                self.artifacts,
+                lang,
+                [_base_record("stock_snapshot_quote", "concrete", first_row=dict(runtime_row))],
+            )
+        ts_row = {"bid": None, "ask": None}
+        _write_artifact(
+            self.artifacts,
+            "typescript",
+            [_base_record("stock_snapshot_quote", "concrete", first_row=ts_row)],
+        )
+        code, _, err = self._run()
+        self.assertEqual(code, 1, "field absent from TS surface but present in runtime is shape drift")
+        self.assertIn("novel_field", err)
+
+    def test_typescript_status_pass_does_not_falseflag_runtime_status_disagreement(self) -> None:
+        # Pre-Wave-H9, the TS manifest's hardcoded `status: PASS`
+        # would have folded into the status-disagreement comparator
+        # alongside any runtime FAIL, masking the real Python-vs-CLI
+        # status diff. Shape-only langs must NOT participate in
+        # status comparison.
+        _write_artifact(
+            self.artifacts,
+            "python",
+            [_base_record("option_snapshot_trade", "concrete", status="PASS", row_count=1)],
+        )
+        for lang in ("cli", "cpp"):
+            _write_artifact(
+                self.artifacts,
+                lang,
+                [_base_record("option_snapshot_trade", "concrete", status="FAIL",
+                              row_count=0, detail="mock failure")],
+            )
+        _write_artifact(
+            self.artifacts,
+            "typescript",
+            [_base_record("option_snapshot_trade", "concrete", status="PASS", row_count=1,
+                          first_row={"price": None, "size": None})],
+        )
+        code, _, err = self._run()
+        self.assertEqual(code, 1, "runtime status disagreement must still surface")
+        self.assertIn("status disagreement", err)
+
+    def test_typescript_alone_with_one_runtime_pass_does_field_set_check(self) -> None:
+        # Only one runtime SDK reported the cell at all, alongside
+        # the TS manifest. Field-presence comparison still runs across
+        # the (1 runtime, 1 shape-only) pair so a TS-side surface drift
+        # surfaces even when the other runtime SDKs simply didn't run
+        # the cell. Runtime FAIL / SKIP at the same cell takes
+        # precedence (status disagreement is reported first); this
+        # test pins the "no other runtime SDK reported" path.
+        _write_artifact(
+            self.artifacts,
+            "python",
+            [_base_record("stock_snapshot_quote", "concrete", first_row={"bid": 1.0, "ask": 2.0})],
+        )
+        # cli / cpp simply do not include this cell in their artifact.
+        _write_artifact(self.artifacts, "cli", [])
+        _write_artifact(self.artifacts, "cpp", [])
+        _write_artifact(
+            self.artifacts,
+            "typescript",
+            [_base_record("stock_snapshot_quote", "concrete",
+                          first_row={"bid": None, "ghost_field": None})],
+        )
+        code, _, err = self._run()
+        self.assertEqual(code, 1, "TS-vs-Python field-set disagreement must surface")
+        self.assertIn("ghost_field", err)
+
+
 def _diff_section(text: str) -> str:
     """Return just the field-level diff rows, stripping headers / status
     tables. Used to make "field X doesn't appear" assertions precise."""

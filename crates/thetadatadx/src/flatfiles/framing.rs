@@ -61,7 +61,7 @@ where
     W: AsyncWrite + Unpin,
 {
     let size = u32::try_from(payload.len()).map_err(|_| {
-        Error::Config(format!(
+        Error::config_internal(format!(
             "flatfiles: payload {} bytes exceeds u32",
             payload.len()
         ))
@@ -87,7 +87,7 @@ where
     let msg = u16::from_be_bytes(hdr[4..6].try_into().unwrap());
     let id = i64::from_be_bytes(hdr[6..14].try_into().unwrap());
     if size > MAX_PAYLOAD {
-        return Err(Error::Config(format!(
+        return Err(Error::config_internal(format!(
             "flatfiles: server frame size {size} exceeds {MAX_PAYLOAD}"
         )));
     }

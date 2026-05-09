@@ -5,10 +5,10 @@
 use super::cell::{
     row_number, row_number_i64, row_price_f64, row_price_type, row_price_value, row_text,
 };
-use super::v3::{
+use super::dual_type_columns::{
     parse_calendar_days_v3, parse_iso_date, parse_option_contracts_v3, parse_time_text,
 };
-use super::v3::{
+use super::dual_type_columns::{
     CALENDAR_STATUS_EARLY_CLOSE, CALENDAR_STATUS_FULL_CLOSE, CALENDAR_STATUS_OPEN,
     CALENDAR_STATUS_WEEKEND,
 };

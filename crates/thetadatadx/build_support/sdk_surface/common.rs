@@ -70,7 +70,14 @@ pub(super) fn rust_string_array_literal(values: &[String]) -> String {
 
 pub(super) fn push_rust_doc_comment(out: &mut String, indent: &str, doc: &str) {
     for line in doc.lines() {
-        writeln!(out, "{indent}/// {line}").unwrap();
+        if line.is_empty() {
+            // Avoid trailing whitespace on blank doc-comment lines —
+            // `git diff --check` treats `/// ` (slashes followed by a
+            // single trailing space) as a whitespace error.
+            writeln!(out, "{indent}///").unwrap();
+        } else {
+            writeln!(out, "{indent}/// {line}").unwrap();
+        }
     }
 }
 
@@ -78,7 +85,12 @@ pub(super) fn push_cpp_doc_comment(out: &mut String, indent: &str, doc: &str) {
     if doc.contains('\n') {
         writeln!(out, "{indent}/**").unwrap();
         for line in doc.lines() {
-            writeln!(out, "{indent} * {line}").unwrap();
+            if line.is_empty() {
+                // Same trailing-whitespace guard as the Rust emitter.
+                writeln!(out, "{indent} *").unwrap();
+            } else {
+                writeln!(out, "{indent} * {line}").unwrap();
+            }
         }
         writeln!(out, "{indent} */").unwrap();
     } else {
@@ -154,7 +166,7 @@ pub(super) fn emit_cli_f64_arg(
     out.push_str("                .parse()\n");
     writeln!(
         out,
-        "                .map_err(|e| thetadatadx::Error::Config(format!(\"invalid {cli_key}: {{e}}\")))?;"
+        "                .map_err(|e| thetadatadx::Error::config_invalid(\"cli.{cli_key}\", format!(\"invalid {cli_key}: {{e}}\")))?;"
     )
     .unwrap();
 }

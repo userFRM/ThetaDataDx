@@ -26,179 +26,15 @@ kind = "is_streaming"
 doc = "Whether the streaming connection is active."
 targets = ["python_unified", "typescript_napi"]
 
-[[methods]]
-name = "subscribe_quotes"
-kind = "stock_contract_call"
-doc = "Subscribe to real-time quote data for a stock symbol."
-runtime_call = "subscribe_quotes"
-ffi_call = "subscribe_quotes"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
-
-[[methods]]
-name = "subscribe_trades"
-kind = "stock_contract_call"
-doc = "Subscribe to real-time trade data for a stock symbol."
-runtime_call = "subscribe_trades"
-ffi_call = "subscribe_trades"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
-
-[[methods]]
-name = "subscribe_open_interest"
-kind = "stock_contract_call"
-doc = "Subscribe to open interest data for a stock symbol."
-runtime_call = "subscribe_open_interest"
-ffi_call = "subscribe_open_interest"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
-
-[[methods]]
-name = "subscribe_option_quotes"
-kind = "option_contract_call"
-doc = "Subscribe to quote data for an option contract."
-runtime_call = "subscribe_quotes"
-ffi_call = "subscribe_option_quotes"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [
-  { name = "symbol", type = "string", doc = "Underlying symbol." },
-  { name = "expiration", type = "string", doc = "Option expiration." },
-  { name = "strike", type = "string", doc = "Option strike." },
-  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
-]
-
-[[methods]]
-name = "subscribe_option_trades"
-kind = "option_contract_call"
-doc = "Subscribe to trade data for an option contract."
-runtime_call = "subscribe_trades"
-ffi_call = "subscribe_option_trades"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [
-  { name = "symbol", type = "string", doc = "Underlying symbol." },
-  { name = "expiration", type = "string", doc = "Option expiration." },
-  { name = "strike", type = "string", doc = "Option strike." },
-  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
-]
-
-[[methods]]
-name = "subscribe_option_open_interest"
-kind = "option_contract_call"
-doc = "Subscribe to open interest data for an option contract."
-runtime_call = "subscribe_open_interest"
-ffi_call = "subscribe_option_open_interest"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [
-  { name = "symbol", type = "string", doc = "Underlying symbol." },
-  { name = "expiration", type = "string", doc = "Option expiration." },
-  { name = "strike", type = "string", doc = "Option strike." },
-  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
-]
-
-[[methods]]
-name = "subscribe_full_trades"
-kind = "full_call"
-doc = "Subscribe to all trades for a security type."
-runtime_call = "subscribe_full_trades"
-ffi_call = "subscribe_full_trades"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
-
-[[methods]]
-name = "subscribe_full_open_interest"
-kind = "full_call"
-doc = "Subscribe to all open interest for a security type."
-runtime_call = "subscribe_full_open_interest"
-ffi_call = "subscribe_full_open_interest"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
-
-[[methods]]
-name = "unsubscribe_quotes"
-kind = "stock_contract_call"
-doc = "Unsubscribe from quote data for a stock symbol."
-runtime_call = "unsubscribe_quotes"
-ffi_call = "unsubscribe_quotes"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
-
-[[methods]]
-name = "unsubscribe_trades"
-kind = "stock_contract_call"
-doc = "Unsubscribe from trade data for a stock symbol."
-runtime_call = "unsubscribe_trades"
-ffi_call = "unsubscribe_trades"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
-
-[[methods]]
-name = "unsubscribe_open_interest"
-kind = "stock_contract_call"
-doc = "Unsubscribe from open interest data for a stock symbol."
-runtime_call = "unsubscribe_open_interest"
-ffi_call = "unsubscribe_open_interest"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [{ name = "symbol", type = "string", doc = "Stock symbol." }]
-
-[[methods]]
-name = "unsubscribe_option_quotes"
-kind = "option_contract_call"
-doc = "Unsubscribe from quote data for an option contract."
-runtime_call = "unsubscribe_quotes"
-ffi_call = "unsubscribe_option_quotes"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [
-  { name = "symbol", type = "string", doc = "Underlying symbol." },
-  { name = "expiration", type = "string", doc = "Option expiration." },
-  { name = "strike", type = "string", doc = "Option strike." },
-  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
-]
-
-[[methods]]
-name = "unsubscribe_option_trades"
-kind = "option_contract_call"
-doc = "Unsubscribe from trade data for an option contract."
-runtime_call = "unsubscribe_trades"
-ffi_call = "unsubscribe_option_trades"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [
-  { name = "symbol", type = "string", doc = "Underlying symbol." },
-  { name = "expiration", type = "string", doc = "Option expiration." },
-  { name = "strike", type = "string", doc = "Option strike." },
-  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
-]
-
-[[methods]]
-name = "unsubscribe_option_open_interest"
-kind = "option_contract_call"
-doc = "Unsubscribe from open interest data for an option contract."
-runtime_call = "unsubscribe_open_interest"
-ffi_call = "unsubscribe_option_open_interest"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [
-  { name = "symbol", type = "string", doc = "Underlying symbol." },
-  { name = "expiration", type = "string", doc = "Option expiration." },
-  { name = "strike", type = "string", doc = "Option strike." },
-  { name = "right", type = "string", doc = "Option side.", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
-]
-
-[[methods]]
-name = "unsubscribe_full_trades"
-kind = "full_call"
-doc = "Unsubscribe from all trades for a security type."
-runtime_call = "unsubscribe_full_trades"
-ffi_call = "unsubscribe_full_trades"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
-
-[[methods]]
-name = "unsubscribe_full_open_interest"
-kind = "full_call"
-doc = "Unsubscribe from all open interest for a security type."
-runtime_call = "unsubscribe_full_open_interest"
-ffi_call = "unsubscribe_full_open_interest"
-targets = ["python_unified", "typescript_napi", "cpp_fpss"]
-params = [{ name = "sec_type", type = "string", doc = "Security type: STOCK, OPTION, or INDEX." }]
+#  — typed subscribe_* / unsubscribe_* methods deleted.
+# The polymorphic `subscribe(Subscription)` / `subscribe_many([...])` /
+# `unsubscribe(Subscription)` / `unsubscribe_many([...])` paths are
+# implemented directly on the unified client surface in each binding
+# (Python: `sdks/python/src/lib.rs`, TypeScript: `sdks/typescript/src/lib.rs`,
+# C++: `sdks/cpp/include/thetadx.hpp`). The fluent `Contract` /
+# `Subscription` / `SecType` value types are exposed through
+# language-native modules (`fluent.rs` for Python and TypeScript,
+# `thetadx.hpp` for C++).
 
 [[methods]]
 name = "active_subscriptions"
@@ -215,14 +51,25 @@ targets = ["python_unified", "typescript_napi", "cpp_fpss"]
 [[methods]]
 name = "stop_streaming"
 kind = "stop_streaming"
-doc = "Stop streaming while keeping the historical client usable."
+doc = """Stop streaming while keeping the historical client usable.
+
+Clears the registered callback. To resume streaming, call `start_streaming(callback)` again with a freshly bound callable -- `reconnect()` will fail because no callback is held. See the `reconnect` docs for the rationale (explicit-handoff model shared with the C++ RAII wrapper and the Python `with`-block `__exit__`; the unified C API keeps the callback by design, but the high-level bindings clear it deliberately)."""
 targets = ["python_unified", "typescript_napi"]
 
 [[methods]]
 name = "shutdown"
 kind = "shutdown"
-doc = "Shut down the FPSS streaming connection."
+doc = """Shut down the FPSS streaming connection.
+
+On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as `stop_streaming`); a subsequent `reconnect()` will fail until the caller re-registers via `start_streaming(callback)`. The C++ binding preserves the unified C API's behaviour."""
 targets = ["python_unified", "typescript_napi", "cpp_fpss"]
+
+[[methods]]
+name = "await_drain"
+kind = "await_drain"
+doc = "Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise."
+targets = ["python_unified", "typescript_napi"]
+params = [{ name = "timeout_ms", type = "u64", doc = "Maximum time to wait, in milliseconds." }]
 
 [[methods]]
 name = "is_authenticated"

@@ -63,11 +63,11 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: enums::render_tdbe_enums(&parsed.enums),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/python/src/enums_generated.rs",
+            relative_path: "sdks/python/src/_generated/enums_generated.rs",
             contents: enums::render_python_enums(&parsed.enums),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/typescript/src/enums_generated.rs",
+            relative_path: "sdks/typescript/src/_generated/enums_generated.rs",
             contents: enums::render_typescript_enums(&parsed.enums),
         },
         GeneratedSourceFile {
@@ -99,15 +99,15 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: cpp::render_cpp_historical_defs(&parsed.endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/python/src/historical_methods.rs",
+            relative_path: "sdks/python/src/_generated/historical_methods.rs",
             contents: python::render_python_historical_methods(&parsed.endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/python/src/decode_bench.rs",
+            relative_path: "sdks/python/src/_generated/decode_bench.rs",
             contents: python::render_python_decode_bench(&parsed.endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "sdks/typescript/src/historical_methods.rs",
+            relative_path: "sdks/typescript/src/_generated/historical_methods.rs",
             contents: typescript::render_typescript_historical_methods(&parsed.endpoints),
         },
         GeneratedSourceFile {

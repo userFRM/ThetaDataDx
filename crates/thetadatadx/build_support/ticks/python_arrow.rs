@@ -1,4 +1,4 @@
-//! Emit `sdks/python/src/tick_arrow.rs` — Arrow columnar pipeline.
+//! Emit `sdks/python/src/_generated/tick_arrow.rs` — Arrow columnar pipeline.
 //!
 //! Two generator-owned surfaces live in the generated file:
 //!

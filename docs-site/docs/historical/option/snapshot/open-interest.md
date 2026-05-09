@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} open_interest=${t.open_interest} expiration=${t.expiration} strike=${t.strike}`);
 }
 ```
-```go [Go]
-data, _ := client.OptionSnapshotOpenInterest("SPY", "20260417", "550", "C")
-for _, t := range data {
-    fmt.Printf("date=%d open_interest=%d expiration=%d strike=%.2f\n",
-        t.Date, t.OpenInterest, t.Expiration, t.Strike)
-}
-```
 ```cpp [C++]
 auto data = client.option_snapshot_open_interest("SPY", "20260417", "550", "C");
 for (const auto& t : data) {

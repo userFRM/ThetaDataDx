@@ -19,7 +19,7 @@ use thetadatadx::{by_category, find, EndpointMeta, CATEGORIES};
 fn build_cli() -> Command {
     let mut app = Command::new("tdx")
         .version(env!("CARGO_PKG_VERSION"))
-        .about("ThetaDataDx CLI — query ThetaData from your terminal")
+        .about("ThetaDataDxClient CLI — query ThetaData from your terminal")
         .long_about(
             "Native CLI for ThetaData market data. No JVM required.\n\n\
              Requires a creds.txt file (email on line 1, password on line 2).",
@@ -61,6 +61,7 @@ fn build_cli() -> Command {
         );
 
     app = add_generated_utility_commands(app);
+    app = flatfile_commands::add_flatfile_command(app);
 
     // Dynamic: build category subcommands from ENDPOINTS
     for &cat in CATEGORIES {
@@ -135,10 +136,7 @@ fn build_endpoint_args(
         match m.get_one::<String>(param.name) {
             Some(raw) => args.insert_raw(param.name, param.param_type, raw)?,
             None if param.required => {
-                return Err(thetadatadx::Error::Config(format!(
-                    "missing required argument: {}",
-                    param.name
-                )));
+                return Err(thetadatadx::Error::config_missing(param.name));
             }
             None => {}
         }
@@ -148,6 +146,7 @@ fn build_endpoint_args(
 
 include!("utilities.rs");
 include!("raw_headers_generated.rs");
+mod flatfile_commands;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Output format enum
@@ -433,13 +432,13 @@ const NULL_SENTINEL: &str = "\x00NULL\x00";
 async fn connect(
     creds_path: &str,
     preset: &str,
-) -> Result<thetadatadx::ThetaDataDx, thetadatadx::Error> {
+) -> Result<thetadatadx::ThetaDataDxClient, thetadatadx::Error> {
     let creds = thetadatadx::Credentials::from_file(creds_path)?;
     let config = match preset {
         "dev" => thetadatadx::DirectConfig::dev(),
         _ => thetadatadx::DirectConfig::production(),
     };
-    thetadatadx::ThetaDataDx::connect(&creds, config).await
+    thetadatadx::ThetaDataDxClient::connect(&creds, config).await
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1339,6 +1338,10 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
         return Ok(());
     }
 
+    if flatfile_commands::try_dispatch(&matches, creds_path).await? {
+        return Ok(());
+    }
+
     match matches.subcommand() {
         // ── Dynamic category dispatch (registry-driven) ────────────
         Some((cat, cat_m)) => {
@@ -1352,7 +1355,10 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
                 };
 
                 let ep = find(&full_name).ok_or_else(|| {
-                    thetadatadx::Error::Config(format!("unknown endpoint: {full_name}"))
+                    thetadatadx::Error::config_invalid(
+                        "endpoint.name",
+                        format!("unknown endpoint: {full_name}"),
+                    )
                 })?;
 
                 let client = connect(creds_path, config_preset).await?;

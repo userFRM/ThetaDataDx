@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 
 // The native addon won't be built in CI unless we add a napi build step,
 // so this test is a structural check that runs after `npm run build`.
-describe('ThetaDataDx native addon', () => {
-  it('exports ThetaDataDx class with connect factory', async () => {
+describe('ThetaDataDxClient native addon', () => {
+  it('exports ThetaDataDxClient class with connect factory', async () => {
     let mod;
     try {
       mod = await import('../index.js');
@@ -15,8 +15,8 @@ describe('ThetaDataDx native addon', () => {
       console.log('SKIP: native addon not built (run `npm run build` first)');
       return;
     }
-    assert.ok(mod.ThetaDataDx, 'ThetaDataDx should be exported');
-    assert.equal(typeof mod.ThetaDataDx.connect, 'function', 'connect should be a static method');
-    assert.equal(typeof mod.ThetaDataDx.connectFromFile, 'function', 'connectFromFile should be a static method');
+    assert.ok(mod.ThetaDataDxClient, 'ThetaDataDxClient should be exported');
+    assert.equal(typeof mod.ThetaDataDxClient.connect, 'function', 'connect should be a static method');
+    assert.equal(typeof mod.ThetaDataDxClient.connectFromFile, 'function', 'connectFromFile should be a static method');
   });
 });

@@ -11,10 +11,10 @@
 //! functions reference `crate::decode::*` for the cross-cutting helpers and
 //! `tdbe::time::*` for Eastern-time conversion.
 
+use super::dual_type_columns::parse_iso_date;
 use super::error::observed_name;
 use super::error::DecodeError;
 use super::headers::find_header;
-use super::v3::parse_iso_date;
 use crate::proto;
 use tdbe::types::tick::{
     CalendarDay, EodTick, GreeksAllTick, GreeksFirstOrderTick, GreeksSecondOrderTick,

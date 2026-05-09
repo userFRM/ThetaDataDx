@@ -48,6 +48,7 @@ pub(super) enum MethodKind {
     Reconnect,
     StopStreaming,
     Shutdown,
+    AwaitDrain,
     IsAuthenticated,
     FpssConnect,
     CredentialsFromFile,
@@ -252,6 +253,12 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
         MethodKind::Reconnect => (Some("reconnect"), &[PY, TS, CPP], false, &[]),
         MethodKind::StopStreaming => (Some("stop_streaming"), &[PY, TS], true, &[]),
         MethodKind::Shutdown => (Some("shutdown"), &[PY, TS, CPP], false, &[]),
+        MethodKind::AwaitDrain => (
+            Some("await_drain"),
+            &[PY, TS],
+            true,
+            &[("timeout_ms", ParamType::U64)],
+        ),
         MethodKind::IsAuthenticated => (Some("is_authenticated"), &[CPP], false, &[]),
         MethodKind::FpssConnect => (
             Some("connect"),

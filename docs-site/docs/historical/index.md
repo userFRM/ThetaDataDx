@@ -5,44 +5,31 @@ description: Overview of ThetaDataDx historical data endpoints for stocks, optio
 
 # Historical Data
 
-ThetaDataDx provides a generated historical data surface across five asset categories. All historical data is accessed through the ThetaDataDx client, which communicates over gRPC with ThetaData's MDDS servers. gRPC, protobuf parsing, zstd decompression, and FIT decoding run inside the `thetadatadx` Rust crate, regardless of which language binding you call.
+ThetaDataDx provides a generated historical data surface across five asset categories. All historical data is accessed through the unified `ThetaDataDxClient`, which communicates over gRPC with ThetaData's MDDS servers. gRPC, protobuf parsing, zstd decompression, and FIT decoding run inside the `thetadatadx` Rust crate, regardless of which language binding you call.
 
 ## Connecting
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 
 let creds = Credentials::from_file("creds.txt")?;
-let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 ```
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+client = ThetaDataDxClient(creds, Config.production())
 ```
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
-```
-```go [Go]
-creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-defer creds.Close()
-
-config := thetadatadx.ProductionConfig()
-defer config.Close()
-
-client, err := thetadatadx.Connect(creds, config)
-if err != nil {
-    log.Fatal(err)
-}
-defer client.Close()
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
-auto client = tdx::Client::connect(creds, tdx::Config::production());
+auto client = tdx::UnifiedClient::connect(creds, tdx::Config::production());
 ```
 :::
 
@@ -104,11 +91,6 @@ if not eod:
 ```typescript [TypeScript]
 if (eod.length === 0) {
     console.log('No data for this date range');
-}
-```
-```go [Go]
-if len(eod) == 0 {
-    fmt.Println("No data for this date range")
 }
 ```
 ```cpp [C++]

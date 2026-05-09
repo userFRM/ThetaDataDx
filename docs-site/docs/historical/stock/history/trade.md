@@ -31,13 +31,6 @@ for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} price=${t.price} size=${t.size} exchange=${t.exchange} condition=${t.condition}`);
 }
 ```
-```go [Go]
-data, _ := client.StockHistoryTrade("SPY", "20260315")
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d price=%.2f size=%d exchange=%d condition=%d sequence=%d\n",
-        t.Date, t.MsOfDay, t.Price, t.Size, t.Exchange, t.Condition, t.Sequence)
-}
-```
 ```cpp [C++]
 auto data = client.stock_history_trade("SPY", "20260315");
 for (const auto& t : data) {

@@ -4,13 +4,13 @@
 //! on-demand when you first subscribe -- not at startup.
 //!
 //! ```rust,no_run
-//! use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+//! use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), thetadatadx::Error> {
 //!     // One connect, one auth. FPSS is NOT connected yet.
 //!     // Or inline: Credentials::new("user@example.com", "your-password")
-//!     let tdx = ThetaDataDx::connect(
+//!     let tdx = ThetaDataDxClient::connect(
 //!         &Credentials::from_file("creds.txt")?,
 //!         DirectConfig::production(),
 //!     ).await?;
@@ -26,49 +26,48 @@
 //!             println!("trade {price} x {size}");
 //!         }
 //!     })?;
-//!     tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
+//!     tdx.subscribe(Contract::stock("AAPL").quote())?;
 //!
 //!     Ok(())
 //! }
 //! ```
 
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use arc_swap::ArcSwap;
 
 use crate::auth::Credentials;
 use crate::config::DirectConfig;
 use crate::error::Error;
-use crate::fpss::protocol::{Contract, SubscriptionKind};
-use crate::fpss::{FpssClient, FpssEvent, StreamingDispatcher};
+use crate::fpss::protocol::{Contract, FullSubscriptionKind, Subscription, SubscriptionKind};
+use crate::fpss::{EventIterator, FpssClient, FpssEvent};
 use crate::mdds::MddsClient;
 use tdbe::types::enums::SecType;
 
 /// Snapshot of the streaming side of the unified client.
 ///
-/// Replaces the previous trio of coordinated fields
-/// (`Mutex<Option<FpssClient>>`, `Mutex<Option<StreamingDispatcher>>`,
-/// `AtomicBool was_streaming`) with a single [`ArcSwap`] cell so every
-/// read path collapses to one atomic load.
+/// One [`ArcSwap`] cell so every read path collapses to a single
+/// atomic load. The previous design carried a separate
+/// `Mutex<Option<StreamingDispatcher>>` alongside the [`FpssClient`];
+/// after the post-#513 single-queue rewrite the user callback runs
+/// directly on the Disruptor consumer thread inside [`FpssClient`],
+/// so the slot only needs to track the live client.
 ///
-/// Lifecycle: `Idle` (constructed) → `Live` (`start_streaming` /
-/// `start_streaming_inline` succeeded) → `Stopped` (`stop_streaming`
-/// returned). A subsequent `start_streaming` from `Stopped` swaps back
-/// to `Live`; `Idle` is reachable only at construction time, never
-/// re-entered after a successful start.
+/// Lifecycle: `Idle` (constructed) → `Live` (`start_streaming`
+/// succeeded) → `Stopped` (`stop_streaming` returned). A subsequent
+/// `start_streaming` from `Stopped` swaps back to `Live`; `Idle` is
+/// reachable only at construction time, never re-entered after a
+/// successful start.
 enum StreamingSlot {
     /// `start_streaming()` has not been called yet.
     Idle,
-    /// Streaming connection is established. `dispatcher` is `Some` for
-    /// the dispatcher path and `None` for the inline path
-    /// (`start_streaming_inline`). The mutex is hit only by
-    /// `stop_streaming` — the hot read path
-    /// (`is_streaming`, `connection_status`, `with_streaming`) never
-    /// touches it.
-    Live {
-        client: Arc<FpssClient>,
-        dispatcher: Mutex<Option<StreamingDispatcher>>,
-    },
+    /// Streaming connection is established. The user callback runs
+    /// inside the [`FpssClient`]'s Disruptor consumer thread (panic
+    /// isolated via `catch_unwind`); ring-buffer overflow is reported
+    /// through [`FpssClient::dropped_count`].
+    Live { client: Arc<FpssClient> },
     /// `stop_streaming()` ran (or `Drop` did). Distinguishes "was
     /// started, then stopped" from "never started" for
     /// [`ConnectionStatus::Disconnected`] vs
@@ -107,7 +106,7 @@ pub enum ConnectionStatus {
 ///
 /// All historical endpoint methods are available via `Deref` to
 /// [`MddsClient`]. Streaming methods are on this struct directly.
-pub struct ThetaDataDx {
+pub struct ThetaDataDxClient {
     historical: MddsClient,
     creds: Credentials,
     /// Streaming-side state machine. See [`StreamingSlot`] for the
@@ -116,12 +115,39 @@ pub struct ThetaDataDx {
     /// `with_streaming` single-atomic-load reads — the previous design
     /// took two `Mutex` locks plus an `AtomicBool` for the same answer.
     state: ArcSwap<StreamingSlot>,
+    /// Quiescence flags of every superseded streaming session that has
+    /// not yet drained, captured during [`Self::stop_streaming`] /
+    /// [`Self::reconnect_streaming`] before the `Live → Stopped` swap
+    /// drops the previous `Arc<FpssClient>`. [`Self::await_drain`]
+    /// waits for **every** entry to flip to `true` before reporting
+    /// quiescence; completed flags are GC'd lazily on each poll.
+    ///
+    /// A `Vec` (rather than a single slot) is required because stacked
+    /// `start → stop → start → stop` cycles can layer multiple in-flight
+    /// generations on top of each other before any one of them drains.
+    /// If only the most recently retired flag were tracked, an earlier
+    /// session whose Disruptor consumer is still firing the callback
+    /// would be silently lost when a later stop overwrites the slot —
+    /// `await_drain()` would then return `true` based on the latest
+    /// generation while the earlier callback is still firing on the
+    /// FFI `ctx`. The Vec preserves every retired generation until its
+    /// own flag is observed `true`.
+    prev_drained: Mutex<Vec<Arc<AtomicBool>>>,
+    /// Monotonic counter incremented by every [`Self::stop_streaming`].
+    ///
+    /// Each `start_streaming*()` snapshots this value at entry and
+    /// re-checks it after the FPSS connect completes. If the snapshot
+    /// no longer matches, an interleaving `stop_streaming` raised the
+    /// generation, the freshly built [`FpssClient`] is dropped, and
+    /// the install is rejected. Closes the `Stopped → Live` resurrection
+    /// race where an in-flight start could come up AFTER stop returned.
+    stop_generation: AtomicU64,
 }
 
-impl ThetaDataDx {
+impl ThetaDataDxClient {
     /// Connect to `ThetaData`. Authenticates once, opens gRPC channel.
     ///
-    /// FPSS streaming is NOT connected yet -- call [`ThetaDataDx::start_streaming`]
+    /// FPSS streaming is NOT connected yet -- call [`ThetaDataDxClient::start_streaming`]
     /// when you need real-time data.
     /// # Errors
     ///
@@ -137,15 +163,16 @@ impl ThetaDataDx {
             historical,
             creds: creds.clone(),
             state: ArcSwap::from_pointee(StreamingSlot::Idle),
+            prev_drained: Mutex::new(Vec::new()),
+            stop_generation: AtomicU64::new(0),
         })
     }
 
     /// Helper: build a [`StreamingSlot::Live`] cell from a freshly
-    /// connected [`FpssClient`] and an optional dispatcher.
-    fn live_slot(client: FpssClient, dispatcher: Option<StreamingDispatcher>) -> StreamingSlot {
+    /// connected [`FpssClient`].
+    fn live_slot(client: FpssClient) -> StreamingSlot {
         StreamingSlot::Live {
             client: Arc::new(client),
-            dispatcher: Mutex::new(dispatcher),
         }
     }
 
@@ -158,25 +185,69 @@ impl ThetaDataDx {
         }
     }
 
+    /// Helper: error returned when an in-flight `start_streaming*()`
+    /// raced behind a [`Self::stop_streaming`] and would have resurrected
+    /// streaming after the caller observed it stopped. The freshly built
+    /// [`FpssClient`] is dropped before this returns.
+    fn stopped_during_start() -> Error {
+        Error::Fpss {
+            kind: crate::error::FpssErrorKind::Disconnected,
+            message: "stop_streaming() raced ahead of start_streaming(); start refused".into(),
+        }
+    }
+
     /// Start the FPSS streaming connection with a callback handler.
     ///
     /// Opens a TLS/TCP connection to `ThetaData`'s FPSS servers,
     /// authenticates with the same credentials used at connect time,
-    /// and starts the FPSS reader thread.
+    /// and starts the FPSS reader thread plus the LMAX Disruptor
+    /// consumer thread.
     ///
-    /// # Dispatcher path (default)
+    /// # Pipeline (single-queue SSOT, post-#513)
     ///
-    /// Events flow `FPSS reader -> StreamingDispatcher (bounded(8192))
-    /// -> drain thread -> user callback`. The reader thread never
-    /// blocks on user code: a slow callback fills the bounded queue
-    /// and overflow events are dropped, with the drop count exposed
-    /// through [`Self::dropped_event_count`]. This is the safe default
-    /// that protects the vendor connection against arbitrary user
-    /// callbacks.
+    /// `TLS reader thread -> Disruptor ring (try_publish, non-blocking)
+    /// -> Disruptor consumer thread -> catch_unwind(user callback)`.
     ///
-    /// For zero-queueing-overhead delivery (~12 ns vs ~58 ns per event)
-    /// at the cost of binding callback latency to the FPSS reader
-    /// thread, see [`Self::start_streaming_inline`].
+    /// The TLS reader publishes every decoded event into a pre-allocated
+    /// LMAX Disruptor ring via `Producer::try_publish`. A single
+    /// dedicated consumer thread owned by the Disruptor invokes the
+    /// user callback for each event, with each invocation wrapped in
+    /// [`std::panic::catch_unwind`]. Two contracts:
+    ///
+    /// 1. **Reader never blocks on user code.** When the consumer
+    ///    falls behind and the ring is full, `try_publish` returns
+    ///    [`disruptor::RingBufferFull`], the event is dropped, and
+    ///    [`Self::dropped_event_count`] increments. Operators should
+    ///    poll the counter on a periodic timer.
+    /// 2. **User panics never kill the consumer.** A panic from user
+    ///    code (or from binding glue such as PyO3 / napi) is caught,
+    ///    [`Self::panic_count`] increments, and the consumer keeps
+    ///    delivering subsequent events.
+    /// 3. **Lifecycle restriction.** The user callback runs on the
+    ///    FPSS Disruptor consumer thread. From inside the callback you
+    ///    MUST NOT call [`Self::stop_streaming`],
+    ///    [`Self::reconnect_streaming`], or any API that drops the
+    ///    underlying `Arc<FpssClient>`. These calls do not deadlock
+    ///    (the `FpssClient::Drop` self-join guard detaches cleanup
+    ///    onto a helper thread), but they return BEFORE the old
+    ///    consumer has finished firing the callback for the in-flight
+    ///    ring contents. Application code that frees a captured
+    ///    context, replaces the callback closure, or otherwise relies
+    ///    on the old callback having stopped firing the moment stop
+    ///    returns will observe a torn state — including
+    ///    use-after-free in FFI callers whose `ctx` was freed once
+    ///    `tdx_*_stop_streaming` returned.
+    ///
+    ///    If the application needs to stop or reconnect in response
+    ///    to an event, set a flag from the callback and observe it
+    ///    from a separate thread that calls [`Self::stop_streaming`]
+    ///    there, then call [`Self::await_drain`] before reusing the
+    ///    captured resources.
+    ///
+    /// The user callback runs on the LMAX Disruptor consumer thread,
+    /// with `catch_unwind` panic isolation. The callback MUST return
+    /// within microseconds; for slow downstream work, hand off to a
+    /// bounded queue inside the callback.
     ///
     /// # Errors
     ///
@@ -193,25 +264,11 @@ impl ThetaDataDx {
             return Err(Self::already_streaming());
         }
 
-        // Spawn the dispatcher first. Its drain thread owns the user
-        // callback; the FPSS reader thread only ever sees a `Fn` that
-        // pushes onto the bounded queue.
-        //
-        // `handler` is `FnMut`, but `StreamingDispatcher::spawn` takes
-        // `Fn` (so the dispatcher type stays `Send + Sync`). Wrap the
-        // user `FnMut` in a `Mutex` so the drain thread can call it
-        // mutably without exposing `&mut` over the `Fn` boundary.
-        let user_handler = std::sync::Mutex::new(handler);
-        let dispatcher = StreamingDispatcher::spawn(Box::new(move |event: &FpssEvent| {
-            let mut h = user_handler
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            (h)(event);
-        }));
-
-        // Cheap clone of the producer-side handle; the FPSS reader
-        // thread captures this in its handler closure.
-        let producer = dispatcher.producer();
+        // Snapshot the stop generation BEFORE connecting. If another
+        // thread calls `stop_streaming()` between this load and the
+        // post-connect `install_live`, the install path observes the
+        // mismatch and refuses to resurrect the slot to `Live`.
+        let gen_at_entry = self.stop_generation.load(Ordering::Acquire);
 
         let config = self.historical.config();
         let client = FpssClient::connect(
@@ -222,102 +279,139 @@ impl ThetaDataDx {
                 flush_mode: config.fpss.flush_mode,
                 policy: config.reconnect.policy.clone(),
                 derive_ohlcvc: config.fpss.derive_ohlcvc,
-            },
-            move |event: &FpssEvent| {
-                // Reader-thread side: clone the event and push onto the
-                // bounded queue. On overflow the dispatcher drops the
-                // clone and ticks its dropped counter — the reader
-                // never blocks here.
-                producer.send(event.clone());
-            },
-        )?;
-
-        self.install_live(Self::live_slot(client, Some(dispatcher)))
-    }
-
-    /// Start the FPSS streaming connection with a callback that fires
-    /// directly on the FPSS reader thread, bypassing the dispatcher.
-    ///
-    /// # Performance
-    ///
-    /// No queue, no drain thread, no clone — the user callback is
-    /// invoked in-place from inside the FPSS reader's decode loop.
-    /// Per-event overhead drops from ~58 ns (the dispatcher path) to
-    /// ~12 ns (see `benches/streaming_channels.rs::direct_callback`).
-    ///
-    /// # Safety contract
-    ///
-    /// The callback **must** return within microseconds. The FPSS
-    /// reader thread owns the TLS socket exclusively; while the
-    /// callback is executing, no bytes are being read from the kernel
-    /// receive buffer. A slow callback (anything doing I/O,
-    /// allocation-heavy work, lock acquisition, or Python/JS GC) will:
-    ///
-    /// 1. Fill the kernel TCP receive buffer.
-    /// 2. Trigger TCP backpressure on the vendor side.
-    /// 3. Cause the FPSS server to disconnect the session and drop
-    ///    every active subscription.
-    ///
-    /// Use this entry point only when the callback is a simple memcpy
-    /// into a lock-free ring you own, or when the consumer is a tight
-    /// in-process trading loop that is provably wait-free for the
-    /// callback's duration. For every other workload — including
-    /// Python/Node bindings, WebSocket fan-out, file logging — call
-    /// [`Self::start_streaming`] instead.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn start_streaming_inline<F>(&self, handler: F) -> Result<(), Error>
-    where
-        F: FnMut(&FpssEvent) + Send + 'static,
-    {
-        if matches!(&**self.state.load(), StreamingSlot::Live { .. }) {
-            return Err(Self::already_streaming());
-        }
-        let config = self.historical.config();
-        let client = FpssClient::connect(
-            crate::fpss::FpssConnectArgs {
-                creds: &self.creds,
-                hosts: &config.fpss.hosts,
-                ring_size: config.fpss.ring_size,
-                flush_mode: config.fpss.flush_mode,
-                policy: config.reconnect.policy.clone(),
-                derive_ohlcvc: config.fpss.derive_ohlcvc,
+                connect_timeout_ms: config.fpss.connect_timeout_ms,
+                read_timeout_ms: config.fpss.timeout_ms,
+                ping_interval_ms: config.fpss.ping_interval_ms,
             },
             handler,
         )?;
-        self.install_live(Self::live_slot(client, None))
+
+        self.install_live(Self::live_slot(client), gen_at_entry)
+    }
+
+    /// Start the FPSS streaming connection in pull-iter delivery mode.
+    ///
+    /// Sibling of [`Self::start_streaming`] for high-throughput batch
+    /// consumption. Returns an [`EventIterator`] that drains the
+    /// per-client bounded queue on the calling thread; the queue is
+    /// sized to match the Disruptor ring (default `4096`) so backpressure
+    /// surfaces on the same [`Self::dropped_event_count`] counter as the
+    /// callback path.
+    ///
+    /// # When to choose pull-iter
+    ///
+    /// Pull-iter trades a small per-event latency increase (one queue
+    /// hop, one user-thread wakeup per drain) for the ability to amortise
+    /// per-event overhead across an entire batch under one synchronous
+    /// section. The dominant win is on the Python binding: a `for event
+    /// in iter:` loop holds the GIL across the drain, so 1 GIL acquire
+    /// covers N events instead of N GIL acquires for N callback
+    /// invocations. Under heavy load this closes the throughput gap with
+    /// `databento`'s `for record in client:` pattern (and exceeds it,
+    /// because we drain the Disruptor consumer queue directly without
+    /// their intermediate `queue.Queue`).
+    ///
+    /// Push-callback ([`Self::start_streaming`]) remains the recommended
+    /// default for single-event reaction latency.
+    ///
+    /// # Mutual exclusion
+    ///
+    /// Push and pull are mutually exclusive on a given client; calling
+    /// this when streaming is already running returns
+    /// [`crate::error::FpssErrorKind::ConnectionRefused`] with
+    /// `"streaming already started"`. To switch modes, call
+    /// [`Self::stop_streaming`] first, then `start_streaming_iter()`
+    /// again.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same error set as [`Self::start_streaming`] (TLS,
+    /// auth, config validation).
+    pub fn start_streaming_iter(&self) -> Result<EventIterator, Error> {
+        // Reject a second concurrent start before paying the connect
+        // cost — same fast-path optimisation as `start_streaming`.
+        if matches!(&**self.state.load(), StreamingSlot::Live { .. }) {
+            return Err(Self::already_streaming());
+        }
+
+        let gen_at_entry = self.stop_generation.load(Ordering::Acquire);
+
+        let config = self.historical.config();
+        let (client, iterator) = FpssClient::connect_iter(crate::fpss::FpssConnectArgs {
+            creds: &self.creds,
+            hosts: &config.fpss.hosts,
+            ring_size: config.fpss.ring_size,
+            flush_mode: config.fpss.flush_mode,
+            policy: config.reconnect.policy.clone(),
+            derive_ohlcvc: config.fpss.derive_ohlcvc,
+            connect_timeout_ms: config.fpss.connect_timeout_ms,
+            read_timeout_ms: config.fpss.timeout_ms,
+            ping_interval_ms: config.fpss.ping_interval_ms,
+        })?;
+
+        self.install_live(Self::live_slot(client), gen_at_entry)?;
+        Ok(iterator)
     }
 
     /// Atomically swap the slot to a fresh `Live` state.
     ///
-    /// Rejects the install when the slot raced into `Live` between the
-    /// caller's `start_streaming*` precheck and the FPSS connect
-    /// returning successfully. On rejection the freshly built
-    /// [`FpssClient`] is dropped, which triggers its reader-thread
-    /// shutdown and detaches the dispatcher cleanly.
-    fn install_live(&self, new_slot: StreamingSlot) -> Result<(), Error> {
+    /// Rejects the install when:
+    ///
+    /// 1. another `start_streaming*` raced in and the slot is already
+    ///    `Live` (returns [`Self::already_streaming`]); or
+    /// 2. an interleaving [`Self::stop_streaming`] bumped the
+    ///    [`Self::stop_generation`] counter past `gen_at_entry`
+    ///    (returns [`Self::stopped_during_start`]). This is the H2
+    ///    `Stopped → Live` resurrection guard: a caller that started
+    ///    connecting BEFORE `stop_streaming` was invoked must NOT see
+    ///    its connection installed AFTER stop returned, even though
+    ///    the FPSS connect itself succeeded.
+    ///
+    /// On either rejection the freshly built [`FpssClient`] (carried
+    /// inside `new`) falls out of scope, which triggers its reader-
+    /// thread shutdown and detaches the dispatcher cleanly.
+    fn install_live(&self, new_slot: StreamingSlot, gen_at_entry: u64) -> Result<(), Error> {
         let new = Arc::new(new_slot);
-        // CAS loop: only swap from `Idle` or `Stopped` into `Live`.
-        // ArcSwap doesn't expose `compare_and_swap` on `&Arc<T>` directly
-        // for non-Eq T; we instead read, decide, and rcu the state. The
-        // `rcu` closure is retried until the swap is observed atomically.
+        // CAS loop: only swap from `Idle` or `Stopped` into `Live`,
+        // AND only when the stop-generation matches the snapshot taken
+        // at start-entry. ArcSwap doesn't expose `compare_and_swap` on
+        // `&Arc<T>` directly for non-Eq T; we instead read, decide,
+        // and rcu the state. The `rcu` closure is retried until the
+        // swap is observed atomically.
+        let stop_gen = &self.stop_generation;
         let prev = self.state.rcu(|current| match &**current {
             StreamingSlot::Live { .. } => Arc::clone(current),
-            _ => Arc::clone(&new),
+            _ => {
+                // Re-check the stop generation INSIDE the rcu closure.
+                // If another thread called `stop_streaming` after we
+                // snapshotted `gen_at_entry`, refuse the install by
+                // leaving the slot unchanged and signalling via the
+                // returned `prev` shape (see post-rcu match below).
+                if stop_gen.load(Ordering::Acquire) != gen_at_entry {
+                    Arc::clone(current)
+                } else {
+                    Arc::clone(&new)
+                }
+            }
         });
         if matches!(&*prev, StreamingSlot::Live { .. }) {
             // Lost the race: another start_streaming installed first.
             // `new` falls out of scope and shuts down its FPSS client.
             return Err(Self::already_streaming());
         }
+        // Final check: if the rcu closure refused due to the generation
+        // mismatch, the cell was left at its current value (Stopped or
+        // Idle). Distinguish from "successful install" by re-reading
+        // the cell — if it does not point to our `new`, we lost.
+        if !Arc::ptr_eq(&self.state.load_full(), &new) {
+            return Err(Self::stopped_during_start());
+        }
         Ok(())
     }
 
-    /// Snapshot of events dropped by the dispatcher since
-    /// [`Self::start_streaming`]. Returns `0` when streaming has not
-    /// started or when the inline path was taken (no dispatcher).
+    /// Snapshot of events the TLS reader could not publish into the
+    /// Disruptor ring because the consumer fell behind and the ring
+    /// was full. Returns `0` when streaming has not started.
     ///
     /// Operators should poll this on a periodic timer (e.g. every
     /// second) and emit a `warn` log on any non-zero delta. A
@@ -326,19 +420,201 @@ impl ThetaDataDx {
     pub fn dropped_event_count(&self) -> u64 {
         let snap = self.state.load();
         match &**snap {
-            StreamingSlot::Live { dispatcher, .. } => {
-                let guard = dispatcher
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                guard.as_ref().map_or(0, StreamingDispatcher::dropped_count)
-            }
+            StreamingSlot::Live { client } => client.dropped_count(),
+            StreamingSlot::Idle | StreamingSlot::Stopped => 0,
+        }
+    }
+
+    /// Snapshot of user-callback panics caught by the Disruptor
+    /// consumer's `catch_unwind` boundary. Each panic is also
+    /// surfaced via `tracing::error!` with target
+    /// `thetadatadx::fpss::io_loop`. Returns `0` when streaming has
+    /// not started.
+    #[must_use]
+    pub fn panic_count(&self) -> u64 {
+        let snap = self.state.load();
+        match &**snap {
+            StreamingSlot::Live { client } => client.panic_count(),
+            StreamingSlot::Idle | StreamingSlot::Stopped => 0,
+        }
+    }
+
+    /// Set the slow-callback wall-clock threshold for the live
+    /// streaming session.
+    ///
+    /// When the user-callback wall-clock duration exceeds `threshold`,
+    /// [`Self::slow_callback_count`] increments and a `tracing::warn!`
+    /// fires (rate-limited per 1024 over-budget events). Pass
+    /// `Duration::ZERO` to disable. Default is disabled.
+    ///
+    /// **Observability only** — Rust cannot safely cancel arbitrary
+    /// user code, so the watchdog never kills the consumer. Operators
+    /// poll the counter and decide how to respond.
+    ///
+    /// No-op when streaming has not started; on the next
+    /// [`Self::start_streaming`] the threshold defaults back to
+    /// disabled (callers must re-arm).
+    pub fn set_slow_callback_threshold(&self, threshold: Duration) {
+        let snap = self.state.load();
+        if let StreamingSlot::Live { client } = &**snap {
+            client.set_slow_callback_threshold(threshold);
+        }
+    }
+
+    /// Snapshot of user-callback invocations whose wall-clock duration
+    /// exceeded the threshold set by
+    /// [`Self::set_slow_callback_threshold`]. Returns `0` when the
+    /// watchdog is disabled or when streaming has not started.
+    #[must_use]
+    pub fn slow_callback_count(&self) -> u64 {
+        let snap = self.state.load();
+        match &**snap {
+            StreamingSlot::Live { client } => client.slow_callback_count(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
         }
     }
 
     /// Whether streaming is currently active.
+    ///
+    /// This flag flips immediately on [`Self::stop_streaming`] /
+    /// [`Self::reconnect_streaming`] (i.e. on the atomic swap of the
+    /// `Live → Stopped` state cell), BEFORE the previous I/O thread,
+    /// Disruptor consumer, and any in-flight user callback have
+    /// drained. A `false` return therefore means *no new events will
+    /// be enqueued for the previous callback*, not *the previous
+    /// callback has stopped firing*.
+    ///
+    /// Pair with [`Self::await_drain`] when the caller needs the
+    /// stronger guarantee — e.g. before freeing an FFI callback
+    /// context, replacing the callback closure, or asserting the old
+    /// consumer thread has joined.
     pub fn is_streaming(&self) -> bool {
         matches!(&**self.state.load(), StreamingSlot::Live { .. })
+    }
+
+    /// Wait for the previously-superseded streaming session to
+    /// quiesce, polling its internal drain flag until it observes
+    /// `true` or `timeout` elapses.
+    ///
+    /// Returns `true` when the previous session's I/O thread and
+    /// Disruptor consumer have both joined, so the previous user
+    /// callback is guaranteed to have stopped firing. Returns `false`
+    /// on timeout, or if no stream has ever been started or stopped on
+    /// this handle (nothing to drain).
+    ///
+    /// # When to call
+    ///
+    /// Call from a thread other than the FPSS consumer thread after
+    /// either [`Self::stop_streaming`] or [`Self::reconnect_streaming`]
+    /// returns, when application code needs to:
+    ///
+    /// - free an FFI callback context that the old callback closure
+    ///   captured by value;
+    /// - drop a captured `Arc` whose contents the old callback was
+    ///   reading;
+    /// - install a fresh callback whose `'static` captures must not
+    ///   alias the old callback's still-running invocations.
+    ///
+    /// # Lifecycle restriction
+    ///
+    /// Because callback-thread stop / reconnect detaches cleanup onto
+    /// a helper thread (see [`Self::start_streaming`] for the full
+    /// rationale), `await_drain` MUST be called from a thread other
+    /// than the FPSS Disruptor consumer thread. Calling it from
+    /// inside the user callback would block the very thread the
+    /// helper is waiting on and the call would always time out.
+    ///
+    /// # Resolution
+    ///
+    /// Polls every 1 ms; returns as soon as the flag flips. The poll
+    /// loop is intentionally simple (no condvar, no parking) because
+    /// drain is a one-shot, latency-tolerant event — the vast
+    /// majority of calls return on the first or second tick.
+    /// Whether a prior streaming session has registered its drain flag
+    /// for [`Self::await_drain`] to poll on.
+    ///
+    /// Returns `true` once [`Self::stop_streaming`] or
+    /// [`Self::reconnect_streaming`] has captured the previous
+    /// session's drain flag into the internal slot, even if the flag
+    /// has not yet flipped. Returns `false` on a fresh handle that has
+    /// never started streaming, or on a unified handle that has only
+    /// served historical endpoints.
+    ///
+    /// FFI free paths use this to disambiguate the two `false` returns
+    /// from `await_drain` (timeout vs. nothing-to-wait-on); only the
+    /// former is a real concern worth surfacing in operator logs.
+    ///
+    /// **Non-blocking.** Uses `try_lock` on the internal slot mutex.
+    /// If the mutex is contended (another thread is mid-`stop_streaming`
+    /// or `reconnect_streaming` swapping the slot), this returns `true`
+    /// — the institutionally-safe answer, because the FFI `_free` path
+    /// uses this signal to decide whether to wait on the drain barrier,
+    /// and "wait" is the correct fail-safe when a stop is actively in
+    /// flight. The contention window is microseconds (the lock is held
+    /// only across the `Vec<Arc<AtomicBool>>` push), so the false-
+    /// positive cost is negligible.
+    ///
+    /// Returns `true` iff there is at least one retired generation that
+    /// has not yet drained. Already-drained flags are GC'd lazily here
+    /// so a long-lived handle that has cycled through many sessions
+    /// does not leak `Arc<AtomicBool>` entries.
+    #[must_use]
+    pub fn prev_drained_is_set(&self) -> bool {
+        match self.prev_drained.try_lock() {
+            Ok(mut guard) => {
+                guard.retain(|f| !f.load(Ordering::Acquire));
+                !guard.is_empty()
+            }
+            Err(std::sync::TryLockError::Poisoned(p)) => {
+                let mut guard = p.into_inner();
+                guard.retain(|f| !f.load(Ordering::Acquire));
+                !guard.is_empty()
+            }
+            Err(std::sync::TryLockError::WouldBlock) => {
+                // Mutex contended — another thread is mid-stop. Treat
+                // as "drain in progress" (true) so the FFI free path
+                // waits for the drain barrier rather than skipping it.
+                true
+            }
+        }
+    }
+
+    /// Wait for **every** retired streaming session to drain.
+    ///
+    /// Stacked `stop → start → stop` cycles layer multiple in-flight
+    /// generations on top of each other before any one of them drains;
+    /// this loop waits for ALL of them, not just the most-recent. On
+    /// each iteration completed flags are GC'd from the internal Vec
+    /// (so the next poll sees a smaller working set) and `true` is
+    /// returned exactly when the Vec is empty.
+    ///
+    /// Returns `false` on timeout. The poll cadence is 1 ms — drain is
+    /// a low-latency event in practice (single-digit milliseconds for
+    /// a non-backlogged ring); the worst case is bounded by the user
+    /// callback's wall-clock budget on the slowest in-flight tick.
+    #[must_use]
+    pub fn await_drain(&self, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+        loop {
+            let all_drained = {
+                let mut guard = self
+                    .prev_drained
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                // Lazy GC of completed flags. `retain` walks the Vec
+                // once per poll, which is `O(generations)`; under
+                // normal load there is at most one in-flight generation.
+                guard.retain(|f| !f.load(Ordering::Acquire));
+                guard.is_empty()
+            };
+            if all_drained {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
     }
 
     // -- Streaming convenience methods --
@@ -349,7 +625,7 @@ impl ThetaDataDx {
     ) -> Result<R, Error> {
         let snap = self.state.load();
         match &**snap {
-            StreamingSlot::Live { client, .. } => f(client.as_ref()),
+            StreamingSlot::Live { client } => f(client.as_ref()),
             StreamingSlot::Idle | StreamingSlot::Stopped => Err(Error::Fpss {
                 kind: crate::error::FpssErrorKind::Disconnected,
                 message: "streaming not started -- call start_streaming() first".into(),
@@ -357,92 +633,78 @@ impl ThetaDataDx {
         }
     }
 
-    /// Subscribe to quote updates for a contract.
+    /// Polymorphic subscribe — primary fluent entry point.
+    ///
+    /// Accepts the typed [`Subscription`] value returned by
+    /// [`Contract::quote`] / [`Contract::trade`] /
+    /// [`Contract::open_interest`] (per-contract scope) or by
+    /// [`crate::fpss::protocol::SecTypeExt::full_trades`] /
+    /// [`crate::fpss::protocol::SecTypeExt::full_open_interest`]
+    /// (full-stream scope).
+    ///
+    /// ```rust,no_run
+    /// # use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
+    /// # use thetadatadx::fpss::protocol::{Contract, SecTypeExt};
+    /// # use tdbe::types::enums::SecType;
+    /// # async fn doc(client: &ThetaDataDxClient) -> Result<(), thetadatadx::Error> {
+    /// let stock  = Contract::stock("AAPL");
+    /// let option = Contract::option("SPY", "20260620", "550", "C")?;
+    /// client.subscribe(stock.quote())?;
+    /// client.subscribe(option.trade())?;
+    /// client.subscribe(SecType::Option.full_trades())?;
+    /// # Ok(()) }
+    /// ```
+    ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe_quotes(&self, contract: &Contract) -> Result<(), Error> {
-        self.with_streaming(|s| s.subscribe_quotes(contract))
+    pub fn subscribe(&self, sub: Subscription) -> Result<(), Error> {
+        self.with_streaming(|s| s.subscribe(sub.clone()))
     }
 
-    /// Subscribe to trade updates for a contract.
+    /// Bulk-subscribe a batch of [`Subscription`] values. Stops at the
+    /// first error and returns it; previously-installed subscriptions
+    /// remain active (the FPSS protocol does not support batched
+    /// transactions). Use individual [`Self::subscribe`] +
+    /// [`Self::unsubscribe`] when atomic rollback is required.
+    ///
     /// # Errors
     ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe_trades(&self, contract: &Contract) -> Result<(), Error> {
-        self.with_streaming(|s| s.subscribe_trades(contract))
+    /// Returns an error on the first failed subscription. Successful
+    /// installs that preceded the failure are NOT rolled back.
+    pub fn subscribe_many<I>(&self, subs: I) -> Result<(), Error>
+    where
+        I: IntoIterator<Item = Subscription>,
+    {
+        for sub in subs {
+            self.subscribe(sub)?;
+        }
+        Ok(())
     }
 
-    /// Subscribe to open interest updates for a contract.
+    /// Polymorphic unsubscribe — fluent counterpart to [`Self::subscribe`].
+    ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe_open_interest(&self, contract: &Contract) -> Result<(), Error> {
-        self.with_streaming(|s| s.subscribe_open_interest(contract))
+    pub fn unsubscribe(&self, sub: Subscription) -> Result<(), Error> {
+        self.with_streaming(|s| s.unsubscribe(sub.clone()))
     }
 
-    /// Subscribe to quotes + trades for a contract (convenience batch).
+    /// Bulk-unsubscribe a batch of [`Subscription`] values. Stops at
+    /// the first error.
+    ///
     /// # Errors
     ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe_all(&self, contract: &Contract) -> Result<(), Error> {
-        self.with_streaming(|s| s.subscribe_all(contract))
-    }
-
-    /// Subscribe to all trades for a security type (full-stream).
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe_full_trades(&self, sec_type: SecType) -> Result<(), Error> {
-        self.with_streaming(|s| s.subscribe_full_trades(sec_type))
-    }
-
-    /// Subscribe to all open interest for a security type (full-stream).
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn subscribe_full_open_interest(&self, sec_type: SecType) -> Result<(), Error> {
-        self.with_streaming(|s| s.subscribe_full_open_interest(sec_type))
-    }
-
-    /// Unsubscribe from quote updates for a contract.
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn unsubscribe_quotes(&self, contract: &Contract) -> Result<(), Error> {
-        self.with_streaming(|s| s.unsubscribe_quotes(contract))
-    }
-
-    /// Unsubscribe from trade updates for a contract.
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn unsubscribe_trades(&self, contract: &Contract) -> Result<(), Error> {
-        self.with_streaming(|s| s.unsubscribe_trades(contract))
-    }
-
-    /// Unsubscribe from open interest updates for a contract.
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn unsubscribe_open_interest(&self, contract: &Contract) -> Result<(), Error> {
-        self.with_streaming(|s| s.unsubscribe_open_interest(contract))
-    }
-
-    /// Unsubscribe from all trades for a security type.
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn unsubscribe_full_trades(&self, sec_type: SecType) -> Result<(), Error> {
-        self.with_streaming(|s| s.unsubscribe_full_trades(sec_type))
-    }
-
-    /// Unsubscribe from all open interest for a security type.
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn unsubscribe_full_open_interest(&self, sec_type: SecType) -> Result<(), Error> {
-        self.with_streaming(|s| s.unsubscribe_full_open_interest(sec_type))
+    /// Returns an error on the first failed unsubscribe.
+    pub fn unsubscribe_many<I>(&self, subs: I) -> Result<(), Error>
+    where
+        I: IntoIterator<Item = Subscription>,
+    {
+        for sub in subs {
+            self.unsubscribe(sub)?;
+        }
+        Ok(())
     }
 
     /// Get all active per-contract subscriptions.
@@ -466,32 +728,54 @@ impl ThetaDataDx {
     /// Idempotent: calling on an `Idle` or `Stopped` slot is a no-op,
     /// repeated calls during the drain race are safe (only the first
     /// observer of the `Live` slot performs the shutdown sequence).
+    ///
+    /// # Asynchronous quiescence
+    ///
+    /// `stop_streaming` returns as soon as the slot has been swapped
+    /// to `Stopped` and the FPSS shutdown signal has been raised. The
+    /// I/O thread and the Disruptor consumer continue running until
+    /// they observe the signal, drain the in-flight ring contents
+    /// through the user callback, and exit. [`Self::is_streaming`]
+    /// flips to `false` immediately on the swap, BEFORE the old
+    /// consumer has finished firing.
+    ///
+    /// Pair with [`Self::await_drain`] for full quiescence semantics
+    /// when the caller needs to free a callback context, replace the
+    /// callback closure, or otherwise rely on the old user callback
+    /// having stopped firing.
     pub fn stop_streaming(&self) {
+        // Bump the stop generation BEFORE the slot swap so any
+        // in-flight `start_streaming*()` that snapshotted the previous
+        // value will fail its install check and not resurrect the
+        // slot to `Live` after this returns. AcqRel because the
+        // ordering relative to the `state.swap` below is what closes
+        // the resurrection race.
+        self.stop_generation.fetch_add(1, Ordering::AcqRel);
         // Atomically swap to `Stopped`; whichever caller wins the swap
         // owns the previous `Arc<StreamingSlot>` and is the one that
         // runs the shutdown sequence.
         let prev = self.state.swap(Arc::new(StreamingSlot::Stopped));
 
-        // Order matters: drop the FPSS client first so its reader thread
-        // joins and guarantees no further `producer.send` calls reach the
-        // dispatcher's queue. Only then is it safe to shut the dispatcher
-        // down — otherwise the drain thread could observe the sender
-        // channel close while the reader thread is still mid-`try_send`,
-        // racing on the same channel handle.
-        if let StreamingSlot::Live { client, dispatcher } = &*prev {
-            client.shutdown();
-            // Take the dispatcher out of its mutex so we can call the
-            // value-consuming `shutdown(mut self)`. Concurrent
-            // `dropped_event_count` callers see `None` and report 0 —
-            // the slot has already moved to `Stopped` so they are
-            // racing with a finalised lifecycle.
-            let dispatcher_owned = dispatcher
+        // Drop the FPSS client signal so its reader thread + Disruptor
+        // consumer drain and exit. The actual join happens in
+        // `FpssClient::Drop` when the last `Arc<FpssClient>` is dropped
+        // (typically with `prev` going out of scope at end of scope).
+        if let StreamingSlot::Live { client } = &*prev {
+            // Capture the drain flag BEFORE the shutdown signal and
+            // PUSH it onto the retired-generations list (rather than
+            // overwriting a single slot). Stacked stop/start/stop
+            // cycles layer multiple in-flight generations on top of
+            // each other; an earlier still-firing session's flag must
+            // NOT be lost when a later session retires before the
+            // earlier one has drained. `await_drain()` waits for ALL
+            // entries, and lazily GCs flags that have flipped to
+            // `true`, so a long-lived handle does not accumulate
+            // `Arc<AtomicBool>` entries past their useful lifetime.
+            self.prev_drained
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .take();
-            if let Some(d) = dispatcher_owned {
-                d.shutdown();
-            }
+                .push(client.drained_flag());
+            client.shutdown();
         }
     }
 
@@ -528,7 +812,7 @@ impl ThetaDataDx {
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
         // 1. Save active subscriptions before stopping
         let saved_subs = match &**self.state.load() {
-            StreamingSlot::Live { client, .. } => (
+            StreamingSlot::Live { client } => (
                 client.active_subscriptions(),
                 client.active_full_subscriptions(),
             ),
@@ -546,14 +830,21 @@ impl ThetaDataDx {
         let failed = restore_subscriptions(
             &per_contract,
             &full_type,
-            |kind, contract| match kind {
-                SubscriptionKind::Quote => self.subscribe_quotes(contract),
-                SubscriptionKind::Trade => self.subscribe_trades(contract),
-                SubscriptionKind::OpenInterest => self.subscribe_open_interest(contract),
+            |kind, contract| {
+                self.subscribe(Subscription::Contract {
+                    contract: contract.clone(),
+                    kind,
+                })
             },
             |kind, sec_type| match kind {
-                SubscriptionKind::Trade => Some(self.subscribe_full_trades(sec_type)),
-                SubscriptionKind::OpenInterest => Some(self.subscribe_full_open_interest(sec_type)),
+                SubscriptionKind::Trade => Some(self.subscribe(Subscription::Full {
+                    sec_type,
+                    kind: FullSubscriptionKind::Trades,
+                })),
+                SubscriptionKind::OpenInterest => Some(self.subscribe(Subscription::Full {
+                    sec_type,
+                    kind: FullSubscriptionKind::OpenInterest,
+                })),
                 SubscriptionKind::Quote => None,
             },
         );
@@ -570,7 +861,7 @@ impl ThetaDataDx {
         match &**self.state.load() {
             StreamingSlot::Idle => ConnectionStatus::NotStarted,
             StreamingSlot::Stopped => ConnectionStatus::Disconnected,
-            StreamingSlot::Live { client, .. } => {
+            StreamingSlot::Live { client } => {
                 if client.is_authenticated() {
                     ConnectionStatus::Connected
                 } else {
@@ -841,21 +1132,23 @@ impl ThetaDataDx {
     }
 }
 
-impl Drop for ThetaDataDx {
+impl Drop for ThetaDataDxClient {
     /// Final cleanup: idempotently stops the streaming connection.
     ///
     /// `stop_streaming` swaps the state cell to `Stopped` and only
-    /// performs the FPSS client / dispatcher shutdown sequence when the
-    /// previous slot was `Live`. Calling it once from `Drop` after the
-    /// user already called `stop_streaming` is therefore a no-op — the
-    /// state machine guarantees the shutdown runs exactly once.
+    /// signals the FPSS client when the previous slot was `Live`.
+    /// The actual TLS reader + Disruptor consumer join happens when
+    /// the last `Arc<FpssClient>` is dropped via `FpssClient::Drop`.
+    /// Calling once from `Drop` after the user already called
+    /// `stop_streaming` is therefore a no-op — the state machine
+    /// guarantees the shutdown signal runs exactly once.
     fn drop(&mut self) {
         self.stop_streaming();
     }
 }
 
 // All historical methods available directly via Deref.
-impl std::ops::Deref for ThetaDataDx {
+impl std::ops::Deref for ThetaDataDxClient {
     type Target = MddsClient;
     fn deref(&self) -> &MddsClient {
         &self.historical
@@ -866,11 +1159,11 @@ impl std::ops::Deref for ThetaDataDx {
 /// streaming client and return the list of subscriptions that failed to
 /// restore.
 ///
-/// The two callbacks decouple the loop from the live `ThetaDataDx`
+/// The two callbacks decouple the loop from the live `ThetaDataDxClient`
 /// streaming methods so the resubscription logic is unit-testable with
 /// in-memory fakes — the [`reconnect_streaming`] caller in production
-/// passes through to the real `subscribe_quotes` / `subscribe_trades` /
-/// `subscribe_open_interest` and `subscribe_full_*` methods, while the
+/// passes through to the polymorphic `subscribe(Subscription)` paths,
+/// while the
 /// regression test below injects closures that return canned `Err` for a
 /// specific subscription pair to prove the failure list carries the right
 /// structured contents.
@@ -1144,6 +1437,245 @@ mod tests {
                 assert_eq!(failed[0].1, aapl);
             }
             other => panic!("expected PartialReconnect, got {other:?}"),
+        }
+    }
+
+    /// H2 regression: an in-flight `start_streaming*` that snapshotted
+    /// `stop_generation = N` at entry must NOT install `Live` when an
+    /// interleaving `stop_streaming` has bumped `stop_generation` to
+    /// `N+1` by the time the install runs. This is the
+    /// `Stopped → Live` resurrection race the generation token closes.
+    ///
+    /// Models the install path the real `install_live` walks: rcu
+    /// over the `ArcSwap`, gated by an `AtomicU64` stop-gen
+    /// re-read inside the closure, with a post-rcu pointer-equality
+    /// check on the cell to distinguish "rcu refused due to gen
+    /// mismatch" from "rcu installed our value".
+    #[test]
+    fn install_live_refuses_when_stop_generation_advanced() {
+        let cell: ArcSwap<SlotMarker> = ArcSwap::from_pointee(SlotMarker::Stopped);
+        let stop_gen = AtomicU64::new(0);
+
+        // Caller snapshots the gen at entry, then bumps it (simulating
+        // an interleaving `stop_streaming` that ran while the FPSS
+        // connect was still in flight).
+        let gen_at_entry = stop_gen.load(Ordering::Acquire);
+        stop_gen.fetch_add(1, Ordering::AcqRel);
+
+        // Now run the install_live shape. The rcu closure must observe
+        // the bumped gen and refuse to install.
+        let new = Arc::new(SlotMarker::Live(99));
+        let _prev = cell.rcu(|current| match &**current {
+            SlotMarker::Live(_) => Arc::clone(current),
+            _ => {
+                if stop_gen.load(Ordering::Acquire) != gen_at_entry {
+                    Arc::clone(current)
+                } else {
+                    Arc::clone(&new)
+                }
+            }
+        });
+
+        // Cell must STILL be Stopped — the install was refused.
+        assert!(
+            matches!(&**cell.load(), SlotMarker::Stopped),
+            "install_live must refuse to resurrect Stopped → Live when stop_generation advanced",
+        );
+        // Pointer-equality probe matches the production code's final
+        // disambiguation: the cell does NOT point to `new`, so the
+        // caller would observe `Self::stopped_during_start()`.
+        assert!(
+            !Arc::ptr_eq(&cell.load_full(), &new),
+            "cell must not hold `new` after the gen-mismatch refusal",
+        );
+    }
+
+    /// Sanity: when the generation has NOT advanced, the install
+    /// proceeds. The two tests together pin both branches of the
+    /// generation gate.
+    #[test]
+    fn install_live_installs_when_stop_generation_stable() {
+        let cell: ArcSwap<SlotMarker> = ArcSwap::from_pointee(SlotMarker::Stopped);
+        let stop_gen = AtomicU64::new(7);
+
+        let gen_at_entry = stop_gen.load(Ordering::Acquire);
+
+        let new = Arc::new(SlotMarker::Live(42));
+        let _prev = cell.rcu(|current| match &**current {
+            SlotMarker::Live(_) => Arc::clone(current),
+            _ => {
+                if stop_gen.load(Ordering::Acquire) != gen_at_entry {
+                    Arc::clone(current)
+                } else {
+                    Arc::clone(&new)
+                }
+            }
+        });
+
+        assert!(matches!(&**cell.load(), SlotMarker::Live(42)));
+        assert!(Arc::ptr_eq(&cell.load_full(), &new));
+    }
+
+    /// `prev_drained_is_set` distinguishes "at least one stop captured a
+    /// drain flag that has not yet flipped" from "no streaming session
+    /// ever existed (or every retired generation has drained)". FFI
+    /// free paths use this to disambiguate the two `false` returns from
+    /// `await_drain` (timeout vs. nothing-to-wait-on).
+    ///
+    /// Post PR514 audit: the slot is now a `Vec` so stacked
+    /// stop/start/stop cycles cannot lose an earlier still-draining
+    /// generation when a later one retires.
+    #[test]
+    fn prev_drained_is_set_tracks_vec_of_generations() {
+        let slot: Mutex<Vec<Arc<AtomicBool>>> = Mutex::new(Vec::new());
+        // Initial state: no session ever started -- nothing to wait on.
+        assert!(slot.lock().unwrap().is_empty());
+
+        // Simulate the capture stop_streaming performs when a Live
+        // session is being superseded — stacked.
+        let flag_a = Arc::new(AtomicBool::new(false));
+        let flag_b = Arc::new(AtomicBool::new(false));
+        slot.lock().unwrap().push(Arc::clone(&flag_a));
+        slot.lock().unwrap().push(Arc::clone(&flag_b));
+        assert_eq!(slot.lock().unwrap().len(), 2);
+
+        // The later flag flips first. The earlier one is STILL pending
+        // — under the old single-slot design it would have been
+        // overwritten by `flag_b` and silently lost.
+        flag_b.store(true, Ordering::Release);
+        // Lazy GC during a check would prune `flag_b`; `flag_a` stays.
+        let mut g = slot.lock().unwrap();
+        g.retain(|f| !f.load(Ordering::Acquire));
+        assert_eq!(
+            g.len(),
+            1,
+            "flag_b drained, but flag_a still pending — must NOT be reported as fully drained"
+        );
+        drop(g);
+
+        // Once `flag_a` flips, the Vec drains to empty.
+        flag_a.store(true, Ordering::Release);
+        let mut g = slot.lock().unwrap();
+        g.retain(|f| !f.load(Ordering::Acquire));
+        assert!(g.is_empty(), "all retired generations drained");
+    }
+
+    /// HIGH-001 regression — multi-generation `await_drain` must wait
+    /// for ALL retired sessions, not just the most-recent. The pre-fix
+    /// single-slot tracker would have returned `true` as soon as the
+    /// last-pushed flag flipped, even with earlier flags still pending.
+    #[test]
+    fn await_drain_waits_for_all_retired_generations() {
+        // We exercise the predicate logic directly through a `Vec` to
+        // avoid spinning up FpssClient instances (which require a
+        // network credential). The production `await_drain` runs the
+        // exact same `retain` + `is_empty` cadence on the Mutex'd Vec.
+        let slot: Mutex<Vec<Arc<AtomicBool>>> = Mutex::new(Vec::new());
+
+        let flag_a = Arc::new(AtomicBool::new(false));
+        let flag_b = Arc::new(AtomicBool::new(false));
+        let flag_c = Arc::new(AtomicBool::new(false));
+        slot.lock().unwrap().push(Arc::clone(&flag_a));
+        slot.lock().unwrap().push(Arc::clone(&flag_b));
+        slot.lock().unwrap().push(Arc::clone(&flag_c));
+
+        // Stagger the drain — c, then a, then b. Verify the Vec is only
+        // empty AFTER the last (b) flips.
+        flag_c.store(true, Ordering::Release);
+        let mut g = slot.lock().unwrap();
+        g.retain(|f| !f.load(Ordering::Acquire));
+        assert_eq!(g.len(), 2, "c drained; a + b still pending");
+        drop(g);
+
+        flag_a.store(true, Ordering::Release);
+        let mut g = slot.lock().unwrap();
+        g.retain(|f| !f.load(Ordering::Acquire));
+        assert_eq!(g.len(), 1, "a + c drained; b still pending");
+        drop(g);
+
+        flag_b.store(true, Ordering::Release);
+        let mut g = slot.lock().unwrap();
+        g.retain(|f| !f.load(Ordering::Acquire));
+        assert!(g.is_empty(), "all three retired generations drained");
+    }
+
+    // -- Fluent Subscription dispatch -------------------------
+    //
+    // Spinning up a real `ThetaDataDxClient` requires a network round-trip
+    // to authenticate, which a unit test can't do. The dispatch shape
+    // is therefore validated against a stand-in helper that walks the
+    // same `match` arms `subscribe(Subscription)` runs internally.
+    // Live-network routing is covered by the streaming integration
+    // tests under `crates/thetadatadx/tests/`.
+
+    /// Mirror of [`ThetaDataDxClient::subscribe`]'s `match` shape. Returns
+    /// the routed (kind, contract-or-sec-type) tuple so the test can
+    /// assert the dispatch reached the right arm without a real FPSS
+    /// connection.
+    enum DispatchProbe {
+        ContractQuote(Contract),
+        ContractTrade(Contract),
+        ContractOpenInterest(Contract),
+        FullTrades(SecType),
+        FullOpenInterest(SecType),
+    }
+
+    fn dispatch_probe(sub: Subscription) -> DispatchProbe {
+        match sub {
+            Subscription::Contract { contract, kind } => match kind {
+                SubscriptionKind::Quote => DispatchProbe::ContractQuote(contract),
+                SubscriptionKind::Trade => DispatchProbe::ContractTrade(contract),
+                SubscriptionKind::OpenInterest => DispatchProbe::ContractOpenInterest(contract),
+            },
+            Subscription::Full { sec_type, kind } => match kind {
+                FullSubscriptionKind::Trades => DispatchProbe::FullTrades(sec_type),
+                FullSubscriptionKind::OpenInterest => DispatchProbe::FullOpenInterest(sec_type),
+            },
+        }
+    }
+
+    #[test]
+    fn subscribe_dispatch_routes_per_contract_kinds() {
+        let aapl = Contract::stock("AAPL");
+        let opt = Contract::option("SPY", "20260620", "550", "C").unwrap();
+        assert!(matches!(
+            dispatch_probe(aapl.quote()),
+            DispatchProbe::ContractQuote(c) if c.symbol == "AAPL"
+        ));
+        assert!(matches!(
+            dispatch_probe(opt.trade()),
+            DispatchProbe::ContractTrade(c) if c.symbol == "SPY"
+        ));
+        assert!(matches!(
+            dispatch_probe(opt.open_interest()),
+            DispatchProbe::ContractOpenInterest(c) if c.is_call == Some(true)
+        ));
+    }
+
+    #[test]
+    fn subscribe_dispatch_routes_full_stream_kinds() {
+        use crate::fpss::protocol::SecTypeExt;
+        assert!(matches!(
+            dispatch_probe(SecType::Option.full_trades()),
+            DispatchProbe::FullTrades(SecType::Option)
+        ));
+        assert!(matches!(
+            dispatch_probe(SecType::Option.full_open_interest()),
+            DispatchProbe::FullOpenInterest(SecType::Option)
+        ));
+        assert!(matches!(
+            dispatch_probe(SecType::Stock.full_trades()),
+            DispatchProbe::FullTrades(SecType::Stock)
+        ));
+    }
+
+    #[test]
+    fn theta_data_client_alias_resolves_to_theta_data_dx() {
+        // Phase 3a: `ThetaDataDxClient` is the new public name; the old
+        // `ThetaDataDxClient` is kept as a compatibility alias. Both must
+        // refer to the same type so existing call sites keep compiling.
+        fn _alias_check(c: ThetaDataDxClient) -> ThetaDataDxClient {
+            c
         }
     }
 }

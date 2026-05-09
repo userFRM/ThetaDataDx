@@ -1,8 +1,8 @@
-# tdx — ThetaDataDx CLI
+# tdx — ThetaDataDxClient CLI
 
 Command-line interface for querying ThetaData market data.
 
-> **FLATFILES coverage:** the CLI currently exposes the MDDS (historical request/response) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being wired into the CLI under issue [#433](https://github.com/userFRM/ThetaDataDx/issues/433). See [`ROADMAP.md`](../../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+> **FLATFILES coverage:** the `tdx flatfile` subcommand group exposes the FLATFILES whole-universe daily-blob surface alongside MDDS (historical request/response) and FPSS (streaming). See [`ROADMAP.md`](../../docs/ROADMAP.md#flatfiles--binding-coverage) for the per-binding status. Example: `tdx flatfile quotes 20260428 --format csv -o spy_quotes.csv`.
 
 ## Install
 
@@ -132,7 +132,7 @@ tdx stock history_eod AAPL 20240101 20240301 --format csv      # CSV
 
 ## Endpoint coverage
 
-The 61 ThetaDataDx endpoints are organized by category (Stock + Option + Index + Rate + Calendar = 14 + 34 + 9 + 1 + 3 = 61). Two additional offline commands (`greeks`, `iv`) are not ThetaData endpoints — they call the in-process Black-Scholes calculator:
+The 61 ThetaDataDxClient endpoints are organized by category (Stock + Option + Index + Rate + Calendar = 14 + 34 + 9 + 1 + 3 = 61). Two additional offline commands (`greeks`, `iv`) are not ThetaData endpoints — they call the in-process Black-Scholes calculator:
 
 | Category | Count | Subcommands |
 |----------|-------|-------------|

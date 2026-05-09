@@ -2,23 +2,23 @@
 
 Core Rust crate — direct wire-protocol access to all three of ThetaData's public surfaces: MDDS (request/response history over gRPC), FPSS (real-time streaming over TCP), and FLATFILES (whole-universe daily blobs over the legacy MDDS port).
 
-This is the engine that powers all ThetaDataDx SDKs (Python, TypeScript/Node.js, Go, C++, CLI, MCP, REST server).
+This is the engine that powers all ThetaDataDxClient SDKs (Python, TypeScript / Node.js, C++, CLI, MCP, REST server).
 
 ## Entry Point
 
 ```rust
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 use thetadatadx::fpss::protocol::Contract;
 
 let creds = Credentials::from_file("creds.txt")?;
-let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
 // Historical - typed endpoints available immediately
 let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 
 // Streaming - connects lazily on first call
 tdx.start_streaming(|event| { /* ... */ })?;
-tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
+tdx.subscribe(Contract::stock("AAPL").quote())?;
 
 // When done
 tdx.stop_streaming();
@@ -35,14 +35,14 @@ let rows = tdx
     .await?;
 ```
 
-`ThetaDataDx::connect()` authenticates once. Historical data (MDDS gRPC) is available immediately via `Deref` to the internal `MddsClient`. Streaming (FPSS TCP) connects lazily when you call `start_streaming()`. Flat-file requests (FLATFILES) open a per-call TLS connection to the legacy MDDS port and are independent of the MDDS gRPC and FPSS sessions — see [vendor docs](https://http-docs.thetadata.us/operations/get-v2-flat-file-getting-started.html) for the full flat-file matrix.
+`ThetaDataDxClient::connect()` authenticates once. Historical data (MDDS gRPC) is available immediately via `Deref` to the internal `MddsClient`. Streaming (FPSS TCP) connects lazily when you call `start_streaming()`. Flat-file requests (FLATFILES) open a per-call TLS connection to the legacy MDDS port and are independent of the MDDS gRPC and FPSS sessions — see [vendor docs](https://http-docs.thetadata.us/operations/get-v2-flat-file-getting-started.html) for the full flat-file matrix.
 
 ## Crate Layout
 
 ```
 src/
-  lib.rs           - public re-exports (ThetaDataDx, Credentials, DirectConfig, Error)
-  unified.rs       - ThetaDataDx: single entry point, lazy streaming
+  lib.rs           - public re-exports (ThetaDataDxClient, Credentials, DirectConfig, Error)
+  unified.rs       - ThetaDataDxClient: single entry point, lazy streaming
   mdds/            - MddsClient module (client, stream, validate, normalize, endpoints)
   auth/            - Nexus API authentication, credential parsing
   fpss/            - FPSS streaming client (sync, LMAX Disruptor ring buffer)
@@ -63,9 +63,9 @@ build_support/
   mod.rs               - orchestration entry for build-time code generation
   upstream_openapi.rs  - pinned upstream OpenAPI snapshot loader
   endpoints/           - endpoint surface parser + render passes for registry, MDDS runtime, REST surface
-  ticks/               - tick-schema parser + Rust / Python / TypeScript / Go render passes
-  fpss_events/         - FPSS event-schema parser + Rust / Python / TypeScript / Go / C render passes
-  sdk_surface/         - SDK surface parser + CLI / MCP / Python / TypeScript / Go / C++ render passes
+  ticks/               - tick-schema parser + Rust / Python / TypeScript render passes
+  fpss_events/         - FPSS event-schema parser + Rust / Python / TypeScript / C render passes
+  sdk_surface/         - SDK surface parser + CLI / MCP / Python / TypeScript / C++ render passes
 ```
 
 ## TOML Codegen

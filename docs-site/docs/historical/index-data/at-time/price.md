@@ -29,12 +29,6 @@ for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} price=${t.price}`);
 }
 ```
-```go [Go]
-data, _ := client.IndexAtTimePrice("SPX", "20260101", "20260301", "09:30:00.000")
-for _, t := range data {
-    fmt.Printf("date=%d ms_of_day=%d price=%.2f\n", t.Date, t.MsOfDay, t.Price)
-}
-```
 ```cpp [C++]
 auto data = client.index_at_time_price("SPX", "20260101", "20260301", "09:30:00.000");
 for (const auto& t : data) {

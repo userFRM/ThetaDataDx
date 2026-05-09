@@ -29,9 +29,8 @@ fn sample_contract() -> Arc<Contract> {
     Arc::clone(&SAMPLE_CONTRACT)
 }
 
-fn sample_quote(contract_id: i32) -> FpssEvent {
+fn sample_quote() -> FpssEvent {
     FpssEvent::Data(FpssData::Quote {
-        contract_id,
         contract: sample_contract(),
         ms_of_day: 34_200_000,
         bid_size: 100,
@@ -47,9 +46,8 @@ fn sample_quote(contract_id: i32) -> FpssEvent {
     })
 }
 
-fn sample_trade(contract_id: i32) -> FpssEvent {
+fn sample_trade() -> FpssEvent {
     FpssEvent::Data(FpssData::Trade {
-        contract_id,
         contract: sample_contract(),
         ms_of_day: 34_200_001,
         sequence: 42,
@@ -70,9 +68,8 @@ fn sample_trade(contract_id: i32) -> FpssEvent {
     })
 }
 
-fn sample_ohlcvc(contract_id: i32) -> FpssEvent {
+fn sample_ohlcvc() -> FpssEvent {
     FpssEvent::Data(FpssData::Ohlcvc {
-        contract_id,
         contract: sample_contract(),
         ms_of_day: 34_200_000,
         open: 449.5,
@@ -93,9 +90,9 @@ fn sample_ohlcvc(contract_id: i32) -> FpssEvent {
 fn bench_event_clone(c: &mut Criterion) {
     let mut group = c.benchmark_group("FpssEvent::clone");
     for (label, ev) in [
-        ("Quote", sample_quote(42)),
-        ("Trade", sample_trade(42)),
-        ("Ohlcvc", sample_ohlcvc(42)),
+        ("Quote", sample_quote()),
+        ("Trade", sample_trade()),
+        ("Ohlcvc", sample_ohlcvc()),
     ] {
         group.bench_with_input(BenchmarkId::from_parameter(label), &ev, |b, ev| {
             b.iter(|| black_box(black_box(ev).clone()))
@@ -110,27 +107,18 @@ fn bench_event_clone(c: &mut Criterion) {
 fn bench_event_match(c: &mut Criterion) {
     let mut group = c.benchmark_group("FpssEvent::match");
     for (label, ev) in [
-        ("Quote", sample_quote(42)),
-        ("Trade", sample_trade(42)),
-        ("Ohlcvc", sample_ohlcvc(42)),
+        ("Quote", sample_quote()),
+        ("Trade", sample_trade()),
+        ("Ohlcvc", sample_ohlcvc()),
     ] {
         group.bench_with_input(BenchmarkId::from_parameter(label), &ev, |b, ev| {
             b.iter(|| {
                 let score: i64 = match black_box(ev) {
                     FpssEvent::Data(FpssData::Quote {
-                        contract_id,
-                        bid_size,
-                        ask_size,
-                        ..
-                    }) => i64::from(*contract_id) + i64::from(*bid_size) + i64::from(*ask_size),
-                    FpssEvent::Data(FpssData::Trade {
-                        contract_id, size, ..
-                    }) => i64::from(*contract_id) + i64::from(*size),
-                    FpssEvent::Data(FpssData::Ohlcvc {
-                        contract_id,
-                        volume,
-                        ..
-                    }) => i64::from(*contract_id) + *volume,
+                        bid_size, ask_size, ..
+                    }) => i64::from(*bid_size) + i64::from(*ask_size),
+                    FpssEvent::Data(FpssData::Trade { size, .. }) => i64::from(*size),
+                    FpssEvent::Data(FpssData::Ohlcvc { volume, .. }) => *volume,
                     _ => 0,
                 };
                 black_box(score)

@@ -153,17 +153,19 @@ pub(crate) async fn sleep_for_retry(
 
 /// Classify an [`Error`] for retry / refresh routing.
 ///
-/// `From<tonic::Status>` folds the tonic enum into `Error::Grpc { status, .. }`
-/// where `status` is the `Debug` rendering of `tonic::Code` (e.g.
-/// `"Unavailable"`, `"Unauthenticated"`). We re-derive the class from
-/// that string so the macro-emitted call path stays unchanged. The
-/// other `Error` variants are terminal — a `Decode` or `Decompress`
-/// failure won't fix itself on retry.
+/// `From<tonic::Status>` folds the tonic enum into
+/// `Error::Grpc { kind: GrpcStatusKind::*, .. }`. We dispatch on the
+/// typed `kind` so the retry classifier no longer parses status
+/// strings. Other `Error` variants are terminal — a `Decode` or
+/// `Decompress` failure won't fix itself on retry.
 fn classify_error(err: &crate::error::Error) -> StatusClass {
+    use crate::error::GrpcStatusKind;
     match err {
-        crate::error::Error::Grpc { status, .. } => match status.as_str() {
-            "Unavailable" | "DeadlineExceeded" | "ResourceExhausted" => StatusClass::Transient,
-            "Unauthenticated" => StatusClass::NeedsRefresh,
+        crate::error::Error::Grpc { kind, .. } => match kind {
+            GrpcStatusKind::Unavailable
+            | GrpcStatusKind::DeadlineExceeded
+            | GrpcStatusKind::ResourceExhausted => StatusClass::Transient,
+            GrpcStatusKind::Unauthenticated => StatusClass::NeedsRefresh,
             _ => StatusClass::Terminal,
         },
         _ => StatusClass::Terminal,
@@ -196,7 +198,7 @@ macro_rules! list_endpoint {
                 metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
                 let _metrics_start = std::time::Instant::now();
                 let _permit = self.request_semaphore.acquire().await
-                    .map_err(|_| Error::Config("request semaphore closed".into()))?;
+                    .map_err(|_| Error::config_internal("request semaphore closed"))?;
                 let policy = self.config().retry;
                 let budget = policy.max_attempts.max(1);
                 let mut refreshed_already = false;
@@ -233,7 +235,7 @@ macro_rules! list_endpoint {
                             }
                         }
                     }
-                    return Err(last_err.unwrap_or_else(|| Error::Config("retry loop exited without result".into())));
+                    return Err(last_err.unwrap_or_else(|| Error::config_internal("retry loop exited without result")));
                 };
                 metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
                     .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
@@ -333,7 +335,7 @@ macro_rules! parsed_endpoint {
                         metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
                         let _metrics_start = std::time::Instant::now();
                         let _permit = client.request_semaphore.acquire().await
-                            .map_err(|_| Error::Config("request semaphore closed".into()))?;
+                            .map_err(|_| Error::config_internal("request semaphore closed"))?;
                         let policy = client.config().retry;
                         let budget = policy.max_attempts.max(1);
                         let mut refreshed_already = false;
@@ -370,7 +372,7 @@ macro_rules! parsed_endpoint {
                                     }
                                 }
                             }
-                            return Err(last_err.unwrap_or_else(|| Error::Config("retry loop exited without result".into())));
+                            return Err(last_err.unwrap_or_else(|| Error::config_internal("retry loop exited without result")));
                         };
                         metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
                             .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
@@ -477,24 +479,27 @@ macro_rules! opt_setter {
 #[cfg(test)]
 mod classify_error_tests {
     use super::{classify_error, StatusClass};
-    use crate::error::Error;
+    use crate::error::{Error, GrpcStatusKind};
 
-    fn grpc(status: &str) -> Error {
+    fn grpc(kind: GrpcStatusKind) -> Error {
         Error::Grpc {
-            status: status.to_string(),
+            kind,
             message: String::new(),
         }
     }
 
     #[test]
-    fn transient_status_strings_map_to_transient() {
-        assert_eq!(classify_error(&grpc("Unavailable")), StatusClass::Transient);
+    fn transient_status_kinds_map_to_transient() {
         assert_eq!(
-            classify_error(&grpc("DeadlineExceeded")),
+            classify_error(&grpc(GrpcStatusKind::Unavailable)),
             StatusClass::Transient
         );
         assert_eq!(
-            classify_error(&grpc("ResourceExhausted")),
+            classify_error(&grpc(GrpcStatusKind::DeadlineExceeded)),
+            StatusClass::Transient
+        );
+        assert_eq!(
+            classify_error(&grpc(GrpcStatusKind::ResourceExhausted)),
             StatusClass::Transient
         );
     }
@@ -502,7 +507,7 @@ mod classify_error_tests {
     #[test]
     fn unauthenticated_maps_to_needs_refresh() {
         assert_eq!(
-            classify_error(&grpc("Unauthenticated")),
+            classify_error(&grpc(GrpcStatusKind::Unauthenticated)),
             StatusClass::NeedsRefresh
         );
     }
@@ -510,12 +515,15 @@ mod classify_error_tests {
     #[test]
     fn unknown_status_maps_to_terminal() {
         assert_eq!(
-            classify_error(&grpc("PermissionDenied")),
+            classify_error(&grpc(GrpcStatusKind::PermissionDenied)),
             StatusClass::Terminal
         );
-        assert_eq!(classify_error(&grpc("NotFound")), StatusClass::Terminal);
         assert_eq!(
-            classify_error(&grpc("InvalidArgument")),
+            classify_error(&grpc(GrpcStatusKind::NotFound)),
+            StatusClass::Terminal
+        );
+        assert_eq!(
+            classify_error(&grpc(GrpcStatusKind::InvalidArgument)),
             StatusClass::Terminal
         );
     }
@@ -523,11 +531,11 @@ mod classify_error_tests {
     #[test]
     fn non_grpc_errors_are_terminal() {
         assert_eq!(
-            classify_error(&Error::Config("bad config".into())),
+            classify_error(&Error::config_other("bad config")),
             StatusClass::Terminal
         );
         assert_eq!(
-            classify_error(&Error::Decode("parse fail".into())),
+            classify_error(&Error::decode_codec("parse fail")),
             StatusClass::Terminal
         );
     }

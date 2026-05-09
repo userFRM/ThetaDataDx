@@ -9,11 +9,11 @@ description: Process data and control events from the FPSS streaming connection 
 
 ::: code-group
 ```rust [Rust]
-tdx.start_streaming(|event: &FpssEvent| {
+client.start_streaming(|event: &FpssEvent| {
     match event {
         // --- Data events ---
         // Each data variant carries an `Arc<Contract>`, so `contract.symbol`
-        // (plus `.expiration` / `.strike` / `.is_call` on options) is readable
+        // (plus `.expiration` / `.strike` / `.right()` on options) is readable
         // inline — no contract-ID map lookup required.
         FpssEvent::Data(FpssData::Quote {
             contract, ms_of_day, bid, ask, bid_size, ask_size,
@@ -65,9 +65,9 @@ tdx.start_streaming(|event: &FpssEvent| {
             eprintln!("Error: {message}");
         }
 
-        // --- Raw undecoded fallback ---
-        FpssEvent::RawData { code, payload } => {
-            eprintln!("Raw frame: code={code} len={}", payload.len());
+        // --- Unrecognised wire-frame fallback ---
+        FpssEvent::Control(FpssControl::UnknownFrame { code, payload }) => {
+            eprintln!("UnknownFrame: code={code} len={}", payload.len());
         }
         _ => {}
     }
@@ -77,105 +77,60 @@ tdx.start_streaming(|event: &FpssEvent| {
 std::thread::park();
 ```
 ```python [Python]
-# Track contract_id -> symbol mapping
-contracts = {}
+# Pull-iter mode: context-managed typed iterator over the SPSC
+# queue. Every data event carries a typed `event.contract` so user
+# code reads `event.contract.symbol` directly — no contract_id side
+# table required. The iterator raises StopIteration once
+# `stop_streaming()` fires AND the queue is fully drained; the `with`
+# block pairs `stop_streaming()` + `await_drain()` automatically on
+# exit.
+#
+# Each event is a typed pyclass (Quote / Trade / Ohlcvc /
+# OpenInterest / LoginSuccess / Disconnected / Reconnecting / ...);
+# `event.kind` is a snake_case discriminator string per pyclass.
+with client.streaming_iter() as it:
+    for event in it:
+        if event.kind == "login_success":
+            print(f"Logged in: permissions={event.permissions}")
+            continue
 
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue  # timeout, no event
+        # Data events -- all carry received_at_ns and a typed `contract`.
+        if event.kind == "quote":
+            print(f"Quote: {event.contract.symbol} bid={event.bid} ask={event.ask} "
+                  f"rx={event.received_at_ns}ns")
 
-    # Control / diagnostic events flatten into a single `Simple` pyclass
-    # with `kind == "simple"` and an `event_type` discriminator. The
-    # contract payload is serialized into `detail` (formatted string like
-    # "AAPL 20260417 550 C"); `id` carries the contract_id / req_id /
-    # reconnect attempt number where applicable.
-    if event.kind == "simple" and event.event_type == "contract_assigned":
-        contracts[event.id] = event.detail
-        print(f"Contract {event.id} = {event.detail}")
-        continue
+        elif event.kind == "trade":
+            print(f"Trade: {event.contract.symbol} price={event.price} size={event.size} "
+                  f"seq={event.sequence} rx={event.received_at_ns}ns")
 
-    if event.kind == "simple" and event.event_type == "login_success":
-        print(f"Logged in: {event.detail}")
-        continue
+        elif event.kind == "open_interest":
+            print(f"OI: {event.contract.symbol} oi={event.open_interest}")
 
-    # Data events -- all carry received_at_ns
-    if event.kind == "quote":
-        contract_id = event.contract_id
-        symbol = contracts.get(contract_id, f"id={contract_id}")
-        print(f"Quote: {symbol} bid={event.bid} ask={event.ask} "
-              f"rx={event.received_at_ns}ns")
+        elif event.kind == "ohlcvc":
+            print(f"OHLCVC: {event.contract.symbol} "
+                  f"O={event.open} H={event.high} L={event.low} C={event.close} "
+                  f"vol={event.volume} n={event.count}")
 
-    elif event.kind == "trade":
-        contract_id = event.contract_id
-        symbol = contracts.get(contract_id, f"id={contract_id}")
-        print(f"Trade: {symbol} price={event.price} size={event.size} "
-              f"seq={event.sequence} rx={event.received_at_ns}ns")
-
-    elif event.kind == "open_interest":
-        print(f"OI: contract={event.contract_id} oi={event.open_interest}")
-
-    elif event.kind == "ohlcvc":
-        print(f"OHLCVC: contract={event.contract_id} "
-              f"O={event.open} H={event.high} L={event.low} C={event.close} "
-              f"vol={event.volume} n={event.count}")
-
-    elif event.kind == "simple" and event.event_type == "disconnected":
-        print(f"Disconnected: {event.detail}")
-        break
-```
-```go [Go]
-for {
-    event, err := fpss.NextEvent(5000) // 5s timeout
-    if err != nil {
-        log.Println("Error:", err)
-        break
-    }
-    if event == nil {
-        continue // timeout
-    }
-
-    switch event.Kind {
-    case thetadatadx.FpssQuoteEvent:
-        q := event.Quote
-        // Bid and Ask are pre-decoded to float64
-        fmt.Printf("Quote: contract=%d bid=%.4f ask=%.4f rx=%dns\n",
-            q.ContractID, q.Bid, q.Ask, q.ReceivedAtNs)
-
-    case thetadatadx.FpssTradeEvent:
-        t := event.Trade
-        // Price is pre-decoded to float64
-        fmt.Printf("Trade: contract=%d price=%.4f size=%d seq=%d\n",
-            t.ContractID, t.Price, t.Size, t.Sequence)
-
-    case thetadatadx.FpssOpenInterestEvent:
-        oi := event.OpenInterest
-        fmt.Printf("OI: contract=%d oi=%d\n", oi.ContractID, oi.OpenInterest)
-
-    case thetadatadx.FpssOhlcvcEvent:
-        o := event.Ohlcvc
-        // OHLC prices are pre-decoded to float64
-        fmt.Printf("OHLCVC: contract=%d O=%.4f H=%.4f L=%.4f C=%.4f vol=%d count=%d\n",
-            o.ContractID, o.Open, o.High, o.Low, o.Close, o.Volume, o.Count)
-
-    case thetadatadx.FpssControlEvent:
-        ctrl := event.Control
-        fmt.Printf("Control: kind=%d detail=%s\n", ctrl.Kind, ctrl.Detail)
-    }
-}
+        elif event.kind == "disconnected":
+            # `reason` is the RemoveReason discriminant cast to i32.
+            print(f"Disconnected: reason={event.reason}")
+            break
 ```
 ```cpp [C++]
-while (true) {
-    tdx::FpssEventPtr event = fpss.next_event(5000); // 5s timeout
+auto iter = client.start_streaming_iter();
+while (!iter.ended()) {
+    auto event = iter.next(std::chrono::milliseconds(5000));
     if (!event) {
-        continue; // timeout
+        continue; // empty-but-live (rc 1) — re-poll
     }
 
     switch (event->kind) {
     case TDX_FPSS_QUOTE: {
         auto& q = event->quote;
-        // All price fields are f64 (double) -- direct access, no decoding needed
-        std::cout << "Quote: contract=" << q.contract_id
+        // All price fields are f64 (double) -- direct access, no decoding
+        // needed. `q.contract.symbol` carries the resolved symbol; pre-9.x
+        // callers had to look this up via the contract_id side-table.
+        std::cout << "Quote: " << q.contract.symbol
                   << " bid=" << q.bid
                   << " ask=" << q.ask
                   << " rx=" << q.received_at_ns << "ns" << std::endl;
@@ -183,7 +138,7 @@ while (true) {
     }
     case TDX_FPSS_TRADE: {
         auto& t = event->trade;
-        std::cout << "Trade: contract=" << t.contract_id
+        std::cout << "Trade: " << t.contract.symbol
                   << " price=" << t.price
                   << " size=" << t.size
                   << " seq=" << t.sequence << std::endl;
@@ -191,13 +146,13 @@ while (true) {
     }
     case TDX_FPSS_OPEN_INTEREST: {
         auto& oi = event->open_interest;
-        std::cout << "OI: contract=" << oi.contract_id
+        std::cout << "OI: " << oi.contract.symbol
                   << " oi=" << oi.open_interest << std::endl;
         break;
     }
     case TDX_FPSS_OHLCVC: {
         auto& o = event->ohlcvc;
-        std::cout << "OHLCVC: contract=" << o.contract_id
+        std::cout << "OHLCVC: " << o.contract.symbol
                   << " O=" << o.open
                   << " H=" << o.high
                   << " L=" << o.low
@@ -205,13 +160,52 @@ while (true) {
                   << " vol=" << o.volume << " count=" << o.count << std::endl;
         break;
     }
-    case TDX_FPSS_CONTROL: {
-        auto& c = event->control;
-        std::cout << "Control: kind=" << c.kind;
-        if (c.detail) std::cout << " detail=" << c.detail;
+    case TDX_FPSS_LOGIN_SUCCESS: {
+        // Typed control variants — one C struct per FpssControl::*
+        // Rust variant. Dispatch on event->kind, read the matching
+        // event-><variant> payload.
+        if (event->login_success.permissions) {
+            std::cout << "LoginSuccess: " << event->login_success.permissions << std::endl;
+        }
+        break;
+    }
+    case TDX_FPSS_CONTRACT_ASSIGNED: {
+        auto& ca = event->contract_assigned;
+        std::cout << "ContractAssigned: id=" << ca.id;
+        if (ca.contract.symbol) std::cout << " symbol=" << ca.contract.symbol;
         std::cout << std::endl;
         break;
     }
+    case TDX_FPSS_DISCONNECTED:
+        std::cout << "Disconnected: reason=" << event->disconnected.reason << std::endl;
+        break;
+    case TDX_FPSS_RECONNECTING: {
+        auto& r = event->reconnecting;
+        std::cout << "Reconnecting: reason=" << r.reason
+                  << " attempt=" << r.attempt
+                  << " delay_ms=" << r.delay_ms << std::endl;
+        break;
+    }
+    case TDX_FPSS_SERVER_ERROR:
+        if (event->server_error.message) {
+            std::cout << "ServerError: " << event->server_error.message << std::endl;
+        }
+        break;
+    case TDX_FPSS_ERROR:
+        if (event->error.message) {
+            std::cout << "Error: " << event->error.message << std::endl;
+        }
+        break;
+    case TDX_FPSS_MARKET_OPEN:
+        std::cout << "MarketOpen" << std::endl;
+        break;
+    case TDX_FPSS_MARKET_CLOSE:
+        std::cout << "MarketClose" << std::endl;
+        break;
+    // Other typed control variants (Connected / Reconnected /
+    // ReconnectedServer / Restart / Ping / UnknownFrame /
+    // UnknownControl / ReqResponse) follow the same pattern —
+    // dispatch on event->kind, read event-><variant>.
     case TDX_FPSS_RAW_DATA: {
         auto& r = event->raw_data;
         std::cout << "Raw: code=" << (int)r.code
@@ -231,7 +225,7 @@ Every data event carries `received_at_ns` (wall-clock nanoseconds since UNIX epo
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `contract_id` | `i32` | Server-assigned contract identifier |
+| `contract` | `Arc<Contract>` | Resolved typed contract. Fields: `symbol`, `sec_type: SecType`, `expiration: Option<i32>` (YYYYMMDD), `strike: Option<i32>` (wire integer, thousandths of a dollar), `is_call: Option<bool>` (low-level wire flag). Accessors: `right() -> Option<Right>` (`Right::Call` / `Right::Put`), `strike_dollars() -> Option<f64>` (strike in dollars). |
 | `ms_of_day` | `i32` | Milliseconds since midnight ET (exchange timestamp) |
 | `bid_size` | `i32` | Bid size in lots |
 | `bid_exchange` | `i32` | Bid exchange code |
@@ -248,7 +242,7 @@ Every data event carries `received_at_ns` (wall-clock nanoseconds since UNIX epo
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `contract_id` | `i32` | Server-assigned contract identifier |
+| `contract` | `Arc<Contract>` | Resolved typed contract. Fields: `symbol`, `sec_type: SecType`, `expiration: Option<i32>` (YYYYMMDD), `strike: Option<i32>` (wire integer, thousandths of a dollar), `is_call: Option<bool>` (low-level wire flag). Accessors: `right() -> Option<Right>` (`Right::Call` / `Right::Put`), `strike_dollars() -> Option<f64>` (strike in dollars). |
 | `ms_of_day` | `i32` | Milliseconds since midnight ET (exchange timestamp) |
 | `sequence` | `i32` | Trade sequence number |
 | `ext_condition1` | `i32` | Extended condition code 1 |
@@ -274,7 +268,7 @@ The dev server (port 20200) sends a simplified 8-field trade format: `ms_of_day`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `contract_id` | `i32` | Server-assigned contract identifier |
+| `contract` | `Arc<Contract>` | Resolved typed contract. Fields: `symbol`, `sec_type: SecType`, `expiration: Option<i32>` (YYYYMMDD), `strike: Option<i32>` (wire integer, thousandths of a dollar), `is_call: Option<bool>` (low-level wire flag). Accessors: `right() -> Option<Right>` (`Right::Call` / `Right::Put`), `strike_dollars() -> Option<f64>` (strike in dollars). |
 | `ms_of_day` | `i32` | Milliseconds since midnight ET |
 | `open_interest` | `i32` | Current open interest |
 | `date` | `i32` | Date as YYYYMMDD integer |
@@ -284,7 +278,7 @@ The dev server (port 20200) sends a simplified 8-field trade format: `ms_of_day`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `contract_id` | `i32` | Server-assigned contract identifier |
+| `contract` | `Arc<Contract>` | Resolved typed contract. Fields: `symbol`, `sec_type: SecType`, `expiration: Option<i32>` (YYYYMMDD), `strike: Option<i32>` (wire integer, thousandths of a dollar), `is_call: Option<bool>` (low-level wire flag). Accessors: `right() -> Option<Right>` (`Right::Call` / `Right::Put`), `strike_dollars() -> Option<f64>` (strike in dollars). |
 | `ms_of_day` | `i32` | Milliseconds since midnight ET |
 | `open` | `f64` | Open price |
 | `high` | `f64` | High price |
@@ -314,197 +308,128 @@ Control events are lifecycle and protocol messages. They do not carry `received_
 | `Disconnected` | `reason: RemoveReason` | Connection was terminated by server. Check reason to decide whether to reconnect. |
 | `Error` | `message: String` | Protocol-level parse error (corrupt frame, unexpected format). |
 
-### Control Event Kind Codes (Go/C++ FFI)
+### Control Event Dispatch (C++ FFI)
 
-In the Go and C++ SDKs, control events carry an integer `kind` field:
+Each `FpssControl::*` Rust variant is exposed as one typed C struct.
+Consumers dispatch on `event.kind` (a `TdxFpssEventKind` enum value)
+and read the matching `event.<variant>` payload:
 
-| Kind | Event |
-|------|-------|
-| 0 | `LoginSuccess` |
-| 1 | `ContractAssigned` |
-| 2 | `ReqResponse` |
-| 3 | `MarketOpen` |
-| 4 | `MarketClose` |
-| 5 | `ServerError` |
-| 6 | `Disconnected` |
-| 7 | `Error` |
+| `event.kind` | Typed payload field | Payload fields |
+|---|---|---|
+| `TDX_FPSS_LOGIN_SUCCESS` | `event.login_success` | `permissions` |
+| `TDX_FPSS_CONTRACT_ASSIGNED` | `event.contract_assigned` | `id`, `contract` |
+| `TDX_FPSS_REQ_RESPONSE` | `event.req_response` | `req_id`, `result` |
+| `TDX_FPSS_MARKET_OPEN` | `event.market_open` | (none) |
+| `TDX_FPSS_MARKET_CLOSE` | `event.market_close` | (none) |
+| `TDX_FPSS_SERVER_ERROR` | `event.server_error` | `message` |
+| `TDX_FPSS_DISCONNECTED` | `event.disconnected` | `reason` (i32 RemoveReason) |
+| `TDX_FPSS_RECONNECTING` | `event.reconnecting` | `reason`, `attempt`, `delay_ms` |
+| `TDX_FPSS_RECONNECTED` | `event.reconnected` | (none) |
+| `TDX_FPSS_ERROR` | `event.error` | `message` |
+| `TDX_FPSS_UNKNOWN_FRAME` | `event.unknown_frame` | `code`, `payload`, `payload_len` |
+| `TDX_FPSS_CONNECTED` | `event.connected` | (none) |
+| `TDX_FPSS_PING` | `event.ping` | `payload`, `payload_len` |
+| `TDX_FPSS_RECONNECTED_SERVER` | `event.reconnected_server` | (none) |
+| `TDX_FPSS_RESTART` | `event.restart` | (none) |
+| `TDX_FPSS_UNKNOWN_CONTROL` | `event.unknown_control` | (none) |
 
-## RawData (undecoded fallback)
+Numeric values of `TdxFpssEventKind` renumber alphabetically; reach
+for the symbolic names — they are stable across the rename. Borrowed
+pointers (`permissions`, `message`, `payload`, `Contract.symbol`) are
+valid only for the duration of the user callback.
 
-If a frame cannot be decoded (too short, corrupt, or unknown code), it is delivered as a `RawData` event:
+## UnknownFrame (unrecognised wire frame)
+
+A frame whose wire code is not yet recognised is delivered as the `FpssControl::UnknownFrame` typed control variant:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `code` | `u8` | The raw frame type code |
-| `payload` | `Vec<u8>` / `[]byte` / `uint8_t*` | The undecoded frame payload |
+| `payload` | `Vec<u8>` / `uint8_t*` | The undecoded frame payload |
 
-In Go, these are `event.RawData.Code` and `event.RawData.Payload` (non-nil when `Kind == FpssRawDataEvent`). In C++, `event->raw_data.code` and `event->raw_data.payload` with `event->raw_data.payload_len`.
+In C++, `event->unknown_frame.code` and `event->unknown_frame.payload` with `event->unknown_frame.payload_len`. In Python, `event.kind == "unknown_frame"` with `event.code` and `event.payload`.
 
 ## SDK-Specific Event Representations
 
-### FFI (Go / C++)
+### FFI (C++)
 
-Events are `#[repr(C)]` tagged structs, **not JSON**. The top-level `TdxFpssEvent` struct has a `kind` tag (`TdxFpssEventKind` enum) and union-style fields:
+Events are `#[repr(C)]` tagged structs, **not JSON**. The top-level
+`TdxFpssEvent` struct has a `kind` tag (`TdxFpssEventKind` enum) and
+one embedded `#[repr(C)]` payload per data variant + per typed
+control variant + the raw-bytes fallback. Check `kind` first, then
+access the corresponding field. Only the field matching `kind` is
+valid; sibling fields are zero-filled.
 
-```c
-typedef struct {
-    TdxFpssEventKind kind;   // 0=Quote, 1=Trade, 2=OI, 3=Ohlcvc, 4=Control, 5=RawData
-    TdxFpssQuote quote;
-    TdxFpssTrade trade;
-    TdxFpssOpenInterest open_interest;
-    TdxFpssOhlcvc ohlcvc;
-    TdxFpssControl control;
-    TdxFpssRawData raw_data;
-} TdxFpssEvent;
-```
-
-Check `kind` first, then access the corresponding field. Only the field matching `kind` is valid.
-
-### Go
-
-`NextEvent(timeoutMs)` returns `*FpssEvent` with typed Go struct fields:
-
-- `event.Kind` -- `FpssEventKind` (int constant)
-- `event.Quote` -- `*FpssQuote` (non-nil when Kind is `FpssQuoteEvent`)
-- `event.Trade` -- `*FpssTrade` (non-nil when Kind is `FpssTradeEvent`)
-- `event.OpenInterest` -- `*FpssOpenInterest` (non-nil when Kind is `FpssOpenInterestEvent`)
-- `event.Ohlcvc` -- `*FpssOhlcvc` (non-nil when Kind is `FpssOhlcvcEvent`)
-- `event.Control` -- `*FpssControl` (non-nil when Kind is `FpssControlEvent`)
-- `event.RawData` -- `*FpssRawData` (non-nil when Kind is `FpssRawDataEvent`)
-
-Price fields (`Bid`, `Ask`, `Price`, `Open`, `High`, `Low`, `Close`) are `float64`, decoded at parse time.
+The full enum + struct layout lives in
+`sdks/cpp/include/fpss_event_structs.h.inc` (generated from
+`fpss_event_schema.toml`); see also the migration table at the top
+of `CHANGELOG.md` for the v9.0.x → v9.1.0 old→new field mapping.
 
 ### C++
 
-`next_event(timeout_ms)` returns `FpssEventPtr` which is `std::unique_ptr<TdxFpssEvent, FpssEventDeleter>` (RAII, automatically freed on scope exit):
+The unified `tdx::UnifiedClient` exposes pull-iter directly: `auto iter = client.start_streaming_iter(); auto event = iter.next(timeout);` returns `std::optional<TdxFpssEvent>` (RAII manages the underlying iterator handle). For push-callback dispatch and handler-rebinding reconnects, use the dedicated `tdx::FpssClient` (`set_callback(fn)` + `reconnect()`). Whichever path you use, the typed event payload is the same:
 
 - `event->kind` -- `TdxFpssEventKind` enum
 - `event->quote` / `event->trade` / etc. -- direct struct member access
+- `event->quote.contract.symbol` (and `expiration`, `right`, `strike` on options, gated by `has_expiration` / `has_right` / `has_strike`; `right` is the ASCII byte `'C'` / `'P'`) — typed contract resolved before the SDK hands the event to user code
 - All price fields are `double` (f64) -- access them directly
 
 ### Python
 
-`next_event(timeout_ms)` returns a typed pyclass object (`Quote`, `Trade`, `Ohlcvc`, `OpenInterest`, `Simple`, or `RawData`) with attribute access:
+The unified `ThetaDataDxClient` exposes both delivery modes. Push-callback dispatch via `start_streaming(callback)` invokes the callable on the LMAX Disruptor consumer thread; pull-iter via `with client.streaming_iter() as it: for event in it:` (or the lower-level `client.start_streaming_iter()`) hands events to the caller as a typed iterator that raises `StopIteration` on terminal end-of-stream.
 
-- `event.kind` -- string discriminator for the TOP-LEVEL pyclass: `"quote"`, `"trade"`, `"open_interest"`, `"ohlcvc"`, `"simple"`, or `"raw_data"`.
-- Concrete control-event names (`"login_success"`, `"contract_assigned"`, `"req_response"`, `"market_open"`, `"market_close"`, `"server_error"`, `"disconnected"`, `"reconnecting"`, `"reconnected"`, `"error"`, `"unknown_frame"`, `"unknown_event"`) live on `Simple.event_type`. Branch with `event.kind == "simple" and event.event_type == "<name>"`.
-- `Simple.detail` (Optional[str]) — free-form diagnostic payload; holds the contract-string for `contract_assigned`.
-- `Simple.id` (Optional[int]) — contract_id / req_id / reconnect attempt number where applicable.
-- Price fields in quotes and trades are pre-decoded to `float` (bid, ask, price, open, high, low, close).
-- All data events include `received_at_ns` as an integer.
-- Variant-specific fields (e.g. `contract_id`, `bid`, `price`) exist only on data variants — use `getattr(event, "contract_id", None)` when walking mixed streams.
+Either way the surfaced event is a typed pyclass — one per `FpssData` variant and one per `FpssControl` variant. Branch on `event.kind` and read the variant's typed payload directly:
+
+- **Data variants** — `Quote`, `Trade`, `OpenInterest`, `Ohlcvc`. `event.kind` is `"quote"`, `"trade"`, `"open_interest"`, `"ohlcvc"`. Each carries a typed `event.contract` with `symbol: str`, `sec_type: str` (`"STOCK"` / `"OPTION"` / `"INDEX"` / `"RATE"`), `expiration: Optional[int]` (YYYYMMDD), `right: Optional[str]` (`"C"` / `"P"`, `None` for non-options), `strike_dollars: Optional[float]` (strike in dollars), and `strike: Optional[int]` (wire integer, thousandths of a dollar). Price fields (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are pre-decoded to `float`. All data variants include `received_at_ns: int`.
+- **Control variants** — `LoginSuccess`, `ContractAssigned`, `ReqResponse`, `MarketOpen`, `MarketClose`, `ServerError`, `Disconnected`, `Reconnecting`, `Reconnected`, `Error`, `UnknownFrame`, `UnknownControl`, `Connected`, `Ping`, `ReconnectedServer`, `Restart`. `event.kind` matches the snake_case form (`"login_success"`, `"contract_assigned"`, `"disconnected"`, etc.). Each variant exposes only the fields its Rust counterpart carries — e.g. `LoginSuccess.permissions: str`, `Disconnected.{reason: int, reason_name: str}` (`reason_name` is the `RemoveReason` enum name like `"TooManyRequests"`), `Reconnecting.{reason: int, reason_name: str, attempt: int, delay_ms: int}`, `ContractAssigned.{id: int, contract: Contract}`, `ServerError.message: str`, `UnknownFrame.{code: int, payload: bytes}`. Variants with no payload (`MarketOpen`, `MarketClose`, `Reconnected`, `Connected`, `Restart`, `ReconnectedServer`, `UnknownControl`) carry only `kind`.
 
 ## Streaming Methods Reference
 
-### Rust (`ThetaDataDx`)
+### Rust (`ThetaDataDxClient`)
 
 | Method | Description |
 |--------|-------------|
-| `start_streaming(callback)` | Begin streaming with an event callback (reads `derive_ohlcvc` from config) |
-| `subscribe_quotes(contract)` | Subscribe to quote data |
-| `subscribe_trades(contract)` | Subscribe to trade data |
-| `subscribe_open_interest(contract)` | Subscribe to open interest |
-| `subscribe_full_trades(sec_type)` | Subscribe to all trades for a security type (firehose) |
-| `subscribe_full_open_interest(sec_type)` | Subscribe to all OI for a security type (firehose) |
-| `unsubscribe_quotes(contract)` | Unsubscribe from quotes |
-| `unsubscribe_trades(contract)` | Unsubscribe from trades |
-| `unsubscribe_open_interest(contract)` | Unsubscribe from OI |
-| `unsubscribe_full_trades(sec_type)` | Unsubscribe from all trades for a security type |
-| `unsubscribe_full_open_interest(sec_type)` | Unsubscribe from all OI for a security type |
+| `start_streaming(callback)` | Begin streaming with an event callback (push mode; reads `derive_ohlcvc` from config) |
+| `start_streaming_iter()` | Pull-iter mode: returns an `EventIterator` (mutually exclusive with `start_streaming`) |
+| `subscribe(spec)` | Polymorphic subscribe — `spec` is `Contract::stock("AAPL").quote()`, `Contract::option(...)?.trade()`, `SecType::Stock.full_trades()`, etc. |
+| `subscribe_many(specs)` | Bulk subscribe over an iterable of specs. |
+| `unsubscribe(spec)` | Polymorphic unsubscribe — same spec shape as `subscribe`. |
+| `unsubscribe_many(specs)` | Bulk unsubscribe. |
 | `reconnect_streaming(handler)` | Reconnect with new handler, re-subscribe all previous subs |
 | `is_streaming()` | Check if FPSS is active |
-| `contract_lookup(id)` | Look up contract by server-assigned ID |
-| `contract_map()` | Get current contract ID mapping |
+| `await_drain(timeout)` | Block until the previous session's consumer thread has fully drained (returns `true` on quiescence, `false` on timeout) |
 | `active_subscriptions()` | Get active per-contract subscriptions |
-| `active_full_subscriptions()` | Get active firehose subscriptions |
 | `stop_streaming()` | Stop the streaming connection |
 
-### Python (`ThetaDataDx`)
+### Python (`ThetaDataDxClient`)
 
 | Method | Description |
 |--------|-------------|
-| `start_streaming()` | Connect to FPSS streaming servers (reads `derive_ohlcvc` from config) |
-| `subscribe_quotes(symbol)` | Subscribe to quote data |
-| `subscribe_trades(symbol)` | Subscribe to trade data |
-| `subscribe_open_interest(symbol)` | Subscribe to open interest |
-| `subscribe_option_quotes(symbol, expiration, strike, right)` | Subscribe to option quote data |
-| `subscribe_option_trades(symbol, expiration, strike, right)` | Subscribe to option trade data |
-| `subscribe_option_open_interest(symbol, expiration, strike, right)` | Subscribe to option OI data |
-| `subscribe_full_trades(sec_type)` | Subscribe to all trades for a security type |
-| `subscribe_full_open_interest(sec_type)` | Subscribe to all OI for a security type |
-| `unsubscribe_quotes(symbol)` | Unsubscribe from quotes |
-| `unsubscribe_trades(symbol)` | Unsubscribe from trades |
-| `unsubscribe_open_interest(symbol)` | Unsubscribe from OI |
-| `unsubscribe_option_quotes(symbol, expiration, strike, right)` | Unsubscribe from option quote data |
-| `unsubscribe_option_trades(symbol, expiration, strike, right)` | Unsubscribe from option trade data |
-| `unsubscribe_option_open_interest(symbol, expiration, strike, right)` | Unsubscribe from option OI data |
-| `unsubscribe_full_trades(sec_type)` | Unsubscribe from all trades |
-| `unsubscribe_full_open_interest(sec_type)` | Unsubscribe from all OI |
-| `is_authenticated()` | Check FPSS auth status |
-| `contract_lookup(id)` | Look up contract by server-assigned ID |
-| `contract_map()` | Get current contract ID mapping |
+| `start_streaming(callback)` | Push mode: begin streaming with a callback (reads `derive_ohlcvc` from config) |
+| `start_streaming_iter()` | Pull-iter mode: returns an `EventIterator` over typed events; raises `StopIteration` once `stop_streaming()` fires AND the queue is fully drained |
+| `streaming_iter()` | Context-manager wrapper — `with tdx.streaming_iter() as it:` yields the iterator and pairs `stop_streaming()` + `await_drain()` on exit |
+| `subscribe(spec)` | Polymorphic subscribe — `spec` is `Contract.stock("AAPL").quote()`, `Contract.option(...).trade()`, `SecType.Stock.full_trades()`, etc. |
+| `subscribe_many(specs)` | Bulk subscribe over an iterable of specs. |
+| `unsubscribe(spec)` | Polymorphic unsubscribe — same spec shape as `subscribe`. |
+| `unsubscribe_many(specs)` | Bulk unsubscribe. |
 | `active_subscriptions()` | Get active subscriptions |
-| `next_event(timeout_ms=5000)` | Poll next event (returns dict or `None`) |
-| `reconnect()` | Reconnect streaming and re-subscribe previous subscriptions |
+| `reconnect()` | Reconnect streaming and re-subscribe previous subscriptions (callback registered at `start_streaming` is reused) |
+| `await_drain(timeout_ms)` | Block until the previous session's consumer has drained |
 | `stop_streaming()` | Graceful shutdown of streaming |
 
-### Go (`FpssClient`)
+### C++ (`tdx::UnifiedClient`)
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `SubscribeQuotes` | `(symbol string) (int, error)` | Subscribe to quotes |
-| `SubscribeTrades` | `(symbol string) (int, error)` | Subscribe to trades |
-| `SubscribeOpenInterest` | `(symbol string) (int, error)` | Subscribe to OI |
-| `SubscribeOptionQuotes` | `(symbol, expiration, strike, right string) (int, error)` | Subscribe to option quotes |
-| `SubscribeOptionTrades` | `(symbol, expiration, strike, right string) (int, error)` | Subscribe to option trades |
-| `SubscribeOptionOpenInterest` | `(symbol, expiration, strike, right string) (int, error)` | Subscribe to option OI |
-| `SubscribeFullTrades` | `(secType string) (int, error)` | Subscribe to all trades for a security type |
-| `SubscribeFullOpenInterest` | `(secType string) (int, error)` | Subscribe to all OI for a security type |
-| `UnsubscribeQuotes` | `(symbol string) (int, error)` | Unsubscribe from quotes |
-| `UnsubscribeTrades` | `(symbol string) (int, error)` | Unsubscribe from trades |
-| `UnsubscribeOpenInterest` | `(symbol string) (int, error)` | Unsubscribe from OI |
-| `UnsubscribeOptionQuotes` | `(symbol, expiration, strike, right string) (int, error)` | Unsubscribe from option quotes |
-| `UnsubscribeOptionTrades` | `(symbol, expiration, strike, right string) (int, error)` | Unsubscribe from option trades |
-| `UnsubscribeOptionOpenInterest` | `(symbol, expiration, strike, right string) (int, error)` | Unsubscribe from option OI |
-| `UnsubscribeFullTrades` | `(secType string) (int, error)` | Unsubscribe from all trades |
-| `UnsubscribeFullOpenInterest` | `(secType string) (int, error)` | Unsubscribe from all OI |
-| `NextEvent` | `(timeoutMs uint64) (*FpssEvent, error)` | Poll next event as typed struct (nil on timeout) |
-| `IsAuthenticated` | `() bool` | Check FPSS auth status |
-| `ContractLookup` | `(id int) (string, error)` | Look up contract by server-assigned ID |
-| `ContractMap` | `() (map[int32]string, error)` | Get full contract ID mapping |
-| `ActiveSubscriptions` | `() ([]Subscription, error)` | Get active subscriptions as typed structs |
-| `Reconnect` | `() error` | Reconnect streaming and re-subscribe previous subscriptions |
-| `Shutdown` | `()` | Graceful shutdown |
-| `Close` | `()` | Free the FPSS handle (call after Shutdown) |
+| `connect` (static) | `(creds, config) -> UnifiedClient` | Construct the unified handle |
+| `start_streaming_iter` | `() -> EventIterator` | Pull-iter mode: returns an iterator handle; `next(timeout)` returns `std::optional<TdxFpssEvent>` and `ended()` flips on terminal end-of-stream |
+| `subscribe` | `(FluentSubscription) -> void` | Polymorphic subscribe — `tdx::Contract::stock("AAPL").quote()`, `tdx::Contract::option(...).trade()`, `tdx::SecType::Stock.full_trades()`, etc. |
+| `subscribe_many` | `(initializer_list<FluentSubscription>) -> void` | Bulk subscribe; throws on first error |
+| `unsubscribe` | `(FluentSubscription) -> void` | Polymorphic unsubscribe — same spec shape as `subscribe` |
+| `unsubscribe_many` | `(initializer_list<FluentSubscription>) -> void` | Bulk unsubscribe |
+| `flat_files` | `() -> FlatFiles` | Borrow the FLATFILES surface (lifetime bounded by `*this`) |
+| `get` | `() -> const TdxUnified*` | Raw handle for direct C-ABI calls (`tdx_unified_set_callback`, `tdx_fpss_await_drain`, `tdx_unified_shutdown`) |
 
-All price fields are `float64` -- access them directly.
+For push-callback dispatch and handler-rebinding reconnects, use the dedicated `tdx::FpssClient` (`set_callback`, `reconnect`, `shutdown`, `dropped_events`, `is_authenticated`, `active_subscriptions`). For `await_drain` and explicit shutdown on the unified handle, drive the C ABI through `client.get()`.
 
-### C++ (`tdx::FpssClient`)
-
-| Method | Signature | Description |
-|--------|-----------|-------------|
-| `subscribe_quotes` | `(symbol) -> int` | Subscribe to quotes |
-| `subscribe_trades` | `(symbol) -> int` | Subscribe to trades |
-| `subscribe_open_interest` | `(symbol) -> int` | Subscribe to OI |
-| `subscribe_option_quotes` | `(symbol, expiration, strike, right) -> int` | Subscribe to option quotes |
-| `subscribe_option_trades` | `(symbol, expiration, strike, right) -> int` | Subscribe to option trades |
-| `subscribe_option_open_interest` | `(symbol, expiration, strike, right) -> int` | Subscribe to option OI |
-| `subscribe_full_trades` | `(sec_type) -> int` | Subscribe to all trades for a security type |
-| `subscribe_full_open_interest` | `(sec_type) -> int` | Subscribe to all OI for a security type |
-| `unsubscribe_quotes` | `(symbol) -> int` | Unsubscribe from quotes |
-| `unsubscribe_trades` | `(symbol) -> int` | Unsubscribe from trades |
-| `unsubscribe_open_interest` | `(symbol) -> int` | Unsubscribe from OI |
-| `unsubscribe_option_quotes` | `(symbol, expiration, strike, right) -> int` | Unsubscribe from option quotes |
-| `unsubscribe_option_trades` | `(symbol, expiration, strike, right) -> int` | Unsubscribe from option trades |
-| `unsubscribe_option_open_interest` | `(symbol, expiration, strike, right) -> int` | Unsubscribe from option OI |
-| `unsubscribe_full_trades` | `(sec_type) -> int` | Unsubscribe from all trades |
-| `unsubscribe_full_open_interest` | `(sec_type) -> int` | Unsubscribe from all OI |
-| `next_event` | `(timeout_ms) -> FpssEventPtr` | Poll next event (nullptr on timeout). RAII: auto-freed on scope exit. |
-| `is_authenticated` | `() -> bool` | Check FPSS auth status |
-| `contract_lookup` | `(id) -> std::optional<std::string>` | Look up contract by server-assigned ID |
-| `contract_map` | `() -> std::map<int32_t, std::string>` | Get full contract ID mapping |
-| `active_subscriptions` | `() -> std::vector<Subscription>` | Get active subscriptions |
-| `reconnect` | `() -> void` | Reconnect streaming and re-subscribe previous subscriptions |
-| `shutdown` | `() -> void` | Graceful shutdown |
-
-All price fields are `double` (f64) -- access them directly.
+All price fields are `double` (f64) -- access them directly. Data events carry a typed `contract` (with `symbol`, `sec_type`, etc.); read `event->quote.contract.symbol` directly instead of looking up the integer ID.

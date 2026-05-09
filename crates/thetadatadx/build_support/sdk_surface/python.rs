@@ -9,7 +9,7 @@ pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String
     let mut out = String::new();
     out.push_str(generated_header());
     out.push_str("#[pymethods]\n");
-    out.push_str("impl ThetaDataDx {\n");
+    out.push_str("impl ThetaDataDxClient {\n");
     for method in methods {
         out.push_str(&python_streaming_method(method));
         out.push('\n');
@@ -95,30 +95,32 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                 "    ",
                 "Start FPSS streaming and register a Python callback for incoming events.\n\
                  \n\
-                 The dispatcher's drain thread acquires the GIL via\n\
-                 `Python::attach` to call `callback(event)` for every\n\
-                 typed FPSS event. `callback` must accept exactly one\n\
-                 positional argument — a `Quote`, `Trade`, `Ohlcvc`,\n\
-                 `OpenInterest`, `Simple`, or `RawData` instance.\n\
+                 The LMAX Disruptor consumer thread acquires the GIL\n\
+                 via `Python::attach` to call `callback(event)` for\n\
+                 every typed FPSS event, with each invocation wrapped\n\
+                 in `catch_unwind`. `callback` must accept exactly one\n\
+                 positional argument — a typed FPSS event class\n\
+                 (`Quote`, `Trade`, `Ohlcvc`, `OpenInterest`,\n\
+                 `LoginSuccess`, `ContractAssigned`, `ReqResponse`,\n\
+                 `MarketOpen`, `MarketClose`, `ServerError`,\n\
+                 `Disconnected`, `Reconnecting`, `Reconnected`, `Error`,\n\
+                 `UnknownFrame`, `Connected`, `Ping`, `ReconnectedServer`,\n\
+                 `Restart`, `UnknownControl`). Dispatch via\n\
+                 `match event: case Quote(): ...`. Truncated / unrecognised\n\
+                 wire frames are filtered before the callback fires and\n\
+                 accounted on the `thetadatadx.fpss.decode_failures` metric.\n\
                  \n\
-                 Events flow from the FPSS reader thread through the\n\
-                 SSOT `StreamingDispatcher` (bounded crossbeam queue,\n\
-                 8192 slots) onto a dedicated drain thread that runs\n\
-                 `callback`. The reader never blocks on user code; if\n\
-                 the callback falls behind, overflow events are\n\
-                 dropped and counted via `dropped_event_count()`.\n\
+                 Events flow from the FPSS reader thread into the\n\
+                 LMAX Disruptor ring (`Producer::try_publish`) and out\n\
+                 to the consumer thread that runs `callback`. The\n\
+                 reader never blocks on user code; if the callback\n\
+                 falls behind, ring-overflow events are dropped and\n\
+                 counted via `dropped_event_count()`.\n\
                  \n\
-                 GIL acquisition can block, so this Python binding\n\
-                 deliberately does NOT expose `start_streaming_inline`.\n\
-                 A slow Python callable on the FPSS reader thread\n\
-                 would fill the kernel TCP receive buffer and trigger\n\
-                 a vendor-side disconnect — there is no safe way to\n\
-                 acquire the GIL inside the FPSS read loop.\n\
-                 \n\
-                 Exceptions raised inside `callback` are routed through\n\
+                 Exceptions raised inside `callback` are caught by the\n\
+                 `catch_unwind` boundary and routed through\n\
                  `PyErr::write_unraisable` (visible in `sys.stderr` and\n\
-                 the unraisable hook) so a buggy callback cannot kill\n\
-                 the streaming thread.",
+                 the unraisable hook); each one bumps `panic_count()`.",
             );
             writeln!(
                 out,
@@ -174,7 +176,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("    ) -> PyResult<()> {\n");
             writeln!(
                 out,
-                "        let contract = fpss::protocol::Contract::option({}, ({}, {}, {})).map_err(to_py_err)?;",
+                "        let contract = fpss::protocol::Contract::option({}, {}, {}, {}).map_err(to_py_err)?;",
                 method.params[0].name,
                 method.params[1].name,
                 method.params[2].name,
@@ -252,11 +254,53 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                  Requires a prior `start_streaming(callback)`; raises\n\
                  `RuntimeError` if no callback is registered. All\n\
                  active subscriptions are restored on the new\n\
-                 connection — see `thetadatadx::ThetaDataDx::reconnect_streaming`\n\
-                 for partial-failure semantics.",
+                 connection — see `thetadatadx::ThetaDataDxClient::reconnect_streaming`\n\
+                 for partial-failure semantics.\n\
+                 \n\
+                 # Callback lifetime across `stop_streaming`\n\
+                 \n\
+                 `stop_streaming()` and `shutdown()` clear the registered\n\
+                 callback. To resume streaming on this client after\n\
+                 `stop_streaming()`, you MUST call `start_streaming(callback)`\n\
+                 again with a freshly bound callable; `reconnect()` raises\n\
+                 `RuntimeError` because no callback is held.\n\
+                 \n\
+                 This explicit-handoff model matches the C++ wrapper's RAII\n\
+                 destructor and the Python `with` block's `__exit__`: the\n\
+                 resource (the callback closure plus its captured environment)\n\
+                 is cleared at the same scope boundary the user observes. The\n\
+                 unified C API preserves the callback across stop/reconnect,\n\
+                 but the Python and TypeScript bindings deliberately diverge\n\
+                 to enforce the explicit handoff and avoid retaining captured\n\
+                 references past a teardown the application has already\n\
+                 observed.",
             );
             writeln!(out, "    fn {}(&self) -> PyResult<()> {{", method.name).unwrap();
             out.push_str(include_str!("templates/python/reconnect_body.rs.tmpl"));
+        }
+        MethodKind::AwaitDrain => {
+            // The body wraps the core SDK's `await_drain(Duration)`. The
+            // PyO3 surface takes a `u64` millisecond timeout to keep the
+            // ABI symmetric with the TypeScript / C ABI / C++ surfaces;
+            // every binding speaks milliseconds at the language boundary
+            // and converts to `Duration` at the Rust callsite.
+            writeln!(
+                out,
+                "    fn {}(&self, py: Python<'_>, timeout_ms: u64) -> bool {{",
+                method.name
+            )
+            .unwrap();
+            // Release the GIL while polling the drain barrier; otherwise a
+            // multi-second wait would block every other Python thread,
+            // including the consumer thread that needs the GIL to fire
+            // the user callback (which is exactly what await_drain is
+            // waiting on).
+            out.push_str("        py.detach(|| {\n");
+            out.push_str(
+                "            self.tdx.await_drain(std::time::Duration::from_millis(timeout_ms))\n",
+            );
+            out.push_str("        })\n");
+            out.push_str("    }\n");
         }
         MethodKind::StopStreaming | MethodKind::Shutdown => {
             writeln!(out, "    fn {}(&self) {{", method.name).unwrap();

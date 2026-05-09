@@ -4,7 +4,7 @@ C FFI layer for `thetadatadx` — exposes the Rust SDK as `extern "C"` functions
 
 Compiled as both `cdylib` (shared library) and `staticlib` (archive). Consumed by the C++ (RAII) and TypeScript/Node.js (napi-rs) SDKs, and available to any third-party C/C++/Go/etc. consumer that wants to roll their own wrapper against the `tdx_*` symbols.
 
-> **FLATFILES coverage:** the FFI layer currently exposes the MDDS (historical) and FPSS (streaming) surfaces only. The third surface — FLATFILES whole-universe daily blobs — is shipped in the Rust core (v8.0.17+) and is being added to the C ABI under issue [#434](https://github.com/userFRM/ThetaDataDx/issues/434). The C++ binding (#438) tracks this issue as its upstream blocker. See [`ROADMAP.md`](../ROADMAP.md#flatfiles--binding-coverage) for the per-binding status.
+> **Surface coverage:** the FFI layer exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). The flat-files entry points are `tdx_flatfile_request_decoded` (pull + decode into an opaque row-list), `tdx_flatfile_rows_to_arrow_ipc` (serialise to Arrow IPC bytes), `tdx_flatfile_request_to_path` (raw vendor bytes straight to disk), and the matching `_rowlist_free` / `_bytes_free` cleanup helpers.
 
 ## Building
 
@@ -39,43 +39,38 @@ Every historical endpoint is available as `tdx_stock_*`, `tdx_option_*`, `tdx_in
 
 | Function | Description |
 |----------|-------------|
-| `tdx_unified_start_streaming` | Start FPSS on the unified handle |
-| `tdx_unified_subscribe_quotes` | Subscribe to quote stream |
-| `tdx_unified_subscribe_trades` | Subscribe to trade stream |
-| `tdx_unified_subscribe_open_interest` | Subscribe to open interest stream |
-| `tdx_unified_subscribe_full_trades` | Subscribe to firehose trade stream |
-| `tdx_unified_subscribe_full_open_interest` | Subscribe to firehose open interest stream |
-| `tdx_unified_unsubscribe_quotes` | Unsubscribe from quote stream |
-| `tdx_unified_unsubscribe_trades` | Unsubscribe from trade stream |
-| `tdx_unified_unsubscribe_open_interest` | Unsubscribe from open interest stream |
-| `tdx_unified_unsubscribe_full_trades` | Unsubscribe from firehose trade stream |
-| `tdx_unified_unsubscribe_full_open_interest` | Unsubscribe from firehose open interest stream |
+| `tdx_unified_set_callback` | Register the push-mode user callback on the unified handle. Mutually exclusive with `tdx_unified_start_streaming_iter`. |
+| `tdx_unified_subscribe` | Polymorphic subscribe — takes `TdxSubscriptionRequest` (per-contract or full-stream) |
+| `tdx_unified_unsubscribe` | Polymorphic unsubscribe — takes `TdxSubscriptionRequest` |
 | `tdx_unified_is_streaming` | Check if FPSS connection is live |
-| `tdx_unified_contract_lookup` | Look up contract by ID |
 | `tdx_unified_active_subscriptions` | List active subscriptions (typed `TdxSubscriptionArray`) |
-| `tdx_unified_next_event` | Poll for next event (`*mut TdxFpssEvent`, blocks with timeout) |
+| `tdx_unified_await_drain` | Block until the previous session's consumer has finished firing the callback (drain barrier) |
+| `tdx_unified_reconnect` | Reconnect FPSS, drain the previous generation, and re-subscribe everything that was active |
 | `tdx_unified_stop_streaming` | Stop streaming, historical stays alive |
 | `tdx_unified_free` | Free the unified handle |
+
+#### Pull-iter delivery (sibling of `tdx_unified_set_callback`)
+
+| Function | Description |
+|----------|-------------|
+| `tdx_unified_start_streaming_iter` | Start FPSS in pull-iter mode; returns an opaque `TdxFpssEventIterator*`. Mutually exclusive with `tdx_unified_set_callback`. |
+| `tdx_fpss_event_iter_next` | Pop next event with timeout (`0`=poll, positive ms=block-with-deadline). Returns `0`=event filled / `1`=timeout / `-1`=terminal end-of-stream. |
+| `tdx_fpss_event_iter_close` | Mark iterator closed; subsequent `_next` returns `-1` once queue drains. |
+| `tdx_fpss_event_iter_free` | Free the iterator handle. |
 
 ### Streaming (via TdxFpssHandle, standalone)
 
 | Function | Description |
 |----------|-------------|
 | `tdx_fpss_connect` | Connect standalone FPSS client |
-| `tdx_fpss_subscribe_quotes` | Subscribe to quote stream |
-| `tdx_fpss_subscribe_trades` | Subscribe to trade stream |
-| `tdx_fpss_subscribe_open_interest` | Subscribe to open interest stream |
-| `tdx_fpss_subscribe_full_trades` | Subscribe to firehose trade stream |
-| `tdx_fpss_subscribe_full_open_interest` | Subscribe to firehose open interest stream |
-| `tdx_fpss_unsubscribe_quotes` | Unsubscribe from quote stream |
-| `tdx_fpss_unsubscribe_trades` | Unsubscribe from trade stream |
-| `tdx_fpss_unsubscribe_open_interest` | Unsubscribe from open interest stream |
-| `tdx_fpss_unsubscribe_full_trades` | Unsubscribe from firehose trade stream |
-| `tdx_fpss_unsubscribe_full_open_interest` | Unsubscribe from firehose open interest stream |
+| `tdx_fpss_set_callback` | Register the push-mode user callback |
+| `tdx_fpss_subscribe` | Polymorphic subscribe — takes `TdxSubscriptionRequest` |
+| `tdx_fpss_unsubscribe` | Polymorphic unsubscribe — takes `TdxSubscriptionRequest` |
 | `tdx_fpss_is_authenticated` | Check if FPSS is authenticated |
-| `tdx_fpss_contract_lookup` | Look up contract by ID |
 | `tdx_fpss_active_subscriptions` | List active subscriptions (typed `TdxSubscriptionArray`) |
-| `tdx_fpss_next_event` | Poll for next event (`*mut TdxFpssEvent`, blocks with timeout) |
+| `tdx_fpss_dropped_events` | Cumulative count of events the TLS reader could not publish into the Disruptor ring |
+| `tdx_fpss_await_drain` | Block until the previous session's consumer has finished firing the callback |
+| `tdx_fpss_reconnect` | Reconnect FPSS, drain the previous generation, and re-subscribe everything that was active |
 | `tdx_fpss_shutdown` | Shut down FPSS client |
 | `tdx_fpss_free` | Free the FPSS handle |
 
@@ -88,7 +83,6 @@ All functions that can fail return null on error. Call `tdx_last_error()` to get
 - Opaque handles are heap-allocated via `Box::into_raw`, freed via `Box::from_raw` in the corresponding `*_free` function.
 - Data endpoints return typed `#[repr(C)]` struct arrays (e.g. `TdxEodTickArray { data, len }`) - free with the corresponding `tdx_*_array_free` function.
 - List endpoints return `TdxStringArray` - free with `tdx_string_array_free`.
-- `tdx_fpss_next_event` / `tdx_unified_next_event` return `*mut TdxFpssEvent` (tagged `#[repr(C)]` struct) - free with `tdx_fpss_event_free`.
 - `tdx_fpss_active_subscriptions` returns `*mut TdxSubscriptionArray` - free with `tdx_subscription_array_free`.
 - `tdx_last_error()` returns a borrowed pointer - do NOT free it.
 - `tdx_unified_historical()` returns a borrowed pointer - do NOT free it.

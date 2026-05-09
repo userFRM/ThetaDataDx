@@ -1,6 +1,6 @@
 ---
 title: API Reference
-description: Complete API reference for the ThetaDataDx SDK covering all endpoints, types, and Greeks functions across Rust, Python, TypeScript/Node.js, and C++.
+description: Complete API reference for the ThetaDataDx SDK (the `ThetaDataDxClient` entry point) covering all endpoints, types, and Greeks functions across Rust, Python, TypeScript/Node.js, and C++.
 ---
 
 # API Reference
@@ -13,25 +13,25 @@ Complete typed historical surface + 4 streaming variants + the FLATFILES daily-b
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 
 let creds = Credentials::from_file("creds.txt")?;
-let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 ```
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+client = ThetaDataDxClient(creds, Config.production())
 ```
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
-auto client = tdx::Client::connect(creds, tdx::Config::production());
+auto client = tdx::UnifiedClient::connect(creds, tdx::Config::production());
 ```
 :::
 
@@ -2114,7 +2114,7 @@ Real-time market data streaming via FPSS (Fast Protocol Streaming Service) over 
 
 ::: code-group
 ```rust [Rust]
-tdx.start_streaming(|event: &FpssEvent| {
+client.start_streaming(|event: &FpssEvent| {
     match event {
         FpssEvent::Data(data) => println!("{:?}", data),
         FpssEvent::Control(ctrl) => println!("{:?}", ctrl),
@@ -2123,98 +2123,123 @@ tdx.start_streaming(|event: &FpssEvent| {
 })?;
 ```
 ```python [Python]
-tdx.start_streaming()
+client.start_streaming(lambda event: print(event))
 ```
 ```typescript [TypeScript]
-tdx.startStreaming();
+client.startStreaming((event) => console.log(event));
 ```
 ```cpp [C++]
-tdx::FpssClient fpss(creds, tdx::Config::production());
+client.start_streaming([](const tdx::FpssEvent& event) { /* ... */ });
 ```
 :::
 
 ### Subscribing
 
+Every subscription is built from a typed `Contract` (or `SecType` for full-stream variants) by calling a topic helper — `quote()`, `trade()`, `open_interest()`, `full_trades()`, `full_open_interest()` — and handing the resulting subscription spec to the polymorphic `subscribe()` method on the unified client. The same shape works across every binding.
+
 ::: code-group
 ```rust [Rust]
-let req_id = tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
-let req_id = tdx.subscribe_trades(&Contract::stock("AAPL"))?;
-let req_id = tdx.subscribe_open_interest(&Contract::stock("AAPL"))?;
-let req_id = tdx.subscribe_full_trades(SecType::Stock)?;
+let req_id = client.subscribe(Contract::stock("AAPL").quote())?;
+let req_id = client.subscribe(Contract::stock("AAPL").trade())?;
+let req_id = client.subscribe(Contract::stock("AAPL").open_interest())?;
+let req_id = client.subscribe(SecType::Stock.full_trades())?;
 ```
 ```python [Python]
-tdx.subscribe_quotes("AAPL")
-tdx.subscribe_trades("AAPL")
+client.subscribe(Contract.stock("AAPL").quote())
+client.subscribe(Contract.stock("AAPL").trade())
 ```
 ```typescript [TypeScript]
-tdx.subscribeQuotes('AAPL');
-tdx.subscribeTrades('AAPL');
+client.subscribe(Contract.stock('AAPL').quote());
+client.subscribe(Contract.stock('AAPL').trade());
 ```
 ```cpp [C++]
-int req_id = fpss.subscribe_quotes("AAPL");
-int req_id = fpss.subscribe_trades("AAPL");
-int req_id = fpss.subscribe_open_interest("AAPL");
-int req_id = fpss.subscribe_full_trades("STOCK");
+int req_id = client.subscribe(tdx::Contract::stock("AAPL").quote());
+int req_id = client.subscribe(tdx::Contract::stock("AAPL").trade());
+int req_id = client.subscribe(tdx::Contract::stock("AAPL").open_interest());
+int req_id = client.subscribe(tdx::SecType::Stock.full_trades());
 ```
 :::
 
-| Method | Description |
-|--------|-------------|
-| `subscribe_quotes` | Subscribe to real-time NBBO quote updates |
-| `subscribe_trades` | Subscribe to real-time trade updates |
-| `subscribe_open_interest` | Subscribe to open interest updates |
-| `subscribe_full_trades` | Subscribe to all trades for a security type |
-| `subscribe_full_open_interest` | Subscribe to all OI for a security type |
-| `unsubscribe_full_trades` | Unsubscribe from all trades for a security type |
-| `unsubscribe_full_open_interest` | Unsubscribe from all OI for a security type |
+| Topic helper | Description |
+|--------------|-------------|
+| `contract.quote()` | Real-time NBBO quote updates for the contract |
+| `contract.trade()` | Real-time trade prints for the contract |
+| `contract.open_interest()` | Open-interest updates for the contract |
+| `sec_type.full_trades()` | Every trade for a security type (full firehose) |
+| `sec_type.full_open_interest()` | Every open-interest update for a security type |
 
-All subscription methods return a request ID. The server confirms via a `ReqResponse` control event.
+All `subscribe()` calls return a request ID. The server confirms via a `ReqResponse` control event. To unsubscribe, pass the same spec to `unsubscribe()`.
 
 ### Unsubscribing
 
 ::: code-group
 ```rust [Rust]
-tdx.unsubscribe_quotes(&Contract::stock("AAPL"))?;
-tdx.unsubscribe_trades(&Contract::stock("AAPL"))?;
-tdx.unsubscribe_open_interest(&Contract::stock("AAPL"))?;
+client.unsubscribe(Contract::stock("AAPL").quote())?;
+client.unsubscribe(Contract::stock("AAPL").trade())?;
+client.unsubscribe(Contract::stock("AAPL").open_interest())?;
 ```
 ```python [Python]
-# Not exposed in Python - use stop_streaming()
+client.unsubscribe(Contract.stock("AAPL").quote())
 ```
 ```typescript [TypeScript]
-// Not exposed in TypeScript - use tdx.stopStreaming()
+client.unsubscribe(Contract.stock('AAPL').quote());
 ```
 ```cpp [C++]
-fpss.unsubscribe_quotes("AAPL");
-fpss.unsubscribe_trades("AAPL");
-fpss.unsubscribe_open_interest("AAPL");
+client.unsubscribe(tdx::Contract::stock("AAPL").quote());
+client.unsubscribe(tdx::Contract::stock("AAPL").trade());
+client.unsubscribe(tdx::Contract::stock("AAPL").open_interest());
 ```
 :::
 
 ### Receiving Events
 
+The unified client surfaces two equivalent delivery modes that share the same typed `FpssEvent` shape: a push-callback path (`start_streaming(callback)`) for low-latency dispatch into user code, and a pull-iter path (`start_streaming_iter()` in Rust/Python/C++, `startStreamingIter()` in TypeScript) for the iterator idiom. Pick one per session — the modes are mutually exclusive on the client.
+
 ::: code-group
 ```rust [Rust]
-// Events arrive via the callback passed to start_streaming()
-tdx.start_streaming(|event| {
-    if let FpssEvent::Data(FpssData::Trade { contract_id, price, size, .. }) = event {
-        println!("Trade: contract={}, price={}, size={}", contract_id, price, size);
+// Push: callback-driven dispatch.
+client.start_streaming(|event| {
+    if let FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) = event {
+        // The typed `Arc<Contract>` field carries `symbol`, `sec_type`,
+        // `expiration`, etc. directly — no side-table lookup.
+        println!("Trade: symbol={}, price={}, size={}", contract.symbol, price, size);
     }
 })?;
+
+// OR pull: typed iterator.
+let iter = client.start_streaming_iter()?;
+for event in iter {
+    println!("{event:?}");
+}
 ```
 ```python [Python]
-event = tdx.next_event(timeout_ms=5000)  # returns dict or None
-if event:
-    print(event)
+# Push:
+client.start_streaming(lambda event: print(event))
+
+# OR pull (context-managed):
+with client.streaming_iter() as it:
+    for event in it:
+        print(event)
 ```
 ```typescript [TypeScript]
-const event = await tdx.nextEvent(5000);  // Promise<FpssEvent | null>
-if (event) {
+// Push:
+client.startStreaming((event) => console.log(event));
+
+// OR pull (async iterable):
+const iter = client.startStreamingIter();
+for await (const event of iter) {
     console.log(event);
 }
 ```
 ```cpp [C++]
-FpssEventPtr event = fpss.next_event(5000);  // nullptr on timeout
+// Push:
+client.start_streaming([](const tdx::FpssEvent& event) { /* ... */ });
+
+// OR pull:
+auto iter = client.start_streaming_iter();
+while (auto event = iter.next(std::chrono::milliseconds(5000))) {
+    /* ... */
+}
 ```
 :::
 
@@ -2240,10 +2265,8 @@ fpss.shutdown();
 | Method | Returns | SDK availability | Description |
 |--------|---------|------------------|-------------|
 | `is_streaming` | bool | Rust/Python only | Check if the unified streaming connection is live |
-| `contract_map` | `HashMap<i32, Contract>` (Rust), `dict[int, Contract]` (Python), `map<int32_t, string>` (C++) | All SDKs | Get full contract ID mapping |
-| `contract_lookup` | string/optional | All SDKs (FFI-based, returns NULL/"" for not-found) | Look up a single contract by server-assigned ID |
 | `active_subscriptions` | list/typed structs | All SDKs | Get list of active subscriptions |
-| `subscribe_option_*` / `unsubscribe_option_*` | int | All SDKs | Option-level subscribe/unsubscribe by `(symbol, expiration, strike, right)` |
+| `subscribe(spec)` / `unsubscribe(spec)` | void / result | All SDKs | Polymorphic subscribe / unsubscribe — `spec` is a typed `Subscription` built via `Contract::stock("AAPL").quote()` / `Contract::option(...).trade()` / `SecType::Stock.full_trades()` / etc. |
 | `reconnect` | void / result | All SDKs | Reconnect streaming and re-subscribe the previous subscription set |
 
 ### FpssEvent Types
@@ -2264,7 +2287,9 @@ Events are delivered as one of three categories:
 - `ServerError` / `Error` - Error conditions
 - `Disconnected` - Connection lost (includes reason code)
 
-**RawData** - Unparsed frames with unknown message codes.
+**UnknownFrame** - Unrecognised wire-frame fallback. Surfaced as the `FpssControl::UnknownFrame { code, payload }` typed control variant; carries the raw frame code and undecoded payload bytes.
+
+On the C++ binding the pull-iter `client.start_streaming_iter().next(timeout)` returns `std::optional<TdxFpssEvent>`; the historical `tdx::FpssEventPtr` (`std::unique_ptr<TdxFpssEvent, FpssEventDeleter>`) alias remains for legacy code paths but is not the recommended entry point in v9.1.0.
 
 ### Reconnection
 
@@ -2513,16 +2538,16 @@ Contract::rate("SOFR")
 Contract::option("SPY", "20261218", "60", "C")? // Result<Contract, Error>
 ```
 ```python [Python]
-# Passed as string symbol to subscribe methods
-tdx.subscribe_quotes("AAPL")
+# Build a typed Contract and call a topic helper to drive subscribe().
+client.subscribe(Contract.stock("AAPL").quote())
 ```
 ```typescript [TypeScript]
-# Passed as string symbol to subscribe methods
-tdx.subscribeQuotes('AAPL');
+// Build a typed Contract and call a topic helper to drive subscribe().
+client.subscribe(Contract.stock('AAPL').quote());
 ```
 ```cpp [C++]
-// Passed as string symbol to subscribe methods
-fpss.subscribe_quotes("AAPL");
+// Build a typed Contract and call a topic helper to drive subscribe().
+client.subscribe(tdx::Contract::stock("AAPL").quote());
 ```
 :::
 

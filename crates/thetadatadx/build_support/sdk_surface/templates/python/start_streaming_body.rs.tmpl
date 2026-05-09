@@ -4,7 +4,7 @@
         // `reconnect` cycle replaces the previous registration cleanly.
         let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         // Reject double-registration with a clear PyRuntimeError. The
-        // underlying `ThetaDataDx::start_streaming` would also error,
+        // underlying `ThetaDataDxClient::start_streaming` would also error,
         // but matching the PyO3 binding's own state first gives a
         // language-idiomatic message.
         if cb_guard.is_some() {
@@ -12,7 +12,7 @@
                 "streaming already started -- call stop_streaming() before start_streaming() again",
             ));
         }
-        // Bind the callable behind a cheap `Arc` so the FPSS dispatcher
+        // Bind the callable behind a cheap `Arc` so the FPSS callback
         // closure (`Fn(&FpssEvent) + Send + 'static`) can clone the
         // handle into each per-event invocation. `Py<PyAny>` itself is
         // `Send + Sync` once the GIL is released, so the Arc is purely
@@ -22,17 +22,16 @@
 
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
-                // Acquire the GIL on the dispatcher's drain thread to
-                // call into Python. The drain thread is not the FPSS
-                // reader thread (the SSOT `StreamingDispatcher` puts a
-                // bounded `crossbeam_channel(8192)` queue between the
-                // two), so a slow Python callback at most fills the
-                // queue and bumps `dropped_event_count()`; it can never
-                // back-pressure the FPSS TLS reader and trigger a
-                // vendor-side disconnect. That's why this Python
-                // binding deliberately does NOT expose
-                // `start_streaming_inline`: GIL acquisition + arbitrary
-                // user callbacks are unsafe on the reader thread.
+                // Acquire the GIL on the LMAX Disruptor consumer thread
+                // to call into Python. The consumer is not the FPSS TLS
+                // reader thread; a slow Python callback at most fills
+                // the Disruptor ring and bumps `dropped_event_count()`,
+                // it cannot back-pressure the TLS reader and trigger a
+                // vendor-side disconnect. The core SDK wraps the user
+                // callback in `catch_unwind`, so a Python panic is
+                // counted on `panic_count()` and written to
+                // `sys.stderr` via `PyErr::write_unraisable` rather
+                // than killing the consumer.
                 Python::attach(|py| {
                     let buffered = fpss_event_to_buffered(event);
                     let typed = match buffered_event_to_typed(py, &buffered) {
@@ -55,11 +54,10 @@
             .map_err(to_py_err)?;
 
         *cb_guard = Some(Arc::try_unwrap(callback_arc).unwrap_or_else(|arc| {
-            // The dispatcher closure clone keeps a strong reference
+            // The Disruptor consumer closure keeps a strong reference
             // until `stop_streaming`, so the Arc ref-count is >1 here.
             // Fall back to `clone_ref` under the GIL to lift a fresh
-            // owned handle for storage; `try_unwrap` is the cheap path
-            // we'd take if registration somehow ran inline-only.
+            // owned handle for storage.
             Python::attach(|py| arc.clone_ref(py))
         }));
         Ok(())

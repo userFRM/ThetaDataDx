@@ -7,7 +7,7 @@
 //! edits here do not cross the SSOT boundary at `endpoint_surface.toml`.
 //!
 //! [`run_blocking`]: crate::run_blocking
-//! [`historical_methods.rs`]: ../../../../sdks/python/src/historical_methods.rs
+//! [`historical_methods.rs`]: ../../../../sdks/python/src/_generated/historical_methods.rs
 //! [`lib.rs`]: ../../../../sdks/python/src/lib.rs
 
 use std::future::Future;

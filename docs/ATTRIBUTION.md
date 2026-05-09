@@ -1,6 +1,6 @@
 # Attribution
 
-ThetaDataDx ships original code under the Apache License, Version 2.0.
+ThetaDataDxClient ships original code under the Apache License, Version 2.0.
 
 ## Third-party content bundled in the source tree
 

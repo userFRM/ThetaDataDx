@@ -14,7 +14,7 @@ use thetadatadx::config;
 use thetadatadx::fpss;
 
 /// Shared tokio runtime for running async Rust from Node.js.
-fn runtime() -> &'static tokio::runtime::Runtime {
+pub(crate) fn runtime() -> &'static tokio::runtime::Runtime {
     static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
     RT.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
@@ -24,7 +24,7 @@ fn runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
-fn to_napi_err(e: thetadatadx::Error) -> napi::Error {
+pub(crate) fn to_napi_err(e: thetadatadx::Error) -> napi::Error {
     napi::Error::from_reason(e.to_string())
 }
 
@@ -61,19 +61,9 @@ fn normalize_optional_time(
     value.map(normalize_time)
 }
 
-fn parse_sec_type(sec_type: &str) -> napi::Result<tdbe::types::enums::SecType> {
-    match sec_type.to_uppercase().as_str() {
-        "STOCK" => Ok(tdbe::types::enums::SecType::Stock),
-        "OPTION" => Ok(tdbe::types::enums::SecType::Option),
-        "INDEX" => Ok(tdbe::types::enums::SecType::Index),
-        other => Err(napi::Error::from_reason(format!(
-            "unknown sec_type: {other:?} (expected STOCK, OPTION, or INDEX)"
-        ))),
-    }
-}
 
 // Generated string enum exports.
-include!("enums_generated.rs");
+include!("_generated/enums_generated.rs");
 
 // ── Typed tick classes (generated from tick_schema.toml) ──
 //
@@ -81,11 +71,11 @@ include!("enums_generated.rs");
 // `{tick}_to_class_vec` factories. These back every historical endpoint
 // return so `index.d.ts` surfaces concrete `Tick[]` types instead of `any`.
 
-include!("tick_classes.rs");
+include!("_generated/tick_classes.rs");
 
 // ── Typed FPSS event classes (generated from fpss_event_schema.toml) ──
 
-include!("fpss_event_classes.rs");
+include!("_generated/fpss_event_classes.rs");
 
 // ── Buffered FPSS events ──
 
@@ -94,9 +84,9 @@ include!("fpss_event_classes.rs");
 // the Python SDK copy — single source of truth. Change the schema and
 // regenerate, never hand-edit the generated `buffered_event.rs`.
 
-include!("buffered_event.rs");
+include!("_generated/buffered_event.rs");
 
-// ── Unified ThetaDataDx client ──
+// ── Unified ThetaDataDxClient client ──
 
 /// `ThreadsafeFunction` that owns a JS callback reference and routes
 /// `FpssEvent` deliveries onto the Node main thread via napi-rs's
@@ -121,8 +111,14 @@ type TsfnCallback = napi::threadsafe_function::ThreadsafeFunction<
 >;
 
 #[napi]
-pub struct ThetaDataDx {
-    tdx: thetadatadx::ThetaDataDx,
+pub struct ThetaDataDxClient {
+    /// Wrapped in `Arc` so async napi methods (e.g. `awaitDrain`) can
+    /// clone a cheap handle into a `tokio::task::spawn_blocking` future
+    /// without violating the `Send + 'static` bound. The inner
+    /// `thetadatadx::ThetaDataDxClient` is not `Clone` -- its FPSS mutex and
+    /// subscription-tier state forbid that -- so the outer `Arc` is the
+    /// only way to hand a borrow off the napi main thread.
+    tdx: Arc<thetadatadx::ThetaDataDxClient>,
     /// Stored JS callback registered via `startStreaming(callback)`.
     /// `None` until the first registration; persisted across
     /// `reconnect()` so the reconnect path can re-attach the same JS
@@ -142,46 +138,47 @@ pub struct ThetaDataDx {
 }
 
 #[napi]
-impl ThetaDataDx {
+impl ThetaDataDxClient {
     // Lifecycle: intentionally hand-written (language-specific constructor semantics).
 
     /// Connect to ThetaData. Historical (MDDS/gRPC) only; call startStreaming()
     /// to begin FPSS real-time data.
     #[napi(factory)]
-    pub fn connect(email: String, password: String) -> napi::Result<ThetaDataDx> {
+    pub fn connect(email: String, password: String) -> napi::Result<ThetaDataDxClient> {
         let creds = auth::Credentials::new(email, password);
         let config = config::DirectConfig::production();
         let tdx = runtime()
-            .block_on(thetadatadx::ThetaDataDx::connect(&creds, config))
+            .block_on(thetadatadx::ThetaDataDxClient::connect(&creds, config))
             .map_err(to_napi_err)?;
-        Ok(ThetaDataDx {
-            tdx,
+        Ok(ThetaDataDxClient {
+            tdx: Arc::new(tdx),
             callback: Mutex::new(None),
         })
     }
 
     /// Connect with a credentials file (line 1 = email, line 2 = password).
     #[napi(factory)]
-    pub fn connect_from_file(path: String) -> napi::Result<ThetaDataDx> {
+    pub fn connect_from_file(path: String) -> napi::Result<ThetaDataDxClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let config = config::DirectConfig::production();
         let tdx = runtime()
-            .block_on(thetadatadx::ThetaDataDx::connect(&creds, config))
+            .block_on(thetadatadx::ThetaDataDxClient::connect(&creds, config))
             .map_err(to_napi_err)?;
-        Ok(ThetaDataDx {
-            tdx,
+        Ok(ThetaDataDxClient {
+            tdx: Arc::new(tdx),
             callback: Mutex::new(None),
         })
     }
 
-    /// Cumulative count of FPSS events dropped because the SSOT
-    /// `StreamingDispatcher`'s bounded queue overflowed before the
-    /// drain thread could hand the event off to the JS callback.
+    /// Cumulative count of FPSS events the TLS reader could not
+    /// publish into the Disruptor ring because the Disruptor consumer
+    /// fell behind and the ring was full (`Producer::try_publish`
+    /// returned `RingBufferFull`).
     ///
-    /// Forwards to `thetadatadx::ThetaDataDx::dropped_event_count` so
-    /// the value matches every other binding (C ABI, Python, future
-    /// C++). The counter lives on the underlying `StreamingDispatcher`
-    /// and resets when the dispatcher is recreated -- that happens on
+    /// Forwards to `thetadatadx::ThetaDataDxClient::dropped_event_count` so
+    /// the value matches every other binding (C ABI, Python, C++).
+    /// The counter lives on the underlying `FpssClient` and resets
+    /// when the client is recreated -- that happens on
     /// `stop_streaming` and `reconnect` (which calls
     /// `stop_streaming` + `start_streaming` internally). Snapshot the
     /// value before reconnect if you need to accumulate drops across
@@ -196,7 +193,90 @@ impl ThetaDataDx {
 }
 
 // Generated historical endpoint methods.
-include!("historical_methods.rs");
+include!("_generated/historical_methods.rs");
 
 // Generated streaming/FPSS methods.
-include!("streaming_methods.rs");
+include!("_generated/streaming_methods.rs");
+
+// Pull-iter delivery. Hand-written napi-rs wrapper around
+// `thetadatadx::EventIterator`. Surfaced as
+// `client.startStreamingIter()` returning an `EventIterator` napi
+// class; the JS side wraps it in `for await (const event of iter)`
+// via `Symbol.asyncIterator` declared in the `index.d.ts` companion.
+include!("event_iterator.rs");
+
+#[napi]
+impl ThetaDataDxClient {
+    /// Start FPSS streaming in pull-iter delivery mode.
+    ///
+    /// Returns an [`EventIterator`] handle whose `next()` resolves
+    /// to the next typed FPSS event or `null` once the streaming
+    /// session has shut down and the residual queue is drained. JS
+    /// callers iterate with `for await (const event of iter)`.
+    ///
+    /// Mutually exclusive with `startStreaming(callback)`. Calling
+    /// either while streaming is already running rejects with
+    /// `"streaming already started"`.
+    #[napi(js_name = "startStreamingIter")]
+    pub fn start_streaming_iter(&self) -> napi::Result<EventIterator> {
+        let inner = self.tdx.start_streaming_iter().map_err(to_napi_err)?;
+        Ok(EventIterator::new(inner))
+    }
+}
+
+// Hand-written FLATFILES bindings — dynamic schema, see module docs.
+mod flatfile_methods;
+
+// Fluent contract-first API. Adds `ContractRef`,
+// `Subscription`, `SecType` napi classes and the polymorphic
+// `subscribe(sub)` / `subscribeMany([sub, ...])` methods on the
+// unified client. The `Contract` name on the JS side is taken by the
+// FPSS-event payload object in `_generated/fpss_event_classes.rs`; the package
+// `index.ts` re-exports the fluent class under both `ContractRef` and
+// `Contract` so users write `Contract.stock("AAPL")` per the
+// documented surface.
+mod fluent;
+pub use fluent::{ContractRef, SecType, Subscription};
+
+// Cross-language utility helpers (issue #424). Adds the `Util` napi
+// class re-exporting `tdbe::{conditions, exchange, sequences}` lookup
+// tables under camelCase JS method names.
+mod util_helpers;
+pub use util_helpers::Util;
+
+#[napi]
+impl ThetaDataDxClient {
+    /// Polymorphic subscribe — primary fluent entry point. Accepts the
+    /// `Subscription` value returned by `Contract.quote()` /
+    /// `Contract.trade()` / `Contract.openInterest()` (per-contract
+    /// scope) or by `SecType.option().fullTrades()` /
+    /// `SecType.option().fullOpenInterest()` (full-stream scope).
+    #[napi]
+    pub fn subscribe(&self, sub: &fluent::Subscription) -> napi::Result<()> {
+        self.tdx.subscribe(sub.snapshot()).map_err(to_napi_err)
+    }
+
+    /// Bulk-subscribe an array of `Subscription` values. Stops at the
+    /// first error and returns it; previously-installed subscriptions
+    /// are NOT rolled back.
+    #[napi(js_name = "subscribeMany")]
+    pub fn subscribe_many(&self, subs: Vec<&fluent::Subscription>) -> napi::Result<()> {
+        let snaps: Vec<_> = subs.iter().map(|s| s.snapshot()).collect();
+        self.tdx.subscribe_many(snaps).map_err(to_napi_err)
+    }
+
+    /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
+    #[napi]
+    pub fn unsubscribe(&self, sub: &fluent::Subscription) -> napi::Result<()> {
+        self.tdx.unsubscribe(sub.snapshot()).map_err(to_napi_err)
+    }
+
+    /// Bulk-unsubscribe an array of `Subscription` values.
+    #[napi(js_name = "unsubscribeMany")]
+    pub fn unsubscribe_many(&self, subs: Vec<&fluent::Subscription>) -> napi::Result<()> {
+        let snaps: Vec<_> = subs.iter().map(|s| s.snapshot()).collect();
+        self.tdx.unsubscribe_many(snaps).map_err(to_napi_err)
+    }
+}
+
+// `ThetaDataDxClient` is the public name (rename complete; no alias).

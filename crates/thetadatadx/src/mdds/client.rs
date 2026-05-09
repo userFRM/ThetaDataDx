@@ -35,11 +35,11 @@ const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// # Example
 ///
 /// ```rust,no_run
-/// use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+/// use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 ///
 /// # async fn run() -> Result<(), thetadatadx::Error> {
 /// let creds = Credentials::from_file("creds.txt")?;
-/// let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+/// let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 ///
 /// let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 /// println!("{} EOD ticks", eod.len());
@@ -111,7 +111,9 @@ impl MddsClient {
         tracing::debug!(uri = %mdds_uri, "connecting to MDDS gRPC");
 
         let endpoint = tonic::transport::Channel::from_shared(mdds_uri.clone())
-            .map_err(|e| Error::Config(format!("invalid MDDS URI '{mdds_uri}': {e}")))?
+            .map_err(|e| {
+                Error::config_invalid("mdds.uri", format!("invalid MDDS URI '{mdds_uri}': {e}"))
+            })?
             .keep_alive_timeout(Duration::from_secs(config.mdds.keepalive_timeout_secs))
             .http2_keep_alive_interval(Duration::from_secs(config.mdds.keepalive_secs))
             .initial_stream_window_size(

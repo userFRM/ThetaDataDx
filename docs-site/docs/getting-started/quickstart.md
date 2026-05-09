@@ -13,7 +13,7 @@ One page covering all four SDKs (Rust, Python, TypeScript / Node.js, C++). Each 
 ```bash [Rust]
 # Cargo.toml
 # [dependencies]
-# thetadatadx = "8"
+# thetadatadx = "9"
 # tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 cargo add thetadatadx tokio --features tokio/rt-multi-thread,tokio/macros
@@ -72,7 +72,7 @@ import os
 creds = Credentials(os.environ["THETA_EMAIL"], os.environ["THETA_PASS"])
 ```
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
 // Credentials are passed directly to the connect helpers below.
 ```
@@ -93,12 +93,12 @@ auto envCreds = tdx::Credentials(
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, DirectConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = thetadatadx::Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
     let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
     for tick in &eod {
@@ -109,10 +109,10 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }
 ```
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+tdx = ThetaDataDxClient(creds, Config.production())
 
 eod = tdx.stock_history_eod("AAPL", "20240101", "20240301")
 for tick in eod:
@@ -125,9 +125,9 @@ pdf = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_pandas()
 tbl = tdx.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
 ```
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+const tdx = await ThetaDataDxClient.connectFromFile('creds.txt');
 
 const eod = tdx.stockHistoryEOD('AAPL', '20240101', '20240301');
 for (const tick of eod) {
@@ -141,7 +141,7 @@ for (const tick of eod) {
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
-    auto client = tdx::Client::connect(creds, tdx::Config::production());
+    auto client = tdx::UnifiedClient::connect(creds, tdx::Config::production());
 
     auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
     for (const auto& tick : eod) {
@@ -161,14 +161,14 @@ Every historical endpoint returns typed tick records (`EodTick`, `OhlcTick`, `Tr
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, DirectConfig};
 use thetadatadx::fpss::{FpssData, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = thetadatadx::Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
     tdx.start_streaming(|event: &FpssEvent| match event {
         FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
@@ -180,7 +180,10 @@ async fn main() -> Result<(), thetadatadx::Error> {
         _ => {}
     })?;
 
-    tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
+    // Fluent contract-first subscribe — `Contract::stock("AAPL").quote()`
+    // produces a `Subscription` the unified `subscribe()` accepts.
+    tdx.subscribe(Contract::stock("AAPL").quote())?;
+    tdx.subscribe(Contract::stock("MSFT").trade())?;
 
     tokio::signal::ctrl_c().await.ok();
     tdx.stop_streaming();
@@ -188,55 +191,53 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }
 ```
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient, Contract
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+client = ThetaDataDxClient(creds, Config.production())
 
-tdx.start_streaming()
-tdx.subscribe_quotes("AAPL")
-tdx.subscribe_trades("MSFT")
+client.subscribe(Contract.stock("AAPL").quote())
+client.subscribe(Contract.stock("MSFT").trade())
 
-try:
-    while True:
-        event = tdx.next_event(timeout_ms=1000)
-        if event is None:
-            continue
+# Pull-iter mode: context-managed typed iterator over the SPSC
+# queue. The iterator raises StopIteration once `stop_streaming()`
+# fires AND the queue is fully drained; the `with` block pairs
+# `stop_streaming()` + `await_drain()` automatically on exit.
+with client.streaming_iter() as it:
+    for event in it:
         if event.kind == "quote":
-            print(f"Quote: {event.contract_id} "
+            print(f"Quote: {event.contract.symbol} "
                   f"{event.bid:.2f}/{event.ask:.2f}")
         elif event.kind == "trade":
-            print(f"Trade: {event.contract_id} "
+            print(f"Trade: {event.contract.symbol} "
                   f"{event.price:.2f} x {event.size}")
-        elif event.kind == "simple" and event.event_type == "disconnected":
+        elif event.kind == "disconnected":
             break
-finally:
-    tdx.stop_streaming()
 ```
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient, Contract } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 
-tdx.startStreaming();
-tdx.subscribeQuotes('AAPL');
-tdx.subscribeTrades('MSFT');
+client.subscribe(Contract.stock('AAPL').quote());
+client.subscribe(Contract.stock('MSFT').trade());
 
+// Pull-iter mode: async iterable over the SPSC queue. The
+// iterator resolves `done: true` once `client.stopStreaming()`
+// fires AND the queue is fully drained.
+const iter = client.startStreamingIter();
 try {
-    while (true) {
-        const event = tdx.nextEvent(1000);
-        if (!event) continue;
-
+    for await (const event of iter) {
         if (event.kind === 'quote') {
-            console.log(`Quote: ${event.contractId} ${event.bid.toFixed(2)}/${event.ask.toFixed(2)}`);
+            console.log(`Quote: ${event.contract.symbol} ${event.bid.toFixed(2)}/${event.ask.toFixed(2)}`);
         } else if (event.kind === 'trade') {
-            console.log(`Trade: ${event.contractId} ${event.price.toFixed(2)} x ${event.size}`);
+            console.log(`Trade: ${event.contract.symbol} ${event.price.toFixed(2)} x ${event.size}`);
         } else if (event.kind === 'simple' && event.eventType === 'disconnected') {
             break;
         }
     }
 } finally {
-    tdx.stopStreaming();
+    client.stopStreaming();
 }
 ```
 ```cpp [C++]
@@ -246,25 +247,28 @@ try {
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
     auto config = tdx::Config::production();
-    tdx::FpssClient fpss(creds, config);
+    auto client = tdx::UnifiedClient::connect(creds, config);
 
-    fpss.subscribe_quotes("AAPL");
-    fpss.subscribe_trades("MSFT");
+    // Fluent contract-first subscribe — same shape as the Rust /
+    // Python / TypeScript bindings.
+    client.subscribe(tdx::Contract::stock("AAPL").quote());
+    client.subscribe(tdx::Contract::stock("MSFT").trade());
 
-    while (true) {
-        auto event = fpss.next_event(1000);
+    auto iter = client.start_streaming_iter();
+    while (!iter.ended()) {
+        auto event = iter.next(std::chrono::milliseconds(1000));
         if (!event) continue;
 
         switch (event->kind) {
         case TDX_FPSS_QUOTE: {
             const auto& q = event->quote;
-            std::cout << "Quote: " << q.contract_id
+            std::cout << "Quote: " << q.contract.symbol
                       << " " << q.bid << "/" << q.ask << std::endl;
             break;
         }
         case TDX_FPSS_TRADE: {
             const auto& t = event->trade;
-            std::cout << "Trade: " << t.contract_id
+            std::cout << "Trade: " << t.contract.symbol
                       << " " << t.price << " x " << t.size << std::endl;
             break;
         }

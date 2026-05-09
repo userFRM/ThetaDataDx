@@ -18,7 +18,7 @@ graph LR
     C -->|"Disruptor SPSC<br/>131,072 slots"| D["Your app<br/>(callback / poll)"]
 ```
 
-Events are decoded from the FIT wire format and delta-decompressed on a dedicated I/O thread, then dispatched through an LMAX Disruptor SPSC ring buffer to your callback (Rust) or polling queue (Python / TypeScript / Go / C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
+Events are decoded from the FIT wire format and delta-decompressed on a dedicated I/O thread, then dispatched through an LMAX Disruptor SPSC ring buffer to your callback (push mode) or pull-iter consumer (Python / TypeScript / C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
 
 ## SPKI pinning
 
@@ -28,15 +28,14 @@ Pins live in `crates/thetadatadx/src/fpss/pinning.rs` and are tested against all
 
 ## Dispatch model
 
-| SDK | Model | Event type | Details |
-|-----|-------|------------|---------|
-| **Rust** | Synchronous callback | `&FpssEvent` enum | Disruptor ring dispatch. No Tokio on the hot path. |
-| **Python** | Polling | typed pyclass | `next_event(timeout_ms=...)` returns typed `Quote` / `Trade` / `Ohlcvc` / `OpenInterest` / `Simple` / `RawData`. |
-| **TypeScript** | Polling | JS object | `nextEvent(timeoutMs)` returns JS objects with all fields. |
-| **Go** | Polling | `*FpssEvent` struct | `NextEvent(timeoutMs)` returns typed Go structs. Prices pre-decoded to `float64`. |
-| **C++** | Polling | `FpssEventPtr` | `next_event(timeout_ms)` returns `std::unique_ptr<TdxFpssEvent>`. `#[repr(C)]` layout. |
+| SDK | Push (callback) | Pull (iterator) | Event shape | Details |
+|-----|-----------------|-----------------|-------------|---------|
+| **Rust** | `client.start_streaming(\|event\| ...)` | `let iter = client.start_streaming_iter()?;` then `for event in iter { ... }` | `&FpssEvent` enum | Disruptor ring dispatch. No Tokio on the hot path. |
+| **Python** | `client.start_streaming(callback)` | `with client.streaming_iter() as it: for event in it:` | typed pyclass | Iterator raises `StopIteration` once the queue drains on a stopped session. |
+| **TypeScript** | `client.startStreaming(callback)` | `for await (const event of client.startStreamingIter())` | JS object | Async iterable resolves `done: true` on terminal end-of-stream. |
+| **C++** | `client.start_streaming(lambda)` | `client.start_streaming_iter().next(timeout)` | `TdxFpssEvent` | `next(timeout)` returns `std::optional<TdxFpssEvent>`; `ended()` flips on terminal close. `#[repr(C)]` layout. |
 
-Under the hood every SDK reads from the same SPSC ring; polling SDKs consume with a timeout, and the Rust callback is driven by a ring-reader thread.
+Push and pull modes are mutually exclusive on a single session. Under the hood both modes read from the same SPSC ring; push mode dispatches into a callback on the LMAX Disruptor consumer thread, pull mode hands events to an iterator the caller drives.
 
 ## Ring buffer
 
@@ -58,16 +57,16 @@ Under the hood every SDK reads from the same SPSC ring; polling SDKs consume wit
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 use thetadatadx::fpss::{FpssData, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
-    let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+    let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 
-    tdx.start_streaming(|event: &FpssEvent| match event {
+    client.start_streaming(|event: &FpssEvent| match event {
         FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
             println!("Quote: {} {bid:.2}/{ask:.2}", contract.symbol);
         }
@@ -77,31 +76,33 @@ async fn main() -> Result<(), thetadatadx::Error> {
         _ => {}
     })?;
 
-    tdx.subscribe_quotes(&Contract::stock("AAPL"))?;
-    tdx.subscribe_trades(&Contract::stock("MSFT"))?;
+    client.subscribe(Contract::stock("AAPL").quote())?;
+    client.subscribe(Contract::stock("MSFT").trade())?;
 
     std::thread::park();
-    tdx.stop_streaming();
+    client.stop_streaming();
     Ok(())
 }
 ```
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient, Contract
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
-tdx.start_streaming()
-tdx.subscribe_quotes("AAPL")
-tdx.subscribe_trades("MSFT")
+client = ThetaDataDxClient(creds, Config.production())
 
-while True:
-    event = tdx.next_event(timeout_ms=5000)
-    if event is None:
-        continue
-    if event.kind == "quote":
-        print(f"Quote: {event.contract_id} {event.bid:.2f}/{event.ask:.2f}")
-    elif event.kind == "trade":
-        print(f"Trade: {event.contract_id} {event.price:.2f} x {event.size}")
+client.subscribe(Contract.stock("AAPL").quote())
+client.subscribe(Contract.stock("MSFT").trade())
+
+# Pull-iter mode: context-managed typed iterator over the SPSC
+# queue. The iterator raises StopIteration once `stop_streaming()`
+# fires AND the queue is fully drained; the `with` block pairs
+# `stop_streaming()` + `await_drain()` automatically on exit.
+with client.streaming_iter() as it:
+    for event in it:
+        if event.kind == "quote":
+            print(f"Quote: {event.contract.symbol} {event.bid:.2f}/{event.ask:.2f}")
+        elif event.kind == "trade":
+            print(f"Trade: {event.contract.symbol} {event.price:.2f} x {event.size}")
 ```
 :::
 

@@ -55,7 +55,7 @@ pub struct ReconnectConfig {
     /// has `RECONNECT_WAIT=1000` but the runtime uses the constant `2000`.
     ///
     /// NOTE: Not automatically wired — consumed by
-    /// [`crate::ThetaDataDx::reconnect_streaming`] / the FPSS auto-reconnect path.
+    /// [`crate::ThetaDataDxClient::reconnect_streaming`] / the FPSS auto-reconnect path.
     pub wait_ms: u64,
 
     /// Delay before reconnecting after a `TooManyRequests` disconnect, in milliseconds.
@@ -63,7 +63,7 @@ pub struct ReconnectConfig {
     /// Involuntary-disconnect handler waits 130 seconds in this case.
     ///
     /// NOTE: Not automatically wired — consumed by
-    /// [`crate::ThetaDataDx::reconnect_streaming`] / the FPSS auto-reconnect path.
+    /// [`crate::ThetaDataDxClient::reconnect_streaming`] / the FPSS auto-reconnect path.
     pub wait_rate_limited_ms: u64,
 
     /// Controls FPSS auto-reconnection behavior after involuntary disconnect.

@@ -19,6 +19,9 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
 
 #if defined(_MSC_VER)
 #define TDX_ALIGN64_BEGIN __declspec(align(64))
@@ -539,6 +542,54 @@ int tdx_implied_volatility(double spot, double strike, double rate, double div_y
                            double* out_iv, double* out_error);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
+/*  Cross-language utility helpers — conditions / exchange / sequences   */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* All `tdx_*_name` / `tdx_*_description` / `tdx_exchange_*` returns are
+ * NUL-terminated UTF-8 C strings owned by the library. They are
+ * `'static`-lifetime — DO NOT FREE. The pointer remains valid for the
+ * lifetime of the process.  Unknown codes return either "UNKNOWN" (name
+ * lookup) or "" (description lookup), never NULL. */
+
+/** Trade condition name lookup. Returns "UNKNOWN" for unrecognised codes. */
+const char* tdx_condition_name(int32_t code);
+
+/** Trade condition description lookup. Returns "" for unrecognised codes. */
+const char* tdx_condition_description(int32_t code);
+
+/** True if the trade condition code represents a cancellation. */
+bool tdx_condition_is_cancel(int32_t code);
+
+/** True if the trade condition code updates the volume bar. */
+bool tdx_condition_updates_volume(int32_t code);
+
+/** Quote condition name lookup. Returns "UNKNOWN" for unrecognised codes. */
+const char* tdx_quote_condition_name(int32_t code);
+
+/** Quote condition description lookup. Returns "" for unrecognised codes. */
+const char* tdx_quote_condition_description(int32_t code);
+
+/** True if the quote condition is firm (binding). */
+bool tdx_quote_condition_is_firm(int32_t code);
+
+/** True if the quote condition indicates a trading halt. */
+bool tdx_quote_condition_is_halted(int32_t code);
+
+/** Exchange name lookup (e.g. 3 -> "NewYorkStockExchange"). */
+const char* tdx_exchange_name(int32_t code);
+
+/** Exchange MIC-like symbol lookup (e.g. 3 -> "NYSE"). */
+const char* tdx_exchange_symbol(int32_t code);
+
+/** Convert a signed wire-encoded trade-sequence value to its unsigned
+ *  monotonic form. */
+uint64_t tdx_sequence_signed_to_unsigned(int64_t signed_value);
+
+/** Convert an unsigned monotonic trade-sequence value back to its signed
+ *  wire encoding. */
+int64_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value);
+
+/* ═══════════════════════════════════════════════════════════════════════ */
 /*  FPSS — #[repr(C)] streaming event types                               */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
@@ -550,14 +601,20 @@ int tdx_implied_volatility(double spot, double strike, double rate, double div_y
  * build at compile time if the schema and the C++ consumer ever
  * disagree.
  *
- * `TdxFpssControl::kind` encodes the sub-type:
- *   0=login_success, 1=contract_assigned, 2=req_response,
- *   3=market_open, 4=market_close, 5=server_error,
- *   6=disconnected, 8=reconnecting, 9=reconnected,
- *   10=error, 11=unknown_frame, 12=unknown_event
- * (value 7 is reserved). `id` carries the contract_id / req_id /
- * reconnect attempt where applicable (0 otherwise). `detail` is a
- * NUL-terminated string; may be NULL. Do NOT free. */
+ * Flattened the flat `TdxFpssControl { kind, id, detail }`
+ * envelope into one typed `#[repr(C)]` struct per `FpssControl::*` Rust
+ * variant. Consumers dispatch via `event->kind` and read the matching
+ * `event-><variant>` payload — for example
+ *
+ *   if (event->kind == TDX_FPSS_LOGIN_SUCCESS)
+ *       printf("perms=%s\n", event->login_success.permissions);
+ *   if (event->kind == TDX_FPSS_DISCONNECTED)
+ *       printf("reason=%d\n", event->disconnected.reason);
+ *
+ * Borrowed pointers (`Contract.symbol`, `LoginSuccess.permissions`,
+ * `ServerError.message`, `Error.message`, `Ping.payload`,
+ * `UnknownFrame.payload`) are valid only for the duration of the
+ * user callback — copy out before returning. Do NOT free. */
 #include "fpss_event_structs.h.inc"
 
 /* ═══════════════════════════════════════════════════════════════════════ */
@@ -567,53 +624,7 @@ int tdx_implied_volatility(double spot, double strike, double rate, double div_y
 /** Connect to FPSS streaming servers. Returns NULL on failure. */
 TdxFpssHandle* tdx_fpss_connect(const TdxCredentials* creds, const TdxConfig* config);
 
-/** Subscribe to quote data. Returns request ID or -1 on error. */
-int tdx_fpss_subscribe_quotes(const TdxFpssHandle* h, const char* symbol);
-
-/** Subscribe to trade data. Returns request ID or -1 on error. */
-int tdx_fpss_subscribe_trades(const TdxFpssHandle* h, const char* symbol);
-
-/** Subscribe to open interest data. Returns request ID or -1 on error. */
-int tdx_fpss_subscribe_open_interest(const TdxFpssHandle* h, const char* symbol);
-
-/** Subscribe to all trades for a security type. sec_type: "STOCK", "OPTION", "INDEX". Returns request ID or -1. */
-int tdx_fpss_subscribe_full_trades(const TdxFpssHandle* h, const char* sec_type);
-
-/** Subscribe to all open interest for a security type. sec_type: "STOCK", "OPTION", "INDEX". Returns request ID or -1. */
-int tdx_fpss_subscribe_full_open_interest(const TdxFpssHandle* h, const char* sec_type);
-
-/** Unsubscribe from all trades for a security type. sec_type: "STOCK", "OPTION", "INDEX". Returns request ID or -1. */
-int tdx_fpss_unsubscribe_full_trades(const TdxFpssHandle* h, const char* sec_type);
-
-/** Unsubscribe from all open interest for a security type. sec_type: "STOCK", "OPTION", "INDEX". Returns request ID or -1. */
-int tdx_fpss_unsubscribe_full_open_interest(const TdxFpssHandle* h, const char* sec_type);
-
-/** Unsubscribe from quote data. Returns request ID or -1 on error. */
-int tdx_fpss_unsubscribe_quotes(const TdxFpssHandle* h, const char* symbol);
-
-/** Unsubscribe from trade data. Returns request ID or -1 on error. */
-int tdx_fpss_unsubscribe_trades(const TdxFpssHandle* h, const char* symbol);
-
-/** Unsubscribe from open interest data. Returns request ID or -1 on error. */
-int tdx_fpss_unsubscribe_open_interest(const TdxFpssHandle* h, const char* symbol);
-
-/** Subscribe to quote data for an option contract. Returns 0 or -1. */
-int tdx_fpss_subscribe_option_quotes(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Subscribe to trade data for an option contract. Returns 0 or -1. */
-int tdx_fpss_subscribe_option_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Subscribe to open interest for an option contract. Returns 0 or -1. */
-int tdx_fpss_subscribe_option_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Unsubscribe from quote data for an option contract. Returns 0 or -1. */
-int tdx_fpss_unsubscribe_option_quotes(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Unsubscribe from trade data for an option contract. Returns 0 or -1. */
-int tdx_fpss_unsubscribe_option_trades(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Unsubscribe from open interest for an option contract. Returns 0 or -1. */
-int tdx_fpss_unsubscribe_option_open_interest(const TdxFpssHandle* h, const char* symbol, const char* expiration, const char* strike, const char* right);
+/** Polymorphic subscribe / unsubscribe — see TdxSubscriptionRequest below. */
 
 /** Check if authenticated. Returns 1 if true, 0 if false. */
 int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
@@ -621,28 +632,32 @@ int tdx_fpss_is_authenticated(const TdxFpssHandle* h);
 /** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */
 TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
 
-/** User callback signature for tdx_*_set_callback / tdx_*_set_inline_callback.
+/** User callback signature for tdx_*_set_callback.
  *  `event` is valid only for the duration of the call -- copy any fields the
  *  caller wants to outlive the callback. `ctx` is the opaque pointer the
  *  caller registered alongside the callback; it is passed back unchanged. */
 typedef void (*TdxFpssCallback)(const TdxFpssEvent* event, void* ctx);
 
-/** Register a queued FPSS callback and open the FPSS connection.
+/** Register an FPSS callback and open the FPSS connection.
  *
- *  Events flow `FPSS reader -> bounded(8192) crossbeam queue -> dispatcher
- *  drain thread -> callback`. The reader thread NEVER blocks on user code:
- *  on overflow events are dropped and counted (tdx_fpss_dropped_events).
+ *  Events flow `FPSS reader -> LMAX Disruptor ring -> consumer thread ->
+ *  catch_unwind(callback)`. The reader thread NEVER blocks on user code:
+ *  on ring overflow events are dropped and counted (tdx_fpss_dropped_events).
  *
  *  ## ctx lifetime + thread affinity
  *
- *  `ctx` MUST remain valid from this call until tdx_fpss_shutdown() returns
- *  or tdx_fpss_free() returns. The dispatcher drain thread accesses it on
- *  every event and on every tdx_fpss_reconnect(). Freeing `ctx` early is
- *  undefined behavior.
+ *  `ctx` MUST remain valid until ONE of: (a) tdx_fpss_free() returns
+ *  (which performs shutdown if needed and applies the drain barrier
+ *  internally with a 5 s timeout), or (b) tdx_fpss_shutdown() /
+ *  tdx_fpss_reconnect() returns AND tdx_fpss_await_drain() has
+ *  returned 1. The Disruptor consumer thread accesses ctx on every
+ *  event and on every tdx_fpss_reconnect(), serially on a single
+ *  thread. Freeing ctx without one of these barriers is undefined
+ *  behavior.
  *
- *  Queued path: the dispatcher drain thread invokes `callback(event, ctx)`
- *  serially on a single drain thread. The user does NOT need internal locks
- *  for callback-private state.
+ *  The Disruptor consumer thread invokes `callback(event, ctx)` serially on
+ *  a single thread. The user does NOT need internal locks for callback-
+ *  private state.
  *
  *  ## Lifecycle contract (FPSS one-shot rule)
  *
@@ -658,44 +673,51 @@ typedef void (*TdxFpssCallback)(const TdxFpssEvent* event, void* ctx);
  *  Returns 0 on success, -1 on error (check tdx_last_error()). */
 int tdx_fpss_set_callback(const TdxFpssHandle* h, TdxFpssCallback callback, void* ctx);
 
-/** Register an inline FPSS callback and open the FPSS connection.
- *
- *  `callback` fires directly on the FPSS reader thread. Microsecond-budget
- *  contract: any allocation, I/O, or lock acquisition will stall the reader
- *  and cause the vendor session to drop. Use only for trading loops with
- *  provably wait-free callbacks.
- *
- *  ## ctx lifetime + thread affinity
- *
- *  Same lifetime as tdx_fpss_set_callback (must outlive shutdown / free).
- *  Inline path: `callback(event, ctx)` is invoked DIRECTLY on the FPSS
- *  reader thread (no dispatcher queue, no extra thread), serially. The
- *  user does NOT need internal locks for callback-private state.
- *
- *  ## Lifecycle contract
- *
- *  Same one-shot / terminal-shutdown rules as tdx_fpss_set_callback. */
-int tdx_fpss_set_inline_callback(const TdxFpssHandle* h, TdxFpssCallback callback, void* ctx);
-
 /** Reconnect FPSS using the previously-registered callback. Returns 0 or -1.
  *  Returns -1 with "FPSS handle has already been shut down -- this is
  *  terminal" if the handle is past tdx_fpss_shutdown. */
 int tdx_fpss_reconnect(const TdxFpssHandle* h);
 
-/** Cumulative count of FPSS events dropped by the dispatcher because the
- *  bounded queue was full when the FPSS reader tried to enqueue. Returns 0
- *  if the handle is null, no callback installed, or inline mode (no queue).
- *  Disconnected sends (drain-thread-already-exited race) are NOT counted
- *  here -- the metric is a pure queue-overflow signal. */
+/** Cumulative count of FPSS events the TLS reader could not publish into
+ *  the LMAX Disruptor ring because the consumer fell behind and the ring
+ *  was full (`Producer::try_publish` returned `RingBufferFull`). Returns 0
+ *  if the handle is null or no callback has been installed yet. */
 uint64_t tdx_fpss_dropped_events(const TdxFpssHandle* h);
 
 /** Shut down the FPSS client. Terminal: every subsequent set_callback /
- *  set_inline_callback / reconnect / shutdown call on this handle returns
- *  -1 with a clear tdx_last_error() string. The handle remains valid for
- *  tdx_fpss_free() only. */
+ *  reconnect / shutdown call on this handle returns -1 with a clear
+ *  tdx_last_error() string. The handle remains valid for
+ *  tdx_fpss_free() only. Returns asynchronously: the FPSS reader and
+ *  Disruptor consumer continue draining in-flight events through the
+ *  registered callback until they observe the shutdown signal and
+ *  exit. Pair with tdx_fpss_await_drain() (or use tdx_fpss_free(), which
+ *  applies the drain barrier internally) before freeing the callback
+ *  ctx. */
 void tdx_fpss_shutdown(const TdxFpssHandle* h);
 
-/** Free the FPSS handle. Must be called after tdx_fpss_shutdown. */
+/** Wait for the previously-superseded FPSS session to quiesce.
+ *
+ *  Returns 1 once the previous tdx_fpss_reconnect / tdx_fpss_shutdown
+ *  session's Disruptor consumer has finished firing the registered
+ *  callback. Returns 0 on timeout or when no session has been
+ *  superseded on this handle.
+ *
+ *  Must be called from a thread other than the FPSS Disruptor consumer
+ *  thread; calling it from inside the user callback would block the
+ *  helper the consumer is waiting on and always time out. */
+int tdx_fpss_await_drain(const TdxFpssHandle* h, uint64_t timeout_ms);
+
+/** Free the FPSS handle.
+ *
+ *  Accepts the handle in either lifecycle state: if shutdown has not
+ *  yet been called, tdx_fpss_free performs the shutdown sequence
+ *  itself. Returns only after the consumer thread has finished firing
+ *  the registered callback (internal 5-second drain barrier). On
+ *  drain-flag timeout, emits a tracing::error! and proceeds with
+ *  destruction; in that diagnostic case the consumer may still be
+ *  firing, so user code must keep ctx valid past return. Under normal
+ *  operation drain completes in low single-digit milliseconds, so ctx
+ *  is safe to free immediately on return. */
 void tdx_fpss_free(TdxFpssHandle* h);
 
 /* ======================================================================= */
@@ -706,96 +728,74 @@ void tdx_fpss_free(TdxFpssHandle* h);
  *  Returns NULL on connection/auth failure (check tdx_last_error()). */
 TdxUnified* tdx_unified_connect(const TdxCredentials* creds, const TdxConfig* config);
 
-/** Register a queued FPSS callback and start streaming on the unified client.
+/** Register an FPSS callback and start streaming on the unified client.
  *
- *  Events flow `FPSS reader -> bounded(8192) crossbeam queue -> dispatcher
- *  drain thread -> callback`. Reader never blocks on user code; overflow
+ *  Events flow `FPSS reader -> LMAX Disruptor ring -> consumer thread ->
+ *  catch_unwind(callback)`. Reader never blocks on user code; ring-overflow
  *  events are dropped (tdx_unified_dropped_events).
  *
  *  ## ctx lifetime + thread affinity
  *
- *  `ctx` MUST remain valid from this call until either
- *  tdx_unified_stop_streaming() / tdx_unified_free() returns OR a successful
- *  subsequent set_callback / set_inline_callback REPLACES it. Queued path:
- *  the dispatcher drain thread accesses ctx on every event and reconnect.
- *  The dispatcher invokes `callback(event, ctx)` serially on a single
- *  drain thread. Freeing ctx early is undefined behavior.
+ *  `ctx` MUST remain valid until ONE of: (a) tdx_unified_free()
+ *  returns (which calls stop_streaming and applies the drain barrier
+ *  internally with a 5 s timeout), (b) tdx_unified_stop_streaming() /
+ *  tdx_unified_reconnect() returns AND tdx_unified_await_drain() has
+ *  returned 1, or (c) a successful replacement tdx_unified_set_callback
+ *  has returned AND tdx_unified_await_drain() has returned 1 for the
+ *  prior session. The Disruptor consumer thread accesses ctx on every
+ *  event and reconnect, serially on a single thread. Freeing ctx
+ *  without one of these barriers is undefined behavior.
  *
  *  ## Lifecycle contract (REPLACEMENT after stop)
  *
  *  Unlike tdx_fpss_set_callback (one-shot), the unified path supports
  *  stop+register as a normal user flow: after tdx_unified_stop_streaming
- *  another tdx_unified_set_callback / _set_inline_callback REPLACES the
- *  saved (callback, ctx). tdx_unified_reconnect is built on top of this.
- *  Calling set_callback while streaming is already active returns -1 with
- *  "streaming already started".
+ *  another tdx_unified_set_callback REPLACES the saved (callback, ctx).
+ *  tdx_unified_reconnect is built on top of this. Calling set_callback
+ *  while streaming is already active returns -1 with "streaming already
+ *  started".
  *
  *  Returns 0 on success, -1 on error. */
 int tdx_unified_set_callback(const TdxUnified* handle, TdxFpssCallback callback, void* ctx);
 
-/** Register an inline FPSS callback and start streaming on the unified client.
+/** Subscription request scope discriminator (TdxSubscriptionRequest.scope). */
+#define TDX_SUB_SCOPE_CONTRACT 0
+#define TDX_SUB_SCOPE_FULL     1
+
+/** Subscription kind discriminator (TdxSubscriptionRequest.kind). */
+#define TDX_SUB_KIND_QUOTE         0
+#define TDX_SUB_KIND_TRADE         1
+#define TDX_SUB_KIND_OPEN_INTEREST 2
+
+/** Polymorphic subscribe / unsubscribe request payload.
  *
- *  `callback` fires on the FPSS reader thread (microsecond-budget contract).
+ * Mirrors the Rust `Subscription` enum across the C ABI.
  *
- *  ## ctx lifetime + thread affinity
- *
- *  Same lifetime as tdx_unified_set_callback (must outlive stop / free, or
- *  be replaced by a successful subsequent registration). Inline path:
- *  `callback(event, ctx)` is invoked DIRECTLY on the FPSS reader thread
- *  serially.
- *
- *  ## Lifecycle contract
- *
- *  Same replacement-after-stop semantics as tdx_unified_set_callback. */
-int tdx_unified_set_inline_callback(const TdxUnified* handle, TdxFpssCallback callback, void* ctx);
+ * - Per-contract stock: scope=CONTRACT, symbol="AAPL", option fields NULL.
+ * - Per-contract option: scope=CONTRACT, symbol="SPY", expiration / strike / right set.
+ * - Full-stream: scope=FULL, sec_type="OPTION" (or "STOCK", "INDEX"), per-contract fields NULL.
+ */
+typedef struct {
+    int32_t scope;            /* TDX_SUB_SCOPE_CONTRACT or TDX_SUB_SCOPE_FULL */
+    int32_t kind;             /* TDX_SUB_KIND_QUOTE / _TRADE / _OPEN_INTEREST */
+    const char* symbol;       /* per-contract only */
+    const char* expiration;   /* per-contract option only */
+    const char* strike;       /* per-contract option only */
+    const char* right;        /* per-contract option only */
+    const char* sec_type;     /* full-stream only */
+} TdxSubscriptionRequest;
 
-/** Subscribe to quote data for a stock symbol. Returns 0 on success, -1 on error. */
-int tdx_unified_subscribe_quotes(const TdxUnified* handle, const char* symbol);
+/** Polymorphic subscribe on the unified client. Returns 0 or -1. */
+int tdx_unified_subscribe(const TdxUnified* handle, const TdxSubscriptionRequest* request);
 
-/** Subscribe to trade data for a stock symbol. Returns 0 on success, -1 on error. */
-int tdx_unified_subscribe_trades(const TdxUnified* handle, const char* symbol);
+/** Polymorphic unsubscribe on the unified client. Returns 0 or -1. */
+int tdx_unified_unsubscribe(const TdxUnified* handle, const TdxSubscriptionRequest* request);
 
-/** Unsubscribe from quote data. Returns 0 on success, -1 on error. */
-int tdx_unified_unsubscribe_quotes(const TdxUnified* handle, const char* symbol);
+/** Polymorphic subscribe on the standalone FPSS client. Returns 0 or -1. */
+int tdx_fpss_subscribe(const TdxFpssHandle* h, const TdxSubscriptionRequest* request);
 
-/** Unsubscribe from trade data. Returns 0 on success, -1 on error. */
-int tdx_unified_unsubscribe_trades(const TdxUnified* handle, const char* symbol);
-
-/** Subscribe to open interest data. Returns 0 on success, -1 on error. */
-int tdx_unified_subscribe_open_interest(const TdxUnified* handle, const char* symbol);
-
-/** Unsubscribe from open interest data. Returns 0 on success, -1 on error. */
-int tdx_unified_unsubscribe_open_interest(const TdxUnified* handle, const char* symbol);
-
-/** Subscribe to all trades for a security type ("STOCK", "OPTION", "INDEX"). Returns 0 or -1. */
-int tdx_unified_subscribe_full_trades(const TdxUnified* handle, const char* sec_type);
-
-/** Subscribe to all open interest for a security type. Returns 0 or -1. */
-int tdx_unified_subscribe_full_open_interest(const TdxUnified* handle, const char* sec_type);
-
-/** Unsubscribe from all trades for a security type. Returns 0 or -1. */
-int tdx_unified_unsubscribe_full_trades(const TdxUnified* handle, const char* sec_type);
-
-/** Unsubscribe from all open interest for a security type. Returns 0 or -1. */
-int tdx_unified_unsubscribe_full_open_interest(const TdxUnified* handle, const char* sec_type);
-
-/** Subscribe to quote data for an option contract. Returns 0 or -1. */
-int tdx_unified_subscribe_option_quotes(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Subscribe to trade data for an option contract. Returns 0 or -1. */
-int tdx_unified_subscribe_option_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Subscribe to open interest for an option contract. Returns 0 or -1. */
-int tdx_unified_subscribe_option_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Unsubscribe from quote data for an option contract. Returns 0 or -1. */
-int tdx_unified_unsubscribe_option_quotes(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Unsubscribe from trade data for an option contract. Returns 0 or -1. */
-int tdx_unified_unsubscribe_option_trades(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
-
-/** Unsubscribe from open interest for an option contract. Returns 0 or -1. */
-int tdx_unified_unsubscribe_option_open_interest(const TdxUnified* handle, const char* symbol, const char* expiration, const char* strike, const char* right);
+/** Polymorphic unsubscribe on the standalone FPSS client. Returns 0 or -1. */
+int tdx_fpss_unsubscribe(const TdxFpssHandle* h, const TdxSubscriptionRequest* request);
 
 /** Reconnect unified streaming, re-subscribing all previous subscriptions. Returns 0 or -1. */
 int tdx_unified_reconnect(const TdxUnified* handle);
@@ -809,16 +809,161 @@ TdxSubscriptionArray* tdx_unified_active_subscriptions(const TdxUnified* handle)
 /** Borrow the historical client from a unified handle. Do NOT free the returned pointer. */
 const TdxClient* tdx_unified_historical(const TdxUnified* handle);
 
-/** Stop streaming on the unified client. Historical remains available. */
+/** Stop streaming on the unified client. Historical remains available.
+ *  Returns asynchronously: the FPSS reader and Disruptor consumer
+ *  continue draining in-flight events through the registered callback
+ *  until they observe the shutdown signal. Pair with
+ *  tdx_unified_await_drain() (or use tdx_unified_free(), which applies
+ *  the drain barrier internally) before freeing the callback ctx. */
 void tdx_unified_stop_streaming(const TdxUnified* handle);
 
-/** Cumulative count of FPSS events dropped by the dispatcher because the
- *  bounded queue was full when the FPSS reader tried to enqueue. Returns 0
- *  if the handle is null, no callback installed, or inline mode (no queue). */
+/** Wait for the previously-superseded streaming session to quiesce.
+ *
+ *  Returns 1 once the previous Disruptor consumer thread has finished
+ *  firing the registered callback. Returns 0 on timeout or when no
+ *  stream has ever been started or stopped on this handle.
+ *
+ *  Must be called from a thread other than the FPSS consumer thread. */
+int tdx_unified_await_drain(const TdxUnified* handle, uint64_t timeout_ms);
+
+/** Cumulative count of FPSS events the TLS reader could not publish into
+ *  the LMAX Disruptor ring because the consumer fell behind and the ring
+ *  was full. Returns 0 if the handle is null or no callback has been
+ *  installed yet. */
 uint64_t tdx_unified_dropped_events(const TdxUnified* handle);
 
-/** Free a unified client handle. */
+/** Free a unified client handle.
+ *
+ *  Calls tdx_unified_stop_streaming internally, then waits up to 5
+ *  seconds for the consumer thread to finish firing the registered
+ *  callback before destroying the handle. On drain-flag timeout,
+ *  emits a tracing::error! and proceeds with destruction; in that
+ *  diagnostic case the consumer may still be firing, so user code
+ *  must keep ctx valid past return. Under normal operation drain
+ *  completes in low single-digit milliseconds, so ctx is safe to
+ *  free immediately on return. */
 void tdx_unified_free(TdxUnified* handle);
+
+/* ── Pull-iter delivery ─────────────────────────────────────
+ *
+ * Sibling of the push-callback path. `tdx_unified_set_callback` sends
+ * each event through a user `extern "C" fn` invoked on the LMAX
+ * Disruptor consumer thread; the iterator instead drains a per-client
+ * bounded queue from the caller's own thread, so the consumer thread
+ * is decoupled from any per-event GIL / event-loop costs the binding
+ * pays. Mutually exclusive with the callback path on the same
+ * `TdxUnified*`; switch by stopping streaming and starting again.
+ */
+
+/** Opaque pull-iter handle returned by tdx_unified_start_streaming_iter. */
+typedef struct TdxFpssEventIterator TdxFpssEventIterator;
+
+/** Start FPSS streaming on the unified client in pull-iter mode.
+ *
+ *  Returns a freshly allocated `TdxFpssEventIterator*` on success.
+ *  Mutually exclusive with `tdx_unified_set_callback` — calling
+ *  either while streaming is already running returns NULL with
+ *  `tdx_last_error()` set to `"streaming already started"`. Free with
+ *  `tdx_fpss_event_iter_free` when done iterating.
+ *
+ *  Returns NULL on connection / auth / state failure. */
+TdxFpssEventIterator* tdx_unified_start_streaming_iter(const TdxUnified* handle);
+
+/** Pop the next FPSS event into `*out_event`. `timeout_ms = 0` is a
+ *  non-blocking poll; positive `timeout_ms` blocks up to that
+ *  deadline.
+ *
+ *  Return values:
+ *  -  0 — event filled into `*out_event`.
+ *  -  1 — timeout expired with no event; `*out_event` untouched.
+ *  - -1 — terminal end-of-stream (queue drained on a stopped session)
+ *         OR call-site error (check `tdx_last_error()`).
+ *
+ *  The borrowed pointer fields inside `*out_event` (`Contract.symbol`,
+ *  `LoginSuccess.permissions`, payload byte slices, etc.) reference
+ *  heap memory owned by the iterator handle's internal buffer. They
+ *  are valid until the next `tdx_fpss_event_iter_next` call OR until
+ *  `tdx_fpss_event_iter_free` is invoked, whichever happens first.
+ *  Copy any fields the consumer wants to outlive the next call. */
+int tdx_fpss_event_iter_next(TdxFpssEventIterator* it,
+                             TdxFpssEvent* out_event,
+                             int32_t timeout_ms);
+
+/** Mark the iterator closed. Subsequent `_next` calls return -1
+ *  (terminal) once the queue is drained, without shutting down the
+ *  underlying streaming session. Idempotent. */
+void tdx_fpss_event_iter_close(TdxFpssEventIterator* it);
+
+/** Free a pull-iter handle. Does NOT stop the underlying streaming
+ *  session — call `tdx_unified_stop_streaming` first if you need a
+ *  full shutdown. */
+void tdx_fpss_event_iter_free(TdxFpssEventIterator* it);
+
+/* ── FLATFILES surface ────────────────────────────────────────────────
+ *
+ * Whole-universe daily snapshots over the legacy MDDS port. See
+ * `crates/thetadatadx/src/flatfiles/` for the wire format. The schema
+ * is determined at runtime by (sec_type, req_type), so the typed
+ * decoder returns an opaque row-list handle that you serialise to
+ * Arrow IPC bytes when you want columnar output.
+ */
+
+/** Opaque handle wrapping a decoded `Vec<FlatFileRow>`. Created by
+ *  tdx_flatfile_request_decoded; freed by tdx_flatfile_rowlist_free. */
+typedef struct TdxFlatFileRowList TdxFlatFileRowList;
+
+/** Heap-owned byte buffer (Arrow IPC stream) returned by
+ *  tdx_flatfile_rows_to_arrow_ipc. Caller MUST free with
+ *  tdx_flatfile_bytes_free. */
+typedef struct TdxFlatFileBytes {
+    const uint8_t* data;
+    size_t len;
+} TdxFlatFileBytes;
+
+/** Pull a decoded flat-file blob for (sec_type, req_type, date) and
+ *  return an opaque row-list handle.
+ *
+ *  sec_type  -- "OPTION" / "STOCK" / "INDEX"
+ *  req_type  -- "EOD" / "QUOTE" / "OPEN_INTEREST" / "OHLC" / "TRADE" /
+ *               "TRADE_QUOTE"
+ *  date      -- "YYYYMMDD"
+ *
+ *  Returns NULL on error; check tdx_last_error(). The returned handle
+ *  MUST be freed with tdx_flatfile_rowlist_free. */
+TdxFlatFileRowList* tdx_flatfile_request_decoded(
+    const TdxUnified* handle,
+    const char* sec_type,
+    const char* req_type,
+    const char* date);
+
+/** Number of rows in a row-list handle. Returns 0 if rowlist is NULL. */
+size_t tdx_flatfile_rows_count(const TdxFlatFileRowList* rowlist);
+
+/** Serialise the row list as Arrow IPC stream bytes. The schema is
+ *  inferred from the first row by `flatfiles::arrow::rows_to_arrow`.
+ *
+ *  Returns (data=NULL, len=0) on error; check tdx_last_error().
+ *  Caller MUST free the returned bytes with tdx_flatfile_bytes_free. */
+TdxFlatFileBytes tdx_flatfile_rows_to_arrow_ipc(
+    const TdxFlatFileRowList* rowlist);
+
+/** Free a byte buffer returned by tdx_flatfile_rows_to_arrow_ipc. */
+void tdx_flatfile_bytes_free(TdxFlatFileBytes bytes);
+
+/** Free a row-list handle returned by tdx_flatfile_request_decoded. */
+void tdx_flatfile_rowlist_free(TdxFlatFileRowList* rowlist);
+
+/** Pull a flat-file blob and write the requested vendor format
+ *  ("csv" / "jsonl") directly to `path`. Returns 0 on success, -1 on
+ *  error; check tdx_last_error(). The format extension is appended to
+ *  `path` automatically if missing. */
+int tdx_flatfile_request_to_path(
+    const TdxUnified* handle,
+    const char* sec_type,
+    const char* req_type,
+    const char* date,
+    const char* path,
+    const char* format);
 
 #ifdef __cplusplus
 }

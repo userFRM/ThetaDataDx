@@ -34,14 +34,9 @@ from thetadatadx import Credentials
 creds = Credentials.from_file("creds.txt")
 ```
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
-```
-```go [Go]
-creds, err := thetadatadx.CredentialsFromFile("creds.txt")
-if err != nil { log.Fatal(err) }
-defer creds.Close()
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
@@ -70,17 +65,12 @@ from thetadatadx import Credentials
 creds = Credentials(os.environ["THETA_EMAIL"], os.environ["THETA_PASS"])
 ```
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connect(
+const client = await ThetaDataDxClient.connect(
     process.env.THETA_EMAIL!,
     process.env.THETA_PASS!,
 );
-```
-```go [Go]
-creds, err := thetadatadx.CredentialsFromEnv("THETA_EMAIL", "THETA_PASS")
-if err != nil { log.Fatal(err) }
-defer creds.Close()
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials(
@@ -100,34 +90,25 @@ Once you have credentials, connect to ThetaData's production servers:
 
 ::: code-group
 ```rust [Rust]
-use thetadatadx::{ThetaDataDx, Credentials, DirectConfig};
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 
 let creds = Credentials::from_file("creds.txt")?;
-let tdx = ThetaDataDx::connect(&creds, DirectConfig::production()).await?;
+let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 ```
 ```python [Python]
-from thetadatadx import Credentials, Config, ThetaDataDx
+from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 creds = Credentials.from_file("creds.txt")
-tdx = ThetaDataDx(creds, Config.production())
+client = ThetaDataDxClient(creds, Config.production())
 ```
 ```typescript [TypeScript]
-import { ThetaDataDx } from 'thetadatadx';
+import { ThetaDataDxClient } from 'thetadatadx';
 
-const tdx = await ThetaDataDx.connectFromFile('creds.txt');
-```
-```go [Go]
-creds, _ := thetadatadx.CredentialsFromFile("creds.txt")
-defer creds.Close()
-config := thetadatadx.ProductionConfig()
-defer config.Close()
-client, err := thetadatadx.Connect(creds, config)
-if err != nil { log.Fatal(err) }
-defer client.Close()
+const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 ```
 ```cpp [C++]
 auto creds = tdx::Credentials::from_file("creds.txt");
-auto client = tdx::Client::connect(creds, tdx::Config::production());
+auto client = tdx::UnifiedClient::connect(creds, tdx::Config::production());
 ```
 :::
 
@@ -138,7 +119,7 @@ The client authenticates on connection. Bad credentials return an `AuthError` im
 ```mermaid
 sequenceDiagram
     participant App as Your app
-    participant Client as ThetaDataDx
+    participant Client as ThetaDataDxClient
     participant Nexus as ThetaData Nexus (HTTPS)
     participant MDDS as MDDS / FPSS
 

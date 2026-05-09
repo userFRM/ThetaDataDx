@@ -60,7 +60,7 @@ pub use auth::{AuthConfig, DEFAULT_CLIENT_TYPE, DEFAULT_NEXUS_URL};
 pub use env::{
     ENV_CLIENT_TYPE, ENV_FPSS_HOST, ENV_FPSS_PORT, ENV_MDDS_HOST, ENV_MDDS_PORT, ENV_NEXUS_URL,
 };
-pub use fpss::{FpssConfig, FpssFlushMode};
+pub use fpss::{bounds as fpss_bounds, FpssConfig, FpssFlushMode};
 pub use mdds::MddsConfig;
 pub use metrics::MetricsConfig;
 pub use reconnect::{ReconnectConfig, ReconnectPolicy};
@@ -77,7 +77,7 @@ pub use runtime::RuntimeConfig;
 /// [`FpssConfig`], [`ReconnectConfig`], [`RetryPolicy`], [`AuthConfig`],
 /// [`MetricsConfig`], [`RuntimeConfig`]). Read accessors on [`DirectConfig`]
 /// preserve the field-style naming used by older callers; writes go through
-/// the nested struct (e.g. `cfg.fpss.queue_depth = N`).
+/// the nested struct (e.g. `cfg.fpss.ring_size = N`).
 ///
 /// # Environment variable overrides
 ///
@@ -138,7 +138,9 @@ impl DirectConfig {
     pub fn production() -> Self {
         let mut config = Self::production_defaults();
         env::apply_env_overrides(&mut config);
-        config.validate()
+        config
+            .validate()
+            .expect("production defaults are within validated bounds")
     }
 
     /// Production defaults without env-var overrides. Tests use this to
@@ -180,7 +182,9 @@ impl DirectConfig {
             ("test-server.thetadata.us".to_string(), 20200),
             ("test-server.thetadata.us".to_string(), 20201),
         ];
-        config.validate()
+        config
+            .validate()
+            .expect("dev preset is within validated bounds")
     }
 
     /// Stage FPSS configuration.
@@ -200,21 +204,68 @@ impl DirectConfig {
             ("test-server.thetadata.us".to_string(), 20100),
             ("test-server.thetadata.us".to_string(), 20101),
         ];
-        config.validate()
+        config
+            .validate()
+            .expect("stage preset is within validated bounds")
     }
 
-    /// Validate configuration values and clamp out-of-range fields, logging
-    /// a warning for each clamped value.
+    /// Validate configuration values and reject out-of-range tuning knobs.
+    ///
+    /// Returns the configuration with MDDS HTTP/2 window sizes clamped
+    /// into `[64, 1024]` KB on success. Returns
+    /// [`Error::Config`](crate::error::Error::Config) when any wired FPSS
+    /// knob (`timeout_ms`, `connect_timeout_ms`, `ping_interval_ms`)
+    /// falls outside its documented range — silent rounding would
+    /// rewrite the caller's stated tuning under their feet, so an
+    /// invalid value is reported up front instead.
     ///
     /// Called automatically by [`production()`](Self::production),
-    /// [`dev()`](Self::dev), and [`stage()`](Self::stage). Also useful after
-    /// loading from a TOML file or modifying fields programmatically.
-    #[must_use]
-    pub fn validate(mut self) -> Self {
-        self.fpss.queue_depth = self.fpss.queue_depth.clamp(16, 1_000_000);
+    /// [`dev()`](Self::dev), and [`stage()`](Self::stage). Also useful
+    /// after loading from a TOML file or modifying fields
+    /// programmatically.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`](crate::error::Error::Config) when an FPSS
+    /// timing knob is out of range.
+    pub fn validate(mut self) -> Result<Self, Error> {
+        // u64 → i64: every bound fits comfortably under i64::MAX (max
+        // bound is 300_000 ms). `saturating_cast` would be overkill;
+        // a checked `try_from` documents the invariant.
+        let to_i64 = |v: u64| i64::try_from(v).unwrap_or(i64::MAX);
+        if !fpss_bounds::TIMEOUT_MS.contains(&self.fpss.timeout_ms) {
+            return Err(Error::config_out_of_range(
+                "fpss.timeout_ms",
+                to_i64(self.fpss.timeout_ms),
+                to_i64(*fpss_bounds::TIMEOUT_MS.start()),
+                to_i64(*fpss_bounds::TIMEOUT_MS.end()),
+            ));
+        }
+        if !fpss_bounds::CONNECT_TIMEOUT_MS.contains(&self.fpss.connect_timeout_ms) {
+            return Err(Error::config_out_of_range(
+                "fpss.connect_timeout_ms",
+                to_i64(self.fpss.connect_timeout_ms),
+                to_i64(*fpss_bounds::CONNECT_TIMEOUT_MS.start()),
+                to_i64(*fpss_bounds::CONNECT_TIMEOUT_MS.end()),
+            ));
+        }
+        if !fpss_bounds::PING_INTERVAL_MS.contains(&self.fpss.ping_interval_ms) {
+            return Err(Error::config_out_of_range(
+                "fpss.ping_interval_ms",
+                to_i64(self.fpss.ping_interval_ms),
+                to_i64(*fpss_bounds::PING_INTERVAL_MS.start()),
+                to_i64(*fpss_bounds::PING_INTERVAL_MS.end()),
+            ));
+        }
+        // Validate ring_size eagerly so a bad config fails fast rather
+        // than waiting for the connect attempt. Re-validation happens
+        // at `FpssClient::connect` for callers that bypass `validate`.
+        if let Err(e) = crate::fpss::ring::check_ring_size(self.fpss.ring_size) {
+            return Err(Error::config_invalid("fpss.ring_size", e.to_string()));
+        }
         self.mdds.window_size_kb = self.mdds.window_size_kb.clamp(64, 1_024);
         self.mdds.connection_window_size_kb = self.mdds.connection_window_size_kb.clamp(64, 1_024);
-        self
+        Ok(self)
     }
 
     /// Build the MDDS gRPC endpoint URI.
@@ -283,19 +334,19 @@ impl DirectConfig {
                 continue;
             }
 
-            let (host, port_str) = entry
-                .rsplit_once(':')
-                .ok_or_else(|| Error::Config(format!("invalid host:port entry: '{entry}'")))?;
+            let (host, port_str) = entry.rsplit_once(':').ok_or_else(|| {
+                Error::config_invalid("fpss.hosts", format!("invalid host:port entry: '{entry}'"))
+            })?;
 
-            let port: u16 = port_str
-                .parse()
-                .map_err(|e| Error::Config(format!("invalid port in '{entry}': {e}")))?;
+            let port: u16 = port_str.parse().map_err(|e| {
+                Error::config_invalid("fpss.hosts", format!("invalid port in '{entry}': {e}"))
+            })?;
 
             result.push((host.to_string(), port));
         }
 
         if result.is_empty() {
-            return Err(Error::Config("no FPSS hosts provided".to_string()));
+            return Err(Error::config_missing("fpss.hosts"));
         }
 
         Ok(result)
@@ -369,11 +420,6 @@ impl DirectConfig {
     #[must_use]
     pub fn fpss_timeout_ms(&self) -> u64 {
         self.fpss.timeout_ms
-    }
-    /// FPSS event channel buffer depth.
-    #[must_use]
-    pub fn fpss_queue_depth(&self) -> usize {
-        self.fpss.queue_depth
     }
     /// FPSS disruptor ring buffer size.
     #[must_use]
@@ -503,7 +549,6 @@ mod config_file {
         ping_interval: u64,
         reconnect_wait: u64,
         reconnect_wait_rate_limited: u64,
-        queue_depth: usize,
         ring_size: usize,
         flush_mode: String,
     }
@@ -524,7 +569,6 @@ mod config_file {
                 ping_interval: prod.fpss.ping_interval_ms,
                 reconnect_wait: prod.reconnect.wait_ms,
                 reconnect_wait_rate_limited: prod.reconnect.wait_rate_limited_ms,
-                queue_depth: prod.fpss.queue_depth,
                 ring_size: prod.fpss.ring_size,
                 flush_mode: "batched".to_string(),
             }
@@ -592,16 +636,19 @@ mod config_file {
                 if entry.is_empty() {
                     continue;
                 }
-                let (host, port_str) = entry
-                    .rsplit_once(':')
-                    .ok_or_else(|| Error::Config(format!("invalid host:port entry: '{entry}'")))?;
-                let port: u16 = port_str
-                    .parse()
-                    .map_err(|e| Error::Config(format!("invalid port in '{entry}': {e}")))?;
+                let (host, port_str) = entry.rsplit_once(':').ok_or_else(|| {
+                    Error::config_invalid(
+                        "fpss.hosts",
+                        format!("invalid host:port entry: '{entry}'"),
+                    )
+                })?;
+                let port: u16 = port_str.parse().map_err(|e| {
+                    Error::config_invalid("fpss.hosts", format!("invalid port in '{entry}': {e}"))
+                })?;
                 result.push((host.to_string(), port));
             }
             if result.is_empty() {
-                return Err(Error::Config("no FPSS hosts provided".to_string()));
+                return Err(Error::config_missing("fpss.hosts"));
             }
             Ok(result)
         }
@@ -638,7 +685,7 @@ mod config_file {
         /// Returns an error on network, authentication, or parsing failure.
         pub fn from_file(path: impl AsRef<std::path::Path>) -> Result<Self, Error> {
             let contents = std::fs::read_to_string(path.as_ref()).map_err(|e| {
-                Error::Config(format!(
+                Error::config_io(format!(
                     "failed to read config file '{}': {e}",
                     path.as_ref().display()
                 ))
@@ -653,8 +700,8 @@ mod config_file {
         ///
         /// Returns an error on network, authentication, or parsing failure.
         pub fn from_toml_str(toml_str: &str) -> Result<Self, Error> {
-            let cf: ConfigFile = toml::from_str(toml_str)
-                .map_err(|e| Error::Config(format!("failed to parse TOML config: {e}")))?;
+            let cf: ConfigFile =
+                toml::from_str(toml_str).map_err(|e| Error::config_toml(e.to_string()))?;
 
             let flush_mode = match cf.fpss.flush_mode.to_lowercase().as_str() {
                 "immediate" => FpssFlushMode::Immediate,
@@ -685,7 +732,6 @@ mod config_file {
 
             out.fpss.hosts = cf.fpss.hosts.parse()?;
             out.fpss.timeout_ms = cf.fpss.read_timeout;
-            out.fpss.queue_depth = cf.fpss.queue_depth;
             out.fpss.ring_size = cf.fpss.ring_size;
             out.fpss.ping_interval_ms = cf.fpss.ping_interval;
             out.fpss.connect_timeout_ms = cf.fpss.connect_timeout;
@@ -709,7 +755,7 @@ mod config_file {
             out.metrics.port = None;
             out.runtime.tokio_worker_threads = None;
 
-            Ok(out.validate())
+            out.validate()
         }
     }
 }
@@ -746,7 +792,7 @@ mod tests {
     fn read_accessors_match_nested_fields() {
         let config = DirectConfig::production();
         assert_eq!(config.mdds_host(), config.mdds.host.as_str());
-        assert_eq!(config.fpss_queue_depth(), config.fpss.queue_depth);
+        assert_eq!(config.fpss_ring_size(), config.fpss.ring_size);
         assert_eq!(config.metrics_port(), config.metrics.port);
         assert_eq!(
             config.tokio_worker_threads(),
@@ -785,7 +831,7 @@ mod tests {
             assert_eq!(config.mdds.host, prod.mdds.host);
             assert_eq!(config.mdds.port, prod.mdds.port);
             assert_eq!(config.fpss.hosts.len(), prod.fpss.hosts.len());
-            assert_eq!(config.fpss.queue_depth, prod.fpss.queue_depth);
+            assert_eq!(config.fpss.ring_size, prod.fpss.ring_size);
         }
 
         #[test]
@@ -796,12 +842,12 @@ mod tests {
                 port = 8443
 
                 [fpss]
-                queue_depth = 500000
+                ring_size = 65536
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
             assert_eq!(config.mdds.host, "custom.example.com");
             assert_eq!(config.mdds.port, 8443);
-            assert_eq!(config.fpss.queue_depth, 500000);
+            assert_eq!(config.fpss.ring_size, 65536);
             // Unspecified fields keep production defaults
             assert!(config.mdds.tls);
         }
@@ -898,7 +944,7 @@ mod tests {
         #[test]
         fn full_config_default_toml_parses() {
             // Validate that config.default.toml (shipped with the crate) can be parsed.
-            let default_toml = include_str!("../../../../config.default.toml");
+            let default_toml = include_str!("../../config.default.toml");
             let config = DirectConfig::from_toml_str(default_toml).unwrap();
             assert_eq!(config.mdds.host, "mdds-01.thetadata.us");
             assert_eq!(config.mdds.port, 443);
@@ -916,21 +962,64 @@ mod tests {
     // -- Validation tests --
 
     #[test]
-    fn validate_clamps_out_of_range_values() {
+    fn validate_clamps_mdds_window_sizes_into_range() {
         let mut config = DirectConfig::production_defaults();
-        config.fpss.queue_depth = 5;
         config.mdds.window_size_kb = 2_048;
-        let config = config.validate();
-        assert_eq!(config.fpss.queue_depth, 16);
+        config.mdds.connection_window_size_kb = 32;
+        let config = config.validate().expect("MDDS window sizes are clamped");
         assert_eq!(config.mdds.window_size_kb, 1_024);
+        assert_eq!(config.mdds.connection_window_size_kb, 64);
     }
 
     #[test]
     fn validate_preserves_in_range_values() {
         let config = DirectConfig::production_defaults();
-        let validated = config.validate();
-        assert_eq!(validated.fpss.queue_depth, 1_000_000);
+        let validated = config.validate().expect("production defaults validate");
         assert_eq!(validated.mdds.window_size_kb, 64);
+        assert_eq!(validated.fpss.timeout_ms, 10_000);
+        assert_eq!(validated.fpss.ping_interval_ms, 100);
+        assert_eq!(validated.fpss.connect_timeout_ms, 2_000);
+    }
+
+    #[test]
+    fn validate_rejects_fpss_timeout_below_minimum() {
+        let mut config = DirectConfig::production_defaults();
+        config.fpss.timeout_ms = 50;
+        let err = config.validate().expect_err("must reject below-minimum");
+        let msg = err.to_string();
+        assert!(msg.contains("timeout_ms"), "{msg}");
+    }
+
+    #[test]
+    fn validate_rejects_fpss_timeout_above_maximum() {
+        let mut config = DirectConfig::production_defaults();
+        config.fpss.timeout_ms = 120_000;
+        let err = config.validate().expect_err("must reject above-maximum");
+        assert!(err.to_string().contains("timeout_ms"));
+    }
+
+    #[test]
+    fn validate_rejects_fpss_connect_timeout_out_of_range() {
+        let mut config = DirectConfig::production_defaults();
+        config.fpss.connect_timeout_ms = 100;
+        let err = config.validate().expect_err("100ms is below 1s minimum");
+        assert!(err.to_string().contains("connect_timeout_ms"));
+    }
+
+    #[test]
+    fn validate_rejects_fpss_ping_interval_out_of_range() {
+        let mut config = DirectConfig::production_defaults();
+        config.fpss.ping_interval_ms = 50;
+        let err = config.validate().expect_err("50ms below 100ms minimum");
+        assert!(err.to_string().contains("ping_interval_ms"));
+    }
+
+    #[test]
+    fn validate_rejects_invalid_ring_size() {
+        let mut config = DirectConfig::production_defaults();
+        config.fpss.ring_size = 100; // not a power of two
+        let err = config.validate().expect_err("must reject non-power-of-two");
+        assert!(err.to_string().contains("ring_size"));
     }
 
     // ── RetryPolicy / env var tests ──────────────────────────────────

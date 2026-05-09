@@ -27,12 +27,6 @@ for item in data:
 const data = tdx.indexListDates('SPX');
 console.log(data);
 ```
-```go [Go]
-data, _ := client.IndexListDates("SPX")
-for _, item := range data {
-    fmt.Println(item)
-}
-```
 ```cpp [C++]
 auto data = client.index_list_dates("SPX");
 for (const auto& item : data) {

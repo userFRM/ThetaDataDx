@@ -29,12 +29,6 @@ for (const t of data) {
     console.log(`date=${t.date} open_interest=${t.open_interest}`);
 }
 ```
-```go [Go]
-data, _ := client.OptionHistoryOpenInterest("SPY", "20260417", "550", "C", "20260315")
-for _, t := range data {
-    fmt.Printf("date=%d open_interest=%d\n", t.Date, t.OpenInterest)
-}
-```
 ```cpp [C++]
 auto data = client.option_history_open_interest("SPY", "20260417", "550", "C", "20260315");
 for (const auto& t : data) {
