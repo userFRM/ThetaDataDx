@@ -32,9 +32,9 @@ testing-panic-boundary = []
 [dependencies]
 thetadatadx = { path = "../crates/thetadatadx", features = ["arrow"] }
 tdbe = { version = "0.13.1", path = "../crates/tdbe" }
-tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
-arrow-array = "58.1.0"
-arrow-ipc = "58.1.0"
+tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
+arrow-array = "58.2.0"
+arrow-ipc = "58.2.0"
 arrow-schema = "58.1.0"
 # Used by the FPSS streaming callback silent-drop observability path
 # (see `tdx_fpss_dropped_events` / `tdx_unified_dropped_events`). Keep
