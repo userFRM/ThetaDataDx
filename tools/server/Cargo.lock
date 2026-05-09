@@ -2371,7 +2371,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "9.1.0"
+version = "10.0.0"
 dependencies = [
  "arc-swap",
  "crossbeam-queue",
@@ -2407,7 +2407,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-server"
-version = "9.1.0"
+version = "10.0.0"
 dependencies = [
  "axum",
  "clap",

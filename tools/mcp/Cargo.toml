@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-mcp"
-version = "9.1.0"
+version = "10.0.0"
 edition = "2021"
 rust-version = "1.88"
 description = "MCP server for ThetaDataDx — gives LLMs instant access to ThetaData market data"
