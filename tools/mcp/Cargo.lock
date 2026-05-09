@@ -1972,7 +1972,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "9.1.0"
+version = "10.0.0"
 dependencies = [
  "arc-swap",
  "crossbeam-queue",
@@ -2008,7 +2008,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-mcp"
-version = "9.1.0"
+version = "10.0.0"
 dependencies = [
  "serde",
  "sonic-rs",

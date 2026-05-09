@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.0.0] - 2026-05-09
+
+Semver-honest version bump for the v9.1.0 surface. The v9.0.x →
+v9.1.0 wave introduced 12 major API breaks per
+`cargo-semver-checks` (subscribe_*-family removal, polymorphic
+`subscribe(spec)`, `Contract::option` arity change, `Error` enum
+reshape, `FpssData::*` `contract_id` removal in favour of typed
+`Arc<Contract>`, `ThetaDataDx` → `ThetaDataDxClient` rename,
+`mdds::decode::v3` → `mdds::decode::dual_type_columns` module
+rename, `IntoOptionSpec` trait removal, `FpssConnectArgs` field
+additions, `FpssConfig.queue_depth` removal, flat
+`TdxFpssControl` → typed per-variant structs, Go SDK removal).
+Rust semver classifies that diff as a major bump.
+
+v10.0.0 is the v9.1.0 surface with no further code changes —
+bumping the version number to align with semver discipline. The
+audit chain on the v9.1.0 wave (cargo fmt, clippy --workspace
+-- -D warnings, test --workspace, deny check, generate_sdk_surfaces
+--check, npm test 19/19, C++ CMake build, Python wheel + pytest)
+all passed; no findings remain after the closeout chain.
+
+### Changed
+
+- Project version: 9.1.0 → 10.0.0 across `crates/thetadatadx`,
+  `crates/tdbe` dependents, `ffi`, `tools/{cli,mcp,server}`,
+  `sdks/{python,typescript}`. tdbe stays at 0.13.1 (no API change
+  in this bump). All standalone Cargo.lock files re-locked.
+
+### Migration from v9.1.0
+
+No source-level changes required. Update the version pin:
+
+| Surface | v9.1.0 | v10.0.0 |
+|---|---|---|
+| `Cargo.toml` | `thetadatadx = "9"` | `thetadatadx = "10"` |
+| `pyproject.toml` / `requirements.txt` | `thetadatadx>=9.1.0,<10` | `thetadatadx>=10.0.0,<11` |
+| `package.json` | `"thetadatadx": "^9.1.0"` | `"thetadatadx": "^10.0.0"` |
+| C++ pin | `cargo build --release -p thetadatadx-ffi` from `v9.1.0` tag | `v10.0.0` tag |
+
+
 ### Added
 
 - Fluent contract-first streaming API. `Contract::stock("AAPL")`,
