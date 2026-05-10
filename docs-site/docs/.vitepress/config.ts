@@ -128,7 +128,7 @@ export default withMermaid(defineConfig({
                 text: 'List',
                 collapsed: true,
                 items: [
-                  { text: 'Roots', link: '/historical/option/list/roots' },
+                  { text: 'Symbols', link: '/historical/option/list/symbols' },
                   { text: 'Dates', link: '/historical/option/list/dates' },
                   { text: 'Strikes', link: '/historical/option/list/strikes' },
                   { text: 'Expirations', link: '/historical/option/list/expirations' },
