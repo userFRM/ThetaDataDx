@@ -1,13 +1,13 @@
 ---
-title: option_list_roots
+title: option_list_symbols
 description: List all available option underlying symbols.
 ---
 
-# option_list_roots
+# option_list_symbols
 
 <TierBadge tier="free" />
 
-List all available option underlying symbols (roots). Use this to discover which tickers have option chains available in ThetaData.
+List all available option underlying symbols. Use this to discover which tickers have option chains available in ThetaData.
 
 ## Code Example
 
@@ -60,4 +60,4 @@ None.
 ## Notes
 
 - Returns all underlying symbols, not individual contracts. Use [option_list_expirations](./expirations) and [option_list_strikes](./strikes) to drill into a specific chain.
-- The Rust SDK method is `option_list_symbols`. The legacy "roots" term is preserved in this page's URL slug for inbound-link stability; the SDK and protobuf surface use `symbol` exclusively.
+- The Rust SDK method is `option_list_symbols`. The SDK and protobuf surface use `symbol` exclusively.
