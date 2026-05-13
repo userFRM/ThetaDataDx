@@ -30,8 +30,8 @@ const CLIENT_PARAMETER_VALUE: &str = "terminal";
 ///
 /// `session_uuid` and `client_type` are the same auth values the tonic
 /// path threads through `QueryInfo.auth_token.session_uuid` and
-/// `QueryInfo.client_type` — see [`crate::mdds::client::MddsClient`]
-/// for how they are obtained from the Nexus auth response.
+/// `QueryInfo.client_type` — see [`crate::mdds::MddsClient`] for how
+/// they are obtained from the Nexus auth response.
 ///
 /// # Errors
 ///
@@ -71,9 +71,9 @@ pub async fn stock_list_symbols(
         .collect())
 }
 
-/// Drain `stream` into a single merged `DataTable`. Mirrors
-/// [`crate::mdds::MddsClient::collect_stream`] but operates on the
-/// in-house [`crate::grpc::ServerStreaming`] adapter rather than
+/// Drain `stream` into a single merged `DataTable`. Mirrors the
+/// `collect_stream` helper on [`crate::mdds::MddsClient`] but operates
+/// on the in-house [`crate::grpc::ServerStreaming`] adapter rather than
 /// `tonic::Streaming`.
 pub async fn collect_stream<S>(mut stream: S) -> Result<proto::DataTable, Error>
 where

@@ -8,7 +8,7 @@
 //! [`Channel::server_streaming`] sends a single server-streaming RPC:
 //! it POSTs a framed prost request over a new HTTP/2 stream, then
 //! returns a [`ServerStreaming`] that yields decoded response messages
-//! and ends in a parsed [`Status`].
+//! and ends in a parsed [`super::Status`].
 //!
 //! The connection's `SendRequest<Bytes>` is cheap to clone — h2
 //! serializes outbound streams internally — so a single [`Channel`]
@@ -84,7 +84,7 @@ pub enum ChannelError {
     /// The codec returned an error decoding a frame.
     #[error("codec: {0}")]
     Codec(#[from] CodecError),
-    /// The response trailers did not parse into a [`Status`].
+    /// The response trailers did not parse into a [`super::Status`].
     #[error("status parse: {0}")]
     StatusParse(#[from] StatusParseError),
     /// The server returned a non-OK gRPC status.

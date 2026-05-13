@@ -43,7 +43,7 @@ pub enum CodecError {
     #[error("gRPC frame has invalid compressed flag byte {0:#04x} (expected 0 or 1)")]
     InvalidCompressedFlag(u8),
     /// Length prefix declared a payload larger than the configured
-    /// per-codec maximum. Defaults to [`DEFAULT_MAX_MESSAGE_SIZE`].
+    /// per-codec maximum.
     #[error("gRPC frame length {length} exceeds max message size {max}")]
     FrameTooLarge {
         /// Length the wire claims for this frame's payload.
@@ -75,7 +75,7 @@ impl<Req, Resp> Default for Codec<Req, Resp> {
 }
 
 impl<Req, Resp> Codec<Req, Resp> {
-    /// Build a codec with [`DEFAULT_MAX_MESSAGE_SIZE`].
+    /// Build a codec with the default 4 MiB per-frame ceiling.
     #[must_use]
     pub const fn new() -> Self {
         Self {
