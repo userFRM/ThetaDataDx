@@ -150,7 +150,7 @@ zeroize = { version = "1.8.2", features = ["derive"] }
 arc-swap = "1.7"
 
 [dev-dependencies]
-criterion = { version = "0.8.2", features = ["html_reports"] }
+criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
 proptest = "1.5"
 # Test-only: load captured-response fixtures and their sidecar .meta.toml
 # files for the decoder-regression suite (`tests/test_decode_captures.rs`).
@@ -201,6 +201,11 @@ harness = false
 [[bench]]
 name = "streaming_throughput"
 harness = false
+
+[[bench]]
+name = "grpc_channel"
+harness = false
+required-features = ["inhouse-grpc"]
 
 [[bin]]
 name = "generate_sdk_surfaces"

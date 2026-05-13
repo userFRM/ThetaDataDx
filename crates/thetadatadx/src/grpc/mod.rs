@@ -14,6 +14,6 @@ pub mod stream;
 
 pub use channel::{Channel, ChannelError};
 pub use codec::{Codec, CodecError};
-pub use endpoints::stock_list_symbols;
+pub use endpoints::{stock_list_symbols, stock_list_symbols_via_tonic};
 pub use status::{Status, StatusParseError};
 pub use stream::ServerStreaming;

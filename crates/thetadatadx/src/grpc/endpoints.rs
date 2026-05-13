@@ -113,6 +113,80 @@ where
     })
 }
 
+/// Run `BetaThetaTerminal::GetStockListSymbols` over a `tonic` channel
+/// using the exact same request shape the in-house path sends. Exists
+/// so the criterion bench can A/B the two transports against the same
+/// upstream wire bytes without leaking generated `proto` types onto
+/// the public surface.
+///
+/// # Errors
+///
+/// Returns an [`Error`] when the RPC fails, the response cannot be
+/// decoded, or the schema does not carry the `symbol` column.
+pub async fn stock_list_symbols_via_tonic(
+    channel: tonic::transport::Channel,
+    session_uuid: String,
+    client_type: String,
+) -> Result<Vec<String>, Error> {
+    let mut query_parameters = HashMap::with_capacity(1);
+    query_parameters.insert("client".to_string(), CLIENT_PARAMETER_VALUE.to_string());
+
+    let request = tonic::Request::new(proto::StockListSymbolsRequest {
+        query_info: Some(proto::QueryInfo {
+            auth_token: Some(proto::AuthToken { session_uuid }),
+            query_parameters,
+            client_type,
+            terminal_git_commit: String::new(),
+            terminal_version: env!("CARGO_PKG_VERSION").to_string(),
+        }),
+        params: Some(proto::StockListSymbolsRequestQuery {}),
+    });
+
+    let mut stub = proto::beta_theta_terminal_client::BetaThetaTerminalClient::new(channel);
+    let response = stub
+        .get_stock_list_symbols(request)
+        .await
+        .map_err(|e| Error::config_internal(format!("tonic rpc: {e}")))?;
+    let stream = response.into_inner();
+    let table = collect_tonic_stream(stream).await?;
+    Ok(decode::extract_text_column(&table, "symbol")
+        .into_iter()
+        .flatten()
+        .collect())
+}
+
+async fn collect_tonic_stream(
+    mut stream: tonic::Streaming<proto::ResponseData>,
+) -> Result<proto::DataTable, Error> {
+    let mut all_rows: Vec<proto::DataValueList> = Vec::new();
+    let mut headers: Vec<String> = Vec::new();
+    let mut chunk_index: usize = 0;
+    while let Some(response) = tokio_stream::StreamExt::next(&mut stream).await {
+        let response =
+            response.map_err(|e| Error::config_internal(format!("tonic stream: {e}")))?;
+        if all_rows.is_empty() && response.original_size > 0 {
+            all_rows.reserve(usize::try_from(response.original_size).unwrap_or(0) / 64);
+        }
+        let table = decode::decode_data_table(&response)?;
+        if headers.is_empty() {
+            headers = table.headers;
+        } else if !table.headers.is_empty() && table.headers != headers {
+            return Err(decode::DecodeError::ChunkHeaderDrift {
+                chunk_index,
+                first: headers.join(","),
+                chunk: table.headers.join(","),
+            }
+            .into());
+        }
+        all_rows.extend(table.data_table);
+        chunk_index += 1;
+    }
+    Ok(proto::DataTable {
+        headers,
+        data_table: all_rows,
+    })
+}
+
 /// Lift a [`ChannelError`] into the crate's umbrella [`Error`] type.
 ///
 /// Wire-level failures (`Rpc`, `Codec`, `H2Stream`, ...) flow through
