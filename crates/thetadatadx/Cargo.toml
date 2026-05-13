@@ -38,6 +38,15 @@ frames = ["polars", "arrow"]
 # Opt-in gate for tests that hit live MDDS / FPSS endpoints. Default-off
 # so `cargo test` never burns a live call without the user asking for it.
 live-tests = []
+# In-house gRPC channel built directly on `h2`, replacing the tonic stack
+# for the MDDS path. Off by default in Phase 1 — the existing tonic path
+# is still the production code. Enable to A/B at build time:
+#
+#     cargo build -p thetadatadx --features inhouse-grpc
+#
+# See `src/grpc/mod.rs` for the wire shape, ownership model, and the
+# multi-phase plan (codec → migration → pool → harden) ahead.
+inhouse-grpc = ["dep:h2", "dep:http", "dep:http-body", "dep:bytes", "dep:pin-project-lite", "dep:futures-core"]
 
 [dependencies]
 tdbe = { version = "0.13.1", path = "../tdbe" }
@@ -47,6 +56,17 @@ tonic = { version = "=0.14.5", features = ["tls-ring", "tls-native-roots", "chan
 tonic-prost = "=0.14.5"
 prost = "=0.14.3"
 prost-types = "=0.14.3"
+
+# In-house gRPC channel — direct h2 implementation, gated behind the
+# `inhouse-grpc` feature. All five crates are already in the workspace
+# dep graph transitively through tonic; declaring them explicitly here
+# pins versions and keeps cargo features hygienic.
+h2 = { version = "0.4", optional = true }
+http = { version = "1", optional = true }
+http-body = { version = "1", optional = true }
+bytes = { version = "1", optional = true }
+pin-project-lite = { version = "0.2", optional = true }
+futures-core = { version = "0.3", optional = true }
 
 # Async runtime
 tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync", "fs"] }

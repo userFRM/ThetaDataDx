@@ -100,6 +100,9 @@ pub mod fpss;
 #[cfg(any(feature = "polars", feature = "arrow"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "polars", feature = "arrow"))))]
 pub mod frames;
+#[cfg(feature = "inhouse-grpc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "inhouse-grpc")))]
+pub mod grpc;
 pub mod observability;
 
 // Wave 3 layout: macros, registry, validate, wire_semantics, and the
