@@ -13,4 +13,4 @@ pub mod codec;
 pub mod status;
 
 pub use codec::{Codec, CodecError};
-pub use status::Status;
+pub use status::{Status, StatusParseError};
