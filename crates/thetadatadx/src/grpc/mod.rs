@@ -6,8 +6,12 @@
 //! adapter. The `tonic`-backed code path remains the default; enabling
 //! the `inhouse-grpc` feature swaps the MDDS path onto this stack.
 
+pub mod channel;
 pub mod codec;
 pub mod status;
+pub mod stream;
 
+pub use channel::{Channel, ChannelError};
 pub use codec::{Codec, CodecError};
 pub use status::{Status, StatusParseError};
+pub use stream::ServerStreaming;
