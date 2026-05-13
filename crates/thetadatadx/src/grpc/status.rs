@@ -25,10 +25,9 @@ pub(crate) const STATUS_OK: u32 = 0;
 
 /// gRPC status carried in HTTP/2 trailers.
 ///
-/// Stored as the raw numeric `code` so callers can match against the
-/// gRPC canonical codes without this module taking a dependency on a
-/// status-code enum (which would duplicate `tonic::Code` and force a
-/// re-export decision Phase 1 does not need to make).
+/// Stored as the raw numeric `code` so callers match against the gRPC
+/// canonical codes directly. The module deliberately avoids a typed
+/// status-code enum to keep the dependency surface narrow.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Status {
     /// Numeric gRPC status code, e.g. `0` for `Ok`, `13` for `Internal`.

@@ -2,10 +2,10 @@
 //!
 //! The gRPC HTTP/2 wire format frames every message as
 //! `[1 byte compressed flag][4 bytes big-endian length][payload bytes]`.
-//! Phase 1 supports the uncompressed case only — a compressed flag of `1`
-//! returns [`CodecError::CompressionUnsupported`] (Phase 5 will negotiate
-//! `grpc-encoding`). See <https://grpc.io/docs/what-is-grpc/core-concepts/>
-//! for the wire-format spec.
+//! The codec emits and accepts only the uncompressed flag (`0`); a
+//! compressed flag of `1` returns [`CodecError::CompressionUnsupported`].
+//! See <https://grpc.io/docs/what-is-grpc/core-concepts/> for the
+//! wire-format spec.
 //!
 //! [`Codec`] is phantom-typed on `<Req, Resp>` so callers cannot accidentally
 //! decode a response with the wrong message type at compile time. Both
@@ -33,9 +33,9 @@ pub(crate) const DEFAULT_MAX_MESSAGE_SIZE: usize = 4 * 1024 * 1024;
 /// propagated past the `Bytes` buffer that produced it.
 #[derive(Debug, Error)]
 pub enum CodecError {
-    /// Compressed-flag byte in the frame prefix was `1`, but Phase 1
-    /// does not negotiate `grpc-encoding`. Phase 5 lifts this.
-    #[error("gRPC frame is marked compressed but compression is not supported in this phase")]
+    /// Compressed-flag byte in the frame prefix was `1`. The codec
+    /// accepts only `grpc-encoding: identity` frames.
+    #[error("gRPC frame is marked compressed but the codec only accepts identity-encoded frames")]
     CompressionUnsupported,
     /// Compressed-flag byte in the frame prefix was neither `0` nor `1`.
     /// gRPC reserves bits 1..=7 for future use; any non-zero, non-one
@@ -107,9 +107,9 @@ where
 {
     /// Encode `req` into a gRPC-framed [`Bytes`] payload.
     ///
-    /// Layout: `[0u8][len: u32 big-endian][payload bytes]`.
-    /// Always emits the uncompressed flag (Phase 1 does not negotiate
-    /// `grpc-encoding`).
+    /// Layout: `[0u8][len: u32 big-endian][payload bytes]`. Always
+    /// emits the uncompressed flag — the codec does not negotiate
+    /// `grpc-encoding`.
     ///
     /// Allocates a single `BytesMut` sized for the encoded protobuf
     /// plus the 5-byte header; no intermediate copies.
@@ -261,7 +261,7 @@ mod tests {
         let frame = Codec::<StockListSymbolsRequest, DataValueList>::encode(&req);
 
         // Header byte 0 is the uncompressed flag.
-        assert_eq!(frame[0], 0, "compressed flag must be 0 in Phase 1");
+        assert_eq!(frame[0], 0, "compressed flag must be 0");
 
         // Header bytes 1..5 are the big-endian payload length.
         let declared_len = u32::from_be_bytes([frame[1], frame[2], frame[3], frame[4]]);

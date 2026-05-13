@@ -1,13 +1,10 @@
-//! In-house gRPC client (Phase 1 — foundation).
+//! In-house gRPC client built directly on the [`h2`] crate, gated
+//! behind the `inhouse-grpc` Cargo feature.
 //!
-//! Tonic-free gRPC stack built directly on the [`h2`] crate, gated behind
-//! the `inhouse-grpc` Cargo feature. Phase 1 lands the framing codec, the
-//! trailers-parsed [`Status`], the [`Channel`] / [`ServerStreaming`]
-//! transport, plus a single proof-of-life endpoint. Tonic remains the
-//! production code path until later phases finish migration.
-//!
-//! The full wire-shape rustdoc and the multi-phase plan land in the docs
-//! commit that closes this phase.
+//! The module exposes the framing codec, the HTTP/2 trailers-based
+//! [`Status`], the [`Channel`] transport, and a server-streaming
+//! adapter. The `tonic`-backed code path remains the default; enabling
+//! the `inhouse-grpc` feature swaps the MDDS path onto this stack.
 
 pub mod codec;
 pub mod status;

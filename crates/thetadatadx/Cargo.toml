@@ -38,14 +38,13 @@ frames = ["polars", "arrow"]
 # Opt-in gate for tests that hit live MDDS / FPSS endpoints. Default-off
 # so `cargo test` never burns a live call without the user asking for it.
 live-tests = []
-# In-house gRPC channel built directly on `h2`, replacing the tonic stack
-# for the MDDS path. Off by default in Phase 1 — the existing tonic path
-# is still the production code. Enable to A/B at build time:
+# In-house gRPC channel built directly on `h2`, replacing the tonic
+# stack on the MDDS path. Off by default — the tonic-backed path is
+# the active code unless this feature is enabled:
 #
 #     cargo build -p thetadatadx --features inhouse-grpc
 #
-# See `src/grpc/mod.rs` for the wire shape, ownership model, and the
-# multi-phase plan (codec → migration → pool → harden) ahead.
+# See `src/grpc/mod.rs` for the wire shape and ownership model.
 inhouse-grpc = ["dep:h2", "dep:http", "dep:http-body", "dep:bytes", "dep:pin-project-lite", "dep:futures-core"]
 
 [dependencies]
