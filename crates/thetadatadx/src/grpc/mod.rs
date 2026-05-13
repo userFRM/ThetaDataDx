@@ -8,10 +8,12 @@
 
 pub mod channel;
 pub mod codec;
+pub mod endpoints;
 pub mod status;
 pub mod stream;
 
 pub use channel::{Channel, ChannelError};
 pub use codec::{Codec, CodecError};
+pub use endpoints::stock_list_symbols;
 pub use status::{Status, StatusParseError};
 pub use stream::ServerStreaming;
