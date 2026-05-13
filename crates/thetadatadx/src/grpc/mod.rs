@@ -8,3 +8,9 @@
 //!
 //! The full wire-shape rustdoc and the multi-phase plan land in the docs
 //! commit that closes this phase.
+
+pub mod codec;
+pub mod status;
+
+pub use codec::{Codec, CodecError};
+pub use status::Status;
