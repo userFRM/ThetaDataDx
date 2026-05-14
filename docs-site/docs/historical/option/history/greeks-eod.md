@@ -70,6 +70,55 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> or <code>YYYY-MM-DD</code> format, or <code>"*"</code> for all expirations</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">Start date in <code>YYYYMMDD</code> format (inclusive)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
+<div class="param-desc">End date in <code>YYYYMMDD</code> format (inclusive)</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Strike price in dollars (e.g. <code>"550"</code> or <code>"17.5"</code>), or <code>"*"</code> for all strikes. Default: <code>"*"</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Option side: <code>"call"</code>, <code>"put"</code>, or <code>"both"</code>. SDK also accepts <code>"C"</code>/<code>"P"</code>. Default: <code>"both"</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>annual_dividend</code><span class="param-type">float</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Annualized expected dividend amount used in the Greeks calculation.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>rate_type</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Risk-free rate curve. Allowed values: <code>sofr</code>, <code>treasury_m1</code>, <code>treasury_m3</code>, <code>treasury_m6</code>, <code>treasury_y1</code>, <code>treasury_y2</code>, <code>treasury_y3</code>, <code>treasury_y5</code>, <code>treasury_y7</code>, <code>treasury_y10</code>, <code>treasury_y20</code>, <code>treasury_y30</code>. Default: <code>"sofr"</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>rate_value</code><span class="param-type">float</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Override the risk-free rate (as a percent). When set, takes precedence over <code>rate_type</code> for that call.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>version</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Greeks methodology selector. Allowed values: <code>latest</code> (use real time-to-expiry), <code>1</code> (fix 0DTE to 0.15 days). Default: <code>"latest"</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>underlyer_use_nbbo</code><span class="param-type">bool</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">When <code>true</code>, use the NBBO midpoint as the underlying price input; otherwise use the last trade. Default: <code>false</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>max_dte</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Maximum days to expiration. Filters contracts returned when <code>expiration="*"</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>strike_range</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Returns <code>n</code> strikes above and below spot price plus one ATM strike. Narrows a wildcard bulk query; it does not expand a pinned strike into neighbors.</div>
+</div>
+</div>
+<div class="param">
+<div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
 <div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
 </div>
 <div class="param">
