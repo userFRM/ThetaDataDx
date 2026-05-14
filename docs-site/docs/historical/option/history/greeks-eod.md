@@ -117,57 +117,8 @@ for (const auto& t : data) {
 <div class="param-desc">Returns <code>n</code> strikes above and below spot price plus one ATM strike. Narrows a wildcard bulk query; it does not expand a pinned strike into neighbors.</div>
 </div>
 </div>
-<div class="param">
-<div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
-</div>
-<div class="param">
-<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Strike price in dollars as a string</div>
-</div>
-<div class="param">
-<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc"><code>"C"</code> for call, <code>"P"</code> for put</div>
-</div>
-<div class="param">
-<div class="param-header"><code>start_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Start date in <code>YYYYMMDD</code> format</div>
-</div>
-<div class="param">
-<div class="param-header"><code>end_date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">End date in <code>YYYYMMDD</code> format</div>
-</div>
-<div class="param">
-<div class="param-header"><code>annual_dividend</code><span class="param-type">float</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Override annual dividend</div>
-</div>
-<div class="param">
-<div class="param-header"><code>rate_type</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Interest rate type</div>
-</div>
-<div class="param">
-<div class="param-header"><code>rate_value</code><span class="param-type">float</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Override interest rate value</div>
-</div>
-<div class="param">
-<div class="param-header"><code>version</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Greeks calculation version</div>
-</div>
-<div class="param">
-<div class="param-header"><code>underlyer_use_nbbo</code><span class="param-type">bool</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Use NBBO midpoint for underlying price instead of last trade</div>
-</div>
-<div class="param">
-<div class="param-header"><code>max_dte</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Maximum days to expiration</div>
-</div>
-<div class="param">
-<div class="param-header"><code>strike_range</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Strike range filter. This only narrows a wildcard bulk query; it does not expand a pinned strike into neighboring strikes.</div>
-</div>
-</div>
 
-> For multi-strike EOD Greeks requests, use a wildcard strike selection first (`strike="0"` in ThetaDataDx SDK/MCP, `strike=*` in the v3 REST API), then apply `strike_range`.
+> For multi-strike EOD Greeks requests, use a wildcard strike selection first (`strike="*"` on the SDK builder or v3 REST surface), then apply `strike_range`.
 
 ## Response
 

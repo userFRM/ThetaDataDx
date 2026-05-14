@@ -79,7 +79,7 @@ for (const auto& t : data) {
 
 ## Response
 
-> `strike_range` filters a wildcard bulk request. If you pin `strike` to one contract, the response stays single-strike. Use `strike="0"` in ThetaDataDx SDK/MCP or `strike=*` in the v3 REST API when you want multi-strike EOD output.
+> `strike_range` filters a wildcard bulk request. If you pin `strike` to one contract, the response stays single-strike. Pass `strike="*"` (or omit `strike`, which now defaults to `*`) when you want multi-strike EOD output.
 
 <div class="param-list">
 <div class="param">
