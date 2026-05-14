@@ -212,10 +212,15 @@ macro_rules! list_endpoint {
                             params: Some(proto::$query { $($field : $val),* }),
                         };
                         let attempt_result: Result<proto::DataTable, Error> = async {
-                            let stream = self.stub().$grpc(request).await
-                                .map_err(|e| -> Error { e.into() })?;
-                            self.collect_stream(stream.into_inner()).await
-                        }.await;
+                            let stream = $crate::proto::beta_theta_terminal::$grpc(
+                                self.channel(),
+                                request,
+                            )
+                            .await
+                            .map_err(|e| -> Error { e.into() })?;
+                            self.collect_stream(stream).await
+                        }
+                        .await;
                         match $crate::mdds::macros::classify_attempt(
                             self.session(),
                             &snap,
@@ -349,10 +354,15 @@ macro_rules! parsed_endpoint {
                                     params: Some(proto::$query { $($field : $val),* }),
                                 };
                                 let attempt_result: Result<proto::DataTable, Error> = async {
-                                    let stream = client.stub().$grpc(request).await
-                                        .map_err(|e| -> Error { e.into() })?;
-                                    client.collect_stream(stream.into_inner()).await
-                                }.await;
+                                    let stream = $crate::proto::beta_theta_terminal::$grpc(
+                                        client.channel(),
+                                        request,
+                                    )
+                                    .await
+                                    .map_err(|e| -> Error { e.into() })?;
+                                    client.collect_stream(stream).await
+                                }
+                                .await;
                                 match $crate::mdds::macros::classify_attempt(
                                     client.session(),
                                     &snap,

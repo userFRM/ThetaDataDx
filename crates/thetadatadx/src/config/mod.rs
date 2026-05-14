@@ -263,6 +263,16 @@ impl DirectConfig {
         if let Err(e) = crate::fpss::ring::check_ring_size(self.fpss.ring_size) {
             return Err(Error::config_invalid("fpss.ring_size", e.to_string()));
         }
+        // Same contract for the MDDS decoder pool ring. The MDDS
+        // pool uses the same shared validator (`crate::util::ring`)
+        // so the failure mode is identical: non-power-of-two sizes
+        // would force a modulo on every consumer tick.
+        if let Err(e) = crate::util::ring::check_ring_size(self.mdds.decoder_ring_size) {
+            return Err(Error::config_invalid(
+                "mdds.decoder_ring_size",
+                e.to_string(),
+            ));
+        }
         self.mdds.window_size_kb = self.mdds.window_size_kb.clamp(64, 1_024);
         self.mdds.connection_window_size_kb = self.mdds.connection_window_size_kb.clamp(64, 1_024);
         Ok(self)
@@ -766,30 +776,45 @@ mod tests {
 
     #[test]
     fn production_mdds_uri() {
+        // `DirectConfig::production()` reads `THETADATA_MDDS_*` env
+        // vars; another test in this module (`env_overrides_apply_on_production`)
+        // mutates the same env via `unsafe`, and the env is process-
+        // global. Acquire the shared test guard so the two cannot
+        // race when `cargo test` runs them in parallel.
+        let _guard = env_test_guard();
+        clear_env_matrix();
         let config = DirectConfig::production();
         assert_eq!(config.mdds_uri(), "https://mdds-01.thetadata.us:443");
     }
 
     #[test]
     fn production_has_four_fpss_hosts() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
         let config = DirectConfig::production();
         assert_eq!(config.fpss.hosts.len(), 4);
     }
 
     #[test]
     fn production_default_reconnect_policy_is_auto() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
         let config = DirectConfig::production();
         assert!(matches!(config.reconnect.policy, ReconnectPolicy::Auto));
     }
 
     #[test]
     fn production_mdds_connect_timeout_default_is_ten_seconds() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
         let config = DirectConfig::production();
         assert_eq!(config.mdds.connect_timeout_secs, 10);
     }
 
     #[test]
     fn read_accessors_match_nested_fields() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
         let config = DirectConfig::production();
         assert_eq!(config.mdds_host(), config.mdds.host.as_str());
         assert_eq!(config.fpss_ring_size(), config.fpss.ring_size);
@@ -1020,6 +1045,39 @@ mod tests {
         config.fpss.ring_size = 100; // not a power of two
         let err = config.validate().expect_err("must reject non-power-of-two");
         assert!(err.to_string().contains("ring_size"));
+    }
+
+    #[test]
+    fn validate_rejects_invalid_mdds_decoder_ring_size() {
+        // Same contract as `fpss.ring_size`: power of two, >= 64.
+        // 100 is the canonical "not a power of two" sentinel.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.decoder_ring_size = 100;
+        let err = config.validate().expect_err("must reject non-power-of-two");
+        assert!(
+            err.to_string().contains("decoder_ring_size"),
+            "expected error to name the offending field: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_decoder_ring_size_below_minimum() {
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.decoder_ring_size = 32; // below MIN_RING_SIZE
+        let err = config
+            .validate()
+            .expect_err("must reject sub-minimum ring size");
+        assert!(err.to_string().contains("decoder_ring_size"));
+    }
+
+    #[test]
+    fn mdds_decoder_defaults_match_production_baseline() {
+        let mdds = crate::config::MddsConfig::production_defaults();
+        // `0` is the auto-detect sentinel; `default_decoder_thread_count`
+        // resolves it at connect time.
+        assert_eq!(mdds.decoder_threads, 0);
+        assert_eq!(mdds.decoder_ring_size, 256);
+        assert!(mdds.decoder_ring_size.is_power_of_two());
     }
 
     // ── RetryPolicy / env var tests ──────────────────────────────────

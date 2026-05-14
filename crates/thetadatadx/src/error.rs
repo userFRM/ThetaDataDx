@@ -140,14 +140,14 @@ pub enum ConfigErrorKind {
     Other(String),
 }
 
-/// Typed mapping of [`tonic::Code`].
+/// Canonical gRPC status codes.
 ///
-/// Folding `tonic::Status` through this enum lets callers pattern-match
-/// on a stable Rust enum instead of stringly-typed status codes. The
-/// numeric discriminants match the gRPC wire codes one-for-one.
+/// Numeric discriminants match the gRPC wire codes one-for-one (see
+/// <https://grpc.github.io/grpc/core/md_doc_statuscodes.html>).
+/// Pattern-match on this enum instead of comparing raw `u32` codes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
-#[repr(i32)]
+#[repr(u32)]
 pub enum GrpcStatusKind {
     Ok = 0,
     Cancelled = 1,
@@ -169,27 +169,33 @@ pub enum GrpcStatusKind {
 }
 
 impl GrpcStatusKind {
-    /// Map a [`tonic::Code`] into the matching `GrpcStatusKind` variant.
+    /// Map a raw gRPC numeric code into the matching variant.
+    ///
+    /// Codes outside the canonical 0..=16 range fold into
+    /// [`GrpcStatusKind::Unknown`] — the wire is what it is, and the
+    /// caller already lost structured information by the time an
+    /// out-of-range code arrived.
     #[must_use]
-    pub fn from_code(code: tonic::Code) -> Self {
+    pub fn from_u32(code: u32) -> Self {
         match code {
-            tonic::Code::Ok => Self::Ok,
-            tonic::Code::Cancelled => Self::Cancelled,
-            tonic::Code::Unknown => Self::Unknown,
-            tonic::Code::InvalidArgument => Self::InvalidArgument,
-            tonic::Code::DeadlineExceeded => Self::DeadlineExceeded,
-            tonic::Code::NotFound => Self::NotFound,
-            tonic::Code::AlreadyExists => Self::AlreadyExists,
-            tonic::Code::PermissionDenied => Self::PermissionDenied,
-            tonic::Code::ResourceExhausted => Self::ResourceExhausted,
-            tonic::Code::FailedPrecondition => Self::FailedPrecondition,
-            tonic::Code::Aborted => Self::Aborted,
-            tonic::Code::OutOfRange => Self::OutOfRange,
-            tonic::Code::Unimplemented => Self::Unimplemented,
-            tonic::Code::Internal => Self::Internal,
-            tonic::Code::Unavailable => Self::Unavailable,
-            tonic::Code::DataLoss => Self::DataLoss,
-            tonic::Code::Unauthenticated => Self::Unauthenticated,
+            0 => Self::Ok,
+            1 => Self::Cancelled,
+            3 => Self::InvalidArgument,
+            4 => Self::DeadlineExceeded,
+            5 => Self::NotFound,
+            6 => Self::AlreadyExists,
+            7 => Self::PermissionDenied,
+            8 => Self::ResourceExhausted,
+            9 => Self::FailedPrecondition,
+            10 => Self::Aborted,
+            11 => Self::OutOfRange,
+            12 => Self::Unimplemented,
+            13 => Self::Internal,
+            14 => Self::Unavailable,
+            15 => Self::DataLoss,
+            16 => Self::Unauthenticated,
+            // 2 (Unknown) and anything else fold to Unknown.
+            _ => Self::Unknown,
         }
     }
 }
@@ -226,9 +232,10 @@ impl std::fmt::Display for GrpcStatusKind {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    /// gRPC transport-level error (TLS handshake, connection refused, etc.).
+    /// gRPC transport-level error (TLS handshake, connection refused,
+    /// h2 protocol failure, GOAWAY from the server, etc.).
     #[error("gRPC transport error: {0}")]
-    Transport(#[from] tonic::transport::Error),
+    Transport(String),
 
     /// gRPC status error from the upstream MDDS server.
     #[error("gRPC status {kind}: {message}")]
@@ -294,7 +301,7 @@ pub enum Error {
     /// Returned when a `with_deadline(d)` (Rust builder) or `timeout_ms`
     /// (FFI / Python / Go / C++) elapses while the gRPC call was in flight.
     /// The in-flight future is dropped before this error is returned, so the
-    /// underlying `tonic::transport::Channel` cancels the stream and the
+    /// underlying [`crate::grpc::Channel`] sends `RST_STREAM` and the
     /// request-semaphore permit is released; subsequent calls on the same
     /// `MddsClient` succeed.
     #[error("Request deadline exceeded after {duration_ms} ms")]
@@ -556,27 +563,31 @@ impl From<crate::decode::DecodeError> for Error {
     }
 }
 
-impl From<tonic::Status> for Error {
-    fn from(s: tonic::Status) -> Self {
-        // Extract http_status_code from gRPC metadata and enrich the error
-        // message with the ThetaData error name when available.
-        let td_err = s
-            .metadata()
-            .get(tdbe::error::HTTP_STATUS_CODE_KEY)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse::<u16>().ok())
-            .and_then(tdbe::error::error_from_http_code);
-        let kind = GrpcStatusKind::from_code(s.code());
-        let message = match td_err {
-            Some(td) => format!(
-                "{} (ThetaData: {} -- {})",
-                s.message(),
-                td.name,
-                td.description
-            ),
-            None => s.message().to_string(),
-        };
-        Self::Grpc { kind, message }
+impl From<crate::grpc::Status> for Error {
+    fn from(s: crate::grpc::Status) -> Self {
+        // The in-house transport carries the canonical `grpc-status` and
+        // `grpc-message` trailers directly. ThetaData-specific
+        // `http_status_code` metadata enrichment used to ride on tonic's
+        // metadata map; the in-house path can recover it the same way
+        // once trailer-metadata propagation lands in `grpc::Status`. For
+        // now, surface the numeric code + UTF-8 message as-is so
+        // callers still get `GrpcStatusKind` pattern-matching.
+        let kind = GrpcStatusKind::from_u32(s.code());
+        Self::Grpc {
+            kind,
+            message: s.message().to_string(),
+        }
+    }
+}
+
+impl From<crate::grpc::ChannelError> for Error {
+    fn from(err: crate::grpc::ChannelError) -> Self {
+        use crate::grpc::ChannelError;
+        match err {
+            ChannelError::Rpc { status } => Self::from(status),
+            ChannelError::DeadlineExceeded { duration_ms } => Self::Timeout { duration_ms },
+            other => Self::Transport(other.to_string()),
+        }
     }
 }
 
@@ -814,56 +825,41 @@ mod tests {
     }
 
     #[test]
-    fn grpc_status_kind_from_code_round_trip() {
+    fn grpc_status_kind_from_u32_round_trip() {
         let cases = [
-            (tonic::Code::Ok, GrpcStatusKind::Ok),
-            (tonic::Code::Cancelled, GrpcStatusKind::Cancelled),
-            (tonic::Code::Unknown, GrpcStatusKind::Unknown),
-            (
-                tonic::Code::InvalidArgument,
-                GrpcStatusKind::InvalidArgument,
-            ),
-            (
-                tonic::Code::DeadlineExceeded,
-                GrpcStatusKind::DeadlineExceeded,
-            ),
-            (tonic::Code::NotFound, GrpcStatusKind::NotFound),
-            (tonic::Code::AlreadyExists, GrpcStatusKind::AlreadyExists),
-            (
-                tonic::Code::PermissionDenied,
-                GrpcStatusKind::PermissionDenied,
-            ),
-            (
-                tonic::Code::ResourceExhausted,
-                GrpcStatusKind::ResourceExhausted,
-            ),
-            (
-                tonic::Code::FailedPrecondition,
-                GrpcStatusKind::FailedPrecondition,
-            ),
-            (tonic::Code::Aborted, GrpcStatusKind::Aborted),
-            (tonic::Code::OutOfRange, GrpcStatusKind::OutOfRange),
-            (tonic::Code::Unimplemented, GrpcStatusKind::Unimplemented),
-            (tonic::Code::Internal, GrpcStatusKind::Internal),
-            (tonic::Code::Unavailable, GrpcStatusKind::Unavailable),
-            (tonic::Code::DataLoss, GrpcStatusKind::DataLoss),
-            (
-                tonic::Code::Unauthenticated,
-                GrpcStatusKind::Unauthenticated,
-            ),
+            (0u32, GrpcStatusKind::Ok),
+            (1, GrpcStatusKind::Cancelled),
+            (2, GrpcStatusKind::Unknown),
+            (3, GrpcStatusKind::InvalidArgument),
+            (4, GrpcStatusKind::DeadlineExceeded),
+            (5, GrpcStatusKind::NotFound),
+            (6, GrpcStatusKind::AlreadyExists),
+            (7, GrpcStatusKind::PermissionDenied),
+            (8, GrpcStatusKind::ResourceExhausted),
+            (9, GrpcStatusKind::FailedPrecondition),
+            (10, GrpcStatusKind::Aborted),
+            (11, GrpcStatusKind::OutOfRange),
+            (12, GrpcStatusKind::Unimplemented),
+            (13, GrpcStatusKind::Internal),
+            (14, GrpcStatusKind::Unavailable),
+            (15, GrpcStatusKind::DataLoss),
+            (16, GrpcStatusKind::Unauthenticated),
         ];
         for (code, expected) in cases {
             assert_eq!(
-                GrpcStatusKind::from_code(code),
+                GrpcStatusKind::from_u32(code),
                 expected,
-                "mapping mismatch for {code:?}"
+                "mapping mismatch for code={code}"
             );
         }
+        // Out-of-range codes fold to Unknown.
+        assert_eq!(GrpcStatusKind::from_u32(99), GrpcStatusKind::Unknown);
+        assert_eq!(GrpcStatusKind::from_u32(u32::MAX), GrpcStatusKind::Unknown);
     }
 
     #[test]
-    fn from_tonic_status_carries_kind() {
-        let status = tonic::Status::new(tonic::Code::PermissionDenied, "tier insufficient");
+    fn from_grpc_status_carries_kind() {
+        let status = crate::grpc::Status::new(7, "tier insufficient");
         let err: Error = status.into();
         match err {
             Error::Grpc { kind, message } => {
@@ -875,11 +871,33 @@ mod tests {
     }
 
     #[test]
-    fn from_tonic_status_unauthenticated_kind() {
-        let status = tonic::Status::new(tonic::Code::Unauthenticated, "expired token");
+    fn from_grpc_status_unauthenticated_kind() {
+        let status = crate::grpc::Status::new(16, "expired token");
         let err: Error = status.into();
         match err {
             Error::Grpc { kind, .. } => assert_eq!(kind, GrpcStatusKind::Unauthenticated),
+            other => panic!("expected Error::Grpc, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn from_channel_error_routes_deadline_to_timeout() {
+        let err: Error = crate::grpc::ChannelError::DeadlineExceeded { duration_ms: 123 }.into();
+        match err {
+            Error::Timeout { duration_ms } => assert_eq!(duration_ms, 123),
+            other => panic!("expected Error::Timeout, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn from_channel_error_routes_rpc_to_grpc() {
+        let status = crate::grpc::Status::new(13, "internal");
+        let err: Error = crate::grpc::ChannelError::Rpc { status }.into();
+        match err {
+            Error::Grpc { kind, message } => {
+                assert_eq!(kind, GrpcStatusKind::Internal);
+                assert!(message.contains("internal"));
+            }
             other => panic!("expected Error::Grpc, got {other:?}"),
         }
     }
