@@ -61,7 +61,7 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>venue</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Data venue filter</div>
+<div class="param-desc">Feed selector. Allowed values: <code>nqb</code> (Nasdaq Basic), <code>utp_cta</code> (merged UTP &amp; CTA). Default: <code>"nqb"</code>.</div>
 </div>
 </div>
 
