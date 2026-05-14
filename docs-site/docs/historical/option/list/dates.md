@@ -40,7 +40,7 @@ for (const auto& item : data) {
 <div class="param-list">
 <div class="param">
 <div class="param-header"><code>request_type</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Data type: <code>"TRADE"</code>, <code>"QUOTE"</code>, or <code>"OHLC"</code></div>
+<div class="param-desc">Data type. Upstream enum: <code>"trade"</code>, <code>"quote"</code>. SDK also accepts the legacy upper-case forms <code>"TRADE"</code> / <code>"QUOTE"</code>.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
@@ -48,15 +48,15 @@ for (const auto& item : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> or <code>YYYY-MM-DD</code> format</div>
 </div>
 <div class="param">
-<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Strike price in dollars as a string (e.g. <code>"500"</code> or <code>"17.5"</code>)</div>
+<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Strike price in dollars (e.g. <code>"500"</code> or <code>"17.5"</code>), or <code>"*"</code> for all strikes. Default: <code>"*"</code>.</div>
 </div>
 <div class="param">
-<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc"><code>"C"</code> for call, <code>"P"</code> for put</div>
+<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Option side: <code>"call"</code>, <code>"put"</code>, or <code>"both"</code>. SDK also accepts <code>"C"</code>/<code>"P"</code>. Default: <code>"both"</code>.</div>
 </div>
 </div>
 
