@@ -3505,6 +3505,7 @@ dependencies = [
  "metrics-exporter-prometheus",
  "mimalloc",
  "pastey",
+ "percent-encoding",
  "pin-project-lite",
  "polars",
  "pprof",

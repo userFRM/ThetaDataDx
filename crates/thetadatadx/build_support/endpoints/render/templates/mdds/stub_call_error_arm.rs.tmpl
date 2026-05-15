@@ -1,5 +1,10 @@
+        // Bind the channel lease so its pre-dispatch reservation
+        // outlives the await — see `crates/thetadatadx/src/mdds/macros.rs`
+        // for the full rationale. Deref coercion from `&ChannelLease`
+        // to `&Channel` satisfies the generated stub signature.
+        let lease = client.channel();
         let stream = match crate::proto::beta_theta_terminal::__GRPC_NAME__(
-            client.channel(),
+            &lease,
             request,
         )
         .await

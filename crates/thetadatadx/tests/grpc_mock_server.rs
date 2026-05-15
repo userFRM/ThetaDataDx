@@ -15,6 +15,7 @@
 //! by the test owning it — sufficient for per-test isolation.
 
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::{BufMut, Bytes, BytesMut};
@@ -112,6 +113,20 @@ pub struct MockBehaviour {
     /// saturate a channel with a single slow call, then confirm the
     /// pool routes around it via `has_capacity` rather than blocking.
     pub max_concurrent_streams: Option<u32>,
+    /// When true, the mock GOAWAYs the connection immediately after
+    /// receiving the request body — before sending any response
+    /// HEADERS or DATA. The client's open path (`ready()` /
+    /// `send_request()` / `send_data()`) must classify the resulting
+    /// h2 error as connection-level (`ChannelError::ConnectionClosed`)
+    /// rather than stream-level — the pool keys off this distinction
+    /// to recycle a dead channel.
+    pub goaway_pre_response: bool,
+    /// When true, the mock drops the underlying TCP socket immediately
+    /// after the h2 handshake completes (after SETTINGS, before any
+    /// HEADERS / DATA from either side). Exercises the
+    /// connection-loss path: the client's open phase observes an h2 IO
+    /// error and must classify it as `ConnectionClosed`.
+    pub drop_after_handshake: bool,
 }
 
 impl MockServer {
@@ -205,6 +220,15 @@ async fn serve_one_connection(
         builder.max_concurrent_streams(max);
     }
     let mut connection = builder.handshake(socket).await?;
+    if behaviour.drop_after_handshake {
+        // Drop the connection at the IO layer the moment the h2
+        // handshake completes — before the client's HEADERS arrive.
+        // The client's pending `ready()` / `send_request()` observes
+        // an IO error which must classify as
+        // `ChannelError::ConnectionClosed`.
+        drop(connection);
+        return Ok(());
+    }
     // Drive the connection until either (a) an RPC is served and the
     // client closes, or (b) the connection itself shuts down. The
     // request handler runs on a separate task so the accept loop can
@@ -231,12 +255,16 @@ async fn serve_one_connection(
             }
             let _ = handler_done_tx.send(());
         });
-        if behaviour.goaway_mid_stream {
-            // Wait until the handler has emitted its chunks (it skips
-            // trailers in goaway mode), then abrupt-shutdown the
-            // connection. The client surfaces this as
-            // `ChannelError::ConnectionClosed` rather than a
-            // stream-level reset.
+        if behaviour.goaway_mid_stream || behaviour.goaway_pre_response {
+            // Wait until the handler completes (it skips the response
+            // entirely in `goaway_pre_response` mode, or skips
+            // trailers in `goaway_mid_stream` mode), then abrupt-
+            // shutdown the connection. Either path surfaces
+            // `ChannelError::ConnectionClosed` on the client — the
+            // pool relies on that distinction to recycle the dead
+            // channel rather than treating it as a stream-level
+            // reset. The two modes are mutually exclusive at the
+            // call site (configure one OR the other).
             let _ = handler_done_rx.await;
             connection.abrupt_shutdown(h2::Reason::NO_ERROR);
         }
@@ -309,6 +337,14 @@ async fn handle_request(
         // running, then exit without trailers so the outer
         // accept-loop fires GOAWAY mid-stream.
         respond_partial_then_drop(respond, &chunks).await?;
+        return Ok(());
+    }
+    if behaviour.goaway_pre_response {
+        // Body drained; do not send any response HEADERS or DATA.
+        // The outer accept-loop fires GOAWAY after this handler
+        // signals completion. The client's pending response future
+        // / send_data observes the connection-level shutdown.
+        drop(respond);
         return Ok(());
     }
     if let Some(reason) = behaviour.stream_reset_reason {
@@ -911,16 +947,20 @@ async fn channel_pool_routes_around_saturated_channel() {
     }
 
     // `pool.next()` must skip member 0 — it has `1` in-flight while
-    // members 1-3 have `0`. The least-loaded pick wins.
+    // members 1-3 have `0`. The least-loaded pick wins. Bind each
+    // lease to a local so its pre-dispatch reservation drops cleanly
+    // and the picker accounting stays sane across iterations.
     let mut saw_zero = 0_usize;
     let mut saw_non_zero = 0_usize;
     for _ in 0..16 {
-        let pick: *const Channel = pool.next();
+        let lease = pool.next();
+        let pick: *const Channel = lease.channel();
         if pick == member_zero_ptr {
             saw_zero += 1;
         } else {
             saw_non_zero += 1;
         }
+        drop(lease);
     }
     assert_eq!(
         saw_zero, 0,
@@ -990,6 +1030,105 @@ async fn channel_classifies_per_stream_rst_as_stream_level() {
             panic!("per-stream RST_STREAM must classify as H2Stream, not ConnectionClosed ({msg})")
         }
         other => panic!("expected H2Stream, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn channel_classifies_goaway_before_response_head_as_connection_closed() {
+    // Server GOAWAYs after receiving the request body without ever
+    // sending response HEADERS or DATA. Open-path classification used
+    // to wrap every h2 error in `H2Stream(...)` regardless of
+    // connection-level scope; the fix routes `ready()` /
+    // `send_request()` / `send_data()` failures through
+    // `classify_h2_error` so GOAWAY surfaces as `ConnectionClosed`
+    // and the pool recycles the dead channel.
+    let mock = MockServer::spawn_with_behaviour(
+        Vec::new(),
+        0,
+        String::new(),
+        MockBehaviour {
+            goaway_pre_response: true,
+            ..MockBehaviour::default()
+        },
+    )
+    .await;
+
+    let channel = Channel::connect_h2c("127.0.0.1", mock.addr.port())
+        .await
+        .expect("h2c connect");
+
+    let result = channel
+        .server_streaming::<DataValueList, ResponseData>(
+            "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
+            empty_request(),
+        )
+        .await;
+
+    let final_err = match result {
+        Err(e) => e,
+        Ok(stream) => match collect(stream).await {
+            Err(e) => e,
+            Ok(msgs) => panic!("expected ConnectionClosed, got {} messages", msgs.len()),
+        },
+    };
+
+    match final_err {
+        ChannelError::ConnectionClosed(_) => {
+            // expected — open-path GOAWAY classified as connection-level.
+        }
+        other => panic!("expected ConnectionClosed, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn channel_classifies_connection_drop_after_handshake_as_connection_closed() {
+    // Server drops the TCP socket the instant the h2 handshake
+    // completes — no HEADERS, no DATA, no GOAWAY. The client's
+    // pending `ready()` / `send_request()` observes an h2 IO error.
+    // Per the same open-path classification fix that handles GOAWAY,
+    // an IO-layer connection loss must surface as `ConnectionClosed`,
+    // not `H2Stream`.
+    let mock = MockServer::spawn_with_behaviour(
+        Vec::new(),
+        0,
+        String::new(),
+        MockBehaviour {
+            drop_after_handshake: true,
+            ..MockBehaviour::default()
+        },
+    )
+    .await;
+
+    let channel = match Channel::connect_h2c("127.0.0.1", mock.addr.port()).await {
+        Ok(c) => c,
+        Err(ChannelError::ConnectionClosed(_)) => {
+            // Already classified as connection-level at handshake;
+            // acceptable terminus for this test.
+            return;
+        }
+        Err(other) => panic!("unexpected connect error: {other:?}"),
+    };
+
+    let result = channel
+        .server_streaming::<DataValueList, ResponseData>(
+            "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
+            empty_request(),
+        )
+        .await;
+
+    let final_err = match result {
+        Err(e) => e,
+        Ok(stream) => match collect(stream).await {
+            Err(e) => e,
+            Ok(msgs) => panic!("expected ConnectionClosed, got {} messages", msgs.len()),
+        },
+    };
+
+    match final_err {
+        ChannelError::ConnectionClosed(_) => {
+            // expected — IO-layer drop classifies as connection-level.
+        }
+        other => panic!("expected ConnectionClosed, got {other:?}"),
     }
 }
 
@@ -1074,6 +1213,231 @@ async fn channel_sends_expected_request_bytes() {
     assert_eq!(messages.len(), 1, "exactly one response chunk");
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn channel_pool_burst_dispatch_spreads_across_members() {
+    // The exact pattern the criterion bench (`grpc_concurrent_burst`)
+    // and any `join_all` consumer hits: a synchronous batch of
+    // `pool.next()` calls followed by polling the resulting futures.
+    // Under the previous picker every `pool.next()` saw
+    // `in_flight = 0` because the open path only incremented after
+    // `send_request()` succeeded — none of which had run yet at the
+    // moment of the picks. The whole batch pinned to one channel.
+    //
+    // The fix (Finding 4): `pool.next()` returns a `ChannelLease`
+    // that pre-reserves a slot on the picked channel synchronously.
+    // Subsequent picks in the same batch observe each prior
+    // reservation and route around it. We assert the burst spreads
+    // across all four pool members; the broken picker would put
+    // every pick on member 0.
+    let mut mocks = Vec::new();
+    let mut channels = Vec::new();
+    for _ in 0..4 {
+        let mock = MockServer::spawn_with_behaviour(
+            vec![make_response_data(&["AAPL"])],
+            0,
+            String::new(),
+            MockBehaviour {
+                pre_response_delay: Some(Duration::from_secs(5)),
+                ..MockBehaviour::default()
+            },
+        )
+        .await;
+        let channel = Channel::connect_h2c("127.0.0.1", mock.addr.port())
+            .await
+            .expect("h2c connect");
+        channels.push(channel);
+        mocks.push(mock);
+    }
+    let pool = ChannelPool::from_channels(channels);
+
+    // Capture channel pointers so picks can be attributed to members.
+    let member_ptrs: Vec<*const Channel> = (0..4)
+        .map(|i| pool.member_for_test(i) as *const Channel)
+        .collect();
+
+    // ── The exact burst-contention shape ───────────────────────────
+    // Synchronously call `pool.next()` 16 times, recording the
+    // picked channel for each. The leases are held in a Vec so
+    // their pre-dispatch reservations stay committed for the full
+    // assertion window — mirrors the real-world `join_all` pattern
+    // where each pick's dispatch future hasn't run yet at the time
+    // the next pick happens.
+    let leases: Vec<_> = (0..16).map(|_| pool.next()).collect();
+    let picks: Vec<*const Channel> = leases
+        .iter()
+        .map(|lease| lease.channel() as *const Channel)
+        .collect();
+
+    let mut per_member = [0usize; 4];
+    for pick in &picks {
+        let idx = member_ptrs
+            .iter()
+            .position(|p| p == pick)
+            .expect("picked channel exists in pool");
+        per_member[idx] += 1;
+    }
+    let max_per_member = *per_member.iter().max().expect("non-empty");
+    // With 16 picks across 4 channels under a picker that counts
+    // pending opens, the spread is exactly 4-per-channel — the
+    // round-robin tie-breaker fans the first cycle and the per-
+    // channel `in_flight = 1` after each pick redirects each
+    // subsequent pick to a still-idle member. Under the broken
+    // picker all 16 picks pin to member 0 (per_member = [16, 0, 0, 0]).
+    assert_eq!(
+        max_per_member, 4,
+        "16 picks across 4 channels must distribute exactly 4-per-channel: picks={per_member:?}"
+    );
+    for (idx, count) in per_member.iter().enumerate() {
+        assert_eq!(
+            *count, 4,
+            "member {idx} must receive exactly 4 picks: counts={per_member:?}"
+        );
+    }
+
+    // Drop the leases so the reservations return to the pool.
+    drop(leases);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn channel_pool_concurrent_dispatch_spreads_across_members() {
+    // True-concurrent stress test for the picker's pick/reserve race
+    // (Finding 4, round 2). N independent tokio tasks call
+    // `pool.next()` concurrently; without the CAS commit guard two
+    // tasks could both scan, both observe the same least-loaded
+    // channel, and both commit reservations — pinning the channel
+    // and pushing the rest of the burst to a hot member.
+    //
+    // The CAS-retry pick in `ChannelPool::next` rolls back the loser
+    // of every race and re-scans. The test asserts the resulting
+    // spread stays within a reasonable bound — well below the
+    // pathological "all on one member" the broken picker produces.
+    //
+    // `ChannelPool` is clone-cheap (`Arc` inside), but the
+    // `ChannelLease<'a>` it returns borrows from its parent — so
+    // every concurrent task gets its own `ChannelPool` clone and
+    // the lease lives the lifetime of the spawned task. Each task
+    // records its picked channel pointer via a shared atomic vec.
+    let mut mocks = Vec::new();
+    let mut channels = Vec::new();
+    for _ in 0..4 {
+        let mock = MockServer::spawn_with_behaviour(
+            vec![make_response_data(&["AAPL"])],
+            0,
+            String::new(),
+            MockBehaviour::default(),
+        )
+        .await;
+        let channel = Channel::connect_h2c("127.0.0.1", mock.addr.port())
+            .await
+            .expect("h2c connect");
+        channels.push(channel);
+        mocks.push(mock);
+    }
+    let pool = ChannelPool::from_channels(channels);
+
+    // `Channel` pointers are `!Send`; identify each pool member by
+    // its address-as-usize so the per-task lookup works across
+    // `tokio::spawn` boundaries.
+    let member_addrs: Vec<usize> = (0..4)
+        .map(|i| pool.member_for_test(i) as *const Channel as usize)
+        .collect();
+
+    // Synchronize N tasks to call `pool.next()` at the same instant
+    // via a `tokio::sync::Barrier`. After the pick, every task
+    // waits at a second barrier so the leases stay held across the
+    // pick-spread assertion window. Each task writes its picked
+    // member index into a per-task slot in a shared atomic vec.
+    const CONCURRENT: usize = 16;
+    let pick_barrier = Arc::new(tokio::sync::Barrier::new(CONCURRENT + 1));
+    let hold_barrier = Arc::new(tokio::sync::Barrier::new(CONCURRENT + 1));
+    let pick_slots: Arc<Vec<std::sync::atomic::AtomicUsize>> = Arc::new(
+        (0..CONCURRENT)
+            .map(|_| std::sync::atomic::AtomicUsize::new(usize::MAX))
+            .collect(),
+    );
+
+    let mut handles = Vec::with_capacity(CONCURRENT);
+    for slot_idx in 0..CONCURRENT {
+        let pool = pool.clone();
+        let pick_barrier = Arc::clone(&pick_barrier);
+        let hold_barrier = Arc::clone(&hold_barrier);
+        let pick_slots = Arc::clone(&pick_slots);
+        let member_addrs = member_addrs.clone();
+        handles.push(tokio::spawn(async move {
+            // Every task waits on the pick barrier so the
+            // `pool.next()` calls fire as simultaneously as the
+            // tokio runtime allows. The barrier covers N + 1
+            // arrivals — the test driver below is the +1.
+            pick_barrier.wait().await;
+            let lease = pool.next();
+            // Compute the picked-member index synchronously, before
+            // the next await — addresses are recovered as `usize`
+            // so the value crosses the spawn boundary cleanly.
+            let chan_addr = lease.channel() as *const Channel as usize;
+            let idx = member_addrs
+                .iter()
+                .position(|p| *p == chan_addr)
+                .expect("picked channel exists in pool");
+            pick_slots[slot_idx].store(idx, std::sync::atomic::Ordering::Release);
+            // Hold the lease across the assertion window — the
+            // test driver releases this barrier after observing
+            // all picks. Dropping the lease here would let the
+            // reservation race ahead of the assertion.
+            hold_barrier.wait().await;
+            drop(lease);
+        }));
+    }
+
+    // Driver: release the pick barrier so every task issues
+    // `pool.next()` concurrently, await each slot's commitment,
+    // then release the hold barrier so the leases drop.
+    pick_barrier.wait().await;
+    // Spin until every slot has been written. AtomicUsize::MAX is
+    // the "unset" sentinel.
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let observed_per_member: [usize; 4] = loop {
+        let mut current = [0usize; 4];
+        let mut unset = 0usize;
+        for slot in pick_slots.iter() {
+            let v = slot.load(std::sync::atomic::Ordering::Acquire);
+            if v == usize::MAX {
+                unset += 1;
+            } else {
+                current[v] += 1;
+            }
+        }
+        if unset == 0 {
+            break current;
+        }
+        if std::time::Instant::now() > deadline {
+            panic!("{unset} of {CONCURRENT} concurrent picks never committed within deadline");
+        }
+        tokio::task::yield_now().await;
+    };
+    hold_barrier.wait().await;
+    for h in handles {
+        h.await.expect("task joined");
+    }
+
+    let max_per_member = *observed_per_member.iter().max().expect("non-empty");
+    // Under the CAS-retry picker, even with full concurrency the
+    // spread stays bounded. We allow up to 8 (50%) on any single
+    // member as a generous upper bound that still fails decisively
+    // against the broken picker (which can pin a large fraction of
+    // the picks onto one channel under contention). Every channel
+    // must also see at least one pick.
+    assert!(
+        max_per_member <= 8,
+        "concurrent burst spread must stay bounded: picks={observed_per_member:?}"
+    );
+    for (idx, count) in observed_per_member.iter().enumerate() {
+        assert!(
+            *count > 0,
+            "every pool member must receive at least one pick: counts={observed_per_member:?} (member {idx} got {count})"
+        );
+    }
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn channel_pool_distributes_across_members() {
     // Spin four independent mock servers, each behind its own port,
@@ -1093,9 +1457,16 @@ async fn channel_pool_distributes_across_members() {
     assert_eq!(pool.len(), 4);
 
     // Eight successive `pool.next()` calls must wrap around exactly
-    // twice. With 4 channels and a Relaxed atomic counter, indices
-    // 0..8 % 4 = [0,1,2,3,0,1,2,3].
-    let picks: Vec<*const Channel> = (0..8).map(|_| pool.next() as *const Channel).collect();
+    // twice across the four pool members. Hold the leases in a Vec
+    // so each pre-dispatch reservation stays committed — under the
+    // pre-reservation picker (Finding 4) the spread for a sustained
+    // burst is exactly N/M-per-member, which means picks[0..4] and
+    // picks[4..8] both visit each pool member once.
+    let leases: Vec<_> = (0..8).map(|_| pool.next()).collect();
+    let picks: Vec<*const Channel> = leases
+        .iter()
+        .map(|lease| lease.channel() as *const Channel)
+        .collect();
     assert_eq!(picks[0], picks[4]);
     assert_eq!(picks[1], picks[5]);
     assert_eq!(picks[2], picks[6]);
@@ -1105,4 +1476,5 @@ async fn channel_pool_distributes_across_members() {
     distinct.sort();
     distinct.dedup();
     assert_eq!(distinct.len(), 4, "first four picks are distinct channels");
+    drop(leases);
 }

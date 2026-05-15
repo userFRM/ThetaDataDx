@@ -120,7 +120,14 @@ async fn decode_chunk(
     response: proto::ResponseData,
 ) -> Result<proto::DataTable, Error> {
     if let Some(handle) = decoder {
-        match handle.submit(response).await {
+        // `submit` short-circuits with `DecoderSubmitError::Poisoned`
+        // when a prior worker-thread panic has flipped the pool's
+        // poison flag — surface as a transport-level failure so
+        // higher layers can decide on retry vs. rebuild.
+        let rx = handle.submit(response).map_err(|err| {
+            Error::Transport(format!("mdds decoder pool rejected submission: {err}"))
+        })?;
+        match rx.await {
             Ok(result) => result,
             Err(_) => Err(Error::Transport(
                 "mdds decoder pool dropped its reply channel".to_string(),

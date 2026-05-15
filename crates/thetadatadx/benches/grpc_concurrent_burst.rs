@@ -300,16 +300,27 @@ fn bench_concurrent_burst(c: &mut Criterion) {
                 let start = Instant::now();
                 for _ in 0..iters {
                     iterations.fetch_add(1, Ordering::Relaxed);
+                    // Each dispatch captures its own `ChannelLease`
+                    // synchronously so the picker (Finding 4) sees
+                    // every prior reservation before issuing the
+                    // next pick. The lease's `Deref` to `&Channel`
+                    // satisfies the `stock_history_eod` signature;
+                    // the lease lives across the await, keeping the
+                    // in-flight reservation committed for the
+                    // dispatch window.
                     let futures = (0..BURST_SIZE).map(|_| {
-                        let channel = pool.next();
-                        bench_support::stock_history_eod(
-                            channel,
-                            SESSION_UUID.to_string(),
-                            "rust-thetadatadx-grpc".to_string(),
-                            "AAPL",
-                            "20240101",
-                            "20240329",
-                        )
+                        let lease = pool.next();
+                        async move {
+                            bench_support::stock_history_eod(
+                                &lease,
+                                SESSION_UUID.to_string(),
+                                "rust-thetadatadx-grpc".to_string(),
+                                "AAPL",
+                                "20240101",
+                                "20240329",
+                            )
+                            .await
+                        }
                     });
                     let results = futures::future::join_all(futures).await;
                     for r in results {

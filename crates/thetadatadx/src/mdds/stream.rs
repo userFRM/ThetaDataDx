@@ -100,8 +100,12 @@ impl MddsClient {
     ///
     /// ```rust,ignore
     /// let request = /* build your gRPC request */;
+    /// // Bind the channel lease so its pre-dispatch reservation
+    /// // stays committed across the `.await`. Deref coercion from
+    /// // `&ChannelLease` to `&Channel` satisfies the stub signature.
+    /// let lease = client.channel();
     /// let stream = crate::proto::beta_theta_terminal::get_stock_history_trade(
-    ///     client.channel(),
+    ///     &lease,
     ///     request,
     /// )
     /// .await?;
@@ -169,12 +173,19 @@ async fn decode_chunk(
     response: proto::ResponseData,
 ) -> Result<proto::DataTable, Error> {
     if let Some(handle) = decoder {
-        match handle.submit(response).await {
+        // `submit` short-circuits when the pool has been poisoned by
+        // a prior worker-thread panic — surface as a transport-level
+        // failure so the retry layer can decide on rebuild instead
+        // of hanging on a dead ring.
+        let rx = handle.submit(response).map_err(|err| {
+            Error::Transport(format!("mdds decoder pool rejected submission: {err}"))
+        })?;
+        match rx.await {
             Ok(result) => result,
             // `oneshot::Receiver` errors only when the sender is
             // dropped — which on our pool side means the consumer
-            // thread panicked or the pool was torn down mid-flight.
-            // Surface as Transport so the retry layer can decide.
+            // thread was torn down mid-flight. Surface as Transport
+            // so the retry layer can decide.
             Err(_) => Err(Error::Transport(
                 "mdds decoder pool dropped its reply channel".to_string(),
             )),
