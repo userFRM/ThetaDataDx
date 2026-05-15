@@ -38,15 +38,32 @@ frames = ["polars", "arrow"]
 # Opt-in gate for tests that hit live MDDS / FPSS endpoints. Default-off
 # so `cargo test` never burns a live call without the user asking for it.
 live-tests = []
+# Optional mimalloc allocator. Library crates do not install a
+# `#[global_allocator]` of their own — that belongs in the consuming
+# binary. Enabling this feature pulls `mimalloc` into the dependency
+# graph so the binary can register it with one extra line; see
+# `docs-site/docs/configuration.md` ("Performance tuning") for the
+# integration snippet. Default-off — applications that prefer the
+# system allocator pay no compile or link cost.
+mimalloc-allocator = ["dep:mimalloc"]
 
 [dependencies]
 tdbe = { version = "0.13.1", path = "../tdbe" }
 
-# gRPC + protobuf (tonic 0.14 extracted prost codec into tonic-prost)
-tonic = { version = "=0.14.5", features = ["tls-ring", "tls-native-roots", "channel", "transport"] }
-tonic-prost = "=0.14.5"
+# Protobuf message types for the MDDS wire contract. The in-house
+# gRPC client stack (`src/grpc/`) consumes these directly — no tonic.
 prost = "=0.14.3"
 prost-types = "=0.14.3"
+
+# In-house gRPC transport — direct h2 implementation. These deps used
+# to ride in via tonic transitively; declaring them explicitly pins
+# versions now that tonic is gone.
+h2 = "0.4"
+http = "1"
+http-body = "1"
+bytes = "1"
+pin-project-lite = "0.2"
+futures-core = "0.3"
 
 # Async runtime
 tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync", "fs"] }
@@ -130,8 +147,25 @@ zeroize = { version = "1.8.2", features = ["derive"] }
 # to a single `state.load()`.
 arc-swap = "1.7"
 
+# Optional mimalloc allocator. Gated behind the `mimalloc-allocator`
+# feature so the default dependency graph stays unchanged; consumers
+# install it as `#[global_allocator]` in their own binary. See
+# `docs-site/docs/configuration.md` for the integration snippet.
+# `default-features = false` skips the bundled override that mimalloc
+# would otherwise install at runtime — the consuming binary owns that
+# choice, not us.
+mimalloc = { version = "0.1", default-features = false, optional = true }
+
 [dev-dependencies]
-criterion = { version = "0.8.2", features = ["html_reports"] }
+criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
+# `futures::future::join_all` for the concurrent-burst bench. Pulls in
+# the umbrella `futures` crate (we already depend on `futures-core`
+# directly; this gives us the executor adapters as well, dev-only).
+futures = "0.3"
+# Signal-driven sampling profiler used by the concurrent-burst bench
+# to emit a flamegraph SVG when `THETADATADX_FLAMEGRAPH=1` is set.
+# Pure userspace — no perf / root required.
+pprof = { version = "0.15", features = ["flamegraph"] }
 proptest = "1.5"
 # Test-only: load captured-response fixtures and their sidecar .meta.toml
 # files for the decoder-regression suite (`tests/test_decode_captures.rs`).
@@ -147,8 +181,10 @@ toml = "1.1.2"
 pyo3 = { version = "=0.28.2", features = ["auto-initialize"] }
 
 [build-dependencies]
-# tonic 0.14 extracted build integration into tonic-prost-build
-tonic-prost-build = "=0.14.5"
+# `prost-build` compiles `proto/mdds.proto` into Rust message types;
+# the in-house gRPC client stubs are emitted by a custom service
+# generator under `build_support/grpc/`, replacing `tonic-build`
+# entirely.
 prost-build = "=0.14.3"
 regex = "1.12.3"
 toml = "1.1.2"
@@ -181,6 +217,14 @@ harness = false
 
 [[bench]]
 name = "streaming_throughput"
+harness = false
+
+[[bench]]
+name = "grpc_channel"
+harness = false
+
+[[bench]]
+name = "grpc_concurrent_burst"
 harness = false
 
 [[bin]]

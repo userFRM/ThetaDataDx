@@ -1,5 +1,10 @@
-        let stream = match client.stub().__GRPC_NAME__(request).await {
-            Ok(resp) => resp.into_inner(),
+        let stream = match crate::proto::beta_theta_terminal::__GRPC_NAME__(
+            client.channel(),
+            request,
+        )
+        .await
+        {
+            Ok(stream) => stream,
             Err(e) => {
                 metrics::counter!("thetadatadx.grpc.errors", "endpoint" => __ENDPOINT_NAME_LITERAL__).increment(1);
                 return Err(e.into());

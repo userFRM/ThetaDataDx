@@ -100,7 +100,9 @@ pub mod fpss;
 #[cfg(any(feature = "polars", feature = "arrow"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "polars", feature = "arrow"))))]
 pub mod frames;
+pub mod grpc;
 pub mod observability;
+pub mod util;
 
 // Wave 3 layout: macros, registry, validate, wire_semantics, and the
 // shared endpoint runtime (`endpoint_args`) all live under `mdds/`.
@@ -128,7 +130,7 @@ pub use mdds::decode;
 /// generated module is reachable via `crate::proto`.
 #[allow(clippy::pedantic)]
 pub(crate) mod proto {
-    tonic::include_proto!("beta_endpoints");
+    include!(concat!(env!("OUT_DIR"), "/beta_endpoints.rs"));
 }
 
 /// gRPC wire-payload re-exports for offline-decode callers.
@@ -231,4 +233,40 @@ pub use tdbe::types::price::Price;
 
 pub mod utils {
     pub use tdbe::{conditions, exchange, sequences};
+}
+
+/// Optional [`mimalloc`](https://crates.io/crates/mimalloc) re-export
+/// for consumers that prefer mimalloc over the system allocator.
+///
+/// Library crates cannot install a `#[global_allocator]` — that lives
+/// in the binary. The `mimalloc-allocator` feature pulls the crate
+/// into the dependency graph and re-exports the allocator handle here
+/// so the consuming binary can attach it with one line:
+///
+/// ```rust,ignore
+/// // In your binary's `main.rs` (NOT in a library):
+/// #[global_allocator]
+/// static GLOBAL: thetadatadx::mimalloc::MiMalloc = thetadatadx::mimalloc::MiMalloc;
+/// ```
+///
+/// And in the binary's `Cargo.toml`:
+///
+/// ```toml
+/// [dependencies]
+/// thetadatadx = { version = "10", features = ["mimalloc-allocator"] }
+/// ```
+///
+/// Mimalloc trades a small fixed overhead per process (~64 KB of
+/// shared bookkeeping) for materially fewer page faults and lower
+/// fragmentation on the allocation-heavy gRPC decode path. The
+/// per-call savings scale with response size; tabular MDDS responses
+/// past 1 KB consistently show shorter p99 tails on workloads that
+/// fan calls out across many threads.
+///
+/// See `docs-site/docs/configuration.md` (Performance tuning) for the
+/// full integration walk-through.
+#[cfg(feature = "mimalloc-allocator")]
+#[cfg_attr(docsrs, doc(cfg(feature = "mimalloc-allocator")))]
+pub mod mimalloc {
+    pub use ::mimalloc::MiMalloc;
 }
