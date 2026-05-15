@@ -1855,6 +1855,7 @@ dependencies = [
  "http-body",
  "metrics",
  "pastey",
+ "percent-encoding",
  "pin-project-lite",
  "prost",
  "prost-build",

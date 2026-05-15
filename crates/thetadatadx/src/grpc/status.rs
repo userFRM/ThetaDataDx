@@ -14,11 +14,15 @@
 //! of fall through.
 
 use http::{HeaderMap, HeaderValue};
+use percent_encoding::percent_decode;
 use thiserror::Error;
 
 /// `grpc-status` trailer name.
 pub(crate) const GRPC_STATUS: &str = "grpc-status";
-/// `grpc-message` trailer name (RFC 3986 percent-encoded UTF-8 per spec).
+/// `grpc-message` trailer name. Per the gRPC HTTP/2 spec the value is
+/// RFC 3986 percent-encoded UTF-8; the parser percent-decodes and
+/// gracefully tolerates malformed values rather than invalidating the
+/// `grpc-status` it travels with. See [`decode_grpc_message`].
 pub(crate) const GRPC_MESSAGE: &str = "grpc-message";
 /// `grpc-status: 0` — the `Ok` code.
 pub(crate) const STATUS_OK: u32 = 0;
@@ -93,9 +97,6 @@ pub enum StatusParseError {
         /// The raw value as received.
         value: String,
     },
-    /// `grpc-message` was present but not a valid UTF-8 string.
-    #[error("`grpc-message` trailer is not valid UTF-8")]
-    MessageNotUtf8,
 }
 
 impl Status {
@@ -121,12 +122,10 @@ impl Status {
                 value: code_str.to_string(),
             })?;
 
-        let message = match trailers.get(GRPC_MESSAGE) {
-            None => String::new(),
-            Some(raw_msg) => header_value_to_str(raw_msg)
-                .ok_or(StatusParseError::MessageNotUtf8)?
-                .to_string(),
-        };
+        let message = trailers
+            .get(GRPC_MESSAGE)
+            .map(decode_grpc_message)
+            .unwrap_or_default();
 
         Ok(Self { code, message })
     }
@@ -138,6 +137,36 @@ impl Status {
 /// instead of poking at the headers themselves.
 fn header_value_to_str(v: &HeaderValue) -> Option<&str> {
     v.to_str().ok()
+}
+
+/// Decode a `grpc-message` trailer per the gRPC HTTP/2 wire spec
+/// (<https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md>).
+///
+/// The spec mandates RFC 3986 percent-decoding (`%HH` escapes only —
+/// no `+`-as-space) of the message bytes, with the decoded bytes then
+/// interpreted as UTF-8. Crucially, a malformed message MUST NOT
+/// invalidate an otherwise-valid `grpc-status` — a higher-level
+/// retry / auth handler that keys on the status code (Unauthenticated,
+/// Unavailable, etc.) would otherwise break on any peer that ships a
+/// non-canonical message.
+///
+/// Fallback chain, in order: percent-decode + UTF-8 → raw header as
+/// UTF-8 → empty string. Every gRPC status parse returns a usable
+/// `Status` even when the message side of the trailer pair is
+/// malformed.
+fn decode_grpc_message(raw: &HeaderValue) -> String {
+    let raw_bytes = raw.as_bytes();
+    if let Ok(decoded) = percent_decode(raw_bytes).decode_utf8() {
+        return decoded.into_owned();
+    }
+    // Percent-decode failure or non-UTF-8 decoded bytes: fall back to
+    // the raw header as UTF-8. If that also fails (opaque non-UTF-8
+    // bytes), surface an empty message — the parsed `grpc-status`
+    // remains valid so callers can still classify the RPC outcome.
+    match raw.to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => String::new(),
+    }
 }
 
 #[cfg(test)]
@@ -218,7 +247,80 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_message_is_error() {
+    fn percent_decoded_message_round_trips() {
+        // `%20` decodes to a space per RFC 3986. The gRPC HTTP/2 spec
+        // mandates this decoding for `grpc-message` so the test
+        // pins the contract from the wire.
+        let mut h = HeaderMap::new();
+        h.insert(
+            HeaderName::from_static("grpc-status"),
+            HeaderValue::from_static("13"),
+        );
+        h.insert(
+            HeaderName::from_static("grpc-message"),
+            HeaderValue::from_static("Hello%20world"),
+        );
+        let s = Status::from_trailers(&h).expect("status parsed");
+        assert_eq!(s.code(), 13);
+        assert_eq!(s.message(), "Hello world");
+    }
+
+    #[test]
+    fn malformed_percent_escape_is_passed_through() {
+        // `%2X` is not a valid `%HH` escape. The `percent-encoding`
+        // crate passes invalid escapes through literally, so the
+        // decoded UTF-8 still contains `%2X` verbatim. The spec
+        // forbids a malformed message from invalidating a parsed
+        // `grpc-status`; the test pins both the byte preservation
+        // and the parse success.
+        let mut h = HeaderMap::new();
+        h.insert(
+            HeaderName::from_static("grpc-status"),
+            HeaderValue::from_static("13"),
+        );
+        h.insert(
+            HeaderName::from_static("grpc-message"),
+            HeaderValue::from_static("Bad%2Xescape"),
+        );
+        let s = Status::from_trailers(&h).expect("status parsed even with malformed escape");
+        assert_eq!(s.code(), 13);
+        assert_eq!(
+            s.message(),
+            "Bad%2Xescape",
+            "invalid %HH escape preserved verbatim by percent-encoding"
+        );
+    }
+
+    #[test]
+    fn percent_escape_decoding_non_utf8_falls_back_to_raw() {
+        // `%FF` decodes to byte 0xFF which is not valid UTF-8. The
+        // parser must fall back to the raw header bytes (which here
+        // are the ASCII string "%FF") rather than failing or
+        // returning an empty message.
+        let mut h = HeaderMap::new();
+        h.insert(
+            HeaderName::from_static("grpc-status"),
+            HeaderValue::from_static("13"),
+        );
+        h.insert(
+            HeaderName::from_static("grpc-message"),
+            HeaderValue::from_static("%FF"),
+        );
+        let s = Status::from_trailers(&h).expect("status parsed despite non-utf8 percent decode");
+        assert_eq!(s.code(), 13);
+        assert_eq!(
+            s.message(),
+            "%FF",
+            "non-utf8 decoded bytes fall back to raw header text"
+        );
+    }
+
+    #[test]
+    fn non_utf8_message_falls_back_to_empty() {
+        // Opaque non-UTF-8 bytes in `grpc-message` must not invalidate
+        // the parsed status. Per spec, the message is best-effort; we
+        // surface an empty string and the caller still gets the
+        // canonical `grpc-status` code.
         let mut h = HeaderMap::new();
         h.insert(
             HeaderName::from_static("grpc-status"),
@@ -226,8 +328,32 @@ mod tests {
         );
         let v = HeaderValue::from_bytes(&[0xff]).unwrap();
         h.insert(HeaderName::from_static("grpc-message"), v);
-        let err = Status::from_trailers(&h).expect_err("non-utf8 message rejected");
-        assert_eq!(err, StatusParseError::MessageNotUtf8);
+        let s = Status::from_trailers(&h).expect("status parsed despite non-utf8 message");
+        assert_eq!(s.code(), 13);
+        assert_eq!(
+            s.message(),
+            "",
+            "non-utf8 message falls back to empty string"
+        );
+    }
+
+    #[test]
+    fn unauthenticated_surfaces_even_with_malformed_message() {
+        // The motivating case: `grpc-status: 16` (Unauthenticated) with
+        // a non-UTF-8 message used to invalidate the entire parse,
+        // breaking auth / retry handlers that key on the status code.
+        // The fixed parser surfaces a usable `Status` and lets the
+        // higher layer classify Unauthenticated correctly.
+        let mut h = HeaderMap::new();
+        h.insert(
+            HeaderName::from_static("grpc-status"),
+            HeaderValue::from_static("16"),
+        );
+        let bad = HeaderValue::from_bytes(&[0xff, 0xfe]).unwrap();
+        h.insert(HeaderName::from_static("grpc-message"), bad);
+        let s = Status::from_trailers(&h).expect("Unauthenticated parses despite bad message");
+        assert_eq!(s.code(), 16, "Unauthenticated status code preserved");
+        assert!(!s.is_ok());
     }
 
     #[test]

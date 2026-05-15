@@ -73,7 +73,15 @@ pub enum ChannelError {
     /// h2 protocol handshake failed.
     #[error("h2 handshake: {0}")]
     H2Handshake(String),
-    /// h2 stream-level error from the server.
+    /// h2 stream-level error scoped to the specific stream this RPC
+    /// opened. Covers `RST_STREAM` from the peer (any reason code:
+    /// `CANCEL`, `REFUSED_STREAM`, `INTERNAL_ERROR`, etc.) plus any
+    /// h2 library-detected protocol error that affects only this
+    /// stream. The h2 connection itself is healthy and the next RPC
+    /// on the same channel can succeed — the pool should *not*
+    /// recycle the channel on this variant. Connection-level death
+    /// (GOAWAY, IO failure, peer shutdown, open-phase connection
+    /// drops) surfaces through [`Self::ConnectionClosed`] instead.
     #[error("h2 stream: {0}")]
     H2Stream(String),
     /// Failed to build the `:path` URI for the RPC.
@@ -114,11 +122,20 @@ pub enum ChannelError {
         /// The deadline (in milliseconds) the caller supplied.
         duration_ms: u64,
     },
-    /// The h2 connection received or sent a GOAWAY frame. The server
-    /// will accept no further streams; callers should reconnect to
-    /// continue. Distinct from a transient stream-level reset so
-    /// connection-pool consumers can recycle the channel.
-    #[error("h2 connection closed by GOAWAY: {0}")]
+    /// Connection-level death — the h2 connection is no longer
+    /// usable for any further RPC. Covers:
+    /// - `GOAWAY` (either direction): the peer is refusing further
+    ///   streams on this connection.
+    /// - IO failure at the h2 transport layer: socket closed,
+    ///   read/write returned an error, TLS layer terminated.
+    /// - Connection drops observed during the open phase
+    ///   (`ready()` / `send_request()` / `send_data()` failures
+    ///   on a connection that died before admitting the stream).
+    ///
+    /// Distinct from per-stream resets (see [`Self::H2Stream`]):
+    /// pool consumers should recycle the channel on this variant
+    /// rather than retry on a dead transport.
+    #[error("h2 connection closed: {0}")]
     ConnectionClosed(String),
 }
 
@@ -367,6 +384,63 @@ impl Channel {
         self.max_message_size
     }
 
+    /// Take a pre-dispatch in-flight token. Used by
+    /// [`super::ChannelPool::next`] to atomically reserve a slot on
+    /// this channel at pick time, before the async dispatch future
+    /// is even polled. Under burst contention this guarantees every
+    /// concurrent `pool.next()` observer sees the prior reservations
+    /// and routes around the loaded channel; without the
+    /// pre-dispatch reservation a `join_all` batch of dispatches all
+    /// see `in_flight = 0` and pin to the same channel.
+    ///
+    /// The returned token's `Drop` decrements the counter. The
+    /// `ChannelLease` that holds it transfers ownership into the
+    /// resulting `ServerStreaming` via an alternate dispatch entry
+    /// point so the in-flight count drops back to a single
+    /// commitment after the open path completes, not zero.
+    pub(crate) fn reserve_in_flight(&self) -> InFlightToken {
+        InFlightToken::new(Arc::clone(&self.in_flight))
+    }
+
+    /// Try to reserve a slot atomically with a load-balancing
+    /// guardrail: commit only if the channel's in-flight count at
+    /// the time of reservation is `<= expected_max`. Returns the
+    /// pre-fetch_add value on success so the caller can verify the
+    /// channel really was as lightly loaded as the picker thought.
+    ///
+    /// This is the load-balancing primitive [`super::ChannelPool::next`]
+    /// uses to close the pick/reserve race: under true concurrency
+    /// two tasks may both scan and both pick the same least-loaded
+    /// channel before either reservation lands. The CAS-style
+    /// retry pattern lets the loser bail out and re-scan rather
+    /// than pin to a now-saturated channel.
+    ///
+    /// On failure the returned `usize` is the observed pre-bump
+    /// count; the counter has already been incremented and then
+    /// decremented (the increment is observable to other threads
+    /// momentarily, which is acceptable for a load-balancing hint
+    /// — `in_flight_count` is documented as a hint, not a barrier).
+    pub(crate) fn try_reserve_in_flight(
+        &self,
+        expected_max: usize,
+    ) -> Result<InFlightToken, usize> {
+        let prior = self.in_flight.fetch_add(1, Ordering::AcqRel);
+        if prior <= expected_max {
+            // Reservation committed. The InFlightToken's Drop is
+            // what releases it. Reconstruct the token from the
+            // already-bumped counter — we do NOT want a second
+            // fetch_add. `from_committed` is the in-module helper
+            // for exactly this shape.
+            Ok(InFlightToken::from_committed(Arc::clone(&self.in_flight)))
+        } else {
+            // Race lost — channel got busier than we thought. Roll
+            // back the speculative reservation and let the caller
+            // retry.
+            self.in_flight.fetch_sub(1, Ordering::Release);
+            Err(prior)
+        }
+    }
+
     /// `:scheme` pseudo-header this channel sends on every request —
     /// `"https"` over TLS, `"http"` over plaintext h2c. The gRPC
     /// HTTP/2 spec pins the scheme to the underlying transport so
@@ -479,10 +553,32 @@ impl Channel {
         headers.insert(HeaderName::from_static("te"), self.te.clone());
         headers.insert(http::header::USER_AGENT, self.user_agent.clone());
 
+        // Stream is about to be dispatched on the wire — record it on
+        // the channel's in-flight counter BEFORE awaiting `ready()` so
+        // the pool's load-balancing picker sees every concurrent
+        // dispatch the moment it commits, not just the ones that have
+        // already cleared the h2 ready barrier. Without this
+        // pre-increment a thundering herd of dispatches all observe
+        // `in_flight = 0` on the same channel, race past `ready()`,
+        // and pin to one h2 stream-credit window while the other pool
+        // members stay idle. The token's `Drop` decrements the
+        // counter; the error paths below short-circuit by dropping
+        // the local `token`, the success path moves it into the
+        // `ServerStreaming` adapter so the decrement fires when the
+        // response stream ends.
+        let token = InFlightToken::new(Arc::clone(&self.in_flight));
+
         // Wait for the h2 connection to admit a new stream. `ready()`
         // consumes the `SendRequest` and yields it back when the
         // connection has window space; the original clone has already
         // served its purpose so this is a clean ownership move.
+        //
+        // `ready()` / `send_request()` / `send_data()` all surface
+        // their `h2::Error` through `classify_h2_error` so a `GOAWAY`
+        // arriving during the open phase routes through
+        // [`ChannelError::ConnectionClosed`] — letting the pool
+        // recycle the connection rather than treating a dead transport
+        // as a stream-level fault.
         let ready_fut = self.send_request.clone().ready();
         let mut sender = match deadline {
             Some(d) => match tokio::time::timeout(d, ready_fut).await {
@@ -491,21 +587,12 @@ impl Channel {
             },
             None => ready_fut.await,
         }
-        .map_err(|e| ChannelError::H2Stream(format!("send_request not ready: {e}")))?;
+        .map_err(classify_h2_error)?;
 
         // `end_of_stream = false`: we'll send the data frame next.
         let (response_fut, mut send_body) = sender
             .send_request(request, false)
-            .map_err(|e| ChannelError::H2Stream(format!("send_request: {e}")))?;
-
-        // Stream is now open on the wire — record it on the channel's
-        // in-flight counter so the pool's load-balancing picker sees
-        // this channel as busy until the stream ends. The token's
-        // Drop decrements the counter; we move it into the
-        // ServerStreaming below, but if an error short-circuits the
-        // open path, the token drops here and the counter
-        // self-balances.
-        let token = InFlightToken::new(Arc::clone(&self.in_flight));
+            .map_err(classify_h2_error)?;
 
         // Single DATA frame carries the framed request payload, with
         // end_of_stream = true so the server can begin its response
@@ -513,7 +600,7 @@ impl Channel {
         // message.
         send_body
             .send_data(frame, true)
-            .map_err(|e| ChannelError::H2Stream(format!("send_data: {e}")))?;
+            .map_err(classify_h2_error)?;
 
         let response = match deadline {
             Some(d) => {
@@ -644,6 +731,14 @@ impl InFlightToken {
     /// Increment the counter and capture it as a drop guard.
     fn new(counter: Arc<AtomicUsize>) -> Self {
         counter.fetch_add(1, Ordering::Relaxed);
+        Self { counter }
+    }
+
+    /// Construct a drop-guard from a counter the caller has already
+    /// incremented. Used by [`Channel::try_reserve_in_flight`] where
+    /// the `fetch_add` happened as part of the CAS-style commit
+    /// check — incrementing again would double-count.
+    pub(crate) fn from_committed(counter: Arc<AtomicUsize>) -> Self {
         Self { counter }
     }
 }

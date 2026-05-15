@@ -45,8 +45,11 @@
 //! a `spin_loop` hint. This trades ~50 ns of wake-up latency for
 //! near-zero idle CPU between bursts.
 
+use std::panic::AssertUnwindSafe;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 use disruptor::{build_multi_producer, MultiProducer, ProcessorSettings, Producer, Sequence};
 use tokio::sync::oneshot;
@@ -131,6 +134,45 @@ impl From<DecoderPoolError> for Error {
     fn from(err: DecoderPoolError) -> Self {
         Self::config_invalid("mdds_decoder_pool", err.to_string())
     }
+}
+
+// ─── Submit + decode errors ────────────────────────────────────────
+
+/// `grpc-status` style sentinel surfaced through `DecodeResult` when
+/// the decoder pool is poisoned mid-flight. Carried inside an
+/// [`Error::Transport`] so consumers that already handle
+/// transport-level failures (channel reset, dropped reply oneshot)
+/// see this on the same matchable arm without an enum change.
+pub(crate) const POOL_POISONED_REASON: &str = "decoder pool poisoned by worker panic";
+
+/// Back-off between [`disruptor::Producer::try_publish`] retries when
+/// the ring is full. Picked short enough that the producer reacts to
+/// a free slot within a single tokio yield window, long enough that
+/// the retry loop is not a hot busy-wait. 50 µs is roughly two times
+/// the inter-burst gap the consumer-side wait strategy is tuned for —
+/// matching the cadence keeps the producer aligned with the consumer
+/// without spinning a whole CPU.
+///
+/// The producer also calls [`thread::yield_now`] before sleeping so a
+/// healthy consumer that just freed a slot can be picked up by the OS
+/// scheduler immediately rather than after the timer fires.
+const PUBLISH_RETRY_BACKOFF: Duration = Duration::from_micros(50);
+
+/// Failures returned by [`DecoderHandle::submit`].
+///
+/// `submit` previously could not fail — it published into a bounded
+/// ring and returned the receiver. After Finding 1 (panic
+/// containment), submit refuses to publish when the pool has been
+/// poisoned by a worker panic; the caller is told fast rather than
+/// being parked on a `oneshot` whose decoder thread is gone.
+#[derive(Debug, thiserror::Error)]
+pub enum DecoderSubmitError {
+    /// The pool was poisoned by a prior worker-thread panic. No
+    /// further work will be processed; callers should fail their
+    /// RPC and let the upstream client decide whether to rebuild
+    /// the pool.
+    #[error("{POOL_POISONED_REASON}")]
+    Poisoned,
 }
 
 // ─── Request shape ──────────────────────────────────────────────────
@@ -227,13 +269,44 @@ unsafe impl Sync for RingEvent {}
 /// decoder ring concurrently without holding a lock. The
 /// `MultiProducer` itself is internally `Arc<Mutex<...>>`-backed by
 /// the Disruptor crate; cloning bumps a reference count.
+///
+/// `poisoned` is shared with the consumer thread: on a worker-thread
+/// panic the consumer flips the flag and falls through to a drain
+/// loop that returns `Err(Error::Transport(POOL_POISONED_REASON))`
+/// for every subsequent ring slot — both for requests that landed
+/// before the poison flag was set (still-in-flight in-ring) and for
+/// anything a racing producer published before observing the flag.
+/// Submits made after the flag is observable fail fast with
+/// [`DecoderSubmitError::Poisoned`] without ever touching the ring,
+/// so the producer never busy-waits on a dead consumer.
+///
+/// Submitters that are *already mid-publish* on a saturated ring
+/// (the consumer is slow, the producer is parked waiting for a
+/// slot) also observe the flag promptly: the publish loop drives
+/// [`Producer::try_publish`] rather than the blocking
+/// [`Producer::publish`], re-checking the poison state between
+/// every attempt. A poison flip therefore propagates to every
+/// blocked submitter within one back-off window
+/// ([`PUBLISH_RETRY_BACKOFF`]) — they bail out with
+/// [`DecoderSubmitError::Poisoned`] and drop their unsent
+/// `oneshot::Sender` so the caller's `await` is never parked on a
+/// ring nobody will service.
 #[derive(Clone)]
 pub struct DecoderHandle {
     producer: MultiProducer<RingEvent, disruptor::SingleConsumerBarrier>,
+    poisoned: Arc<AtomicBool>,
 }
 
 impl DecoderHandle {
-    /// Submit `compressed` for zstd decompress + `DataTable` decode.
+    /// `true` once the consumer thread has caught a panic. Submits
+    /// after this point fail with [`DecoderSubmitError::Poisoned`]
+    /// rather than parking the caller on a dead ring.
+    #[must_use]
+    pub fn is_poisoned(&self) -> bool {
+        self.poisoned.load(Ordering::Acquire)
+    }
+
+    /// Submit `response` for zstd decompress + `DataTable` decode.
     ///
     /// `max_message_size` is honoured at decode time so an
     /// adversarial `original_size` field cannot trigger a runaway
@@ -244,23 +317,113 @@ impl DecoderHandle {
     /// causes the decoder to elide the decompress entirely — the
     /// captured `Bytes` is dropped and no CPU is spent on a result
     /// no one will read.
-    pub(crate) fn submit(&self, response: proto::ResponseData) -> oneshot::Receiver<DecodeResult> {
-        let (tx, rx) = oneshot::channel();
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DecoderSubmitError::Poisoned`] when the pool has
+    /// been poisoned by a prior worker-thread panic. The caller's
+    /// RPC should fail rather than retry on the same pool. This is
+    /// observed both pre-publish (fast-path check before any ring
+    /// interaction) and mid-publish (the producer is parked on a
+    /// full ring when a peer thread poisons): on a full-ring stall
+    /// the producer polls [`Self::is_poisoned`] between every
+    /// [`Producer::try_publish`] retry, so a poison flip propagates
+    /// to every blocked submitter within one back-off window.
+    pub(crate) fn submit(
+        &self,
+        response: proto::ResponseData,
+    ) -> Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError> {
         let work: Box<dyn FnOnce() -> DecodeResult + Send + 'static> =
             Box::new(move || crate::mdds::decode::decode_data_table(&response));
-        // `publish` busy-waits when the ring is full; the
-        // multi-producer barrier serialises the sequence claim so
-        // concurrent submissions from different tokio tasks stay
-        // FIFO with respect to each other.
+        self.submit_work(work)
+    }
+
+    /// Publish a pre-boxed `work` closure onto the ring.
+    ///
+    /// Used by both the public [`Self::submit`] path (which boxes a
+    /// `decode_data_table` invocation) and test fixtures that need
+    /// to publish synthetic work (e.g. a deterministic-panic
+    /// closure, or one that parks on a barrier so a ring-full race
+    /// can be reproduced).
+    ///
+    /// The publish loop is poison-aware: rather than calling
+    /// [`Producer::publish`] (which busy-waits inside the disruptor
+    /// crate until a slot frees), it calls [`Producer::try_publish`]
+    /// in a back-off loop that re-checks the poison flag between
+    /// every attempt. When the consumer thread flips the flag while
+    /// a producer is parked on a full ring, the producer observes
+    /// the flip on its next iteration and returns
+    /// [`DecoderSubmitError::Poisoned`] — never landing the request
+    /// on a dead ring, never publishing the boxed work it had ready
+    /// to submit. The work closure is dropped along with the unsent
+    /// `oneshot::Sender`, releasing every resource the request
+    /// captured.
+    pub(crate) fn submit_work(
+        &self,
+        work: Box<dyn FnOnce() -> DecodeResult + Send + 'static>,
+    ) -> Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError> {
+        // Fast-path poison check: refuse to publish into a ring
+        // whose consumer thread has poisoned. The slow-path
+        // re-check below covers the case where the flag flips
+        // *during* a ring-full stall.
+        if self.is_poisoned() {
+            return Err(DecoderSubmitError::Poisoned);
+        }
+        let (tx, rx) = oneshot::channel();
+        // Both the work closure and the reply sender ride together
+        // in a single `Option` so the bounded retry loop can take
+        // them back out on the publish-success path without
+        // disturbing the move-into-FnOnce machinery used by the
+        // failure branches. On every retry that hits a full ring
+        // the loop re-checks the poison flag, dropping the request
+        // (and its `oneshot::Sender`) without ever publishing if
+        // the consumer has died meanwhile.
+        let mut pending: Option<DecodeRequest> = Some(DecodeRequest { work, reply: tx });
         let mut producer = self.producer.clone();
-        producer.publish(|slot| {
-            // SAFETY: the disruptor producer barrier guarantees the
-            // claimed sequence is exclusive to this publish until we
-            // return from the closure — no consumer can read it yet
-            // and no other producer can claim the same sequence.
-            unsafe { slot.write(DecodeRequest { work, reply: tx }) };
-        });
-        rx
+        loop {
+            // Re-check the poison flag on every iteration so a
+            // mid-publish flip (consumer dies while we are parked
+            // on a full ring) bails out promptly. The
+            // `Ordering::Acquire` here pairs with the consumer's
+            // `Ordering::Release` store on the panic path.
+            if self.is_poisoned() {
+                return Err(DecoderSubmitError::Poisoned);
+            }
+            // `try_publish` returns the unconsumed closure to us
+            // via the `RingBufferFull` error. We don't want to
+            // re-construct the request on every iteration (each
+            // construction allocates a fresh oneshot), so the
+            // closure passed to `try_publish` reaches into our
+            // `Option<DecodeRequest>` and takes it only when the
+            // sequence claim succeeded.
+            let mut taken = pending.take();
+            let outcome = producer.try_publish(|slot| {
+                let request = taken
+                    .take()
+                    .expect("try_publish closure runs exactly once per accepted claim");
+                // SAFETY: the disruptor producer barrier
+                // guarantees the claimed sequence is exclusive to
+                // this publish until we return from the closure —
+                // no consumer can read it yet and no other
+                // producer can claim the same sequence.
+                unsafe { slot.write(request) };
+            });
+            match outcome {
+                Ok(_seq) => return Ok(rx),
+                Err(disruptor::RingBufferFull) => {
+                    // The closure did not run — `taken` still holds
+                    // the request. Restore it for the next attempt.
+                    pending = taken;
+                    // Yield first so a healthy consumer that frees a
+                    // slot on the next instruction can publish before
+                    // we sleep through it. Then back off briefly to
+                    // avoid pinning the producer's worker at 100%
+                    // when the ring stays full for several cycles.
+                    thread::yield_now();
+                    thread::sleep(PUBLISH_RETRY_BACKOFF);
+                }
+            }
+        }
     }
 }
 
@@ -322,6 +485,7 @@ impl DecoderPool {
         let wait_strategy = DecoderWaitStrategy::mdds_default();
         let mut handles = Vec::with_capacity(n_decoders);
         let mut producers = Vec::with_capacity(n_decoders);
+        let pool_poisoned = Arc::new(AtomicBool::new(false));
 
         for _idx in 0..n_decoders {
             // Each decoder thread runs the consumer side of its own
@@ -333,6 +497,15 @@ impl DecoderPool {
             // requires a `&'static str` so per-decoder numbering
             // would force a `Box::leak`, not worth the leak budget
             // when the group identity is the load-bearing signal.
+            //
+            // The consumer thread's invariant: `work()` runs under
+            // `catch_unwind` so a single bad decode (zstd corruption
+            // tripping an assertion, prost panicking on a malformed
+            // field) cannot kill the decoder. On caught panic the
+            // pool-wide `pool_poisoned` flag flips, every future
+            // ring slot drains with [`POOL_POISONED_REASON`], and
+            // `DecoderHandle::submit` rejects new work fast.
+            let poisoned = Arc::clone(&pool_poisoned);
             let producer = build_multi_producer(ring_size, RingEvent::default, wait_strategy)
                 .thread_name("mdds-decoder")
                 .handle_events_with(move |slot: &RingEvent, _seq: Sequence, _eob: bool| {
@@ -343,26 +516,66 @@ impl DecoderPool {
                     // return. No producer can reuse the slot, and
                     // no other consumer exists.
                     let request = unsafe { slot.take() };
-                    if let Some(DecodeRequest { work, reply }) = request {
-                        if reply.is_closed() {
-                            // Caller cancelled before we reached
-                            // this slot. Skip the decompress
-                            // entirely — running it would burn CPU
-                            // on a result no one will read.
-                            return;
-                        }
-                        let result = work();
-                        // Send-failure is benign: only happens if
-                        // the receiver was dropped between the
-                        // is_closed check and now (race with caller
-                        // cancellation). The decoded DataTable is
-                        // dropped along with the channel.
-                        let _ = reply.send(result);
+                    let Some(DecodeRequest { work, reply }) = request else {
+                        return;
+                    };
+                    if reply.is_closed() {
+                        // Caller cancelled before we reached this
+                        // slot. Skip the decompress entirely.
+                        return;
                     }
+                    // Fast-path: already-poisoned pool drains the
+                    // request without running `work()` so the
+                    // caller sees an immediate transport error
+                    // instead of hanging on a never-completed
+                    // oneshot.
+                    if poisoned.load(Ordering::Acquire) {
+                        let _ = reply.send(Err(Error::Transport(POOL_POISONED_REASON.to_string())));
+                        return;
+                    }
+                    // Run the decode under catch_unwind so a panic
+                    // (zstd assert, prost decode trap, allocator
+                    // failure on a degenerate payload) flips the
+                    // pool's poison flag instead of killing the
+                    // consumer thread mid-loop. The Disruptor
+                    // crate's consumer loop only exits when its
+                    // shutdown signal arrives; catching the panic
+                    // keeps it alive long enough to drain still-
+                    // queued requests with `Err(PoolPoisoned)`.
+                    //
+                    // `AssertUnwindSafe` is sound here because
+                    // `work` is a freshly-constructed FnOnce closure
+                    // we own outright — there is no shared
+                    // interior-mutable state to leave inconsistent
+                    // on a partial unwind.
+                    let outcome = std::panic::catch_unwind(AssertUnwindSafe(work));
+                    let result = match outcome {
+                        Ok(decoded) => decoded,
+                        Err(_panic_payload) => {
+                            // Poison the pool atomically and reply
+                            // to the caller whose work triggered
+                            // the panic with the transport-level
+                            // failure. The drop of `panic_payload`
+                            // releases its boxed `Any`; we do not
+                            // re-raise — surviving panics is the
+                            // whole point of this branch.
+                            poisoned.store(true, Ordering::Release);
+                            tracing::error!(
+                                target: "thetadatadx::grpc::decoder_pool",
+                                "mdds decoder worker panicked; pool poisoned"
+                            );
+                            Err(Error::Transport(POOL_POISONED_REASON.to_string()))
+                        }
+                    };
+                    // Send-failure is benign: receiver may have
+                    // been dropped between the `is_closed` check
+                    // and now (caller cancellation race).
+                    let _ = reply.send(result);
                 })
                 .build();
             handles.push(DecoderHandle {
                 producer: producer.clone(),
+                poisoned: Arc::clone(&pool_poisoned),
             });
             producers.push(producer);
         }
@@ -482,7 +695,7 @@ mod tests {
         let pool = DecoderPool::new(1, 64).expect("pool");
         let handle = pool.handle(0).clone();
         let response = make_response(3);
-        let rx = handle.submit(response);
+        let rx = handle.submit(response).expect("submit succeeds");
         let table = rx
             .await
             .expect("oneshot delivered")
@@ -498,7 +711,7 @@ mod tests {
         let handle = pool.handle(0).clone();
         let mut rxs = Vec::with_capacity(16);
         for _ in 0..16 {
-            rxs.push(handle.submit(make_response(8)));
+            rxs.push(handle.submit(make_response(8)).expect("submit succeeds"));
         }
         for rx in rxs {
             let table = rx
@@ -514,13 +727,13 @@ mod tests {
     async fn cancelled_request_is_skipped() {
         let pool = DecoderPool::new(1, 64).expect("pool");
         let handle = pool.handle(0).clone();
-        let rx = handle.submit(make_response(1));
+        let rx = handle.submit(make_response(1)).expect("submit succeeds");
         // Drop the receiver before the decoder reaches it. The
         // decoder elides the work; observable side effect is the
         // pool drains cleanly without panic.
         drop(rx);
         // Subsequent submission still succeeds.
-        let rx = handle.submit(make_response(2));
+        let rx = handle.submit(make_response(2)).expect("submit succeeds");
         let table = tokio::time::timeout(Duration::from_secs(2), rx)
             .await
             .expect("decode within deadline")
@@ -535,7 +748,10 @@ mod tests {
         let pool = DecoderPool::new(1, 64).expect("pool");
         let clone = pool.clone();
         assert_eq!(pool.len(), clone.len());
-        let rx = clone.handle(0).submit(make_response(1));
+        let rx = clone
+            .handle(0)
+            .submit(make_response(1))
+            .expect("submit succeeds");
         let table = rx
             .await
             .expect("oneshot delivered")
@@ -549,5 +765,326 @@ mod tests {
     fn decoder_wait_strategy_is_copy_send() {
         fn assert_copy_send<T: Copy + Send>() {}
         assert_copy_send::<DecoderWaitStrategy>();
+    }
+
+    // ─── Finding 1: panic containment + poison drain ─────────────────
+
+    /// Mint a `DecoderHandle` from a [`DecoderPool`] together with a
+    /// custom work closure. The production `submit_work` path
+    /// re-checks the poison flag between every `try_publish`
+    /// attempt and refuses to publish on a poisoned pool — exactly
+    /// the property the new test
+    /// (`poison_flag_unblocks_publishers_on_full_ring`) verifies.
+    ///
+    /// The drain-side tests (`pending_in_flight_drains_*`) need to
+    /// publish *before* the consumer races ahead and flips the
+    /// poison flag, so they bypass the poison-aware path and call
+    /// `try_publish` directly. The fixture intentionally does not
+    /// observe the poison state — its only job is to land a request
+    /// in the ring so the consumer-side drain branch can be
+    /// exercised.
+    fn submit_custom_work(
+        handle: &DecoderHandle,
+        work: Box<dyn FnOnce() -> DecodeResult + Send + 'static>,
+    ) -> oneshot::Receiver<DecodeResult> {
+        let (tx, rx) = oneshot::channel();
+        let mut producer = handle.producer.clone();
+        let mut pending = Some(DecodeRequest { work, reply: tx });
+        loop {
+            let mut taken = pending.take();
+            let outcome = producer.try_publish(|slot| {
+                let request = taken
+                    .take()
+                    .expect("try_publish closure runs exactly once per accepted claim");
+                // SAFETY: the disruptor producer barrier guarantees
+                // the claimed sequence is exclusive to this publish
+                // until we return from the closure.
+                unsafe { slot.write(request) };
+            });
+            match outcome {
+                Ok(_seq) => return rx,
+                Err(disruptor::RingBufferFull) => {
+                    pending = taken;
+                    thread::yield_now();
+                }
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn panicking_work_poisons_pool() {
+        let pool = DecoderPool::new(1, 64).expect("pool");
+        let handle = pool.handle(0).clone();
+        // Publish a request whose work closure panics deterministically.
+        let rx = submit_custom_work(
+            &handle,
+            Box::new(|| panic!("synthetic panic in decoder work closure")),
+        );
+        // The caller observes the transport-level poison reply rather
+        // than a hang.
+        let outcome = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .expect("oneshot resolves before deadline")
+            .expect("oneshot delivered");
+        match outcome {
+            Err(Error::Transport(msg)) => {
+                assert!(
+                    msg.contains(POOL_POISONED_REASON),
+                    "transport error must carry the pool-poisoned reason, got {msg:?}"
+                );
+            }
+            other => panic!("expected Transport(POOL_POISONED_REASON) reply, got {other:?}"),
+        }
+        // Pool reports poisoned. Drop the pool to clean up worker threads.
+        assert!(handle.is_poisoned(), "panic must flip the pool poison flag");
+        drop(pool);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn submit_after_poison_fails_fast() {
+        let pool = DecoderPool::new(1, 64).expect("pool");
+        let handle = pool.handle(0).clone();
+        // Panic the consumer first so the pool transitions to poisoned.
+        let rx = submit_custom_work(
+            &handle,
+            Box::new(|| panic!("synthetic panic to poison pool")),
+        );
+        let _ = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .expect("first reply lands")
+            .expect("oneshot delivered");
+        // Wait briefly until the poison flag is observable to the
+        // producer; the consumer may set it on a different thread.
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while !handle.is_poisoned() && std::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        assert!(handle.is_poisoned(), "pool poisoned after first panic");
+        // Subsequent submits must refuse without parking on the ring.
+        match handle.submit(make_response(1)) {
+            Err(DecoderSubmitError::Poisoned) => { /* expected */ }
+            other => panic!("expected DecoderSubmitError::Poisoned, got {other:?}"),
+        }
+        drop(pool);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn pending_in_flight_drains_with_poisoned_after_panic() {
+        // Race shape: a producer publishes several requests; the
+        // consumer panics on the first one, then drains the rest of
+        // the ring with `Err(Transport(POOL_POISONED_REASON))`. The
+        // caller's oneshot resolves with the poison error rather
+        // than hanging.
+        //
+        // The ring is FIFO so the panicking request is at the head;
+        // the subsequent requests are queued behind it.
+        let pool = DecoderPool::new(1, 64).expect("pool");
+        let handle = pool.handle(0).clone();
+
+        // First request panics.
+        let rx_panic =
+            submit_custom_work(&handle, Box::new(|| panic!("synthetic panic at ring head")));
+        // Two follow-up requests with normal work that should never
+        // run because the pool poisons first.
+        let rx_follow_1 = submit_custom_work(
+            &handle,
+            Box::new(|| {
+                Ok(proto::DataTable {
+                    headers: vec!["x".into()],
+                    data_table: Vec::new(),
+                })
+            }),
+        );
+        let rx_follow_2 = submit_custom_work(
+            &handle,
+            Box::new(|| {
+                Ok(proto::DataTable {
+                    headers: vec!["x".into()],
+                    data_table: Vec::new(),
+                })
+            }),
+        );
+
+        // The panicking request returns the poison reason.
+        let head_outcome = tokio::time::timeout(Duration::from_secs(2), rx_panic)
+            .await
+            .expect("head reply lands")
+            .expect("oneshot delivered");
+        match head_outcome {
+            Err(Error::Transport(msg)) => assert!(
+                msg.contains(POOL_POISONED_REASON),
+                "head reply carries poison reason, got {msg:?}"
+            ),
+            other => panic!("expected poisoned transport reply at head, got {other:?}"),
+        }
+
+        // Each queued follow-up also drains with the poison reply
+        // rather than hanging on a dead ring.
+        for (idx, rx) in [rx_follow_1, rx_follow_2].into_iter().enumerate() {
+            let outcome = tokio::time::timeout(Duration::from_secs(2), rx)
+                .await
+                .unwrap_or_else(|_| panic!("queued reply {idx} resolves before deadline"))
+                .expect("oneshot delivered");
+            match outcome {
+                Err(Error::Transport(msg)) => assert!(
+                    msg.contains(POOL_POISONED_REASON),
+                    "queued reply {idx} carries poison reason, got {msg:?}"
+                ),
+                other => {
+                    panic!("expected poisoned transport reply for queued {idx}, got {other:?}")
+                }
+            }
+        }
+        drop(pool);
+    }
+
+    /// Poison flag must interrupt submitters that are already parked
+    /// in the publish retry loop on a full ring. The old
+    /// `producer.publish()` call site busy-waited until a slot
+    /// freed — a poison flip from a peer thread did not propagate
+    /// to those parked publishers, so they would keep spinning
+    /// until the consumer drained the ring. The current submit
+    /// path re-checks the poison flag between every `try_publish`
+    /// attempt, so all parked submitters return
+    /// `Err(DecoderSubmitError::Poisoned)` within one back-off
+    /// window once the flag flips.
+    ///
+    /// Test shape:
+    ///   1. Build a tiny ring (capacity = 64, the minimum).
+    ///   2. Publish a "barrier" work item that blocks the consumer
+    ///      on a parking primitive — every subsequent work item
+    ///      sits in the ring un-drained.
+    ///   3. Fill the rest of the ring so the next submit must
+    ///      block in `try_publish` retry.
+    ///   4. Spawn `overflow_submitters` extra threads that all call
+    ///      `submit_work`; they immediately observe a full ring and
+    ///      park on the back-off loop.
+    ///   5. From the main thread, flip the poison flag.
+    ///   6. Assert every parked submitter returns
+    ///      `DecoderSubmitError::Poisoned` within 250 ms — strictly
+    ///      bounded, not "eventually".
+    ///   7. Cleanup: release the barrier so the consumer thread can
+    ///      drain the ring and the pool can shut down cleanly.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn poison_flag_unblocks_publishers_on_full_ring() {
+        use std::sync::{Arc, Barrier};
+        use std::time::Instant;
+
+        const RING_SIZE: usize = 64;
+        const OVERFLOW_SUBMITTERS: usize = 8;
+        const POISON_PROPAGATION_BUDGET: Duration = Duration::from_millis(250);
+
+        let pool = DecoderPool::new(1, RING_SIZE).expect("pool");
+        let handle = pool.handle(0).clone();
+
+        // Synchronisation primitive the head work-item parks on.
+        // `Barrier::new(2)` rendezvous between the consumer thread
+        // (running the head work) and the test driver which only
+        // releases the barrier in the cleanup step.
+        let consumer_barrier = Arc::new(Barrier::new(2));
+
+        // Step 2: head work-item blocks the consumer thread.
+        let head_barrier = Arc::clone(&consumer_barrier);
+        let _head_rx = handle
+            .submit_work(Box::new(move || {
+                // Park the consumer thread until the test driver
+                // releases the barrier. Once released, return a
+                // synthetic OK so the consumer can advance.
+                head_barrier.wait();
+                Ok(proto::DataTable {
+                    headers: vec!["x".into()],
+                    data_table: Vec::new(),
+                })
+            }))
+            .expect("head publish before poison");
+
+        // Wait for the consumer to actually pick up the head item.
+        // Without this, steps 3–4 might fill the ring with the head
+        // item still unconsumed, in which case the consumer never
+        // parks on the barrier and the test cannot make the ring
+        // "full from the producer's POV with a stuck consumer".
+        // A short sleep is enough: the disruptor consumer wakes
+        // within tens of microseconds of the publish.
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        // Step 3: fill the ring with work items that will never be
+        // reached (consumer is stuck on the barrier). The ring has
+        // `RING_SIZE` slots; the head item was already taken so we
+        // need RING_SIZE - 1 more to fill to capacity. Each holds a
+        // benign `Ok` work body that never runs.
+        let mut filler_rxs = Vec::with_capacity(RING_SIZE - 1);
+        for _ in 0..(RING_SIZE - 1) {
+            filler_rxs.push(
+                handle
+                    .submit_work(Box::new(move || {
+                        Ok(proto::DataTable {
+                            headers: vec!["x".into()],
+                            data_table: Vec::new(),
+                        })
+                    }))
+                    .expect("filler publish before ring saturates"),
+            );
+        }
+
+        // Step 4: spawn overflow submitters. Each will park in the
+        // publish retry loop because the ring is now saturated.
+        let mut overflow_handles = Vec::with_capacity(OVERFLOW_SUBMITTERS);
+        for _ in 0..OVERFLOW_SUBMITTERS {
+            let producer_handle = handle.clone();
+            overflow_handles.push(thread::spawn(move || {
+                let started_at = Instant::now();
+                let outcome = producer_handle.submit_work(Box::new(move || {
+                    Ok(proto::DataTable {
+                        headers: vec!["x".into()],
+                        data_table: Vec::new(),
+                    })
+                }));
+                (started_at.elapsed(), outcome)
+            }));
+        }
+
+        // Give the overflow submitters a moment to enter the retry
+        // loop. Without this, the poison flip below could race the
+        // submitter's fast-path check and return `Poisoned` before
+        // the submitter ever reached the retry loop — defeating
+        // the test's purpose.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // Step 5: flip the poison flag. This simulates a consumer-
+        // side panic without actually killing the consumer thread
+        // (which is parked on the barrier).
+        let poison_at = Instant::now();
+        handle.poisoned.store(true, Ordering::Release);
+
+        // Step 6: every overflow submitter returns Poisoned within
+        // the budget. The budget is strict — a regression that
+        // restored busy-wait `publish()` would block here forever
+        // (consumer never advances, ring never frees, no Poisoned).
+        for (idx, join) in overflow_handles.into_iter().enumerate() {
+            let (elapsed, outcome) = join.join().expect("overflow submitter joins");
+            match outcome {
+                Err(DecoderSubmitError::Poisoned) => { /* expected */ }
+                other => panic!("overflow submitter {idx} did not observe poison: {other:?}"),
+            }
+            let reaction = elapsed.saturating_sub(poison_at.elapsed());
+            assert!(
+                elapsed < POISON_PROPAGATION_BUDGET + Duration::from_millis(100),
+                "overflow submitter {idx} took {elapsed:?} to observe poison \
+                 (budget {POISON_PROPAGATION_BUDGET:?} from poison flip; reaction window {reaction:?})"
+            );
+        }
+
+        // Step 7: cleanup. Release the consumer barrier so the
+        // consumer thread advances past the head item and the
+        // disruptor's drop-time join can complete. The remaining
+        // ring slots drain with the poison reply (the consumer's
+        // drain branch sees `poisoned == true` and short-circuits
+        // every slot).
+        consumer_barrier.wait();
+        // Drop the receivers without awaiting; we only care that
+        // the ring drains. Awaiting them would couple this test to
+        // the ring drain order which is incidental.
+        drop(filler_rxs);
+        drop(pool);
     }
 }

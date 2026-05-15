@@ -7,6 +7,116 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **In-house gRPC transport** replaces `tonic` on the MDDS server-streaming
+  path. The SDK now drives `h2` directly: prost encode → length-prefix
+  frame → HTTP/2 DATA → response stream → trailers parse, with no tower
+  stack, no boxed bodies, and no `async-trait` dyn dispatch. New public
+  module `thetadatadx::grpc::*` exposes `Channel`, `ChannelPool`,
+  `ChannelLease`, `ServerStreaming`, `Codec`, `Status`, `DecoderPool`,
+  `DecoderHandle` and the matching error types (`ChannelError`,
+  `CodecError`, `StatusParseError`, `DecoderPoolError`,
+  `DecoderSubmitError`).
+- `Error::Transport` payload changed from `tonic::transport::Error` to
+  `String`. Pattern matches against the wrapped tonic type no longer
+  compile; consumers that key on transport-level failures match the
+  string variant directly.
+- `ChannelPool::next()` now returns a `ChannelLease<'a>` instead of
+  `&'a Channel`. The lease pre-reserves an in-flight slot on the
+  picked channel synchronously so concurrent burst dispatches
+  (`join_all`-style) observe each reservation immediately and route
+  around loaded channels. The lease derefs to `&Channel`; the
+  typical `pool.next().server_streaming(...).await` shape stays
+  unchanged, but callers that bind the lease to a `let` to thread
+  it across `await` points pass `&lease` into a function that
+  takes `&Channel` (Deref coercion does the projection).
+- `Status::from_trailers` now tolerates malformed `grpc-message`
+  trailers per the gRPC HTTP/2 spec. The parser percent-decodes
+  (RFC 3986, `%HH` escapes only — invalid escapes like `%2X` are
+  passed through literally by `percent-encoding`); if the decoded
+  bytes are valid UTF-8 they become the message. If percent-decode
+  produces non-UTF-8 bytes (e.g. `%FF`), the parser falls back to
+  the raw header bytes interpreted as UTF-8. If those bytes are
+  also non-UTF-8 (opaque header value) the message is empty.
+  Previously the parser returned `StatusParseError::MessageNotUtf8`
+  on any non-UTF-8 path, which a spec-conformant client must not
+  surface — a malformed message must not invalidate a parsed
+  `grpc-status`. Concrete examples: `Hello%20world` → `"Hello world"`;
+  `%FF` → `"%FF"` (raw fallback); opaque non-UTF-8 → `""`.
+
+### Added
+
+- `MddsConfig::decoder_threads` and `MddsConfig::decoder_ring_size`
+  control the dedicated decoder pool that runs zstd decompress +
+  protobuf decode off the tokio reactor. `decoder_threads = 0`
+  auto-sizes to `min(channels, available_parallelism / 2)`;
+  `decoder_ring_size` must be a power of two `>= 64`. Both fields are
+  required when constructing `MddsConfig` literally — production code
+  should use `MddsConfig::production_defaults()`.
+- `DecoderHandle::submit` now returns
+  `Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError>`.
+  Submits made after a worker-thread panic poisoned the pool fail
+  fast with `DecoderSubmitError::Poisoned` rather than parking the
+  caller on a dead consumer ring.
+- `ChannelError` variant routing: connection-level h2 failures —
+  `GOAWAY` (either direction), IO failure on the h2 transport, peer
+  shutdown, and open-phase connection drops (failures observed on
+  `ready()` / `send_request()` / `send_data()` while admitting the
+  stream) — now surface as `ChannelError::ConnectionClosed`. The
+  `ConnectionClosed` Display string changed from
+  `"h2 connection closed by GOAWAY: ..."` to
+  `"h2 connection closed: ..."` to reflect the broader scope.
+  `ChannelError::H2Stream` is now scoped strictly to per-stream
+  `RST_STREAM` (any reason code) and h2 library-detected
+  stream-scoped protocol errors. Callers that key retry / recycle
+  policy off `ChannelError` may need to remap branches: anything
+  that previously matched `H2Stream` for connection-level decisions
+  now belongs on the `ConnectionClosed` arm.
+
+### Removed
+
+- `tonic` dependency removed. The `inhouse-grpc` feature flag is also
+  gone — the in-house transport is the only path. Direct uses of
+  `tonic::transport::Channel`, `tonic::Status`, or `tonic::Streaming`
+  through `thetadatadx` re-exports are no longer available.
+- `MddsClient::stub` was removed. Internal call sites now reach the
+  generated stubs through `proto::beta_theta_terminal::*` directly;
+  the field was crate-private but listed here for transparency for
+  any caller relying on `pub(crate)` access.
+- `GrpcStatusKind::from_code()` was renamed to `GrpcStatusKind::from_u32()`
+  to match the wire type. The enum repr is now `u32` (was `i32`) so
+  match-arms keyed on integer literals continue to compile; explicit
+  casts may need to be removed.
+- `StatusParseError::MessageNotUtf8` was removed. Malformed
+  `grpc-message` no longer fails the trailers parse (see the
+  Changed entry on `Status::from_trailers`); exhaustive matches on
+  `StatusParseError` need to drop the variant. The replacement is
+  best-effort `Status::message()` with raw / empty fallback.
+
+### Migration
+
+- Replace any `tonic::transport::Error` pattern on `Error::Transport`
+  with the string payload, e.g. `Error::Transport(msg) if msg.contains("...")`.
+- Replace `GrpcStatusKind::from_code(n)` with `GrpcStatusKind::from_u32(n)`.
+- When constructing `MddsConfig` field-by-field, add
+  `decoder_threads: 0, decoder_ring_size: 256` (or call
+  `MddsConfig::production_defaults()`).
+- Update `match` arms on `StatusParseError` — drop the
+  `MessageNotUtf8` branch. The parser now returns a usable `Status`
+  whose `message()` may be empty for non-UTF-8 trailer bytes.
+- `pool.next()` callers that bind the result across an `await`
+  must keep the lease alive for the dispatch window. Pattern:
+  `let lease = pool.next(); stub_fn(&lease, req).await?;` —
+  storing the lease in a local rather than as a temporary inside
+  the same expression keeps the pre-dispatch reservation committed
+  until the open path's own in-flight token takes over.
+- `DecoderHandle::submit` now returns `Result<_, DecoderSubmitError>`.
+  Update callers from `let rx = handle.submit(r); rx.await` to
+  `let rx = handle.submit(r)?; rx.await` (or surface the
+  `Poisoned` variant as a transport-level error as the SDK's own
+  `decode_chunk` helpers do).
+
 ## [10.0.0] - 2026-05-09
 
 Semver-honest version bump for the v9.1.0 surface. The v9.0.x →

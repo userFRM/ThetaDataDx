@@ -212,7 +212,13 @@ impl MddsClient {
     /// [`ChannelPool`], spreading load across multiple HTTP/2
     /// connections so workloads exceed the per-connection
     /// `MAX_CONCURRENT_STREAMS` ceiling.
-    pub(crate) fn channel(&self) -> &Channel {
+    ///
+    /// Returns a [`crate::grpc::ChannelLease`] that pre-reserves a
+    /// slot on the picked channel so concurrent dispatches observe
+    /// the reservation immediately rather than racing on a stale
+    /// `in_flight = 0` snapshot. The lease derefs to `&Channel` so
+    /// the call shape stays unchanged.
+    pub(crate) fn channel(&self) -> crate::grpc::ChannelLease<'_> {
         self.channels.next()
     }
 

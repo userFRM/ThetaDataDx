@@ -212,8 +212,17 @@ macro_rules! list_endpoint {
                             params: Some(proto::$query { $($field : $val),* }),
                         };
                         let attempt_result: Result<proto::DataTable, Error> = async {
+                            // Bind the lease to a local so it lives
+                            // across the await — the pre-dispatch
+                            // reservation must outlive `server_streaming`
+                            // for the picker fix (Finding 4) to count
+                            // pending opens correctly under burst
+                            // contention. Deref coercion from
+                            // `&ChannelLease` to `&Channel` satisfies
+                            // the generated stub signature.
+                            let lease = self.channel();
                             let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                self.channel(),
+                                &lease,
                                 request,
                             )
                             .await
@@ -354,8 +363,16 @@ macro_rules! parsed_endpoint {
                                     params: Some(proto::$query { $($field : $val),* }),
                                 };
                                 let attempt_result: Result<proto::DataTable, Error> = async {
+                                    // Bind the lease to a local so it
+                                    // lives across the await — see the
+                                    // sibling macro arm above for the
+                                    // full rationale. Deref coercion
+                                    // from `&ChannelLease` to `&Channel`
+                                    // satisfies the generated stub
+                                    // signature.
+                                    let lease = client.channel();
                                     let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                        client.channel(),
+                                        &lease,
                                         request,
                                     )
                                     .await

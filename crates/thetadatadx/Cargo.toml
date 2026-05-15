@@ -64,6 +64,11 @@ http-body = "1"
 bytes = "1"
 pin-project-lite = "0.2"
 futures-core = "0.3"
+# RFC 3986 percent-decoding for the `grpc-message` trailer (see
+# https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md —
+# the spec mandates `%HH` decoding and forbids a malformed message
+# from invalidating an otherwise-valid `grpc-status`).
+percent-encoding = "2"
 
 # Async runtime
 tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync", "fs"] }

@@ -40,9 +40,21 @@
 //! - Per-call deadlines via
 //!   [`Channel::server_streaming_with_deadline`] cover both the open
 //!   phase and the streaming phase.
-//! - h2 connection-level `GOAWAY` and remote-initiated stream resets
-//!   surface as [`ChannelError::ConnectionClosed`] so pool consumers
-//!   can recycle the channel rather than retry on a dead connection.
+//! - h2 errors are classified by scope before they reach the caller:
+//!   - [`ChannelError::ConnectionClosed`] — connection-level death.
+//!     Covers `GOAWAY` in either direction, IO failure on the h2
+//!     transport, peer shutdown, and any failure observed during
+//!     the open phase ([`Channel::server_streaming_with_deadline`]
+//!     routes `ready()` / `send_request()` / `send_data()` errors
+//!     through this classifier too — a connection that dies while
+//!     we are admitting a stream is connection-level, not
+//!     stream-level). The pool reacts by recycling the channel.
+//!   - [`ChannelError::H2Stream`] — per-stream death. Covers
+//!     `RST_STREAM` from the peer on the specific stream (any
+//!     reason code: `CANCEL`, `REFUSED_STREAM`, `INTERNAL_ERROR`,
+//!     etc.) plus h2 library-level protocol errors that affect only
+//!     this stream. The connection itself is still healthy; the
+//!     next RPC on the same channel can succeed.
 //! - Dropping a [`ServerStreaming`] cancels the underlying h2 stream
 //!   cleanly (sends `RST_STREAM`).
 //! - `grpc-encoding: identity` is the only accepted body encoding;
@@ -74,9 +86,9 @@ pub use channel::{Channel, ChannelError};
 pub use codec::{Codec, CodecError};
 pub use decoder_pool::{
     default_decoder_thread_count, DecodeResult, DecoderHandle, DecoderPool, DecoderPoolError,
-    DecoderWaitStrategy,
+    DecoderSubmitError, DecoderWaitStrategy,
 };
 pub use endpoints::stock_list_symbols;
-pub use pool::ChannelPool;
+pub use pool::{ChannelLease, ChannelPool};
 pub use status::{Status, StatusParseError};
 pub use stream::ServerStreaming;

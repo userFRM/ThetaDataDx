@@ -12,10 +12,11 @@
 //! reference into the pool — the underlying [`Channel`] is owned by
 //! the pool and lives as long as the pool does.
 
+use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use super::channel::Channel;
+use super::channel::{Channel, InFlightToken};
 use super::decoder_pool::DecoderPool;
 
 /// Round-robin pool of pre-opened [`Channel`]s.
@@ -135,49 +136,147 @@ impl ChannelPool {
 
     /// Pick the next channel for an outbound RPC.
     ///
-    /// Picks the channel with the fewest in-flight streams, breaking
-    /// ties via the round-robin cursor. This avoids the head-of-line
-    /// blocking that strict round-robin would create when one
-    /// channel is slow / saturated (e.g. holding a long server-
-    /// streaming response) and the others still have h2 stream
-    /// credit.
+    /// Returns a [`ChannelLease`] that pre-reserves a slot on the
+    /// picked channel synchronously, before the async dispatch
+    /// future even runs. Under burst contention every concurrent
+    /// `pool.next()` observer sees the prior reservations and
+    /// routes around the loaded channels — eliminating the head-
+    /// of-line blocking that occurs when a `join_all` batch of
+    /// `pool.next()` calls all evaluate before any of the
+    /// returned channels' async dispatch increments land. The
+    /// lease derefs to `&Channel` so the existing dispatch shape
+    /// (`pool.next().server_streaming(...).await`) keeps working
+    /// unchanged.
     ///
-    /// The in-flight count is maintained by the [`Channel`] itself:
-    /// `server_streaming_frame` increments at dispatch, the
-    /// [`super::ServerStreaming`] drop guard decrements at stream
-    /// end. Relaxed ordering on the counter is sufficient — the
-    /// pool's pick is a load-balancing hint, not a correctness
-    /// barrier, so a slightly stale read is acceptable.
+    /// Picks the channel with the fewest in-flight streams,
+    /// breaking ties via the round-robin cursor. This avoids the
+    /// head-of-line blocking that strict round-robin would create
+    /// when one channel is slow / saturated (e.g. holding a long
+    /// server-streaming response) and the others still have h2
+    /// stream credit. Round-robin tie-breaking ensures fairness
+    /// when the pool is idle (all members at the same in-flight
+    /// count) and prevents a heavily-loaded callsite from pinning
+    /// to a single channel for sticky reasons.
     ///
-    /// Round-robin tie-breaking ensures fairness when the pool is
-    /// idle (all members at `0` in-flight) and prevents a heavily-
-    /// loaded callsite from pinning to a single channel for sticky
-    /// reasons.
-    #[must_use]
-    pub fn next(&self) -> &Channel {
+    /// The in-flight counter is bumped at three points:
+    ///   1. Here, when the lease is constructed — covers the
+    ///      window between `pool.next()` returning and the async
+    ///      dispatch future actually running.
+    ///   2. Inside [`Channel::server_streaming_frame`], when the
+    ///      open path commits — covers the entire RPC lifetime.
+    ///   3. Decremented when the lease drops (after the dispatch
+    ///      future is constructed) and again when the resulting
+    ///      `ServerStreaming` drops (after the response stream
+    ///      ends). Net commitment per RPC: exactly 1 from open to
+    ///      stream end.
+    ///
+    /// Relaxed ordering on the counter is sufficient — the pool's
+    /// pick is a load-balancing hint, not a correctness barrier,
+    /// so a slightly stale read is acceptable.
+    pub fn next(&self) -> ChannelLease<'_> {
         let len = self.inner.channels.len();
         let cursor = self.inner.cursor.fetch_add(1, Ordering::Relaxed);
-        // Single-member pool: skip the scan; the one channel is the
-        // only choice regardless of saturation.
+        // Single-member pool: skip the load-balancing scan; the one
+        // channel is the only choice regardless of saturation.
         if len == 1 {
-            return &self.inner.channels[0];
+            let channel = &self.inner.channels[0];
+            return ChannelLease {
+                channel,
+                _token: channel.reserve_in_flight(),
+            };
         }
-        // Scan all members and track the index with the fewest
-        // in-flight streams. Ties are broken in favour of the
-        // channel closest to the round-robin cursor — so when the
-        // pool is idle every member sees its share of traffic
-        // rather than pinning the first one.
-        let mut best_idx = cursor % len;
-        let mut best_count = self.inner.channels[best_idx].in_flight_count();
-        for offset in 1..len {
-            let idx = (cursor.wrapping_add(offset)) % len;
-            let count = self.inner.channels[idx].in_flight_count();
-            if count < best_count {
-                best_idx = idx;
-                best_count = count;
+
+        // CAS-retry pick: scan for the least-loaded channel, then
+        // commit the reservation only if the channel is still at the
+        // observed count. Under true concurrency two tasks may both
+        // scan and both pick the same least-loaded channel; the
+        // commit guard ensures the loser rolls back its speculative
+        // increment and re-scans rather than pinning to a now-
+        // saturated channel.
+        //
+        // Bounded retries: PICK_RETRY caps live-lock under heavy
+        // contention. On exhaustion we fall back to a round-robin
+        // pick that always commits — the load-balancing hint is
+        // degraded but the dispatch is never lost.
+        const PICK_RETRY: usize = 4;
+        for _ in 0..PICK_RETRY {
+            let mut best_idx = cursor % len;
+            let mut best_count = self.inner.channels[best_idx].in_flight_count();
+            for offset in 1..len {
+                let idx = (cursor.wrapping_add(offset)) % len;
+                let count = self.inner.channels[idx].in_flight_count();
+                if count < best_count {
+                    best_idx = idx;
+                    best_count = count;
+                }
+            }
+            let channel = &self.inner.channels[best_idx];
+            match channel.try_reserve_in_flight(best_count) {
+                Ok(token) => {
+                    return ChannelLease {
+                        channel,
+                        _token: token,
+                    };
+                }
+                Err(_actual_prior) => {
+                    // Lost the race — another task committed a
+                    // reservation between our scan and our commit.
+                    // Loop body re-scans with a fresh snapshot.
+                    continue;
+                }
             }
         }
-        &self.inner.channels[best_idx]
+        // Retry budget exhausted: degrade to round-robin pick and
+        // commit unconditionally. The picker is a load-balancing
+        // hint, not a correctness barrier, so accepting a sub-
+        // optimal pick beats spinning.
+        let idx = cursor % len;
+        let channel = &self.inner.channels[idx];
+        ChannelLease {
+            channel,
+            _token: channel.reserve_in_flight(),
+        }
+    }
+}
+
+/// Pre-dispatch reservation on a pooled [`Channel`].
+///
+/// Returned from [`ChannelPool::next`]. The lease bumps the picked
+/// channel's in-flight counter on construction and decrements it on
+/// drop, so a synchronous batch of `pool.next()` calls — whose
+/// returned dispatch futures will only run later — still sees the
+/// prior reservations and routes around the loaded channels.
+///
+/// Derefs to `&Channel` so the existing
+/// `pool.next().server_streaming(...).await` shape continues to
+/// compile unchanged. Hold the lease at least as long as the
+/// dispatch future you build from it — the lease's drop is what
+/// releases the pre-dispatch reservation back to the pool. Once the
+/// open path returns a `ServerStreaming`, the stream's own
+/// `InFlightToken` keeps the channel marked busy for the rest of
+/// the RPC lifetime, so dropping the lease after that point is the
+/// correct shape.
+pub struct ChannelLease<'a> {
+    channel: &'a Channel,
+    _token: InFlightToken,
+}
+
+impl<'a> Deref for ChannelLease<'a> {
+    type Target = Channel;
+
+    fn deref(&self) -> &Self::Target {
+        self.channel
+    }
+}
+
+impl<'a> ChannelLease<'a> {
+    /// Borrow the underlying channel reference. The lease will hold
+    /// the reservation alive for the rest of the temporary scope;
+    /// callers that need to thread `&Channel` into a longer-lived
+    /// future should keep the lease bound to a local `let`.
+    #[must_use]
+    pub fn channel(&self) -> &Channel {
+        self.channel
     }
 }
 
