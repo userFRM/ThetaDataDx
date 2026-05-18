@@ -32,9 +32,9 @@ testing-panic-boundary = []
 [dependencies]
 thetadatadx = { path = "../crates/thetadatadx", features = ["arrow"] }
 tdbe = { version = "0.13.1", path = "../crates/tdbe" }
-tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
-arrow-array = "58.1.0"
-arrow-ipc = "58.1.0"
+tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
+arrow-array = "58.3.0"
+arrow-ipc = "58.3.0"
 arrow-schema = "58.1.0"
 # Used by the FPSS streaming callback silent-drop observability path
 # (see `tdx_fpss_dropped_events` / `tdx_unified_dropped_events`). Keep
@@ -48,4 +48,4 @@ tracing = "0.1.44"
 # consumer thread directly (`ffi_callback_queued_runs_on_consumer_thread`).
 # Pinned to the same version the core crate consumes through
 # `crates/thetadatadx/Cargo.toml`.
-disruptor = "4.1.0"
+disruptor = "4.2.0"
