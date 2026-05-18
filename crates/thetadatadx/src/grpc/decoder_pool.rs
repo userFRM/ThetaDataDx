@@ -414,16 +414,40 @@ impl DecoderHandle {
                     // The closure did not run — `taken` still holds
                     // the request. Restore it for the next attempt.
                     pending = taken;
-                    // Yield first so a healthy consumer that frees a
-                    // slot on the next instruction can publish before
-                    // we sleep through it. Then back off briefly to
-                    // avoid pinning the producer's worker at 100%
-                    // when the ring stays full for several cycles.
-                    thread::yield_now();
-                    thread::sleep(PUBLISH_RETRY_BACKOFF);
+                    // Brief back-off to avoid pinning the producer at
+                    // 100% CPU when the ring stays full for several
+                    // cycles. When called from a multi-thread tokio
+                    // worker, wrap the wait in `block_in_place` so the
+                    // runtime can migrate queued tasks to a sibling
+                    // worker for the duration of the sleep — without
+                    // it the calling task would stall its worker.
+                    backoff_ring_full(PUBLISH_RETRY_BACKOFF);
                 }
             }
         }
+    }
+}
+
+/// Brief back-off invoked when the Disruptor ring is full. Aware of the
+/// active runtime so it does not stall a tokio worker thread under
+/// decoder saturation: on a multi-thread tokio runtime the wait runs
+/// inside [`tokio::task::block_in_place`] so the runtime can steal
+/// queued work onto a sibling worker; on a current-thread tokio runtime
+/// or outside tokio entirely the wait is a plain sync sleep.
+fn backoff_ring_full(duration: Duration) {
+    use tokio::runtime::{Handle, RuntimeFlavor};
+    let on_multi_thread = matches!(
+        Handle::try_current().map(|h| h.runtime_flavor()),
+        Ok(RuntimeFlavor::MultiThread)
+    );
+    let wait = || {
+        thread::yield_now();
+        thread::sleep(duration);
+    };
+    if on_multi_thread {
+        tokio::task::block_in_place(wait);
+    } else {
+        wait();
     }
 }
 
