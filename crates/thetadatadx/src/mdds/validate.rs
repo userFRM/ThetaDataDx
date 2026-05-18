@@ -88,13 +88,40 @@ pub(crate) fn validate_symbol(value: &str, param_name: &str) -> Result<(), Endpo
     Ok(())
 }
 
+/// The exact set of `interval` strings the v3 ThetaData server accepts.
+///
+/// Mirrors the upstream enum at
+/// `https://docs.thetadata.us/operations/option_history_quote.html`.
+/// The SDK additionally accepts decimal millisecond shorthand
+/// (`"60000"`, `"300000"`, ...) and snaps it to the nearest preset via
+/// [`crate::mdds::endpoints::normalize_interval`]; this validator
+/// recognises both shapes so the CLI / MCP layer rejects garbage
+/// before the gRPC dispatch.
+const VALID_INTERVAL_PRESETS: &[&str] = &[
+    "tick", "10ms", "100ms", "500ms", "1s", "5s", "10s", "15s", "30s", "1m", "5m", "10m", "15m",
+    "30m", "1h",
+];
+
 pub(crate) fn validate_interval(value: &str, param_name: &str) -> Result<(), EndpointError> {
-    if value.is_empty() || !value.bytes().all(|b| b.is_ascii_alphanumeric()) {
+    if value.is_empty() {
         return Err(EndpointError::InvalidParams(format!(
-            "'{param_name}' must be a non-empty alphanumeric string (e.g. '60000' or '1m'), got: '{value}'"
+            "'{param_name}' must be a non-empty string from the upstream enum ({}) or a millisecond value (e.g. '60000'), got empty string",
+            VALID_INTERVAL_PRESETS.join(", "),
         )));
     }
-    Ok(())
+    if VALID_INTERVAL_PRESETS.contains(&value) {
+        return Ok(());
+    }
+    if value.bytes().all(|b| b.is_ascii_digit()) {
+        // Millisecond shorthand: `normalize_interval` will snap to the
+        // nearest documented preset. Any positive integer is accepted
+        // here; the snap range covers `0` (-> "tick") through `1h`.
+        return Ok(());
+    }
+    Err(EndpointError::InvalidParams(format!(
+        "'{param_name}' must be one of the upstream presets ({}) or a millisecond value (e.g. '60000'), got: '{value}'",
+        VALID_INTERVAL_PRESETS.join(", "),
+    )))
 }
 
 pub(crate) fn validate_right(value: &str, param_name: &str) -> Result<(), EndpointError> {
@@ -239,6 +266,23 @@ mod tests {
         }
         for bad in ["abc", "-10", "1.5.3", "$500"] {
             assert!(validate_strike(bad, "strike").is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn interval_accepts_upstream_enum_and_ms_shorthand() {
+        for good in [
+            "tick", "10ms", "100ms", "500ms", "1s", "5s", "10s", "15s", "30s", "1m", "5m", "10m",
+            "15m", "30m", "1h", "0", "60000", "300000",
+        ] {
+            assert!(validate_interval(good, "interval").is_ok(), "{good}");
+        }
+    }
+
+    #[test]
+    fn interval_rejects_garbage() {
+        for bad in ["", "twosec", "2sec", "1minute", "-1", "1.5s", "1 s", "*"] {
+            assert!(validate_interval(bad, "interval").is_err(), "{bad}");
         }
     }
 }

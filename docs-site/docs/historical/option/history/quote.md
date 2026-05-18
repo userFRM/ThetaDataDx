@@ -13,26 +13,26 @@ Retrieve NBBO quotes for an option contract, sampled at a specified interval.
 
 ::: code-group
 ```rust [Rust]
-let data = tdx.option_history_quote("SPY", "20260417", "550", "C", "20260315", "60000").await?;
+let data = tdx.option_history_quote("SPY", "20260417", "20260315").await?;
 for t in &data {
     println!("date={} ms_of_day={} bid={:.2} ask={:.2} bid_size={} ask_size={}",
         t.date, t.ms_of_day, t.bid, t.ask, t.bid_size, t.ask_size);
 }
 ```
 ```python [Python]
-data = tdx.option_history_quote("SPY", "20260417", "550", "C", "20260315", "60000")
+data = tdx.option_history_quote("SPY", "20260417", "20260315")
 for t in data:
     print(f"date={t.date} ms_of_day={t.ms_of_day} bid={t.bid:.2f} "
           f"ask={t.ask:.2f} bid_size={t.bid_size} ask_size={t.ask_size}")
 ```
 ```typescript [TypeScript]
-const data = tdx.optionHistoryQuote('SPY', '20260417', '550', 'C', '20260315', '60000');
+const data = tdx.optionHistoryQuote('SPY', '20260417', '20260315');
 for (const t of data) {
     console.log(`date=${t.date} ms_of_day=${t.ms_of_day} bid=${t.bid} ask=${t.ask} bid_size=${t.bid_size} ask_size=${t.ask_size}`);
 }
 ```
 ```cpp [C++]
-auto data = client.option_history_quote("SPY", "20260417", "550", "C", "20260315", "60000");
+auto data = client.option_history_quote("SPY", "20260417", "20260315");
 for (const auto& t : data) {
     printf("date=%d ms_of_day=%d bid=%.2f ask=%.2f bid_size=%d ask_size=%d\n",
         t.date, t.ms_of_day, t.bid, t.ask, t.bid_size, t.ask_size);
@@ -49,31 +49,47 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
-</div>
-<div class="param">
-<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Strike price in dollars as a string</div>
-</div>
-<div class="param">
-<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc"><code>"C"</code> for call, <code>"P"</code> for put</div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> or <code>YYYY-MM-DD</code> format, or <code>"*"</code> for all expirations</div>
 </div>
 <div class="param">
 <div class="param-header"><code>date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
 <div class="param-desc">Date in <code>YYYYMMDD</code> format</div>
 </div>
 <div class="param">
-<div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Accepts milliseconds (<code>"60000"</code>) or shorthand (<code>"1m"</code>). Valid presets: <code>100ms</code>, <code>500ms</code>, <code>1s</code>, <code>5s</code>, <code>10s</code>, <code>15s</code>, <code>30s</code>, <code>1m</code>, <code>5m</code>, <code>10m</code>, <code>15m</code>, <code>30m</code>, <code>1h</code>. Use <code>"0"</code> for every quote change.</div>
+<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Strike price in dollars (e.g. <code>"550"</code> or <code>"17.5"</code>), or <code>"*"</code> for all strikes. Default: <code>"*"</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Option side: <code>"call"</code>, <code>"put"</code>, or <code>"both"</code>. SDK also accepts <code>"C"</code>/<code>"P"</code>. Default: <code>"both"</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Sampling interval. Allowed values: <code>tick</code>, <code>10ms</code>, <code>100ms</code>, <code>500ms</code>, <code>1s</code>, <code>5s</code>, <code>10s</code>, <code>15s</code>, <code>30s</code>, <code>1m</code>, <code>5m</code>, <code>10m</code>, <code>15m</code>, <code>30m</code>, <code>1h</code>. Millisecond strings (e.g. <code>"60000"</code>) are accepted and snapped to the nearest preset. Default: <code>"1s"</code>. Sub-minute intervals are available only for single-day requests.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Start time (inclusive) in <code>HH:MM:SS.SSS</code> ET wall-clock format. Default: <code>"09:30:00"</code>. Legacy millisecond strings (e.g. <code>"34200000"</code>) are also accepted.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">End time (inclusive) in <code>HH:MM:SS.SSS</code> ET wall-clock format. Default: <code>"16:00:00"</code>.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>max_dte</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Maximum days to expiration</div>
+<div class="param-desc">Maximum days to expiration. Filters contracts returned when <code>expiration="*"</code>.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>strike_range</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Strike range filter</div>
+<div class="param-desc">Returns <code>n</code> strikes above and below spot price plus one ATM strike (up to <code>2n + 1</code> strikes).</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_date</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Start date in <code>YYYYMMDD</code> format. Use with <code>end_date</code> for multi-day requests. The <code>date</code> argument overrides <code>start_date</code>/<code>end_date</code> when present.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_date</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">End date in <code>YYYYMMDD</code> format.</div>
 </div>
 </div>
 
@@ -125,9 +141,10 @@ for (const auto& t : data) {
 ]
 ```
 
-> 1-minute NBBO quotes for SPY 2026-04-17 550 call.
+> 1-second NBBO quotes for SPY 2026-04-17. With wildcard `strike="*"`, every chain strike is returned at the chosen interval.
 
 ## Notes
 
-- Use `"0"` as the interval to get every quote change (tick-by-tick).
-- For liquid contracts with `"0"` interval, the response can be very large. In Rust, use the `_stream` variant.
+- Multi-day requests are limited to one calendar month and must specify an `expiration` value (a single expiration or `"*"`).
+- Wildcard requests (`expiration="*"`, `strike="*"`) can return very large responses. In Rust, use the `_stream` variant to process chunk-by-chunk without buffering the full result.
+- The smallest `interval` value upstream accepts is `tick`. Values below `1m` (`tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`) are accepted only for single-day requests.
