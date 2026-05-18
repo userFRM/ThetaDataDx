@@ -751,13 +751,23 @@ impl Drop for InFlightToken {
 
 fn classify_h2_error(e: h2::Error) -> ChannelError {
     if e.is_go_away() || e.is_io() {
-        ChannelError::ConnectionClosed(e.to_string())
-    } else {
-        // is_reset() (per-stream) and everything else (library
-        // protocol error, user error, bare Reason) — the h2
-        // connection itself survives.
-        ChannelError::H2Stream(e.to_string())
+        return ChannelError::ConnectionClosed(e.to_string());
     }
+    // `h2` raises a `User` library error with body "inactive stream"
+    // when an operation targets a stream whose underlying connection
+    // has already died (e.g. peer closed the TCP socket between
+    // SETTINGS exchange and `send_request`). The stream is inactive
+    // because the connection is gone — surface it as connection-level
+    // so the pool recycles the channel rather than retry on a dead
+    // socket.
+    let msg = e.to_string();
+    if msg.contains("inactive stream") {
+        return ChannelError::ConnectionClosed(msg);
+    }
+    // is_reset() (per-stream) and everything else (library
+    // protocol error, user error, bare Reason) — the h2
+    // connection itself survives.
+    ChannelError::H2Stream(msg)
 }
 
 #[cfg(test)]
