@@ -369,6 +369,13 @@ impl DecoderHandle {
         if self.is_poisoned() {
             return Err(DecoderSubmitError::Poisoned);
         }
+        // Detect the runtime flavor once per submit and pass the
+        // resolved value into the retry loop. `Handle::try_current`
+        // is thread-local but still ~10 ns per call; under sustained
+        // ring saturation the loop would otherwise re-detect on
+        // every iteration even though the result is invariant for
+        // the lifetime of this call.
+        let backoff_mode = BackoffMode::detect();
         let (tx, rx) = oneshot::channel();
         // Both the work closure and the reply sender ride together
         // in a single `Option` so the bounded retry loop can take
@@ -421,33 +428,68 @@ impl DecoderHandle {
                     // runtime can migrate queued tasks to a sibling
                     // worker for the duration of the sleep — without
                     // it the calling task would stall its worker.
-                    backoff_ring_full(PUBLISH_RETRY_BACKOFF);
+                    backoff_ring_full(backoff_mode, PUBLISH_RETRY_BACKOFF);
                 }
             }
         }
     }
 }
 
-/// Brief back-off invoked when the Disruptor ring is full. Aware of the
-/// active runtime so it does not stall a tokio worker thread under
-/// decoder saturation: on a multi-thread tokio runtime the wait runs
-/// inside [`tokio::task::block_in_place`] so the runtime can steal
-/// queued work onto a sibling worker; on a current-thread tokio runtime
-/// or outside tokio entirely the wait is a plain sync sleep.
-fn backoff_ring_full(duration: Duration) {
-    use tokio::runtime::{Handle, RuntimeFlavor};
-    let on_multi_thread = matches!(
-        Handle::try_current().map(|h| h.runtime_flavor()),
-        Ok(RuntimeFlavor::MultiThread)
-    );
+/// Resolved back-off strategy for [`backoff_ring_full`].
+///
+/// Detected once at [`DecoderHandle::submit_work`] entry rather than
+/// on every retry: under sustained ring saturation the publish loop
+/// would otherwise call [`tokio::runtime::Handle::try_current`] (and
+/// the subsequent `runtime_flavor` query) on every iteration even
+/// though the runtime flavor is invariant for the lifetime of the
+/// `submit_work` call. Hoisting the detection collapses that cost to
+/// one resolution per submit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BackoffMode {
+    /// Calling thread is on a multi-thread tokio runtime worker —
+    /// the back-off sleep must be wrapped in
+    /// [`tokio::task::block_in_place`] so the runtime can steal
+    /// queued work onto a sibling worker rather than stalling the
+    /// current worker.
+    TokioMultiThread,
+    /// Calling thread is on a current-thread tokio runtime or
+    /// outside tokio entirely — a plain sync sleep is correct.
+    /// `block_in_place` would panic on a current-thread runtime
+    /// and is meaningless off-runtime.
+    SyncSleep,
+}
+
+impl BackoffMode {
+    /// Resolve once for the lifetime of a `submit_work` call. Thread-
+    /// local on a tokio worker; the detection cost is small but the
+    /// caller-side hoist still pays for itself under sustained ring
+    /// saturation where the retry loop would otherwise re-detect on
+    /// every iteration.
+    fn detect() -> Self {
+        use tokio::runtime::{Handle, RuntimeFlavor};
+        match Handle::try_current().map(|h| h.runtime_flavor()) {
+            Ok(RuntimeFlavor::MultiThread) => Self::TokioMultiThread,
+            _ => Self::SyncSleep,
+        }
+    }
+}
+
+/// Brief back-off invoked when the Disruptor ring is full.
+///
+/// The caller is expected to have resolved [`BackoffMode`] *outside*
+/// the retry loop and pass it in here, so a saturated ring does not
+/// re-query [`tokio::runtime::Handle::try_current`] on every spin —
+/// the resolution is invariant for the lifetime of one publish
+/// attempt and the caller-side hoist keeps the cost to one
+/// detection per submit rather than O(retries).
+fn backoff_ring_full(mode: BackoffMode, duration: Duration) {
     let wait = || {
         thread::yield_now();
         thread::sleep(duration);
     };
-    if on_multi_thread {
-        tokio::task::block_in_place(wait);
-    } else {
-        wait();
+    match mode {
+        BackoffMode::TokioMultiThread => tokio::task::block_in_place(wait),
+        BackoffMode::SyncSleep => wait(),
     }
 }
 
@@ -1051,19 +1093,24 @@ mod tests {
         }
 
         // Step 4: spawn overflow submitters. Each will park in the
-        // publish retry loop because the ring is now saturated.
+        // publish retry loop because the ring is now saturated. Each
+        // thread records the instant `submit_work` returns so the
+        // main thread can measure the *post-poison* reaction window
+        // (finish - poison_at) instead of the wall-clock distance
+        // from thread spawn — which would otherwise include the 50ms
+        // settle sleep below and inflate the measurement.
         let mut overflow_handles = Vec::with_capacity(OVERFLOW_SUBMITTERS);
         for _ in 0..OVERFLOW_SUBMITTERS {
             let producer_handle = handle.clone();
             overflow_handles.push(thread::spawn(move || {
-                let started_at = Instant::now();
                 let outcome = producer_handle.submit_work(Box::new(move || {
                     Ok(proto::DataTable {
                         headers: vec!["x".into()],
                         data_table: Vec::new(),
                     })
                 }));
-                (started_at.elapsed(), outcome)
+                let finished_at = Instant::now();
+                (finished_at, outcome)
             }));
         }
 
@@ -1081,20 +1128,26 @@ mod tests {
         handle.poisoned.store(true, Ordering::Release);
 
         // Step 6: every overflow submitter returns Poisoned within
-        // the budget. The budget is strict — a regression that
-        // restored busy-wait `publish()` would block here forever
-        // (consumer never advances, ring never frees, no Poisoned).
+        // the budget *measured from the poison flip*. The budget is
+        // strict — a regression that restored busy-wait `publish()`
+        // would block here forever (consumer never advances, ring
+        // never frees, no Poisoned).
         for (idx, join) in overflow_handles.into_iter().enumerate() {
-            let (elapsed, outcome) = join.join().expect("overflow submitter joins");
+            let (finished_at, outcome) = join.join().expect("overflow submitter joins");
             match outcome {
                 Err(DecoderSubmitError::Poisoned) => { /* expected */ }
                 other => panic!("overflow submitter {idx} did not observe poison: {other:?}"),
             }
-            let reaction = elapsed.saturating_sub(poison_at.elapsed());
+            // `saturating_duration_since` returns 0 if the submitter
+            // somehow finished before the poison flip — impossible
+            // on the happy path (poison flip is the only event that
+            // unblocks the parked retry loop) but defensive against
+            // future restructuring.
+            let reaction = finished_at.saturating_duration_since(poison_at);
             assert!(
-                elapsed < POISON_PROPAGATION_BUDGET + Duration::from_millis(100),
-                "overflow submitter {idx} took {elapsed:?} to observe poison \
-                 (budget {POISON_PROPAGATION_BUDGET:?} from poison flip; reaction window {reaction:?})"
+                reaction < POISON_PROPAGATION_BUDGET,
+                "overflow submitter {idx} took {reaction:?} to observe poison \
+                 after the flag flipped (budget {POISON_PROPAGATION_BUDGET:?})"
             );
         }
 

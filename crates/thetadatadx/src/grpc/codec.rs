@@ -164,12 +164,15 @@ where
     /// - `Ok(Some(resp))` when one complete frame was consumed.
     /// - `Ok(None)` when `buf` does not yet hold a full frame; the
     ///   caller should append more wire bytes and try again.
-    /// - `Err(_)` on a malformed frame; `buf` is not consumed and the
-    ///   caller must drop the stream.
+    /// - `Err(_)` on a malformed frame; `buf` is **not** consumed and
+    ///   the caller must drop the stream. This invariant covers every
+    ///   error variant — header-level rejection (compressed flag,
+    ///   oversized length) and payload-level rejection
+    ///   ([`CodecError::Decode`]) alike.
     ///
     /// The decoder uses [`Bytes::split_to`] to take ownership of the
-    /// payload slice, so the payload survives even after `buf` is
-    /// reused for later frames.
+    /// payload slice on the success path, so the payload survives
+    /// even after `buf` is reused for later frames.
     pub fn decode(&self, buf: &mut Bytes) -> Result<Option<Resp>, CodecError> {
         if buf.remaining() < FRAME_HEADER_LEN {
             return Ok(None);
@@ -201,10 +204,16 @@ where
             return Ok(None);
         }
 
-        // Consume the header, then split off the payload slice.
-        buf.advance(FRAME_HEADER_LEN);
-        let payload = buf.split_to(payload_len);
-        let resp = Resp::decode(payload).map_err(|e| CodecError::Decode(e.to_string()))?;
+        // Decode against an immutable slice view first so a prost
+        // failure leaves `buf` untouched — the caller's contract
+        // ("Err(_) ⇒ buf is not consumed") then holds for every
+        // error variant, not only the header-level ones above.
+        let payload_slice = &buf[FRAME_HEADER_LEN..FRAME_HEADER_LEN + payload_len];
+        let resp = Resp::decode(payload_slice).map_err(|e| CodecError::Decode(e.to_string()))?;
+
+        // Decode succeeded — consume the header and payload bytes
+        // from `buf` so the next call sees the following frame.
+        buf.advance(FRAME_HEADER_LEN + payload_len);
         Ok(Some(resp))
     }
 }
@@ -377,6 +386,47 @@ mod tests {
             CodecError::InvalidCompressedFlag(0xFF) => {}
             other => panic!("expected InvalidCompressedFlag(0xFF), got {other:?}"),
         }
+    }
+
+    #[test]
+    fn decode_leaves_buf_unchanged_on_payload_decode_error() {
+        // A legal 5-byte header followed by payload bytes that are
+        // not valid protobuf for `DataValueList`. Production callers
+        // rely on `Err(_) ⇒ buf is not consumed` so a corrupt frame
+        // can be inspected (or simply dropped together with the
+        // stream) without losing the framing offset.
+        let codec = Codec::<StockListSymbolsRequest, DataValueList>::new();
+
+        // Build a frame that announces 4 bytes of payload but whose
+        // payload is `[0xFF, 0xFF, 0xFF, 0xFF]` — every byte sets a
+        // reserved wire tag, so `prost` rejects it as a malformed
+        // message.
+        let mut framed = BytesMut::new();
+        framed.put_u8(0);
+        framed.put_u32(4);
+        framed.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
+        let mut buf = framed.freeze();
+
+        let pre = buf.clone();
+        let pre_len = buf.remaining();
+
+        let err = codec
+            .decode(&mut buf)
+            .expect_err("malformed protobuf payload rejected");
+        assert!(
+            matches!(err, CodecError::Decode(_)),
+            "expected CodecError::Decode, got {err:?}"
+        );
+
+        // Documented invariant: on Err the buffer is not consumed.
+        // The caller drops the stream, but the framing offset and
+        // every byte remain untouched.
+        assert_eq!(
+            buf.remaining(),
+            pre_len,
+            "buf length is unchanged after CodecError::Decode"
+        );
+        assert_eq!(buf, pre, "buf bytes are unchanged after CodecError::Decode");
     }
 
     #[test]
