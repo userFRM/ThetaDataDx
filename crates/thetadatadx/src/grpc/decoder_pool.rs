@@ -1051,19 +1051,24 @@ mod tests {
         }
 
         // Step 4: spawn overflow submitters. Each will park in the
-        // publish retry loop because the ring is now saturated.
+        // publish retry loop because the ring is now saturated. Each
+        // thread records the instant `submit_work` returns so the
+        // main thread can measure the *post-poison* reaction window
+        // (finish - poison_at) instead of the wall-clock distance
+        // from thread spawn — which would otherwise include the 50ms
+        // settle sleep below and inflate the measurement.
         let mut overflow_handles = Vec::with_capacity(OVERFLOW_SUBMITTERS);
         for _ in 0..OVERFLOW_SUBMITTERS {
             let producer_handle = handle.clone();
             overflow_handles.push(thread::spawn(move || {
-                let started_at = Instant::now();
                 let outcome = producer_handle.submit_work(Box::new(move || {
                     Ok(proto::DataTable {
                         headers: vec!["x".into()],
                         data_table: Vec::new(),
                     })
                 }));
-                (started_at.elapsed(), outcome)
+                let finished_at = Instant::now();
+                (finished_at, outcome)
             }));
         }
 
@@ -1081,20 +1086,26 @@ mod tests {
         handle.poisoned.store(true, Ordering::Release);
 
         // Step 6: every overflow submitter returns Poisoned within
-        // the budget. The budget is strict — a regression that
-        // restored busy-wait `publish()` would block here forever
-        // (consumer never advances, ring never frees, no Poisoned).
+        // the budget *measured from the poison flip*. The budget is
+        // strict — a regression that restored busy-wait `publish()`
+        // would block here forever (consumer never advances, ring
+        // never frees, no Poisoned).
         for (idx, join) in overflow_handles.into_iter().enumerate() {
-            let (elapsed, outcome) = join.join().expect("overflow submitter joins");
+            let (finished_at, outcome) = join.join().expect("overflow submitter joins");
             match outcome {
                 Err(DecoderSubmitError::Poisoned) => { /* expected */ }
                 other => panic!("overflow submitter {idx} did not observe poison: {other:?}"),
             }
-            let reaction = elapsed.saturating_sub(poison_at.elapsed());
+            // `saturating_duration_since` returns 0 if the submitter
+            // somehow finished before the poison flip — impossible
+            // on the happy path (poison flip is the only event that
+            // unblocks the parked retry loop) but defensive against
+            // future restructuring.
+            let reaction = finished_at.saturating_duration_since(poison_at);
             assert!(
-                elapsed < POISON_PROPAGATION_BUDGET + Duration::from_millis(100),
-                "overflow submitter {idx} took {elapsed:?} to observe poison \
-                 (budget {POISON_PROPAGATION_BUDGET:?} from poison flip; reaction window {reaction:?})"
+                reaction < POISON_PROPAGATION_BUDGET,
+                "overflow submitter {idx} took {reaction:?} to observe poison \
+                 after the flag flipped (budget {POISON_PROPAGATION_BUDGET:?})"
             );
         }
 
