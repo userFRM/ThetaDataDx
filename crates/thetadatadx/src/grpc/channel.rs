@@ -644,10 +644,12 @@ impl Channel {
                     // Trailers-only OK is theoretically legal (a unary-
                     // shaped response with no payload). Drop the body
                     // and surface an already-closed stream so callers
-                    // observe the OK terminus. No in-flight counter
-                    // adjustment — the increment-on-decrement pairing
-                    // happens via `InFlightToken` which we never built
-                    // for this short-circuit path.
+                    // observe the OK terminus. The in-flight counter
+                    // settles via `token`'s `Drop` on return: the
+                    // local was built above (pre-`ready()`) and is
+                    // *not* moved into the returned stream on this
+                    // branch, so leaving scope here decrements the
+                    // channel's counter exactly once.
                     drop(response.into_body());
                     return Ok(ServerStreaming::<Resp>::already_closed());
                 }
