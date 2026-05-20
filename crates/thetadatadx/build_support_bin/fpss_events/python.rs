@@ -6,10 +6,18 @@ use std::fmt::Write as _;
 use super::common::{is_contract, python_rust_field_type, snake_case};
 use super::schema::{sorted_event_names, ColumnDef, EventDef, Schema};
 
-/// Emit the `Contract` pyclass + helper constructor. Every data event
-/// carries a `Py<Contract>` field so Python code can read
+/// Emit the `ContractRef` pyclass + helper constructor. Every data event
+/// carries a `Py<ContractRef>` field so Python code can read
 /// `event.contract.symbol`, `event.contract.strike`, etc. through the
 /// normal pyo3 getter machinery.
+///
+/// Named `ContractRef` (not `Contract`) on the Python side because the
+/// fluent builder in `fluent.rs` already registers as `Contract` — see
+/// the corresponding TypeScript split in
+/// `sdks/typescript/src/fluent.rs` where the two are also held apart.
+/// Sharing the bare name would have pyo3's `m.add_class` last-write-wins
+/// silently shadow whichever helper registers first, hiding factory
+/// methods like `.stock()` / `.option()` from end users.
 fn render_contract_pyclass() -> &'static str {
     "/// FPSS contract identifier. Surfaced on every decoded FPSS data\n\
 /// event as `event.contract`. Reads `symbol`, `sec_type` (symbolic\n\
@@ -18,10 +26,14 @@ fn render_contract_pyclass() -> &'static str {
 /// in dollars), and `strike` (wire integer, thousandths of a dollar)\n\
 /// directly. User code reads the same notation it writes when\n\
 /// calling `Contract.option(symbol, expiration=..., strike=\"5400\", right=\"C\")`.\n\
+///\n\
+/// Distinct from the fluent `Contract` builder (in `fluent.rs`): this\n\
+/// type is the read-only event payload; the fluent builder is what\n\
+/// users instantiate via `Contract.stock(\"AAPL\")` / `Contract.option(...)`.\n\
 #[must_use]\n\
 #[pyclass(module = \"thetadatadx\", frozen, skip_from_py_object)]\n\
 #[derive(Clone)]\n\
-pub(crate) struct Contract {\n\
+pub(crate) struct ContractRef {\n\
     #[pyo3(get)] pub symbol: String,\n\
     #[pyo3(get)] pub sec_type: String,\n\
     #[pyo3(get)] pub expiration: Option<i32>,\n\
@@ -30,15 +42,15 @@ pub(crate) struct Contract {\n\
     #[pyo3(get)] pub strike: Option<i32>,\n\
 }\n\
 #[pymethods]\n\
-impl Contract {\n\
+impl ContractRef {\n\
     fn __repr__(&self) -> String {\n\
         format!(\n\
-            \"Contract(symbol={:?}, sec_type={:?}, expiration={:?}, right={:?}, strike_dollars={:?})\",\n\
+            \"ContractRef(symbol={:?}, sec_type={:?}, expiration={:?}, right={:?}, strike_dollars={:?})\",\n\
             self.symbol, self.sec_type, self.expiration, self.right, self.strike_dollars\n\
         )\n\
     }\n\
 }\n\
-impl Contract {\n\
+impl ContractRef {\n\
     /// Build from the core `thetadatadx::fpss::protocol::Contract` value\n\
     /// carried by each `BufferedEvent::*` Data arm. `sec_type` is the\n\
     /// symbolic uppercase name (`\"STOCK\"` / `\"OPTION\"` / `\"INDEX\"` /\n\
@@ -98,7 +110,7 @@ pub(super) fn render_python_fpss_event_classes(schema: &Schema) -> String {
     out.push_str(
         "pub(crate) fn register_fpss_event_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {\n",
     );
-    out.push_str("    m.add_class::<Contract>()?;\n");
+    out.push_str("    m.add_class::<ContractRef>()?;\n");
     for event_name in &names {
         writeln!(out, "    m.add_class::<{}>()?;", event_name).unwrap();
     }
@@ -301,7 +313,7 @@ fn render_python_buffered_match_arm(event_name: &str, def: &EventDef) -> String 
     let has_contract = def.columns.iter().any(|c| is_contract(&c.r#type));
     if has_contract {
         out.push_str(
-            "        } => {\n            let contract_py = Py::new(py, Contract::from_core(contract))?;\n            Py::new(\n                py,\n",
+            "        } => {\n            let contract_py = Py::new(py, ContractRef::from_core(contract))?;\n            Py::new(\n                py,\n",
         );
     } else {
         out.push_str("        } => Py::new(\n            py,\n");
