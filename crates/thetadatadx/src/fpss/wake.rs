@@ -208,14 +208,19 @@ impl Drop for WakeFd {
 // keeps the WakeFd type so the cross-platform signatures compile.
 #[cfg(not(unix))]
 impl WakeFd {
-    /// Stub constructor on non-Unix platforms. The wake FD is logically
-    /// disabled (`signal()` is a no-op) so any caller that reaches this
-    /// path under a `#[cfg(not(unix))]` build observes a benign
-    /// no-wake state.
+    /// Stub constructor on non-Unix platforms. The caller's FD is
+    /// stashed verbatim so [`Self::write_fd`] returns it, but
+    /// [`Self::signal`] never touches it — there is no portable
+    /// `write(2)` we can call without dragging a Windows-specific
+    /// HANDLE/IOCP abstraction into the core SDK.
+    ///
+    /// Callers of `streaming_async()` on non-Unix raise a clear
+    /// runtime error at the Python pyclass entry; this stub exists so
+    /// the Rust signatures remain cross-platform.
     #[must_use]
-    pub fn from_raw_write_fd(_write_fd: i32) -> Self {
+    pub fn from_raw_write_fd(write_fd: i32) -> Self {
         Self {
-            write_fd: -1,
+            write_fd,
             signaled: AtomicBool::new(false),
         }
     }
@@ -236,10 +241,13 @@ impl WakeFd {
         false
     }
 
-    /// Always `-1` on non-Unix.
+    /// Returns the FD value stashed at construction time. On non-Unix
+    /// the SDK never reads or writes through it — the value is opaque
+    /// — but echoing it back keeps the cross-platform getter contract
+    /// symmetric with the Unix impl.
     #[must_use]
     pub fn write_fd(&self) -> i32 {
-        -1
+        self.write_fd
     }
 }
 

@@ -418,21 +418,15 @@ impl StreamingAsyncSession {
             ));
         }
 
-        // Allocate a non-blocking self-pipe. `pipe2` is the POSIX
-        // primitive that atomically sets `O_CLOEXEC | O_NONBLOCK` so we
-        // don't race against `fork()` between `pipe()` and `fcntl()`.
-        let mut fds = [0_i32; 2];
-        // SAFETY: `pipe2` writes two FDs into `fds`. The call is
-        // documented to be safe to invoke from any thread context.
-        let rc = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) };
-        if rc != 0 {
-            let err = std::io::Error::last_os_error();
-            return Err(PyRuntimeError::new_err(format!(
-                "pipe2 failed allocating wake FDs for streaming_async: {err}"
-            )));
-        }
-        let read_fd = fds[0];
-        let write_fd = fds[1];
+        // Allocate a non-blocking self-pipe. `pipe2(O_CLOEXEC | O_NONBLOCK)`
+        // is the atomic Linux primitive but macOS / BSD only ship plain
+        // `pipe(2)` — we fall through to `fcntl(F_SETFD/F_SETFL)` to
+        // set the same flags. The non-atomic path has a fork-window
+        // hazard (a `fork()` after `pipe()` but before `fcntl()` would
+        // inherit the FDs without `O_CLOEXEC`), but the Python SDK is
+        // single-threaded at `__aenter__` time and never forks across
+        // this window, so the gap is benign.
+        let (read_fd, write_fd) = alloc_wake_pipe()?;
 
         // Hand the write-end to the Rust core via the wake-fd-keeping
         // constructor. The shared `Arc<WakeFd>` returned lets us call
@@ -608,6 +602,78 @@ fn drain_batch(
 /// Under burst conditions where multiple wake bytes accumulated, we
 /// drain them all in one call to avoid `epoll` firing twice for the
 /// same logical batch.
+/// Allocate a self-pipe with `O_CLOEXEC` + `O_NONBLOCK` on both ends.
+///
+/// Returns `(read_fd, write_fd)`. Uses `libc::pipe(2)` plus
+/// `fcntl(F_SETFD, FD_CLOEXEC)` and `fcntl(F_SETFL, O_NONBLOCK)`
+/// because macOS (and other BSDs) don't ship the atomic `pipe2(2)`
+/// extension. The non-atomic path is correct for our single-threaded
+/// `__aenter__` callsite; see the call-site comment for the
+/// fork-window analysis.
+///
+/// Errors are mapped to Python `RuntimeError` with the kernel errno
+/// surfaced through `Error::last_os_error()`.
+#[cfg(unix)]
+fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
+    let mut fds = [0_i32; 2];
+    // SAFETY: `pipe(2)` writes two FDs into `fds`; documented safe
+    // to invoke from any thread context.
+    let rc = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    if rc != 0 {
+        let err = std::io::Error::last_os_error();
+        return Err(PyRuntimeError::new_err(format!(
+            "pipe(2) failed allocating wake FDs for streaming_async: {err}"
+        )));
+    }
+    let read_fd = fds[0];
+    let write_fd = fds[1];
+
+    // Set `O_CLOEXEC` and `O_NONBLOCK` via `fcntl(2)` on both ends.
+    // Closing the FDs on early-exit so a partial-failure path doesn't
+    // leak descriptors.
+    let setup = |fd: i32| -> Result<(), std::io::Error> {
+        // SAFETY: `fd` is open and owned by this function for the
+        // duration of the call; the fcntl commands are all `i32` ABI
+        // and don't touch user memory.
+        let cloexec = unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) };
+        if cloexec < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        // SAFETY: same as above. `F_GETFL` returns the current flag
+        // bitmask, which we OR with `O_NONBLOCK` and write back via
+        // `F_SETFL`.
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        if flags < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        // SAFETY: `flags | O_NONBLOCK` is a valid `F_SETFL` argument.
+        let nonblock = unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) };
+        if nonblock < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(())
+    };
+    if let Err(err) = setup(read_fd).and_then(|()| setup(write_fd)) {
+        // SAFETY: both FDs are owned by this scope; close before
+        // returning the error.
+        unsafe {
+            libc::close(read_fd);
+            libc::close(write_fd);
+        }
+        return Err(PyRuntimeError::new_err(format!(
+            "fcntl failed configuring wake FDs for streaming_async: {err}"
+        )));
+    }
+    Ok((read_fd, write_fd))
+}
+
+#[cfg(not(unix))]
+fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
+    Err(PyRuntimeError::new_err(
+        "streaming_async() requires a POSIX platform; pipe allocation is not available",
+    ))
+}
+
 #[cfg(unix)]
 fn drain_read_pipe(read_fd: i32) {
     if read_fd < 0 {
