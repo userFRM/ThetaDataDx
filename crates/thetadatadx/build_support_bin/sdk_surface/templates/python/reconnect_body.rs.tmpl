@@ -37,9 +37,10 @@
 
         // Replace the stored callable with a freshly owned handle so
         // the next reconnect / shutdown sees the same state shape.
+        // The Disruptor consumer closure already captured a clone of
+        // `callback_arc` (via `dispatch_cb`); the ref-count is >=2
+        // here so `try_unwrap` would always fail.
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Arc::try_unwrap(callback_arc).unwrap_or_else(|arc| {
-            Python::attach(|py| arc.clone_ref(py))
-        }));
+        *guard = Some(Python::attach(|py| callback_arc.clone_ref(py)));
         Ok(())
     }

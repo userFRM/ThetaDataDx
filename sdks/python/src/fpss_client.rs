@@ -45,10 +45,10 @@ use thetadatadx::fpss::{self, FpssClient as RustFpssClient, FpssConnectArgs};
 use crate::buffered_event_to_typed;
 use crate::errors::to_py_err;
 use crate::event_iterator::EventIterator;
-use crate::fluent;
+use crate::fluent::{self, PySubscription};
 use crate::fpss_event_to_buffered;
 use crate::streaming_iter_session::StreamingIterSession;
-use crate::streaming_session::StreamingSession;
+use crate::streaming_session::{StreamableHandle, StreamingSession};
 use crate::{Config, Credentials};
 
 /// Snapshot of the parameters required to open an FPSS TLS connection.
@@ -206,9 +206,16 @@ impl FpssClient {
     }
 
     fn __repr__(&self) -> String {
-        let connected = self.lock_inner().is_some();
+        // Match the bundled `ThetaDataDxClient.__repr__` key/value vocabulary
+        // (`streaming=connected` / `streaming=none`) so cross-class repr
+        // strings parse the same way.
+        let streaming = if self.lock_inner().is_some() {
+            "connected"
+        } else {
+            "none"
+        };
         let hosts = self.params.hosts.len();
-        format!("FpssClient(connected={connected}, hosts={hosts})")
+        format!("FpssClient(streaming={streaming}, hosts={hosts})")
     }
 
     /// Open the FPSS TLS connection and register the Python callback
@@ -224,7 +231,7 @@ impl FpssClient {
     /// The reader never blocks on user code; on ring overflow events
     /// are dropped and counted via `dropped_event_count()`. User
     /// callback panics are caught and counted via `panic_count()`.
-    fn start_streaming(&self, callback: Py<PyAny>) -> PyResult<()> {
+    pub(crate) fn start_streaming(&self, callback: Py<PyAny>) -> PyResult<()> {
         let mut cb_guard = self.lock_callback();
         if self.lock_inner().is_some() {
             return Err(PyRuntimeError::new_err(
@@ -271,7 +278,7 @@ impl FpssClient {
     ///
     /// Push-callback and pull-iter are mutually exclusive — calling
     /// this while streaming is already running raises `RuntimeError`.
-    fn start_streaming_iter(&self) -> PyResult<EventIterator> {
+    pub(crate) fn start_streaming_iter(&self) -> PyResult<EventIterator> {
         if self.lock_inner().is_some() {
             return Err(PyRuntimeError::new_err(
                 "streaming already started -- call stop_streaming() before start_streaming_iter()",
@@ -287,9 +294,24 @@ impl FpssClient {
         self.lock_inner().is_some()
     }
 
+    /// Whether the FPSS session is currently authenticated.
+    ///
+    /// Mirrors the C++ `tdx::FpssClient::is_authenticated()` getter and
+    /// the C ABI `tdx_fpss_is_authenticated`. Distinct from
+    /// `is_streaming()`: the TLS slot can hold an `RustFpssClient` whose
+    /// `authenticated` flag has been flipped to `false` after a server
+    /// disconnect, before the application has issued `reconnect()`.
+    fn is_authenticated(&self) -> bool {
+        let guard = self.lock_inner();
+        guard.as_ref().is_some_and(|c| c.is_authenticated())
+    }
+
     /// Snapshot of per-contract subscriptions on the live session.
-    /// Returns an empty list when streaming has not started.
-    fn active_subscriptions(&self) -> Vec<std::collections::HashMap<String, String>> {
+    ///
+    /// Returns the same typed `Subscription` values the caller passes to
+    /// `subscribe()` — round-trippable rather than a debug-format
+    /// string projection. Empty list when streaming has not started.
+    fn active_subscriptions(&self) -> Vec<PySubscription> {
         let guard = self.lock_inner();
         let Some(client) = guard.as_ref() else {
             return Vec::new();
@@ -297,18 +319,20 @@ impl FpssClient {
         client
             .active_subscriptions()
             .into_iter()
-            .map(|(kind, contract)| {
-                let mut m = std::collections::HashMap::new();
-                m.insert("kind".to_string(), format!("{kind:?}"));
-                m.insert("contract".to_string(), format!("{contract}"));
-                m
+            .map(|(kind, contract)| PySubscription {
+                inner: fpss::protocol::Subscription::Contract { contract, kind },
             })
             .collect()
     }
 
     /// Snapshot of full-stream subscriptions (e.g. `SecType.OPTION.full_trades()`).
-    /// Returns an empty list when streaming has not started.
-    fn active_full_subscriptions(&self) -> Vec<std::collections::HashMap<String, String>> {
+    ///
+    /// Returns the same typed `Subscription` values the caller passes to
+    /// `subscribe()`. Quote is never a valid full-stream kind on the
+    /// FPSS wire, so the core's `active_full_subscriptions` only ever
+    /// returns `Trade` / `OpenInterest`; any other variant is dropped
+    /// from the projection. Empty list when streaming has not started.
+    fn active_full_subscriptions(&self) -> Vec<PySubscription> {
         let guard = self.lock_inner();
         let Some(client) = guard.as_ref() else {
             return Vec::new();
@@ -316,11 +340,18 @@ impl FpssClient {
         client
             .active_full_subscriptions()
             .into_iter()
-            .map(|(kind, sec_type)| {
-                let mut m = std::collections::HashMap::new();
-                m.insert("kind".to_string(), format!("{kind:?}"));
-                m.insert("sec_type".to_string(), format!("{sec_type:?}"));
-                m
+            .filter_map(|(kind, sec_type)| {
+                let full_kind = match kind {
+                    SubscriptionKind::Trade => FullSubscriptionKind::Trades,
+                    SubscriptionKind::OpenInterest => FullSubscriptionKind::OpenInterest,
+                    SubscriptionKind::Quote => return None,
+                };
+                Some(PySubscription {
+                    inner: fpss::protocol::Subscription::Full {
+                        sec_type,
+                        kind: full_kind,
+                    },
+                })
             })
             .collect()
     }
@@ -352,14 +383,21 @@ impl FpssClient {
     }
 
     /// Bulk-subscribe a list of `Subscription` values.
+    ///
+    /// Releases the inner mutex between iterations so a concurrent
+    /// `stop_streaming` on a sibling thread (today still serialised by
+    /// the GIL, but defensive against a future `py.detach` in the FPSS
+    /// connect path) cannot deadlock against a long batch. The core
+    /// FPSS protocol has no batched-subscribe wire frame today; a
+    /// future single-command `subscribe_many` on
+    /// `crates/thetadatadx/src/fpss/mod.rs` is tracked as a follow-up
+    /// and would route through here without an API change.
     fn subscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        self.with_live(|c| {
-            for sub in list {
-                c.subscribe(sub)?;
-            }
-            Ok(())
-        })
+        for sub in list {
+            self.with_live(|c| c.subscribe(sub))?;
+        }
+        Ok(())
     }
 
     /// Polymorphic unsubscribe.
@@ -369,14 +407,15 @@ impl FpssClient {
     }
 
     /// Bulk-unsubscribe.
+    ///
+    /// Releases the inner mutex between iterations — same rationale as
+    /// `subscribe_many`.
     fn unsubscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        self.with_live(|c| {
-            for sub in list {
-                c.unsubscribe(sub)?;
-            }
-            Ok(())
-        })
+        for sub in list {
+            self.with_live(|c| c.unsubscribe(sub))?;
+        }
+        Ok(())
     }
 
     /// Stop streaming and clear the registered callback. Same
@@ -394,7 +433,7 @@ impl FpssClient {
     /// `start_streaming` / `stop_streaming` interleave on the same
     /// handle. Pinning the ordering here closes that race
     /// proactively.
-    fn stop_streaming(&self) {
+    pub(crate) fn stop_streaming(&self) {
         let mut cb_guard = self.lock_callback();
         let mut inner_guard = self.lock_inner();
         if let Some(client) = inner_guard.as_ref() {
@@ -478,15 +517,28 @@ impl FpssClient {
             }
         }
         for (kind, sec_type) in full_stream {
+            // `SubscriptionKind` is a closed 3-variant enum (Quote /
+            // Trade / OpenInterest) — no wildcard arm here; adding a
+            // variant upstream is a compile-time error rather than a
+            // silent miscategorisation.
             let full_kind = match kind {
                 SubscriptionKind::Trade => Some(FullSubscriptionKind::Trades),
                 SubscriptionKind::OpenInterest => Some(FullSubscriptionKind::OpenInterest),
-                // Quote is never a full-stream subscription kind on
-                // the FPSS wire — the core's `active_full_subscriptions`
-                // never returns it, so this arm is unreachable in
-                // practice and we drop it silently rather than
-                // misclassifying it as a restore failure.
-                SubscriptionKind::Quote => None,
+                SubscriptionKind::Quote => {
+                    // Quote is never a full-stream subscription kind on
+                    // the FPSS wire — the core's
+                    // `active_full_subscriptions` never returns it, so
+                    // this arm is unreachable in practice. Log at
+                    // `debug` rather than treating it as a restore
+                    // failure: surfacing it as `failed` would imply a
+                    // user-actionable issue when none exists.
+                    tracing::debug!(
+                        ?sec_type,
+                        "full-stream Quote not restorable on reconnect; \
+                         protocol-level invariant"
+                    );
+                    None
+                }
             };
             if let Some(full_kind) = full_kind {
                 let sub = fpss::protocol::Subscription::Full {
@@ -514,7 +566,7 @@ impl FpssClient {
     /// consumer has finished firing the registered callback. Returns
     /// `true` once all retired generations have drained, `false` on
     /// timeout. Polls at 1 ms cadence.
-    fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> bool {
+    pub(crate) fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> bool {
         let timeout = Duration::from_millis(timeout_ms);
         py.detach(|| {
             let deadline = Instant::now() + timeout;
@@ -552,7 +604,7 @@ impl FpssClient {
         Py::new(
             py,
             StreamingSession {
-                tdx: slf.into_any(),
+                tdx: StreamableHandle::Fpss(slf),
                 callback: Some(callback),
             },
         )
@@ -568,7 +620,7 @@ impl FpssClient {
         Py::new(
             py,
             StreamingIterSession {
-                tdx: slf.into_any(),
+                tdx: StreamableHandle::Fpss(slf),
                 iterator: None,
             },
         )
