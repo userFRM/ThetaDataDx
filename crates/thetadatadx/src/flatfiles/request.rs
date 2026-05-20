@@ -379,8 +379,8 @@ mod tests {
     }
 
     /// Drive the retry loop against a synthetic attempt function that
-    /// returns the queued result on each call. Verifies the contract
-    /// the prompt specifies for D2:
+    /// returns the queued result on each call. Verifies the four
+    /// retry-loop contracts:
     ///
     /// * Transient failure on attempt 1 + success on attempt 2 → loop
     ///   reports success after one retry.

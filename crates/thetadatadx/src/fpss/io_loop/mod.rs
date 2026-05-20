@@ -1087,18 +1087,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn split_budget_defaults_match_institutional_floor() {
-        // The pre-D4 wholesale cap was 5; the post-D4 default splits
+    fn split_budget_defaults_cover_multi_hour_throttle() {
+        // The previous wholesale cap was 5; the new default splits
         // into 3 generic-transient + 100 rate-limited.
         let limits = ReconnectAttemptLimits::default();
         assert_eq!(limits.max_attempts, 3);
         assert_eq!(limits.max_rate_limited_attempts, 100);
         // 100 attempts × 130 s/attempt = 13_000 s = ~3.6 h of patient
-        // retry on sustained `TooManyRequests`. The pre-D4 cap of 5
-        // gave up at ~10 minutes — well below the institutional bar of
-        // "ride through a multi-hour throttle without operator
-        // intervention". 3.6 h is the floor; institutional production
-        // explicitly accepts this default.
+        // retry on sustained `TooManyRequests`. The previous cap of 5
+        // gave up at ~10 minutes — well below the goal of riding
+        // through a multi-hour throttle without operator intervention.
+        // 3.6 h is the floor the default explicitly accepts.
         let rate_limited_horizon_ms = u128::from(limits.max_rate_limited_attempts)
             * u128::from(crate::fpss::protocol::TOO_MANY_REQUESTS_DELAY_MS);
         assert!(
@@ -1109,8 +1108,8 @@ mod tests {
     }
 
     /// 10 consecutive `TooManyRequests` disconnects must NOT exhaust
-    /// the rate-limited budget — the pre-D4 cap of 5 would have given
-    /// up after attempt 5, the post-D4 default tolerates 100. Each
+    /// the rate-limited budget — the previous cap of 5 would have given
+    /// up after attempt 5, the new default tolerates 100. Each
     /// attempt's delay equals `reconnect_delay(TooManyRequests)` =
     /// `TOO_MANY_REQUESTS_DELAY_MS` (130 s).
     #[test]
@@ -1131,7 +1130,7 @@ mod tests {
         );
         // Per-attempt delay budget surfaces the wall-clock cost: 10 *
         // 130 s = 1300 s = ~21 min of patient retry, well within the
-        // ~3.6 h envelope the institutional default permits.
+        // ~3.6 h envelope the default permits.
         let ms = crate::fpss::reconnect_delay(RemoveReason::TooManyRequests)
             .expect("TooManyRequests yields a finite reconnect delay");
         let total_ms = u128::from(ms) * u128::from(last_attempt);

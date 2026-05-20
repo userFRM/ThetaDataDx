@@ -1,7 +1,7 @@
 //! Per-tick allocation budget for FPSS FIT delta decode.
 //!
 //! `DeltaState::decode_tick` runs on every FPSS quote / trade /
-//! open-interest / OHLCVC frame. The pre-D3 implementation paid two
+//! open-interest / OHLCVC frame. The previous implementation paid two
 //! `Vec<i32>` allocations per tick (one for the returned absolute tick
 //! data, one for the cloned `prev` entry stored in the per-contract
 //! map). This bench wraps the system allocator in a `CountingAllocator`
@@ -13,7 +13,7 @@
 //! entry point) so the measurement covers the full
 //! frame → typed-event path the I/O loop walks, not just the FIT
 //! decoder in isolation. Two of the three allocations the frame
-//! pre-D3 paid still exist by design (the `Arc<Contract>` ref-count
+//! previous paid still exist by design (the `Arc<Contract>` ref-count
 //! bump dominates) — the assertion is scoped to the FIT-delta
 //! sub-region by seeding the contract cache outside the timed loop.
 
@@ -223,11 +223,11 @@ fn bench_delta_decode_zero_alloc(c: &mut Criterion) {
             );
 
             // Institutional bar: zero heap allocations on the steady-
-            // state delta decode path. The post-D3 implementation
+            // state delta decode path. The current implementation
             // copies into a caller-owned stack buffer and stores the
             // previous tick inline in the `HashMap<(u8, i32), [i32; 16]>`
             // slot — no `Vec::clone` or `Vec::to_vec` per tick. The
-            // HashMap slot is reused (in-place update). The pre-D3
+            // HashMap slot is reused (in-place update). The previous
             // baseline allocated two `Vec<i32>` per tick (~144 B each).
             assert_eq!(
                 count_after - count_before,

@@ -20,9 +20,9 @@ pub struct FlatFilesConfig {
     /// including the first attempt. `1` disables retry; values
     /// greater than `1` enable exponential backoff between attempts.
     ///
-    /// Validated to the range `[1, 10]` — institutional production
-    /// fits inside that envelope. A misconfiguration outside the range
-    /// is rejected at [`crate::config::DirectConfig::validate`] time
+    /// Validated to the range `[1, 10]` — typical production use fits
+    /// inside that envelope. A misconfiguration outside the range is
+    /// rejected at [`crate::config::DirectConfig::validate`] time
     /// rather than silently capped.
     pub max_attempts: u32,
 

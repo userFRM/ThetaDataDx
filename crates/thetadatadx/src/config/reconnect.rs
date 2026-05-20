@@ -54,11 +54,12 @@ impl Default for ReconnectPolicy {
 /// Per-failure-class attempt budgets the [`ReconnectPolicy::Auto`] driver
 /// enforces in the FPSS I/O loop.
 ///
-/// Splitting the cap by failure class fixes the pre-D4 behaviour where
-/// rate-limited transients (`TooManyRequests`, 130 s spacing) burned
-/// through the same 5-attempt budget as generic transients (TimedOut /
-/// ServerRestarting, 2 s spacing) — the rate-limited path gave up after
-/// ~10 minutes when the institutional bar is "keep trying for hours".
+/// Splitting the cap by failure class fixes the previous behaviour
+/// where rate-limited transients (`TooManyRequests`, 130 s spacing)
+/// burned through the same 5-attempt budget as generic transients
+/// (TimedOut / ServerRestarting, 2 s spacing) — the rate-limited path
+/// gave up after ~10 minutes when the desired behaviour is to keep
+/// trying for hours through a sustained throttle.
 #[derive(Debug, Clone, Copy)]
 pub struct ReconnectAttemptLimits {
     /// Maximum consecutive reconnect attempts on a generic transient
