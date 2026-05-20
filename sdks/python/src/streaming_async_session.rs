@@ -53,6 +53,7 @@ use thetadatadx::fpss::wake::WakeFd;
 use thetadatadx::{EventIterator as RustEventIterator, NextEvent};
 
 use crate::buffered_event_to_typed;
+#[cfg(unix)]
 use crate::errors::to_py_err;
 use crate::fpss_event_to_buffered;
 
@@ -667,6 +668,15 @@ fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
     }
     Ok((read_fd, write_fd))
 }
+
+/// No-op on non-Unix targets. `anext_step` calls this whenever the
+/// session has a non-negative `read_fd`; on non-Unix the FD never gets
+/// set (`__aenter__` raises before allocating) so the call is reached
+/// only via misuse (e.g. constructing a pyclass and calling `__anext__`
+/// directly without `async with`). Keeping a stub avoids a build-time
+/// dead-fn error on Windows without compromising the Unix hot path.
+#[cfg(not(unix))]
+fn drain_read_pipe(_read_fd: i32) {}
 
 #[cfg(unix)]
 fn drain_read_pipe(read_fd: i32) {
