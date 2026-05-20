@@ -16,10 +16,10 @@
 
 use std::collections::HashSet;
 
-use super::helpers::{
-    builder_params, is_simple_list_endpoint, is_streaming_endpoint, method_params,
-};
-use super::model::{GeneratedEndpoint, GeneratedParam, TestFixtures};
+use super::helpers::{is_simple_list_endpoint, is_streaming_endpoint};
+use super::model::{GeneratedEndpoint, GeneratedParam};
+use super::sdk_helpers::{builder_params, method_params};
+use super::test_fixtures::TestFixtures;
 
 // ───────────────────────── Multi-mode parameter matrix ──────────────────────
 //
@@ -50,11 +50,6 @@ pub(super) struct TestMode {
     /// `"standard"`, `"professional"`). The validator skips the cell with a
     /// clear `SKIP: tier<X>` line if the account tier is below.
     pub(super) min_tier: &'static str,
-    /// Outcome the validator should expect.
-    ///   - `non_empty`: a normal successful call (rows or "no data" both PASS)
-    ///   - `empty_ok`: a successful call that may legitimately return zero rows
-    ///   - `error_permission`: tier/permission errors are PASS, real errors FAIL
-    pub(super) expect: &'static str,
     /// Optional (builder-bound) parameter overrides to apply on this mode.
     /// Each entry is `(param_name, representative_value)`. Rendered per
     /// language: Python kwargs, Go `thetadatadx.WithXxx()` opts, C++
@@ -397,7 +392,6 @@ pub(super) fn test_modes_for(
                 rationale: rationale_for_mode(mode_name),
                 args,
                 min_tier: endpoint_tier,
-                expect: "non_empty",
                 builder_overrides,
             }
         })
@@ -461,7 +455,6 @@ fn append_optional_modes(
             rationale: rationale_for_mode("with_intraday_window"),
             args: concrete_args(endpoint, fixtures),
             min_tier: endpoint_tier,
-            expect: "non_empty",
             builder_overrides: overrides,
         });
         handled.insert("start_time".into());
@@ -487,7 +480,6 @@ fn append_optional_modes(
             rationale: rationale_for_mode("with_date_range"),
             args: concrete_args(endpoint, fixtures),
             min_tier: endpoint_tier,
-            expect: "non_empty",
             builder_overrides: overrides,
         });
         handled.insert("start_date".into());
@@ -511,7 +503,6 @@ fn append_optional_modes(
             rationale,
             args: concrete_args(endpoint, fixtures),
             min_tier: endpoint_tier,
-            expect: "non_empty",
             builder_overrides: vec![(param_name.clone(), value.to_string())],
         });
     }
@@ -528,7 +519,6 @@ fn append_optional_modes(
             rationale: rationale_for_mode("all_optionals"),
             args: concrete_args(endpoint, fixtures),
             min_tier: endpoint_tier,
-            expect: "non_empty",
             builder_overrides: all_overrides,
         });
     }

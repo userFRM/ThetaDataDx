@@ -198,13 +198,22 @@ impl Config {
 
     /// Set the FPSS reconnect policy.
     ///
-    /// - "auto" (default): auto-reconnect matching Java terminal behavior.
+    /// - "auto" (default): auto-reconnect with split per-class attempt
+    ///   budgets ([`config::ReconnectAttemptLimits`] defaults — 3
+    ///   attempts for generic transients, 100 for rate-limited).
     /// - "manual": no auto-reconnect, user calls reconnect explicitly.
+    ///
+    /// Per-class attempt budgets and the stable-window timer are
+    /// configured via the dedicated `reconnect_max_attempts`,
+    /// `reconnect_max_rate_limited_attempts`, and
+    /// `reconnect_stable_window_secs` setters.
     #[setter]
     fn set_reconnect_policy(&self, policy: &str) -> PyResult<()> {
         let parsed = match policy.to_lowercase().as_str() {
             "manual" => config::ReconnectPolicy::Manual,
-            "auto" => config::ReconnectPolicy::Auto,
+            "auto" => {
+                config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default())
+            }
             other => {
                 return Err(PyValueError::new_err(format!(
                     "unknown reconnect_policy: {other:?} (expected \"auto\" or \"manual\")"
@@ -220,11 +229,51 @@ impl Config {
     #[getter]
     fn get_reconnect_policy(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        match guard.reconnect.policy {
-            config::ReconnectPolicy::Auto => "auto",
+        match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(_) => "auto",
             config::ReconnectPolicy::Manual => "manual",
             config::ReconnectPolicy::Custom(_) => "custom",
         }
+    }
+
+    /// Set the per-class transient-failure attempt budget for the
+    /// auto-reconnect path. Default `3`. Has no effect when the
+    /// reconnect policy is `"manual"` or `"custom"`.
+    #[setter]
+    fn set_reconnect_max_attempts(&self, max_attempts: u32) -> PyResult<()> {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.max_attempts = max_attempts;
+        }
+        Ok(())
+    }
+
+    /// Set the per-class rate-limited (`TooManyRequests`) attempt budget
+    /// for the auto-reconnect path. Default `100`. Has no effect when
+    /// the reconnect policy is `"manual"` or `"custom"`.
+    #[setter]
+    fn set_reconnect_max_rate_limited_attempts(
+        &self,
+        max_rate_limited_attempts: u32,
+    ) -> PyResult<()> {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.max_rate_limited_attempts = max_rate_limited_attempts;
+        }
+        Ok(())
+    }
+
+    /// Set the continuous successful-data-flow window (in seconds)
+    /// after which the auto-reconnect attempt counters reset. Default
+    /// `60`. Has no effect when the reconnect policy is `"manual"` or
+    /// `"custom"`.
+    #[setter]
+    fn set_reconnect_stable_window_secs(&self, secs: u64) -> PyResult<()> {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.stable_window = std::time::Duration::from_secs(secs);
+        }
+        Ok(())
     }
 
     /// Set whether to derive OHLCVC bars locally from trade events.

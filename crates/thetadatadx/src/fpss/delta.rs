@@ -20,6 +20,17 @@ pub(super) const TRADE_FIELDS: usize = 16;
 pub(super) const OI_FIELDS: usize = 3;
 pub(super) const OHLCVC_FIELDS: usize = 9;
 
+/// Largest data-field count any FPSS tick shape declares (extended-format
+/// trade, 16 fields). Tick data is stored in stack arrays of this size so
+/// the decode hot path is fully heap-free and the `prev` map can carry the
+/// previous absolute row inline rather than behind a `Vec`.
+pub(super) const MAX_DATA_FIELDS: usize = TRADE_FIELDS;
+
+/// One row of absolute tick data. Sized to the widest tick shape so every
+/// caller can pass the same stack buffer regardless of message type. Slots
+/// past the active field count are zero-filled and ignored.
+pub(super) type TickFields = [i32; MAX_DATA_FIELDS];
+
 /// Per-contract, per-message-type delta decompression state.
 ///
 /// FIT uses delta compression: the first tick for a contract is absolute,
@@ -27,8 +38,11 @@ pub(super) const OHLCVC_FIELDS: usize = 9;
 /// We maintain the last absolute values per `(msg_type, contract_id)`.
 #[doc(hidden)]
 pub struct DeltaState {
-    /// Key: `(StreamMsgType as u8, contract_id)`, Value: last absolute field values.
-    prev: HashMap<(u8, i32), Vec<i32>>,
+    /// Key: `(StreamMsgType as u8, contract_id)`, Value: last absolute
+    /// tick data. Stored inline (no `Vec`) so the per-tick `apply_deltas`
+    /// step costs one stack copy + one in-place add loop with zero
+    /// allocations on the hot path.
+    prev: HashMap<(u8, i32), TickFields>,
     /// Per-contract OHLCVC accumulators.
     pub(super) ohlcvc: HashMap<i32, OhlcvcAccumulator>,
     /// Reusable scratch buffer for FIT decoding, avoiding per-tick allocation.
@@ -54,7 +68,8 @@ const STOP_SUPPRESS_DURATION: Duration = Duration::from_secs(5);
 impl DeltaState {
     #[doc(hidden)]
     pub fn new() -> Self {
-        // Pre-allocate for the largest tick type (Trade = 16 fields + 1 contract_id).
+        // Pre-allocate the FIT scratch buffer for the largest tick type
+        // (Trade = 16 fields + 1 contract_id).
         Self {
             prev: HashMap::new(),
             ohlcvc: HashMap::new(),
@@ -92,6 +107,11 @@ impl DeltaState {
     /// The ENTIRE payload is FIT-encoded. The first FIT field (alloc[0]) is the
     /// `contract_id`. Tick data fields start at alloc[1..].
     ///
+    /// `out` is a caller-owned stack buffer that receives the absolute tick
+    /// values for fields `[0..data_field_count]`. The caller reads the
+    /// individual fields directly from `out` to construct the public event
+    /// — no `Vec<i32>` is allocated on the decode path.
+    ///
     /// Equivalent to the upstream sequence:
     /// ```text
     /// fitReader.open(p.data(), 0, p.len());  // FIT starts at offset 0
@@ -99,8 +119,8 @@ impl DeltaState {
     /// Contract c = idToContract.get(alloc[0]); // first field IS the contract_id
     /// ```
     ///
-    /// Returns `(contract_id, tick_fields, data_field_count)` or `None` if
-    /// payload is too short or the FIT row is a DATE marker. Sets
+    /// Returns `Some((contract_id, data_field_count))` on success, or `None`
+    /// when the payload is empty or the FIT row is a DATE marker. Sets
     /// `self.last_was_date` so callers can distinguish DATE markers from
     /// corrupt payloads.
     pub(super) fn decode_tick(
@@ -108,15 +128,16 @@ impl DeltaState {
         msg_code: u8,
         payload: &[u8],
         expected_fields: usize,
-    ) -> Option<(i32, Vec<i32>, usize)> {
+        out: &mut TickFields,
+    ) -> Option<(i32, usize)> {
         self.last_was_date = false;
 
         if payload.is_empty() {
             return None;
         }
 
-        // Reuse the scratch buffer: resize if needed (retains capacity),
-        // then zero-fill the portion we need.
+        // Reuse the FIT scratch buffer: resize if needed (retains
+        // capacity), then zero-fill the portion we need.
         let total_fields = expected_fields + 1;
         if self.alloc_buf.len() < total_fields {
             self.alloc_buf.resize(total_fields, 0);
@@ -139,9 +160,13 @@ impl DeltaState {
         // First FIT field is the contract_id.
         let contract_id = self.alloc_buf[0];
 
-        // Tick data is alloc[1..]. Extract into its own vec.
-        // This clone is unavoidable: we need to store a copy in the delta HashMap.
-        let mut fields: Vec<i32> = self.alloc_buf[1..total_fields].to_vec();
+        // Copy tick data (alloc[1..]) into the caller-owned stack buffer.
+        // The slot count is bounded by MAX_DATA_FIELDS at the type level —
+        // expected_fields is a build-time constant for every supported
+        // tick shape (QUOTE_FIELDS, TRADE_FIELDS, OI_FIELDS, OHLCVC_FIELDS).
+        debug_assert!(expected_fields <= MAX_DATA_FIELDS);
+        out.fill(0);
+        out[..expected_fields].copy_from_slice(&self.alloc_buf[1..total_fields]);
 
         // Delta decompression applies only to the tick portion (excluding
         // contract_id), matching Java's `Tick.readID()`:
@@ -154,17 +179,25 @@ impl DeltaState {
 
         let key = (msg_code, contract_id);
         if let Some(prev) = self.prev.get(&key) {
-            // Delta row: accumulate onto previous absolute values.
-            apply_deltas(&mut fields, prev, tick_n);
+            // Delta row: accumulate onto previous absolute values
+            // in-place into the caller's buffer.
+            apply_deltas(
+                &mut out[..expected_fields],
+                &prev[..expected_fields],
+                tick_n,
+            );
         } else {
             // First absolute tick: record the actual field count.
             self.field_counts.insert(key, tick_n);
         }
 
-        // Store as the new previous state (tick fields only, not contract_id).
-        self.prev.insert(key, fields.clone());
+        // Store the resolved absolute row into `prev` for the next delta.
+        // `[i32; MAX_DATA_FIELDS]` is `Copy`, so this is a memcpy into the
+        // existing slot (or a one-time node allocation on first insert);
+        // no `Vec::clone` per tick.
+        self.prev.insert(key, *out);
 
         let data_fields = *self.field_counts.get(&key).unwrap_or(&expected_fields);
-        Some((contract_id, fields, data_fields))
+        Some((contract_id, data_fields))
     }
 }

@@ -16,7 +16,7 @@ use std::fmt::Write as _;
 
 use super::python_classes::strip_field_count_from_doc;
 use super::schema::{render_for_type, Schema, TickTypeDef};
-use super::{pyclass_name as _, sorted_type_names};
+use super::sorted_type_names;
 
 pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
     let mut out = String::new();

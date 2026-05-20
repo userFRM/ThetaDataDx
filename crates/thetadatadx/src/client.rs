@@ -138,6 +138,11 @@ pub enum ConnectionStatus {
 pub struct ThetaDataDxClient {
     historical: MddsClient,
     creds: Credentials,
+    /// FLATFILES retry tuning. Snapshot of
+    /// [`crate::config::DirectConfig::flatfiles`] taken at connect time
+    /// so subsequent `DirectConfig` mutations cannot retroactively change
+    /// retry behavior for already-issued requests.
+    flatfiles_config: crate::config::FlatFilesConfig,
     /// Streaming-side state machine. See [`StreamingSlot`] for the
     /// `Idle → Live → Stopped` lifecycle. The
     /// [`ArcSwap`] makes `is_streaming` / `connection_status` /
@@ -187,10 +192,12 @@ impl ThetaDataDxClient {
         // covered. No-op when the feature is disabled or `metrics_port`
         // is `None` (the default).
         crate::observability::try_install_exporter(&config)?;
+        let flatfiles_config = config.flatfiles.clone();
         let historical = MddsClient::connect(creds, config).await?;
         Ok(Self {
             historical,
             creds: creds.clone(),
+            flatfiles_config,
             state: ArcSwap::from_pointee(StreamingSlot::Idle),
             prev_drained: Mutex::new(Vec::new()),
             stop_generation: AtomicU64::new(0),
@@ -976,13 +983,14 @@ impl ThetaDataDxClient {
         output_path: impl AsRef<std::path::Path>,
         format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
-        crate::flatfiles::flatfile_request(
+        crate::flatfiles::flatfile_request_with_config(
             &self.creds,
             sec_type,
             req_type,
             date,
             output_path,
             format,
+            &self.flatfiles_config,
         )
         .await
     }
@@ -1005,7 +1013,14 @@ impl ThetaDataDxClient {
         req_type: crate::flatfiles::ReqType,
         date: &str,
     ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
-        crate::flatfiles::flatfile_request_decoded(&self.creds, sec_type, req_type, date).await
+        crate::flatfiles::flatfile_request_decoded_with_config(
+            &self.creds,
+            sec_type,
+            req_type,
+            date,
+            &self.flatfiles_config,
+        )
+        .await
     }
 
     /// Convenience: option open-interest flat file for `date`.

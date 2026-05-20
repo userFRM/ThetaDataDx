@@ -12,12 +12,13 @@
 use std::path::{Path, PathBuf};
 
 use crate::auth::Credentials;
+use crate::config::FlatFilesConfig;
 use crate::error::Error;
 use crate::flatfiles::decode::decode_block;
 use crate::flatfiles::decoded_row::FlatFileRow;
 use crate::flatfiles::format::FlatFileFormat;
 use crate::flatfiles::index::{parse_header, IndexIter};
-use crate::flatfiles::request::flatfile_request_raw;
+use crate::flatfiles::request::flatfile_request_raw_with_config;
 use crate::flatfiles::types::{ReqType, SecType};
 use crate::flatfiles::writer::{CsvSink, JsonlSink, RowSink, RowView};
 
@@ -39,11 +40,26 @@ pub async fn flatfile_request(
     output_path: impl AsRef<Path>,
     format: FlatFileFormat,
 ) -> Result<PathBuf, Error> {
+    let config = FlatFilesConfig::default();
+    flatfile_request_with_config(creds, sec, req, date, output_path, format, &config).await
+}
+
+/// Same as [`flatfile_request`] but with caller-supplied retry tuning.
+/// Routes the raw-pull leg through [`flatfile_request_raw_with_config`].
+pub async fn flatfile_request_with_config(
+    creds: &Credentials,
+    sec: SecType,
+    req: ReqType,
+    date: &str,
+    output_path: impl AsRef<Path>,
+    format: FlatFileFormat,
+    config: &FlatFilesConfig,
+) -> Result<PathBuf, Error> {
     let final_path = format.ensure_extension(output_path.as_ref());
     let raw_path = final_path.with_extension(format!("{}.raw", format.extension()));
 
     // Step 1: live pull. Reuses the working wire layer untouched.
-    flatfile_request_raw(creds, sec, req, date, &raw_path).await?;
+    flatfile_request_raw_with_config(creds, sec, req, date, &raw_path, config).await?;
 
     // Step 2-3: decode + write. The decoder reads + parses the entire
     // blob synchronously and the writer hits the filesystem in tight
@@ -166,6 +182,20 @@ pub async fn flatfile_request_decoded(
     req: ReqType,
     date: &str,
 ) -> Result<Vec<FlatFileRow>, Error> {
+    let config = FlatFilesConfig::default();
+    flatfile_request_decoded_with_config(creds, sec, req, date, &config).await
+}
+
+/// Same as [`flatfile_request_decoded`] but with caller-supplied retry
+/// tuning. Routes the raw-pull leg through
+/// [`flatfile_request_raw_with_config`].
+pub async fn flatfile_request_decoded_with_config(
+    creds: &Credentials,
+    sec: SecType,
+    req: ReqType,
+    date: &str,
+    config: &FlatFilesConfig,
+) -> Result<Vec<FlatFileRow>, Error> {
     // Per-invocation unique scratch path. Two concurrent calls for the
     // same `(sec, req, date)` must not share a file — they would race on
     // truncation and produce corrupt rows.
@@ -176,7 +206,7 @@ pub async fn flatfile_request_decoded(
         date,
         uuid::Uuid::new_v4().simple()
     ));
-    flatfile_request_raw(creds, sec, req, date, &scratch).await?;
+    flatfile_request_raw_with_config(creds, sec, req, date, &scratch, config).await?;
     let scratch_for_decode = scratch.clone();
     let rows = tokio::task::spawn_blocking(move || decode_to_memory(&scratch_for_decode, sec))
         .await

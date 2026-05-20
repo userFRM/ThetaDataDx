@@ -7,11 +7,11 @@
 
 use std::fmt::Write as _;
 
-use super::super::helpers::{
-    is_streaming_endpoint, method_params, python_arg_literal, python_builder_kwarg,
-};
-use super::super::model::{GeneratedEndpoint, TestFixtures};
+use super::super::helpers::is_streaming_endpoint;
+use super::super::model::GeneratedEndpoint;
 use super::super::modes::test_modes_for;
+use super::super::sdk_helpers::{method_params, python_arg_literal, python_builder_kwarg};
+use super::super::test_fixtures::TestFixtures;
 
 /// Generate the Python SDK validator (one row per (endpoint, mode) pair).
 pub(super) fn render_python_validate(

@@ -6,8 +6,11 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Schema {
-    #[serde(default)]
-    pub(crate) version: u32,
+    /// Schema version key. Schema-validation-only — generator behavior
+    /// is currently version-agnostic, but the field keeps the TOML
+    /// surface shaped for future migrations.
+    #[serde(default, rename = "version")]
+    _version: u32,
     pub(crate) events: HashMap<String, EventDef>,
 }
 

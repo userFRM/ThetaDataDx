@@ -10,11 +10,11 @@
 
 use std::fmt::Write as _;
 
-use super::super::helpers::{
-    cpp_arg_literal, cpp_builder_setter, is_streaming_endpoint, method_params,
-};
-use super::super::model::{GeneratedEndpoint, TestFixtures};
+use super::super::helpers::is_streaming_endpoint;
+use super::super::model::GeneratedEndpoint;
 use super::super::modes::test_modes_for;
+use super::super::sdk_helpers::{cpp_arg_literal, cpp_builder_setter, method_params};
+use super::super::test_fixtures::TestFixtures;
 
 /// Generate the C++ SDK validator (one row per (endpoint, mode) pair).
 pub(super) fn render_cpp_validate(

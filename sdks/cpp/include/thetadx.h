@@ -518,10 +518,41 @@ void tdx_config_free(TdxConfig* config);
 
 /**
  * Set FPSS reconnect policy on a config handle.
- *   policy=0: Auto (default) -- auto-reconnect matching Java terminal behavior.
+ *   policy=0: Auto (default) -- auto-reconnect with split per-class attempt
+ *             budgets. Generic transient failures (TimedOut, ServerRestarting,
+ *             Unspecified) use the budget set by
+ *             `tdx_config_set_reconnect_max_attempts`; the rate-limited
+ *             (`TooManyRequests`) class uses
+ *             `tdx_config_set_reconnect_max_rate_limited_attempts`. Counters
+ *             reset after a continuous data-flow window configured via
+ *             `tdx_config_set_reconnect_stable_window_secs`.
  *   policy=1: Manual -- no auto-reconnect.
  */
 void tdx_config_set_reconnect_policy(TdxConfig* config, int policy);
+
+/**
+ * Set the per-class transient-failure attempt budget for the
+ * auto-reconnect path. Default 3. Has no effect when the reconnect
+ * policy is not Auto.
+ */
+void tdx_config_set_reconnect_max_attempts(TdxConfig* config,
+                                           uint32_t max_attempts);
+
+/**
+ * Set the per-class rate-limited (`TooManyRequests`) attempt budget for
+ * the auto-reconnect path. Default 100. Has no effect when the
+ * reconnect policy is not Auto.
+ */
+void tdx_config_set_reconnect_max_rate_limited_attempts(
+    TdxConfig* config, uint32_t max_rate_limited_attempts);
+
+/**
+ * Set the continuous successful-data-flow window (in seconds) after
+ * which the auto-reconnect attempt counters reset. Default 60. Has no
+ * effect when the reconnect policy is not Auto.
+ */
+void tdx_config_set_reconnect_stable_window_secs(TdxConfig* config,
+                                                 uint64_t secs);
 
 /**
  * Set FPSS flush mode on a config handle.

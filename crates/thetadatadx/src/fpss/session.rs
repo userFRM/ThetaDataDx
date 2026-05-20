@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn reconnect_policy_default_is_auto() {
         let policy: ReconnectPolicy = Default::default();
-        assert!(matches!(policy, ReconnectPolicy::Auto));
+        assert!(matches!(policy, ReconnectPolicy::Auto(_)));
     }
 
     #[test]

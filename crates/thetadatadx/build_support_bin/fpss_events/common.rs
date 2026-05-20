@@ -77,12 +77,6 @@ pub(super) fn ts_rust_field_type(
     }
 }
 
-/// Returns `true` when the column needs a `BigInt::from(...)` wrapper in
-/// the TS typed-event converter (i.e. crosses to JS as `bigint`).
-pub(super) fn ts_needs_bigint(column_type: &str) -> bool {
-    matches!(column_type, "i64" | "u64")
-}
-
 /// Returns `true` when the column is `Option<...>` on the Rust side and
 /// therefore needs `Copy` handling in move/pattern bindings.
 pub(super) fn is_option(column_type: &str) -> bool {
@@ -198,52 +192,9 @@ pub(super) fn is_byte_buffer(column_type: &str) -> bool {
     column_type == "Vec<u8>"
 }
 
-/// Schema primitive → Go scalar (match the `C.` cgo type promotions the
-/// generated converter uses — `int32`, `int64`, `uint64`, `uint8`,
-/// `float64`).
-pub(super) fn go_scalar(column_type: &str, event_name: &str, column_name: &str) -> &'static str {
-    match column_type {
-        "i32" => "int32",
-        "i64" => "int64",
-        "u64" => "uint64",
-        "u8" => "uint8",
-        "f64" => "float64",
-        "Contract" => "*Contract",
-        other => panic!("unsupported Go column type '{other}' in {event_name}.{column_name}"),
-    }
-}
-
 /// True if a column's schema type is the structured `Contract` nested type.
 pub(super) fn is_contract(column_type: &str) -> bool {
     column_type == "Contract"
-}
-
-/// snake_case column name → Go PascalCase field identifier.
-///
-/// Special-case: a bare `id` word maps to `ID` so `contract_id` →
-/// `ContractID` (matching existing Go convention). Every other word is
-/// simple `capitalize-first-letter-only`, so `ms_of_day` → `MsOfDay`,
-/// `ext_condition1` → `ExtCondition1`, etc. Trailing digits stay attached
-/// to the word they follow.
-pub(super) fn snake_to_go_pascal(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for part in s.split('_') {
-        if part.is_empty() {
-            continue;
-        }
-        if part == "id" {
-            out.push_str("ID");
-            continue;
-        }
-        let mut chars = part.chars();
-        if let Some(first) = chars.next() {
-            out.extend(first.to_uppercase());
-            for ch in chars {
-                out.push(ch);
-            }
-        }
-    }
-    out
 }
 
 /// `Quote` → `ZERO_QUOTE`, `OpenInterest` → `ZERO_OI`, `Ohlcvc` →

@@ -9,10 +9,8 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
-use super::super::helpers::{
-    call_arg_name, is_method_call_param, is_simple_list_endpoint, is_streaming_endpoint,
-    optional_getter_name, required_getter_name,
-};
+use super::super::build_helpers::{call_arg_name, optional_getter_name, required_getter_name};
+use super::super::helpers::{is_method_call_param, is_simple_list_endpoint, is_streaming_endpoint};
 use super::super::model::{GeneratedEndpoint, GeneratedParam, ParsedEndpoints};
 use super::super::parser::load_endpoint_specs;
 use super::mdds::{
@@ -26,45 +24,21 @@ pub fn generate_all() -> Result<(), Box<dyn std::error::Error>> {
     generate_mdds_endpoints(&parsed)?;
     println!("cargo:rerun-if-changed=endpoint_surface.toml");
     println!("cargo:rerun-if-changed=proto/mdds.proto");
-    // Validator body templates consumed via `include_str!` by the
-    // `render_*_validate` emitters. `include_str!` already registers these
-    // as compilation-time dependencies, but we also emit rerun-if-changed
-    // so `cargo build` re-triggers the generator when a template is
-    // edited.
-    for template in VALIDATOR_TEMPLATES {
+    // `OUT_DIR` emitter templates consumed via `include_str!` here and in
+    // `mdds.rs`. `include_str!` already registers these as compilation-time
+    // dependencies, but we also emit `rerun-if-changed` so `cargo build`
+    // re-triggers the generator when a template is edited.
+    for template in BUILD_OUT_TEMPLATES {
         println!("cargo:rerun-if-changed=build_support/endpoints/render/templates/{template}");
     }
     Ok(())
 }
 
-const VALIDATOR_TEMPLATES: &[&str] = &[
-    "validate_python/preamble.py.tmpl",
-    "validate_python/cell.py.tmpl",
-    "validate_python/postamble.py.tmpl",
-    "validate_cli/preamble.py.tmpl",
-    "validate_cli/cell.py.tmpl",
-    "validate_cli/postamble.py.tmpl",
-    "validate_cpp/preamble.cpp.tmpl",
-    "validate_cpp/cell.cpp.tmpl",
-    "validate_cpp/postamble.cpp.tmpl",
-    // Emitter body templates.
-    "cpp/with_timeout_ms.cpp.tmpl",
-    "cpp/with_deadline.cpp.tmpl",
-    "cpp/option_contracts_convert.cpp.tmpl",
-    "cpp/ffi_numeric_case.cpp.tmpl",
-    "cpp/ffi_bool_case.cpp.tmpl",
-    "cpp/ffi_string_case.cpp.tmpl",
-    "python/string_list_dispatch.py.tmpl",
-    "python/streaming_dispatch.py.tmpl",
-    "ffi/symbols_extract.rs.tmpl",
-    "ffi/cstr_extract.rs.tmpl",
+const BUILD_OUT_TEMPLATES: &[&str] = &[
     "mdds/stream_method_header.rs.tmpl",
     "mdds/stub_call_error_arm.rs.tmpl",
     "mdds/for_each_chunk_body.rs.tmpl",
     "mdds/metrics_result_block.rs.tmpl",
-    // Emitter body templates added in the externalization pass.
-    "cpp/endpoint_options_header.cpp.tmpl",
-    "ffi/endpoint_options_header.rs.tmpl",
     "build_out/invoke_generated_endpoint_preamble.rs.tmpl",
 ];
 
@@ -102,7 +76,7 @@ fn render_endpoint_registry(parsed: &ParsedEndpoints) -> String {
         writeln!(code, "        description: {:?},", endpoint.description).unwrap();
         writeln!(code, "        category: {:?},", endpoint.category).unwrap();
         writeln!(code, "        subcategory: {:?},", endpoint.subcategory).unwrap();
-        writeln!(code, "        rest_path: {:?},", endpoint.rest_path).unwrap();
+        writeln!(code, "        rest_path: {:?},", endpoint._rest_path).unwrap();
 
         if endpoint.params.is_empty() {
             code.push_str("        params: &[],\n");
@@ -153,7 +127,7 @@ mod tests {
             description: description.to_string(),
             category: "Stock".to_string(),
             subcategory: "History".to_string(),
-            rest_path: "/v2/synthetic".to_string(),
+            _rest_path: "/v2/synthetic".to_string(),
             grpc_name: "Synthetic".to_string(),
             request_type: "SyntheticRequest".to_string(),
             query_type: "SyntheticQuery".to_string(),
@@ -162,10 +136,9 @@ mod tests {
                 name: "needle".to_string(),
                 description: description.to_string(),
                 param_type: "String".to_string(),
-                enum_name: None,
                 required: true,
                 binding: "request".to_string(),
-                arg_name: None,
+                _arg_name: None,
                 default: None,
             }],
             return_type: "DataTable".to_string(),

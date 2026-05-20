@@ -248,6 +248,10 @@ harness = false
 name = "grpc_concurrent_burst"
 harness = false
 
+[[bench]]
+name = "bench_delta_decode"
+harness = false
+
 [[bin]]
 name = "generate_sdk_surfaces"
 path = "src/bin/generate_sdk_surfaces.rs"

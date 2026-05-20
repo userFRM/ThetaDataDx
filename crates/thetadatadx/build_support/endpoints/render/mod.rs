@@ -1,23 +1,13 @@
-//! Per-language emitters driven by the joined endpoint model.
+//! Per-language emitters reachable from `build.rs`.
 //!
-//! Split one-file-per-target so each emitter can stay focused on its language
-//! while sharing `model.rs`, `helpers.rs`, and `modes.rs` upstream. The
-//! `build_out` submodule owns the `OUT_DIR` artifacts consumed at
-//! `include!()` time by the main crate; `sdk_files` orchestrates the
-//! checked-in checked-in projections for the binary SDKs.
+//! The two submodules here own the `OUT_DIR` artifacts consumed at
+//! `include!()` time by the main crate (registry, dispatch runtime, and
+//! the three per-kind `MddsClient` extension impls). Checked-in SDK
+//! projections (Python / TypeScript / C++ / FFI / validators) live in
+//! `build_support_bin/endpoints/sdk_render/` and never enter the build
+//! script's compile unit.
 
 mod build_out;
-mod cli_validate;
-mod cpp;
-mod cpp_validate;
-mod doc;
-mod enums;
-mod ffi;
 mod mdds;
-mod python;
-mod python_validate;
-mod sdk_files;
-mod typescript;
 
 pub use build_out::generate_all;
-pub use sdk_files::{check_sdk_generated_files, write_sdk_generated_files};
