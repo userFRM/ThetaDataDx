@@ -157,6 +157,12 @@ zeroize = { version = "1.8.2", features = ["derive"] }
 # to a single `state.load()`.
 arc-swap = "1.7"
 
+# Faster uncontended Mutex for the single-consumer FPSS Disruptor hot
+# path (~5ns vs std::sync::Mutex's ~20-40ns). Used only at the io_loop
+# delivery site; the rest of the crate stays on `std::sync::Mutex` for
+# the standard poison-on-panic semantics.
+parking_lot = "0.12"
+
 # Optional mimalloc allocator. Gated behind the `mimalloc-allocator`
 # feature so the default dependency graph stays unchanged; consumers
 # install it as `#[global_allocator]` in their own binary. See
