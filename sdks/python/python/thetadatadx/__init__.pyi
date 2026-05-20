@@ -16,7 +16,18 @@ shipped alongside this file.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Iterator, List, Optional, Tuple, Type, final
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    final,
+)
 
 # ─────────────────────────────────────────────────────────────────────
 # Credentials + Config
@@ -252,6 +263,7 @@ class ThetaDataDxClient:
     # Context managers.
     def streaming(self, callback: EventCallback) -> StreamingSession: ...
     def streaming_iter(self) -> StreamingIterSession: ...
+    def streaming_async(self) -> StreamingAsyncSession: ...
 
     # Session / subscription metadata.
     def session_uuid(self) -> str: ...
@@ -299,6 +311,7 @@ class FpssClient:
 
     def streaming(self, callback: EventCallback) -> StreamingSession: ...
     def streaming_iter(self) -> StreamingIterSession: ...
+    def streaming_async(self) -> StreamingAsyncSession: ...
 
     def __repr__(self) -> str: ...
 
@@ -364,6 +377,56 @@ class EventIterator:
         exc_value: Optional[BaseException],
         traceback: Optional[Any],
     ) -> bool: ...
+
+
+@final
+class StreamingAsyncSession:
+    """Asyncio-native context manager for FPSS streaming.
+
+    Bridges the Disruptor consumer thread to the asyncio event loop via
+    FD-readiness signalling — the consumer writes a coalesced byte to a
+    self-pipe on every successful queue push, and the loop's
+    ``add_reader`` wakes the awaiting coroutine. No polling, no 100µs
+    tick budget.
+
+    Usage::
+
+        async with client.streaming_async() as session:
+            await session.subscribe(Contract.stock("QQQ").quote())
+            async for batch in session:
+                for ev in batch:
+                    handle(ev)
+    """
+
+    def __aenter__(self) -> Awaitable[StreamingAsyncSession]: ...
+    def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[Any],
+    ) -> Awaitable[None]: ...
+
+    # Async iteration — yields ``list[FpssEvent]`` per OS wake.
+    def __aiter__(self) -> AsyncIterator[List[Any]]: ...
+    def __anext__(self) -> Awaitable[List[Any]]: ...
+
+    # Awaitable subscription management. Resolves once the FPSS-protocol
+    # round-trip lands.
+    def subscribe(self, sub: Subscription) -> Awaitable[None]: ...
+    def subscribe_many(self, subs: List[Subscription]) -> Awaitable[None]: ...
+    def unsubscribe(self, sub: Subscription) -> Awaitable[None]: ...
+    def unsubscribe_many(self, subs: List[Subscription]) -> Awaitable[None]: ...
+
+    # Backpressure-aware drain. ``callback`` may be sync or
+    # ``async def``; ``async def`` callbacks are awaited before the next
+    # batch is drained so a slow consumer throttles upstream.
+    def streaming_async_for_each(
+        self, callback: Callable[[List[Any]], Any]
+    ) -> Awaitable[None]: ...
+
+    # Diagnostic — instantaneous queue depth between the Disruptor
+    # consumer and this session.
+    def queue_len(self) -> int: ...
 
 
 # ─────────────────────────────────────────────────────────────────────

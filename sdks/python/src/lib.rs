@@ -670,6 +670,14 @@ mod streaming_iter_session;
 use event_iterator::EventIterator;
 use streaming_iter_session::StreamingIterSession;
 
+// Asyncio-native streaming surface — sibling of `StreamingSession`
+// (sync callback) and `StreamingIterSession` (sync iterator). Uses a
+// self-pipe write FD as the wake signal so the asyncio loop's
+// `add_reader` wakes the awaiting coroutine without polling. See
+// `streaming_async_session.rs` for the FD-readiness protocol.
+mod streaming_async_session;
+use streaming_async_session::StreamingAsyncSession;
+
 include!("_generated/historical_methods.rs");
 
 // `decode_response_bytes(endpoint, chunks)` hook used by the external
@@ -793,6 +801,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<mdds_client::MddsClient>()?;
     m.add_class::<StreamingSession>()?;
     m.add_class::<StreamingIterSession>()?;
+    m.add_class::<StreamingAsyncSession>()?;
     m.add_class::<EventIterator>()?;
     fluent::register(m)?;
     m.add_class::<flatfile_methods::FlatFilesNamespace>()?;

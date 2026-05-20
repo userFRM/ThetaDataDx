@@ -89,6 +89,16 @@ tracing = "0.1.44"
 # logging, not to stderr.
 tracing-subscriber = { version = "0.3.20", default-features = false, features = ["registry"] }
 
+# POSIX pipe + read for the asyncio-native `streaming_async()` surface.
+# The pyclass allocates a self-pipe in `__aenter__`, hands the write-end
+# to the Rust core via `connect_iter_with_wake_keep_handle`, and registers
+# the read-end on the asyncio event loop with `loop.add_reader`. Bounded
+# to Unix targets — Windows asyncio uses ProactorEventLoop which does
+# not support `add_reader` on pipes; the pyclass raises at construction
+# time on non-Unix.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 # Match the main workspace's strict bar. This crate is `[workspace.exclude]`d
 # in the root `Cargo.toml` (it has its own toolchain / feature footprint), so
 # it can't inherit via `[lints] workspace = true` — mirror the rules locally.
