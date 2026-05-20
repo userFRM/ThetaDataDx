@@ -24,8 +24,61 @@ pub(crate) fn runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
+/// Convert a `thetadatadx::Error` into a napi error whose `reason`
+/// carries a typed class-name prefix (`"[SubscriptionError] ..."`,
+/// `"[RateLimitError] ..."`, etc). The JS shim in `streaming-session.js`
+/// intercepts every async-method rejection, parses the prefix, and
+/// re-throws the right `tdx.SubscriptionError` / `tdx.RateLimitError`
+/// subclass. The classes derive from the existing TypeScript-exported
+/// base `ThetaDataError` so callers writing `catch (e instanceof
+/// tdx.ThetaDataError)` continue to observe every failure.
+///
+/// Mirrors the Python `to_py_err` leaf set one-for-one so the
+/// cross-binding error contract stays uniform.
 pub(crate) fn to_napi_err(e: thetadatadx::Error) -> napi::Error {
-    napi::Error::from_reason(e.to_string())
+    let class = leaf_class_for(&e);
+    napi::Error::from_reason(format!("[{class}] {e}"))
+}
+
+/// Pick the typed leaf class name for a `thetadatadx::Error`. The
+/// JS shim parses this prefix off the error reason. Mirrors the
+/// Python `to_py_err` dispatch table.
+fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
+    use thetadatadx::error::{AuthErrorKind, FpssErrorKind, GrpcStatusKind};
+    match e {
+        thetadatadx::Error::Auth { kind, .. } => match kind {
+            AuthErrorKind::InvalidCredentials => "InvalidCredentialsError",
+            AuthErrorKind::NetworkError => "NetworkError",
+            AuthErrorKind::Timeout => "DeadlineExceededError",
+            _ => "AuthenticationError",
+        },
+        thetadatadx::Error::Grpc { kind, .. } => match kind {
+            GrpcStatusKind::PermissionDenied => "SubscriptionError",
+            GrpcStatusKind::ResourceExhausted => "RateLimitError",
+            GrpcStatusKind::NotFound => "NotFoundError",
+            GrpcStatusKind::DeadlineExceeded => "DeadlineExceededError",
+            GrpcStatusKind::Unauthenticated => "AuthenticationError",
+            GrpcStatusKind::Unavailable => "UnavailableError",
+            _ => "ThetaDataError",
+        },
+        thetadatadx::Error::NoData => "NotFoundError",
+        thetadatadx::Error::Timeout { .. } => "DeadlineExceededError",
+        thetadatadx::Error::Transport(_)
+        | thetadatadx::Error::Tls(_)
+        | thetadatadx::Error::Io(_)
+        | thetadatadx::Error::Http(_) => "NetworkError",
+        thetadatadx::Error::Decode { .. } | thetadatadx::Error::Decompress { .. } => {
+            "SchemaMismatchError"
+        }
+        thetadatadx::Error::Config { .. } => "ThetaDataError",
+        thetadatadx::Error::Fpss { kind, .. } => match kind {
+            FpssErrorKind::TooManyRequests => "RateLimitError",
+            FpssErrorKind::Timeout => "DeadlineExceededError",
+            FpssErrorKind::ConnectionRefused | FpssErrorKind::Disconnected => "NetworkError",
+            _ => "StreamError",
+        },
+        _ => "ThetaDataError",
+    }
 }
 
 fn normalize_symbols(symbols: Either<String, Vec<String>>) -> Vec<String> {

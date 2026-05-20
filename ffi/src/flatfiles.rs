@@ -23,7 +23,7 @@ use std::ptr;
 use arrow_ipc::writer::StreamWriter;
 use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, ReqType, SecType};
 
-use crate::error::{cstr_to_str, set_error};
+use crate::error::{cstr_to_str, set_error, set_error_from};
 use crate::runtime;
 use crate::streaming::TdxUnified;
 
@@ -154,7 +154,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_decoded(
         match res {
             Ok(rows) => Box::into_raw(Box::new(TdxFlatFileRowList { rows })),
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 ptr::null_mut()
             }
         }
@@ -198,7 +198,7 @@ pub unsafe extern "C" fn tdx_flatfile_rows_to_arrow_ipc(
             let batch = match flatfiles::arrow::rows_to_arrow(rows) {
                 Ok(b) => b,
                 Err(e) => {
-                    set_error(&e.to_string());
+                    set_error_from(&e);
                     return TdxFlatFileBytes {
                         data: ptr::null(),
                         len: 0,
@@ -333,7 +333,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_to_path(
         )) {
             Ok(_) => 0,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 -1
             }
         }

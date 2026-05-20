@@ -6,7 +6,7 @@
 use std::os::raw::c_char;
 use std::ptr;
 
-use crate::error::{cstr_to_str, set_error};
+use crate::error::{cstr_to_str, set_error, set_error_from};
 use crate::runtime;
 use crate::types::{TdxClient, TdxConfig, TdxCredentials};
 
@@ -68,7 +68,7 @@ pub unsafe extern "C" fn tdx_credentials_from_file(path: *const c_char) -> *mut 
         match thetadatadx::Credentials::from_file(path) {
             Ok(creds) => Box::into_raw(Box::new(TdxCredentials { inner: creds })),
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 ptr::null_mut()
             }
         }
@@ -205,7 +205,7 @@ pub unsafe extern "C" fn tdx_client_connect(
         )) {
             Ok(client) => Box::into_raw(Box::new(TdxClient { inner: client })),
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 ptr::null_mut()
             }
         }
