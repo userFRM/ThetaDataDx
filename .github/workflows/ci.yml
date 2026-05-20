@@ -159,6 +159,24 @@ jobs:
       - run: cmake -S sdks/cpp -B build/cpp
       - run: cmake --build build/cpp --config Release --target thetadatadx_cpp
 
+  cpp-tests:
+    name: C++ Tests (offline)
+    runs-on: ubuntu-latest
+    needs: build-ffi
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: ffi-linux-x86_64
+          path: target/release/
+      - name: Configure
+        run: cmake -S sdks/cpp -B build/cpp-tests -DTHETADATADX_CPP_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build/cpp-tests --config Release --target thetadatadx_cpp_tests
+      - name: Run offline subset
+        run: ctest --test-dir build/cpp-tests --output-on-failure --no-tests=error
+
   build-ffi:
     name: Build FFI (${{ matrix.os }})
     strategy:

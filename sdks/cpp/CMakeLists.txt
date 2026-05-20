@@ -75,3 +75,16 @@ target_link_libraries(thetadatadx_fpss_smoke PRIVATE thetadatadx_cpp)
 
 add_executable(thetadatadx_flatfiles_example examples/flatfiles_quotes_to_arrow.cpp)
 target_link_libraries(thetadatadx_flatfiles_example PRIVATE thetadatadx_cpp)
+
+# ── Tests (Catch2-based) ──
+#
+# Opt-in via `-DTHETADATADX_CPP_BUILD_TESTS=ON`. The default is OFF so
+# a pristine `cmake -S sdks/cpp` stays a no-network build; the test
+# subdirectory pulls Catch2 via FetchContent which needs Git + a
+# reachable github.com. CI flips the flag on; downstream consumers
+# building against the SDK do not pay the dependency cost.
+option(THETADATADX_CPP_BUILD_TESTS "Build the C++ SDK test suite" OFF)
+if(THETADATADX_CPP_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
