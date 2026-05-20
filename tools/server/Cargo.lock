@@ -2360,6 +2360,7 @@ dependencies = [
  "http",
  "http-body",
  "metrics",
+ "parking_lot",
  "pastey",
  "percent-encoding",
  "pin-project-lite",
