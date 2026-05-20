@@ -342,16 +342,39 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
     // Without this, any of these frames that arrived during the handshake
     // were silently dropped because the handshake loop consumed them
     // before the post-login `decode_frame` dispatch ran.
+    //
+    // `try_publish` (rather than blocking `publish`) keeps the io_loop
+    // thread non-blocking on a full ring — drops are surfaced via the
+    // shared `dropped` counter and a `warn` log, never wedge the
+    // reader. See `ring.rs` for the policy contract.
     for ctrl in pending_control.drain(..) {
-        producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(ctrl);
-        });
+        if producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(ctrl);
+            })
+            .is_err()
+        {
+            dropped.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(
+                target: "thetadatadx::fpss::io_loop",
+                "ring full while publishing pre-login control frame; dropped",
+            );
+        }
     }
 
-    // Publish login success event.
-    producer.publish(|slot| {
-        slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess { permissions });
-    });
+    // Publish login success event (non-blocking — same policy as above).
+    if producer
+        .try_publish(|slot| {
+            slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess { permissions });
+        })
+        .is_err()
+    {
+        dropped.fetch_add(1, Ordering::Relaxed);
+        tracing::warn!(
+            target: "thetadatadx::fpss::io_loop",
+            "ring full while publishing LoginSuccess; dropped",
+        );
+    }
 
     // Split the stream into buffered read + buffered write.
     let mut reader = BufReader::new(stream);
@@ -457,11 +480,20 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                 Ok(None) => {
                     // Clean EOF
                     tracing::warn!("FPSS connection closed by server");
-                    producer.publish(|slot| {
-                        slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
-                            reason: RemoveReason::Unspecified,
-                        });
-                    });
+                    if producer
+                        .try_publish(|slot| {
+                            slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
+                                reason: RemoveReason::Unspecified,
+                            });
+                        })
+                        .is_err()
+                    {
+                        dropped.fetch_add(1, Ordering::Relaxed);
+                        tracing::warn!(
+                            target: "thetadatadx::fpss::io_loop",
+                            "ring full while publishing Disconnected (Unspecified); dropped",
+                        );
+                    }
                     authenticated.store(false, Ordering::Release);
                     break 'inner RemoveReason::Unspecified;
                 }
@@ -473,11 +505,21 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                             "FPSS read timed out (no data for {}ms)",
                             consecutive_timeouts * 50
                         );
-                        producer.publish(|slot| {
-                            slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
-                                reason: RemoveReason::TimedOut,
-                            });
-                        });
+                        if producer
+                            .try_publish(|slot| {
+                                slot.event =
+                                    FpssEventInternal::Control(FpssControl::Disconnected {
+                                        reason: RemoveReason::TimedOut,
+                                    });
+                            })
+                            .is_err()
+                        {
+                            dropped.fetch_add(1, Ordering::Relaxed);
+                            tracing::warn!(
+                                target: "thetadatadx::fpss::io_loop",
+                                "ring full while publishing Disconnected (TimedOut); dropped",
+                            );
+                        }
                         authenticated.store(false, Ordering::Release);
                         break 'inner RemoveReason::TimedOut;
                     }
@@ -502,11 +544,20 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                 }
                 Err(e) => {
                     tracing::error!(error = %e, "FPSS read error");
-                    producer.publish(|slot| {
-                        slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
-                            reason: RemoveReason::Unspecified,
-                        });
-                    });
+                    if producer
+                        .try_publish(|slot| {
+                            slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
+                                reason: RemoveReason::Unspecified,
+                            });
+                        })
+                        .is_err()
+                    {
+                        dropped.fetch_add(1, Ordering::Relaxed);
+                        tracing::warn!(
+                            target: "thetadatadx::fpss::io_loop",
+                            "ring full while publishing Disconnected (read error); dropped",
+                        );
+                    }
                     authenticated.store(false, Ordering::Release);
                     break 'inner RemoveReason::Unspecified;
                 }
@@ -607,13 +658,22 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
             "auto-reconnecting FPSS"
         );
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
-        producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(FpssControl::Reconnecting {
-                reason,
-                attempt: reconnect_attempt,
-                delay_ms,
-            });
-        });
+        if producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(FpssControl::Reconnecting {
+                    reason,
+                    attempt: reconnect_attempt,
+                    delay_ms,
+                });
+            })
+            .is_err()
+        {
+            dropped.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(
+                target: "thetadatadx::fpss::io_loop",
+                "ring full while publishing Reconnecting; dropped",
+            );
+        }
 
         thread::sleep(delay);
 
@@ -688,10 +748,19 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                         reason = ?reason,
                         "permanent login rejection on reconnect -- exiting I/O loop"
                     );
-                    producer.publish(|slot| {
-                        slot.event =
-                            FpssEventInternal::Control(FpssControl::Disconnected { reason });
-                    });
+                    if producer
+                        .try_publish(|slot| {
+                            slot.event =
+                                FpssEventInternal::Control(FpssControl::Disconnected { reason });
+                        })
+                        .is_err()
+                    {
+                        dropped.fetch_add(1, Ordering::Relaxed);
+                        tracing::warn!(
+                            target: "thetadatadx::fpss::io_loop",
+                            "ring full while publishing permanent-rejection Disconnected; dropped",
+                        );
+                    }
                     shutdown.store(true, Ordering::Release);
                     break 'session;
                 }
@@ -716,20 +785,49 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
         // Publish reconnection events. Drain every handshake-time typed
         // control frame (`Connected` / `Ping` / `ReconnectedServer` /
         // `Restart`) in wire order before `LoginSuccess`, so the event
-        // order matches the fresh-session bootstrap above.
+        // order matches the fresh-session bootstrap above. Every
+        // publish is non-blocking so a saturated ring never wedges the
+        // io_loop's reconnect path.
         for ctrl in reconnect_pending_control.drain(..) {
-            producer.publish(|slot| {
-                slot.event = FpssEventInternal::Control(ctrl);
-            });
+            if producer
+                .try_publish(|slot| {
+                    slot.event = FpssEventInternal::Control(ctrl);
+                })
+                .is_err()
+            {
+                dropped.fetch_add(1, Ordering::Relaxed);
+                tracing::warn!(
+                    target: "thetadatadx::fpss::io_loop",
+                    "ring full while publishing post-reconnect control frame; dropped",
+                );
+            }
         }
-        producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess {
-                permissions: new_permissions,
-            });
-        });
-        producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(FpssControl::Reconnected);
-        });
+        if producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess {
+                    permissions: new_permissions,
+                });
+            })
+            .is_err()
+        {
+            dropped.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(
+                target: "thetadatadx::fpss::io_loop",
+                "ring full while publishing post-reconnect LoginSuccess; dropped",
+            );
+        }
+        if producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(FpssControl::Reconnected);
+            })
+            .is_err()
+        {
+            dropped.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(
+                target: "thetadatadx::fpss::io_loop",
+                "ring full while publishing Reconnected; dropped",
+            );
+        }
 
         // Replace the reader with the new stream.
         reader = BufReader::new(new_stream);
@@ -895,6 +993,41 @@ mod tests {
                  path short-circuits instead of looping"
             );
         }
+    }
+
+    /// The io_loop must never call blocking `producer.publish(...)` —
+    /// every publish goes through `try_publish` so a saturated ring
+    /// never wedges the TLS reader. A textual grep against the
+    /// source pins the contract. Walks only the production code
+    /// region (everything before the `#[cfg(test)] mod tests`
+    /// marker) so the test-body literals don't trip the scan.
+    #[test]
+    fn io_loop_uses_only_try_publish() {
+        let src = include_str!("mod.rs");
+        // Locate the test-module marker (the `#[cfg(test)] mod tests {`
+        // block at the bottom of the file) — there's an earlier
+        // `#[cfg(test)] use ...` import we must skip over.
+        let cfg_test_pos = src
+            .find("#[cfg(test)]\nmod tests")
+            .expect("test module marker present");
+        let prod = &src[..cfg_test_pos];
+        let code_only: String = prod
+            .lines()
+            .filter(|line| {
+                let t = line.trim_start();
+                !t.starts_with("//") && !t.starts_with("///") && !t.starts_with("/*")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let stripped = code_only.replace(".try_publish(", "");
+        assert!(
+            !stripped.contains(".publish("),
+            "io_loop must use try_publish only — found blocking .publish( call site"
+        );
+        assert!(
+            code_only.contains(".try_publish("),
+            "io_loop must use try_publish at least once"
+        );
     }
 
     /// Re-subscribe on reconnect must allocate fresh `req_id` values
