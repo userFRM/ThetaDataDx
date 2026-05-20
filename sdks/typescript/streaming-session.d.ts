@@ -25,6 +25,27 @@ export * from './index';
 export const Contract: typeof ContractRef;
 export type Contract = ContractRef;
 
+// ── Typed error hierarchy ─────────────────────────────────────────────
+//
+// Every `thetadatadx::Error` surfaced through the napi boundary is
+// re-cast on the JS side as one of the leaves below. The hierarchy
+// mirrors the Python `to_py_err` leaf set one-for-one so the
+// cross-binding error contract stays uniform — port a Python
+// `except thetadatadx.SubscriptionError` clause to TS by writing
+// `catch (e) { if (e instanceof tdx.SubscriptionError) { ... } }`.
+
+export class ThetaDataError extends Error {}
+export class AuthenticationError extends ThetaDataError {}
+export class InvalidCredentialsError extends AuthenticationError {}
+export class SubscriptionError extends ThetaDataError {}
+export class RateLimitError extends ThetaDataError {}
+export class NotFoundError extends ThetaDataError {}
+export class DeadlineExceededError extends ThetaDataError {}
+export class UnavailableError extends ThetaDataError {}
+export class NetworkError extends ThetaDataError {}
+export class SchemaMismatchError extends ThetaDataError {}
+export class StreamError extends ThetaDataError {}
+
 /** Callback signature mirrored from the napi-generated
  * `startStreaming(callback)` declaration in `index.d.ts`. */
 export type FpssEventCallback = (event: FpssEvent) => void;
