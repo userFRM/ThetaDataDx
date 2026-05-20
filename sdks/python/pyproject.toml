@@ -26,6 +26,15 @@ Repository = "https://github.com/userFRM/ThetaDataDx"
 Documentation = "https://github.com/userFRM/ThetaDataDx/blob/main/docs/api-reference.md"
 Discord = "https://discord.thetadata.us/"
 
+[tool.maturin]
+# Mixed Rust + Python layout: hand-written `.pyi` stubs and the
+# `py.typed` PEP 561 marker live in `python/thetadatadx/`. Maturin
+# merges these into the wheel alongside the compiled `.so` extension
+# emitted from `src/lib.rs`.
+python-source = "python"
+# Stable ABI: one wheel per platform covers every CPython 3.9+ release.
+features = ["pyo3/abi3-py39"]
+
 [project.optional-dependencies]
 # Arrow columnar pipeline (feat/arrow-columnar-dataframe):
 #   - `.to_arrow()` on a typed `<Tick>List` wrapper returns a
