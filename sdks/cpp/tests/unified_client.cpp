@@ -1,4 +1,4 @@
-// UnifiedClient FPSS surface — closes the institutional-blocker gap
+// UnifiedClient FPSS surface — closes the prior coverage gap
 // where the C++ wrapper exposed only the raw `tdx_unified_*` C ABI
 // for push-callback streaming. Every method listed below is now
 // reachable on the typed wrapper without dropping to the C handle.
@@ -46,7 +46,7 @@ TEST_CASE("UnifiedClient is move-only with the right type-trait shape",
     STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<tdx::UnifiedClient>);
 }
 
-TEST_CASE("UnifiedClient binds the full institutional FPSS surface",
+TEST_CASE("UnifiedClient binds the full FPSS surface",
           "[unified][offline]") {
     // Pin every method introduced by the B2 closure: an accidental
     // delete or rename here will fire at compile time rather than at

@@ -379,7 +379,7 @@ path.
 
 Both patterns drain the SDK callback into a Python-native data
 structure so business logic runs off the GIL-acquisition hot path.
-Pattern A is the institutional default — it matches the
+Pattern A is the recommended default — it matches the
 direct-callback shape used by every major market-data vendor's native
 API and runs ~2-5x faster than Pattern B because `deque.append` /
 `popleft` are GIL-atomic single ops with no condition-variable

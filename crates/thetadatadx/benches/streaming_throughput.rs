@@ -2,7 +2,7 @@
 //!
 //! `streaming_channels.rs` already pins down the Disruptor pipeline cost
 //! with a no-op user callback. This bench extends the methodology to
-//! the callback shapes that matter for institutional integrators: a
+//! the callback shapes that matter for production integrators: a
 //! Rust closure that actually retains the event, a lock-free queue
 //! push, an FFI-style indirection, and the two recommended Python
 //! handover patterns (`collections.deque.append` and
@@ -603,7 +603,7 @@ fn run_pyo3_iter_next_drain(contract: Arc<Contract>) -> (u64, Duration) {
 
     let start = Instant::now();
     // Single GIL acquire across the entire drain — this is the
-    // institutional point of pull-iter delivery on the Python
+    // canonical pull-iter delivery path on the Python
     // binding. `for event in iter:` holds the GIL across every pop
     // until the loop exits.
     Python::attach(|py| {
