@@ -54,7 +54,19 @@ use crate::{Config, Credentials, ThetaDataDxClient};
 /// async terminals — accessible without listing each one. Adding a
 /// new historical endpoint to `ThetaDataDxClient` is automatically
 /// available on `MddsClient` with zero edit here.
-const FPSS_TOUCHING_METHODS: &[&str] = &[
+///
+/// Drift guard: the compile-time assertion below pins the generator-emitted
+/// streaming surface (`PYTHON_UNIFIED_FPSS_METHODS`, generated from
+/// `crates/thetadatadx/sdk_surface.toml`) as a strict subset of
+/// `FPSS_TOUCHING_METHODS`. Adding a new generator-emitted FPSS method
+/// without also extending this list fails the build, so the block-list
+/// cannot silently fall behind. Hand-written FPSS methods on the unified
+/// pyclass (`subscribe`, `streaming`, `start_streaming_iter`, …) are
+/// covered by the offline coverage test in
+/// `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`,
+/// which compares the Python-side `BLOCKED_FPSS_METHODS` against the
+/// `_blocked_fpss_methods()` introspection helper exposed below.
+pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     "start_streaming",
     "start_streaming_iter",
     "stop_streaming",
@@ -73,6 +85,52 @@ const FPSS_TOUCHING_METHODS: &[&str] = &[
     "dropped_event_count",
     "panic_count",
 ];
+
+/// `const fn` byte-wise string compare for the compile-time guard
+/// below. PyO3 attribute names are ASCII so byte equality is safe.
+const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+/// Compile-time drift check: every name in
+/// `PYTHON_UNIFIED_FPSS_METHODS` (emitted by
+/// `crates/thetadatadx/build_support_bin/sdk_surface/python.rs` from
+/// `sdk_surface.toml`) must appear in `FPSS_TOUCHING_METHODS`. Adding
+/// a new generator-emitted FPSS method without extending the
+/// hand-written block-list above fails the build.
+const _: () = {
+    let mut i = 0;
+    while i < crate::PYTHON_UNIFIED_FPSS_METHODS.len() {
+        let needle = crate::PYTHON_UNIFIED_FPSS_METHODS[i].as_bytes();
+        let mut found = false;
+        let mut j = 0;
+        while j < FPSS_TOUCHING_METHODS.len() {
+            if const_bytes_eq(FPSS_TOUCHING_METHODS[j].as_bytes(), needle) {
+                found = true;
+                break;
+            }
+            j += 1;
+        }
+        assert!(
+            found,
+            "PYTHON_UNIFIED_FPSS_METHODS contains a name not in \
+             `mdds_client::FPSS_TOUCHING_METHODS` — extend the \
+             block-list (and the offline-coverage test) so the MDDS \
+             surface stays FPSS-free."
+        );
+        i += 1;
+    }
+};
 
 /// Standalone MDDS-only historical client.
 ///
@@ -133,6 +191,7 @@ impl MddsClient {
         Ok(Self { inner })
     }
 
+
     /// Forward unknown attribute access to the wrapped
     /// [`crate::ThetaDataDxClient`].
     ///
@@ -153,9 +212,27 @@ impl MddsClient {
         Ok(bound.getattr(name)?.unbind())
     }
 
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let bound = self.inner.bind(py);
-        let inner_repr: String = bound.call_method0("__repr__")?.extract()?;
-        Ok(inner_repr.replace("ThetaDataDxClient", "MddsClient"))
+    fn __repr__(&self) -> String {
+        // Drop the inherited-then-rewritten `streaming=` slot. MDDS-only
+        // surface never opens the FPSS TLS transport, so reporting a
+        // streaming state at all is misleading. The historical channel
+        // is always connected by construction (the constructor errored
+        // out otherwise).
+        "MddsClient(historical=connected)".to_string()
     }
+}
+
+/// Introspection helper exposed as a module-level Python function for
+/// the offline block-list coverage test in
+/// `tests/test_standalone_clients.py`. Mirrors the Rust
+/// [`FPSS_TOUCHING_METHODS`] const so a regression that quietly trims
+/// the block-list fails the Python test even when no live credentials
+/// are configured.
+///
+/// The leading underscore marks it as private; production callers
+/// have no reason to read this list.
+#[pyfunction]
+#[pyo3(name = "_blocked_fpss_methods")]
+pub(crate) fn blocked_fpss_methods() -> Vec<&'static str> {
+    FPSS_TOUCHING_METHODS.to_vec()
 }
