@@ -99,6 +99,9 @@ impl MddsClient {
     /// # Example
     ///
     /// ```rust,ignore
+    /// // `ignore` here because the example needs a live authenticated
+    /// // `MddsClient` to open a server-streaming gRPC channel — no
+    /// // in-process fixture can stand in.
     /// let request = /* build your gRPC request */;
     /// // Bind the channel lease so its pre-dispatch reservation
     /// // stays committed across the `.await`. Deref coercion from

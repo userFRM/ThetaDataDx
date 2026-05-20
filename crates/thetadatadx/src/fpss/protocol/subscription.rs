@@ -142,6 +142,18 @@ impl Subscription {
 /// through [`crate::ThetaDataDxClient::subscribe_many`].
 impl Contract {
     /// Per-contract Quote subscription.
+    ///
+    /// ```
+    /// use thetadatadx::fpss::protocol::{Contract, Subscription, SubscriptionKind};
+    ///
+    /// let sub = Contract::stock("AAPL").quote();
+    /// if let Subscription::Contract { contract, kind } = sub {
+    ///     assert_eq!(contract.symbol, "AAPL");
+    ///     assert_eq!(kind, SubscriptionKind::Quote);
+    /// } else {
+    ///     panic!("per-contract Quote subscription must round-trip as `Contract` variant");
+    /// }
+    /// ```
     #[must_use]
     pub fn quote(&self) -> Subscription {
         Subscription::Contract {
