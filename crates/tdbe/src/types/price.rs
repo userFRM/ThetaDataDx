@@ -2,11 +2,12 @@ use std::cmp::Ordering;
 use std::fmt;
 
 /// Highest valid `price_type` discriminant. The encoded power-of-ten
-/// `exp = price_type - 10` ranges from -10 to +8 across the valid set.
+/// `exp = price_type - 10` ranges from -10 to +9 across the valid set
+/// (`price_type` 0 means "unset" — at the boundary, see [`Price::is_unset`]).
 /// The constant defines the upper bound for `with_value_and_type`'s
 /// range check and the matching `debug_assert!` guards on every path
-/// that indexes the `POW10_*` tables.
-pub const MAX_PRICE_TYPE: i32 = 18;
+/// that indexes the `POW10_*` tables (sized 20 entries / indices 0..=19).
+pub const MAX_PRICE_TYPE: i32 = 19;
 
 /// Construction error for [`Price::with_value_and_type`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -373,8 +374,8 @@ mod tests {
             Err(PriceError::PriceTypeOutOfRange(-1))
         ));
         assert!(matches!(
-            Price::with_value_and_type(1, 19),
-            Err(PriceError::PriceTypeOutOfRange(19))
+            Price::with_value_and_type(1, 20),
+            Err(PriceError::PriceTypeOutOfRange(20))
         ));
         assert!(matches!(
             Price::with_value_and_type(1, 99),
