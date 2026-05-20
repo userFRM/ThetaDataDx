@@ -130,6 +130,21 @@ jobs:
           /tmp/tdx-smoke/bin/pip install dist/*.whl
           /tmp/tdx-smoke/bin/python -m pytest sdks/python/tests/test_fresh_install_smoke.py -v
           /tmp/tdx-smoke/bin/python -m pytest sdks/python/tests/test_module_exports.py -v
+      # Gate 6 (#549): mypy stubtest — verifies `__init__.pyi` matches
+      # the runtime byte-for-byte. The allowlist documents the small
+      # set of structural pyo3 false positives (`__init__` vs
+      # `__new__` for pyclass constructors, etc.) plus the explicit
+      # "deliberately unstubbed" generator-emitted surface.
+      - name: Stubtest (.pyi vs runtime)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          python -m pip install mypy
+          python -m mypy.stubtest thetadatadx \
+            --allowlist sdks/python/stubtest_allowlist.txt \
+            --ignore-missing-stub \
+            --ignore-disjoint-bases \
+            --ignore-positional-only
       - name: Inspect wheel contents (Gate 12 / #555)
         shell: bash
         run: python3 scripts/inspect_artifacts.py dist/*.whl
