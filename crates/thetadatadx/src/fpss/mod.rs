@@ -304,8 +304,12 @@ pub struct FpssClient {
     shutdown: Arc<AtomicBool>,
     /// Whether we are authenticated and the connection is live.
     authenticated: Arc<AtomicBool>,
-    /// Monotonically increasing request ID counter.
-    next_req_id: AtomicI32,
+    /// Monotonically increasing request ID counter, shared with the
+    /// fpss-io reconnect path so re-subscribe frames carry a fresh
+    /// `req_id` correlatable to the original subscribe — server-side
+    /// `ReqResponse` events with `req_id = -1` are indistinguishable
+    /// from manual subscribes, which breaks user-side correlation.
+    next_req_id: Arc<AtomicI32>,
     /// Active per-contract subscriptions for reconnection.
     pub(in crate::fpss) active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>>,
     /// Active full-type (full-stream) subscriptions for reconnection.
@@ -637,6 +641,12 @@ impl FpssClient {
         // thread -> drop producer -> join consumer thread = self).
         let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
 
+        // Shared `next_req_id` counter — the FpssClient public API
+        // owns one handle for caller-issued subscribes; the io_loop
+        // borrows another so re-subscribe frames on auto-reconnect
+        // allocate fresh ids correlatable through `ReqResponse`.
+        let next_req_id: Arc<AtomicI32> = Arc::new(AtomicI32::new(1));
+
         // Command channel: FpssClient -> I/O thread
         let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
 
@@ -656,6 +666,7 @@ impl FpssClient {
         let io_consumer_thread_id = Arc::clone(&consumer_thread_id);
         let io_slow_threshold_ns = Arc::clone(&slow_callback_threshold_ns);
         let io_slow_count = Arc::clone(&slow_callback_count);
+        let io_next_req_id = Arc::clone(&next_req_id);
 
         let io_handle = thread::Builder::new()
             .name("fpss-io".to_owned())
@@ -684,6 +695,7 @@ impl FpssClient {
                     slow_callback_count: io_slow_count,
                     connect_timeout,
                     read_timeout,
+                    next_req_id: io_next_req_id,
                 });
             })
             .map_err(|e| Error::Fpss {
@@ -716,7 +728,7 @@ impl FpssClient {
             ping_handle: Some(ping_handle),
             shutdown,
             authenticated,
-            next_req_id: AtomicI32::new(1),
+            next_req_id: Arc::clone(&next_req_id),
             active_subs,
             active_full_subs,
             server_addr,
@@ -1103,6 +1115,7 @@ impl FpssClient {
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
         let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
+        let next_req_id: Arc<AtomicI32> = Arc::new(AtomicI32::new(1));
 
         let (cmd_tx, _cmd_rx) = std_mpsc::channel::<IoCommand>();
 
@@ -1191,7 +1204,7 @@ impl FpssClient {
             ping_handle: None,
             shutdown,
             authenticated,
-            next_req_id: AtomicI32::new(1),
+            next_req_id: Arc::clone(&next_req_id),
             active_subs,
             active_full_subs,
             server_addr: "test://self-join".to_owned(),

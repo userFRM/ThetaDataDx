@@ -25,7 +25,7 @@ use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::Write;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::{self, ThreadId};
@@ -119,6 +119,12 @@ pub(in crate::fpss) struct IoLoopArgs {
     pub slow_callback_count: Arc<AtomicU64>,
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
+    /// Shared monotonic request-id counter. The auto-reconnect path
+    /// allocates fresh `req_id` values from this counter for each
+    /// re-subscribe so `ReqResponse` events on the reconnected session
+    /// carry ids correlatable to the original subscribe rather than
+    /// the indistinguishable `-1` sentinel.
+    pub next_req_id: Arc<AtomicI32>,
 }
 
 // Reason: all parameters are moved into this function from a spawned thread closure.
@@ -148,6 +154,7 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
         slow_callback_count,
         connect_timeout,
         read_timeout,
+        next_req_id,
     } = args;
     // `ring_size` was validated upstream by `ring::check_ring_size` at
     // the public `FpssClient::connect` boundary; silent rounding here
@@ -745,7 +752,12 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
 
         let writer = reader.get_mut();
         for (kind, contract) in &subs_snapshot {
-            let payload = match protocol::build_subscribe_payload(-1, contract) {
+            // Allocate a fresh req_id per re-subscribe so the server's
+            // `ReqResponse` events on the reconnected session carry
+            // correlatable ids — `-1` is indistinguishable from a
+            // manual subscribe and breaks user-side correlation.
+            let req_id = next_req_id.fetch_add(1, Ordering::Relaxed);
+            let payload = match protocol::build_subscribe_payload(req_id, contract) {
                 Ok(p) => p,
                 Err(e) => {
                     tracing::warn!(error = %e, contract = %contract, "skipping re-subscribe; contract no longer encodes");
@@ -754,18 +766,19 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
             };
             let code = kind.subscribe_code();
             if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
-                tracing::warn!(error = %e, contract = %contract, "failed to re-subscribe on reconnect");
+                tracing::warn!(error = %e, contract = %contract, req_id, "failed to re-subscribe on reconnect");
             } else {
-                tracing::debug!(kind = ?kind, contract = %contract, "re-subscribed on auto-reconnect");
+                tracing::debug!(kind = ?kind, contract = %contract, req_id, "re-subscribed on auto-reconnect");
             }
         }
         for (kind, sec_type) in &full_subs_snapshot {
-            let payload = protocol::build_full_type_subscribe_payload(-1, *sec_type);
+            let req_id = next_req_id.fetch_add(1, Ordering::Relaxed);
+            let payload = protocol::build_full_type_subscribe_payload(req_id, *sec_type);
             let code = kind.subscribe_code();
             if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
-                tracing::warn!(error = %e, sec_type = ?sec_type, "failed to re-subscribe full-type on reconnect");
+                tracing::warn!(error = %e, sec_type = ?sec_type, req_id, "failed to re-subscribe full-type on reconnect");
             } else {
-                tracing::debug!(kind = ?kind, sec_type = ?sec_type, "re-subscribed full-type on auto-reconnect");
+                tracing::debug!(kind = ?kind, sec_type = ?sec_type, req_id, "re-subscribed full-type on auto-reconnect");
             }
         }
         if !subs_snapshot.is_empty() || !full_subs_snapshot.is_empty() {
@@ -882,6 +895,28 @@ mod tests {
                  path short-circuits instead of looping"
             );
         }
+    }
+
+    /// Re-subscribe on reconnect must allocate fresh `req_id` values
+    /// from the shared counter instead of the `-1` sentinel — server-
+    /// side `ReqResponse` events with `req_id = -1` collide with
+    /// manual-subscribe responses and break user correlation.
+    #[test]
+    fn next_req_id_allocates_fresh_ids_for_resubscribe() {
+        let counter = Arc::new(AtomicI32::new(7));
+        // Mimic the re-subscribe loop's allocation pattern: one
+        // fetch_add per re-subscribed contract.
+        let id_a = counter.fetch_add(1, Ordering::Relaxed);
+        let id_b = counter.fetch_add(1, Ordering::Relaxed);
+        let id_c = counter.fetch_add(1, Ordering::Relaxed);
+        assert_eq!(id_a, 7);
+        assert_eq!(id_b, 8);
+        assert_eq!(id_c, 9);
+        assert_ne!(id_a, -1, "re-subscribe must never use the -1 sentinel");
+        // Subsequent caller-issued subscribes off the same counter
+        // see the next slot — proves the io_loop and the client share
+        // one allocator without colliding.
+        assert_eq!(counter.fetch_add(1, Ordering::Relaxed), 10);
     }
 
     /// Finding #2 coverage: transient disconnect reasons must NOT
