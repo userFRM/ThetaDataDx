@@ -29,6 +29,23 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all -- --check
 
+  banned-vocab:
+    name: Banned vocabulary scrubber
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Scan source tree + commit subjects + PR metadata
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 scripts/check_banned_vocab.py
+
   cargo-deny:
     name: Cargo deny
     runs-on: ubuntu-latest
