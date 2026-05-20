@@ -21,6 +21,11 @@ mod logging_bridge;
 mod mdds_client;
 mod util_helpers;
 
+// These imports look unused at source level — they are pulled in by
+// the `include!("_generated/historical_methods.rs")` and
+// `include!("_generated/streaming_methods.rs")` blocks below, which
+// expand inside this module and reference these names without their
+// own `use` declarations.
 use async_runtime::spawn_awaitable;
 use coerce::{PyDateArg, PyStringArg, PySymbols, PyTimeArg};
 use errors::to_py_err;
@@ -293,6 +298,38 @@ impl Config {
     fn get_derive_ohlcvc(&self) -> bool {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.fpss.derive_ohlcvc
+    }
+
+    /// Override the MDDS gRPC host. Used by structural tests that need
+    /// to point the MDDS channel at a known-refused endpoint to prove
+    /// the FPSS-only surface never opens it; production code paths
+    /// should keep the `Config::production()` default.
+    #[setter]
+    fn set_mdds_host(&self, host: String) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.host = host;
+    }
+
+    /// Current MDDS gRPC host.
+    #[getter]
+    fn get_mdds_host(&self) -> String {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.host.clone()
+    }
+
+    /// Override the MDDS gRPC port. Companion to `mdds_host` — same
+    /// rationale and same test-only usage.
+    #[setter]
+    fn set_mdds_port(&self, port: u16) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.port = port;
+    }
+
+    /// Current MDDS gRPC port.
+    #[getter]
+    fn get_mdds_port(&self) -> u16 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.port
     }
 
     fn __repr__(&self) -> String {
@@ -775,5 +812,8 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(decode_response_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(split_date_range, m)?)?;
+    // Introspection helper for the offline `MddsClient` block-list
+    // coverage test. Mirrors `mdds_client::FPSS_TOUCHING_METHODS`.
+    m.add_function(wrap_pyfunction!(mdds_client::blocked_fpss_methods, m)?)?;
     Ok(())
 }

@@ -19,6 +19,8 @@
 use pyo3::exceptions::PyRuntimeWarning;
 use pyo3::prelude::*;
 
+use crate::fpss_client::FpssClient;
+
 /// Drain timeout applied on `__exit__`. Matches the C++ destructor's
 /// 5 s budget in `sdks/cpp/src/thetadx.cpp` and the FFI free-path
 /// budget in `ffi/src/streaming.rs::FREE_DRAIN_TIMEOUT`. Cross-binding
@@ -27,33 +29,96 @@ use pyo3::prelude::*;
 /// surfacing.
 const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
 
+/// Typed handle carried by the context-manager pyclasses. Replaces a
+/// bare `Py<PyAny>` so the streaming lifecycle calls
+/// (`start_streaming` / `stop_streaming` / `await_drain`) dispatch
+/// through a closed sum of the two supported pyclasses rather than
+/// duck-typed Python attribute lookup. The fluent `__getattr__` proxy
+/// for non-lifecycle attributes still goes through PyAny — `subscribe`
+/// and the historical surface live on `ThetaDataDxClient` only, so the
+/// proxy carries that asymmetry rather than enumerating it here.
+pub(crate) enum StreamableHandle {
+    Tdx(Py<crate::ThetaDataDxClient>),
+    Fpss(Py<FpssClient>),
+}
+
+impl StreamableHandle {
+    /// Bind the inner pyclass as a `Bound<PyAny>` for fluent
+    /// `__getattr__` forwarding of non-lifecycle attributes.
+    pub(crate) fn bind_any<'py>(&'py self, py: Python<'py>) -> Bound<'py, PyAny> {
+        match self {
+            Self::Tdx(handle) => handle.bind(py).clone().into_any(),
+            Self::Fpss(handle) => handle.bind(py).clone().into_any(),
+        }
+    }
+
+    /// Invoke `start_streaming(callback)` through the typed enum.
+    pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
+        match self {
+            Self::Tdx(handle) => handle.borrow(py).start_streaming(callback),
+            Self::Fpss(handle) => handle.borrow(py).start_streaming(callback),
+        }
+    }
+
+    /// Invoke `stop_streaming()` through the typed enum.
+    pub(crate) fn stop_streaming(&self, py: Python<'_>) {
+        match self {
+            Self::Tdx(handle) => handle.borrow(py).stop_streaming(),
+            Self::Fpss(handle) => handle.borrow(py).stop_streaming(),
+        }
+    }
+
+    /// Invoke `await_drain(timeout_ms)` through the typed enum. Both
+    /// pyclasses release the GIL internally before polling, so the
+    /// PyO3 dispatcher is the only frame holding the GIL during the
+    /// wait.
+    pub(crate) fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> bool {
+        match self {
+            Self::Tdx(handle) => handle.borrow(py).await_drain(py, timeout_ms),
+            Self::Fpss(handle) => handle.borrow(py).await_drain(py, timeout_ms),
+        }
+    }
+
+    /// Open the pull-iter delivery mode and return the resulting
+    /// [`EventIterator`]. Dispatches through the typed enum so neither
+    /// branch goes through Python attribute lookup.
+    pub(crate) fn start_streaming_iter(
+        &self,
+        py: Python<'_>,
+    ) -> PyResult<crate::event_iterator::EventIterator> {
+        match self {
+            Self::Tdx(handle) => handle.borrow(py).start_streaming_iter(),
+            Self::Fpss(handle) => handle.borrow(py).start_streaming_iter(),
+        }
+    }
+}
+
 /// Context manager returned by `ThetaDataDxClient.streaming(callback)`.
 ///
-/// Holds a strong reference to the `ThetaDataDxClient` and the user
+/// Holds a strong reference to the underlying streaming pyclass (either
+/// `ThetaDataDxClient` or the standalone `FpssClient`) plus the user
 /// callback. `__enter__` registers the callback via `start_streaming`,
 /// `__exit__` calls `stop_streaming` + `await_drain`. Every other
 /// method call is forwarded through `__getattr__` to the wrapped
-/// `ThetaDataDxClient` instance.
+/// pyclass instance.
 #[pyclass(module = "thetadatadx", name = "StreamingSession")]
 pub(crate) struct StreamingSession {
-    /// Erased pyclass handle. Carries either a `ThetaDataDxClient` (the
-    /// unified entry point) or the standalone `FpssClient` pyclass —
-    /// both expose `start_streaming` / `stop_streaming` / `await_drain`
-    /// with identical signatures, so the context-manager protocol
-    /// dispatches uniformly via PyO3 attribute lookup. Using `Py<PyAny>`
-    /// here keeps the proxy SSOT: there is one `StreamingSession`
-    /// pyclass for both transports, not two parallel copies that
-    /// could drift.
-    pub(crate) tdx: Py<PyAny>,
+    /// Typed handle to the streaming pyclass. Closed sum of the two
+    /// transports the session knows how to drive, replacing the
+    /// duck-typed `Py<PyAny>` the field used to carry. The
+    /// non-lifecycle `__getattr__` proxy still erases the type for
+    /// downstream attribute lookup (e.g. `subscribe` / historical
+    /// methods), but the lifecycle path now compiles only against
+    /// pyclasses that actually implement it.
+    pub(crate) tdx: StreamableHandle,
     pub(crate) callback: Option<Py<PyAny>>,
 }
 
 #[pymethods]
 impl StreamingSession {
-    /// Register the stored callback via the public `start_streaming`
-    /// method on the wrapped `ThetaDataDxClient`. Returns `self` so users
-    /// access subscribe/unsubscribe methods through the session
-    /// (which proxies via `__getattr__`).
+    /// Register the stored callback via the typed `StreamableHandle`
+    /// dispatch. Returns `self` so users access subscribe/unsubscribe
+    /// methods through the session (which proxies via `__getattr__`).
     fn __enter__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<PyRef<'py, Self>> {
         let callback = slf.callback.as_ref().ok_or_else(|| {
             pyo3::exceptions::PyRuntimeError::new_err(
@@ -61,8 +126,7 @@ impl StreamingSession {
             )
         })?;
         let cb = callback.clone_ref(py);
-        let bound = slf.tdx.bind(py);
-        bound.call_method1("start_streaming", (cb,))?;
+        slf.tdx.start_streaming(py, cb)?;
         Ok(slf)
     }
 
@@ -83,16 +147,13 @@ impl StreamingSession {
         // so Python's `with` machinery can pass `None` triplets.
         let _ = (exc_type, exc_value, traceback);
 
-        let bound = self.tdx.bind(py);
-        bound.call_method0("stop_streaming")?;
-        // `await_drain` releases the GIL internally (see
-        // `streaming_methods.rs`), so the Disruptor consumer can acquire
-        // the GIL to finish firing any in-flight callback before flipping
-        // the drain bit. Returns `True` if the drain completed within the
-        // timeout, `False` on timeout or on a fresh handle that never
-        // streamed.
-        let drained_obj = bound.call_method1("await_drain", (EXIT_DRAIN_TIMEOUT_MS,))?;
-        let drained: bool = drained_obj.extract()?;
+        self.tdx.stop_streaming(py);
+        // `await_drain` releases the GIL internally (see the
+        // generated `streaming_methods.rs` and the FpssClient
+        // hand-written equivalent), so the Disruptor consumer can
+        // acquire the GIL to finish firing any in-flight callback
+        // before flipping the drain bit.
+        let drained = self.tdx.await_drain(py, EXIT_DRAIN_TIMEOUT_MS);
         // Drop the stored callback now that the consumer is quiesced.
         // Holding it longer would leak a Python reference until the
         // session itself is collected.
@@ -105,9 +166,8 @@ impl StreamingSession {
             // breaks the standard context-manager contract.
             let warnings = py.import("warnings")?;
             let msg = format!(
-                "ThetaDataDxClient streaming drain timed out after {EXIT_DRAIN_TIMEOUT_MS}ms; \
-                 consumer callback may still be firing. The Python callback closure \
-                 will remain referenced until the consumer exits."
+                "streaming drain timed out after {EXIT_DRAIN_TIMEOUT_MS}ms; \
+                 consumer callback may still be firing."
             );
             // `warnings.warn(msg, RuntimeWarning, stacklevel=2)` so the
             // warning point-of-blame is the caller's `with` exit, not
@@ -125,22 +185,23 @@ impl StreamingSession {
         Ok(false)
     }
 
-    /// Forward unknown attribute access to the wrapped `ThetaDataDxClient`.
+    /// Forward unknown attribute access to the wrapped streaming
+    /// pyclass.
     ///
-    /// This is the SSOT proxy: every public method on `ThetaDataDxClient`
-    /// (`subscribe(sub)` / `subscribe_many([...])` / `unsubscribe(sub)` /
-    /// `unsubscribe_many([...])`, `active_subscriptions`,
-    /// `dropped_event_count`, `reconnect`, …) is reachable on the
-    /// session without duplication
-    /// here. Adding a new method to `ThetaDataDxClient` makes it callable
-    /// through the session automatically -- zero drift surface.
+    /// This is the SSOT proxy: every public method on the underlying
+    /// pyclass (`subscribe(sub)` / `subscribe_many([...])` /
+    /// `unsubscribe(sub)` / `unsubscribe_many([...])`,
+    /// `active_subscriptions`, `dropped_event_count`, `reconnect`, …)
+    /// is reachable on the session without duplication here. Adding a
+    /// new method to the wrapped pyclass makes it callable through
+    /// the session automatically — zero drift surface.
     ///
-    /// PyO3 calls `__getattr__` only after the C-level attribute lookup
-    /// fails, so `__enter__` / `__exit__` / `tdx` / `callback` defined
-    /// on this class take precedence and never reach this proxy.
+    /// PyO3 calls `__getattr__` only after the C-level attribute
+    /// lookup fails, so `__enter__` / `__exit__` / `tdx` / `callback`
+    /// defined on this class take precedence and never reach this
+    /// proxy.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
-        let bound = self.tdx.bind(py);
-        Ok(bound.getattr(name)?.unbind())
+        Ok(self.tdx.bind_any(py).getattr(name)?.unbind())
     }
 }
 
@@ -175,7 +236,7 @@ impl crate::ThetaDataDxClient {
         Py::new(
             py,
             StreamingSession {
-                tdx: slf.into_any(),
+                tdx: StreamableHandle::Tdx(slf),
                 callback: Some(callback),
             },
         )
@@ -184,26 +245,34 @@ impl crate::ThetaDataDxClient {
     /// Snapshot of full-stream subscriptions (e.g.
     /// `SecType.OPTION.full_trades()`).
     ///
-    /// Returns an empty list when streaming has not started, matching
-    /// the cross-binding contract on the C++ `UnifiedClient::active_full_subscriptions`
-    /// (see `sdks/cpp/include/thetadx.hpp`) and the standalone
+    /// Returns the same typed `Subscription` values the caller passes
+    /// to `subscribe()`. Quote is never a valid full-stream kind on
+    /// the FPSS wire, so any such row from the core is dropped from
+    /// the projection. Empty list when streaming has not started.
+    ///
+    /// Mirrors the cross-binding contract on the C++
+    /// `UnifiedClient::active_full_subscriptions` (see
+    /// `sdks/cpp/include/thetadx.hpp`) and the standalone
     /// [`crate::fpss_client::FpssClient::active_full_subscriptions`].
-    /// Previously absent from the unified Python client — added here
-    /// to keep the cross-binding surface aligned now that the
-    /// standalone `FpssClient` exposes it.
-    fn active_full_subscriptions(
-        &self,
-    ) -> pyo3::PyResult<Vec<std::collections::HashMap<String, String>>> {
+    fn active_full_subscriptions(&self) -> pyo3::PyResult<Vec<crate::fluent::PySubscription>> {
         use crate::errors::to_py_err;
+        use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
         self.tdx
             .active_full_subscriptions()
             .map(|subs| {
                 subs.into_iter()
-                    .map(|(kind, sec_type)| {
-                        let mut m = std::collections::HashMap::new();
-                        m.insert("kind".to_string(), format!("{kind:?}"));
-                        m.insert("sec_type".to_string(), format!("{sec_type:?}"));
-                        m
+                    .filter_map(|(kind, sec_type)| {
+                        let full_kind = match kind {
+                            SubscriptionKind::Trade => FullSubscriptionKind::Trades,
+                            SubscriptionKind::OpenInterest => FullSubscriptionKind::OpenInterest,
+                            SubscriptionKind::Quote => return None,
+                        };
+                        Some(crate::fluent::PySubscription {
+                            inner: thetadatadx::fpss::protocol::Subscription::Full {
+                                sec_type,
+                                kind: full_kind,
+                            },
+                        })
                     })
                     .collect()
             })
@@ -233,18 +302,24 @@ impl crate::ThetaDataDxClient {
 
     /// Subscription-tier snapshot captured at authentication time.
     ///
-    /// Returns one entry per asset class the Nexus auth payload
-    /// carries (`stock`, `options`, `indices`, `interest_rate`).
-    /// Missing fields surface as the string `"Unknown"`. Mirrors
-    /// the upstream [`thetadatadx::ThetaDataDxClient::subscription_info`]
-    /// shape and matches the safelist on `AsyncThetaDataDxClient`.
-    fn subscription_info(&self) -> std::collections::HashMap<String, String> {
+    /// Returns one `(asset_class, tier)` tuple per asset class the
+    /// Nexus auth payload carries, in stable declaration order:
+    /// `stock`, `options`, `indices`, `interest_rate`. Missing fields
+    /// surface as the string `"Unknown"`. Returning an ordered list
+    /// (rather than a `dict`) pins iteration order across binding
+    /// versions and across Python implementations — `HashMap` is only
+    /// insertion-ordered by accident in CPython 3.7+, and that
+    /// accident has been observably wrong on PyPy in the past.
+    ///
+    /// Mirrors the upstream
+    /// [`thetadatadx::ThetaDataDxClient::subscription_info`] shape.
+    fn subscription_info(&self) -> Vec<(String, String)> {
         let info = self.tdx.subscription_info();
-        let mut m = std::collections::HashMap::new();
-        m.insert("stock".to_string(), info.stock);
-        m.insert("options".to_string(), info.options);
-        m.insert("indices".to_string(), info.indices);
-        m.insert("interest_rate".to_string(), info.interest_rate);
-        m
+        vec![
+            ("stock".to_string(), info.stock),
+            ("options".to_string(), info.options),
+            ("indices".to_string(), info.indices),
+            ("interest_rate".to_string(), info.interest_rate),
+        ]
     }
 }
