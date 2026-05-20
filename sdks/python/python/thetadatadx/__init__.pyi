@@ -86,6 +86,32 @@ class Contract:
     def __eq__(self, other: object) -> bool: ...
 
 
+class ContractRef:
+    """Read-only contract identifier surfaced on every FPSS event.
+
+    Distinct from the fluent `Contract` builder — `ContractRef` is what
+    `event.contract` returns inside a streaming callback, with the
+    resolved `symbol`, `sec_type`, `expiration`, `right`,
+    `strike_dollars`, and the wire-level integer `strike`. The fluent
+    `Contract` (above) is the one users instantiate to subscribe.
+    """
+
+    @property
+    def symbol(self) -> str: ...
+    @property
+    def sec_type(self) -> str: ...
+    @property
+    def expiration(self) -> Optional[int]: ...
+    @property
+    def right(self) -> Optional[str]: ...
+    @property
+    def strike_dollars(self) -> Optional[float]: ...
+    @property
+    def strike(self) -> Optional[int]: ...
+
+    def __repr__(self) -> str: ...
+
+
 class SecType:
     """Security type — `STOCK` / `OPTION` / `INDEX` / `RATE`."""
 
@@ -128,7 +154,7 @@ class Subscription:
 class Quote:
     """FPSS per-contract quote event."""
 
-    contract: Contract
+    contract: ContractRef
     bid_price: float
     bid_size: int
     ask_price: float
@@ -139,7 +165,7 @@ class Quote:
 class Trade:
     """FPSS per-contract trade event."""
 
-    contract: Contract
+    contract: ContractRef
     price: float
     size: int
     timestamp_ns: int
@@ -148,7 +174,7 @@ class Trade:
 class OpenInterest:
     """FPSS open-interest event (per-contract or full-stream)."""
 
-    contract: Contract
+    contract: ContractRef
     open_interest: int
     timestamp_ns: int
 
@@ -156,13 +182,23 @@ class OpenInterest:
 class Ohlcvc:
     """FPSS OHLCVC bar (derived in the SDK when `Config.derive_ohlcvc=True`)."""
 
-    contract: Contract
+    contract: ContractRef
     open: float
     high: float
     low: float
     close: float
     volume: int
     count: int
+
+
+class ContractAssigned:
+    """FPSS server assigned a contract id (`FpssControl::ContractAssigned`)."""
+
+    id: int
+    contract: ContractRef
+
+    @property
+    def kind(self) -> str: ...
 
 
 # ─────────────────────────────────────────────────────────────────────

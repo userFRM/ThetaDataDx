@@ -154,12 +154,11 @@ def test_fpss_client_blocks_subscribe_before_start() -> None:
     """Subscribing on an `FpssClient` before `start_streaming*` raises
     `RuntimeError` -- the FPSS TLS connection is not open yet.
 
-    The `SecType.OPTION.full_trades()` factory is used here instead of
-    `Contract.stock(...).quote()` because the typed FPSS event
-    `Contract` class shares the `"Contract"` pyclass name with the
-    fluent builder in the current `m.add_class` registration order; the
-    full-stream surface side-steps the collision while still
-    exercising the polymorphic `subscribe(Subscription)` dispatch.
+    The `SecType.OPTION.full_trades()` factory exercises the polymorphic
+    `subscribe(Subscription)` dispatch via the full-stream surface. The
+    per-contract path (`Contract.stock(...).quote()`) is covered by
+    `test_fluent_contract_example.py`; this test focuses on the
+    pre-start guard.
     """
     mod = _import_module()
     creds = mod.Credentials("user@example.com", "pw")
@@ -344,10 +343,7 @@ def test_fpss_streaming_iter_smoke() -> None:
     with fpss.streaming_iter() as session:
         # `SecType.OPTION.full_trades()` exercises the polymorphic
         # `subscribe(Subscription)` dispatch via the full-stream
-        # surface, side-stepping the `Contract` pyclass-name collision
-        # between the fluent builder and the FPSS event read-side
-        # class (the latter wins the current `m.add_class` registration
-        # order). Live smoke value: confirms the FPSS handshake,
+        # surface. Live smoke value: confirms the FPSS handshake,
         # subscription dispatch, and pull-iter drain all wire through.
         fpss.subscribe(mod.SecType.OPTION.full_trades())
 
@@ -440,9 +436,9 @@ def test_fpss_reconnect_restores_subscriptions() -> None:
 
     fpss.start_streaming(on_event)
     try:
-        # Full-stream subscription side-steps the Contract pyclass
-        # name collision (see test_fpss_client_blocks_subscribe_before_start)
-        # while still exercising the polymorphic dispatch path.
+        # Full-stream subscription exercises the polymorphic dispatch
+        # path; per-contract dispatch is covered separately in
+        # `test_fluent_contract_example.py`.
         full_sub = mod.SecType.OPTION.full_trades()
         fpss.subscribe(full_sub)
 

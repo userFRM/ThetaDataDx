@@ -35,11 +35,13 @@ pub(super) fn python_rust_field_type(
         "Option<String>" => "Option<String>",
         "Option<i32>" => "Option<i32>",
         "Vec<u8>" => "Vec<u8>",
-        // `Contract` becomes `Py<Contract>` on the pyclass — pyo3 cannot
-        // expose a `Contract` struct by value through `#[pyo3(get)]` on a
-        // frozen pyclass without a runtime acquisition, so we store the
-        // Python handle directly. See `render_python_event_class_struct`.
-        "Contract" => "Py<Contract>",
+        // `Contract` becomes `Py<ContractRef>` on the pyclass — pyo3 cannot
+        // expose a struct by value through `#[pyo3(get)]` on a frozen
+        // pyclass without a runtime acquisition, so we store the Python
+        // handle directly. The Python-side struct is named `ContractRef`
+        // to disambiguate from the fluent `Contract` builder registered
+        // by `fluent.rs`. See `render_python_event_class_struct`.
+        "Contract" => "Py<ContractRef>",
         other => {
             panic!("unsupported FPSS event column type '{other}' in {event_name}.{column_name}")
         }
