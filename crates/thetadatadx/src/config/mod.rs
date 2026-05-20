@@ -47,6 +47,7 @@
 
 mod auth;
 mod env;
+mod flatfiles;
 mod fpss;
 mod mdds;
 mod metrics;
@@ -60,10 +61,13 @@ pub use auth::{AuthConfig, DEFAULT_CLIENT_TYPE, DEFAULT_NEXUS_URL};
 pub use env::{
     ENV_CLIENT_TYPE, ENV_FPSS_HOST, ENV_FPSS_PORT, ENV_MDDS_HOST, ENV_MDDS_PORT, ENV_NEXUS_URL,
 };
+pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
 pub use fpss::{bounds as fpss_bounds, FpssConfig, FpssFlushMode};
 pub use mdds::MddsConfig;
 pub use metrics::MetricsConfig;
-pub use reconnect::{ReconnectConfig, ReconnectPolicy};
+pub use reconnect::{
+    ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectConfig, ReconnectPolicy,
+};
 pub use retry::RetryPolicy;
 pub use runtime::RuntimeConfig;
 
@@ -106,6 +110,8 @@ pub struct DirectConfig {
     pub mdds: MddsConfig,
     /// FPSS streaming tuning.
     pub fpss: FpssConfig,
+    /// FLATFILES retry tuning.
+    pub flatfiles: FlatFilesConfig,
     /// Reconnection cadence + policy.
     pub reconnect: ReconnectConfig,
     /// MDDS retry policy.
@@ -151,6 +157,7 @@ impl DirectConfig {
         Self {
             mdds: MddsConfig::production_defaults(),
             fpss: FpssConfig::production_defaults(),
+            flatfiles: FlatFilesConfig::production_defaults(),
             reconnect: ReconnectConfig::production_defaults(),
             retry: RetryPolicy::default(),
             auth: AuthConfig::production_defaults(),
@@ -275,6 +282,23 @@ impl DirectConfig {
         }
         self.mdds.window_size_kb = self.mdds.window_size_kb.clamp(64, 1_024);
         self.mdds.connection_window_size_kb = self.mdds.connection_window_size_kb.clamp(64, 1_024);
+        if !flatfiles_bounds::MAX_ATTEMPTS.contains(&self.flatfiles.max_attempts) {
+            return Err(Error::config_out_of_range(
+                "flatfiles.max_attempts",
+                i64::from(self.flatfiles.max_attempts),
+                i64::from(*flatfiles_bounds::MAX_ATTEMPTS.start()),
+                i64::from(*flatfiles_bounds::MAX_ATTEMPTS.end()),
+            ));
+        }
+        if self.flatfiles.max_backoff < self.flatfiles.initial_backoff {
+            return Err(Error::config_invalid(
+                "flatfiles.max_backoff",
+                format!(
+                    "max_backoff ({:?}) must be >= initial_backoff ({:?})",
+                    self.flatfiles.max_backoff, self.flatfiles.initial_backoff
+                ),
+            ));
+        }
         Ok(self)
     }
 
@@ -507,7 +531,9 @@ impl DirectConfig {
 
 #[cfg(feature = "config-file")]
 mod config_file {
-    use super::{DirectConfig, FpssFlushMode, ReconnectPolicy, RetryPolicy};
+    use super::{
+        DirectConfig, FpssFlushMode, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy,
+    };
     use crate::error::Error;
     use serde::Deserialize;
 
@@ -754,7 +780,7 @@ mod config_file {
             out.reconnect.wait_rate_limited_ms = cf.fpss.reconnect_wait_rate_limited;
             // TOML config cannot express custom closures; default to Auto.
             // Use the builder API to set Manual or Custom programmatically.
-            out.reconnect.policy = ReconnectPolicy::Auto;
+            out.reconnect.policy = ReconnectPolicy::Auto(ReconnectAttemptLimits::default());
 
             // TOML does not surface RetryPolicy / observability fields
             // today — the builder API (`with_retry_policy`,
@@ -800,7 +826,7 @@ mod tests {
         let _guard = env_test_guard();
         clear_env_matrix();
         let config = DirectConfig::production();
-        assert!(matches!(config.reconnect.policy, ReconnectPolicy::Auto));
+        assert!(matches!(config.reconnect.policy, ReconnectPolicy::Auto(_)));
     }
 
     #[test]
