@@ -36,8 +36,26 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 FORBIDDEN_GLOBS = (
     ".env",
     "*/.env",
-    "creds*",
-    "*/creds*",
+    # `creds.txt` (the local dev credentials file we tell users to keep
+    # outside the repo) and its siblings. Scoped to the `.txt`,
+    # `.json`, `.yaml`, `.yml`, `.toml` extensions so the pattern does
+    # not falsely flag well-named Rust source like
+    # `crates/thetadatadx/src/auth/creds.rs` which is shipped on
+    # purpose inside the published sdist.
+    "creds*.txt",
+    "creds*.json",
+    "creds*.yaml",
+    "creds*.yml",
+    "creds*.toml",
+    "*/creds*.txt",
+    "*/creds*.json",
+    "*/creds*.yaml",
+    "*/creds*.yml",
+    "*/creds*.toml",
+    "credentials*.txt",
+    "credentials*.json",
+    "*/credentials*.txt",
+    "*/credentials*.json",
     "*/.venv/*",
     "*/.venv-test/*",
     "*/.venv-pr*/*",
@@ -49,7 +67,6 @@ FORBIDDEN_GLOBS = (
     "*/private/*",
     "*/todo.md",
     "*/.DS_Store",
-    "*/secret*",
     "*/*.key",
     "*/*.pem",
 )
