@@ -17,10 +17,6 @@
 //! * [`python`] / [`typescript`] / [`cpp`] / [`mcp`] / [`cli`] —
 //!   one file per render target.
 
-// Reason: shared between build.rs and generate_sdk_surfaces binary via #[path]; not all
-// helpers are called from both entry points.
-#![allow(dead_code, unused_imports)]
-
 use std::path::Path;
 
 mod cli;

@@ -9,13 +9,12 @@
 
 use std::fmt::Write as _;
 
-use super::super::helpers::compose_endpoint_doc;
-use super::super::helpers::render_rust_doc_block;
-use super::super::helpers::{
-    builder_params, is_streaming_endpoint, is_time_arg, method_params, sdk_method_arg_name,
+use super::super::helpers::{compose_endpoint_doc, is_streaming_endpoint};
+use super::super::model::GeneratedEndpoint;
+use super::super::sdk_helpers::{
+    builder_params, is_time_arg, method_params, render_rust_doc_block, sdk_method_arg_name,
     to_camel_case, ts_class_name, ts_class_vec_converter,
 };
-use super::super::model::GeneratedEndpoint;
 
 pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();

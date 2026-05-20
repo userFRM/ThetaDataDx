@@ -37,13 +37,15 @@
 use std::fmt::Write as _;
 
 use super::super::helpers::{
-    builder_params, compose_endpoint_doc, direct_parser_name, is_snapshot_endpoint,
-    is_streaming_endpoint, method_params, python_method_arg_decl, python_optional_type,
-    python_pyclass_list_class, python_pyclass_list_converter, python_slice_arrow_converter,
-    python_string_arg_type, python_vec_to_pylist_converter, render_rust_doc_block,
-    sdk_method_arg_name, to_pascal_case,
+    compose_endpoint_doc, direct_parser_name, is_streaming_endpoint, to_pascal_case,
 };
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
+use super::super::sdk_helpers::{
+    builder_params, is_snapshot_endpoint, method_params, python_method_arg_decl,
+    python_optional_type, python_pyclass_list_class, python_pyclass_list_converter,
+    python_string_arg_type, python_vec_to_pylist_converter, render_rust_doc_block,
+    sdk_method_arg_name,
+};
 
 /// Emit `sdks/python/src/_generated/decode_bench.rs` — the offline decode hook.
 ///

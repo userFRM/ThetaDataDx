@@ -9,13 +9,14 @@
 
 use std::fmt::Write as _;
 
-use super::super::helpers::compose_endpoint_doc;
-use super::super::helpers::{
+use super::super::build_helpers::{
     direct_date_arg_name, direct_method_arg_name, direct_optional_kind_and_default,
     direct_optional_rust_type, direct_optional_setter_arg_type, direct_optional_setter_assign_expr,
-    direct_parser_name, direct_required_field_type, direct_required_kind,
-    direct_required_param_type, direct_required_store_expr, direct_return_type,
-    direct_stream_tick_type, is_method_call_param, to_pascal_case,
+    direct_required_field_type, direct_required_kind, direct_required_param_type,
+    direct_required_store_expr, direct_return_type, direct_stream_tick_type,
+};
+use super::super::helpers::{
+    compose_endpoint_doc, direct_parser_name, is_method_call_param, to_pascal_case,
 };
 use super::super::model::{GeneratedEndpoint, ProtoField};
 

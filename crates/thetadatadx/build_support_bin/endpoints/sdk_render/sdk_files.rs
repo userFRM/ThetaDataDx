@@ -8,8 +8,11 @@
 
 use std::path::Path;
 
-use super::super::helpers::collect_builder_params;
-use super::super::parser::{load_endpoint_specs, validate_test_fixtures};
+use super::super::enum_projection::load_enum_projections;
+use super::super::fixture_validation::validate_test_fixtures;
+use super::super::parser::load_endpoint_specs;
+use super::super::sdk_helpers::collect_builder_params;
+use super::super::test_fixtures::load_test_fixtures;
 use super::{cli_validate, cpp, cpp_validate, enums, ffi, python, python_validate, typescript};
 
 struct GeneratedSourceFile {
@@ -49,26 +52,28 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 
 fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
     let parsed = load_endpoint_specs()?;
+    let enum_projections = load_enum_projections()?;
     // Fixtures power the live-validator matrix only — kept out of the
-    // `load_endpoint_specs` path so `build.rs` doesn't pay the upstream
-    // OpenAPI snapshot dependency (not in the Python sdist). Every fixture
-    // consumer flows through here, so validating at this seam catches
-    // every drift case with full per-endpoint blast radius.
-    validate_test_fixtures(&parsed.fixtures, &parsed.endpoints)?;
+    // shared `load_endpoint_specs` path so the build script doesn't pay
+    // the upstream OpenAPI snapshot dependency (not in the Python sdist).
+    // Every fixture consumer flows through here, so validating at this
+    // seam catches every drift case with full per-endpoint blast radius.
+    let fixtures = load_test_fixtures()?;
+    validate_test_fixtures(&fixtures, &parsed.endpoints)?;
     let builder_params = collect_builder_params(&parsed.endpoints);
 
     Ok(vec![
         GeneratedSourceFile {
             relative_path: "crates/tdbe/src/types/generated/enums_endpoint.rs",
-            contents: enums::render_tdbe_enums(&parsed.enums),
+            contents: enums::render_tdbe_enums(&enum_projections),
         },
         GeneratedSourceFile {
             relative_path: "sdks/python/src/_generated/enums_generated.rs",
-            contents: enums::render_python_enums(&parsed.enums),
+            contents: enums::render_python_enums(&enum_projections),
         },
         GeneratedSourceFile {
             relative_path: "sdks/typescript/src/_generated/enums_generated.rs",
-            contents: enums::render_typescript_enums(&parsed.enums),
+            contents: enums::render_typescript_enums(&enum_projections),
         },
         GeneratedSourceFile {
             relative_path: "ffi/src/endpoint_request_options.rs",
@@ -112,15 +117,15 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         },
         GeneratedSourceFile {
             relative_path: "scripts/validate_cli.py",
-            contents: cli_validate::render_cli_validate(&parsed.endpoints, &parsed.fixtures),
+            contents: cli_validate::render_cli_validate(&parsed.endpoints, &fixtures),
         },
         GeneratedSourceFile {
             relative_path: "scripts/validate_python.py",
-            contents: python_validate::render_python_validate(&parsed.endpoints, &parsed.fixtures),
+            contents: python_validate::render_python_validate(&parsed.endpoints, &fixtures),
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/examples/validate.cpp",
-            contents: cpp_validate::render_cpp_validate(&parsed.endpoints, &parsed.fixtures),
+            contents: cpp_validate::render_cpp_validate(&parsed.endpoints, &fixtures),
         },
     ])
 }

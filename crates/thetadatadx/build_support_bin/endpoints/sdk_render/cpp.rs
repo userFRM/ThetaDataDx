@@ -6,11 +6,12 @@
 
 use std::fmt::Write as _;
 
-use super::super::helpers::{
-    builder_copy_expr, builder_value_type_name, cpp_converter_expr, cpp_method_arg_decl,
-    cpp_value_type, ffi_array_type, is_streaming_endpoint, method_params, sdk_method_arg_name,
-};
+use super::super::helpers::is_streaming_endpoint;
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
+use super::super::sdk_helpers::{
+    builder_copy_expr, builder_value_type_name, cpp_converter_expr, cpp_method_arg_decl,
+    cpp_value_type, ffi_array_type, method_params, sdk_method_arg_name,
+};
 
 pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
     let mut out = String::new();

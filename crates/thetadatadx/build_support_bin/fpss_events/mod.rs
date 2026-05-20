@@ -28,16 +28,6 @@
 //! * [`ffi_rust`] — `#[repr(C)]` structs + converter for the Rust FFI crate.
 //! * [`ffi_c`] — C mirror header `#include`'d from the C++ SDK.
 
-// Reason: the fpss_events/ tree is reached through two compilation
-// contexts — `build.rs` (which only needs the schema loader + emitters
-// for the baked-into-crate Rust FFI structs) and
-// `bin/generate_sdk_surfaces` (which additionally uses the per-SDK
-// renderers). Each context leaves the other half dead, so rather than
-// carry two disjoint `cfg(...)` gates we silence the umbrella warnings
-// here. Same pattern as `build_support/endpoints/mod.rs` +
-// `build_support/ticks/mod.rs`.
-#![allow(dead_code, unused_imports)]
-
 use std::path::Path;
 
 use super::ticks::GeneratedSourceFile;

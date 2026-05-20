@@ -9,12 +9,12 @@
 
 use std::fmt::Write as _;
 
-use super::super::helpers::{
-    c_option_value_type, ffi_array_type, ffi_from_vec_array_type, ffi_option_has_flag,
-    ffi_option_insert_expr, ffi_option_value_type, ffi_output_variant, is_streaming_endpoint,
-    method_params,
-};
+use super::super::helpers::is_streaming_endpoint;
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
+use super::super::sdk_helpers::{
+    c_option_value_type, ffi_array_type, ffi_from_vec_array_type, ffi_option_has_flag,
+    ffi_option_insert_expr, ffi_option_value_type, ffi_output_variant, method_params,
+};
 
 pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> String {
     let mut out = String::new();

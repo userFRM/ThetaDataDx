@@ -7,9 +7,11 @@
 
 use std::fmt::Write as _;
 
-use super::super::helpers::{cli_command_tokens_for_mode, is_streaming_endpoint};
-use super::super::model::{GeneratedEndpoint, TestFixtures};
+use super::super::helpers::is_streaming_endpoint;
+use super::super::model::GeneratedEndpoint;
 use super::super::modes::test_modes_for;
+use super::super::sdk_helpers::cli_command_tokens_for_mode;
+use super::super::test_fixtures::TestFixtures;
 
 /// Generate the CLI validator (one row per (endpoint, mode) pair).
 pub(super) fn render_cli_validate(
