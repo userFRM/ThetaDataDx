@@ -79,6 +79,8 @@ pub struct MddsClient {
     /// connect time but never silently coerced into a tier).
     stock_tier: Option<SubscriptionTier>,
     options_tier: Option<SubscriptionTier>,
+    indices_tier: Option<SubscriptionTier>,
+    interest_rate_tier: Option<SubscriptionTier>,
 }
 
 // ── Infrastructure (not generated — these are session/transport methods, not ThetaData endpoints) ──
@@ -154,6 +156,16 @@ impl MddsClient {
             .as_ref()
             .and_then(|u| u.options_subscription)
             .and_then(SubscriptionTier::from_wire);
+        let indices_tier = auth_resp
+            .user
+            .as_ref()
+            .and_then(|u| u.indices_subscription)
+            .and_then(SubscriptionTier::from_wire);
+        let interest_rate_tier = auth_resp
+            .user
+            .as_ref()
+            .and_then(|u| u.interest_rate_subscription)
+            .and_then(SubscriptionTier::from_wire);
 
         let session = SessionToken::new(session_uuid, config.auth.nexus_url.clone(), creds.clone());
         let client_type = config.auth.client_type.clone();
@@ -167,6 +179,8 @@ impl MddsClient {
             request_semaphore,
             stock_tier,
             options_tier,
+            indices_tier,
+            interest_rate_tier,
         })
     }
 
@@ -236,6 +250,20 @@ impl MddsClient {
     #[must_use]
     pub fn options_tier(&self) -> Option<SubscriptionTier> {
         self.options_tier
+    }
+
+    /// Indices subscription tier captured at authentication time. Same
+    /// semantics as [`Self::stock_tier`].
+    #[must_use]
+    pub fn indices_tier(&self) -> Option<SubscriptionTier> {
+        self.indices_tier
+    }
+
+    /// Interest-rate / Treasury curve subscription tier captured at
+    /// authentication time. Same semantics as [`Self::stock_tier`].
+    #[must_use]
+    pub fn interest_rate_tier(&self) -> Option<SubscriptionTier> {
+        self.interest_rate_tier
     }
 }
 
