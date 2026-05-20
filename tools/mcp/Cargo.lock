@@ -1900,6 +1900,7 @@ dependencies = [
  "h2",
  "http",
  "http-body",
+ "libc",
  "metrics",
  "parking_lot",
  "pastey",

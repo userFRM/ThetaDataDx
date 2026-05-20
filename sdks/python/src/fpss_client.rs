@@ -187,6 +187,7 @@ impl FpssClient {
     ///
     /// Push-callback / sync pull-iter / async pull-iter are all
     /// mutually exclusive on a given client.
+    #[cfg(unix)]
     pub(crate) fn start_streaming_iter_with_wake_internal(
         &self,
         write_fd: i32,

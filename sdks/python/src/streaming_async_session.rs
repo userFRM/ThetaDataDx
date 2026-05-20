@@ -97,6 +97,7 @@ impl AsyncStreamableHandle {
     /// live on inherent impls outside the `#[pymethods]` blocks so the
     /// Rust types (`EventIterator`, `Arc<WakeFd>`) round-trip without
     /// going through Python conversion.
+    #[cfg(unix)]
     fn start(
         &self,
         py: Python<'_>,
@@ -667,13 +668,6 @@ fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
     Ok((read_fd, write_fd))
 }
 
-#[cfg(not(unix))]
-fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
-    Err(PyRuntimeError::new_err(
-        "streaming_async() requires a POSIX platform; pipe allocation is not available",
-    ))
-}
-
 #[cfg(unix)]
 fn drain_read_pipe(read_fd: i32) {
     if read_fd < 0 {
@@ -713,9 +707,6 @@ fn drain_read_pipe(read_fd: i32) {
         break;
     }
 }
-
-#[cfg(not(unix))]
-fn drain_read_pipe(_read_fd: i32) {}
 
 /// One `__anext__` step. Splits out the awaitable body so the pyclass
 /// method stays small and the async logic is testable in isolation.
@@ -893,6 +884,7 @@ impl crate::ThetaDataDxClient {
     /// so we never bypass the streaming-slot generation guard that
     /// rejects concurrent `start_streaming` / `streaming_async` /
     /// `streaming_iter` calls on the same client.
+    #[cfg(unix)]
     pub(crate) fn start_streaming_async_inner(
         &self,
         write_fd: i32,
@@ -911,6 +903,7 @@ impl crate::fpss_client::FpssClient {
     /// in lockstep — partial-failure paths in `__aenter__` rely on
     /// this returning `Result` so the FD pair can be closed without
     /// reaching the asyncio side.
+    #[cfg(unix)]
     pub(crate) fn start_streaming_async_inner(
         &self,
         write_fd: i32,
