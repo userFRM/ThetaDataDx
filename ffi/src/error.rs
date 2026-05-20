@@ -291,7 +291,7 @@ mod tests {
             TDX_ERR_SCHEMA_MISMATCH
         );
         assert_eq!(
-            error_code_for(&thetadatadx::Error::config_other("bad")),
+            error_code_for(&thetadatadx::Error::config_invalid("ffi", "bad")),
             TDX_ERR_CONFIG
         );
     }

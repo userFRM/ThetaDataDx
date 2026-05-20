@@ -638,7 +638,7 @@ mod classify_error_tests {
     #[test]
     fn non_grpc_errors_are_terminal() {
         assert_eq!(
-            classify_error(&Error::config_other("bad config")),
+            classify_error(&Error::config_invalid("mdds.endpoint", "bad config")),
             StatusClass::Terminal
         );
         assert_eq!(

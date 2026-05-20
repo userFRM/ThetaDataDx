@@ -498,6 +498,17 @@ impl Error {
     }
 
     /// Build a `Config` error with an unspecified kind.
+    ///
+    /// Deprecated escape hatch retained for the existing
+    /// `From<tdbe::error::Error>` bridge. New call sites should pick a
+    /// typed `ConfigErrorKind` variant (`OutOfRange`, `MissingField`,
+    /// `InvalidValue`, `Io`, `TomlParse`, `Internal`) so retry
+    /// classifiers can dispatch without parsing `Display`.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "10.0.1",
+        note = "use a typed Config constructor (config_invalid, config_internal, ...)"
+    )]
     #[must_use]
     pub fn config_other(message: impl Into<String>) -> Self {
         let message = message.into();
@@ -576,6 +587,16 @@ impl Error {
     }
 
     /// Build a `Decode` error with an unspecified kind.
+    ///
+    /// Deprecated escape hatch. New call sites should pick a typed
+    /// `DecodeErrorKind` variant (`TruncatedRow`, `ColumnTypeMismatch`,
+    /// `Protobuf`, `Codec`, `Arrow`) so retry classifiers can dispatch
+    /// without parsing `Display`.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "10.0.1",
+        note = "use a typed Decode constructor (decode_protobuf, decode_codec, ...)"
+    )]
     #[must_use]
     pub fn decode_other(message: impl Into<String>) -> Self {
         let message = message.into();
@@ -607,6 +628,15 @@ impl Error {
     }
 
     /// Build a `Decompress` error with an unspecified kind.
+    ///
+    /// Deprecated escape hatch. New call sites should pick a typed
+    /// `DecompressErrorKind` variant (`Zstd`, `UnknownAlgorithm`) so
+    /// retry classifiers can dispatch without parsing `Display`.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "10.0.1",
+        note = "use a typed Decompress constructor (decompress_zstd, decompress_unknown_algorithm)"
+    )]
     #[must_use]
     pub fn decompress_other(message: impl Into<String>) -> Self {
         let message = message.into();
@@ -620,13 +650,18 @@ impl Error {
 impl From<tdbe::error::Error> for Error {
     fn from(err: tdbe::error::Error) -> Self {
         // The pure-data crate carries a small error enum; fold its variants
-        // into the closest `thetadatadx::Error` variant so callers can use
-        // `?` when invoking `tdbe` APIs (e.g. `tdbe::right::parse_right`)
+        // into the closest typed `thetadatadx::Error` variant so callers
+        // can use `?` when invoking `tdbe` APIs (e.g. `tdbe::right::parse_right`)
         // from a `Result<_, thetadatadx::Error>` context.
+        //
+        // Every previously-`config_other` site now routes to a typed
+        // `ConfigErrorKind` variant (`InvalidValue` for upstream config
+        // / parse failures, `Io` for I/O surfaces) so retry
+        // classifiers can dispatch on the structured kind.
         match err {
-            tdbe::error::Error::Config(msg) => Self::config_other(msg),
+            tdbe::error::Error::Config(msg) => Self::config_invalid("tdbe", msg),
             tdbe::error::Error::Io(e) => Self::Io(e),
-            other => Self::config_other(other.to_string()),
+            other => Self::config_invalid("tdbe", other.to_string()),
         }
     }
 }
@@ -699,6 +734,7 @@ impl From<crate::grpc::ChannelError> for Error {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 
@@ -1077,6 +1113,57 @@ mod tests {
                     );
                 }
                 other => panic!("expected Error::Transport, got {other:?}"),
+            }
+        }
+    }
+
+    /// The `*_other` catch-all constructors are deprecated escape
+    /// hatches. Production code must route through typed `*Kind`
+    /// variants so retry classifiers can dispatch without parsing
+    /// `Display`. This test pins the contract by exercising every
+    /// typed constructor and asserting it does NOT land on the
+    /// `Other` arm.
+    #[test]
+    fn typed_constructors_do_not_route_to_other() {
+        let cases: Vec<(Error, &'static str)> = vec![
+            (Error::config_invalid("f", "bad"), "config_invalid"),
+            (Error::config_missing("f"), "config_missing"),
+            (
+                Error::config_out_of_range("f", 0, 1, 2),
+                "config_out_of_range",
+            ),
+            (Error::config_io("io"), "config_io"),
+            (Error::config_toml("toml"), "config_toml"),
+            (Error::config_internal("bug"), "config_internal"),
+            (Error::decode_protobuf("p"), "decode_protobuf"),
+            (Error::decode_codec("c"), "decode_codec"),
+            (Error::decode_arrow("a"), "decode_arrow"),
+            (Error::decode_truncated_row(0, 0, 0), "decode_truncated_row"),
+            (
+                Error::decode_column_type_mismatch(0, "c", "e", "a"),
+                "decode_column_type_mismatch",
+            ),
+            (Error::decompress_zstd("z"), "decompress_zstd"),
+            (
+                Error::decompress_unknown_algorithm(99),
+                "decompress_unknown_algorithm",
+            ),
+        ];
+        for (err, name) in cases {
+            match err {
+                Error::Config {
+                    kind: ConfigErrorKind::Other(_),
+                    ..
+                } => panic!("{name} regressed onto ConfigErrorKind::Other"),
+                Error::Decode {
+                    kind: DecodeErrorKind::Other(_),
+                    ..
+                } => panic!("{name} regressed onto DecodeErrorKind::Other"),
+                Error::Decompress {
+                    kind: DecompressErrorKind::Other(_),
+                    ..
+                } => panic!("{name} regressed onto DecompressErrorKind::Other"),
+                _ => { /* typed kind — OK */ }
             }
         }
     }
