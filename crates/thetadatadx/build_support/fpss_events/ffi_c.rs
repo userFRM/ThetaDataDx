@@ -1,10 +1,9 @@
 //! C mirror header emitter (`sdks/cpp/include/fpss_event_structs.h.inc`).
 //!
-//! Wave G (typed FpssControl variants on the C/C++/Go FFI surface) emits
-//! one C struct per `kind = "control"` schema entry, alongside the
-//! existing data-variant structs. The tagged `TdxFpssEvent` embeds all
-//! of them by value; consumers dispatch on `event.kind` and read the
-//! matching `event.<variant>` field.
+//! Emits one C struct per `kind = "control"` schema entry, alongside the
+//! data-variant structs. The tagged `TdxFpssEvent` embeds all of them by
+//! value; consumers dispatch on `event.kind` and read the matching
+//! `event.<variant>` field.
 
 use std::fmt::Write as _;
 

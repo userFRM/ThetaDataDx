@@ -147,7 +147,7 @@ pub struct TdxFpssHandle {
     /// freeing the previous `ctx`. Stacked reconnect/shutdown cycles
     /// layer multiple in-flight generations on top of each other; a
     /// single slot would silently drop earlier still-firing sessions
-    /// when a later one retired (PR #514 HIGH-001).
+    /// when a later one retired.
     prev_drained: Mutex<Vec<Arc<std::sync::atomic::AtomicBool>>>,
 }
 
@@ -2489,15 +2489,15 @@ mod tests {
         );
     }
 
-    /// Round-4 critical 1 regression: `tdx_unified_free` must wait on
-    /// the saved drain flag even after the caller has already invoked
+    /// `tdx_unified_free` must wait on the saved drain flag even
+    /// after the caller has already invoked
     /// `tdx_unified_stop_streaming`.
     ///
-    /// PR #514 HIGH-001: the slot is now a `Vec<Arc<AtomicBool>>` so
-    /// stacked stop/start/stop cycles cannot lose an earlier still-
-    /// firing generation when a later one retires. This test pins the
-    /// `prev_drained_is_set` predicate semantics on the Vec storage
-    /// that backs the FFI free path.
+    /// The slot is a `Vec<Arc<AtomicBool>>` so stacked stop/start/stop
+    /// cycles cannot lose an earlier still-firing generation when a
+    /// later one retires. This test pins the `prev_drained_is_set`
+    /// predicate semantics on the Vec storage that backs the FFI free
+    /// path.
     #[test]
     fn unified_prev_drained_is_set_persists_through_stop_then_free() {
         use std::sync::atomic::AtomicBool;
@@ -2518,7 +2518,7 @@ mod tests {
         );
 
         // A second stacked stop pushes ANOTHER flag — the prior one
-        // is NOT overwritten (the bug PR #514 closed).
+        // is NOT overwritten.
         let flag_b = Arc::new(AtomicBool::new(false));
         slot.lock().unwrap().push(Arc::clone(&flag_b));
         assert_eq!(

@@ -1937,7 +1937,7 @@ use_market_value = "true"
 underlyer_use_nbbo = "true"
 
 [test_fixtures.mode_overrides.concrete_iso]
-# ISO-dashed expiration acceptance is scoped to `Expiration` params (PR #284).
+# ISO-dashed expiration acceptance is scoped to `Expiration` params.
 expiration = "2025-03-21"
 
 [test_fixtures.mode_overrides.all_strikes_one_exp]

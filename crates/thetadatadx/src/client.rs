@@ -75,13 +75,42 @@ enum StreamingSlot {
     Stopped,
 }
 
+/// Render a [`crate::mdds::SubscriptionTier`] (or `None`) as the
+/// human-facing label this SDK uses on `SubscriptionInfo`. Kept
+/// outside the impl so the mapping is testable without spinning up an
+/// authenticated client.
+fn tier_label(tier: Option<crate::mdds::SubscriptionTier>) -> String {
+    match tier {
+        Some(crate::mdds::SubscriptionTier::Free) => "Free".to_string(),
+        Some(crate::mdds::SubscriptionTier::Value) => "Value".to_string(),
+        Some(crate::mdds::SubscriptionTier::Standard) => "Standard".to_string(),
+        Some(crate::mdds::SubscriptionTier::Pro) => "Pro".to_string(),
+        None => "Unknown".to_string(),
+    }
+}
+
 /// Subscription tier information captured at authentication time.
+///
+/// `#[non_exhaustive]` so new tiers (e.g. additional asset classes the
+/// Nexus auth payload starts emitting) can be added without a breaking
+/// API change. Callers should construct it via the SDK's
+/// [`ThetaDataDxClient::subscription_info`] entry point — fields are
+/// populated from `AuthResponse.user.{stock,options,indices,interest_rate}_subscription`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct SubscriptionInfo {
     /// Stock data subscription tier (e.g. "Free", "Value", "Standard", "Pro").
     pub stock: String,
     /// Options data subscription tier (e.g. "Free", "Value", "Standard", "Pro").
     pub options: String,
+    /// Indices (e.g. SPX, VIX) subscription tier. Same string ladder as
+    /// `stock` / `options`; "Unknown" when the upstream auth response
+    /// omits the field.
+    pub indices: String,
+    /// Interest-rate / Treasury / SOFR curve subscription tier. Same
+    /// string ladder as `stock` / `options`; "Unknown" when the upstream
+    /// auth response omits the field.
+    pub interest_rate: String,
 }
 
 /// Current state of the streaming connection.
@@ -890,17 +919,18 @@ impl ThetaDataDxClient {
     }
 
     /// Get subscription tier information captured at authentication time.
+    ///
+    /// Returns one entry per asset class the Nexus auth payload carries
+    /// (`stock`, `options`, `indices`, `interest_rate`). Missing fields
+    /// surface as the string `"Unknown"` so a Pro-on-indices user is
+    /// distinguishable from an auth response that did not advertise an
+    /// indices tier.
     pub fn subscription_info(&self) -> SubscriptionInfo {
-        let label = |tier: Option<crate::mdds::SubscriptionTier>| match tier {
-            Some(crate::mdds::SubscriptionTier::Free) => "Free".to_string(),
-            Some(crate::mdds::SubscriptionTier::Value) => "Value".to_string(),
-            Some(crate::mdds::SubscriptionTier::Standard) => "Standard".to_string(),
-            Some(crate::mdds::SubscriptionTier::Pro) => "Pro".to_string(),
-            None => "Unknown".to_string(),
-        };
         SubscriptionInfo {
-            stock: label(self.historical.stock_tier()),
-            options: label(self.historical.options_tier()),
+            stock: tier_label(self.historical.stock_tier()),
+            options: tier_label(self.historical.options_tier()),
+            indices: tier_label(self.historical.indices_tier()),
+            interest_rate: tier_label(self.historical.interest_rate_tier()),
         }
     }
 
@@ -1677,5 +1707,97 @@ mod tests {
         fn _alias_check(c: ThetaDataDxClient) -> ThetaDataDxClient {
             c
         }
+    }
+
+    /// Every `SubscriptionTier` discriminant has a stable user-facing
+    /// label, and a `None` tier renders as "Unknown" — that's what
+    /// disambiguates a Pro-on-indices user from a Nexus response that
+    /// did not advertise an indices tier at all.
+    #[test]
+    fn tier_label_covers_every_discriminant() {
+        use crate::mdds::SubscriptionTier;
+        assert_eq!(tier_label(Some(SubscriptionTier::Free)), "Free");
+        assert_eq!(tier_label(Some(SubscriptionTier::Value)), "Value");
+        assert_eq!(tier_label(Some(SubscriptionTier::Standard)), "Standard");
+        assert_eq!(tier_label(Some(SubscriptionTier::Pro)), "Pro");
+        assert_eq!(tier_label(None), "Unknown");
+    }
+
+    /// `AuthUser`'s four `*_subscription` wire bytes map through
+    /// `SubscriptionTier::from_wire` into the four
+    /// `SubscriptionInfo` fields. Pin the mapping here so a future
+    /// refactor of the auth → client wiring cannot silently regress a
+    /// field (the existing wiring covered only `stock` + `options`).
+    #[test]
+    fn auth_user_subscription_bytes_map_to_subscription_info_fields() {
+        use crate::auth::nexus::AuthUser;
+        use crate::mdds::SubscriptionTier;
+
+        let user = AuthUser {
+            email: None,
+            // Wire bytes: Free=0, Value=1, Standard=2, Pro=3.
+            stock_subscription: Some(3),
+            options_subscription: Some(2),
+            indices_subscription: Some(1),
+            interest_rate_subscription: Some(0),
+        };
+        // The four fields fold independently through `from_wire`.
+        assert_eq!(
+            SubscriptionTier::from_wire(user.stock_subscription.unwrap()),
+            Some(SubscriptionTier::Pro),
+        );
+        assert_eq!(
+            SubscriptionTier::from_wire(user.options_subscription.unwrap()),
+            Some(SubscriptionTier::Standard),
+        );
+        assert_eq!(
+            SubscriptionTier::from_wire(user.indices_subscription.unwrap()),
+            Some(SubscriptionTier::Value),
+        );
+        assert_eq!(
+            SubscriptionTier::from_wire(user.interest_rate_subscription.unwrap()),
+            Some(SubscriptionTier::Free),
+        );
+
+        // Round-trip into the human-facing labels too — this is what
+        // `subscription_info()` returns to users.
+        let info = SubscriptionInfo {
+            stock: tier_label(SubscriptionTier::from_wire(
+                user.stock_subscription.unwrap(),
+            )),
+            options: tier_label(SubscriptionTier::from_wire(
+                user.options_subscription.unwrap(),
+            )),
+            indices: tier_label(SubscriptionTier::from_wire(
+                user.indices_subscription.unwrap(),
+            )),
+            interest_rate: tier_label(SubscriptionTier::from_wire(
+                user.interest_rate_subscription.unwrap(),
+            )),
+        };
+        assert_eq!(info.stock, "Pro");
+        assert_eq!(info.options, "Standard");
+        assert_eq!(info.indices, "Value");
+        assert_eq!(info.interest_rate, "Free");
+    }
+
+    /// Missing `*_subscription` bytes on `AuthUser` (the realistic
+    /// Pro-on-stock, no-indices case) surface as the "Unknown" string
+    /// on the corresponding `SubscriptionInfo` field — not as a
+    /// silent collapse onto another tier.
+    #[test]
+    fn missing_subscription_byte_surfaces_as_unknown() {
+        use crate::mdds::SubscriptionTier;
+
+        let info = SubscriptionInfo {
+            stock: tier_label(SubscriptionTier::from_wire(3)),
+            options: tier_label(None),
+            indices: tier_label(None),
+            interest_rate: tier_label(None),
+        };
+        assert_eq!(info.stock, "Pro");
+        assert_eq!(info.options, "Unknown");
+        assert_eq!(info.indices, "Unknown");
+        assert_eq!(info.interest_rate, "Unknown");
     }
 }

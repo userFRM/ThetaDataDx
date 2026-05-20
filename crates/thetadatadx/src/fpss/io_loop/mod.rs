@@ -28,6 +28,17 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
+
+// parking_lot's Mutex is ~5ns uncontended (vs ~20-40ns for
+// std::sync::Mutex), inlines aggressively, and ships no poisoning
+// machinery — the single-consumer Disruptor hot path below holds the
+// lock for the duration of one `as_public()` reborrow plus the user
+// callback / queue push, never across an await, and is reached from
+// exactly one thread (`handle_events_with`'s consumer), so the
+// faster lock is a strict win on that path. Every other Mutex in
+// this module keeps `std::sync::Mutex` and its poison-on-panic
+// behaviour.
+use parking_lot::Mutex as ParkingLotMutex;
 use std::thread::{self, ThreadId};
 use std::time::Duration;
 
@@ -203,7 +214,12 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
         Delivery::Queue { iter_closed, .. } => Some(Arc::clone(iter_closed)),
         Delivery::Callback(_) => None,
     };
-    let delivery_cell = Mutex::new(delivery);
+    // Single-consumer hot path: parking_lot's Mutex avoids the
+    // ~20-40ns overhead std::sync::Mutex carries per
+    // lock/unlock pair. The lock is acquired once per ring event on
+    // the Disruptor consumer thread; the runtime cost compounds at
+    // event rates of 100k+/s.
+    let delivery_cell = ParkingLotMutex::new(delivery);
     let panics_consumer = Arc::clone(&panics);
     let dropped_consumer = Arc::clone(&dropped);
     let consumer_thread_id_cell = Arc::clone(&consumer_thread_id);
@@ -259,9 +275,10 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                 // `#[repr(C, u8)]`, see `events::FpssEventInternal`),
                 // which is what makes the reborrow zero-clone.
                 if let Some(evt) = ring_event.event.as_public() {
-                    let mut delivery = delivery_cell
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    // parking_lot's Mutex never poisons on panic, so
+                    // there is no `PoisonError` recovery path to thread
+                    // through; the guard is the lock result directly.
+                    let mut delivery = delivery_cell.lock();
                     match &mut *delivery {
                         Delivery::Callback(handler) => {
                             let threshold_ns = slow_threshold_ns_consumer.load(Ordering::Relaxed);

@@ -79,7 +79,7 @@ pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
         out.push('\n');
     }
 
-    // Wave H7 dropped the `FpssRawDataPayload` shim along with the
+    // Removed the `FpssRawDataPayload` shim along with the
     // `FpssEvent::RawData` variant — decode-fallback frames are
     // filtered before reaching the SDK boundary, so the typescript
     // surface no longer needs a payload struct for them.

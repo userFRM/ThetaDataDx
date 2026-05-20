@@ -12,7 +12,7 @@ and are classified `SKIP: tier-permission`. Real configuration bugs
 #287.
 
 Each cell is bounded by a per-call deadline that the CLI forwards to the
-SDK via `--timeout-ms` (W3). Concrete and list-style cells get the
+SDK via `--timeout-ms`. Concrete and list-style cells get the
 60-second baseline; bulk cells flagged `slow=True` (`all_strikes_one_exp`,
 `bulk_chain` on option history / at-time endpoints) get 180 seconds
 because a full-chain payload legitimately takes longer than a minute.

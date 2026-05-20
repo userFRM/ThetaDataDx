@@ -5,7 +5,7 @@
 // live account tier come back as a permission error and are classified
 // SKIP: tier-permission. Real configuration bugs surface as FAIL.
 //
-// Per-cell deadline (W3): concrete and list-style cells set
+// Per-cell deadline: concrete and list-style cells set
 // EndpointRequestOptions::timeout_ms = 60_000; bulk-chain / all-strike
 // cells use 180_000 because a full option chain payload legitimately
 // takes longer than a minute. The Rust SDK enforces the budget via

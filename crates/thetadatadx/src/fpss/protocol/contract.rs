@@ -47,6 +47,16 @@ impl Contract {
     /// Create a stock contract.
     ///
     /// Source: `Contract(String root)` constructor in `Contract.java` — defaults to STOCK.
+    ///
+    /// ```
+    /// use thetadatadx::fpss::protocol::Contract;
+    /// use tdbe::types::enums::SecType;
+    ///
+    /// let c = Contract::stock("AAPL");
+    /// assert_eq!(c.symbol, "AAPL");
+    /// assert_eq!(c.sec_type, SecType::Stock);
+    /// assert!(c.expiration.is_none());
+    /// ```
     pub fn stock(symbol: impl Into<String>) -> Self {
         Self {
             symbol: symbol.into(),
@@ -90,6 +100,17 @@ impl Contract {
     /// For callers that already hold wire-format integer triples (e.g.
     /// the in-process WS server parsing the JSON wire format), use
     /// [`Self::option_raw`] instead.
+    ///
+    /// ```
+    /// use thetadatadx::fpss::protocol::Contract;
+    ///
+    /// let c = Contract::option("SPY", "20260417", "550", "C")?;
+    /// assert_eq!(c.symbol, "SPY");
+    /// assert_eq!(c.expiration, Some(20_260_417));
+    /// assert_eq!(c.is_call, Some(true));
+    /// assert_eq!(c.strike, Some(550_000));
+    /// # Ok::<(), thetadatadx::Error>(())
+    /// ```
     ///
     /// # Errors
     ///

@@ -352,6 +352,10 @@ macro_rules! list_endpoint {
 /// # Example
 ///
 /// ```rust,ignore
+/// // `ignore` here because the macro example references a live
+/// // `client` value — there is no in-scope construction path for a
+/// // doc-test to spin up an authenticated `MddsClient` without
+/// // credentials.
 /// // Simple -- just .await the builder directly
 /// let ticks = client.stock_history_ohlc("AAPL", "20260401").await?;
 ///

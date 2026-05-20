@@ -193,11 +193,11 @@ const KNOWN_MODE_OVERRIDES: &[&str] = &[
 ///
 /// Prevents every silent-coverage-regression path prior review has flagged:
 ///
-///   * **Round 1 / 2**: a missing `optional_defaults` row silently drops the
-///     corresponding `with_<name>` cell and excludes the param from
-///     `all_optionals`. Typos in any fixture map silently fall through to
-///     a default and test the wrong value.
-///   * **Round 3**: missing rows in `category_symbol`, `concrete_by_type`, or
+///   * Missing `optional_defaults` row silently drops the corresponding
+///     `with_<name>` cell and excludes the param from `all_optionals`.
+///     Typos in any fixture map silently fall through to a default and
+///     test the wrong value.
+///   * Missing rows in `category_symbol`, `concrete_by_type`, or
 ///     `mode_overrides` fall through to opaque panics in `modes.rs`. Dead
 ///     keys under `mode_overrides.<mode>` are accepted even when no endpoint
 ///     emitting that mode binds the name (the override is silently unused).

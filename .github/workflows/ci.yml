@@ -78,6 +78,34 @@ jobs:
       - uses: ./.github/actions/setup-rust-deps
       - run: cargo test --workspace --locked
 
+  bench:
+    name: Bench regression gate
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-rust-deps
+      - name: Run tracked benches (mock-backed, no live creds)
+        run: |
+          cargo bench -p thetadatadx --bench grpc_channel --locked -- \
+              "stock_list_symbols/in_house" --quick
+          cargo bench -p thetadatadx --bench streaming_channels --locked -- \
+              "streaming_channels/direct_callback/100k_events" --quick
+          cargo bench -p thetadatadx --bench streaming_channels --locked -- \
+              "streaming_channels/disruptor_consumer_panic_isolated/100k_events" --quick
+          cargo bench -p thetadatadx --bench streaming_channels --locked -- \
+              "streaming_channels/disruptor_cross_thread/100k_events" --quick
+      - name: Compare against checked-in baseline
+        # Threshold is intentionally loose (100%, i.e. 2x slowdown)
+        # because the baseline JSON is captured locally on a developer
+        # machine and CI runners (GitHub-hosted Ubuntu) have very
+        # different perf characteristics. The goal of this gate is to
+        # catch the 10x-regression class that previously landed
+        # silently — fine-grained perf tracking belongs to a per-run
+        # baseline workflow we can layer on top once main is green.
+        run: python3 scripts/check_bench_regression.py --threshold 100
+
   semver:
     name: Semver check
     runs-on: ubuntu-latest

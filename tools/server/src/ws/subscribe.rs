@@ -197,11 +197,11 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         // already fenced the width; this fences the semantic range before
         // it reaches `Contract::option_raw`.
         //
-        // PR #514 LOW-001: range-check ALONE accepts impossible Gregorian
-        // dates like 20260230 (Feb 30) or 20260431 (Apr 31). Run the
-        // canonical `tdbe::time::is_valid_yyyymmdd` validator alongside
-        // so the WS subscribe path enforces the same calendar discipline
-        // the REST validator does on the historical endpoints.
+        // Range-check ALONE accepts impossible Gregorian dates like
+        // 20260230 (Feb 30) or 20260431 (Apr 31). Run the canonical
+        // `tdbe::time::is_valid_yyyymmdd` validator alongside so the WS
+        // subscribe path enforces the same calendar discipline the
+        // REST validator does on the historical endpoints.
         // Both checks must pass: the bounds gate is the cheap precheck
         // (single comparison), the calendar gate catches the bad-day-of-
         // month classes the bounds check cannot see.
@@ -441,7 +441,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    //  PR #514 LOW-001 — canonical Gregorian validator on the WS path
+    //  Canonical Gregorian validator on the WS path
     // -----------------------------------------------------------------------
 
     /// The  Gregorian validator now runs on the WS option-subscribe
