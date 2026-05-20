@@ -14,7 +14,7 @@ use tdbe::types::enums::StreamMsgType;
 use tdbe::types::price::Price;
 
 use super::accumulator::OhlcvcAccumulator;
-use super::delta::{DeltaState, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS};
+use super::delta::{DeltaState, TickFields, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS};
 use super::events::{FpssControl, FpssData, FpssEventInternal};
 use super::framing;
 use super::protocol::{
@@ -141,6 +141,13 @@ pub fn decode_frame(
             }
         };
 
+    // Stack-allocated tick buffer reused across every FIT-decoded arm. The
+    // decoder writes the absolute field values directly here; the match arm
+    // reads `buf[i]` to construct the public `FpssData` variant. Sized at
+    // the widest tick shape (`TRADE_FIELDS = 16`) so every arm shares one
+    // buffer with zero heap traffic on the decode hot path.
+    let mut buf: TickFields = [0; super::delta::MAX_DATA_FIELDS];
+
     match code {
         StreamMsgType::Metadata => {
             // Can arrive again after reconnection.
@@ -192,24 +199,24 @@ pub fn decode_frame(
 
         StreamMsgType::Quote => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS) {
-                Some((contract_id, f, _n)) => {
+            match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS, &mut buf) {
+                Some((contract_id, _n)) => {
                     warn_unknown_contract(contract_id, "quote", delta_state, local_contracts);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "quote").increment(1);
-                    let pt = f[9];
+                    let pt = buf[9];
                     (
                         Some(FpssEventInternal::Data(FpssData::Quote {
                             contract: resolve_contract(contract_id, local_contracts),
-                            ms_of_day: f[0],
-                            bid_size: f[1],
-                            bid_exchange: f[2],
-                            bid: Price::new(f[3], pt).to_f64(),
-                            bid_condition: f[4],
-                            ask_size: f[5],
-                            ask_exchange: f[6],
-                            ask: Price::new(f[7], pt).to_f64(),
-                            ask_condition: f[8],
-                            date: f[10],
+                            ms_of_day: buf[0],
+                            bid_size: buf[1],
+                            bid_exchange: buf[2],
+                            bid: Price::new(buf[3], pt).to_f64(),
+                            bid_condition: buf[4],
+                            ask_size: buf[5],
+                            ask_exchange: buf[6],
+                            ask: Price::new(buf[7], pt).to_f64(),
+                            ask_condition: buf[8],
+                            date: buf[10],
                             received_at_ns,
                         })),
                         None,
@@ -231,8 +238,8 @@ pub fn decode_frame(
 
         StreamMsgType::Trade => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, TRADE_FIELDS) {
-                Some((contract_id, f, n_data)) => {
+            match delta_state.decode_tick(msg_code, payload, TRADE_FIELDS, &mut buf) {
+                Some((contract_id, n_data)) => {
                     warn_unknown_contract(contract_id, "trade", delta_state, local_contracts);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "trade").increment(1);
 
@@ -248,54 +255,54 @@ pub fn decode_frame(
                     // 16-field: [ms_of_day, sequence, ext1..ext4, condition, size, exchange, price, cond_flags, price_flags, vol_type, records_back, price_type, date]
                     let contract_arc = resolve_contract(contract_id, local_contracts);
                     let trade_event = if n_data <= 8 {
-                        let pt = f[6];
+                        let pt = buf[6];
                         FpssEventInternal::Data(FpssData::Trade {
                             contract: Arc::clone(&contract_arc),
-                            ms_of_day: f[0],
-                            sequence: f[1],
+                            ms_of_day: buf[0],
+                            sequence: buf[1],
                             ext_condition1: 0,
                             ext_condition2: 0,
                             ext_condition3: 0,
                             ext_condition4: 0,
-                            condition: f[3],
-                            size: f[2],
-                            exchange: f[5],
-                            price: Price::new(f[4], pt).to_f64(),
+                            condition: buf[3],
+                            size: buf[2],
+                            exchange: buf[5],
+                            price: Price::new(buf[4], pt).to_f64(),
                             condition_flags: 0,
                             price_flags: 0,
                             volume_type: 0,
                             records_back: 0,
-                            date: f[7],
+                            date: buf[7],
                             received_at_ns,
                         })
                     } else {
-                        let pt = f[14];
+                        let pt = buf[14];
                         FpssEventInternal::Data(FpssData::Trade {
                             contract: Arc::clone(&contract_arc),
-                            ms_of_day: f[0],
-                            sequence: f[1],
-                            ext_condition1: f[2],
-                            ext_condition2: f[3],
-                            ext_condition3: f[4],
-                            ext_condition4: f[5],
-                            condition: f[6],
-                            size: f[7],
-                            exchange: f[8],
-                            price: Price::new(f[9], pt).to_f64(),
-                            condition_flags: f[10],
-                            price_flags: f[11],
-                            volume_type: f[12],
-                            records_back: f[13],
-                            date: f[15],
+                            ms_of_day: buf[0],
+                            sequence: buf[1],
+                            ext_condition1: buf[2],
+                            ext_condition2: buf[3],
+                            ext_condition3: buf[4],
+                            ext_condition4: buf[5],
+                            condition: buf[6],
+                            size: buf[7],
+                            exchange: buf[8],
+                            price: Price::new(buf[9], pt).to_f64(),
+                            condition_flags: buf[10],
+                            price_flags: buf[11],
+                            volume_type: buf[12],
+                            records_back: buf[13],
+                            date: buf[15],
                             received_at_ns,
                         })
                     };
 
                     // Extract for OHLCVC derivation (format-aware)
                     let (ms_of_day, size, price, price_type, date) = if n_data <= 8 {
-                        (f[0], f[2], f[4], f[6], f[7])
+                        (buf[0], buf[2], buf[4], buf[6], buf[7])
                     } else {
-                        (f[0], f[7], f[9], f[14], f[15])
+                        (buf[0], buf[7], buf[9], buf[14], buf[15])
                     };
 
                     // Derive OHLCVC from trade (OHLCVC.processTrade).
@@ -341,8 +348,8 @@ pub fn decode_frame(
 
         StreamMsgType::OpenInterest => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, OI_FIELDS) {
-                Some((contract_id, f, _n)) => {
+            match delta_state.decode_tick(msg_code, payload, OI_FIELDS, &mut buf) {
+                Some((contract_id, _n)) => {
                     warn_unknown_contract(
                         contract_id,
                         "open_interest",
@@ -354,9 +361,9 @@ pub fn decode_frame(
                     (
                         Some(FpssEventInternal::Data(FpssData::OpenInterest {
                             contract: resolve_contract(contract_id, local_contracts),
-                            ms_of_day: f[0],
-                            open_interest: f[1],
-                            date: f[2],
+                            ms_of_day: buf[0],
+                            open_interest: buf[1],
+                            date: buf[2],
                             received_at_ns,
                         })),
                         None,
@@ -376,27 +383,29 @@ pub fn decode_frame(
 
         StreamMsgType::Ohlcvc => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, OHLCVC_FIELDS) {
-                Some((contract_id, f, _n)) => {
+            match delta_state.decode_tick(msg_code, payload, OHLCVC_FIELDS, &mut buf) {
+                Some((contract_id, _n)) => {
                     warn_unknown_contract(contract_id, "ohlcvc", delta_state, local_contracts);
                     metrics::counter!("thetadatadx.fpss.events", "kind" => "ohlcvc").increment(1);
                     let acc = delta_state
                         .ohlcvc
                         .entry(contract_id)
                         .or_insert_with(OhlcvcAccumulator::new);
-                    acc.init_from_server(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8]);
-                    let pt = f[7];
+                    acc.init_from_server(
+                        buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8],
+                    );
+                    let pt = buf[7];
                     (
                         Some(FpssEventInternal::Data(FpssData::Ohlcvc {
                             contract: resolve_contract(contract_id, local_contracts),
-                            ms_of_day: f[0],
-                            open: Price::new(f[1], pt).to_f64(),
-                            high: Price::new(f[2], pt).to_f64(),
-                            low: Price::new(f[3], pt).to_f64(),
-                            close: Price::new(f[4], pt).to_f64(),
-                            volume: i64::from(f[5]),
-                            count: i64::from(f[6]),
-                            date: f[8],
+                            ms_of_day: buf[0],
+                            open: Price::new(buf[1], pt).to_f64(),
+                            high: Price::new(buf[2], pt).to_f64(),
+                            low: Price::new(buf[3], pt).to_f64(),
+                            close: Price::new(buf[4], pt).to_f64(),
+                            volume: i64::from(buf[5]),
+                            count: i64::from(buf[6]),
+                            date: buf[8],
                             received_at_ns,
                         })),
                         None,
@@ -654,9 +663,10 @@ mod tests {
 
         let mut ds = DeltaState::new();
         let msg_code = StreamMsgType::Trade as u8;
-        let result = ds.decode_tick(msg_code, &fit_payload, TRADE_FIELDS);
+        let mut f: TickFields = [0; crate::fpss::delta::MAX_DATA_FIELDS];
+        let result = ds.decode_tick(msg_code, &fit_payload, TRADE_FIELDS, &mut f);
 
-        let (contract_id, f, n_data) = result.expect("decode_tick should succeed");
+        let (contract_id, n_data) = result.expect("decode_tick should succeed");
 
         // Verify contract_id extraction.
         assert_eq!(contract_id, 100);
@@ -776,9 +786,10 @@ mod tests {
 
         let mut ds = DeltaState::new();
         let msg_code = StreamMsgType::Trade as u8;
-        let result = ds.decode_tick(msg_code, &fit_payload, TRADE_FIELDS);
+        let mut f: TickFields = [0; crate::fpss::delta::MAX_DATA_FIELDS];
+        let result = ds.decode_tick(msg_code, &fit_payload, TRADE_FIELDS, &mut f);
 
-        let (contract_id, f, n_data) = result.expect("decode_tick should succeed");
+        let (contract_id, n_data) = result.expect("decode_tick should succeed");
 
         // Verify contract_id extraction.
         assert_eq!(contract_id, 200);
