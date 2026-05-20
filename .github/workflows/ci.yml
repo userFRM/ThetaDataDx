@@ -40,6 +40,17 @@ jobs:
           python-version: "3.12"
       - run: python3 scripts/check_c_abi_completeness.py
 
+  binding-parity:
+    name: Cross-binding parity matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/check_binding_parity.py
+
   banned-vocab:
     name: Banned vocabulary scrubber
     runs-on: ubuntu-latest
