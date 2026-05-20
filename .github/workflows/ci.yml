@@ -161,6 +161,15 @@ jobs:
               "streaming_channels/disruptor_consumer_panic_isolated/100k_events" --quick
           cargo bench -p thetadatadx --bench streaming_channels --locked -- \
               "streaming_channels/disruptor_cross_thread/100k_events" --quick
+          # Gate 10 (#553) expansion: FPSS event clone + match dispatch
+          # benches. The bench files already exist
+          # (`bench_fpss_event.rs`); this step exercises them in CI so
+          # the data is generated. They will be added to
+          # `benches/baseline/criterion.json` in a follow-up commit once
+          # a first sample lands on `main` — the baseline JSON is
+          # captured locally and we do not bless a value against the
+          # GitHub-hosted runner without one observed sample.
+          cargo bench -p thetadatadx --bench bench_fpss_event --locked -- --quick
       - name: Compare against checked-in baseline
         # Threshold is intentionally loose (100%, i.e. 2x slowdown)
         # because the baseline JSON is captured locally on a developer

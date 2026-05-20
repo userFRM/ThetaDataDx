@@ -88,6 +88,12 @@ def main() -> int:
     missing: list[str] = []
 
     for bench_id, entry in sorted(baseline.items()):
+        # Underscore-prefixed keys are documentation-only entries
+        # (`_meta`, deferred-baseline notes) — skip them silently so the
+        # loader can host human-readable context alongside the gated
+        # samples without confusing the loop.
+        if bench_id.startswith("_"):
+            continue
         criterion_path = entry.get("criterion_path")
         baseline_p50 = entry.get("p50_ns")
         if not isinstance(criterion_path, str) or not isinstance(
