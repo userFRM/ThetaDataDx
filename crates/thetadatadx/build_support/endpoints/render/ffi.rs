@@ -109,12 +109,11 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     let from_vec_type = ffi_from_vec_array_type(&endpoint.return_type);
     let mut out = String::new();
 
-    writeln!(
-        out,
-        "/// {} with optional builder parameters.",
-        endpoint.description
-    )
-    .unwrap();
+    // Doc emission goes through `rust_doc_lines` so embedded newlines
+    // / quote / backslash in the upstream description cannot escape
+    // the comment block.
+    super::doc::rust_doc_lines(&mut out, "", &endpoint.description);
+    out.push_str("///\n/// Accepts optional builder parameters.\n");
     out.push_str("#[no_mangle]\n");
     write!(
         out,

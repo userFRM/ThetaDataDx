@@ -27,7 +27,7 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
             "Bool" => "std::optional<bool>",
             _ => "std::optional<std::string>",
         };
-        writeln!(out, "    /// {}", param.description).unwrap();
+        super::doc::cpp_doc_lines(&mut out, "    ", &param.description);
         writeln!(out, "    {} {};", ty, param.name).unwrap();
     }
     out.push_str("    /// Per-call deadline in milliseconds.\n");
@@ -91,7 +91,10 @@ pub(super) fn render_cpp_historical_decls(endpoints: &[GeneratedEndpoint]) -> St
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
-        writeln!(out, "    /** {} */", endpoint.description).unwrap();
+        // Use `///` line-comments rather than a `/** ... */` block so a
+        // description containing `*/` cannot prematurely close the
+        // doc-comment.
+        super::doc::cpp_doc_lines(&mut out, "    ", &endpoint.description);
         let has_symbols = method_params(endpoint)
             .iter()
             .any(|param| param.param_type == "Symbols");
