@@ -91,7 +91,7 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
         },
         Error::NoData => TDX_ERR_NOT_FOUND,
         Error::Timeout { .. } => TDX_ERR_DEADLINE_EXCEEDED,
-        Error::Transport(_) | Error::Tls(_) | Error::Io(_) | Error::Http(_) => TDX_ERR_NETWORK,
+        Error::Transport { .. } | Error::Tls(_) | Error::Io(_) | Error::Http(_) => TDX_ERR_NETWORK,
         Error::Decode { .. } | Error::Decompress { .. } => TDX_ERR_SCHEMA_MISMATCH,
         Error::Config { .. } => TDX_ERR_CONFIG,
         Error::Fpss { kind, .. } => match kind {
@@ -280,7 +280,10 @@ mod tests {
             TDX_ERR_DEADLINE_EXCEEDED
         );
         assert_eq!(
-            error_code_for(&thetadatadx::Error::Transport("dead".into())),
+            error_code_for(&thetadatadx::Error::Transport {
+                kind: thetadatadx::error::TransportErrorKind::ConnectionClosed,
+                message: "dead".into(),
+            }),
             TDX_ERR_NETWORK
         );
         assert_eq!(
@@ -288,7 +291,7 @@ mod tests {
             TDX_ERR_SCHEMA_MISMATCH
         );
         assert_eq!(
-            error_code_for(&thetadatadx::Error::config_other("bad")),
+            error_code_for(&thetadatadx::Error::config_invalid("ffi", "bad")),
             TDX_ERR_CONFIG
         );
     }

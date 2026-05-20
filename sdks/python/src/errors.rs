@@ -124,7 +124,7 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
         },
         thetadatadx::Error::NoData => NoDataFoundError::new_err(e.to_string()),
         thetadatadx::Error::Timeout { .. } => TimeoutError::new_err(e.to_string()),
-        thetadatadx::Error::Transport(_) => NetworkError::new_err(e.to_string()),
+        thetadatadx::Error::Transport { .. } => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Tls(_) => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Io(_) => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Http(_) => NetworkError::new_err(e.to_string()),

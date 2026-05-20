@@ -24,6 +24,17 @@
 //! producer. Events are pre-allocated in the ring buffer (zero allocation on
 //! the hot path), and the single-producer barrier uses a plain store (no CAS).
 //!
+//! # Publish policy
+//!
+//! Every publish from the io_loop thread — TLS-read data frames AND
+//! handshake / reconnect / control frames — goes through
+//! `Producer::try_publish`. The blocking `Producer::publish` is
+//! **never** called on the io_loop thread: a slow callback that lets
+//! the ring fill must NOT wedge the TLS reader, because a wedged
+//! reader stops servicing PING heartbeats and the vendor session
+//! drops on the wire. On overflow the event is dropped, the shared
+//! `dropped` counter increments, and a `warn` is logged.
+//!
 //! # Wait Strategy
 //!
 //! [`AdaptiveWaitStrategy`] implements a three-phase wait inspired by LMAX Disruptor's

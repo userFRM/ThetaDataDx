@@ -596,7 +596,10 @@ impl DecoderPool {
                     // instead of hanging on a never-completed
                     // oneshot.
                     if poisoned.load(Ordering::Acquire) {
-                        let _ = reply.send(Err(Error::Transport(POOL_POISONED_REASON.to_string())));
+                        let _ = reply.send(Err(Error::Transport {
+                            kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                            message: POOL_POISONED_REASON.to_string(),
+                        }));
                         return;
                     }
                     // Run the decode under catch_unwind so a panic
@@ -630,7 +633,10 @@ impl DecoderPool {
                                 target: "thetadatadx::grpc::decoder_pool",
                                 "mdds decoder worker panicked; pool poisoned"
                             );
-                            Err(Error::Transport(POOL_POISONED_REASON.to_string()))
+                            Err(Error::Transport {
+                                kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                                message: POOL_POISONED_REASON.to_string(),
+                            })
                         }
                     };
                     // Send-failure is benign: receiver may have
@@ -893,7 +899,7 @@ mod tests {
             .expect("oneshot resolves before deadline")
             .expect("oneshot delivered");
         match outcome {
-            Err(Error::Transport(msg)) => {
+            Err(Error::Transport { message: msg, .. }) => {
                 assert!(
                     msg.contains(POOL_POISONED_REASON),
                     "transport error must carry the pool-poisoned reason, got {msg:?}"
@@ -977,7 +983,7 @@ mod tests {
             .expect("head reply lands")
             .expect("oneshot delivered");
         match head_outcome {
-            Err(Error::Transport(msg)) => assert!(
+            Err(Error::Transport { message: msg, .. }) => assert!(
                 msg.contains(POOL_POISONED_REASON),
                 "head reply carries poison reason, got {msg:?}"
             ),
@@ -992,7 +998,7 @@ mod tests {
                 .unwrap_or_else(|_| panic!("queued reply {idx} resolves before deadline"))
                 .expect("oneshot delivered");
             match outcome {
-                Err(Error::Transport(msg)) => assert!(
+                Err(Error::Transport { message: msg, .. }) => assert!(
                     msg.contains(POOL_POISONED_REASON),
                     "queued reply {idx} carries poison reason, got {msg:?}"
                 ),

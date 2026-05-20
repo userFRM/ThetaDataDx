@@ -337,7 +337,31 @@ async fn open_channel_pool(
                 )
             })?
         }
-        .map_err(|e| Error::Transport(format!("channel {idx}: {e}")))?;
+        .map_err(|e| {
+            // Route the channel-construction error through the
+            // structured `ChannelError -> Error` conversion so the typed
+            // [`TransportErrorKind`] is preserved (TCP / TLS /
+            // InvalidServerName / H2Handshake / ConnectionClosed etc.).
+            // The channel-index context lands in the message.
+            let kind = match &e {
+                crate::grpc::ChannelError::Tcp { .. } => crate::error::TransportErrorKind::Tcp,
+                crate::grpc::ChannelError::Tls { .. } => crate::error::TransportErrorKind::Tls,
+                crate::grpc::ChannelError::InvalidServerName { .. } => {
+                    crate::error::TransportErrorKind::InvalidServerName
+                }
+                crate::grpc::ChannelError::H2Handshake(_) => {
+                    crate::error::TransportErrorKind::H2Handshake
+                }
+                crate::grpc::ChannelError::ConnectionClosed(_) => {
+                    crate::error::TransportErrorKind::ConnectionClosed
+                }
+                _ => crate::error::TransportErrorKind::ConnectionClosed,
+            };
+            Error::Transport {
+                kind,
+                message: format!("channel {idx}: {e}"),
+            }
+        })?;
         channels.push(channel);
     }
     let decoder_threads = if config.mdds.decoder_threads == 0 {

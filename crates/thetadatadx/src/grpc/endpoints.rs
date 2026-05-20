@@ -124,14 +124,16 @@ async fn decode_chunk(
         // when a prior worker-thread panic has flipped the pool's
         // poison flag — surface as a transport-level failure so
         // higher layers can decide on retry vs. rebuild.
-        let rx = handle.submit(response).map_err(|err| {
-            Error::Transport(format!("mdds decoder pool rejected submission: {err}"))
+        let rx = handle.submit(response).map_err(|err| Error::Transport {
+            kind: crate::error::TransportErrorKind::DecoderPoisoned,
+            message: format!("mdds decoder pool rejected submission: {err}"),
         })?;
         match rx.await {
             Ok(result) => result,
-            Err(_) => Err(Error::Transport(
-                "mdds decoder pool dropped its reply channel".to_string(),
-            )),
+            Err(_) => Err(Error::Transport {
+                kind: crate::error::TransportErrorKind::DecoderReplyDropped,
+                message: "mdds decoder pool dropped its reply channel".to_string(),
+            }),
         }
     } else {
         decode::decode_data_table(&response)

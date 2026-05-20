@@ -63,7 +63,7 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
         },
         thetadatadx::Error::NoData => "NotFoundError",
         thetadatadx::Error::Timeout { .. } => "DeadlineExceededError",
-        thetadatadx::Error::Transport(_)
+        thetadatadx::Error::Transport { .. }
         | thetadatadx::Error::Tls(_)
         | thetadatadx::Error::Io(_)
         | thetadatadx::Error::Http(_) => "NetworkError",

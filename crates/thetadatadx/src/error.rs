@@ -20,6 +20,73 @@ impl std::fmt::Display for AuthErrorKind {
     }
 }
 
+/// Classification of gRPC transport-level failures.
+///
+/// Mirrors the `ChannelError` variants so callers can pattern-match on
+/// the concrete transport fault (TLS handshake, connection-level death,
+/// stream-level reset, etc.) without parsing `Display` strings. Each
+/// variant is `#[non_exhaustive]` at the enum level so future transport
+/// failure modes can be added without breaking exhaustive matches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TransportErrorKind {
+    /// TCP connect failed (DNS, refused, network unreachable, etc.).
+    Tcp,
+    /// TLS handshake failed (cert chain rejection, ALPN mismatch, etc.).
+    Tls,
+    /// The host string was not a valid DNS name for rustls.
+    InvalidServerName,
+    /// h2 protocol handshake failed.
+    H2Handshake,
+    /// h2 stream-level error scoped to a single RPC.
+    H2Stream,
+    /// Connection-level death (GOAWAY, IO failure, open-phase drop).
+    ConnectionClosed,
+    /// Server returned a non-200 HTTP status — invariant violation
+    /// per the gRPC HTTP/2 contract.
+    UnexpectedHttpStatus,
+    /// Server's HTTP/2 response carried no body.
+    EmptyResponse,
+    /// `:path` URI for the RPC could not be built.
+    InvalidPath,
+    /// Codec-layer failure surfaced through the channel.
+    Codec,
+    /// Decoder pool poisoned by a worker-thread panic.
+    DecoderPoisoned,
+    /// Decoder pool's response channel was dropped before the result
+    /// arrived.
+    DecoderReplyDropped,
+}
+
+impl TransportErrorKind {
+    /// Stable string identifier for the variant — used in [`Error::Transport`]
+    /// Display so bindings parsing `to_string()` see a stable token before
+    /// the human-readable message.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Tcp => "tcp",
+            Self::Tls => "tls",
+            Self::InvalidServerName => "invalid_server_name",
+            Self::H2Handshake => "h2_handshake",
+            Self::H2Stream => "h2_stream",
+            Self::ConnectionClosed => "connection_closed",
+            Self::UnexpectedHttpStatus => "unexpected_http_status",
+            Self::EmptyResponse => "empty_response",
+            Self::InvalidPath => "invalid_path",
+            Self::Codec => "codec",
+            Self::DecoderPoisoned => "decoder_poisoned",
+            Self::DecoderReplyDropped => "decoder_reply_dropped",
+        }
+    }
+}
+
+impl std::fmt::Display for TransportErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Classification of FPSS streaming failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -234,8 +301,19 @@ impl std::fmt::Display for GrpcStatusKind {
 pub enum Error {
     /// gRPC transport-level error (TLS handshake, connection refused,
     /// h2 protocol failure, GOAWAY from the server, etc.).
-    #[error("gRPC transport error: {0}")]
-    Transport(String),
+    ///
+    /// Carries a typed [`TransportErrorKind`] so retry classifiers and
+    /// bindings can dispatch on the concrete fault category without
+    /// regexing the `Display` string. The Display shape stays stable
+    /// (`transport error (<kind>): <message>`) so binding consumers
+    /// that parse `to_string()` keep working across upgrades.
+    #[error("transport error ({kind}): {message}")]
+    Transport {
+        /// Concrete transport failure category.
+        kind: TransportErrorKind,
+        /// Human-readable detail for logs and `Display`.
+        message: String,
+    },
 
     /// gRPC status error from the upstream MDDS server.
     #[error("gRPC status {kind}: {message}")]
@@ -420,6 +498,17 @@ impl Error {
     }
 
     /// Build a `Config` error with an unspecified kind.
+    ///
+    /// Deprecated escape hatch retained for the existing
+    /// `From<tdbe::error::Error>` bridge. New call sites should pick a
+    /// typed `ConfigErrorKind` variant (`OutOfRange`, `MissingField`,
+    /// `InvalidValue`, `Io`, `TomlParse`, `Internal`) so retry
+    /// classifiers can dispatch without parsing `Display`.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "10.0.1",
+        note = "use a typed Config constructor (config_invalid, config_internal, ...)"
+    )]
     #[must_use]
     pub fn config_other(message: impl Into<String>) -> Self {
         let message = message.into();
@@ -498,6 +587,16 @@ impl Error {
     }
 
     /// Build a `Decode` error with an unspecified kind.
+    ///
+    /// Deprecated escape hatch. New call sites should pick a typed
+    /// `DecodeErrorKind` variant (`TruncatedRow`, `ColumnTypeMismatch`,
+    /// `Protobuf`, `Codec`, `Arrow`) so retry classifiers can dispatch
+    /// without parsing `Display`.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "10.0.1",
+        note = "use a typed Decode constructor (decode_protobuf, decode_codec, ...)"
+    )]
     #[must_use]
     pub fn decode_other(message: impl Into<String>) -> Self {
         let message = message.into();
@@ -529,6 +628,15 @@ impl Error {
     }
 
     /// Build a `Decompress` error with an unspecified kind.
+    ///
+    /// Deprecated escape hatch. New call sites should pick a typed
+    /// `DecompressErrorKind` variant (`Zstd`, `UnknownAlgorithm`) so
+    /// retry classifiers can dispatch without parsing `Display`.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "10.0.1",
+        note = "use a typed Decompress constructor (decompress_zstd, decompress_unknown_algorithm)"
+    )]
     #[must_use]
     pub fn decompress_other(message: impl Into<String>) -> Self {
         let message = message.into();
@@ -542,13 +650,18 @@ impl Error {
 impl From<tdbe::error::Error> for Error {
     fn from(err: tdbe::error::Error) -> Self {
         // The pure-data crate carries a small error enum; fold its variants
-        // into the closest `thetadatadx::Error` variant so callers can use
-        // `?` when invoking `tdbe` APIs (e.g. `tdbe::right::parse_right`)
+        // into the closest typed `thetadatadx::Error` variant so callers
+        // can use `?` when invoking `tdbe` APIs (e.g. `tdbe::right::parse_right`)
         // from a `Result<_, thetadatadx::Error>` context.
+        //
+        // Every previously-`config_other` site now routes to a typed
+        // `ConfigErrorKind` variant (`InvalidValue` for upstream config
+        // / parse failures, `Io` for I/O surfaces) so retry
+        // classifiers can dispatch on the structured kind.
         match err {
-            tdbe::error::Error::Config(msg) => Self::config_other(msg),
+            tdbe::error::Error::Config(msg) => Self::config_invalid("tdbe", msg),
             tdbe::error::Error::Io(e) => Self::Io(e),
-            other => Self::config_other(other.to_string()),
+            other => Self::config_invalid("tdbe", other.to_string()),
         }
     }
 }
@@ -583,15 +696,45 @@ impl From<crate::grpc::Status> for Error {
 impl From<crate::grpc::ChannelError> for Error {
     fn from(err: crate::grpc::ChannelError) -> Self {
         use crate::grpc::ChannelError;
+        // Rpc / DeadlineExceeded route to their own variants — everything
+        // else folds into a typed `Transport { kind, message }` so retry
+        // classifiers downstream can dispatch on the structured fault
+        // without parsing `Display`.
         match err {
             ChannelError::Rpc { status } => Self::from(status),
             ChannelError::DeadlineExceeded { duration_ms } => Self::Timeout { duration_ms },
-            other => Self::Transport(other.to_string()),
+            other => {
+                let kind = match &other {
+                    ChannelError::Tcp { .. } => TransportErrorKind::Tcp,
+                    ChannelError::Tls { .. } => TransportErrorKind::Tls,
+                    ChannelError::InvalidServerName { .. } => TransportErrorKind::InvalidServerName,
+                    ChannelError::H2Handshake(_) => TransportErrorKind::H2Handshake,
+                    ChannelError::H2Stream(_) => TransportErrorKind::H2Stream,
+                    ChannelError::InvalidPath { .. } => TransportErrorKind::InvalidPath,
+                    ChannelError::Codec(_) => TransportErrorKind::Codec,
+                    ChannelError::StatusParse(_) => TransportErrorKind::Codec,
+                    ChannelError::EmptyResponse => TransportErrorKind::EmptyResponse,
+                    ChannelError::UnexpectedHttpStatus(_) => {
+                        TransportErrorKind::UnexpectedHttpStatus
+                    }
+                    ChannelError::ConnectionClosed(_) => TransportErrorKind::ConnectionClosed,
+                    // Rpc / DeadlineExceeded handled above — keep compiler
+                    // exhaustiveness happy without a runtime branch.
+                    ChannelError::Rpc { .. } | ChannelError::DeadlineExceeded { .. } => {
+                        TransportErrorKind::ConnectionClosed
+                    }
+                };
+                Self::Transport {
+                    kind,
+                    message: other.to_string(),
+                }
+            }
         }
     }
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 
@@ -900,5 +1043,147 @@ mod tests {
             }
             other => panic!("expected Error::Grpc, got {other:?}"),
         }
+    }
+
+    /// Every non-Rpc / non-DeadlineExceeded `ChannelError` variant must
+    /// round-trip through `From<ChannelError> for Error` with a typed
+    /// [`TransportErrorKind`] that mirrors the variant. Pins the
+    /// structured payload promise the binding layer relies on.
+    #[test]
+    fn from_channel_error_routes_every_transport_variant_to_typed_kind() {
+        use crate::grpc::ChannelError;
+
+        let cases: Vec<(ChannelError, TransportErrorKind)> = vec![
+            (
+                ChannelError::Tcp {
+                    host: "h".into(),
+                    port: 1,
+                    source: std::io::Error::other("e"),
+                },
+                TransportErrorKind::Tcp,
+            ),
+            (
+                ChannelError::Tls {
+                    host: "h".into(),
+                    source: std::io::Error::other("e"),
+                },
+                TransportErrorKind::Tls,
+            ),
+            (
+                ChannelError::InvalidServerName { host: "h".into() },
+                TransportErrorKind::InvalidServerName,
+            ),
+            (
+                ChannelError::H2Handshake("e".into()),
+                TransportErrorKind::H2Handshake,
+            ),
+            (
+                ChannelError::H2Stream("e".into()),
+                TransportErrorKind::H2Stream,
+            ),
+            (
+                ChannelError::InvalidPath {
+                    path: "/".into(),
+                    message: "e".into(),
+                },
+                TransportErrorKind::InvalidPath,
+            ),
+            (
+                ChannelError::EmptyResponse,
+                TransportErrorKind::EmptyResponse,
+            ),
+            (
+                ChannelError::UnexpectedHttpStatus(500),
+                TransportErrorKind::UnexpectedHttpStatus,
+            ),
+            (
+                ChannelError::ConnectionClosed("e".into()),
+                TransportErrorKind::ConnectionClosed,
+            ),
+        ];
+
+        for (input, expected) in cases {
+            let err: Error = input.into();
+            match err {
+                Error::Transport { kind, message } => {
+                    assert_eq!(kind, expected, "kind mismatch (display={message})");
+                    assert!(
+                        !message.is_empty(),
+                        "transport error message must not be empty"
+                    );
+                }
+                other => panic!("expected Error::Transport, got {other:?}"),
+            }
+        }
+    }
+
+    /// The `*_other` catch-all constructors are deprecated escape
+    /// hatches. Production code must route through typed `*Kind`
+    /// variants so retry classifiers can dispatch without parsing
+    /// `Display`. This test pins the contract by exercising every
+    /// typed constructor and asserting it does NOT land on the
+    /// `Other` arm.
+    #[test]
+    fn typed_constructors_do_not_route_to_other() {
+        let cases: Vec<(Error, &'static str)> = vec![
+            (Error::config_invalid("f", "bad"), "config_invalid"),
+            (Error::config_missing("f"), "config_missing"),
+            (
+                Error::config_out_of_range("f", 0, 1, 2),
+                "config_out_of_range",
+            ),
+            (Error::config_io("io"), "config_io"),
+            (Error::config_toml("toml"), "config_toml"),
+            (Error::config_internal("bug"), "config_internal"),
+            (Error::decode_protobuf("p"), "decode_protobuf"),
+            (Error::decode_codec("c"), "decode_codec"),
+            (Error::decode_arrow("a"), "decode_arrow"),
+            (Error::decode_truncated_row(0, 0, 0), "decode_truncated_row"),
+            (
+                Error::decode_column_type_mismatch(0, "c", "e", "a"),
+                "decode_column_type_mismatch",
+            ),
+            (Error::decompress_zstd("z"), "decompress_zstd"),
+            (
+                Error::decompress_unknown_algorithm(99),
+                "decompress_unknown_algorithm",
+            ),
+        ];
+        for (err, name) in cases {
+            match err {
+                Error::Config {
+                    kind: ConfigErrorKind::Other(_),
+                    ..
+                } => panic!("{name} regressed onto ConfigErrorKind::Other"),
+                Error::Decode {
+                    kind: DecodeErrorKind::Other(_),
+                    ..
+                } => panic!("{name} regressed onto DecodeErrorKind::Other"),
+                Error::Decompress {
+                    kind: DecompressErrorKind::Other(_),
+                    ..
+                } => panic!("{name} regressed onto DecompressErrorKind::Other"),
+                _ => { /* typed kind — OK */ }
+            }
+        }
+    }
+
+    /// Display shape is part of the binding contract — assert the
+    /// `transport error (<kind>): <message>` skeleton is preserved.
+    #[test]
+    fn transport_display_carries_kind_token() {
+        let err = Error::Transport {
+            kind: TransportErrorKind::H2Stream,
+            message: "test message".into(),
+        };
+        let display = err.to_string();
+        assert!(
+            display.contains("h2_stream"),
+            "transport display must carry kind token, got {display:?}"
+        );
+        assert!(
+            display.contains("test message"),
+            "transport display must carry message, got {display:?}"
+        );
     }
 }
