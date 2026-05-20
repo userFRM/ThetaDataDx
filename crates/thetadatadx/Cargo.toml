@@ -24,6 +24,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 config-file = ["dep:toml"]
+# Pulls `prost-build` into the regular dep graph for the
+# `refresh_grpc_snapshot` developer binary. Strictly off for normal
+# crate builds — the build script keeps its own `prost-build` under
+# `[build-dependencies]`.
+grpc-codegen = ["dep:prost-build"]
 # Optional Prometheus exporter. When enabled, a `metrics-exporter-prometheus`
 # HTTP listener binds to `DirectConfig::metrics_port` (see the
 # `observability` module) and serves recorder state on `/metrics`.
@@ -161,6 +166,11 @@ arc-swap = "1.7"
 # choice, not us.
 mimalloc = { version = "0.1", default-features = false, optional = true }
 
+# Optional prost-build for the `refresh_grpc_snapshot` developer
+# binary. Stays out of the default dep graph (the build script keeps
+# its own copy under `[build-dependencies]`).
+prost-build = { version = "=0.14.3", optional = true }
+
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
 # `futures::future::join_all` for the concurrent-burst bench. Pulls in
@@ -236,3 +246,8 @@ harness = false
 name = "generate_sdk_surfaces"
 path = "src/bin/generate_sdk_surfaces.rs"
 required-features = ["config-file"]
+
+[[bin]]
+name = "refresh_grpc_snapshot"
+path = "src/bin/refresh_grpc_snapshot.rs"
+required-features = ["grpc-codegen"]
