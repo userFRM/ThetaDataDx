@@ -123,6 +123,109 @@ if (
   };
 }
 
+// `await using session = await tdx.streamingIter()` — RAII context
+// manager around the pull-iter delivery path. Returns a
+// `StreamingIterSession` wrapping a `native.EventIterator` so user
+// code can `for await (const event of session)` and the framework
+// pairs `close()` + `stopStreaming()` + `awaitDrain(5000)` on scope
+// exit. Mirrors the Python `with tdx.streaming_iter() as it:` block
+// and the C++ `tdx::UnifiedFpssIterSession` destructor.
+
+class StreamingIterSession {
+  /**
+   * @param {InstanceType<typeof native.ThetaDataDxClient>} tdx
+   * @param {InstanceType<typeof native.EventIterator>} iter
+   */
+  constructor(tdx, iter) {
+    this._tdx = tdx;
+    this._iter = iter;
+    return new Proxy(this, {
+      get(target, prop, receiver) {
+        // Method overrides defined on this class take precedence;
+        // everything else proxies to the underlying iterator first,
+        // then to the parent ThetaDataDxClient — so subscribe /
+        // unsubscribe / activeSubscriptions are reachable through
+        // the session without an explicit forwarder per method.
+        if (
+          prop === Symbol.asyncIterator ||
+          prop === Symbol.asyncDispose ||
+          prop === '_tdx' ||
+          prop === '_iter' ||
+          prop === 'constructor'
+        ) {
+          return Reflect.get(target, prop, receiver);
+        }
+        if (typeof target[prop] !== 'undefined' && prop !== 'next') {
+          const own = Reflect.get(target, prop, receiver);
+          return typeof own === 'function' ? own.bind(target) : own;
+        }
+        const iter = target._iter;
+        const onIter = iter[prop];
+        if (onIter !== undefined) {
+          return typeof onIter === 'function' ? onIter.bind(iter) : onIter;
+        }
+        const tdx = target._tdx;
+        const onTdx = tdx[prop];
+        return typeof onTdx === 'function' ? onTdx.bind(tdx) : onTdx;
+      },
+    });
+  }
+
+  [Symbol.asyncIterator]() {
+    const iter = this._iter;
+    return {
+      async next() {
+        const evt = await iter.next();
+        if (evt === null || evt === undefined) {
+          return { value: undefined, done: true };
+        }
+        return { value: evt, done: false };
+      },
+      async return() {
+        // Early-break path — close the iterator so a pending `next()`
+        // returns promptly. The session's `[Symbol.asyncDispose]`
+        // still runs `stopStreaming` + `awaitDrain`.
+        try {
+          iter.close();
+        } catch (_) {
+          // close is best-effort
+        }
+        return { value: undefined, done: true };
+      },
+    };
+  }
+
+  async [Symbol.asyncDispose]() {
+    // Mirror the C++ `UnifiedFpssIterSession` destructor and the
+    // Python `__exit__`: close the iterator, stop the streaming
+    // session, then await the drain barrier with the same 5 s
+    // budget. Drain timeouts emit `console.warn` rather than
+    // throwing so a `using` block exit doesn't mask body errors.
+    try {
+      this._iter.close();
+    } catch (_) {}
+    this._tdx.stopStreaming();
+    const drained = await this._tdx.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
+    if (!drained) {
+      console.warn(
+        `ThetaDataDxClient streaming iter drain timed out after ${EXIT_DRAIN_TIMEOUT_MS}ms; ` +
+          'the consumer thread may still be pushing events. The iterator ' +
+          'is already closed and will stop yielding once the consumer exits.',
+      );
+    }
+  }
+}
+
+if (
+  native.ThetaDataDxClient &&
+  typeof native.ThetaDataDxClient.prototype.streamingIter !== 'function'
+) {
+  native.ThetaDataDxClient.prototype.streamingIter = async function streamingIter() {
+    const iter = this.startStreamingIter();
+    return new StreamingIterSession(this, iter);
+  };
+}
+
 // Pull-iter delivery. Patch `[Symbol.asyncIterator]` onto the
 // napi-bound `EventIterator` class so user code drains it with the
 // idiomatic `for await (const event of iter)` shape. The napi-rs
@@ -171,5 +274,6 @@ if (
 // the docs without a second pyclass.
 module.exports = Object.assign({}, native, {
   StreamingSession,
+  StreamingIterSession,
   Contract: native.ContractRef,
 });
