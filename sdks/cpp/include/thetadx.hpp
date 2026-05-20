@@ -471,6 +471,23 @@ public:
     /** Set FPSS reconnect policy. 0=Auto (default), 1=Manual. */
     void set_reconnect_policy(int policy) { tdx_config_set_reconnect_policy(handle_.get(), policy); }
 
+    /** Set the per-class transient-failure attempt budget. Default 3. */
+    void set_reconnect_max_attempts(uint32_t max_attempts) {
+        tdx_config_set_reconnect_max_attempts(handle_.get(), max_attempts);
+    }
+
+    /** Set the rate-limited (TooManyRequests) attempt budget. Default 100. */
+    void set_reconnect_max_rate_limited_attempts(uint32_t max_rate_limited_attempts) {
+        tdx_config_set_reconnect_max_rate_limited_attempts(handle_.get(),
+                                                            max_rate_limited_attempts);
+    }
+
+    /** Set the stable-window timer (seconds) after which the auto-reconnect
+     *  attempt counters reset. Default 60. */
+    void set_reconnect_stable_window_secs(uint64_t secs) {
+        tdx_config_set_reconnect_stable_window_secs(handle_.get(), secs);
+    }
+
     /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. */
     void set_flush_mode(int mode) { tdx_config_set_flush_mode(handle_.get(), mode); }
 

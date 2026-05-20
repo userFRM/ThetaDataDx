@@ -40,14 +40,16 @@ use std::sync::{Arc, Mutex, OnceLock};
 // behaviour.
 use parking_lot::Mutex as ParkingLotMutex;
 use std::thread::{self, ThreadId};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use disruptor::{build_single_producer, Producer, Sequence};
 
 use tdbe::types::enums::{RemoveReason, StreamMsgType};
 
 use crate::auth::Credentials;
-use crate::config::{FpssFlushMode, ReconnectPolicy};
+use crate::config::{
+    FpssFlushMode, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy,
+};
 use crate::error::Error;
 
 use super::connection;
@@ -77,9 +79,6 @@ type ActiveFullSubs = Arc<
 // ---------------------------------------------------------------------------
 // I/O thread: blocking read + Disruptor publish + command drain
 // ---------------------------------------------------------------------------
-
-/// Maximum number of consecutive reconnection attempts before giving up.
-pub(in crate::fpss) const MAX_RECONNECT_ATTEMPTS: u32 = 5;
 
 /// The I/O thread owns the TLS stream. It does three things in a loop:
 ///
@@ -418,7 +417,18 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
 
     // Outer reconnection loop: each iteration runs one connection session.
     // On involuntary disconnect, the policy decides whether to reconnect.
-    let mut reconnect_attempt: u32 = 0;
+    //
+    // Attempt counters split by failure class
+    // ([`ReconnectAttemptClass`]) so a rate-limited transient
+    // (`TooManyRequests`, 130 s spacing) does not burn through the
+    // generic transient budget meant for fast TimedOut / Unspecified
+    // retries. Each counter resets to zero on a successful read; an
+    // additional time-based reset fires when the connection has been
+    // running cleanly for at least
+    // `ReconnectAttemptLimits::stable_window`, so a connection that
+    // ran cleanly for a minute before dropping picks up the full
+    // budget again rather than inheriting the previous cycle's count.
+    let mut reconnect_state = ReconnectCounters::new();
 
     // Per-iteration short blocking-read timeout. 50 ms is short enough
     // that pings (default 100 ms cadence) are serviced promptly but
@@ -454,8 +464,14 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
             ) {
                 Ok(Some((code, payload_len))) => {
                     consecutive_timeouts = 0;
-                    // Reset reconnect counter on successful data reception.
-                    reconnect_attempt = 0;
+                    // Reset reconnect counters on successful data reception
+                    // and mark "data did flow on this session" so the
+                    // stable-window check on the next drop knows whether
+                    // the connection ran long enough to deserve a fresh
+                    // retry budget.
+                    reconnect_state.transient = 0;
+                    reconnect_state.rate_limited = 0;
+                    reconnect_state.note_data_received();
 
                     let (primary, secondary) = decode_frame(
                         code,
@@ -634,35 +650,50 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
 
         // --- Reconnection decision ---
         let reason = disconnect_reason;
-        reconnect_attempt += 1;
 
-        let delay = match &policy {
+        let (delay, reconnect_attempt) = match &policy {
             ReconnectPolicy::Manual => {
                 tracing::info!(reason = ?reason, "manual reconnect policy -- not reconnecting");
                 break 'session;
             }
-            ReconnectPolicy::Auto => {
-                if reconnect_attempt > MAX_RECONNECT_ATTEMPTS {
+            ReconnectPolicy::Auto(limits) => {
+                // Permanent reasons short-circuit before consulting any
+                // budget — no amount of retrying will fix bad credentials.
+                let Some(class) = ReconnectAttemptLimits::class_for(reason) else {
+                    tracing::error!(reason = ?reason, "permanent disconnect -- not reconnecting");
+                    break 'session;
+                };
+                // Optional time-based reset BEFORE incrementing. A
+                // session that ran cleanly for >= `stable_window`
+                // before this drop earns a fresh budget across both
+                // classes.
+                reconnect_state.maybe_reset_after_stable(limits);
+                let attempt = reconnect_state.record(class);
+                let budget = limits.budget_for(class);
+                if attempt > budget {
                     tracing::error!(
-                        attempts = reconnect_attempt - 1,
-                        "max reconnect attempts reached, giving up"
+                        attempts = attempt - 1,
+                        class = ?class,
+                        "max reconnect attempts reached for this class, giving up"
                     );
                     break 'session;
                 }
-                if let Some(ms) = reconnect_delay(reason) {
-                    Duration::from_millis(ms)
-                } else {
+                let Some(ms) = reconnect_delay(reason) else {
                     tracing::error!(reason = ?reason, "permanent disconnect -- not reconnecting");
                     break 'session;
-                }
+                };
+                (Duration::from_millis(ms), attempt)
             }
             ReconnectPolicy::Custom(f) => {
-                if let Some(d) = f(reason, reconnect_attempt) {
-                    d
-                } else {
+                // Custom policies bypass the split-budget counters and
+                // call the user function with a monotonic count of
+                // total reconnect attempts since session start.
+                let attempt = reconnect_state.record(ReconnectAttemptClass::Transient);
+                let Some(d) = f(reason, attempt) else {
                     tracing::info!(reason = ?reason, "custom policy returned None -- not reconnecting");
                     break 'session;
-                }
+                };
+                (d, attempt)
             }
         };
 
@@ -711,7 +742,10 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
             }
             Err(e) => {
                 tracing::warn!(error = %e, "reconnection failed, will retry");
-                // Loop around to try again (reconnect_attempt is already incremented).
+                // Loop around to try again. The per-class counter was
+                // already incremented on the reconnection-decision
+                // branch above and will be re-incremented on the next
+                // failure-with-reason cycle through the loop.
                 continue 'session;
             }
         };
@@ -796,6 +830,13 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
         // Clear delta state -- fresh connection means fresh deltas.
         delta_state.clear();
         local_contracts.clear();
+
+        // Fresh authenticated session: start the data-flow marker from
+        // zero so the stable-window check on the NEXT drop uses the
+        // wall-clock of THIS session, not the previous one. Counters
+        // stay live (the budget was just decremented to permit this
+        // attempt); they reset when the new session delivers data.
+        reconnect_state.last_data_at = None;
 
         authenticated.store(true, Ordering::Release);
 
@@ -954,6 +995,69 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
     tracing::debug!("fpss-io thread exiting");
 }
 
+/// Per-class consecutive-reconnect counters consumed by the io_loop's
+/// auto-reconnect path.
+///
+/// Each [`ReconnectAttemptClass`] carries its own counter; one class's
+/// budget is independent of the other. Time-based reset fires when the
+/// connection has been delivering data continuously for at least the
+/// configured stable window — the read-side records the last successful
+/// read timestamp via [`Self::note_data_received`].
+struct ReconnectCounters {
+    transient: u32,
+    rate_limited: u32,
+    /// Wall-clock instant of the last frame the read loop consumed
+    /// successfully. `None` until the first frame on the current
+    /// session arrives. Used to gate the time-based counter reset:
+    /// only a session that delivered data for at least
+    /// `stable_window` resets the budget on next drop.
+    last_data_at: Option<Instant>,
+}
+
+impl ReconnectCounters {
+    fn new() -> Self {
+        Self {
+            transient: 0,
+            rate_limited: 0,
+            last_data_at: None,
+        }
+    }
+
+    /// Record a successful frame read. Marks "data did flow on this
+    /// session" so the stable-window check on next drop knows whether
+    /// to reset the counters.
+    fn note_data_received(&mut self) {
+        self.last_data_at = Some(Instant::now());
+    }
+
+    /// Decide whether the connection that just disconnected ran long
+    /// enough to be considered "stable" — if so, reset both counters
+    /// before scheduling the next attempt.
+    fn maybe_reset_after_stable(&mut self, limits: &ReconnectAttemptLimits) {
+        if let Some(t) = self.last_data_at {
+            if t.elapsed() >= limits.stable_window {
+                self.transient = 0;
+                self.rate_limited = 0;
+            }
+        }
+    }
+
+    /// Increment the counter for `class` and return the new attempt
+    /// number (1-based after increment).
+    fn record(&mut self, class: ReconnectAttemptClass) -> u32 {
+        match class {
+            ReconnectAttemptClass::Transient => {
+                self.transient = self.transient.saturating_add(1);
+                self.transient
+            }
+            ReconnectAttemptClass::RateLimited => {
+                self.rate_limited = self.rate_limited.saturating_add(1);
+                self.rate_limited
+            }
+        }
+    }
+}
+
 /// Check if an error is a transient read condition that should drain
 /// commands and retry rather than tear the connection down.
 ///
@@ -974,20 +1078,95 @@ mod tests {
     use super::*;
 
     #[test]
-    fn max_reconnect_attempts_is_5() {
-        assert_eq!(MAX_RECONNECT_ATTEMPTS, 5);
+    fn split_budget_defaults_match_institutional_floor() {
+        // The pre-D4 wholesale cap was 5; the post-D4 default splits
+        // into 3 generic-transient + 100 rate-limited.
+        let limits = ReconnectAttemptLimits::default();
+        assert_eq!(limits.max_attempts, 3);
+        assert_eq!(limits.max_rate_limited_attempts, 100);
+        // 100 attempts × 130 s/attempt = 13_000 s = ~3.6 h of patient
+        // retry on sustained `TooManyRequests`. The pre-D4 cap of 5
+        // gave up at ~10 minutes — well below the institutional bar of
+        // "ride through a multi-hour throttle without operator
+        // intervention". 3.6 h is the floor; institutional production
+        // explicitly accepts this default.
+        let rate_limited_horizon_ms = u128::from(limits.max_rate_limited_attempts)
+            * u128::from(crate::fpss::protocol::TOO_MANY_REQUESTS_DELAY_MS);
+        assert!(
+            rate_limited_horizon_ms >= 3 * 60 * 60 * 1000,
+            "default rate-limited budget must cover at least 3 h \
+             of sustained throttling; got {rate_limited_horizon_ms} ms"
+        );
     }
 
-    /// Finding #2 coverage: permanent disconnect reasons during the
-    /// reconnect handshake must short-circuit the reconnect loop
-    /// rather than burn MAX_RECONNECT_ATTEMPTS cycles.
-    /// `reconnect_delay(reason).is_none()` is the single source of
-    /// truth for "no amount of retrying will fix this", so the test
-    /// asserts the predicate behaviour for every enumerated permanent
-    /// reason. A regression that omits any of these from the
-    /// short-circuit would burn ~5 cycles of Disconnected/Reconnecting
-    /// noise before giving up, ballooning operator-facing log volume
-    /// and delaying the Error bubble-up.
+    /// 10 consecutive `TooManyRequests` disconnects must NOT exhaust
+    /// the rate-limited budget — the pre-D4 cap of 5 would have given
+    /// up after attempt 5, the post-D4 default tolerates 100. Each
+    /// attempt's delay equals `reconnect_delay(TooManyRequests)` =
+    /// `TOO_MANY_REQUESTS_DELAY_MS` (130 s).
+    #[test]
+    fn ten_too_many_requests_stays_under_rate_limited_budget() {
+        let limits = ReconnectAttemptLimits::default();
+        let mut counters = ReconnectCounters::new();
+        let mut last_attempt = 0;
+        for _ in 0..10 {
+            let class = ReconnectAttemptLimits::class_for(RemoveReason::TooManyRequests)
+                .expect("TooManyRequests is not permanent");
+            assert_eq!(class, ReconnectAttemptClass::RateLimited);
+            last_attempt = counters.record(class);
+        }
+        assert_eq!(last_attempt, 10);
+        assert!(
+            last_attempt <= limits.budget_for(ReconnectAttemptClass::RateLimited),
+            "10 consecutive TooManyRequests must stay inside the rate-limited budget"
+        );
+        // Per-attempt delay budget surfaces the wall-clock cost: 10 *
+        // 130 s = 1300 s = ~21 min of patient retry, well within the
+        // ~3.6 h envelope the institutional default permits.
+        let ms = crate::fpss::reconnect_delay(RemoveReason::TooManyRequests)
+            .expect("TooManyRequests yields a finite reconnect delay");
+        let total_ms = u128::from(ms) * u128::from(last_attempt);
+        assert!(total_ms >= 130_000 * 10);
+    }
+
+    /// Stable-window reset: a session that ran cleanly for at least
+    /// `stable_window` before the drop earns a fresh budget. A
+    /// session shorter than the window keeps the previous count.
+    #[test]
+    fn stable_window_resets_counters() {
+        let limits = ReconnectAttemptLimits {
+            stable_window: Duration::from_millis(5),
+            ..ReconnectAttemptLimits::default()
+        };
+        let mut counters = ReconnectCounters::new();
+        counters.record(ReconnectAttemptClass::Transient);
+        counters.record(ReconnectAttemptClass::Transient);
+        counters.record(ReconnectAttemptClass::RateLimited);
+        // No data received yet → no reset.
+        counters.maybe_reset_after_stable(&limits);
+        assert_eq!(counters.transient, 2);
+        assert_eq!(counters.rate_limited, 1);
+
+        counters.note_data_received();
+        // Data received but not long enough → still no reset.
+        counters.maybe_reset_after_stable(&limits);
+        assert_eq!(counters.transient, 2);
+        assert_eq!(counters.rate_limited, 1);
+
+        std::thread::sleep(Duration::from_millis(8));
+        counters.maybe_reset_after_stable(&limits);
+        assert_eq!(counters.transient, 0, "stable-window elapsed → reset");
+        assert_eq!(counters.rate_limited, 0);
+    }
+
+    /// Permanent disconnect reasons during the reconnect handshake
+    /// must short-circuit the reconnect loop rather than burn through
+    /// the per-class budget. `reconnect_delay(reason).is_none()` is
+    /// the single source of truth for "no amount of retrying will fix
+    /// this", so the test asserts the predicate behaviour for every
+    /// enumerated permanent reason. A regression that omits any of
+    /// these from the short-circuit would burn ~budget cycles of
+    /// Disconnected/Reconnecting noise before giving up.
     #[test]
     fn reconnect_login_rejection_permanent_reasons_short_circuit() {
         // All 7 permanent reasons from fpss/session.rs::reconnect_delay
