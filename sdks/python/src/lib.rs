@@ -751,8 +751,7 @@ fn pyarrow_table_to_polars(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAn
 ///
 ///     >>> import thetadatadx
 ///     >>> thetadatadx.split_date_range("20200101", "20231231")
-///     [('20200101', '20201230'), ('20201231', '20211230'),
-///      ('20211231', '20221230'), ('20221231', '20231231')]
+///     [('20200101', '20201230'), ('20201231', '20211230'), ('20211231', '20221230'), ('20221231', '20231230'), ('20231231', '20231231')]
 #[pyfunction]
 fn split_date_range(start: &str, end: &str) -> PyResult<Vec<(String, String)>> {
     chunking::split_date_range(start, end).map_err(|e| PyValueError::new_err(e.to_string()))

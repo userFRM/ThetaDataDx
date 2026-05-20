@@ -78,6 +78,15 @@ jobs:
       - name: Test
         working-directory: sdks/typescript
         run: npm test
+      # Gate 3 (#546) - TypeScript side: extract tsdoc `@example` /
+      # fenced-code blocks from `index.d.ts` and run each one with
+      # `tsx`. Today `index.d.ts` carries no `@example` blocks (the
+      # napi-rs emitter doesn't pass them from the Rust source);
+      # the gate is wired so future TS doc examples are exercised.
+      - name: Doc-example harness
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: sdks/typescript
+        run: node scripts/run_doc_examples.mjs
       # H9: emit the public-surface shape manifest so the
       # cross-language agreement validator (`scripts/validate_agreement.py`)
       # can compare TypeScript field sets against the Python / CLI /
