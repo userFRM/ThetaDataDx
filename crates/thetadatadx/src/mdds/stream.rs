@@ -177,8 +177,9 @@ async fn decode_chunk(
         // a prior worker-thread panic — surface as a transport-level
         // failure so the retry layer can decide on rebuild instead
         // of hanging on a dead ring.
-        let rx = handle.submit(response).map_err(|err| {
-            Error::Transport(format!("mdds decoder pool rejected submission: {err}"))
+        let rx = handle.submit(response).map_err(|err| Error::Transport {
+            kind: crate::error::TransportErrorKind::DecoderPoisoned,
+            message: format!("mdds decoder pool rejected submission: {err}"),
         })?;
         match rx.await {
             Ok(result) => result,
@@ -186,9 +187,10 @@ async fn decode_chunk(
             // dropped — which on our pool side means the consumer
             // thread was torn down mid-flight. Surface as Transport
             // so the retry layer can decide.
-            Err(_) => Err(Error::Transport(
-                "mdds decoder pool dropped its reply channel".to_string(),
-            )),
+            Err(_) => Err(Error::Transport {
+                kind: crate::error::TransportErrorKind::DecoderReplyDropped,
+                message: "mdds decoder pool dropped its reply channel".to_string(),
+            }),
         }
     } else {
         decode::decode_data_table(&response)
