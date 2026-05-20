@@ -89,6 +89,84 @@ async fn in_house_stock_list_symbols_returns_decoded_symbols() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mid_stream_unauthenticated_classifies_as_grpc_unauthenticated() {
+    // Mock emits one valid DATA chunk, then closes the stream with
+    // `grpc-status: 16 (Unauthenticated)` in the trailers — the exact
+    // wire shape MDDS produces when an upstream session token expires
+    // mid-stream. The streaming retry / refresh shell in the generated
+    // builders dispatches on `Error::Grpc { kind: Unauthenticated }`,
+    // so this test pins the wire-to-classifier handoff: the mid-
+    // stream trailer status surfaces as `ChannelError::Rpc {
+    // status.code() == 16 }`, and the umbrella conversion
+    // `From<ChannelError> for Error` then folds it to
+    // `Error::Grpc { kind: Unauthenticated }` along the streaming-
+    // builder code path.
+    use thetadatadx::grpc::{ChannelError, Status};
+    use thetadatadx::wire::{DataValueList, ResponseData};
+    use tokio_stream::StreamExt as _;
+
+    let server = mock::MockServer::spawn_with_message(
+        vec![make_symbols_response(&["AAPL", "MSFT"])],
+        16,
+        "session expired".to_string(),
+    )
+    .await;
+
+    let channel = Channel::connect_h2c("127.0.0.1", server.addr.port())
+        .await
+        .expect("h2c connect");
+
+    let mut stream = channel
+        .server_streaming::<DataValueList, ResponseData>(
+            "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
+            DataValueList::default(),
+        )
+        .await
+        .expect("rpc opens");
+
+    // The mid-stream error may surface on the very first poll (when
+    // the response head and trailers are flushed together) or after
+    // one or more successful DATA chunks. Either shape is correct on
+    // the wire; the assertion is that the failure is `Rpc { 16 }`.
+    let final_err = loop {
+        match stream.next().await {
+            Some(Ok(_)) => continue,
+            Some(Err(e)) => break e,
+            None => panic!("stream closed cleanly; expected Unauthenticated trailers"),
+        }
+    };
+
+    match final_err {
+        ChannelError::Rpc { status } => {
+            assert_eq!(
+                status.code(),
+                16,
+                "trailing grpc-status preserved (Unauthenticated)"
+            );
+        }
+        other => panic!("expected ChannelError::Rpc(Unauthenticated), got {other:?}"),
+    }
+
+    // The umbrella conversion is what the streaming builder uses to
+    // hand the classifier a typed `Error::Grpc { Unauthenticated }`,
+    // which the macro-driven retry shell then routes to NeedsRefresh.
+    // Pin the wire-status → typed-Error mapping here so a future
+    // refactor of `From<ChannelError> for Error` cannot silently
+    // re-route `16` to `Transport(_)` (which would skip refresh).
+    let tdx_err: thetadatadx::Error = ChannelError::Rpc {
+        status: Status::new(16, "session expired"),
+    }
+    .into();
+    match tdx_err {
+        thetadatadx::Error::Grpc {
+            kind: thetadatadx::error::GrpcStatusKind::Unauthenticated,
+            ..
+        } => {}
+        other => panic!("ChannelError → Error conversion drift: got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn in_house_stock_list_symbols_merges_two_chunks() {
     let server = mock::MockServer::spawn(
         vec![
