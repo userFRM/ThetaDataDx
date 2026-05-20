@@ -28,7 +28,7 @@ use std::ptr;
 use std::sync::atomic::{AtomicU8, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
 
-use crate::error::set_error;
+use crate::error::{set_error, set_error_from};
 use crate::runtime;
 use crate::types::{TdxClient, TdxConfig, TdxCredentials};
 
@@ -355,7 +355,7 @@ pub unsafe extern "C" fn tdx_unified_connect(
                 callback: Mutex::new(None),
             })),
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 ptr::null_mut()
             }
         }
@@ -453,7 +453,7 @@ pub unsafe extern "C" fn tdx_unified_set_callback(
                 0
             }
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 -1
             }
         }
@@ -550,7 +550,7 @@ unsafe fn coerce_subscription(
                     match Contract::option(symbol, exp, stk, rt) {
                         Ok(c) => c,
                         Err(e) => {
-                            set_error(&e.to_string());
+                            set_error_from(&e);
                             return None;
                         }
                     }
@@ -614,7 +614,7 @@ pub unsafe extern "C" fn tdx_unified_subscribe(
         match handle.inner.subscribe(sub) {
             Ok(()) => 0,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 -1
             }
         }
@@ -642,7 +642,7 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe(
         match handle.inner.unsubscribe(sub) {
             Ok(()) => 0,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 -1
             }
         }
@@ -700,14 +700,14 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
         let saved_subs = match handle.inner.active_subscriptions() {
             Ok(subs) => subs,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 return -1;
             }
         };
         let saved_full_subs = match handle.inner.active_full_subscriptions() {
             Ok(subs) => subs,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 return -1;
             }
         };
@@ -766,7 +766,7 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
                 cb.invoke(event);
             });
         if let Err(e) = result {
-            set_error(&e.to_string());
+            set_error_from(&e);
             return -1;
         }
 
@@ -871,7 +871,39 @@ pub unsafe extern "C" fn tdx_unified_active_subscriptions(
                 subs.iter().map(|(k, c)| (format!("{k:?}"), format!("{c}"))),
             ),
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Get active full-stream subscriptions as a typed array. Returns
+/// null on error.
+///
+/// Each entry's `contract` field carries the security-type discriminant
+/// (`"Stock"` / `"Option"` / `"Index"`) the full-stream subscription is
+/// bound to. The `kind` field is the subscription kind discriminant
+/// (`"Trade"` / `"OpenInterest"` / `"Quote"`).
+///
+/// Caller must free the result with `tdx_subscription_array_free`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_active_full_subscriptions(
+    handle: *const TdxUnified,
+) -> *mut TdxSubscriptionArray {
+    ffi_boundary!(std::ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return ptr::null_mut();
+        }
+        let handle = unsafe { &*handle };
+        match handle.inner.active_full_subscriptions() {
+            Ok(subs) => build_subscription_array(
+                subs.iter()
+                    .map(|(k, st)| (format!("{k:?}"), format!("{st:?}"))),
+            ),
+            Err(e) => {
+                set_error_from(&e);
                 ptr::null_mut()
             }
         }
@@ -1215,7 +1247,7 @@ where
             0
         }
         Err(e) => {
-            set_error(&e.to_string());
+            set_error_from(&e);
             -1
         }
     }
@@ -1402,7 +1434,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe(
         match client.subscribe(sub) {
             Ok(()) => 0,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 -1
             }
         }
@@ -1442,7 +1474,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe(
         match client.unsubscribe(sub) {
             Ok(()) => 0,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 -1
             }
         }
@@ -1598,7 +1630,7 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
         let new_client = match new_client {
             Ok(c) => c,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 return -1;
             }
         };
@@ -1966,7 +1998,7 @@ pub unsafe extern "C" fn tdx_unified_start_streaming_iter(
                 last_buffered: None,
             })),
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 ptr::null_mut()
             }
         }

@@ -170,17 +170,6 @@ impl MddsClient {
         })
     }
 
-    /// Build a fresh `QueryInfo` pinned to the current session UUID.
-    ///
-    /// Returned value is owned — every field is cloned from shared state.
-    /// The session UUID is read from [`SessionToken`] so a mid-session
-    /// refresh (see [`Self::session`]) automatically propagates to every
-    /// subsequent request without rebuilding the client.
-    pub(crate) async fn query_info(&self) -> proto::QueryInfo {
-        let uuid = self.session.current_uuid().await;
-        self.build_query_info(uuid)
-    }
-
     /// Construct a `QueryInfo` around a caller-supplied UUID. Used by
     /// the retry wrapper to pin an in-flight attempt to the exact UUID
     /// seen by [`crate::auth::SessionToken::snapshot`] — so when a

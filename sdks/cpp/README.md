@@ -40,6 +40,35 @@ Run the example:
 ./build/cpp/thetadatadx_example
 ```
 
+## Tests
+
+Catch2 v3-based test suite under `sdks/cpp/tests/`. Two buckets:
+
+- **Offline** — type-level / null-safe / move-semantics checks; no
+  network, no credentials. Always runs.
+- **Live** — full FPSS / historical round-trip against the
+  production server. Each test calls `SKIP()` unless
+  `THETADX_LIVE_CREDS` points at a `creds.txt`.
+
+```bash
+cmake -S sdks/cpp -B build/cpp-tests -DTHETADATADX_CPP_BUILD_TESTS=ON
+cmake --build build/cpp-tests --target thetadatadx_cpp_tests
+ctest --test-dir build/cpp-tests --output-on-failure
+```
+
+Run with live credentials:
+
+```bash
+THETADX_LIVE_CREDS=/path/to/creds.txt \
+    ctest --test-dir build/cpp-tests --output-on-failure
+```
+
+The Catch2 dependency is fetched via CMake's `FetchContent` from
+`github.com/catchorg/Catch2` (pinned tag `v3.5.4`). The test target
+is opt-in via `-DTHETADATADX_CPP_BUILD_TESTS=ON` so downstream
+consumers building only the production library do not pay the
+test-dependency cost.
+
 ## Quick Start
 
 ```cpp

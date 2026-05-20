@@ -10,7 +10,7 @@ Greeks all_greeks(double spot, double strike, double rate, double div_yield,
         right.c_str()
     );
     if (raw == nullptr) {
-        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        detail::throw_last_ffi_error();
     }
 
     Greeks result{
