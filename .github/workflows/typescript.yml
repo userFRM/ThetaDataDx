@@ -84,6 +84,13 @@ jobs:
           name: validator-typescript
           path: artifacts/validator_typescript.json
           if-no-files-found: error
+      - name: Pack + inspect npm tarball (Gate 12 / #555)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: sdks/typescript
+        run: |
+          npm pack --json | tee ../../npm-pack.json
+          tar tzf thetadatadx-*.tgz | head -50
+          python3 ../../scripts/inspect_artifacts.py thetadatadx-*.tgz
       - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
