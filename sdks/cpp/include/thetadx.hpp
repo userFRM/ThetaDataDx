@@ -131,13 +131,195 @@ struct Greeks {
 /* Generated in endpoint_options.hpp.inc. */
 #include "endpoint_options.hpp.inc"
 
+// ══════════════════════════════════════════════════════════════════════════
+// Typed exception hierarchy
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Every FFI failure surfaces as a leaf in this hierarchy, rooted at
+// `ThetaDataError` (itself a `std::runtime_error`). Callers writing
+// generic `catch (const std::runtime_error&)` continue to observe
+// the failure unchanged; callers that want structured handling can
+// `catch (const SubscriptionError&)` for a tier / permission error
+// or `catch (const RateLimitError&)` for a 429-shaped response,
+// matching the Python and TypeScript leaf sets one-for-one.
+//
+// The dispatcher [`detail::throw_for_grpc_kind`] reads
+// `tdx_last_error_code()` (typed discriminant set inside the FFI
+// boundary) to pick the right leaf without parsing the formatted
+// message. Pre-B4 throw sites that still emit
+// `std::runtime_error("thetadatadx: ...")` are backward-compatible:
+// new typed-throw sites route through this hierarchy while legacy
+// sites stay as plain `runtime_error` and will be migrated as the
+// FFI surface expands.
+
+/// gRPC canonical status kind. Mirror of [`Rust::GrpcStatusKind`].
+/// Enum values match the gRPC wire codes one-for-one (RFC 5234) so
+/// pattern-matching is portable across bindings.
+enum class GrpcStatusKind : uint32_t {
+    Ok = 0,
+    Cancelled = 1,
+    Unknown = 2,
+    InvalidArgument = 3,
+    DeadlineExceeded = 4,
+    NotFound = 5,
+    AlreadyExists = 6,
+    PermissionDenied = 7,
+    ResourceExhausted = 8,
+    FailedPrecondition = 9,
+    Aborted = 10,
+    OutOfRange = 11,
+    Unimplemented = 12,
+    Internal = 13,
+    Unavailable = 14,
+    DataLoss = 15,
+    Unauthenticated = 16,
+};
+
+class ThetaDataError : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
+
+/// Authentication failure (Nexus 401, gRPC `Unauthenticated`).
+class AuthenticationError : public ThetaDataError {
+public:
+    using ThetaDataError::ThetaDataError;
+};
+
+/// Bad credentials specifically (subset of `AuthenticationError`).
+class InvalidCredentialsError : public AuthenticationError {
+public:
+    using AuthenticationError::AuthenticationError;
+};
+
+/// Tier / plan does not cover the requested endpoint (gRPC
+/// `PermissionDenied`).
+class SubscriptionError : public ThetaDataError {
+public:
+    using ThetaDataError::ThetaDataError;
+};
+
+/// Rate limit / quota (gRPC `ResourceExhausted`, HTTP 429).
+class RateLimitError : public ThetaDataError {
+public:
+    using ThetaDataError::ThetaDataError;
+};
+
+/// Empty result / unknown contract (gRPC `NotFound`,
+/// `Error::NoData`).
+class NotFoundError : public ThetaDataError {
+public:
+    using ThetaDataError::ThetaDataError;
+};
+
+/// Per-request deadline elapsed (gRPC `DeadlineExceeded`,
+/// `with_deadline` / `timeout_ms` wrappers).
+class DeadlineExceededError : public ThetaDataError {
+public:
+    using ThetaDataError::ThetaDataError;
+};
+
+/// Upstream unavailable (gRPC `Unavailable`, often retryable).
+class UnavailableError : public ThetaDataError {
+public:
+    using ThetaDataError::ThetaDataError;
+};
+
+/// Transport-layer failure (TCP / TLS / IO).
+class NetworkError : public ThetaDataError {
+public:
+    using ThetaDataError::ThetaDataError;
+};
+
+/// Decoder schema mismatch — usually a proto bump on the server
+/// before the SDK is refreshed.
+class SchemaMismatchError : public ThetaDataError {
+public:
+    using ThetaDataError::ThetaDataError;
+};
+
+/// FPSS streaming protocol / state-machine failure.
+class StreamError : public ThetaDataError {
+public:
+    using ThetaDataError::ThetaDataError;
+};
+
 // ── RAII typed array wrappers ──
 
 namespace detail {
 
+/// Throw the [`ThetaDataError`] leaf that matches the typed C ABI
+/// discriminant `code` (one of the `TDX_ERR_*` constants in
+/// `thetadx.h`). Used by every wrapper that already has the formatted
+/// message in hand and wants the right leaf class without re-parsing.
+[[noreturn]] inline void throw_for_code(int32_t code, const std::string& message) {
+    switch (code) {
+        case TDX_ERR_AUTHENTICATION:
+            throw AuthenticationError("thetadatadx: " + message);
+        case TDX_ERR_INVALID_CREDENTIALS:
+            throw InvalidCredentialsError("thetadatadx: " + message);
+        case TDX_ERR_SUBSCRIPTION:
+            throw SubscriptionError("thetadatadx: " + message);
+        case TDX_ERR_RATE_LIMIT:
+            throw RateLimitError("thetadatadx: " + message);
+        case TDX_ERR_NOT_FOUND:
+            throw NotFoundError("thetadatadx: " + message);
+        case TDX_ERR_DEADLINE_EXCEEDED:
+            throw DeadlineExceededError("thetadatadx: " + message);
+        case TDX_ERR_UNAVAILABLE:
+            throw UnavailableError("thetadatadx: " + message);
+        case TDX_ERR_NETWORK:
+            throw NetworkError("thetadatadx: " + message);
+        case TDX_ERR_SCHEMA_MISMATCH:
+            throw SchemaMismatchError("thetadatadx: " + message);
+        case TDX_ERR_STREAM:
+            throw StreamError("thetadatadx: " + message);
+        case TDX_ERR_OTHER:
+        case TDX_ERR_CONFIG:
+        case TDX_ERR_NONE:
+        default:
+            throw ThetaDataError("thetadatadx: " + message);
+    }
+}
+
+/// Dispatcher keyed on the canonical gRPC kind. Used in tests that
+/// want to verify the routing without actually round-tripping through
+/// the FFI; production wrappers go through [`throw_for_code`] which
+/// reads `tdx_last_error_code()` directly.
+[[noreturn]] inline void throw_for_grpc_kind(GrpcStatusKind kind, const std::string& message) {
+    switch (kind) {
+        case GrpcStatusKind::Unauthenticated:
+            throw AuthenticationError("thetadatadx: " + message);
+        case GrpcStatusKind::PermissionDenied:
+            throw SubscriptionError("thetadatadx: " + message);
+        case GrpcStatusKind::ResourceExhausted:
+            throw RateLimitError("thetadatadx: " + message);
+        case GrpcStatusKind::NotFound:
+            throw NotFoundError("thetadatadx: " + message);
+        case GrpcStatusKind::DeadlineExceeded:
+            throw DeadlineExceededError("thetadatadx: " + message);
+        case GrpcStatusKind::Unavailable:
+            throw UnavailableError("thetadatadx: " + message);
+        default:
+            throw ThetaDataError("thetadatadx: " + message);
+    }
+}
+
 static std::string last_ffi_error() {
     const char* err = tdx_last_error();
     return err ? std::string(err) : "unknown error";
+}
+
+/// Combined read-and-throw helper: snapshot the thread-local error
+/// string AND the typed code, then throw the matching leaf. Returns
+/// only if no error is set — the caller is responsible for proving
+/// it has an error to surface (typically a null return from an FFI
+/// call). Pre-B4 sites that throw `std::runtime_error` directly
+/// should migrate to this so the leaf set stays current.
+[[noreturn]] inline void throw_last_ffi_error() {
+    const std::string message = last_ffi_error();
+    const int32_t code = tdx_last_error_code();
+    throw_for_code(code, message);
 }
 
 // Raw variant: returns "" when the FFI error slot is empty. Used by
@@ -179,8 +361,9 @@ inline std::vector<std::string> string_array_to_vector(TdxStringArray arr) {
 inline std::vector<std::string> check_string_array(TdxStringArray arr) {
     const std::string err = last_ffi_error_raw();
     if (!err.empty()) {
+        const int32_t code = tdx_last_error_code();
         tdx_string_array_free(arr);
-        throw std::runtime_error("thetadatadx: " + err);
+        throw_for_code(code, err);
     }
     return string_array_to_vector(arr);
 }
@@ -194,8 +377,9 @@ template<typename T, typename Arr, typename Convert, typename Free>
 std::vector<T> check_tick_array(Arr arr, Convert convert, Free free_fn) {
     const std::string err = last_ffi_error_raw();
     if (!err.empty()) {
+        const int32_t code = tdx_last_error_code();
         free_fn(arr);
-        throw std::runtime_error("thetadatadx: " + err);
+        throw_for_code(code, err);
     }
     auto result = convert(arr);
     free_fn(arr);
@@ -204,7 +388,7 @@ std::vector<T> check_tick_array(Arr arr, Convert convert, Free free_fn) {
 
 inline std::vector<Subscription> subscription_array_to_vector(TdxSubscriptionArray* arr) {
     if (arr == nullptr) {
-        throw std::runtime_error("thetadatadx: " + last_ffi_error());
+        throw_last_ffi_error();
     }
 
     std::vector<Subscription> result;
@@ -286,6 +470,23 @@ public:
 
     /** Set FPSS reconnect policy. 0=Auto (default), 1=Manual. */
     void set_reconnect_policy(int policy) { tdx_config_set_reconnect_policy(handle_.get(), policy); }
+
+    /** Set the per-class transient-failure attempt budget. Default 3. */
+    void set_reconnect_max_attempts(uint32_t max_attempts) {
+        tdx_config_set_reconnect_max_attempts(handle_.get(), max_attempts);
+    }
+
+    /** Set the rate-limited (TooManyRequests) attempt budget. Default 100. */
+    void set_reconnect_max_rate_limited_attempts(uint32_t max_rate_limited_attempts) {
+        tdx_config_set_reconnect_max_rate_limited_attempts(handle_.get(),
+                                                            max_rate_limited_attempts);
+    }
+
+    /** Set the stable-window timer (seconds) after which the auto-reconnect
+     *  attempt counters reset. Default 60. */
+    void set_reconnect_stable_window_secs(uint64_t secs) {
+        tdx_config_set_reconnect_stable_window_secs(handle_.get(), secs);
+    }
 
     /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. */
     void set_flush_mode(int mode) { tdx_config_set_flush_mode(handle_.get(), mode); }
@@ -470,7 +671,7 @@ public:
         auto staged = std::make_unique<std::function<void(const FpssEvent&)>>(std::move(fn));
         int rc = tdx_fpss_set_callback(handle_.get(), &FpssClient::callback_shim, staged.get());
         if (rc < 0) {
-            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+            detail::throw_last_ffi_error();
         }
         callback_ = std::move(staged);
     }
@@ -564,7 +765,7 @@ public:
         }
         TdxFlatFileBytes raw = tdx_flatfile_rows_to_arrow_ipc(handle_.get());
         if (raw.data == nullptr) {
-            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+            detail::throw_last_ffi_error();
         }
         std::vector<uint8_t> out(raw.data, raw.data + raw.len);
         tdx_flatfile_bytes_free(raw);
@@ -595,7 +796,7 @@ public:
         TdxFlatFileRowList* h = tdx_flatfile_request_decoded(
             handle_, sec_type.c_str(), req_type.c_str(), date.c_str());
         if (h == nullptr) {
-            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+            detail::throw_last_ffi_error();
         }
         return FlatFileRowList(h);
     }
@@ -642,7 +843,7 @@ public:
             handle_, sec_type.c_str(), req_type.c_str(),
             date.c_str(), path.c_str(), format.c_str());
         if (rc != 0) {
-            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+            detail::throw_last_ffi_error();
         }
     }
 
@@ -658,25 +859,70 @@ struct UnifiedDeleter {
     }
 };
 
+/// Full-stream subscription descriptor returned by
+/// `UnifiedClient::active_full_subscriptions`. `sec_type` carries the
+/// security-type discriminant (`"Stock"` / `"Option"` / `"Index"`) the
+/// full-stream subscription is bound to; `kind` is the subscription
+/// kind (`"Trade"` / `"OpenInterest"` / `"Quote"`).
+struct FullSubscription {
+    std::string kind;
+    std::string sec_type;
+};
+
 /// RAII wrapper around a unified client handle (`TdxUnified*`).
 /// The unified handle owns both the historical (gRPC/MDDS) and
 /// streaming (FPSS) sub-clients; the C++ wrapper exposes the
 /// FLATFILES surface, the polymorphic `subscribe(spec)` /
-/// `unsubscribe(spec)` API, and the `start_streaming_iter()`
-/// pull-iter entry point through this class. For pure-historical
-/// gRPC use, `Client` remains the recommended entry point. For
-/// push-callback streaming or `await_drain` on the unified handle,
-/// drive the C ABI (`tdx_unified_set_callback` /
-/// `tdx_unified_await_drain`) directly via `get()`.
+/// `unsubscribe(spec)` API, the `set_callback`-driven push delivery
+/// path, the `streaming_iter_session()` RAII helper around pull-iter
+/// delivery, and the lifecycle methods (`stop_streaming`,
+/// `reconnect`, `await_drain`, `dropped_event_count`, `is_streaming`,
+/// `active_subscriptions`, `active_full_subscriptions`). For
+/// pure-historical gRPC use, `Client` remains the recommended entry
+/// point.
 class UnifiedClient {
 public:
     /// Connect a unified client. Throws on auth / handshake failure.
     static UnifiedClient connect(const Credentials& creds, const Config& config) {
         TdxUnified* h = tdx_unified_connect(creds.get(), config.get());
         if (h == nullptr) {
-            throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+            detail::throw_last_ffi_error();
         }
         return UnifiedClient(h);
+    }
+
+    UnifiedClient(const UnifiedClient&) = delete;
+    UnifiedClient& operator=(const UnifiedClient&) = delete;
+    UnifiedClient(UnifiedClient&& other) noexcept
+        // Initialiser order MUST follow declaration order; see the
+        // ordering invariant above the member declarations below.
+        : callback_(std::move(other.callback_)),
+          handle_(std::move(other.handle_)) {}
+    /** Move-assign. The receiver may already hold a live streaming
+     *  session whose Disruptor consumer is invoking through the
+     *  `callback_` storage. Drain the consumer before releasing the
+     *  storage — same discipline as `FpssClient::operator=`. On drain
+     *  timeout, detach the callback storage onto a helper thread for a
+     *  30 s grace window so destruction happens off the move path. */
+    UnifiedClient& operator=(UnifiedClient&& other) noexcept {
+        if (this != &other) {
+            if (handle_) {
+                tdx_unified_stop_streaming(handle_.get());
+                int drained = tdx_unified_await_drain(handle_.get(), 5000);
+                if (drained == 0) {
+                    std::thread([cb = std::move(callback_)]() mutable {
+                        std::this_thread::sleep_for(std::chrono::seconds(30));
+                    }).detach();
+                } else {
+                    callback_.reset();
+                }
+            } else {
+                callback_.reset();
+            }
+            handle_ = std::move(other.handle_);
+            callback_ = std::move(other.callback_);
+        }
+        return *this;
     }
 
     /// Namespace handle for the FLATFILES surface. Cheap — borrows the
@@ -708,13 +954,204 @@ public:
     /// STL-iterator adapters `it.begin()` / `it.end()` for a
     /// range-for loop.
     ///
-    /// Mutually exclusive with `tdx_unified_set_callback` on the same
-    /// handle; switch by stopping streaming and starting again.
-    /// Throws `std::runtime_error` on connection / state failure.
+    /// Mutually exclusive with `set_callback(...)` on the same handle;
+    /// switch by stopping streaming and starting again. Throws
+    /// `std::runtime_error` on connection / state failure.
     inline class EventIterator start_streaming_iter() const;
 
+    /// Open a context-managed pull-iter streaming session. The
+    /// returned [`UnifiedFpssIterSession`] holds the
+    /// [`EventIterator`] and pairs its destructor with
+    /// `close()` + `stop_streaming()` + `await_drain(5000)`, mirroring
+    /// the Python `with tdx.streaming_iter() as it:` shape.
+    ///
+    /// Mutually exclusive with `set_callback(...)` on the same handle.
+    /// Throws on connection / state failure.
+    inline class UnifiedFpssIterSession streaming_iter_session() const;
+
+    /** Register an FPSS push callback and open the streaming session.
+     *  `fn` runs on the LMAX Disruptor consumer thread under
+     *  `catch_unwind`, never on the FPSS reader. The reader thread
+     *  cannot be blocked by user code: on ring overflow events are
+     *  dropped and counted via `dropped_event_count()`. Throws on
+     *  registration failure.
+     *
+     *  ## Callback storage + thread affinity
+     *
+     *  The wrapper owns a `std::unique_ptr<std::function>` whose
+     *  address is the `void* ctx` registered with the Rust dispatcher.
+     *  That address must outlive every consumer-thread invocation;
+     *  destruction routes through `tdx_unified_free`, which performs
+     *  the shutdown + drain barrier internally, and move-assign /
+     *  replacement calls `tdx_unified_stop_streaming` followed by
+     *  `tdx_unified_await_drain(5000)` before releasing the storage
+     *  — so no thread can observe a dangling ctx.
+     *
+     *  ## Lifecycle contract (unified replace-allowed rule)
+     *
+     *  Unlike `FpssClient::set_callback` (one-shot), the unified path
+     *  permits stop+register as a normal user flow: after
+     *  `stop_streaming()` another `set_callback` REPLACES the saved
+     *  `(callback, ctx)`. `reconnect()` is built on top of this.
+     *  Calling `set_callback` on a live (running) session also
+     *  replaces — the previous (callback, ctx) is drained out before
+     *  the new one is wired in, with the same `await_drain(5000)`
+     *  budget. */
+    void set_callback(std::function<void(const FpssEvent&)> fn) {
+        // Drain the existing wiring first so the Disruptor consumer
+        // stops invoking through the old `callback_` storage before
+        // we release it. Matches the C ABI's replace-allowed contract:
+        // a successful replacement registration leaves the old `ctx`
+        // observable only inside the drain barrier window.
+        if (callback_) {
+            tdx_unified_stop_streaming(handle_.get());
+            int drained = tdx_unified_await_drain(handle_.get(), 5000);
+            if (drained == 0) {
+                // Drain barrier timed out: detach old storage to a
+                // helper thread for a 30 s grace window so destruction
+                // happens off the registration path; the consumer is
+                // bounded by its own ring drain and will quiesce well
+                // within that window.
+                std::thread([cb = std::move(callback_)]() mutable {
+                    std::this_thread::sleep_for(std::chrono::seconds(30));
+                }).detach();
+            } else {
+                callback_.reset();
+            }
+        }
+        auto staged = std::make_unique<std::function<void(const FpssEvent&)>>(std::move(fn));
+        int rc = tdx_unified_set_callback(handle_.get(), &UnifiedClient::callback_shim, staged.get());
+        if (rc < 0) {
+            detail::throw_last_ffi_error();
+        }
+        callback_ = std::move(staged);
+    }
+
+    /// Stop FPSS streaming. Historical access remains available. Pair
+    /// with `await_drain()` if you need to confirm the consumer
+    /// thread has finished firing the registered callback before
+    /// dropping any captured state.
+    void stop_streaming() {
+        if (handle_) {
+            tdx_unified_stop_streaming(handle_.get());
+        }
+    }
+
+    /// Reconnect FPSS streaming and re-apply every previously active
+    /// subscription. Returns true on full success. Throws on failure
+    /// — the wrapped C ABI sets the last-error slot on `-1` return.
+    void reconnect() {
+        int rc = tdx_unified_reconnect(handle_.get());
+        if (rc < 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /// Block until the previous Disruptor consumer thread has
+    /// finished firing the registered callback. Returns true on
+    /// drain, false on timeout. Pass the same 5 s budget the FFI free
+    /// path uses unless you have a specific reason to deviate.
+    bool await_drain(std::chrono::milliseconds timeout) {
+        const uint64_t ms = timeout.count() < 0
+                                ? 0
+                                : static_cast<uint64_t>(timeout.count());
+        return tdx_unified_await_drain(handle_.get(), ms) == 1;
+    }
+
+    /// Cumulative count of FPSS events the TLS reader could not
+    /// publish into the LMAX Disruptor ring because the consumer fell
+    /// behind and the ring was full. Returns 0 when no callback has
+    /// been installed yet. Safe to call on a moved-from client.
+    uint64_t dropped_event_count() const {
+        return handle_ ? tdx_unified_dropped_events(handle_.get()) : 0;
+    }
+
+    /// `true` iff the FPSS streaming session is currently live (set_callback
+    /// or start_streaming_iter has been invoked and stop_streaming /
+    /// terminal close has not).
+    bool is_streaming() const {
+        return handle_ && tdx_unified_is_streaming(handle_.get()) == 1;
+    }
+
+    /// Snapshot the currently-active per-contract subscriptions.
+    /// Throws on FFI error.
+    std::vector<Subscription> active_subscriptions() const {
+        TdxSubscriptionArray* arr = tdx_unified_active_subscriptions(handle_.get());
+        if (arr == nullptr) {
+            detail::throw_last_ffi_error();
+        }
+        std::vector<Subscription> out;
+        if (arr->data != nullptr && arr->len > 0) {
+            out.reserve(arr->len);
+            for (size_t i = 0; i < arr->len; ++i) {
+                const TdxSubscription& s = arr->data[i];
+                out.push_back(Subscription{
+                    s.kind ? std::string(s.kind) : std::string(),
+                    s.contract ? std::string(s.contract) : std::string(),
+                });
+            }
+        }
+        tdx_subscription_array_free(arr);
+        return out;
+    }
+
+    /// Snapshot the currently-active full-stream subscriptions
+    /// (the entire universe for a given sec_type + kind, not bound
+    /// to a single contract). Throws on FFI error.
+    std::vector<FullSubscription> active_full_subscriptions() const {
+        TdxSubscriptionArray* arr = tdx_unified_active_full_subscriptions(handle_.get());
+        if (arr == nullptr) {
+            detail::throw_last_ffi_error();
+        }
+        std::vector<FullSubscription> out;
+        if (arr->data != nullptr && arr->len > 0) {
+            out.reserve(arr->len);
+            for (size_t i = 0; i < arr->len; ++i) {
+                const TdxSubscription& s = arr->data[i];
+                out.push_back(FullSubscription{
+                    s.kind ? std::string(s.kind) : std::string(),
+                    s.contract ? std::string(s.contract) : std::string(),
+                });
+            }
+        }
+        tdx_subscription_array_free(arr);
+        return out;
+    }
+
 private:
+    // Free C-ABI shim that the Rust dispatcher invokes. `ctx` is the
+    // `std::function*` we registered alongside the callback. The event
+    // pointer is non-null and valid only for the duration of this call.
+    static void callback_shim(const TdxFpssEvent* event, void* ctx) noexcept {
+        auto* fn = static_cast<std::function<void(const FpssEvent&)>*>(ctx);
+        if (fn == nullptr || event == nullptr) return;
+        try {
+            (*fn)(*event);
+        } catch (...) {
+            // User callbacks must not propagate exceptions across the
+            // C ABI boundary — Rust would unwind into UB. Swallow.
+        }
+    }
+
     explicit UnifiedClient(TdxUnified* h) : handle_(h) {}
+
+    // ── Member ordering invariant (do not reorder) ──
+    //
+    // C++ destructs members in REVERSE declaration order. The C ABI
+    // contract for `tdx_unified_free` is "drain the user-callback path
+    // before this call returns" — the FFI's deleter runs that drain
+    // barrier internally (5 s budget). For the barrier to be safe the
+    // `std::function` storage backing the registered `void* ctx` MUST
+    // still be alive while `tdx_unified_free` is polling the drain
+    // flag, because the Disruptor consumer may still be invoking
+    // through it.
+    //
+    // We therefore declare `handle_` AFTER `callback_`: reverse-order
+    // destruction destroys `handle_` first → `tdx_unified_free` runs
+    // and its drain barrier returns → `callback_` storage is then
+    // released. Reordering these two members reintroduces the
+    // use-after-free.
+    std::unique_ptr<std::function<void(const FpssEvent&)>> callback_;
     std::unique_ptr<TdxUnified, UnifiedDeleter> handle_;
 };
 
@@ -896,9 +1333,111 @@ private:
 inline EventIterator UnifiedClient::start_streaming_iter() const {
     TdxFpssEventIterator* it = tdx_unified_start_streaming_iter(handle_.get());
     if (it == nullptr) {
-        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        detail::throw_last_ffi_error();
     }
     return EventIterator(it);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RAII pull-iter session
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Sibling of the Python `with tdx.streaming_iter() as it: ...` block.
+// Construction opens the FPSS streaming session in pull-iter delivery
+// mode; destruction pairs `close()` on the iterator with
+// `stop_streaming()` + `await_drain(5000)` on the parent client so the
+// consumer thread is guaranteed to have stopped pushing into the queue
+// before any captured state goes out of scope.
+//
+// The session borrows the parent `UnifiedClient` by reference. Keep
+// the parent alive for the whole session lifetime; a moved-from
+// parent would dangle the borrow and the next FFI call would be
+// undefined.
+
+class UnifiedFpssIterSession {
+public:
+    UnifiedFpssIterSession(UnifiedFpssIterSession&&) noexcept = default;
+    UnifiedFpssIterSession& operator=(UnifiedFpssIterSession&&) noexcept = default;
+    UnifiedFpssIterSession(const UnifiedFpssIterSession&) = delete;
+    UnifiedFpssIterSession& operator=(const UnifiedFpssIterSession&) = delete;
+
+    ~UnifiedFpssIterSession() {
+        if (iterator_.has_value()) {
+            // Close the iterator first so any in-flight `next()` on a
+            // helper thread bails out promptly; then stop streaming
+            // and block on the drain barrier with the same 5 s budget
+            // the Python / TS sessions use.
+            iterator_->close();
+            iterator_.reset();
+            if (parent_ != nullptr) {
+                tdx_unified_stop_streaming(parent_->get());
+                int drained = tdx_unified_await_drain(parent_->get(), 5000);
+                if (drained == 0) {
+                    // The Disruptor consumer is still firing. The
+                    // event-loop body has already exited (we are in
+                    // destruction), so emit a diagnostic line and let
+                    // the consumer drain in the background bounded by
+                    // its own ring drain. Matches the warning the
+                    // Python / TS RAII paths emit on drain timeout.
+                    std::fprintf(stderr,
+                                 "thetadatadx: UnifiedFpssIterSession drain timed out after 5000ms; "
+                                 "the consumer thread may still be pushing events. "
+                                 "The iterator is already closed and will stop yielding "
+                                 "once the consumer exits.\n");
+                }
+            }
+        }
+    }
+
+    /// Pop the next event with a deadline. Returns `std::nullopt` on
+    /// timeout (non-terminal — the upstream is still live and the
+    /// caller can re-poll) or on terminal end-of-stream. Distinguish
+    /// the two via [`ended()`] after the call.
+    std::optional<TdxFpssEvent> next(std::chrono::milliseconds timeout) {
+        if (!iterator_.has_value()) {
+            return std::nullopt;
+        }
+        return iterator_->next(timeout);
+    }
+
+    /// Non-blocking pop. Same semantics as
+    /// [`EventIterator::try_next`].
+    std::optional<TdxFpssEvent> try_next() {
+        if (!iterator_.has_value()) {
+            return std::nullopt;
+        }
+        return iterator_->try_next();
+    }
+
+    /// `true` once the underlying iterator has observed terminal
+    /// end-of-stream. The session destructor itself does NOT mark
+    /// the iterator ended — it shuts down the streaming session.
+    bool ended() const noexcept {
+        return iterator_.has_value() ? iterator_->ended() : true;
+    }
+
+    /// Mark the iterator closed without tearing down the streaming
+    /// session. Subsequent `next()` calls drain residuals then return
+    /// `std::nullopt`. The session destructor still runs `close()` +
+    /// `stop_streaming()` + `await_drain()` — this method just lets
+    /// the caller short-circuit the iterator early.
+    void close() {
+        if (iterator_.has_value()) {
+            iterator_->close();
+        }
+    }
+
+private:
+    friend class UnifiedClient;
+    UnifiedFpssIterSession(const UnifiedClient* parent, EventIterator iterator)
+        : parent_(parent), iterator_(std::move(iterator)) {}
+
+    const UnifiedClient* parent_;
+    std::optional<EventIterator> iterator_;
+};
+
+inline UnifiedFpssIterSession UnifiedClient::streaming_iter_session() const {
+    return UnifiedFpssIterSession(this, start_streaming_iter());
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1136,7 +1675,7 @@ inline TdxSubscriptionRequest build_subscription_request(const FluentSubscriptio
 inline void UnifiedClient::subscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
     if (tdx_unified_subscribe(handle_.get(), &req) != 0) {
-        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        detail::throw_last_ffi_error();
     }
 }
 
@@ -1148,7 +1687,7 @@ inline void UnifiedClient::subscribe_many(
 inline void UnifiedClient::unsubscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
     if (tdx_unified_unsubscribe(handle_.get(), &req) != 0) {
-        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        detail::throw_last_ffi_error();
     }
 }
 
@@ -1162,7 +1701,7 @@ inline void UnifiedClient::unsubscribe_many(
 inline void FpssClient::subscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
     if (tdx_fpss_subscribe(handle_.get(), &req) != 0) {
-        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        detail::throw_last_ffi_error();
     }
 }
 
@@ -1174,7 +1713,7 @@ inline void FpssClient::subscribe_many(
 inline void FpssClient::unsubscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
     if (tdx_fpss_unsubscribe(handle_.get(), &req) != 0) {
-        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        detail::throw_last_ffi_error();
     }
 }
 

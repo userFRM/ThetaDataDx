@@ -464,6 +464,33 @@ const char* tdx_last_error(void);
  *  rows) is also a valid success outcome. */
 void tdx_clear_error(void);
 
+/** Typed discriminant of the last FFI error on this thread. Higher-
+ *  level bindings (the C++ exception hierarchy below, the typed napi
+ *  error subclasses in the TypeScript SDK) dispatch on this to pick
+ *  the right exception / error subclass without substring-matching
+ *  the formatted error string. Codes match the constants below; the
+ *  string from `tdx_last_error()` carries the diagnostic.
+ *
+ *  Returns `TDX_ERR_NONE` when no error is set or after
+ *  `tdx_clear_error()`. */
+int32_t tdx_last_error_code(void);
+
+/* Error-code discriminants returned by `tdx_last_error_code()`.
+ * Kept in sync with the `TDX_ERR_*` constants in `ffi/src/error.rs`. */
+#define TDX_ERR_NONE 0
+#define TDX_ERR_OTHER 1
+#define TDX_ERR_AUTHENTICATION 2
+#define TDX_ERR_INVALID_CREDENTIALS 3
+#define TDX_ERR_SUBSCRIPTION 4
+#define TDX_ERR_RATE_LIMIT 5
+#define TDX_ERR_NOT_FOUND 6
+#define TDX_ERR_DEADLINE_EXCEEDED 7
+#define TDX_ERR_UNAVAILABLE 8
+#define TDX_ERR_NETWORK 9
+#define TDX_ERR_SCHEMA_MISMATCH 10
+#define TDX_ERR_STREAM 11
+#define TDX_ERR_CONFIG 12
+
 /* ── Credentials ── */
 
 /** Create credentials from email and password. Returns NULL on error. */
@@ -491,10 +518,41 @@ void tdx_config_free(TdxConfig* config);
 
 /**
  * Set FPSS reconnect policy on a config handle.
- *   policy=0: Auto (default) -- auto-reconnect matching Java terminal behavior.
+ *   policy=0: Auto (default) -- auto-reconnect with split per-class attempt
+ *             budgets. Generic transient failures (TimedOut, ServerRestarting,
+ *             Unspecified) use the budget set by
+ *             `tdx_config_set_reconnect_max_attempts`; the rate-limited
+ *             (`TooManyRequests`) class uses
+ *             `tdx_config_set_reconnect_max_rate_limited_attempts`. Counters
+ *             reset after a continuous data-flow window configured via
+ *             `tdx_config_set_reconnect_stable_window_secs`.
  *   policy=1: Manual -- no auto-reconnect.
  */
 void tdx_config_set_reconnect_policy(TdxConfig* config, int policy);
+
+/**
+ * Set the per-class transient-failure attempt budget for the
+ * auto-reconnect path. Default 3. Has no effect when the reconnect
+ * policy is not Auto.
+ */
+void tdx_config_set_reconnect_max_attempts(TdxConfig* config,
+                                           uint32_t max_attempts);
+
+/**
+ * Set the per-class rate-limited (`TooManyRequests`) attempt budget for
+ * the auto-reconnect path. Default 100. Has no effect when the
+ * reconnect policy is not Auto.
+ */
+void tdx_config_set_reconnect_max_rate_limited_attempts(
+    TdxConfig* config, uint32_t max_rate_limited_attempts);
+
+/**
+ * Set the continuous successful-data-flow window (in seconds) after
+ * which the auto-reconnect attempt counters reset. Default 60. Has no
+ * effect when the reconnect policy is not Auto.
+ */
+void tdx_config_set_reconnect_stable_window_secs(TdxConfig* config,
+                                                 uint64_t secs);
 
 /**
  * Set FPSS flush mode on a config handle.
@@ -805,6 +863,14 @@ int tdx_unified_is_streaming(const TdxUnified* handle);
 
 /** Get active subscriptions as typed array. Caller must free with tdx_subscription_array_free. */
 TdxSubscriptionArray* tdx_unified_active_subscriptions(const TdxUnified* handle);
+
+/** Get active full-stream subscriptions as typed array. Each entry's
+ *  `contract` field carries the security-type discriminant
+ *  ("Stock" / "Option" / "Index") the full-stream subscription is bound
+ *  to; the `kind` field is the subscription kind discriminant
+ *  ("Trade" / "OpenInterest" / "Quote"). Returns null on error.
+ *  Caller must free with tdx_subscription_array_free. */
+TdxSubscriptionArray* tdx_unified_active_full_subscriptions(const TdxUnified* handle);
 
 /** Borrow the historical client from a unified handle. Do NOT free the returned pointer. */
 const TdxClient* tdx_unified_historical(const TdxUnified* handle);

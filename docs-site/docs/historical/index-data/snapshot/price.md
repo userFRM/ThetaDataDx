@@ -46,7 +46,7 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>min_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Minimum time of day as milliseconds from midnight</div>
+<div class="param-desc">Filters snapshots to timestamps at or after this ET wall-clock time. Format <code>HH:MM:SS.SSS</code>; legacy millisecond strings are also accepted.</div>
 </div>
 </div>
 

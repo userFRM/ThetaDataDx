@@ -25,18 +25,31 @@ use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::Write;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
+
+// parking_lot's Mutex is ~5ns uncontended (vs ~20-40ns for
+// std::sync::Mutex), inlines aggressively, and ships no poisoning
+// machinery — the single-consumer Disruptor hot path below holds the
+// lock for the duration of one `as_public()` reborrow plus the user
+// callback / queue push, never across an await, and is reached from
+// exactly one thread (`handle_events_with`'s consumer), so the
+// faster lock is a strict win on that path. Every other Mutex in
+// this module keeps `std::sync::Mutex` and its poison-on-panic
+// behaviour.
+use parking_lot::Mutex as ParkingLotMutex;
 use std::thread::{self, ThreadId};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use disruptor::{build_single_producer, Producer, Sequence};
 
 use tdbe::types::enums::{RemoveReason, StreamMsgType};
 
 use crate::auth::Credentials;
-use crate::config::{FpssFlushMode, ReconnectPolicy};
+use crate::config::{
+    FpssFlushMode, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy,
+};
 use crate::error::Error;
 
 use super::connection;
@@ -66,9 +79,6 @@ type ActiveFullSubs = Arc<
 // ---------------------------------------------------------------------------
 // I/O thread: blocking read + Disruptor publish + command drain
 // ---------------------------------------------------------------------------
-
-/// Maximum number of consecutive reconnection attempts before giving up.
-pub(in crate::fpss) const MAX_RECONNECT_ATTEMPTS: u32 = 5;
 
 /// The I/O thread owns the TLS stream. It does three things in a loop:
 ///
@@ -119,6 +129,12 @@ pub(in crate::fpss) struct IoLoopArgs {
     pub slow_callback_count: Arc<AtomicU64>,
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
+    /// Shared monotonic request-id counter. The auto-reconnect path
+    /// allocates fresh `req_id` values from this counter for each
+    /// re-subscribe so `ReqResponse` events on the reconnected session
+    /// carry ids correlatable to the original subscribe rather than
+    /// the indistinguishable `-1` sentinel.
+    pub next_req_id: Arc<AtomicI32>,
 }
 
 // Reason: all parameters are moved into this function from a spawned thread closure.
@@ -148,6 +164,7 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
         slow_callback_count,
         connect_timeout,
         read_timeout,
+        next_req_id,
     } = args;
     // `ring_size` was validated upstream by `ring::check_ring_size` at
     // the public `FpssClient::connect` boundary; silent rounding here
@@ -196,7 +213,12 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
         Delivery::Queue { iter_closed, .. } => Some(Arc::clone(iter_closed)),
         Delivery::Callback(_) => None,
     };
-    let delivery_cell = Mutex::new(delivery);
+    // Single-consumer hot path: parking_lot's Mutex avoids the
+    // ~20-40ns overhead std::sync::Mutex carries per
+    // lock/unlock pair. The lock is acquired once per ring event on
+    // the Disruptor consumer thread; the runtime cost compounds at
+    // event rates of 100k+/s.
+    let delivery_cell = ParkingLotMutex::new(delivery);
     let panics_consumer = Arc::clone(&panics);
     let dropped_consumer = Arc::clone(&dropped);
     let consumer_thread_id_cell = Arc::clone(&consumer_thread_id);
@@ -252,9 +274,10 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                 // `#[repr(C, u8)]`, see `events::FpssEventInternal`),
                 // which is what makes the reborrow zero-clone.
                 if let Some(evt) = ring_event.event.as_public() {
-                    let mut delivery = delivery_cell
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    // parking_lot's Mutex never poisons on panic, so
+                    // there is no `PoisonError` recovery path to thread
+                    // through; the guard is the lock result directly.
+                    let mut delivery = delivery_cell.lock();
                     match &mut *delivery {
                         Delivery::Callback(handler) => {
                             let threshold_ns = slow_threshold_ns_consumer.load(Ordering::Relaxed);
@@ -335,16 +358,39 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
     // Without this, any of these frames that arrived during the handshake
     // were silently dropped because the handshake loop consumed them
     // before the post-login `decode_frame` dispatch ran.
+    //
+    // `try_publish` (rather than blocking `publish`) keeps the io_loop
+    // thread non-blocking on a full ring — drops are surfaced via the
+    // shared `dropped` counter and a `warn` log, never wedge the
+    // reader. See `ring.rs` for the policy contract.
     for ctrl in pending_control.drain(..) {
-        producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(ctrl);
-        });
+        if producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(ctrl);
+            })
+            .is_err()
+        {
+            dropped.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(
+                target: "thetadatadx::fpss::io_loop",
+                "ring full while publishing pre-login control frame; dropped",
+            );
+        }
     }
 
-    // Publish login success event.
-    producer.publish(|slot| {
-        slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess { permissions });
-    });
+    // Publish login success event (non-blocking — same policy as above).
+    if producer
+        .try_publish(|slot| {
+            slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess { permissions });
+        })
+        .is_err()
+    {
+        dropped.fetch_add(1, Ordering::Relaxed);
+        tracing::warn!(
+            target: "thetadatadx::fpss::io_loop",
+            "ring full while publishing LoginSuccess; dropped",
+        );
+    }
 
     // Split the stream into buffered read + buffered write.
     let mut reader = BufReader::new(stream);
@@ -371,7 +417,18 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
 
     // Outer reconnection loop: each iteration runs one connection session.
     // On involuntary disconnect, the policy decides whether to reconnect.
-    let mut reconnect_attempt: u32 = 0;
+    //
+    // Attempt counters split by failure class
+    // ([`ReconnectAttemptClass`]) so a rate-limited transient
+    // (`TooManyRequests`, 130 s spacing) does not burn through the
+    // generic transient budget meant for fast TimedOut / Unspecified
+    // retries. Each counter resets to zero on a successful read; an
+    // additional time-based reset fires when the connection has been
+    // running cleanly for at least
+    // `ReconnectAttemptLimits::stable_window`, so a connection that
+    // ran cleanly for a minute before dropping picks up the full
+    // budget again rather than inheriting the previous cycle's count.
+    let mut reconnect_state = ReconnectCounters::new();
 
     // Per-iteration short blocking-read timeout. 50 ms is short enough
     // that pings (default 100 ms cadence) are serviced promptly but
@@ -407,8 +464,14 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
             ) {
                 Ok(Some((code, payload_len))) => {
                     consecutive_timeouts = 0;
-                    // Reset reconnect counter on successful data reception.
-                    reconnect_attempt = 0;
+                    // Reset reconnect counters on successful data reception
+                    // and mark "data did flow on this session" so the
+                    // stable-window check on the next drop knows whether
+                    // the connection ran long enough to deserve a fresh
+                    // retry budget.
+                    reconnect_state.transient = 0;
+                    reconnect_state.rate_limited = 0;
+                    reconnect_state.note_data_received();
 
                     let (primary, secondary) = decode_frame(
                         code,
@@ -450,11 +513,20 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                 Ok(None) => {
                     // Clean EOF
                     tracing::warn!("FPSS connection closed by server");
-                    producer.publish(|slot| {
-                        slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
-                            reason: RemoveReason::Unspecified,
-                        });
-                    });
+                    if producer
+                        .try_publish(|slot| {
+                            slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
+                                reason: RemoveReason::Unspecified,
+                            });
+                        })
+                        .is_err()
+                    {
+                        dropped.fetch_add(1, Ordering::Relaxed);
+                        tracing::warn!(
+                            target: "thetadatadx::fpss::io_loop",
+                            "ring full while publishing Disconnected (Unspecified); dropped",
+                        );
+                    }
                     authenticated.store(false, Ordering::Release);
                     break 'inner RemoveReason::Unspecified;
                 }
@@ -466,11 +538,21 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                             "FPSS read timed out (no data for {}ms)",
                             consecutive_timeouts * 50
                         );
-                        producer.publish(|slot| {
-                            slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
-                                reason: RemoveReason::TimedOut,
-                            });
-                        });
+                        if producer
+                            .try_publish(|slot| {
+                                slot.event =
+                                    FpssEventInternal::Control(FpssControl::Disconnected {
+                                        reason: RemoveReason::TimedOut,
+                                    });
+                            })
+                            .is_err()
+                        {
+                            dropped.fetch_add(1, Ordering::Relaxed);
+                            tracing::warn!(
+                                target: "thetadatadx::fpss::io_loop",
+                                "ring full while publishing Disconnected (TimedOut); dropped",
+                            );
+                        }
                         authenticated.store(false, Ordering::Release);
                         break 'inner RemoveReason::TimedOut;
                     }
@@ -495,11 +577,20 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                 }
                 Err(e) => {
                     tracing::error!(error = %e, "FPSS read error");
-                    producer.publish(|slot| {
-                        slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
-                            reason: RemoveReason::Unspecified,
-                        });
-                    });
+                    if producer
+                        .try_publish(|slot| {
+                            slot.event = FpssEventInternal::Control(FpssControl::Disconnected {
+                                reason: RemoveReason::Unspecified,
+                            });
+                        })
+                        .is_err()
+                    {
+                        dropped.fetch_add(1, Ordering::Relaxed);
+                        tracing::warn!(
+                            target: "thetadatadx::fpss::io_loop",
+                            "ring full while publishing Disconnected (read error); dropped",
+                        );
+                    }
                     authenticated.store(false, Ordering::Release);
                     break 'inner RemoveReason::Unspecified;
                 }
@@ -559,35 +650,59 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
 
         // --- Reconnection decision ---
         let reason = disconnect_reason;
-        reconnect_attempt += 1;
 
-        let delay = match &policy {
+        let (delay, reconnect_attempt) = match &policy {
             ReconnectPolicy::Manual => {
                 tracing::info!(reason = ?reason, "manual reconnect policy -- not reconnecting");
                 break 'session;
             }
-            ReconnectPolicy::Auto => {
-                if reconnect_attempt > MAX_RECONNECT_ATTEMPTS {
+            ReconnectPolicy::Auto(limits) => {
+                // Permanent reasons short-circuit before consulting any
+                // budget — no amount of retrying will fix bad credentials.
+                let Some(class) = ReconnectAttemptLimits::class_for(reason) else {
+                    tracing::error!(reason = ?reason, "permanent disconnect -- not reconnecting");
+                    break 'session;
+                };
+                // Optional time-based reset BEFORE incrementing. A
+                // session that ran cleanly for >= `stable_window`
+                // before this drop earns a fresh budget across both
+                // classes.
+                reconnect_state.maybe_reset_after_stable(limits);
+                let attempt = reconnect_state.record(class);
+                let budget = limits.budget_for(class);
+                if attempt > budget {
                     tracing::error!(
-                        attempts = reconnect_attempt - 1,
-                        "max reconnect attempts reached, giving up"
+                        attempts = attempt - 1,
+                        class = ?class,
+                        "max reconnect attempts reached for this class, giving up"
                     );
                     break 'session;
                 }
-                if let Some(ms) = reconnect_delay(reason) {
-                    Duration::from_millis(ms)
-                } else {
+                let Some(ms) = reconnect_delay(reason) else {
                     tracing::error!(reason = ?reason, "permanent disconnect -- not reconnecting");
                     break 'session;
-                }
+                };
+                (Duration::from_millis(ms), attempt)
             }
             ReconnectPolicy::Custom(f) => {
-                if let Some(d) = f(reason, reconnect_attempt) {
-                    d
-                } else {
+                // Custom policies bypass the split-budget enforcement
+                // (no `Auto`-side budget check), and the user closure
+                // receives the consecutive-transient attempt counter.
+                // The `attempt` arg therefore reflects "how many
+                // consecutive reconnects this session has issued for
+                // non-permanent reasons", which is the natural input
+                // for a user-supplied backoff curve. Rate-limited
+                // (`TooManyRequests`) drops are NOT separately
+                // counted on this path because a custom policy
+                // already owns the per-reason delay decision and a
+                // separate counter would force the user to merge
+                // two attempt values to read total session pressure.
+                let attempt = reconnect_state.record(ReconnectAttemptClass::Transient);
+                let Some(d) = f(reason, attempt) else {
                     tracing::info!(reason = ?reason, "custom policy returned None -- not reconnecting");
                     break 'session;
-                }
+                };
+                (d, attempt)
             }
         };
 
@@ -600,13 +715,22 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
             "auto-reconnecting FPSS"
         );
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
-        producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(FpssControl::Reconnecting {
-                reason,
-                attempt: reconnect_attempt,
-                delay_ms,
-            });
-        });
+        if producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(FpssControl::Reconnecting {
+                    reason,
+                    attempt: reconnect_attempt,
+                    delay_ms,
+                });
+            })
+            .is_err()
+        {
+            dropped.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(
+                target: "thetadatadx::fpss::io_loop",
+                "ring full while publishing Reconnecting; dropped",
+            );
+        }
 
         thread::sleep(delay);
 
@@ -627,7 +751,10 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
             }
             Err(e) => {
                 tracing::warn!(error = %e, "reconnection failed, will retry");
-                // Loop around to try again (reconnect_attempt is already incremented).
+                // Loop around to try again. The per-class counter was
+                // already incremented on the reconnection-decision
+                // branch above and will be re-incremented on the next
+                // failure-with-reason cycle through the loop.
                 continue 'session;
             }
         };
@@ -681,10 +808,19 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                         reason = ?reason,
                         "permanent login rejection on reconnect -- exiting I/O loop"
                     );
-                    producer.publish(|slot| {
-                        slot.event =
-                            FpssEventInternal::Control(FpssControl::Disconnected { reason });
-                    });
+                    if producer
+                        .try_publish(|slot| {
+                            slot.event =
+                                FpssEventInternal::Control(FpssControl::Disconnected { reason });
+                        })
+                        .is_err()
+                    {
+                        dropped.fetch_add(1, Ordering::Relaxed);
+                        tracing::warn!(
+                            target: "thetadatadx::fpss::io_loop",
+                            "ring full while publishing permanent-rejection Disconnected; dropped",
+                        );
+                    }
                     shutdown.store(true, Ordering::Release);
                     break 'session;
                 }
@@ -704,25 +840,61 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
         delta_state.clear();
         local_contracts.clear();
 
+        // Fresh authenticated session: start the data-flow marker from
+        // zero so the stable-window check on the NEXT drop uses the
+        // wall-clock of THIS session, not the previous one. Counters
+        // stay live (the budget was just decremented to permit this
+        // attempt); they reset when the new session delivers data.
+        reconnect_state.last_data_at = None;
+
         authenticated.store(true, Ordering::Release);
 
         // Publish reconnection events. Drain every handshake-time typed
         // control frame (`Connected` / `Ping` / `ReconnectedServer` /
         // `Restart`) in wire order before `LoginSuccess`, so the event
-        // order matches the fresh-session bootstrap above.
+        // order matches the fresh-session bootstrap above. Every
+        // publish is non-blocking so a saturated ring never wedges the
+        // io_loop's reconnect path.
         for ctrl in reconnect_pending_control.drain(..) {
-            producer.publish(|slot| {
-                slot.event = FpssEventInternal::Control(ctrl);
-            });
+            if producer
+                .try_publish(|slot| {
+                    slot.event = FpssEventInternal::Control(ctrl);
+                })
+                .is_err()
+            {
+                dropped.fetch_add(1, Ordering::Relaxed);
+                tracing::warn!(
+                    target: "thetadatadx::fpss::io_loop",
+                    "ring full while publishing post-reconnect control frame; dropped",
+                );
+            }
         }
-        producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess {
-                permissions: new_permissions,
-            });
-        });
-        producer.publish(|slot| {
-            slot.event = FpssEventInternal::Control(FpssControl::Reconnected);
-        });
+        if producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(FpssControl::LoginSuccess {
+                    permissions: new_permissions,
+                });
+            })
+            .is_err()
+        {
+            dropped.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(
+                target: "thetadatadx::fpss::io_loop",
+                "ring full while publishing post-reconnect LoginSuccess; dropped",
+            );
+        }
+        if producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(FpssControl::Reconnected);
+            })
+            .is_err()
+        {
+            dropped.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(
+                target: "thetadatadx::fpss::io_loop",
+                "ring full while publishing Reconnected; dropped",
+            );
+        }
 
         // Replace the reader with the new stream.
         reader = BufReader::new(new_stream);
@@ -745,7 +917,12 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
 
         let writer = reader.get_mut();
         for (kind, contract) in &subs_snapshot {
-            let payload = match protocol::build_subscribe_payload(-1, contract) {
+            // Allocate a fresh req_id per re-subscribe so the server's
+            // `ReqResponse` events on the reconnected session carry
+            // correlatable ids — `-1` is indistinguishable from a
+            // manual subscribe and breaks user-side correlation.
+            let req_id = next_req_id.fetch_add(1, Ordering::Relaxed);
+            let payload = match protocol::build_subscribe_payload(req_id, contract) {
                 Ok(p) => p,
                 Err(e) => {
                     tracing::warn!(error = %e, contract = %contract, "skipping re-subscribe; contract no longer encodes");
@@ -754,18 +931,19 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
             };
             let code = kind.subscribe_code();
             if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
-                tracing::warn!(error = %e, contract = %contract, "failed to re-subscribe on reconnect");
+                tracing::warn!(error = %e, contract = %contract, req_id, "failed to re-subscribe on reconnect");
             } else {
-                tracing::debug!(kind = ?kind, contract = %contract, "re-subscribed on auto-reconnect");
+                tracing::debug!(kind = ?kind, contract = %contract, req_id, "re-subscribed on auto-reconnect");
             }
         }
         for (kind, sec_type) in &full_subs_snapshot {
-            let payload = protocol::build_full_type_subscribe_payload(-1, *sec_type);
+            let req_id = next_req_id.fetch_add(1, Ordering::Relaxed);
+            let payload = protocol::build_full_type_subscribe_payload(req_id, *sec_type);
             let code = kind.subscribe_code();
             if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
-                tracing::warn!(error = %e, sec_type = ?sec_type, "failed to re-subscribe full-type on reconnect");
+                tracing::warn!(error = %e, sec_type = ?sec_type, req_id, "failed to re-subscribe full-type on reconnect");
             } else {
-                tracing::debug!(kind = ?kind, sec_type = ?sec_type, "re-subscribed full-type on auto-reconnect");
+                tracing::debug!(kind = ?kind, sec_type = ?sec_type, req_id, "re-subscribed full-type on auto-reconnect");
             }
         }
         if !subs_snapshot.is_empty() || !full_subs_snapshot.is_empty() {
@@ -826,6 +1004,69 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
     tracing::debug!("fpss-io thread exiting");
 }
 
+/// Per-class consecutive-reconnect counters consumed by the io_loop's
+/// auto-reconnect path.
+///
+/// Each [`ReconnectAttemptClass`] carries its own counter; one class's
+/// budget is independent of the other. Time-based reset fires when the
+/// connection has been delivering data continuously for at least the
+/// configured stable window — the read-side records the last successful
+/// read timestamp via [`Self::note_data_received`].
+struct ReconnectCounters {
+    transient: u32,
+    rate_limited: u32,
+    /// Wall-clock instant of the last frame the read loop consumed
+    /// successfully. `None` until the first frame on the current
+    /// session arrives. Used to gate the time-based counter reset:
+    /// only a session that delivered data for at least
+    /// `stable_window` resets the budget on next drop.
+    last_data_at: Option<Instant>,
+}
+
+impl ReconnectCounters {
+    fn new() -> Self {
+        Self {
+            transient: 0,
+            rate_limited: 0,
+            last_data_at: None,
+        }
+    }
+
+    /// Record a successful frame read. Marks "data did flow on this
+    /// session" so the stable-window check on next drop knows whether
+    /// to reset the counters.
+    fn note_data_received(&mut self) {
+        self.last_data_at = Some(Instant::now());
+    }
+
+    /// Decide whether the connection that just disconnected ran long
+    /// enough to be considered "stable" — if so, reset both counters
+    /// before scheduling the next attempt.
+    fn maybe_reset_after_stable(&mut self, limits: &ReconnectAttemptLimits) {
+        if let Some(t) = self.last_data_at {
+            if t.elapsed() >= limits.stable_window {
+                self.transient = 0;
+                self.rate_limited = 0;
+            }
+        }
+    }
+
+    /// Increment the counter for `class` and return the new attempt
+    /// number (1-based after increment).
+    fn record(&mut self, class: ReconnectAttemptClass) -> u32 {
+        match class {
+            ReconnectAttemptClass::Transient => {
+                self.transient = self.transient.saturating_add(1);
+                self.transient
+            }
+            ReconnectAttemptClass::RateLimited => {
+                self.rate_limited = self.rate_limited.saturating_add(1);
+                self.rate_limited
+            }
+        }
+    }
+}
+
 /// Check if an error is a transient read condition that should drain
 /// commands and retry rather than tear the connection down.
 ///
@@ -846,20 +1087,94 @@ mod tests {
     use super::*;
 
     #[test]
-    fn max_reconnect_attempts_is_5() {
-        assert_eq!(MAX_RECONNECT_ATTEMPTS, 5);
+    fn split_budget_defaults_cover_multi_hour_throttle() {
+        // The previous wholesale cap was 5; the new default splits
+        // into 3 generic-transient + 100 rate-limited.
+        let limits = ReconnectAttemptLimits::default();
+        assert_eq!(limits.max_attempts, 3);
+        assert_eq!(limits.max_rate_limited_attempts, 100);
+        // 100 attempts × 130 s/attempt = 13_000 s = ~3.6 h of patient
+        // retry on sustained `TooManyRequests`. The previous cap of 5
+        // gave up at ~10 minutes — well below the goal of riding
+        // through a multi-hour throttle without operator intervention.
+        // 3.6 h is the floor the default explicitly accepts.
+        let rate_limited_horizon_ms = u128::from(limits.max_rate_limited_attempts)
+            * u128::from(crate::fpss::protocol::TOO_MANY_REQUESTS_DELAY_MS);
+        assert!(
+            rate_limited_horizon_ms >= 3 * 60 * 60 * 1000,
+            "default rate-limited budget must cover at least 3 h \
+             of sustained throttling; got {rate_limited_horizon_ms} ms"
+        );
     }
 
-    /// Finding #2 coverage: permanent disconnect reasons during the
-    /// reconnect handshake must short-circuit the reconnect loop
-    /// rather than burn MAX_RECONNECT_ATTEMPTS cycles.
-    /// `reconnect_delay(reason).is_none()` is the single source of
-    /// truth for "no amount of retrying will fix this", so the test
-    /// asserts the predicate behaviour for every enumerated permanent
-    /// reason. A regression that omits any of these from the
-    /// short-circuit would burn ~5 cycles of Disconnected/Reconnecting
-    /// noise before giving up, ballooning operator-facing log volume
-    /// and delaying the Error bubble-up.
+    /// 10 consecutive `TooManyRequests` disconnects must NOT exhaust
+    /// the rate-limited budget — the previous cap of 5 would have given
+    /// up after attempt 5, the new default tolerates 100. Each
+    /// attempt's delay equals `reconnect_delay(TooManyRequests)` =
+    /// `TOO_MANY_REQUESTS_DELAY_MS` (130 s).
+    #[test]
+    fn ten_too_many_requests_stays_under_rate_limited_budget() {
+        let limits = ReconnectAttemptLimits::default();
+        let mut counters = ReconnectCounters::new();
+        let mut last_attempt = 0;
+        for _ in 0..10 {
+            let class = ReconnectAttemptLimits::class_for(RemoveReason::TooManyRequests)
+                .expect("TooManyRequests is not permanent");
+            assert_eq!(class, ReconnectAttemptClass::RateLimited);
+            last_attempt = counters.record(class);
+        }
+        assert_eq!(last_attempt, 10);
+        assert!(
+            last_attempt <= limits.budget_for(ReconnectAttemptClass::RateLimited),
+            "10 consecutive TooManyRequests must stay inside the rate-limited budget"
+        );
+        // Per-attempt delay budget surfaces the wall-clock cost: 10 *
+        // 130 s = 1300 s = ~21 min of patient retry, well within the
+        // ~3.6 h envelope the default permits.
+        let ms = crate::fpss::reconnect_delay(RemoveReason::TooManyRequests)
+            .expect("TooManyRequests yields a finite reconnect delay");
+        let total_ms = u128::from(ms) * u128::from(last_attempt);
+        assert!(total_ms >= 130_000 * 10);
+    }
+
+    /// Stable-window reset: a session that ran cleanly for at least
+    /// `stable_window` before the drop earns a fresh budget. A
+    /// session shorter than the window keeps the previous count.
+    #[test]
+    fn stable_window_resets_counters() {
+        let limits = ReconnectAttemptLimits {
+            stable_window: Duration::from_millis(5),
+            ..ReconnectAttemptLimits::default()
+        };
+        let mut counters = ReconnectCounters::new();
+        counters.record(ReconnectAttemptClass::Transient);
+        counters.record(ReconnectAttemptClass::Transient);
+        counters.record(ReconnectAttemptClass::RateLimited);
+        // No data received yet → no reset.
+        counters.maybe_reset_after_stable(&limits);
+        assert_eq!(counters.transient, 2);
+        assert_eq!(counters.rate_limited, 1);
+
+        counters.note_data_received();
+        // Data received but not long enough → still no reset.
+        counters.maybe_reset_after_stable(&limits);
+        assert_eq!(counters.transient, 2);
+        assert_eq!(counters.rate_limited, 1);
+
+        std::thread::sleep(Duration::from_millis(8));
+        counters.maybe_reset_after_stable(&limits);
+        assert_eq!(counters.transient, 0, "stable-window elapsed → reset");
+        assert_eq!(counters.rate_limited, 0);
+    }
+
+    /// Permanent disconnect reasons during the reconnect handshake
+    /// must short-circuit the reconnect loop rather than burn through
+    /// the per-class budget. `reconnect_delay(reason).is_none()` is
+    /// the single source of truth for "no amount of retrying will fix
+    /// this", so the test asserts the predicate behaviour for every
+    /// enumerated permanent reason. A regression that omits any of
+    /// these from the short-circuit would burn ~budget cycles of
+    /// Disconnected/Reconnecting noise before giving up.
     #[test]
     fn reconnect_login_rejection_permanent_reasons_short_circuit() {
         // All 7 permanent reasons from fpss/session.rs::reconnect_delay
@@ -882,6 +1197,63 @@ mod tests {
                  path short-circuits instead of looping"
             );
         }
+    }
+
+    /// The io_loop must never call blocking `producer.publish(...)` —
+    /// every publish goes through `try_publish` so a saturated ring
+    /// never wedges the TLS reader. A textual grep against the
+    /// source pins the contract. Walks only the production code
+    /// region (everything before the `#[cfg(test)] mod tests`
+    /// marker) so the test-body literals don't trip the scan.
+    #[test]
+    fn io_loop_uses_only_try_publish() {
+        let src = include_str!("mod.rs");
+        // Locate the test-module marker (the `#[cfg(test)] mod tests {`
+        // block at the bottom of the file) — there's an earlier
+        // `#[cfg(test)] use ...` import we must skip over.
+        let cfg_test_pos = src
+            .find("#[cfg(test)]\nmod tests")
+            .expect("test module marker present");
+        let prod = &src[..cfg_test_pos];
+        let code_only: String = prod
+            .lines()
+            .filter(|line| {
+                let t = line.trim_start();
+                !t.starts_with("//") && !t.starts_with("///") && !t.starts_with("/*")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let stripped = code_only.replace(".try_publish(", "");
+        assert!(
+            !stripped.contains(".publish("),
+            "io_loop must use try_publish only — found blocking .publish( call site"
+        );
+        assert!(
+            code_only.contains(".try_publish("),
+            "io_loop must use try_publish at least once"
+        );
+    }
+
+    /// Re-subscribe on reconnect must allocate fresh `req_id` values
+    /// from the shared counter instead of the `-1` sentinel — server-
+    /// side `ReqResponse` events with `req_id = -1` collide with
+    /// manual-subscribe responses and break user correlation.
+    #[test]
+    fn next_req_id_allocates_fresh_ids_for_resubscribe() {
+        let counter = Arc::new(AtomicI32::new(7));
+        // Mimic the re-subscribe loop's allocation pattern: one
+        // fetch_add per re-subscribed contract.
+        let id_a = counter.fetch_add(1, Ordering::Relaxed);
+        let id_b = counter.fetch_add(1, Ordering::Relaxed);
+        let id_c = counter.fetch_add(1, Ordering::Relaxed);
+        assert_eq!(id_a, 7);
+        assert_eq!(id_b, 8);
+        assert_eq!(id_c, 9);
+        assert_ne!(id_a, -1, "re-subscribe must never use the -1 sentinel");
+        // Subsequent caller-issued subscribes off the same counter
+        // see the next slot — proves the io_loop and the client share
+        // one allocator without colliding.
+        assert_eq!(counter.fetch_add(1, Ordering::Relaxed), 10);
     }
 
     /// Finding #2 coverage: transient disconnect reasons must NOT

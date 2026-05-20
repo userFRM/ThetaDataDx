@@ -149,3 +149,37 @@ export THETADX_PORT="11000"
 ::: warning
 Environment variable overrides are intended for local development only. In production, use the `DirectConfig` / `Config` presets which point to the correct ThetaData datacenter endpoints.
 :::
+
+## Performance Tuning
+
+### mimalloc
+
+The default system allocator (glibc malloc on Linux, jemalloc on macOS) handles the gRPC decode path correctly but is not optimised for the allocation pattern MDDS responses exhibit: many small fixed-size allocations during prost decode, interleaved with one large zstd output buffer per call. [`mimalloc`](https://crates.io/crates/mimalloc) is a drop-in replacement that reduces fragmentation and page-fault traffic on this shape, particularly when many gRPC calls fan out across many threads.
+
+Opt in by enabling the `mimalloc-allocator` feature on the SDK and registering the allocator in your binary's entry point. Library crates cannot install a `#[global_allocator]` of their own — that lives in the binary — so the SDK only provides the re-export; the binary owns the choice.
+
+In your binary's `Cargo.toml`:
+
+```toml
+[dependencies]
+thetadatadx = { version = "10", features = ["mimalloc-allocator"] }
+```
+
+In your binary's `main.rs`:
+
+```rust,ignore
+#[global_allocator]
+static GLOBAL: thetadatadx::mimalloc::MiMalloc = thetadatadx::mimalloc::MiMalloc;
+
+fn main() {
+    // ... your application ...
+}
+```
+
+::: tip
+The gain scales with response size and concurrency. Single-threaded clients hitting only a handful of endpoints at a time will see little benefit; multi-threaded fan-out across a `ChannelPool` consistently shows shorter p99 tails on tabular MDDS responses past ~1 KB.
+:::
+
+::: warning
+Do not register a `#[global_allocator]` inside a library crate. Rust permits exactly one per binary, and a library that registers its own will conflict with any binary that registers a different one (or with any other library doing the same). Keep the registration in the executable's `main.rs`.
+:::

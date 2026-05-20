@@ -21,13 +21,17 @@
 //!
 //! Then chain off the decoder-owned `Vec<Tick>`:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # #[cfg(feature = "polars")]
+//! # fn doc() {
 //! use thetadatadx::frames::TicksPolarsExt;
+//! use tdbe::types::tick::EodTick;
 //!
-//! let ticks: Vec<tdbe::types::tick::EodTick> = tdx
-//!     .stock_history_eod("AAPL", "20240101", "20240301")
-//!     .await?;
-//! let df = ticks.as_slice().to_polars()?;
+//! // In production `ticks` arrives from
+//! // `tdx.stock_history_eod("AAPL", "20240101", "20240301").await?`.
+//! let ticks: Vec<EodTick> = Vec::new();
+//! let _df = ticks.as_slice().to_polars().expect("empty frame is valid");
+//! # }
 //! ```
 //!
 //! # SSOT

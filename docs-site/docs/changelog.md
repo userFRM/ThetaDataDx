@@ -7,7 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `Error::Transport` payload restructured from `String` into a
+  typed `Transport { kind: TransportErrorKind, message: String }`
+  shape mirroring the `Grpc { kind, message }` / `Decode { kind, message }`
+  layout. `TransportErrorKind` enumerates the concrete fault
+  categories (`Tcp`, `Tls`, `InvalidServerName`, `H2Handshake`,
+  `H2Stream`, `ConnectionClosed`, `UnexpectedHttpStatus`,
+  `EmptyResponse`, `InvalidPath`, `Codec`, `DecoderPoisoned`,
+  `DecoderReplyDropped`) so retry classifiers and binding consumers
+  can dispatch on the structured `kind` without parsing `Display`.
+  The `Display` shape is stable
+  (`transport error (<kind>): <message>`) so existing string-keyed
+  consumers keep working.
+- The fpss `io_loop` thread now uses `Producer::try_publish` on
+  every publish path (handshake control frames, login success,
+  data frames, disconnect emission, reconnect control frames).
+  A saturated ring no longer wedges the TLS reader; overflow
+  increments the shared `dropped` counter and emits a `warn` log.
+- The fpss auto-reconnect re-subscribe path allocates fresh
+  `req_id` values from the shared `next_req_id` counter instead of
+  emitting `-1`. Server-side `ReqResponse` events on the
+  reconnected session now carry ids correlatable to the original
+  subscribe.
+- MDDS `extract_text_column`, `extract_number_column`, and
+  `extract_price_column` resolve headers through the alias-aware
+  `headers::find_header` helper. Upstream column renames (e.g.
+  `symbol` → `root`, `timestamp` → `ms_of_day`) now resolve through
+  `HEADER_ALIASES` instead of returning a silent empty `Vec`. A
+  non-empty `DataTable` whose column cannot be resolved emits a
+  `warn` log naming the requested header and the available set.
+
+### Added
+
+- gRPC `grpc-timeout` header is now emitted on every
+  deadline-bearing RPC (`server_streaming_with_deadline`,
+  `mdds_client.with_deadline(...)`). The header carries the
+  smallest unit that fits the budget per the gRPC HTTP/2 spec
+  (`n` / `u` / `m` / `S` / `M` / `H`), so the server can
+  short-circuit on deadline elapse instead of completing work the
+  client will discard.
+- `TransportErrorKind` is exported from `thetadatadx::error` for
+  binding consumers and retry classifiers.
+- `tdbe::types::price::Price::with_value_and_type` constructor
+  rejects out-of-range `price_type` values with a typed
+  `PriceError` instead of clamping. `Price::value()` and
+  `Price::price_type()` accessors join the public API so future
+  field visibility changes do not break call sites.
+  `Price::is_unset()` and `Price::is_zero_value()` split the
+  previous `is_zero()` conflation into the two distinct signals
+  (sentinel vs real zero).
+- `Price` POW10 indexing paths carry `debug_assert!` invariant
+  guards so a hand-constructed `Price { value, price_type }`
+  outside `0..=MAX_PRICE_TYPE` traps in debug builds rather than
+  reading past the end of the lookup tables.
+- `AuthUser::max_concurrent_requests` now routes the
+  subscription-tier shift through `SubscriptionTier::from_wire`.
+  Hostile wire bytes (negative, `> 3`, `i32::MAX`) fold to
+  `Free=1` and emit a `warn` instead of panicking on the old
+  `1usize << tier` path.
+
+### Deprecated
+
+- `Error::config_other`, `Error::decode_other`, and
+  `Error::decompress_other` constructors are deprecated and
+  `#[doc(hidden)]`. New call sites should pick the matching typed
+  `*Kind` variant (`config_invalid`, `decode_codec`,
+  `decompress_zstd`, etc.). The constructors will be removed in
+  the next major release.
+
 ## [10.0.0] - 2026-05-09
+
+**In-house gRPC transport** replaces `tonic` on the MDDS server-streaming
+path. The SDK now drives `h2` directly: prost encode → length-prefix
+frame → HTTP/2 DATA → response stream → trailers parse, with no tower
+stack, no boxed bodies, and no `async-trait` dyn dispatch. New public
+module `thetadatadx::grpc::*` exposes `Channel`, `ChannelPool`,
+`ChannelLease`, `ServerStreaming`, `Codec`, `Status`, `DecoderPool`,
+`DecoderHandle` and the matching error types (`ChannelError`,
+`CodecError`, `StatusParseError`, `DecoderPoolError`,
+`DecoderSubmitError`).
 
 Semver-honest version bump for the v9.1.0 surface. The v9.0.x →
 v9.1.0 wave introduced 12 major API breaks per
@@ -21,19 +101,87 @@ additions, `FpssConfig.queue_depth` removal, flat
 `TdxFpssControl` → typed per-variant structs, Go SDK removal).
 Rust semver classifies that diff as a major bump.
 
-v10.0.0 is the v9.1.0 surface with no further code changes —
-bumping the version number to align with semver discipline. The
-audit chain on the v9.1.0 wave (cargo fmt, clippy --workspace
--- -D warnings, test --workspace, deny check, generate_sdk_surfaces
---check, npm test 19/19, C++ CMake build, Python wheel + pytest)
-all passed; no findings remain after the closeout chain.
-
 ### Changed
 
+- **In-house gRPC transport** replaces `tonic`; full module surface
+  (`Channel`, `ChannelPool`, `ChannelLease`, `ServerStreaming`,
+  `Codec`, `Status`, `DecoderPool`, `DecoderHandle`,
+  `ChannelError`, `CodecError`, `StatusParseError`,
+  `DecoderPoolError`, `DecoderSubmitError`).
+- `Error::Transport` payload changed from `tonic::transport::Error`
+  to `String` (later restructured to typed `{ kind, message }` —
+  see `[Unreleased]`).
+- `ChannelPool::next()` returns a `ChannelLease<'a>` instead of
+  `&'a Channel`. The lease pre-reserves an in-flight slot on the
+  picked channel synchronously so concurrent burst dispatches
+  observe each reservation immediately and route around loaded
+  channels.
+- `Status::from_trailers` tolerates malformed `grpc-message`
+  trailers per the gRPC HTTP/2 spec. The parser percent-decodes
+  (RFC 3986, `%HH` escapes only); if decoded bytes are valid UTF-8
+  they become the message, otherwise the raw header bytes fall
+  back to UTF-8 interpretation, with an empty message for opaque
+  non-UTF-8 inputs.
 - Project version: 9.1.0 → 10.0.0 across `crates/thetadatadx`,
   `crates/tdbe` dependents, `ffi`, `tools/{cli,mcp,server}`,
   `sdks/{python,typescript}`. tdbe stays at 0.13.1 (no API change
   in this bump). All standalone Cargo.lock files re-locked.
+
+### Added (in-house gRPC)
+
+- `MddsConfig::decoder_threads` and `MddsConfig::decoder_ring_size`
+  control the dedicated decoder pool that runs zstd decompress +
+  protobuf decode off the tokio reactor. `decoder_threads = 0`
+  auto-sizes to `min(channels, available_parallelism / 2)`;
+  `decoder_ring_size` must be a power of two `>= 64`.
+- `DecoderHandle::submit` returns
+  `Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError>`.
+  Submits made after a worker-thread panic poisoned the pool fail
+  fast with `DecoderSubmitError::Poisoned` rather than parking the
+  caller on a dead consumer ring.
+- `ChannelError` variant routing: connection-level h2 failures —
+  `GOAWAY` (either direction), IO failure on the h2 transport, peer
+  shutdown, and open-phase connection drops (failures observed on
+  `ready()` / `send_request()` / `send_data()`) — surface as
+  `ChannelError::ConnectionClosed`. `ChannelError::H2Stream` is
+  scoped strictly to per-stream `RST_STREAM` (any reason code) and
+  h2 library-detected stream-scoped protocol errors.
+
+### Removed (in-house gRPC)
+
+- `tonic` dependency removed. The `inhouse-grpc` feature flag is
+  also gone — the in-house transport is the only path. Direct uses
+  of `tonic::transport::Channel`, `tonic::Status`, or
+  `tonic::Streaming` through `thetadatadx` re-exports are no longer
+  available.
+- `MddsClient::stub` was removed. Internal call sites now reach the
+  generated stubs through `proto::beta_theta_terminal::*` directly.
+- `GrpcStatusKind::from_code()` was renamed to
+  `GrpcStatusKind::from_u32()` to match the wire type. The enum
+  `repr` is now `u32` (was `i32`).
+- `StatusParseError::MessageNotUtf8` was removed. Malformed
+  `grpc-message` no longer fails the trailers parse; exhaustive
+  matches on `StatusParseError` need to drop the variant.
+
+### Migration (in-house gRPC)
+
+- Replace `Error::Transport(msg)` pattern with the typed shape:
+  `Error::Transport { kind, message }`. The `Display` shape stays
+  `transport error (<kind>): <message>` for legacy string-keyed
+  consumers.
+- Replace `GrpcStatusKind::from_code(n)` with
+  `GrpcStatusKind::from_u32(n)`.
+- When constructing `MddsConfig` field-by-field, add
+  `decoder_threads: 0, decoder_ring_size: 256` (or call
+  `MddsConfig::production_defaults()`).
+- Update `match` arms on `StatusParseError` — drop the
+  `MessageNotUtf8` branch.
+- `pool.next()` callers that bind the result across an `await`
+  must keep the lease alive for the dispatch window. Pattern:
+  `let lease = pool.next(); stub_fn(&lease, req).await?;`.
+- `DecoderHandle::submit` returns `Result<_, DecoderSubmitError>`.
+  Update callers from `let rx = handle.submit(r); rx.await` to
+  `let rx = handle.submit(r)?; rx.await`.
 
 ### Migration from v9.1.0
 

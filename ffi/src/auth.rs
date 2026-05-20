@@ -6,7 +6,7 @@
 use std::os::raw::c_char;
 use std::ptr;
 
-use crate::error::{cstr_to_str, set_error};
+use crate::error::{cstr_to_str, set_error, set_error_from};
 use crate::runtime;
 use crate::types::{TdxClient, TdxConfig, TdxCredentials};
 
@@ -68,7 +68,7 @@ pub unsafe extern "C" fn tdx_credentials_from_file(path: *const c_char) -> *mut 
         match thetadatadx::Credentials::from_file(path) {
             Ok(creds) => Box::into_raw(Box::new(TdxCredentials { inner: creds })),
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 ptr::null_mut()
             }
         }
@@ -147,7 +147,10 @@ pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode:
 
 /// Set FPSS reconnect policy on a config handle.
 ///
-/// - `policy = 0`: Auto (default) -- auto-reconnect matching Java terminal behavior
+/// - `policy = 0`: Auto (default) -- auto-reconnect with split per-class
+///   attempt budgets (see `tdx_config_set_reconnect_max_attempts`,
+///   `tdx_config_set_reconnect_max_rate_limited_attempts`,
+///   `tdx_config_set_reconnect_stable_window_secs`).
 /// - `policy = 1`: Manual -- no auto-reconnect, user calls reconnect explicitly
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_reconnect_policy(config: *mut TdxConfig, policy: i32) {
@@ -158,8 +161,65 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_policy(config: *mut TdxConfig,
         let config = unsafe { &mut *config };
         config.inner.reconnect.policy = match policy {
             1 => thetadatadx::ReconnectPolicy::Manual,
-            _ => thetadatadx::ReconnectPolicy::Auto,
+            _ => thetadatadx::ReconnectPolicy::Auto(thetadatadx::ReconnectAttemptLimits::default()),
         };
+    })
+}
+
+/// Set the per-class transient-failure attempt budget for the
+/// auto-reconnect path. Default `3`. Has no effect when the reconnect
+/// policy is not `Auto`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_reconnect_max_attempts(
+    config: *mut TdxConfig,
+    max_attempts: u32,
+) {
+    ffi_boundary!((), {
+        if config.is_null() {
+            return;
+        }
+        let config = unsafe { &mut *config };
+        if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
+            limits.max_attempts = max_attempts;
+        }
+    })
+}
+
+/// Set the per-class rate-limited (`TooManyRequests`) attempt budget
+/// for the auto-reconnect path. Default `100`. Has no effect when the
+/// reconnect policy is not `Auto`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_reconnect_max_rate_limited_attempts(
+    config: *mut TdxConfig,
+    max_rate_limited_attempts: u32,
+) {
+    ffi_boundary!((), {
+        if config.is_null() {
+            return;
+        }
+        let config = unsafe { &mut *config };
+        if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
+            limits.max_rate_limited_attempts = max_rate_limited_attempts;
+        }
+    })
+}
+
+/// Set the continuous successful-data-flow window (in seconds) after
+/// which the auto-reconnect attempt counters reset. Default `60`. Has
+/// no effect when the reconnect policy is not `Auto`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_reconnect_stable_window_secs(
+    config: *mut TdxConfig,
+    secs: u64,
+) {
+    ffi_boundary!((), {
+        if config.is_null() {
+            return;
+        }
+        let config = unsafe { &mut *config };
+        if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
+            limits.stable_window = std::time::Duration::from_secs(secs);
+        }
     })
 }
 
@@ -205,7 +265,7 @@ pub unsafe extern "C" fn tdx_client_connect(
         )) {
             Ok(client) => Box::into_raw(Box::new(TdxClient { inner: client })),
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 ptr::null_mut()
             }
         }

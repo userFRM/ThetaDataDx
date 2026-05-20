@@ -164,10 +164,10 @@ pub(super) fn fpss_event_to_ws_json(
             // matching control frame downstream — without leaking the
             // wire id onto the resolved-contract path.
             //
-            // PR #514 MED-001: previously this branch silently emitted
-            // an empty `Contract` object for unresolved ticks, leaving
-            // operators no way to disambiguate a backlog of pre-
-            // ContractAssigned ticks from a serialisation regression.
+            // Previously this branch silently emitted an empty
+            // `Contract` object for unresolved ticks, leaving operators
+            // no way to disambiguate a backlog of pre-ContractAssigned
+            // ticks from a serialisation regression.
             let mut msg_obj = sonic_rs::Object::new();
             msg_obj.insert(
                 "header",
@@ -358,8 +358,8 @@ mod tests {
         );
     }
 
-    /// PR #514 MED-001: pre-`ContractAssigned` ticks carry the
-    /// unresolved-contract sentinel whose `symbol` is
+    /// Pre-`ContractAssigned` ticks carry the unresolved-contract
+    /// sentinel whose `symbol` is
     /// `__pending:<id>`. The WS payload must surface
     /// `unresolved_contract_id: <id>` (top-level integer) and emit
     /// `contract: {"status": "pending"}` so operators can correlate

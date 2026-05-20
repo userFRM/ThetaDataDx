@@ -12,7 +12,7 @@ Greeks all_greeks(double spot, double strike, double rate, double div_yield,
         right.c_str()
     );
     if (raw == nullptr) {
-        throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+        detail::throw_last_ffi_error();
     }
 
     Greeks result{
@@ -50,7 +50,7 @@ std::pair<double, double> implied_volatility(double spot, double strike,
                                               const std::string& right) {
     double iv = 0.0, err = 0.0;
     int rc = tdx_implied_volatility(spot, strike, rate, div_yield, tte, option_price, right.c_str(), &iv, &err);
-    if (rc != 0) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    if (rc != 0) detail::throw_last_ffi_error();
     return {iv, err};
 }
 

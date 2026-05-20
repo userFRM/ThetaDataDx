@@ -24,33 +24,54 @@ pub(super) struct SurfaceSpec {
     #[serde(default)]
     pub(super) templates: HashMap<String, SurfaceTemplate>,
     pub(super) endpoints: Vec<SurfaceEndpoint>,
-    pub(super) test_fixtures: SurfaceTestFixtures,
+    /// Live-validator fixture block. Schema-validation-only on the
+    /// build-script side — the bin tree reparses the TOML into its own
+    /// `TestFixtures` for emission. Declared here so
+    /// `deny_unknown_fields` rejects fixture typos at TOML-load time.
+    #[serde(rename = "test_fixtures")]
+    _test_fixtures: SurfaceTestFixtures,
     /// Global request-level options that appear on every endpoint via
     /// `TdxEndpointRequestOptions`. Declared here so the FFI struct layout
     /// stays in lock-step with the TOML (see scripts/check_docs_consistency.py).
-    /// Not consumed by the Rust generator today — only by the docs-consistency
-    /// drift check — but codified in the surface so future generator passes
-    /// can read from here rather than hardcoding timeout_ms.
-    #[serde(default)]
-    pub(super) request_options_global: Vec<SurfaceGlobalRequestOption>,
+    /// Schema-validation-only: not consumed by the Rust generator today —
+    /// only by the docs-consistency drift check — but codified in the
+    /// surface so future generator passes can read from here rather than
+    /// hardcoding timeout_ms. Leading underscore signals "shape-check
+    /// only" to the compiler.
+    #[serde(default, rename = "request_options_global")]
+    _request_options_global: Vec<SurfaceGlobalRequestOption>,
 }
 
 /// A reusable wire string enum declared in `endpoint_surface.toml`.
+///
+/// The shared parser only reads `name` (for `validate_enum_ref` matching)
+/// and `variants[].wire` (for default-value membership). The per-language
+/// names (`rust_name`, `variant.rust`, `variant.python`) are
+/// schema-validation-only here so `deny_unknown_fields` rejects typos in
+/// the build-script TOML parse; the bin tree reparses
+/// `endpoint_surface.toml` into its own `EnumProjection` for emission.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct SurfaceEnum {
     pub(super) name: String,
-    pub(super) rust_name: String,
+    #[serde(rename = "rust_name")]
+    _rust_name: String,
     pub(super) variants: Vec<SurfaceEnumVariant>,
 }
 
 /// A single enum variant across Rust, Python, TypeScript, and wire strings.
+///
+/// As with `SurfaceEnum`, the per-language identifier fields are
+/// schema-validation-only on the build-script side. The bin tree's
+/// `EnumProjection` reparses the TOML and consumes them.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct SurfaceEnumVariant {
     pub(super) wire: String,
-    pub(super) rust: String,
-    pub(super) python: String,
+    #[serde(rename = "rust")]
+    _rust: String,
+    #[serde(rename = "python")]
+    _python: String,
 }
 
 /// A cross-cutting request-level option (e.g. `timeout_ms`).
@@ -72,29 +93,32 @@ pub(super) struct SurfaceGlobalRequestOption {
 }
 
 /// Representative fixture values feeding the live-validator parameter-mode
-/// matrix. Split so every hardcoded value in the Rust generator maps to a
-/// single TOML row.
+/// matrix. Schema-validation-only on the build-script side — every field is
+/// re-read from the same TOML by the bin tree's
+/// `build_support_bin/endpoints/test_fixtures.rs` into the bin-owned
+/// `TestFixtures`. The build script keeps this declaration solely to enforce
+/// `deny_unknown_fields` against the `[test_fixtures]` block at TOML-load
+/// time, catching typos as a build failure rather than a bin runtime error.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct SurfaceTestFixtures {
     /// Anchor symbol per endpoint category. Feeds `Symbol`/`Symbols` fixtures.
-    pub(super) category_symbol: HashMap<String, String>,
+    #[serde(rename = "category_symbol")]
+    _category_symbol: HashMap<String, String>,
     /// Concrete (no-wildcard) fixture keyed on the wire `param_type`. Covers
     /// everything except `Symbol`/`Symbols`, which route through
     /// `category_symbol`.
-    pub(super) concrete_by_type: HashMap<String, String>,
-    /// Per-param-name overrides that beat `concrete_by_type` matching (e.g.
-    /// the compressed `end_date` that keeps bulk cells inside the 60s
-    /// per-cell timeout). See issue #290.
-    #[serde(default)]
-    pub(super) concrete_overrides: HashMap<String, String>,
-    /// Per-mode param-name overrides for option ContractSpec variants
-    /// (`concrete_iso`, `all_strikes_one_exp`, wildcard/zero-sentinel cells).
-    #[serde(default)]
-    pub(super) mode_overrides: HashMap<String, HashMap<String, String>>,
-    /// Representative values for builder-bound optional params. Drives
-    /// `with_<name>` and `all_optionals` modes.
-    pub(super) optional_defaults: HashMap<String, String>,
+    #[serde(rename = "concrete_by_type")]
+    _concrete_by_type: HashMap<String, String>,
+    /// Per-param-name overrides that beat `concrete_by_type` matching.
+    #[serde(default, rename = "concrete_overrides")]
+    _concrete_overrides: HashMap<String, String>,
+    /// Per-mode param-name overrides for option ContractSpec variants.
+    #[serde(default, rename = "mode_overrides")]
+    _mode_overrides: HashMap<String, HashMap<String, String>>,
+    /// Representative values for builder-bound optional params.
+    #[serde(rename = "optional_defaults")]
+    _optional_defaults: HashMap<String, String>,
 }
 
 /// A reusable parameter group declared in `endpoint_surface.toml`.
@@ -257,25 +281,36 @@ pub(super) struct GeneratedParam {
     pub(super) name: String,
     pub(super) description: String,
     pub(super) param_type: String,
-    pub(super) enum_name: Option<String>,
     pub(super) required: bool,
     pub(super) binding: String,
-    pub(super) arg_name: Option<String>,
+    /// In-house Rust client (`MddsClient`) arg-name override sourced
+    /// from `endpoint_surface.toml`. Only the build-script render path
+    /// honors this — the per-language SDK projection emitters drive
+    /// their arg names from `sdk_method_arg_name` instead. The
+    /// underscore prefix marks the field as build-side-only so the bin
+    /// compile unit (which also sees this struct via `#[path]`) does
+    /// not flag it as unread.
+    pub(super) _arg_name: Option<String>,
     pub(super) default: Option<String>,
 }
 
+/// Endpoint-surface enum reachable from the build script's validation
+/// pass.
+///
+/// Only the fields shared parser reads (`name` for validate_enum_ref
+/// matching, `variants[].wire` for default-value membership) live here.
+/// The bin tree reads `rust_name`, `variant.rust`, `variant.python`
+/// directly off `SurfaceEnum` / `SurfaceEnumVariant` when emitting
+/// enum projections.
 #[derive(Debug, Clone)]
 pub(super) struct GeneratedEnum {
     pub(super) name: String,
-    pub(super) rust_name: String,
     pub(super) variants: Vec<GeneratedEnumVariant>,
 }
 
 #[derive(Debug, Clone)]
 pub(super) struct GeneratedEnumVariant {
     pub(super) wire: String,
-    pub(super) rust: String,
-    pub(super) python: String,
 }
 
 #[derive(Debug, Clone)]
@@ -284,7 +319,13 @@ pub(super) struct GeneratedEndpoint {
     pub(super) description: String,
     pub(super) category: String,
     pub(super) subcategory: String,
-    pub(super) rest_path: String,
+    /// REST path on the upstream service. Only the build-script
+    /// registry emitter reads this — the bin's per-language SDK
+    /// projection emitters drive their routing via the gRPC method
+    /// name on `MddsClient`. Underscore-prefixed so the bin compile
+    /// unit (which sees this struct via `#[path]`) does not flag it
+    /// as unread.
+    pub(super) _rest_path: String,
     pub(super) grpc_name: String,
     pub(super) request_type: String,
     pub(super) query_type: String,
@@ -294,8 +335,8 @@ pub(super) struct GeneratedEndpoint {
     pub(super) kind: String,
     pub(super) list_column: Option<String>,
     /// Upstream vendor docstring. Feeds the per-language doc emitters
-    /// so Python / TypeScript / Rust / C++ / Go (and the sync / async
-    /// / fluent-builder variants within each) all read from a single
+    /// so Python / TypeScript / Rust / C++ (and the sync / async /
+    /// fluent-builder variants within each) all read from a single
     /// TOML field and can never drift.
     pub(super) vendor_docstring: Option<String>,
 }
@@ -303,18 +344,12 @@ pub(super) struct GeneratedEndpoint {
 #[derive(Debug, Clone)]
 pub(super) struct ParsedEndpoints {
     pub(super) endpoints: Vec<GeneratedEndpoint>,
-    pub(super) enums: Vec<GeneratedEnum>,
-    pub(super) fixtures: TestFixtures,
 }
 
-/// Resolved fixture tables consumed by `modes.rs`. Wire-compatible 1:1 with
-/// `SurfaceTestFixtures` after TOML load — the indirection keeps the build-
-/// support shape separate from the proto-parser output type.
-#[derive(Debug, Clone, Default)]
-pub(super) struct TestFixtures {
-    pub(super) category_symbol: HashMap<String, String>,
-    pub(super) concrete_by_type: HashMap<String, String>,
-    pub(super) concrete_overrides: HashMap<String, String>,
-    pub(super) mode_overrides: HashMap<String, HashMap<String, String>>,
-    pub(super) optional_defaults: HashMap<String, String>,
+/// Output of `proto_parser::load_proto_endpoints` — the wire-truth set of
+/// endpoints derived from `mdds.proto`. Joined with the TOML surface
+/// inside `parser::load_endpoint_specs`.
+#[derive(Debug, Clone)]
+pub(super) struct WireEndpoints {
+    pub(super) endpoints: Vec<GeneratedEndpoint>,
 }
