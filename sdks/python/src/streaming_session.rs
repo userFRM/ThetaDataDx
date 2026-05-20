@@ -180,4 +180,71 @@ impl crate::ThetaDataDxClient {
             },
         )
     }
+
+    /// Snapshot of full-stream subscriptions (e.g.
+    /// `SecType.OPTION.full_trades()`).
+    ///
+    /// Returns an empty list when streaming has not started, matching
+    /// the cross-binding contract on the C++ `UnifiedClient::active_full_subscriptions`
+    /// (see `sdks/cpp/include/thetadx.hpp`) and the standalone
+    /// [`crate::fpss_client::FpssClient::active_full_subscriptions`].
+    /// Previously absent from the unified Python client — added here
+    /// to keep the cross-binding surface aligned now that the
+    /// standalone `FpssClient` exposes it.
+    fn active_full_subscriptions(
+        &self,
+    ) -> pyo3::PyResult<Vec<std::collections::HashMap<String, String>>> {
+        use crate::errors::to_py_err;
+        self.tdx
+            .active_full_subscriptions()
+            .map(|subs| {
+                subs.into_iter()
+                    .map(|(kind, sec_type)| {
+                        let mut m = std::collections::HashMap::new();
+                        m.insert("kind".to_string(), format!("{kind:?}"));
+                        m.insert("sec_type".to_string(), format!("{sec_type:?}"));
+                        m
+                    })
+                    .collect()
+            })
+            .map_err(to_py_err)
+    }
+
+    /// Cumulative count of user-callback panics caught by the
+    /// Disruptor consumer's `catch_unwind` boundary. Mirrors the
+    /// `panic_count()` getter on the standalone
+    /// [`crate::fpss_client::FpssClient`] and the upstream
+    /// [`thetadatadx::ThetaDataDxClient::panic_count`].
+    fn panic_count(&self) -> u64 {
+        self.tdx.panic_count()
+    }
+
+    /// Current MDDS session UUID. Reads through the shared session
+    /// token so the returned value reflects any mid-session refresh.
+    ///
+    /// Previously safelisted on `AsyncThetaDataDxClient`'s
+    /// `__getattr__` allowlist but not actually wired through to a
+    /// real method body — added here so the AsyncThetaDataDxClient
+    /// proxy resolves to a working call.
+    fn session_uuid(&self, py: Python<'_>) -> pyo3::PyResult<String> {
+        let inner = self.tdx.clone();
+        crate::run_blocking(py, async move { Ok(inner.session_uuid().await) })
+    }
+
+    /// Subscription-tier snapshot captured at authentication time.
+    ///
+    /// Returns one entry per asset class the Nexus auth payload
+    /// carries (`stock`, `options`, `indices`, `interest_rate`).
+    /// Missing fields surface as the string `"Unknown"`. Mirrors
+    /// the upstream [`thetadatadx::ThetaDataDxClient::subscription_info`]
+    /// shape and matches the safelist on `AsyncThetaDataDxClient`.
+    fn subscription_info(&self) -> std::collections::HashMap<String, String> {
+        let info = self.tdx.subscription_info();
+        let mut m = std::collections::HashMap::new();
+        m.insert("stock".to_string(), info.stock);
+        m.insert("options".to_string(), info.options);
+        m.insert("indices".to_string(), info.indices);
+        m.insert("interest_rate".to_string(), info.interest_rate);
+        m
+    }
 }

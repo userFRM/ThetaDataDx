@@ -41,6 +41,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Standalone `FpssClient` and `MddsClient` pyclasses on the Python
+  binding. `FpssClient(creds, config)` opens ONLY the FPSS TLS
+  transport (no MDDS gRPC channel, no Nexus HTTP auth); `MddsClient(creds,
+  config)` opens ONLY the MDDS gRPC channel plus the Nexus
+  authentication and surfaces the historical / FLATFILES API while
+  raising `AttributeError` on every FPSS-touching method. The bundled
+  `ThetaDataDxClient` keeps its current behaviour — the new classes
+  are purely additive and align the Python surface with the
+  standalone clients already exposed by the C ABI (`tdx_fpss_*` /
+  `tdx_client_*`) and the C++ wrapper (`tdx::FpssClient` /
+  `tdx::Client`).
 - gRPC `grpc-timeout` header is now emitted on every
   deadline-bearing RPC (`server_streaming_with_deadline`,
   `mdds_client.with_deadline(...)`). The header carries the

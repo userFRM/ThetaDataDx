@@ -33,12 +33,13 @@
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use thetadatadx::auth::Credentials as RustCredentials;
 use thetadatadx::config::DirectConfig;
+use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
 use thetadatadx::fpss::{self, FpssClient as RustFpssClient, FpssConnectArgs};
 
 use crate::buffered_event_to_typed;
@@ -144,11 +145,6 @@ pub(crate) struct FpssClient {
     /// `await_drain` must wait for all of them before reporting
     /// quiescence.
     prev_drained: Mutex<Vec<Arc<AtomicBool>>>,
-    /// Monotonic counter, incremented on every `stop_streaming`. Lets
-    /// concurrent `start_streaming` calls detect a `stop` that raced
-    /// ahead of their connect and refuse to resurrect the slot — same
-    /// stop-generation guard the unified client uses.
-    stop_generation: AtomicU64,
 }
 
 impl FpssClient {
@@ -206,7 +202,6 @@ impl FpssClient {
             inner: Mutex::new(None),
             callback: Mutex::new(None),
             prev_drained: Mutex::new(Vec::new()),
-            stop_generation: AtomicU64::new(0),
         })
     }
 
@@ -258,12 +253,15 @@ impl FpssClient {
         .map_err(to_py_err)?;
 
         *self.lock_inner() = Some(client);
-        *cb_guard = Some(Arc::try_unwrap(callback_arc).unwrap_or_else(|arc| {
-            // Disruptor consumer closure keeps a strong ref until
-            // shutdown; lift a fresh owned handle for storage under
-            // the GIL.
-            Python::attach(|py| arc.clone_ref(py))
-        }));
+        // The Disruptor consumer closure has already captured a clone
+        // of `callback_arc` (via `dispatch_cb`), so the refcount on
+        // `callback_arc` is guaranteed to be at least 2 by the time
+        // we reach this line — `Arc::try_unwrap` would always fail.
+        // Lift a fresh owned `Py<PyAny>` handle under the GIL for
+        // storage on `cb_guard`; the cost is one refcount bump per
+        // `start_streaming` call, which is the same lifetime
+        // accounting the unified client does.
+        *cb_guard = Some(Python::attach(|py| callback_arc.clone_ref(py)));
         Ok(())
     }
 
@@ -386,18 +384,28 @@ impl FpssClient {
     /// streaming after this returns, call `start_streaming(callback)`
     /// again with a freshly bound callable; `reconnect()` raises
     /// `RuntimeError` because no callback is held.
+    ///
+    /// Lock ordering: `callback` BEFORE `inner`, matching
+    /// `start_streaming`. The two methods MUST agree on the order
+    /// they acquire the two `Mutex` slots — Python's GIL serialises
+    /// pyclass-method dispatch today, but a future revision that
+    /// releases the GIL across the FPSS connect (e.g. via
+    /// `py.detach` inside `start_streaming`) would let concurrent
+    /// `start_streaming` / `stop_streaming` interleave on the same
+    /// handle. Pinning the ordering here closes that race
+    /// proactively.
     fn stop_streaming(&self) {
-        self.stop_generation.fetch_add(1, Ordering::AcqRel);
-        let mut guard = self.lock_inner();
-        if let Some(client) = guard.as_ref() {
+        let mut cb_guard = self.lock_callback();
+        let mut inner_guard = self.lock_inner();
+        if let Some(client) = inner_guard.as_ref() {
             self.prev_drained
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .push(client.drained_flag());
             client.shutdown();
         }
-        *guard = None;
-        *self.lock_callback() = None;
+        *inner_guard = None;
+        *cb_guard = None;
     }
 
     /// Alias for `stop_streaming`. Mirrors the unified client's split
@@ -410,6 +418,18 @@ impl FpssClient {
     /// Re-open the FPSS connection and re-register the previously
     /// installed callback. Requires a prior `start_streaming(callback)`;
     /// raises `RuntimeError` otherwise.
+    ///
+    /// Mirrors [`thetadatadx::ThetaDataDxClient::reconnect_streaming`]:
+    /// saves the active per-contract and full-stream subscriptions
+    /// against the old session, opens a fresh FPSS connection under
+    /// the previously installed callback, and re-applies the saved
+    /// subscriptions. Per-subscription failures during restore are
+    /// surfaced as a single `RuntimeError` that names every contract
+    /// that did not re-subscribe — the streaming session itself is
+    /// already up at that point. Without this restore step a Python
+    /// caller observing a transient disconnect would lose every
+    /// subscription, breaking parity with the unified client and the
+    /// C ABI (`tdx_fpss_reconnect`).
     fn reconnect(&self) -> PyResult<()> {
         let stored = {
             let guard = self.lock_callback();
@@ -422,11 +442,72 @@ impl FpssClient {
                 }
             }
         };
-        // Stop first so the previous Disruptor consumer is registered
-        // on `prev_drained`. `start_streaming` below repopulates
-        // `self.callback` with a freshly owned handle.
+
+        // 1. Snapshot the active subscriptions BEFORE stopping. The
+        //    `with_live` borrow handles the not-yet-started case by
+        //    returning `RuntimeError` — `reconnect()` only makes
+        //    sense on a previously-started session anyway, so the
+        //    error message is the same shape the unified client uses.
+        let (per_contract, full_stream) =
+            self.with_live(|c| Ok((c.active_subscriptions(), c.active_full_subscriptions())))?;
+
+        // 2. Stop + restart under the same callback. `start_streaming`
+        //    repopulates `self.callback` with a freshly owned handle
+        //    so subsequent `reconnect()` calls find the same state
+        //    shape.
         self.stop_streaming();
-        self.start_streaming(stored)
+        self.start_streaming(stored)?;
+
+        // 3. Re-apply every saved subscription against the freshly
+        //    reconnected session. Accumulate failures rather than
+        //    aborting on the first one — the FPSS protocol has no
+        //    batched-transaction semantic, so any per-subscription
+        //    failure leaves a partial state that the caller decides
+        //    how to handle. Per-contract Quote / Trade / OpenInterest
+        //    plus full-stream Trade / OpenInterest cover every active
+        //    subscription shape the core client tracks.
+        let mut failed: Vec<String> = Vec::new();
+        for (kind, contract) in per_contract {
+            let sub = fpss::protocol::Subscription::Contract {
+                contract: contract.clone(),
+                kind,
+            };
+            let outcome = self.with_live(|c| c.subscribe(sub.clone()));
+            if outcome.is_err() {
+                failed.push(format!("per-contract {kind:?} {contract}"));
+            }
+        }
+        for (kind, sec_type) in full_stream {
+            let full_kind = match kind {
+                SubscriptionKind::Trade => Some(FullSubscriptionKind::Trades),
+                SubscriptionKind::OpenInterest => Some(FullSubscriptionKind::OpenInterest),
+                // Quote is never a full-stream subscription kind on
+                // the FPSS wire — the core's `active_full_subscriptions`
+                // never returns it, so this arm is unreachable in
+                // practice and we drop it silently rather than
+                // misclassifying it as a restore failure.
+                SubscriptionKind::Quote => None,
+            };
+            if let Some(full_kind) = full_kind {
+                let sub = fpss::protocol::Subscription::Full {
+                    sec_type,
+                    kind: full_kind,
+                };
+                let outcome = self.with_live(|c| c.subscribe(sub.clone()));
+                if outcome.is_err() {
+                    failed.push(format!("full-stream {kind:?} {sec_type:?}"));
+                }
+            }
+        }
+        if failed.is_empty() {
+            Ok(())
+        } else {
+            Err(PyRuntimeError::new_err(format!(
+                "reconnect succeeded but {} subscription(s) failed to restore: {}",
+                failed.len(),
+                failed.join(", "),
+            )))
+        }
     }
 
     /// Block until every superseded streaming session's Disruptor

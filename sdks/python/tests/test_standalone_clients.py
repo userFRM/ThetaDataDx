@@ -306,6 +306,39 @@ def test_fpss_streaming_iter_smoke() -> None:
 
 @pytest.mark.skipif(
     not _live_creds_path(),
+    reason="THETADX_LIVE_CREDS unset -- skip live FPSS callback smoke",
+)
+def test_fpss_streaming_callback_smoke() -> None:
+    """Live FPSS smoke: construct `FpssClient`, register a push
+    callback via `start_streaming(callback)`, subscribe, drain for
+    ~3 seconds, and confirm the callback actually fired.
+
+    Complementary to `test_fpss_streaming_iter_smoke`: pull-iter and
+    push-callback are mutually exclusive on a single `FpssClient`,
+    so each delivery mode needs its own end-to-end smoke. Without
+    this test the callback path is entirely uncovered by live runs.
+    """
+    mod = _import_module()
+    creds = mod.Credentials.from_file(_live_creds_path())
+    fpss = mod.FpssClient(creds, mod.Config.production())
+
+    received: list[Any] = []
+
+    def on_event(event: Any) -> None:
+        received.append(event)
+
+    with fpss.streaming(on_event):
+        fpss.subscribe(mod.SecType.OPTION.full_trades())
+        time.sleep(3.0)
+
+    assert received, (
+        "expected >=1 FPSS event over a 3s full-options-trade subscription "
+        "(callback never fired)"
+    )
+
+
+@pytest.mark.skipif(
+    not _live_creds_path(),
     reason="THETADX_LIVE_CREDS unset -- skip live MDDS history smoke",
 )
 def test_mdds_history_smoke() -> None:
@@ -325,6 +358,13 @@ def test_mdds_history_smoke() -> None:
     # the test environment.
     rows = ticks.to_list()
     assert rows, "AAPL EOD over 2026-01..2026-03 must return >=1 row"
+    # Schema check: an EOD tick must carry the closing price field.
+    # Catches a regression where the decoder silently returns wrong-
+    # shaped rows but still passes the non-empty assertion.
+    first = rows[0]
+    assert hasattr(first, "close"), (
+        f"EOD tick must carry `close` field; got attrs={dir(first)!r}"
+    )
 
 
 @pytest.mark.skipif(
