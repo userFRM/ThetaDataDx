@@ -41,7 +41,13 @@ const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
 /// lifetime.
 #[pyclass(module = "thetadatadx", name = "StreamingIterSession")]
 pub(crate) struct StreamingIterSession {
-    pub(crate) tdx: Py<crate::ThetaDataDxClient>,
+    /// Erased pyclass handle. Carries either a `ThetaDataDxClient`
+    /// (the unified entry point) or the standalone `FpssClient`
+    /// pyclass — both expose `start_streaming_iter` / `stop_streaming`
+    /// / `await_drain` with identical signatures, so the
+    /// context-manager protocol dispatches uniformly via PyO3
+    /// attribute lookup.
+    pub(crate) tdx: Py<PyAny>,
     /// Captured at `__enter__` so `__exit__` can close it without
     /// going through the wrapped client. `None` before `__enter__`
     /// and after `__exit__` to make repeated lifecycle errors loud.
@@ -167,7 +173,7 @@ impl crate::ThetaDataDxClient {
         Py::new(
             py,
             StreamingIterSession {
-                tdx: slf,
+                tdx: slf.into_any(),
                 iterator: None,
             },
         )

@@ -36,7 +36,15 @@ const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
 /// `ThetaDataDxClient` instance.
 #[pyclass(module = "thetadatadx", name = "StreamingSession")]
 pub(crate) struct StreamingSession {
-    pub(crate) tdx: Py<crate::ThetaDataDxClient>,
+    /// Erased pyclass handle. Carries either a `ThetaDataDxClient` (the
+    /// unified entry point) or the standalone `FpssClient` pyclass —
+    /// both expose `start_streaming` / `stop_streaming` / `await_drain`
+    /// with identical signatures, so the context-manager protocol
+    /// dispatches uniformly via PyO3 attribute lookup. Using `Py<PyAny>`
+    /// here keeps the proxy SSOT: there is one `StreamingSession`
+    /// pyclass for both transports, not two parallel copies that
+    /// could drift.
+    pub(crate) tdx: Py<PyAny>,
     pub(crate) callback: Option<Py<PyAny>>,
 }
 
@@ -167,7 +175,7 @@ impl crate::ThetaDataDxClient {
         Py::new(
             py,
             StreamingSession {
-                tdx: slf,
+                tdx: slf.into_any(),
                 callback: Some(callback),
             },
         )

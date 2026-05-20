@@ -16,7 +16,9 @@ mod coerce;
 mod errors;
 mod flatfile_methods;
 mod fluent;
+mod fpss_client;
 mod logging_bridge;
+mod mdds_client;
 mod util_helpers;
 
 use async_runtime::spawn_awaitable;
@@ -751,6 +753,8 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Config>()?;
     m.add_class::<ThetaDataDxClient>()?;
     m.add_class::<AsyncThetaDataDxClient>()?;
+    m.add_class::<fpss_client::FpssClient>()?;
+    m.add_class::<mdds_client::MddsClient>()?;
     m.add_class::<StreamingSession>()?;
     m.add_class::<StreamingIterSession>()?;
     m.add_class::<EventIterator>()?;
