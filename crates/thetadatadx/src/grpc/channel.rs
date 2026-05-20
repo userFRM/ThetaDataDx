@@ -553,6 +553,21 @@ impl Channel {
         headers.insert(HeaderName::from_static("te"), self.te.clone());
         headers.insert(http::header::USER_AGENT, self.user_agent.clone());
 
+        // gRPC spec: when the client enforces a per-call deadline, advertise
+        // it via the `grpc-timeout` header so the server can short-circuit
+        // and release resources rather than completing work the client will
+        // discard. Format is `<positive-int><unit>` where unit is one of
+        // `H` / `M` / `S` / `m` / `u` / `n` and the integer fits in 8 ASCII
+        // digits.
+        //   <https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md#requests>
+        if let Some(d) = deadline {
+            if let Some(encoded) = encode_grpc_timeout(d) {
+                if let Ok(v) = HeaderValue::from_str(&encoded) {
+                    headers.insert(HeaderName::from_static("grpc-timeout"), v);
+                }
+            }
+        }
+
         // Stream is about to be dispatched on the wire — record it on
         // the channel's in-flight counter BEFORE awaiting `ready()` so
         // the pool's load-balancing picker sees every concurrent
@@ -684,6 +699,49 @@ impl Channel {
             stream
         })
     }
+}
+
+/// Encode a [`Duration`] as a gRPC `grpc-timeout` header value.
+///
+/// Picks the smallest unit that fits the budget in at most 8 ASCII
+/// digits, per the gRPC HTTP/2 spec:
+///   `Timeout -> "grpc-timeout" TimeoutValue TimeoutUnit`
+///   `TimeoutValue -> {positive integer, 8 digits max}`
+///   `TimeoutUnit -> Hour / Minute / Second / Millisecond / Microsecond / Nanosecond`
+///
+/// Returns `None` for a zero deadline — callers should surface
+/// `DeadlineExceeded` directly rather than send a header the server
+/// will reject.
+fn encode_grpc_timeout(d: Duration) -> Option<String> {
+    if d.is_zero() {
+        return None;
+    }
+    const MAX_VALUE: u128 = 99_999_999;
+    let nanos = d.as_nanos();
+    if nanos <= MAX_VALUE {
+        return Some(format!("{nanos}n"));
+    }
+    let micros = d.as_micros();
+    if micros <= MAX_VALUE {
+        return Some(format!("{micros}u"));
+    }
+    let millis = d.as_millis();
+    if millis <= MAX_VALUE {
+        return Some(format!("{millis}m"));
+    }
+    let secs = d.as_secs() as u128;
+    if secs <= MAX_VALUE {
+        return Some(format!("{secs}S"));
+    }
+    let minutes = secs / 60;
+    if minutes <= MAX_VALUE {
+        return Some(format!("{minutes}M"));
+    }
+    let hours = secs / 3_600;
+    // Hours saturate at the 8-digit ceiling; the spec accepts at most
+    // 8 digits in any unit so anything larger than ~11_415 years just
+    // pegs at the cap.
+    Some(format!("{}H", hours.min(MAX_VALUE)))
 }
 
 /// Build a [`ChannelError::DeadlineExceeded`] from a `Duration` so the
@@ -910,5 +968,214 @@ mod tests {
         // scheme field flows through to the wire for both transports
         // and there's no accidental constant-override anywhere.
         assert_scheme_round_trip(Scheme::HTTP, "http").await;
+    }
+
+    #[test]
+    fn encode_grpc_timeout_picks_smallest_fitting_unit() {
+        // Nanoseconds when the budget fits in 8 digits.
+        assert_eq!(
+            encode_grpc_timeout(Duration::from_nanos(1)).as_deref(),
+            Some("1n")
+        );
+        // 1ms = 1_000_000ns: still fits 8 digits as nanos.
+        assert_eq!(
+            encode_grpc_timeout(Duration::from_millis(1)).as_deref(),
+            Some("1000000n")
+        );
+        // 1s = 1_000_000us: 7 digits as micros (1e9 nanos exceeds 8 digits).
+        assert_eq!(
+            encode_grpc_timeout(Duration::from_secs(1)).as_deref(),
+            Some("1000000u")
+        );
+        // 1 minute = 60_000_000us: 8 digits as micros.
+        assert_eq!(
+            encode_grpc_timeout(Duration::from_secs(60)).as_deref(),
+            Some("60000000u")
+        );
+        // 1 hour = 3_600_000ms: 7 digits as ms.
+        assert_eq!(
+            encode_grpc_timeout(Duration::from_secs(3_600)).as_deref(),
+            Some("3600000m")
+        );
+        // 10 hours = 36_000_000ms: still fits 8 digits as ms, so ms wins.
+        assert_eq!(
+            encode_grpc_timeout(Duration::from_secs(36_000)).as_deref(),
+            Some("36000000m")
+        );
+        // 1000 hours = 3_600_000s: fits 8 digits as seconds (ms overflows).
+        assert_eq!(
+            encode_grpc_timeout(Duration::from_secs(3_600_000)).as_deref(),
+            Some("3600000S")
+        );
+        // 100_000_000 hours: encodes as hours (everything else overflows).
+        assert!(encode_grpc_timeout(Duration::from_secs(360_000_000_000))
+            .as_deref()
+            .unwrap()
+            .ends_with('H'));
+    }
+
+    #[test]
+    fn encode_grpc_timeout_zero_is_none() {
+        assert_eq!(encode_grpc_timeout(Duration::ZERO), None);
+    }
+
+    /// Drive a one-shot RPC over an in-memory duplex with a deadline set
+    /// and assert the inbound headers carry a well-formed
+    /// `grpc-timeout` value.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn channel_emits_grpc_timeout_when_deadline_set() {
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        let observed: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(None));
+        let observed_server = Arc::clone(&observed);
+
+        let server_task = tokio::spawn(async move {
+            let mut conn = h2::server::handshake(server_io)
+                .await
+                .expect("server handshake");
+            let (request, mut respond) = conn
+                .accept()
+                .await
+                .expect("server accepts a stream")
+                .expect("accept returned a valid request");
+            let header_value = request
+                .headers()
+                .get("grpc-timeout")
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string);
+            *observed_server.lock().unwrap() = header_value;
+            let mut body = request.into_body();
+            while let Some(chunk) = body.data().await {
+                let chunk = chunk.expect("body chunk");
+                let _ = body.flow_control().release_capacity(chunk.len());
+            }
+            let mut response = http::Response::new(());
+            *response.status_mut() = http::StatusCode::OK;
+            response.headers_mut().insert(
+                http::header::CONTENT_TYPE,
+                HeaderValue::from_static("application/grpc+proto"),
+            );
+            response.headers_mut().insert(
+                HeaderName::from_static("grpc-status"),
+                HeaderValue::from_static("0"),
+            );
+            let _send = respond
+                .send_response(response, true)
+                .expect("server sends response head");
+            let _ = std::future::poll_fn(|cx| {
+                use std::pin::Pin;
+                Pin::new(&mut conn).poll_closed(cx)
+            })
+            .await;
+        });
+
+        let channel = Channel::handshake(
+            client_io,
+            "127.0.0.1",
+            0,
+            DEFAULT_MAX_FOR_TEST,
+            Scheme::HTTP,
+        )
+        .await
+        .expect("client handshake");
+        let stream = channel
+            .server_streaming_with_deadline::<crate::proto::DataValueList, crate::proto::ResponseData>(
+                "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
+                crate::proto::DataValueList::default(),
+                Duration::from_secs(5),
+            )
+            .await
+            .expect("rpc opens with deadline");
+        use tokio_stream::StreamExt;
+        let mut stream = std::pin::pin!(stream);
+        while let Some(item) = stream.next().await {
+            item.expect("trailers-only OK yields no errors before close");
+        }
+        drop(channel);
+        server_task.await.expect("server task completed");
+
+        let observed = observed.lock().unwrap().clone();
+        let value = observed.expect("server observed a grpc-timeout header");
+        // Smallest unit fitting a 5s budget is microseconds (5_000_000u).
+        assert_eq!(value, "5000000u");
+    }
+
+    /// Symmetric coverage: with NO deadline, no `grpc-timeout` header
+    /// should be emitted. Server-side timeout enforcement is opt-in via
+    /// the deadline-bearing constructor.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn channel_omits_grpc_timeout_when_no_deadline() {
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        let observed: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(None));
+        let observed_server = Arc::clone(&observed);
+
+        let server_task = tokio::spawn(async move {
+            let mut conn = h2::server::handshake(server_io)
+                .await
+                .expect("server handshake");
+            let (request, mut respond) = conn
+                .accept()
+                .await
+                .expect("server accepts a stream")
+                .expect("accept returned a valid request");
+            let header_value = request
+                .headers()
+                .get("grpc-timeout")
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string);
+            *observed_server.lock().unwrap() = header_value;
+            let mut body = request.into_body();
+            while let Some(chunk) = body.data().await {
+                let chunk = chunk.expect("body chunk");
+                let _ = body.flow_control().release_capacity(chunk.len());
+            }
+            let mut response = http::Response::new(());
+            *response.status_mut() = http::StatusCode::OK;
+            response.headers_mut().insert(
+                http::header::CONTENT_TYPE,
+                HeaderValue::from_static("application/grpc+proto"),
+            );
+            response.headers_mut().insert(
+                HeaderName::from_static("grpc-status"),
+                HeaderValue::from_static("0"),
+            );
+            let _send = respond
+                .send_response(response, true)
+                .expect("server sends response head");
+            let _ = std::future::poll_fn(|cx| {
+                use std::pin::Pin;
+                Pin::new(&mut conn).poll_closed(cx)
+            })
+            .await;
+        });
+
+        let channel = Channel::handshake(
+            client_io,
+            "127.0.0.1",
+            0,
+            DEFAULT_MAX_FOR_TEST,
+            Scheme::HTTP,
+        )
+        .await
+        .expect("client handshake");
+        let stream = channel
+            .server_streaming::<crate::proto::DataValueList, crate::proto::ResponseData>(
+                "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
+                crate::proto::DataValueList::default(),
+            )
+            .await
+            .expect("rpc opens without deadline");
+        use tokio_stream::StreamExt;
+        let mut stream = std::pin::pin!(stream);
+        while let Some(item) = stream.next().await {
+            item.expect("trailers-only OK yields no errors before close");
+        }
+        drop(channel);
+        server_task.await.expect("server task completed");
+
+        let observed = observed.lock().unwrap().clone();
+        assert!(
+            observed.is_none(),
+            "no deadline means no grpc-timeout header; saw {observed:?}",
+        );
     }
 }
