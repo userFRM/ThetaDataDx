@@ -70,9 +70,14 @@ impl InhouseServiceGenerator {
         buf.push_str(&method.input_type);
         buf.push_str(", super::");
         buf.push_str(&method.output_type);
-        buf.push_str(">(\n                \"");
-        buf.push_str(&path);
-        buf.push_str("\",\n                req,\n            )\n            .await\n");
+        // `{:?}` defensively escapes the proto-derived path so a
+        // hostile package / service / method name (containing `"` or
+        // `\`) cannot produce uncompilable generated source. Real
+        // proto identifiers follow [A-Za-z_][A-Za-z0-9_]* so this is a
+        // belt-and-braces guard, not a hot path.
+        use std::fmt::Write as _;
+        write!(buf, ">(\n                {path:?},").unwrap();
+        buf.push_str("\n                req,\n            )\n            .await\n");
         buf.push_str("    }\n\n");
     }
 }
