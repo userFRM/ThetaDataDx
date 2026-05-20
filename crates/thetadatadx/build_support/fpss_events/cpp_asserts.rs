@@ -1,11 +1,10 @@
 //! C++ layout-assert emitter for FPSS C mirror structs.
 //!
-//! Wave G ships per-control-variant `static_assert(offsetof / sizeof)`
-//! coverage for the typed C structs (`TdxFpssLoginSuccess`,
-//! `TdxFpssDisconnected`, ...) on top of the existing data-variant +
-//! `TdxFpssEvent` checks. A schema entry's columns expand into one
-//! offset assert per physical field — `Vec<u8>` columns split into
-//! `(<name>, <name>_len)` pairs.
+//! Emits per-control-variant `static_assert(offsetof / sizeof)` coverage
+//! for the typed C structs (`TdxFpssLoginSuccess`, `TdxFpssDisconnected`,
+//! ...) alongside the data-variant + `TdxFpssEvent` checks. A schema
+//! entry's columns expand into one offset assert per physical field —
+//! `Vec<u8>` columns split into `(<name>, <name>_len)` pairs.
 
 use std::fmt::Write as _;
 

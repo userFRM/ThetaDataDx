@@ -20,8 +20,8 @@ use super::schema::{sorted_control_events, sorted_event_names, EventDef, Schema}
 /// the converter routes any unknown future variant through
 /// `BufferedEvent::UnknownControl` (also schema-declared, so the
 /// routing arm is generator-emitted, not hand-rolled). Decode-fallback
-/// frames never reach this dispatcher post Wave H7 — the public
-/// `FpssEvent` only carries `Data` / `Control`.
+/// frames never reach this dispatcher — the public `FpssEvent` only
+/// carries `Data` / `Control`.
 pub(super) fn render_buffered_event_file(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(
@@ -85,8 +85,8 @@ pub(super) fn render_buffered_event_file(schema: &Schema) -> String {
 
     // `FpssEvent` itself is `#[non_exhaustive]`; route through
     // `UnknownControl` (typed, payload-less). Decode-fallback frames
-    // are filtered before reaching this dispatcher (see Wave H7), so
-    // the public `FpssEvent` only ever carries `Data` / `Control`.
+    // are filtered before reaching this dispatcher, so the public
+    // `FpssEvent` only ever carries `Data` / `Control`.
     out.push_str("        _ => BufferedEvent::UnknownControl,\n");
 
     out.push_str("    }\n");

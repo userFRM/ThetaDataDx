@@ -59,7 +59,7 @@ pub(super) struct TestMode {
     /// Each entry is `(param_name, representative_value)`. Rendered per
     /// language: Python kwargs, Go `thetadatadx.WithXxx()` opts, C++
     /// `EndpointRequestOptions{}.with_xxx()`. CLI skips these (positional
-    /// clap args don't support targeted optional injection); see PR #291.
+    /// clap args don't support targeted optional injection).
     pub(super) builder_overrides: Vec<(String, String)>,
 }
 

@@ -1,12 +1,11 @@
 //! Rust FFI emitters for `ffi/src/fpss_event_structs.rs` +
 //! `ffi/src/fpss_event_converter.rs`.
 //!
-//! Wave G (typed FpssControl variants on the C/C++/Go FFI surface)
-//! flattens every `kind = "control"` schema variant into its own
-//! `#[repr(C)]` struct alongside the existing data-variant structs. The
-//! tagged `TdxFpssEvent` wrapper embeds all of them by value; only the
-//! field matching `kind` carries valid data on each delivered event.
-//! Empty control variants get a single `_padding: u8` so their C-side
+//! Flattens every `kind = "control"` schema variant into its own
+//! `#[repr(C)]` struct alongside the data-variant structs. The tagged
+//! `TdxFpssEvent` wrapper embeds all of them by value; only the field
+//! matching `kind` carries valid data on each delivered event. Empty
+//! control variants get a single `_padding: u8` so their C-side
 //! `sizeof` is portable across GCC / Clang / MSVC (Rust `#[repr(C)]`
 //! treats a zero-field struct as size 0; C does not).
 
@@ -26,8 +25,8 @@ use super::schema::{
 /// the same alphabetical order every other emitter consumes
 /// (`sorted_event_names`). The schema no longer carries a `RawData`
 /// fallback variant — decoder failures are filtered before the FFI
-/// boundary (Wave H7) and accounted on the
-/// `thetadatadx.fpss.decode_failures` metric.
+/// boundary and accounted on the `thetadatadx.fpss.decode_failures`
+/// metric.
 fn render_kind_enum_rust(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str("/// FPSS event kind tag. Check this to determine which field of\n");

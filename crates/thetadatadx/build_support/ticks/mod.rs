@@ -21,18 +21,16 @@
 //!
 //! * `sdks/python/src/tick_columnar.rs` — dict-of-lists `*_ticks_to_columnar`
 //!   helpers returning `Py<PyDict>`. Replaced by typed pyclass lists + the
-//!   Arrow columnar pipeline. (PR #365 dropped PyDict returns on historical
-//!   endpoints; PR #379 finished the Arrow cutover.)
+//!   Arrow columnar pipeline.
 //! * Per-type `*_ticks_to_arrow_batch(&[tick::T])` fast-path helpers — only
 //!   reached by the `stock_history_*_df` convenience wrappers, which were
 //!   themselves dropped for SSOT purity. The sole public DataFrame path is
-//!   now the `pyclass_list_to_arrow_table` trait dispatcher. (PR #379.)
+//!   now the `pyclass_list_to_arrow_table` trait dispatcher.
 //! * `sdks/typescript/src/*_to_columnar` serde_json converters — superseded
 //!   by the typed `#[napi(object)]` class-vec path (`render_ts_tick_classes`).
-//!   (PR #366.)
 //! * `sdks/typescript/src/types.ts` — hand-imported counterpart to the
 //!   deleted `*_to_columnar` helpers. Typed shapes now come from `index.d.ts`
-//!   emitted by napi-rs from the `#[napi(object)]` tick classes. (PR #368.)
+//!   emitted by napi-rs from the `#[napi(object)]` tick classes.
 
 use std::path::Path;
 

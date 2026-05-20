@@ -1133,11 +1133,11 @@ mod tests {
                     tdbe::types::enums::SecType::Unknown,
                     "missing contract_id must surface sec_type = Unknown"
                 );
-                // PR #514 MED-001: the sentinel's `symbol` carries the
-                // unresolved wire id under the `__pending:` prefix so
-                // downstream consumers (notably the WS bridge) can
-                // surface the diagnostic without re-introducing the
-                // wire id on the public `FpssData` surface.
+                // The sentinel's `symbol` carries the unresolved wire id
+                // under the `__pending:` prefix so downstream consumers
+                // (notably the WS bridge) can surface the diagnostic
+                // without re-introducing the wire id on the public
+                // `FpssData` surface.
                 assert_eq!(
                     contract.symbol, "__pending:999",
                     "unresolved sentinel must encode the wire id under \

@@ -47,7 +47,7 @@ const VALIDATOR_TEMPLATES: &[&str] = &[
     "validate_cpp/preamble.cpp.tmpl",
     "validate_cpp/cell.cpp.tmpl",
     "validate_cpp/postamble.cpp.tmpl",
-    // Emitter body templates (W8).
+    // Emitter body templates.
     "cpp/with_timeout_ms.cpp.tmpl",
     "cpp/with_deadline.cpp.tmpl",
     "cpp/option_contracts_convert.cpp.tmpl",

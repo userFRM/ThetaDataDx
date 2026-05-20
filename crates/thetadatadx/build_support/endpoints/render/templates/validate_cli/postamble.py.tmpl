@@ -91,7 +91,7 @@ for endpoint, mode, min_tier, rationale, argv, slow in CELLS:
             # --format json-raw keeps dates as YYYYMMDD ints and ms_of_day as raw
             # i32 ms so first_row matches the raw form Python/Go/C++ SDKs expose.
             # See scripts/validate_agreement.py for the canonical contract.
-            # --timeout-ms forwards the SDK-enforced deadline (W3) so the
+            # --timeout-ms forwards the SDK-enforced deadline so the
             # subprocess exits cleanly with "Request deadline exceeded"
             # instead of being SIGKILLed by the subprocess kill-switch below.
             [

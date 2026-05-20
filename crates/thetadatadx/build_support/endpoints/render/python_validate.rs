@@ -35,7 +35,7 @@ pub(super) fn render_python_validate(
                     args_parts.push(kwarg);
                 }
             }
-            // Cross-cutting per-call deadline (W3): SDK cancels the in-flight
+            // Cross-cutting per-call deadline: SDK cancels the in-flight
             // gRPC stream on expiry and raises a RuntimeError; no daemon
             // thread / os._exit gymnastics needed any more. Bulk-chain /
             // all-strike modes use `SLOW_MODE_TIMEOUT_MS` since a full
