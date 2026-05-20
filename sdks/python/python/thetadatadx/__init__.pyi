@@ -401,9 +401,9 @@ class StreamingAsyncSession:
     def __aenter__(self) -> Awaitable[StreamingAsyncSession]: ...
     def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[Any],
+        exc_type: Optional[Type[BaseException]] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[Any] = None,
     ) -> Awaitable[None]: ...
 
     # Async iteration — yields ``list[FpssEvent]`` per OS wake.
