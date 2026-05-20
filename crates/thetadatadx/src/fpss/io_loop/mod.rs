@@ -685,9 +685,18 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                 (Duration::from_millis(ms), attempt)
             }
             ReconnectPolicy::Custom(f) => {
-                // Custom policies bypass the split-budget counters and
-                // call the user function with a monotonic count of
-                // total reconnect attempts since session start.
+                // Custom policies bypass the split-budget enforcement
+                // (no `Auto`-side budget check), and the user closure
+                // receives the consecutive-transient attempt counter.
+                // The `attempt` arg therefore reflects "how many
+                // consecutive reconnects this session has issued for
+                // non-permanent reasons", which is the natural input
+                // for a user-supplied backoff curve. Rate-limited
+                // (`TooManyRequests`) drops are NOT separately
+                // counted on this path because a custom policy
+                // already owns the per-reason delay decision and a
+                // separate counter would force the user to merge
+                // two attempt values to read total session pressure.
                 let attempt = reconnect_state.record(ReconnectAttemptClass::Transient);
                 let Some(d) = f(reason, attempt) else {
                     tracing::info!(reason = ?reason, "custom policy returned None -- not reconnecting");
