@@ -59,6 +59,18 @@ jobs:
       - name: Build native addon
         working-directory: sdks/typescript
         run: npx napi build --platform --release --target ${{ matrix.target }} --strip
+      # Gate 7 (#550): the committed `index.d.ts` must equal what
+      # `napi build` just produced. Any drift means a contributor
+      # forgot to commit a regenerated stub after a binding change,
+      # so the published types lie about the runtime.
+      - name: Verify index.d.ts is in sync with native build
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: sdks/typescript
+        run: |
+          if ! git diff --exit-code -- index.d.ts; then
+            echo "::error::sdks/typescript/index.d.ts is out of sync with the napi build. Run \`npm run build\` locally and commit the regenerated file." >&2
+            exit 1
+          fi
       # H9: run `npm test` on every advertised platform (Linux,
       # macOS, Windows) rather than gating to Linux only. CI parity
       # with the Python and Rust matrices: every platform we ship a
@@ -66,6 +78,15 @@ jobs:
       - name: Test
         working-directory: sdks/typescript
         run: npm test
+      # Gate 3 (#546) - TypeScript side: extract tsdoc `@example` /
+      # fenced-code blocks from `index.d.ts` and run each one with
+      # `tsx`. Today `index.d.ts` carries no `@example` blocks (the
+      # napi-rs emitter doesn't pass them from the Rust source);
+      # the gate is wired so future TS doc examples are exercised.
+      - name: Doc-example harness
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: sdks/typescript
+        run: node scripts/run_doc_examples.mjs
       # H9: emit the public-surface shape manifest so the
       # cross-language agreement validator (`scripts/validate_agreement.py`)
       # can compare TypeScript field sets against the Python / CLI /
@@ -84,6 +105,13 @@ jobs:
           name: validator-typescript
           path: artifacts/validator_typescript.json
           if-no-files-found: error
+      - name: Pack + inspect npm tarball (Gate 12 / #555)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: sdks/typescript
+        run: |
+          npm pack --json | tee ../../npm-pack.json
+          tar tzf thetadatadx-*.tgz | head -50
+          python3 ../../scripts/inspect_artifacts.py thetadatadx-*.tgz
       - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}

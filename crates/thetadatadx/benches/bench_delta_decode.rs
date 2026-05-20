@@ -222,7 +222,7 @@ fn bench_delta_decode_zero_alloc(c: &mut Criterion) {
                  {allocs_per_iter:.3} allocs/iter ({iters} iters)"
             );
 
-            // Institutional bar: zero heap allocations on the steady-
+            // Steady-state allocation bar: zero heap allocations on the
             // state delta decode path. The current implementation
             // copies into a caller-owned stack buffer and stores the
             // previous tick inline in the `HashMap<(u8, i32), [i32; 16]>`

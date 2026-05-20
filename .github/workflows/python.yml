@@ -115,6 +115,39 @@ jobs:
         run: |
           python -m pip install pytest
           python -m pytest sdks/python/tests/ -v
+      # Gate 8 (#551): fresh-venv smoke test. Simulates a first-time
+      # user typing `pip install thetadatadx` then importing every
+      # documented top-level export. Runs in a brand-new venv so a
+      # pollution-by-development-deps regression cannot mask a real
+      # missing export.
+      - name: Fresh-install smoke test
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          python -m venv /tmp/tdx-smoke
+          /tmp/tdx-smoke/bin/pip install --upgrade pip
+          /tmp/tdx-smoke/bin/pip install pytest
+          /tmp/tdx-smoke/bin/pip install dist/*.whl
+          /tmp/tdx-smoke/bin/python -m pytest sdks/python/tests/test_fresh_install_smoke.py -v
+          /tmp/tdx-smoke/bin/python -m pytest sdks/python/tests/test_module_exports.py -v
+      # Gate 6 (#549): mypy stubtest — verifies `__init__.pyi` matches
+      # the runtime byte-for-byte. The allowlist documents the small
+      # set of structural pyo3 false positives (`__init__` vs
+      # `__new__` for pyclass constructors, etc.) plus the explicit
+      # "deliberately unstubbed" generator-emitted surface.
+      - name: Stubtest (.pyi vs runtime)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          python -m pip install mypy
+          python -m mypy.stubtest thetadatadx \
+            --allowlist sdks/python/stubtest_allowlist.txt \
+            --ignore-missing-stub \
+            --ignore-disjoint-bases \
+            --ignore-positional-only
+      - name: Inspect wheel contents (Gate 12 / #555)
+        shell: bash
+        run: python3 scripts/inspect_artifacts.py dist/*.whl
       - uses: actions/upload-artifact@v7
         with:
           name: wheel-${{ runner.os }}
@@ -159,6 +192,9 @@ jobs:
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
       - shell: bash
         run: python -m maturin sdist -m sdks/python/Cargo.toml -o dist/
+      - name: Inspect sdist contents (Gate 12 / #555)
+        shell: bash
+        run: python3 scripts/inspect_artifacts.py dist/*.tar.gz
       - shell: bash
         run: python -m pip install --force-reinstall dist/*.tar.gz
       - shell: bash

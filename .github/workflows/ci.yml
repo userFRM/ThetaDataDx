@@ -29,6 +29,71 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all -- --check
 
+  c-abi-completeness:
+    name: C ABI completeness vs C header
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/check_c_abi_completeness.py
+
+  binding-parity:
+    name: Cross-binding parity matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/check_binding_parity.py
+
+  wire-schema-drift:
+    name: Wire schema drift (proto + FPSS + tick layouts)
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 20
+    # Gate 5 (#548): every committed snapshot (gRPC proto codegen,
+    # FPSS event class projections, tick-layout asserts, SDK surface
+    # tables) must equal the regeneration output. Drift = build
+    # failure. `generate_sdk_surfaces --check` already validates the
+    # endpoint / surface / tick / FPSS event projections; this job
+    # adds the gRPC proto snapshot drift check on top and asserts the
+    # tree is clean afterwards so a stray write from either generator
+    # also surfaces as a hit.
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-rust-deps
+      - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
+      - run: cargo run -p thetadatadx --features grpc-codegen --bin refresh_grpc_snapshot --locked
+      - name: Assert no tracked file changed
+        shell: bash
+        run: |
+          if ! git diff --exit-code; then
+            echo "::error::Wire schema regeneration produced uncommitted changes. Run \`cargo run -p thetadatadx --bin refresh_grpc_snapshot --features grpc-codegen\` and \`cargo run -p thetadatadx --bin generate_sdk_surfaces --features config-file\` locally and commit the diff." >&2
+            exit 1
+          fi
+
+  banned-vocab:
+    name: Banned vocabulary scrubber
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Scan source tree + commit subjects + PR metadata
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 scripts/check_banned_vocab.py
+
   cargo-deny:
     name: Cargo deny
     runs-on: ubuntu-latest
@@ -77,6 +142,13 @@ jobs:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-rust-deps
       - run: cargo test --workspace --locked
+      # Gate 3 (#546) - Rust side: doctests run as part of `cargo test
+      # --workspace` above, but invoking `--doc` explicitly verifies
+      # the FFI crate's `extern "C"` doc examples compile + run on
+      # every PR. Without this, a doc-only regression (an example
+      # that references a renamed symbol, say) wouldn't surface until
+      # someone manually ran the doc step.
+      - run: cargo test --doc --workspace --locked
 
   bench:
     name: Bench regression gate
@@ -96,6 +168,15 @@ jobs:
               "streaming_channels/disruptor_consumer_panic_isolated/100k_events" --quick
           cargo bench -p thetadatadx --bench streaming_channels --locked -- \
               "streaming_channels/disruptor_cross_thread/100k_events" --quick
+          # Gate 10 (#553) expansion: FPSS event clone + match dispatch
+          # benches. The bench files already exist
+          # (`bench_fpss_event.rs`); this step exercises them in CI so
+          # the data is generated. They will be added to
+          # `benches/baseline/criterion.json` in a follow-up commit once
+          # a first sample lands on `main` — the baseline JSON is
+          # captured locally and we do not bless a value against the
+          # GitHub-hosted runner without one observed sample.
+          cargo bench -p thetadatadx --bench bench_fpss_event --locked -- --quick
       - name: Compare against checked-in baseline
         # Threshold is intentionally loose (100%, i.e. 2x slowdown)
         # because the baseline JSON is captured locally on a developer
@@ -111,6 +192,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: check
     timeout-minutes: 30
+    # Gate 9 (issue #552): every PR against main runs cargo-semver-checks
+    # so a silent breaking change to the `thetadatadx` public Rust API
+    # surface fails the build. Push-to-main and tag runs still execute
+    # the same check — the comparison is against the last published
+    # crates.io baseline, which catches the case where a hotfix branch
+    # rebases directly onto main.
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v6
         with:
@@ -119,6 +207,11 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
+          # Anchor the diff against the last v9 release. The action
+          # auto-discovers `package = "thetadatadx"` via the crate
+          # manifest. Bumping this pin tracks the most recently
+          # published crates.io baseline.
+          package: thetadatadx
           baseline-rev: v9.0.0
 
   surfaces:

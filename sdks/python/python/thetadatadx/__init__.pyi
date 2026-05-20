@@ -16,13 +16,14 @@ shipped alongside this file.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Iterator, List, Optional, Tuple, Type
+from typing import Any, Callable, Iterator, List, Optional, Tuple, Type, final
 
 # ─────────────────────────────────────────────────────────────────────
 # Credentials + Config
 # ─────────────────────────────────────────────────────────────────────
 
 
+@final
 class Credentials:
     """ThetaData Nexus credentials (email + password)."""
 
@@ -32,6 +33,7 @@ class Credentials:
     def __repr__(self) -> str: ...
 
 
+@final
 class Config:
     """Connection configuration: MDDS host / FPSS hosts / reconnect policy."""
 
@@ -61,6 +63,7 @@ class Config:
 # ─────────────────────────────────────────────────────────────────────
 
 
+@final
 class Contract:
     """Per-contract identity (stock or option) for FPSS subscriptions."""
 
@@ -86,6 +89,7 @@ class Contract:
     def __eq__(self, other: object) -> bool: ...
 
 
+@final
 class ContractRef:
     """Read-only contract identifier surfaced on every FPSS event.
 
@@ -112,6 +116,7 @@ class ContractRef:
     def __repr__(self) -> str: ...
 
 
+@final
 class SecType:
     """Security type — `STOCK` / `OPTION` / `INDEX` / `RATE`."""
 
@@ -129,6 +134,7 @@ class SecType:
     def __hash__(self) -> int: ...
 
 
+@final
 class Subscription:
     """Typed market-data subscription (per-contract or full-stream)."""
 
@@ -151,6 +157,7 @@ class Subscription:
 # ─────────────────────────────────────────────────────────────────────
 
 
+@final
 class Quote:
     """FPSS per-contract quote event."""
 
@@ -162,6 +169,7 @@ class Quote:
     timestamp_ns: int
 
 
+@final
 class Trade:
     """FPSS per-contract trade event."""
 
@@ -171,6 +179,7 @@ class Trade:
     timestamp_ns: int
 
 
+@final
 class OpenInterest:
     """FPSS open-interest event (per-contract or full-stream)."""
 
@@ -179,6 +188,7 @@ class OpenInterest:
     timestamp_ns: int
 
 
+@final
 class Ohlcvc:
     """FPSS OHLCVC bar (derived in the SDK when `Config.derive_ohlcvc=True`)."""
 
@@ -191,6 +201,7 @@ class Ohlcvc:
     count: int
 
 
+@final
 class ContractAssigned:
     """FPSS server assigned a contract id (`FpssControl::ContractAssigned`)."""
 
@@ -208,6 +219,7 @@ class ContractAssigned:
 EventCallback = Callable[[Any], None]
 
 
+@final
 class ThetaDataDxClient:
     """Unified client: opens MDDS + Nexus at construction, FPSS on demand."""
 
@@ -249,6 +261,7 @@ class ThetaDataDxClient:
     def __getattr__(self, name: str) -> Any: ...
 
 
+@final
 class AsyncThetaDataDxClient:
     """Async surface: ``*_async`` historical methods plus streaming helpers."""
 
@@ -259,6 +272,7 @@ class AsyncThetaDataDxClient:
     def __getattr__(self, name: str) -> Any: ...
 
 
+@final
 class FpssClient:
     """Standalone FPSS-only streaming client — never opens MDDS / Nexus."""
 
@@ -289,6 +303,7 @@ class FpssClient:
     def __repr__(self) -> str: ...
 
 
+@final
 class MddsClient:
     """Standalone MDDS-only historical client — FPSS surface is blocked."""
 
@@ -307,6 +322,7 @@ class MddsClient:
 # ─────────────────────────────────────────────────────────────────────
 
 
+@final
 class StreamingSession:
     """Context manager for push-callback FPSS streaming."""
 
@@ -320,6 +336,7 @@ class StreamingSession:
     def __getattr__(self, name: str) -> Any: ...
 
 
+@final
 class StreamingIterSession:
     """Context manager for pull-iter FPSS streaming."""
 
@@ -333,6 +350,7 @@ class StreamingIterSession:
     def __getattr__(self, name: str) -> Any: ...
 
 
+@final
 class EventIterator:
     """Iterator over FPSS events in pull-iter delivery mode."""
 
@@ -362,15 +380,19 @@ class ThetaDataError(Exception):
 class AuthenticationError(ThetaDataError): ...
 
 
+@final
 class InvalidCredentialsError(AuthenticationError): ...
 
 
+@final
 class NetworkError(ThetaDataError): ...
 
 
+@final
 class NoDataFoundError(ThetaDataError): ...
 
 
+@final
 class Error(ThetaDataError):
     """Generic untyped error — fallback when no typed variant matches."""
 
@@ -386,10 +408,8 @@ def decode_response_bytes(endpoint: str, chunks: List[bytes]) -> Any: ...
 
 
 def split_date_range(
-    start_date: str,
-    end_date: str,
-    *,
-    days_per_chunk: int = ...,
+    start: str,
+    end: str,
 ) -> List[Tuple[str, str]]: ...
 
 
@@ -415,6 +435,7 @@ def implied_volatility(
 ) -> float: ...
 
 
+@final
 class AllGreeks:
     """Greeks bundle returned by ``all_greeks(...)``."""
 

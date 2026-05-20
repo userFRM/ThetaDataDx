@@ -1,4 +1,7 @@
 {
+    "_meta": {
+        "comment": "Gate 10 (#553) expansion: bench_fpss_event::{event_clone,event_match} run in CI but are not gated yet — they will be added here once a first p50 sample lands on `main`. Python `Contract.stock(...)` and C++ `tdx::FpssClient` construction-cost benches are deferred until a baseline harness lands; they are tracked as deferred-baseline work. The `_meta` key is ignored by `scripts/check_bench_regression.py` because the loader explicitly extracts `criterion_path` + `p50_ns` and treats malformed entries as skip."
+    },
     "stock_list_symbols/in_house": {
         "p50_ns": 115997.0,
         "criterion_path": "stock_list_symbols/in_house"

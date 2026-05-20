@@ -1,0 +1,124 @@
+"""Gate 8 (issue #551): fresh-install smoke test.
+
+Acts like a first-time user typing `pip install thetadatadx` then
+`from thetadatadx import <X>` for every documented top-level export.
+Catches "documented but unreachable" regressions of the class that bit
+production on v10.0.0 (issue #557).
+
+The CI workflow runs this against a wheel freshly installed into an
+isolated venv — see `python.yml::build`. The test deliberately uses
+`importlib.import_module("thetadatadx")` rather than `from thetadatadx
+import ...` so a missing name fails on the assertion, not on the
+import-statement itself (which gives a less actionable error).
+"""
+
+from __future__ import annotations
+
+import importlib
+
+import pytest
+
+
+# Top-level names the user-facing docs (lib.rs module doc, README.md,
+# api-reference.md) advertise as importable directly off the package
+# namespace. Grouped for readability; the test parametrises across the
+# flat union.
+PUBLIC_CLASSES = [
+    # Credentials + config
+    "Credentials",
+    "Config",
+    # Sync + async clients
+    "ThetaDataDxClient",
+    "AsyncThetaDataDxClient",
+    "FpssClient",
+    "MddsClient",
+    # Streaming sessions
+    "StreamingSession",
+    "StreamingIterSession",
+    "EventIterator",
+    # Fluent surface
+    "Contract",
+    "Subscription",
+    "SecType",
+    # FPSS event payload classes — the high-traffic ones used in every
+    # streaming example. Full coverage of the 21 event variants lives
+    # in `test_module_exports.py`.
+    "Quote",
+    "Trade",
+    "Ohlcvc",
+    "OpenInterest",
+    "ContractRef",
+    "Connected",
+    "Disconnected",
+    "LoginSuccess",
+    # FlatFiles namespace
+    "FlatFilesNamespace",
+    "FlatFileRowList",
+    # Typed exceptions — names mirror `sdks/python/src/errors.rs`
+    "ThetaDataError",
+    "AuthenticationError",
+    "InvalidCredentialsError",
+    "SubscriptionError",
+    "RateLimitError",
+    "SchemaMismatchError",
+    "NetworkError",
+    "TimeoutError",
+    "NoDataFoundError",
+    "StreamError",
+]
+
+PUBLIC_FUNCTIONS = [
+    "implied_volatility",
+    "decode_response_bytes",
+    "split_date_range",
+]
+
+
+@pytest.fixture(scope="module")
+def mod():
+    return importlib.import_module("thetadatadx")
+
+
+@pytest.mark.parametrize("name", PUBLIC_CLASSES)
+def test_class_importable(mod, name: str) -> None:
+    obj = getattr(mod, name, None)
+    assert obj is not None, (
+        f"`from thetadatadx import {name}` would raise ImportError — "
+        f"documented public class is missing from the installed wheel."
+    )
+    # Belt-and-braces: catch the case where something registers as the
+    # name but is the wrong kind of object (e.g. a stub `None` or a
+    # placeholder string left over from a half-removed export).
+    assert isinstance(obj, type) or callable(obj), (
+        f"`thetadatadx.{name}` exists but is not a class or callable "
+        f"(got {type(obj).__name__})."
+    )
+
+
+@pytest.mark.parametrize("name", PUBLIC_FUNCTIONS)
+def test_function_importable(mod, name: str) -> None:
+    fn = getattr(mod, name, None)
+    assert fn is not None, (
+        f"`from thetadatadx import {name}` would raise ImportError — "
+        f"documented public function is missing from the installed wheel."
+    )
+    assert callable(fn), f"`thetadatadx.{name}` exists but is not callable."
+
+
+def test_documented_fluent_example_runs(mod) -> None:
+    """End-to-end exercise of the doc-comment example from `fluent.rs`."""
+    stock = mod.Contract.stock("AAPL")
+    assert stock.symbol == "AAPL"
+    quote_sub = stock.quote()
+    assert quote_sub.kind == "quote"
+    assert quote_sub.contract is not None
+
+    option = mod.Contract.option("SPY", expiration="20260620", strike="550", right="C")
+    assert option.symbol == "SPY"
+
+
+def test_documented_implied_volatility_runs(mod) -> None:
+    """Smoke test the analytical helper documented in lib.rs."""
+    iv, err = mod.implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C")
+    assert iv > 0
+    assert err >= 0

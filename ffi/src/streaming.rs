@@ -1071,8 +1071,8 @@ pub unsafe extern "C" fn tdx_unified_free(handle: *mut TdxUnified) {
         handle.inner.stop_streaming();
 
         // Wait for the consumer thread to finish firing the registered
-        // callback before we destroy the handle. This is the
-        // institutional `free` contract: returning only after the
+        // callback before we destroy the handle. This is the strict
+        // `free` contract: returning only after the
         // callback path is quiesced means user code can release `ctx`
         // immediately afterwards. Default 5 s timeout; overrun is
         // surfaced via `tracing::error!` so ops can spot a wedged

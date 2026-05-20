@@ -31,6 +31,9 @@ set(THETADX_CPP_TEST_SOURCES
     unified_client.cpp
     streaming_iter.cpp
     error_taxonomy.cpp
+    # Gate 3 (issue #546) - C++ doctest harness. Compiles + runs
+    # `// @example` blocks extracted from the public headers.
+    doctest_examples.cpp
 )
 
 add_executable(thetadatadx_cpp_tests ${THETADX_CPP_TEST_SOURCES})
