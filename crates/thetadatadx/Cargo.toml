@@ -212,6 +212,16 @@ toml = "1.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
 tdbe = { version = "0.13.1", path = "../tdbe" }
 
+# POSIX `pipe2` / `write` / `close` for the asyncio wake-fd bridge used
+# by the Python SDK's `streaming_async()` surface (see
+# `crates/thetadatadx/src/fpss/wake.rs`). Pure libc — no abstraction layer
+# — because we only need three syscalls and want the wake path to stay
+# zero-allocation. Already in the dep graph transitively (rustls /
+# rand_chacha pull libc on Unix); declaring it explicitly pins the
+# binding-version contract.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [[bench]]
 name = "bench_decode"
 harness = false

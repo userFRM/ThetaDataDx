@@ -433,6 +433,23 @@ pub(crate) enum Delivery {
         /// happen" is observable, which is why the EventIterator keys
         /// off it instead of the I/O-thread shutdown signal.
         iter_closed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        /// Optional FD-readiness signal for asyncio / select-loop
+        /// consumers. `Some(wake)` is set via
+        /// [`super::FpssClient::connect_iter_with_wake`] — the
+        /// Python SDK's `streaming_async()` surface allocates a
+        /// self-pipe, hands the write-end to the wake, and registers
+        /// the read-end on the asyncio loop via `loop.add_reader`.
+        /// Each successful `queue.push` writes a coalesced single byte
+        /// (via [`super::wake::WakeFd::signal`]) so the reader's
+        /// `epoll` wake fires without polling.
+        ///
+        /// `None` for the synchronous pull-iter path
+        /// (`start_streaming_iter()` / `client.streaming_iter()`),
+        /// which drains via `next_timeout` / `next` and pays the
+        /// 100 µs sleep tick budget instead. Keeping the field
+        /// optional preserves zero-cost on the existing sync path —
+        /// no atomic load, no FD write, no extra Arc clone.
+        wake_fd: Option<std::sync::Arc<super::wake::WakeFd>>,
     },
 }
 

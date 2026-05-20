@@ -324,7 +324,7 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                                 }
                             }
                         }
-                        Delivery::Queue { queue, .. } => {
+                        Delivery::Queue { queue, wake_fd, .. } => {
                             // Pull-iter delivery. Clone the public event
                             // into the bounded queue; `Arc<Contract>` /
                             // `String` payloads collapse the clone to
@@ -343,6 +343,19 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                             // counter.
                             if queue.push(evt.clone()).is_err() {
                                 dropped_consumer.fetch_add(1, Ordering::Relaxed);
+                            } else if let Some(wake) = wake_fd.as_ref() {
+                                // Wake the asyncio reader. `signal()`
+                                // coalesces under load — at most one
+                                // wake byte is in the pipe at a time
+                                // (see `super::wake::WakeFd`) — so the
+                                // hot-path cost compresses to one
+                                // atomic compare-exchange and a
+                                // never-taken branch on subsequent
+                                // pushes until the reader drains and
+                                // re-arms. The sync pull-iter path
+                                // leaves `wake_fd: None` and pays zero
+                                // overhead.
+                                wake.signal();
                             }
                         }
                     }
