@@ -53,12 +53,11 @@
             })
             .map_err(to_py_err)?;
 
-        *cb_guard = Some(Arc::try_unwrap(callback_arc).unwrap_or_else(|arc| {
-            // The Disruptor consumer closure keeps a strong reference
-            // until `stop_streaming`, so the Arc ref-count is >1 here.
-            // Fall back to `clone_ref` under the GIL to lift a fresh
-            // owned handle for storage.
-            Python::attach(|py| arc.clone_ref(py))
-        }));
+        // The Disruptor consumer closure already captured a clone of
+        // `callback_arc` (via `dispatch_cb`), so the Arc ref-count is
+        // guaranteed >=2 by the time we reach this line — `try_unwrap`
+        // would always fail. Lift a fresh owned handle under the GIL
+        // for storage on `cb_guard`.
+        *cb_guard = Some(Python::attach(|py| callback_arc.clone_ref(py)));
         Ok(())
     }

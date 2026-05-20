@@ -8,6 +8,25 @@ use super::spec::{MethodKind, MethodSpec, UtilityKind, UtilitySpec};
 pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
+
+    // Emit the inventory of FPSS-touching method names before the
+    // `#[pymethods]` block. `mdds_client.rs` references this const in
+    // a compile-time guard so its `BLOCKED_FPSS_METHODS` list can
+    // never drift below the actual generated surface.
+    out.push_str(
+        "/// Names of every FPSS-touching method emitted on \
+         `ThetaDataDxClient`.\n",
+    );
+    out.push_str(
+        "/// SSOT for cross-class block-list drift checks (see \
+         `mdds_client.rs`).\n",
+    );
+    out.push_str("pub(crate) const PYTHON_UNIFIED_FPSS_METHODS: &[&str] = &[\n");
+    for method in methods {
+        writeln!(out, "    \"{}\",", method.name).unwrap();
+    }
+    out.push_str("];\n\n");
+
     out.push_str("#[pymethods]\n");
     out.push_str("impl ThetaDataDxClient {\n");
     for method in methods {
@@ -122,9 +141,13 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                  `PyErr::write_unraisable` (visible in `sys.stderr` and\n\
                  the unraisable hook); each one bumps `panic_count()`.",
             );
+            // `pub(crate)` so the `StreamableHandle` enum in
+            // `streaming_session.rs` can dispatch through the typed
+            // pyclass borrow without going back through Python
+            // attribute lookup.
             writeln!(
                 out,
-                "    fn {}(&self, callback: Py<PyAny>) -> PyResult<()> {{",
+                "    pub(crate) fn {}(&self, callback: Py<PyAny>) -> PyResult<()> {{",
                 method.name
             )
             .unwrap();
@@ -284,9 +307,13 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             // ABI symmetric with the TypeScript / C ABI / C++ surfaces;
             // every binding speaks milliseconds at the language boundary
             // and converts to `Duration` at the Rust callsite.
+            // `pub(crate)` so the `StreamableHandle` enum in
+            // `streaming_session.rs` can dispatch through the typed
+            // pyclass borrow without going back through Python
+            // attribute lookup.
             writeln!(
                 out,
-                "    fn {}(&self, py: Python<'_>, timeout_ms: u64) -> bool {{",
+                "    pub(crate) fn {}(&self, py: Python<'_>, timeout_ms: u64) -> bool {{",
                 method.name
             )
             .unwrap();
@@ -303,7 +330,11 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("    }\n");
         }
         MethodKind::StopStreaming | MethodKind::Shutdown => {
-            writeln!(out, "    fn {}(&self) {{", method.name).unwrap();
+            // `pub(crate)` so the `StreamableHandle` enum in
+            // `streaming_session.rs` can dispatch through the typed
+            // pyclass borrow without going back through Python
+            // attribute lookup.
+            writeln!(out, "    pub(crate) fn {}(&self) {{", method.name).unwrap();
             // PR C (#482) replaced the receiver `rx` field with a
             // stored `Py<PyAny>` callback. Drop the callable so the
             // Python reference is released before the streaming side
