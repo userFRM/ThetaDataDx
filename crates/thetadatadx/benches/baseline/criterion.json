@@ -1,0 +1,18 @@
+{
+    "stock_list_symbols/in_house": {
+        "p50_ns": 115997.0,
+        "criterion_path": "stock_list_symbols/in_house"
+    },
+    "streaming_channels/direct_callback/100k_events": {
+        "p50_ns": 530467.0,
+        "criterion_path": "streaming_channels_direct_callback/100k_events"
+    },
+    "streaming_channels/disruptor_consumer_panic_isolated/100k_events": {
+        "p50_ns": 1484906.0,
+        "criterion_path": "streaming_channels_disruptor_consumer_panic_isolated/100k_events"
+    },
+    "streaming_channels/disruptor_cross_thread/100k_events": {
+        "p50_ns": 1608503.0,
+        "criterion_path": "streaming_channels_disruptor_cross_thread/100k_events"
+    }
+}
