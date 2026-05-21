@@ -1616,3 +1616,11 @@ export declare const enum Version {
   Latest = 'latest',
   V1 = '1'
 }
+
+// ─────────────────────────────────────────────────────────────
+// U7 closure: `Contract` is the documented public name for the
+// fluent contract builder. napi-rs emits the class as
+// `ContractRef` to avoid colliding with the FPSS event
+// payload field; this alias keeps the documented name live.
+// ─────────────────────────────────────────────────────────────
+export const Contract: typeof ContractRef;
