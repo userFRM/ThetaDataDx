@@ -121,7 +121,7 @@ mod streaming_soak_tests;
 // crate-private; only the round-trip primitives are exposed.
 pub use self::decode::UNRESOLVED_CONTRACT_SYMBOL_PREFIX;
 use self::events::IoCommand;
-pub use self::events::{FpssControl, FpssData, FpssEvent};
+pub use self::events::{BackpressurePolicy, FpssControl, FpssData, FpssEvent};
 // `Delivery` stays crate-private; it is the union type the io_loop
 // dispatches on. Public callers reach the two modes via
 // `FpssClient::connect` (push-callback) and `FpssClient::connect_iter`
@@ -443,6 +443,11 @@ impl FpssClient {
             queue_capacity,
         ));
         let finished = Arc::new(AtomicBool::new(false));
+        // Sync pull-iter retains legacy `DropNewest` behaviour (silent
+        // overflow drops). The async surfaces route through
+        // [`Self::connect_iter_with_wake_keep_handle_policy`] when
+        // they want explicit policy control.
+        let policy = events::BackpressurePolicy::DropNewest;
         // Dedicated terminal predicate for the iterator. Flipped to
         // `true` ONLY after the Disruptor consumer thread has exited
         // its consume loop and dropped the closure that owns the queue
@@ -461,6 +466,7 @@ impl FpssClient {
             queue: Arc::clone(&queue),
             iter_closed: Arc::clone(&iter_closed),
             wake_fd: None,
+            policy,
         };
         let client = Self::connect_with_delivery(args, delivery)?;
         let iterator = EventIterator {
@@ -508,10 +514,16 @@ impl FpssClient {
         let finished = Arc::new(AtomicBool::new(false));
         let iter_closed = Arc::new(AtomicBool::new(false));
         let wake_arc = Arc::new(wake);
+        // Async pull-iter without explicit policy defaults to `Block`
+        // — the safe default for new callers. Existing consumers that
+        // want legacy `DropNewest` semantics call the `_policy`
+        // variant below.
+        let policy = events::BackpressurePolicy::Block;
         let delivery = events::Delivery::Queue {
             queue: Arc::clone(&queue),
             iter_closed: Arc::clone(&iter_closed),
             wake_fd: Some(Arc::clone(&wake_arc)),
+            policy,
         };
         let client = Self::connect_with_delivery(args, delivery)?;
         let iterator = EventIterator {
@@ -559,7 +571,46 @@ impl FpssClient {
         args: FpssConnectArgs<'_>,
         wake: wake::WakeFd,
     ) -> Result<(Self, EventIterator, Arc<wake::WakeFd>), Error> {
-        let queue_capacity = args.ring_size;
+        Self::connect_iter_with_wake_keep_handle_policy(
+            args,
+            wake,
+            None,
+            events::BackpressurePolicy::Block,
+        )
+    }
+
+    /// Variant of [`Self::connect_iter_with_wake_keep_handle`] that
+    /// accepts an explicit [`events::BackpressurePolicy`] and an
+    /// optional `max_queue_depth` override.
+    ///
+    /// * `max_queue_depth` — `None` reuses `args.ring_size` (the
+    ///   existing implicit sizing); `Some(n)` caps the
+    ///   [`crossbeam_queue::ArrayQueue`] at `n` events. Must satisfy
+    ///   the same power-of-two + [`ring::MIN_RING_SIZE`] constraints
+    ///   the ring does, validated via [`ring::check_ring_size`].
+    /// * `policy` — overflow strategy. See [`events::BackpressurePolicy`].
+    ///
+    /// Production callers reach this through the Python
+    /// `client.streaming_async(max_queue_depth=..., backpressure=...)`
+    /// kwargs.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same set of errors as [`Self::connect`] (TLS,
+    /// login, config validation), plus [`Error::Config`] when
+    /// `max_queue_depth` is below [`ring::MIN_RING_SIZE`] or is not a
+    /// power of two.
+    pub fn connect_iter_with_wake_keep_handle_policy(
+        args: FpssConnectArgs<'_>,
+        wake: wake::WakeFd,
+        max_queue_depth: Option<usize>,
+        policy: events::BackpressurePolicy,
+    ) -> Result<(Self, EventIterator, Arc<wake::WakeFd>), Error> {
+        let queue_capacity = match max_queue_depth {
+            Some(n) => ring::check_ring_size(n)
+                .map_err(|e| Error::config_invalid("fpss.max_queue_depth", e.to_string()))?,
+            None => args.ring_size,
+        };
         let queue = Arc::new(crossbeam_queue::ArrayQueue::<FpssEvent>::new(
             queue_capacity,
         ));
@@ -570,6 +621,7 @@ impl FpssClient {
             queue: Arc::clone(&queue),
             iter_closed: Arc::clone(&iter_closed),
             wake_fd: Some(Arc::clone(&wake_arc)),
+            policy,
         };
         let client = Self::connect_with_delivery(args, delivery)?;
         let iterator = EventIterator {

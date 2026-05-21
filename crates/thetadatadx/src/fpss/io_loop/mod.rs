@@ -57,7 +57,7 @@ use super::decode::decode_frame;
 use super::delta::DeltaState;
 #[cfg(test)]
 use super::events::FpssEvent;
-use super::events::{Delivery, FpssControl, FpssEventInternal, IoCommand};
+use super::events::{BackpressurePolicy, Delivery, FpssControl, FpssEventInternal, IoCommand};
 use super::framing::{
     self, is_drain_yield, read_frame_into_with_stall_timeout, write_frame, write_raw_frame,
     write_raw_frame_no_flush, Frame, FrameReadState,
@@ -324,38 +324,65 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                                 }
                             }
                         }
-                        Delivery::Queue { queue, wake_fd, .. } => {
+                        Delivery::Queue {
+                            queue,
+                            wake_fd,
+                            policy,
+                            ..
+                        } => {
                             // Pull-iter delivery. Clone the public event
                             // into the bounded queue; `Arc<Contract>` /
                             // `String` payloads collapse the clone to
                             // refcount bumps so the per-event cost stays
                             // in the low hundreds of nanoseconds.
                             //
-                            // `push` returns `Err(ev)` when the queue is
-                            // full — symmetric with the callback path's
-                            // `Producer::try_publish` ring-full handling:
-                            // the new event is dropped (rather than
-                            // overwriting an unread older event) and the
-                            // shared `dropped` counter increments. Both
-                            // delivery modes therefore surface
-                            // ring/queue overflow on the same
-                            // [`super::FpssClient::dropped_count`]
-                            // counter.
-                            if queue.push(evt.clone()).is_err() {
-                                dropped_consumer.fetch_add(1, Ordering::Relaxed);
-                            } else if let Some(wake) = wake_fd.as_ref() {
-                                // Wake the asyncio reader. `signal()`
-                                // coalesces under load — at most one
-                                // wake byte is in the pipe at a time
-                                // (see `super::wake::WakeFd`) — so the
-                                // hot-path cost compresses to one
-                                // atomic compare-exchange and a
-                                // never-taken branch on subsequent
-                                // pushes until the reader drains and
-                                // re-arms. The sync pull-iter path
-                                // leaves `wake_fd: None` and pays zero
-                                // overhead.
-                                wake.signal();
+                            // Overflow is governed by the configured
+                            // [`BackpressurePolicy`]. `Block` parks the
+                            // consumer thread on push until space frees
+                            // up; `DropOldest` evicts the head before
+                            // push so the queue stays full of fresh
+                            // data; `DropNewest` skips the new event
+                            // when full (legacy behaviour). The shared
+                            // `dropped` counter increments on every
+                            // eviction / skipped push so operators see
+                            // one signal for queue-overflow pressure.
+                            let pushed = match *policy {
+                                BackpressurePolicy::Block => push_with_block(queue, evt.clone()),
+                                BackpressurePolicy::DropOldest => {
+                                    // `force_push` returns `Some(old)`
+                                    // when the queue was full and the
+                                    // head was evicted — count the
+                                    // eviction as a drop so the metric
+                                    // stays comparable to `DropNewest`.
+                                    if queue.force_push(evt.clone()).is_some() {
+                                        dropped_consumer.fetch_add(1, Ordering::Relaxed);
+                                    }
+                                    true
+                                }
+                                BackpressurePolicy::DropNewest => {
+                                    if queue.push(evt.clone()).is_err() {
+                                        dropped_consumer.fetch_add(1, Ordering::Relaxed);
+                                        false
+                                    } else {
+                                        true
+                                    }
+                                }
+                            };
+                            if pushed {
+                                if let Some(wake) = wake_fd.as_ref() {
+                                    // Wake the asyncio reader. `signal()`
+                                    // coalesces under load — at most one
+                                    // wake byte is in the pipe at a time
+                                    // (see `super::wake::WakeFd`) — so
+                                    // the hot-path cost compresses to
+                                    // one atomic compare-exchange and a
+                                    // never-taken branch on subsequent
+                                    // pushes until the reader drains
+                                    // and re-arms. The sync pull-iter
+                                    // path leaves `wake_fd: None` and
+                                    // pays zero overhead.
+                                    wake.signal();
+                                }
                             }
                         }
                     }
@@ -1076,6 +1103,64 @@ impl ReconnectCounters {
                 self.rate_limited = self.rate_limited.saturating_add(1);
                 self.rate_limited
             }
+        }
+    }
+}
+
+/// Push an event onto the pull-iter queue under the `Block`
+/// [`BackpressurePolicy`], parking the consumer thread until the
+/// iterator drains enough to make room.
+///
+/// The Disruptor consumer thread is also the only producer for this
+/// queue, so blocking here applies natural backpressure to the upstream
+/// pipeline: the ring buffer the Disruptor owns saturates next, the
+/// TLS reader's `try_publish` calls start failing, and the `dropped`
+/// counter (which is the SHARED ring-overflow + queue-overflow signal)
+/// keeps operators informed.
+///
+/// Spin-park backoff schedule: 16× pure spin (≈ tens of nanoseconds
+/// per failed push), then 100 µs sleeps for sustained pressure. The
+/// 100 µs matches [`super::EventIterator::next_timeout`]'s poll tick
+/// so the iterator's drain wake-up cost stays inside the same budget
+/// the rest of the SDK pays. Always returns `true` — the `Block`
+/// semantic guarantees the event landed once this function returns.
+#[inline]
+fn push_with_block(
+    queue: &Arc<crossbeam_queue::ArrayQueue<super::events::FpssEvent>>,
+    mut evt: super::events::FpssEvent,
+) -> bool {
+    // Fast path: queue has space, single push, done.
+    match queue.push(evt) {
+        Ok(()) => return true,
+        Err(returned) => evt = returned,
+    }
+    // Slow path: queue is full. Park with backoff so a transient
+    // saturation absorbs at near-zero CPU cost while a sustained stall
+    // doesn't hot-loop the CPU.
+    let mut spins: u32 = 0;
+    loop {
+        match queue.push(evt) {
+            Ok(()) => return true,
+            Err(returned) => evt = returned,
+        }
+        if spins < 16 {
+            std::hint::spin_loop();
+            spins += 1;
+        } else {
+            // 100 µs cadence — same budget the iterator polls on.
+            // Tracing emission rate-limited per 1024 stall iterations
+            // so a sustained blocked consumer surfaces in logs without
+            // amplifying them.
+            spins = spins.saturating_add(1);
+            if spins.is_multiple_of(1024) {
+                tracing::warn!(
+                    target: "thetadatadx::fpss::io_loop",
+                    stall_iterations = spins,
+                    "BackpressurePolicy::Block parked on full pull-iter queue \
+                     (consumer is not draining fast enough)",
+                );
+            }
+            std::thread::sleep(Duration::from_micros(100));
         }
     }
 }

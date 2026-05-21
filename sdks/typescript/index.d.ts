@@ -1023,6 +1023,19 @@ export declare class ThetaDataDxClient {
    * Pull a flat-file blob and write the requested format to `path`.
    * Returns the final on-disk path with the format extension
    * auto-appended if missing.
+   *
+   * U14 closure: the documented camelCase name is
+   * [`Self::flat_file_to_path`] (`flatFileToPath` on the JS side).
+   * The lowercase `flatfileToPath` form is kept as a one-version
+   * alias for backwards compatibility with code written against
+   * pre-v10; it is documented as deprecated below and will be
+   * removed in the next major bump.
+   */
+  flatFileToPath(secType: string, reqType: string, date: string, path: string, format?: string | undefined | null): string
+  /**
+   * Backwards-compat alias for the camelCase
+   * [`Self::flat_file_to_path`]. Documented as deprecated; will be
+   * removed in the next major version.
    */
   flatfileToPath(secType: string, reqType: string, date: string, path: string, format?: string | undefined | null): string
   /**

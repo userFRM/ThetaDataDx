@@ -43,6 +43,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (#558). `event.contract` now returns `ContractRef` (the read-only
   event payload accessor) without colliding with the fluent
   `Contract` builder used in `subscribe()` inputs.
+- `BackpressurePolicy` enum on the FPSS pull-iter / async surfaces
+  (#564). Variants: `Block` (preserves every event by stalling the
+  Disruptor consumer until the queue drains), `DropOldest` (evicts
+  the queue head on full, preserves recency), `DropNewest` (skips
+  the new event on full, preserves history; legacy behaviour).
+  Exposed in Python as `thetadatadx.BackpressurePolicy` and threaded
+  through `streaming_iter(max_queue_depth=, backpressure=)`,
+  `streaming_async(max_queue_depth=, backpressure=)`, and
+  `streaming_async_batches(max_queue_depth=, backpressure=)`.
+- `ThetaDataDxClient.streaming_async_batches()` /
+  `FpssClient.streaming_async_batches()` (#564). Arrow IPC zero-copy
+  surface: each `async for batch in session` yields a `pyarrow.Table`
+  whose column buffers alias the Disruptor consumer's pre-grouped
+  Arrow `RecordBatch` — no per-event Python object construction on
+  the reader path. Same self-pipe wake-FD signalling as
+  `streaming_async()`; the column-shape SSOT (`tick_schema.toml`)
+  guarantees schema parity with the per-event variant.
+- `queue_depth()` and `dropped_event_count()` getters on
+  `StreamingAsyncSession` and `StreamingAsyncBatchesSession` (#564).
+  Mirror the counters already exposed on the sync pull-iter surface
+  so callers can dashboard the in-flight queue depth and the count
+  of events dropped under non-`Block` policies without holding a
+  `FpssClient` reference.
 
 ### Changed
 

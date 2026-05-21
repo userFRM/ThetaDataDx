@@ -503,7 +503,18 @@ class ThetaDataDxClient:
     # Context managers.
     def streaming(self, callback: EventCallback) -> StreamingSession: ...
     def streaming_iter(self) -> StreamingIterSession: ...
-    def streaming_async(self) -> StreamingAsyncSession: ...
+    def streaming_async(
+        self,
+        *,
+        max_queue_depth: int = ...,
+        backpressure: BackpressurePolicy = ...,
+    ) -> StreamingAsyncSession: ...
+    def streaming_async_batches(
+        self,
+        *,
+        max_queue_depth: int = ...,
+        backpressure: BackpressurePolicy = ...,
+    ) -> StreamingAsyncBatchesSession: ...
 
     # FLATFILES namespace getter.
     @property
@@ -583,7 +594,18 @@ class FpssClient:
 
     def streaming(self, callback: EventCallback) -> StreamingSession: ...
     def streaming_iter(self) -> StreamingIterSession: ...
-    def streaming_async(self) -> StreamingAsyncSession: ...
+    def streaming_async(
+        self,
+        *,
+        max_queue_depth: int = ...,
+        backpressure: BackpressurePolicy = ...,
+    ) -> StreamingAsyncSession: ...
+    def streaming_async_batches(
+        self,
+        *,
+        max_queue_depth: int = ...,
+        backpressure: BackpressurePolicy = ...,
+    ) -> StreamingAsyncBatchesSession: ...
 
     def __repr__(self) -> str: ...
 
@@ -770,6 +792,93 @@ class StreamingAsyncSession:
     # Diagnostic — instantaneous queue depth between the Disruptor
     # consumer and this session.
     def queue_len(self) -> int: ...
+    def queue_depth(self) -> int: ...
+    def dropped_event_count(self) -> int: ...
+
+    # Echoed-back configuration.
+    @property
+    def max_queue_depth(self) -> int: ...
+    @property
+    def backpressure(self) -> BackpressurePolicy: ...
+
+
+@final
+class StreamingAsyncBatchesSession:
+    """Arrow IPC zero-copy batched streaming context manager.
+
+    Sibling of :class:`StreamingAsyncSession` that yields one
+    ``pyarrow.RecordBatch`` per OS wake instead of ``list[FpssEvent]``.
+    Same wake-FD plumbing, same backpressure semantics — different
+    drain shape optimised for vectorised downstream processing
+    (pandas / polars / datafusion).
+
+    Usage::
+
+        async with client.streaming_async_batches() as session:
+            await session.subscribe(Contract.stock("QQQ").quote())
+            async for batch in session:
+                df = batch.to_pandas()
+                # ... vectorised processing ...
+
+    The emitted schema is a union of every ``FpssData`` variant's
+    columns plus a ``kind`` discriminator (``"Quote"`` / ``"Trade"``
+    / ``"OpenInterest"`` / ``"Ohlcvc"``). Variant-specific columns
+    are nullable and null-filled on rows that do not populate them.
+    """
+
+    def __aenter__(self) -> Awaitable[StreamingAsyncBatchesSession]: ...
+    def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[Any] = None,
+    ) -> Awaitable[None]: ...
+
+    # Async iteration — yields ``pyarrow.RecordBatch`` per OS wake.
+    # Annotated as ``Any`` because the pyarrow dep is optional at
+    # install time; consumers gate on the extras (``pip install
+    # thetadatadx[arrow]``).
+    def __aiter__(self) -> AsyncIterator[Any]: ...
+    def __anext__(self) -> Awaitable[Any]: ...
+
+    def subscribe(self, sub: Subscription) -> Awaitable[None]: ...
+    def subscribe_many(self, subs: List[Subscription]) -> Awaitable[None]: ...
+    def unsubscribe(self, sub: Subscription) -> Awaitable[None]: ...
+    def unsubscribe_many(self, subs: List[Subscription]) -> Awaitable[None]: ...
+
+    def queue_len(self) -> int: ...
+    def queue_depth(self) -> int: ...
+    def dropped_event_count(self) -> int: ...
+    def schema(self) -> Any: ...
+
+    @property
+    def max_queue_depth(self) -> int: ...
+    @property
+    def backpressure(self) -> BackpressurePolicy: ...
+
+
+@final
+class BackpressurePolicy:
+    """Producer-side overflow strategy on the pull-iter queue.
+
+    Mirrors the core ``thetadatadx::fpss::BackpressurePolicy`` enum.
+    Pass one of the variants as the ``backpressure`` kwarg on
+    ``streaming_async(...)``.
+
+    * ``Block`` — preserve every event; producer parks when the queue
+      saturates. Default.
+    * ``DropOldest`` — evict queue head on full insert; preserve
+      recency. Increments ``dropped_event_count`` per eviction.
+    * ``DropNewest`` — skip new event on full insert; preserve
+      in-flight history. Increments ``dropped_event_count`` per skip.
+    """
+
+    Block: BackpressurePolicy
+    DropOldest: BackpressurePolicy
+    DropNewest: BackpressurePolicy
+
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
 
 
 # ─────────────────────────────────────────────────────────────────────

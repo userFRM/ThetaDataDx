@@ -58,11 +58,20 @@ jobs:
         run: cargo clippy --all-targets --target ${{ matrix.target }} -- -D warnings -A clippy::too_many_arguments
       - name: Build native addon
         working-directory: sdks/typescript
-        run: npx napi build --platform --release --target ${{ matrix.target }} --strip
+        # Mirror the local `npm run build` two-step: napi-rs emits
+        # `index.d.ts`, then `scripts/postbuild_alias_contract.mjs`
+        # appends the U7 `export const Contract: typeof ContractRef;`
+        # alias the documented public surface depends on. Running
+        # `napi build` alone would diverge from `package.json` and
+        # fail Gate 7 below on every CI run.
+        run: |
+          npx napi build --platform --release --target ${{ matrix.target }} --strip
+          node scripts/postbuild_alias_contract.mjs
       # Gate 7 (#550): the committed `index.d.ts` must equal what
-      # `napi build` just produced. Any drift means a contributor
-      # forgot to commit a regenerated stub after a binding change,
-      # so the published types lie about the runtime.
+      # `npm run build` just produced (napi-rs emission + the U7
+      # postbuild alias). Any drift means a contributor forgot to
+      # commit a regenerated stub after a binding change, so the
+      # published types lie about the runtime.
       - name: Verify index.d.ts is in sync with native build
         if: matrix.os == 'ubuntu-latest'
         working-directory: sdks/typescript
