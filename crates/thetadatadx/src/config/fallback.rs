@@ -20,11 +20,12 @@ pub const DEFAULT_REST_BASE_URL: &str = "http://127.0.0.1:25503";
 ///
 /// `#[non_exhaustive]` so additional variants (`RestOnAnyTransport`,
 /// `RestForSymbols`, ...) can land without a breaking API change.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum FallbackPolicy {
     /// REST fallback is disabled -- every request goes over gRPC
     /// regardless of failure mode. Default for back-compat.
+    #[default]
     Disabled,
 
     /// Fall back to REST only when gRPC returns the
@@ -104,12 +105,6 @@ impl FallbackPolicy {
     #[must_use]
     pub fn falls_back_on_h2_disconnect(&self) -> bool {
         !matches!(self, Self::Disabled)
-    }
-}
-
-impl Default for FallbackPolicy {
-    fn default() -> Self {
-        Self::Disabled
     }
 }
 
