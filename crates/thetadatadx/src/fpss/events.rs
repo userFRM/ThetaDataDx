@@ -297,6 +297,23 @@ impl Default for FpssEventInternal {
     }
 }
 
+// Compile-time layout-compatibility guards for the `FpssEventInternal ->
+// FpssEvent` reborrow performed by [`FpssEventInternal::as_public`]. Both
+// enums are `#[repr(C, u8)]` with identical payload types at the
+// `Data` / `Control` discriminants, so size + alignment must match
+// exactly. A divergence here trips the build before any callback can
+// observe a corrupted reborrow. Discriminant-byte equality is verified
+// separately by the runtime `assert_layout_compat` unit test (it
+// requires `Arc`-bearing constructed values and is not const-evaluable).
+const _: () = assert!(
+    core::mem::size_of::<FpssEvent>() == core::mem::size_of::<FpssEventInternal>(),
+    "FpssEvent and FpssEventInternal must have identical size for the as_public reborrow",
+);
+const _: () = assert!(
+    core::mem::align_of::<FpssEvent>() == core::mem::align_of::<FpssEventInternal>(),
+    "FpssEvent and FpssEventInternal must have identical alignment for the as_public reborrow",
+);
+
 impl FpssEventInternal {
     /// Borrow this internal event as a public [`FpssEvent`] reference,
     /// or return `None` for the internal-only variants.
@@ -323,11 +340,17 @@ impl FpssEventInternal {
     /// [`FPSS_EVENT_TAG_UNPARSEABLE`], [`FPSS_EVENT_TAG_EMPTY`]) can
     /// never escape into the public type — they map to `None`.
     ///
-    /// The static assertions in [`assert_layout_compat`] (run in the
-    /// crate's unit tests) verify size + alignment + discriminant
-    /// equality at compile time so a future divergence — e.g. someone
-    /// adding a private field to `FpssData` only on the internal side
-    /// — fails the build before it can corrupt a user callback.
+    /// Two layers pin this invariant against future drift:
+    ///
+    /// * Compile-time `const _: () = assert!(...)` items at the bottom
+    ///   of this module check `size_of` and `align_of` equality between
+    ///   `FpssEvent` and `FpssEventInternal`. Any divergence — e.g.
+    ///   someone adding a private field to `FpssData` only on the
+    ///   internal side — fails the build before it can corrupt a user
+    ///   callback.
+    /// * The runtime unit test [`assert_layout_compat`] additionally
+    ///   pins discriminant-byte equality (which requires constructing
+    ///   `Arc`-bearing payloads and is therefore not const-evaluable).
     #[inline]
     pub fn as_public(&self) -> Option<&FpssEvent> {
         // Gate the layout-compatibility cast on a real `match`. The
@@ -351,10 +374,12 @@ impl FpssEventInternal {
                 // identical `Data(FpssData)` payloads at that
                 // discriminant, so the in-memory layout is shared
                 // (Rust reference, "Primitive representation of enums
-                // with fields"). `assert_layout_compat` (run as a unit
-                // test) pins size, alignment, and discriminant equality
-                // at compile time, so a future divergence trips the
-                // build before it can corrupt a callback. The reborrow
+                // with fields"). The compile-time `const _` items at
+                // the bottom of this module pin `size_of` and
+                // `align_of` equality; the runtime `assert_layout_compat`
+                // test pins discriminant-byte equality. Together they
+                // trip the build (or first test run) before a future
+                // layout divergence can corrupt a callback. The reborrow
                 // inherits the `&self` lifetime; aliasing rules treat
                 // it like the original borrow.
                 Some(unsafe { &*(self as *const Self as *const FpssEvent) })
@@ -582,8 +607,13 @@ mod tests {
     /// `FpssEvent` and the public-facing variants of
     /// `FpssEventInternal` must trip this test before it can corrupt a
     /// reborrow.
+    ///
+    /// Size + alignment are also pinned at compile time by `const _`
+    /// items at module scope; this test additionally pins
+    /// discriminant-byte equality (which requires constructing
+    /// `Arc`-bearing payloads and is not const-evaluable).
     #[test]
-    fn fpss_event_internal_layout_matches_public() {
+    fn assert_layout_compat() {
         // Same `#[repr(C, u8)]` declaration on both enums plus
         // identical payload types ⇒ identical size + alignment.
         assert_eq!(
@@ -638,7 +668,12 @@ mod tests {
         let public_control = FpssEvent::Control(FpssControl::LoginSuccess {
             permissions: String::new(),
         });
-        // SAFETY: pointer was returned by the matching constructor and not yet freed; ownership / lifetime is the caller's contract.
+        // SAFETY: `p` points at a local stack value (one of the four
+        // `FpssEvent` / `FpssEventInternal` bindings constructed above)
+        // whose first byte holds the `#[repr(C, u8)]` discriminant tag.
+        // Reading exactly 1 byte through `*const u8` is sound for the
+        // duration of the enclosing test scope — the bindings outlive
+        // every closure call below.
         let tag = |p: *const u8| unsafe { *p };
         assert_eq!(
             tag(&internal_data as *const _ as *const u8),

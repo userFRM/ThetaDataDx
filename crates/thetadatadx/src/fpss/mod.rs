@@ -219,8 +219,8 @@ pub struct FpssConnectArgs<'a> {
     /// Disruptor ring buffer size (events). Must be a power of two.
     ///
     /// Each ring slot stores one `FpssEventInternal` (96 bytes on the
-    /// current 64-bit layout, validated by the
-    /// `fpss_event_internal_layout_matches_public` test). The default
+    /// current 64-bit layout, validated by the `assert_layout_compat`
+    /// test). The default
     /// `ring_size = 4096` allocates roughly `4096 × 96 ≈ 384 KiB` per
     /// `FpssClient` for the ring, plus per-event refcounted
     /// `Arc<Contract>` storage on top. Tune downward (e.g., 1024) if
