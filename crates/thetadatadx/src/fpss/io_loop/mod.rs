@@ -568,7 +568,13 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                         tracing::warn!(
                             timeout_ms = read_timeout_ms_total,
                             "FPSS read timed out (no data for {}ms)",
-                            consecutive_timeouts * 50
+                            // `saturating_mul` so a wild future bump to
+                            // `max_consecutive_timeouts` past `u64::MAX
+                            // / 50` cannot wrap the duration field on
+                            // the warn line. 50 is the inner-loop
+                            // poll cadence (ms); explicit `u64`
+                            // suffix pins the diagnostic shape.
+                            consecutive_timeouts.saturating_mul(50_u64)
                         );
                         if producer
                             .try_publish(|slot| {

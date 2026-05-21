@@ -531,7 +531,12 @@ pub fn decode_frame(
         StreamMsgType::Disconnected => {
             let reason = parse_disconnect_reason(payload);
             tracing::warn!(reason = ?reason, "server disconnected us");
-            metrics::counter!("thetadatadx.fpss.disconnects", "reason" => format!("{:?}", reason))
+            // `RemoveReason::as_str` returns a `&'static str` per
+            // variant, so the label allocation drops to zero. Disconnects
+            // are rare, so this isn't a hot-path win — it's a
+            // consistency fix per the "no per-event allocations"
+            // discipline elsewhere in this module.
+            metrics::counter!("thetadatadx.fpss.disconnects", "reason" => reason.as_str())
                 .increment(1);
             authenticated.store(false, Ordering::Release);
 

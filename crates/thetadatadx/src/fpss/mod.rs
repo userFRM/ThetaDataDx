@@ -218,13 +218,14 @@ pub struct FpssConnectArgs<'a> {
     pub hosts: &'a [(String, u16)],
     /// Disruptor ring buffer size (events). Must be a power of two.
     ///
-    /// Each ring slot stores one `FpssEventInternal` (≈ 552 bytes after
-    /// the typed-FpssControl variants). The default `ring_size = 4096`
-    /// allocates roughly `4096 × 552 ≈ 2.3 MB` per `FpssClient` for the
-    /// ring, plus per-event refcounted `Arc<Contract>` storage on top.
-    /// Tune downward (e.g., 1024) if memory is tight; tune upward
-    /// (e.g., 16_384) if you observe sustained `dropped_event_count()`
-    /// under bursty load.
+    /// Each ring slot stores one `FpssEventInternal` (96 bytes on the
+    /// current 64-bit layout, validated by the
+    /// `fpss_event_internal_layout_matches_public` test). The default
+    /// `ring_size = 4096` allocates roughly `4096 × 96 ≈ 384 KiB` per
+    /// `FpssClient` for the ring, plus per-event refcounted
+    /// `Arc<Contract>` storage on top. Tune downward (e.g., 1024) if
+    /// memory is tight; tune upward (e.g., 16_384) if you observe
+    /// sustained `dropped_event_count()` under bursty load.
     pub ring_size: usize,
     /// I/O thread flush behavior. See [`FpssFlushMode`].
     pub flush_mode: FpssFlushMode,
