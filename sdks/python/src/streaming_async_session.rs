@@ -1005,7 +1005,7 @@ async fn for_each_loop(
     callback: Py<PyAny>,
 ) -> PyResult<Py<PyAny>> {
     loop {
-        let next_outcome = anext_step(session_handle.clone_ref_attached()).await;
+        let next_outcome = anext_step(clone_ref_attached(&session_handle)).await;
         let batch = match next_outcome {
             Ok(batch) => batch,
             Err(err) => {
@@ -1051,17 +1051,9 @@ async fn for_each_loop(
     }
 }
 
-/// Small helper trait — clone the `Py<T>` while we already hold a GIL
-/// token captured upstream. Keeps `for_each_loop` from re-attaching for
-/// a trivial refcount bump.
-trait CloneRefAttached {
-    fn clone_ref_attached(&self) -> Self;
-}
-
-impl<T> CloneRefAttached for Py<T> {
-    fn clone_ref_attached(&self) -> Self {
-        Python::attach(|py| self.clone_ref(py))
-    }
+/// Clone a `Py<T>` by attaching the GIL just for the refcount bump.
+fn clone_ref_attached<T>(handle: &Py<T>) -> Py<T> {
+    Python::attach(|py| handle.clone_ref(py))
 }
 
 // ── Inherent helpers on the streaming pyclasses ──────────────────────────

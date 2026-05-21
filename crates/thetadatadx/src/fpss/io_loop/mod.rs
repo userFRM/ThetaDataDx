@@ -223,23 +223,14 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
     let slow_threshold_ns_consumer = Arc::clone(&slow_callback_threshold_ns);
     let slow_count_consumer = Arc::clone(&slow_callback_count);
 
-    // Drop guard captured by the consumer closure. Its `Drop` impl
-    // flips `iter_closed` to `true` AFTER the closure has finished its
-    // last dispatch — i.e., after the final `queue.push`. The closure
-    // is `move`d into `handle_events_with`, the disruptor crate keeps
-    // it alive on the consumer thread, and drops it when the producer
-    // is dropped at io_loop exit (line ~785). Wrapping the guard in
-    // an `Option` keeps the closure shape symmetric for the callback
-    // path (no flag to flip) without paying an `Arc::clone` per event.
+    // Flips `iter_closed` to `true` when the consumer closure is
+    // dropped — the EventIterator's terminal-EOF predicate.
     struct IterCloseGuard {
         iter_closed: Arc<AtomicBool>,
     }
     impl Drop for IterCloseGuard {
         fn drop(&mut self) {
-            // Release ordering pairs with the iterator's Acquire
-            // load: every `queue.push` that happened before the
-            // guard runs must be visible to a thread that observes
-            // the flag set.
+            // Release ordering pairs with the iterator's Acquire load.
             self.iter_closed.store(true, Ordering::Release);
         }
     }
@@ -1042,22 +1033,13 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
     tracing::debug!("fpss-io thread exiting");
 }
 
-/// Per-class consecutive-reconnect counters consumed by the io_loop's
-/// auto-reconnect path.
-///
-/// Each [`ReconnectAttemptClass`] carries its own counter; one class's
-/// budget is independent of the other. Time-based reset fires when the
-/// connection has been delivering data continuously for at least the
-/// configured stable window — the read-side records the last successful
-/// read timestamp via [`Self::note_data_received`].
+/// Per-class consecutive-reconnect counters with a stable-window reset
+/// driven from the read-side's last-frame timestamp.
 struct ReconnectCounters {
     transient: u32,
     rate_limited: u32,
-    /// Wall-clock instant of the last frame the read loop consumed
-    /// successfully. `None` until the first frame on the current
-    /// session arrives. Used to gate the time-based counter reset:
-    /// only a session that delivered data for at least
-    /// `stable_window` resets the budget on next drop.
+    /// Wall-clock instant of the last successful frame read; `None`
+    /// until the first frame on the current session arrives.
     last_data_at: Option<Instant>,
 }
 
@@ -1105,23 +1087,9 @@ impl ReconnectCounters {
     }
 }
 
-/// Push an event onto the pull-iter queue under the `Block`
-/// [`BackpressurePolicy`], parking the consumer thread until the
-/// iterator drains enough to make room.
-///
-/// The Disruptor consumer thread is also the only producer for this
-/// queue, so blocking here applies natural backpressure to the upstream
-/// pipeline: the ring buffer the Disruptor owns saturates next, the
-/// TLS reader's `try_publish` calls start failing, and the `dropped`
-/// counter (which is the SHARED ring-overflow + queue-overflow signal)
-/// keeps operators informed.
-///
-/// Spin-park backoff schedule: 16× pure spin (≈ tens of nanoseconds
-/// per failed push), then 100 µs sleeps for sustained pressure. The
-/// 100 µs matches [`super::EventIterator::next_timeout`]'s poll tick
-/// so the iterator's drain wake-up cost stays inside the same budget
-/// the rest of the SDK pays. Always returns `true` — the `Block`
-/// semantic guarantees the event landed once this function returns.
+/// Push under `BackpressurePolicy::Block`: 16-spin fast path, then
+/// 100 µs park (same cadence as `EventIterator::next_timeout`).
+/// Always returns `true`; the policy guarantees delivery.
 #[inline]
 fn push_with_block(
     queue: &Arc<crossbeam_queue::ArrayQueue<super::events::FpssEvent>>,
