@@ -220,7 +220,7 @@ impl DirectConfig {
     ///
     /// Returns the configuration with MDDS HTTP/2 window sizes clamped
     /// into `[64, 1024]` KB on success. Returns
-    /// [`Error::Config`](crate::error::Error::Config) when any wired FPSS
+    /// [`Error::Config`] when any wired FPSS
     /// knob (`timeout_ms`, `connect_timeout_ms`, `ping_interval_ms`)
     /// falls outside its documented range — silent rounding would
     /// rewrite the caller's stated tuning under their feet, so an
@@ -233,7 +233,7 @@ impl DirectConfig {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Config`](crate::error::Error::Config) when an FPSS
+    /// Returns [`Error::Config`] when an FPSS
     /// timing knob is out of range.
     pub fn validate(mut self) -> Result<Self, Error> {
         // u64 → i64: every bound fits comfortably under i64::MAX (max

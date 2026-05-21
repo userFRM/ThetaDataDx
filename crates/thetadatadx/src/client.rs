@@ -394,8 +394,8 @@ impl ThetaDataDxClient {
     ///
     /// Sibling of [`Self::start_streaming_iter`] for asyncio /
     /// select-loop consumers. The supplied [`crate::fpss::wake::WakeFd`]
-    /// is wired into the [`crate::fpss::events::Delivery::Queue`]
-    /// variant on the Disruptor consumer; every successful `queue.push`
+    /// is wired into the pull-iter `Delivery::Queue` variant on the
+    /// Disruptor consumer; every successful `queue.push`
     /// writes a coalesced byte to the FD so the host event loop wakes
     /// without polling.
     ///

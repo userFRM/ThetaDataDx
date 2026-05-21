@@ -4,17 +4,17 @@
 //! drive the macro-generated list endpoints in `crate::macros` and the
 //! Polars / Arrow column projections.
 //!
-//! Header lookup is alias-aware: each helper routes through
-//! [`super::headers::find_header`] so v3 MDDS column renames (e.g.
+//! Header lookup is alias-aware: each helper routes through the private
+//! `super::headers::find_header` helper so v3 MDDS column renames (e.g.
 //! `symbol` → `root`, `timestamp` → `ms_of_day`) resolve through the
-//! shared [`super::headers::HEADER_ALIASES`] table instead of returning a
-//! silent empty `Vec` when the server-side rename lands.
+//! shared `HEADER_ALIASES` table instead of returning a silent empty
+//! `Vec` when the server-side rename lands.
 
 use crate::proto;
 
 use super::headers::find_header;
 
-/// Resolve a column index honouring the shared [`HEADER_ALIASES`]
+/// Resolve a column index honouring the shared `HEADER_ALIASES`
 /// table, then warn-and-return-empty when the column is missing from a
 /// non-empty `DataTable`. The macro-generated parsers surface the
 /// stricter [`crate::mdds::decode::DecodeError::MissingRequiredHeader`]
@@ -51,7 +51,7 @@ fn resolve_column(
 
 /// Extract a column of i64 values from a `DataTable` by header name.
 ///
-/// Honours [`super::headers::HEADER_ALIASES`] so v3-renamed columns
+/// Honours the shared `HEADER_ALIASES` table so v3-renamed columns
 /// resolve to the schema-side name. Returns an empty `Vec` when no
 /// column matches (with a `warn` emitted on non-empty tables).
 #[must_use]
@@ -77,7 +77,7 @@ pub fn extract_number_column(table: &proto::DataTable, header: &str) -> Vec<Opti
 
 /// Extract a column of string values from a `DataTable` by header name.
 ///
-/// Honours [`super::headers::HEADER_ALIASES`] so v3-renamed columns
+/// Honours the shared `HEADER_ALIASES` table so v3-renamed columns
 /// resolve to the schema-side name. Returns an empty `Vec` when no
 /// column matches (with a `warn` emitted on non-empty tables).
 #[must_use]
@@ -107,7 +107,7 @@ pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option
 
 /// Extract a column of Price values from a `DataTable` by header name.
 ///
-/// Honours [`super::headers::HEADER_ALIASES`] so v3-renamed columns
+/// Honours the shared `HEADER_ALIASES` table so v3-renamed columns
 /// resolve to the schema-side name. Returns an empty `Vec` when no
 /// column matches (with a `warn` emitted on non-empty tables).
 #[must_use]
@@ -139,7 +139,7 @@ mod tests {
 
     /// `extract_text_column` must resolve the schema-side `root`
     /// against an upstream-renamed `symbol` column via
-    /// [`super::super::headers::HEADER_ALIASES`]. Without the
+    /// the shared `HEADER_ALIASES` table. Without the
     /// alias-aware path this returned a silent empty Vec on every
     /// v3 list-symbols response.
     #[test]

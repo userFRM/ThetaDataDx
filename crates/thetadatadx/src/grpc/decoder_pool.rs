@@ -158,7 +158,7 @@ pub(crate) const POOL_POISONED_REASON: &str = "decoder pool poisoned by worker p
 /// scheduler immediately rather than after the timer fires.
 const PUBLISH_RETRY_BACKOFF: Duration = Duration::from_micros(50);
 
-/// Failures returned by [`DecoderHandle::submit`].
+/// Failures returned by `DecoderHandle::submit`.
 ///
 /// `submit` previously could not fail — it published into a bounded
 /// ring and returned the receiver. After Finding 1 (panic
@@ -287,7 +287,7 @@ unsafe impl Sync for RingEvent {}
 /// [`Producer::publish`], re-checking the poison state between
 /// every attempt. A poison flip therefore propagates to every
 /// blocked submitter within one back-off window
-/// ([`PUBLISH_RETRY_BACKOFF`]) — they bail out with
+/// (50µs `PUBLISH_RETRY_BACKOFF`) — they bail out with
 /// [`DecoderSubmitError::Poisoned`] and drop their unsent
 /// `oneshot::Sender` so the caller's `await` is never parked on a
 /// ring nobody will service.

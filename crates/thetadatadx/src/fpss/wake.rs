@@ -39,7 +39,7 @@
 //! # Disposal
 //!
 //! The owning [`super::EventIterator`] holds an `Arc<WakeFd>` and the
-//! consumer closure (via the [`super::events::Delivery::Queue`] variant)
+//! consumer closure (via the pull-iter `Delivery::Queue` variant)
 //! holds another `Arc<WakeFd>` clone. The write-end FD is closed inside
 //! [`WakeFd::drop`] when the refcount hits zero — i.e., after both the
 //! iterator and the consumer closure have been dropped. The read-end

@@ -7,8 +7,8 @@
 //! iteration, awkward for DataFrame workflows. This module closes the
 //! gap behind opt-in Cargo features:
 //!
-//! * `polars` — enable [`TicksPolarsExt::to_polars`].
-//! * `arrow` — enable [`TicksArrowExt::to_arrow`].
+//! * `polars` — enable `TicksPolarsExt::to_polars` (feature-gated).
+//! * `arrow` — enable `TicksArrowExt::to_arrow` (feature-gated).
 //! * `frames` — convenience alias for `polars,arrow`.
 //!
 //! Neither `polars` nor `arrow` is pulled into the default dependency

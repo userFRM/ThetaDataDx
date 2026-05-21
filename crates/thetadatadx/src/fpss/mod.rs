@@ -95,10 +95,10 @@
 //!
 //! # Sub-modules
 //!
-//! - [`connection`] -- TLS TCP connection establishment (blocking)
-//! - [`framing`] -- Wire frame reader/writer (sync `Read`/`Write`)
+//! - `connection` -- TLS TCP connection establishment (blocking)
+//! - `framing` -- Wire frame reader/writer (sync `Read`/`Write`)
 //! - [`protocol`] -- Message types, contract serialization, subscription payloads
-//! - [`ring`] -- LMAX Disruptor ring buffer and adaptive wait strategy
+//! - `ring` -- LMAX Disruptor ring buffer and adaptive wait strategy
 
 mod accumulator;
 pub(crate) mod connection;
@@ -490,7 +490,7 @@ impl FpssClient {
     /// no polling, no busy-wait.
     ///
     /// `wake_fd` ownership transfers to the returned [`wake::WakeFd`]
-    /// (stored inside the [`super::events::Delivery::Queue`] variant);
+    /// (stored inside the pull-iter `Delivery::Queue` variant);
     /// the FD is closed on `Drop` when the [`FpssClient`] and the
     /// matching [`EventIterator`] are both released. Callers MUST NOT
     /// `close(2)` the FD themselves.
@@ -559,9 +559,9 @@ impl FpssClient {
     /// fail to re-fire the wake. Returning the shared `Arc<WakeFd>` is
     /// the only safe way to expose `rearm()` to the reader.
     ///
-    /// Internally builds the same [`super::events::Delivery::Queue`]
-    /// variant as [`Self::connect_iter_with_wake`]; the only difference
-    /// is the third return value carrying the shared handle.
+    /// Internally builds the same pull-iter `Delivery::Queue` variant
+    /// as [`Self::connect_iter_with_wake`]; the only difference is the
+    /// third return value carrying the shared handle.
     ///
     /// # Errors
     ///
@@ -1428,7 +1428,7 @@ pub enum NextEvent {
     Closed,
 }
 
-/// Drain handle for a pull-iter ([`Delivery::Queue`]) streaming session.
+/// Drain handle for a pull-iter (`Delivery::Queue`) streaming session.
 ///
 /// Returned by [`FpssClient::connect_iter`] and ultimately surfaced
 /// through `start_streaming_iter()` on the language SDKs (Python

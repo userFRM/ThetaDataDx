@@ -1,8 +1,9 @@
 //! Header alias table and lookup helper.
 //!
-//! v3 MDDS uses different column names than the tick schema. [`HEADER_ALIASES`]
-//! maps schema names to their v3 equivalents so generated and hand-written
-//! parsers work with both the schema and v3 wire payloads.
+//! v3 MDDS uses different column names than the tick schema. The
+//! `HEADER_ALIASES` table maps schema names to their v3 equivalents
+//! so generated and hand-written parsers work with both the schema
+//! and v3 wire payloads.
 
 /// Header aliases: v3 MDDS uses different column names than the tick schema.
 /// This maps schema names to their v3 equivalents so parsers work with both.

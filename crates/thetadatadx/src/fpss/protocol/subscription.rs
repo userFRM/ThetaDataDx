@@ -185,7 +185,7 @@ impl Contract {
 ///
 /// `SecType` lives in the `tdbe` crate, so the fluent methods are
 /// provided as an extension trait imported here. Bring it into scope
-/// via [`crate::prelude::*`] or
+/// via the [`crate::prelude`] glob or
 /// `use thetadatadx::fpss::protocol::SecTypeExt`.
 pub trait SecTypeExt: Copy {
     /// Full-stream Trade subscription for this security type.

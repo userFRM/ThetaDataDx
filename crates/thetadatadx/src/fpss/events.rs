@@ -383,7 +383,7 @@ impl From<FpssEvent> for FpssEventInternal {
 // BackpressurePolicy — overflow strategy for the pull-iter queue
 // ---------------------------------------------------------------------------
 
-/// Producer-side strategy when the [`Delivery::Queue`] ring saturates.
+/// Producer-side strategy when the pull-iter `Delivery::Queue` ring saturates.
 ///
 /// Pull-iter delivery routes events through a bounded
 /// [`crossbeam_queue::ArrayQueue`] shared with an [`super::EventIterator`].

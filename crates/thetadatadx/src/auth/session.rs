@@ -108,7 +108,7 @@ impl SessionToken {
     /// place. If another task already refreshed past `stale.version`,
     /// skip the round-trip and return the already-refreshed snapshot.
     ///
-    /// The Nexus round-trip runs with only [`Self::refresh_lock`] held;
+    /// The Nexus round-trip runs with only the private `refresh_lock` held;
     /// concurrent [`Self::snapshot`] / [`Self::current_uuid`] callers
     /// continue to read the previous (still-valid) UUID throughout,
     /// and the write lock is taken only for the millisecond swap once
