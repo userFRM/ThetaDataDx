@@ -101,6 +101,10 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: python3 scripts/check_banned_vocab.py
+      - name: Structural SAFETY-comment boilerplate detector
+        run: |
+          python3 scripts/check_safety_comment_boilerplate.py --selftest
+          python3 scripts/check_safety_comment_boilerplate.py
 
   cargo-deny:
     name: Cargo deny

@@ -45,8 +45,11 @@ static BYTES_DEALLOCATED: AtomicU64 = AtomicU64::new(0);
 // library.
 unsafe impl GlobalAlloc for CountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        // SAFETY: forwarding to the system allocator under the same
-        // contract the caller is upholding.
+        // SAFETY: GlobalAlloc::alloc precondition is `layout.size() > 0`
+        // and `layout.align()` is a non-zero power of two — the alloc
+        // shim Rust generates for any `#[global_allocator]` enforces
+        // both before this call. `System.alloc` is the System impl
+        // upstream; forwarding satisfies it verbatim.
         let ptr = unsafe { System.alloc(layout) };
         if !ptr.is_null() {
             BYTES_ALLOCATED.fetch_add(layout.size() as u64, Ordering::Relaxed);
@@ -56,8 +59,11 @@ unsafe impl GlobalAlloc for CountingAllocator {
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         BYTES_DEALLOCATED.fetch_add(layout.size() as u64, Ordering::Relaxed);
-        // SAFETY: forwarding to the system allocator under the same
-        // contract the caller is upholding.
+        // SAFETY: GlobalAlloc::dealloc precondition — `ptr` was
+        // returned by a prior `alloc` on this allocator with the same
+        // `layout`, and has not been deallocated. The shim Rust
+        // generates from `Vec`, `Box`, etc. upholds that pairing;
+        // forwarding to `System.dealloc` satisfies the System impl.
         unsafe { System.dealloc(ptr, layout) }
     }
 }

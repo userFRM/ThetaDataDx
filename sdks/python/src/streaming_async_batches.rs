@@ -1306,7 +1306,13 @@ mod fd_safety_tests {
             );
         });
         // Manual cleanup of the write end — its peer was closed above.
-        // SAFETY: write_raw was alloc_wake_pipe-allocated and is the only owner.
+        // SAFETY: `write_raw` is the raw FD returned by
+        // `alloc_wake_pipe()` above, never duplicated and never
+        // handed to another scope; the production path under test
+        // closed `read_raw` (its peer) but left `write_raw`
+        // untouched, so it is still open and uniquely owned here.
+        // The `libc::close` precondition (valid open FD, single
+        // owner, no concurrent close) holds for this scope.
         unsafe {
             libc::close(write_raw);
         }
@@ -1344,7 +1350,12 @@ mod fd_safety_tests {
         );
         assert_eq!(fd_slot, -1, "read_fd slot must be sentinel-reclaimed");
         assert!(result.is_ok(), "happy-path close must return Ok");
-        // SAFETY: write_raw was alloc_wake_pipe-allocated and is the only owner.
+        // SAFETY: `write_raw` is the raw FD returned by
+        // `alloc_wake_pipe()` at the top of this test, never
+        // duplicated; the read end was closed by the happy-path
+        // close (verified above by `!fd_is_open(read_raw)`) and
+        // `write_raw` remains the sole open FD in this scope.
+        // The `libc::close` precondition holds.
         unsafe {
             libc::close(write_raw);
         }
