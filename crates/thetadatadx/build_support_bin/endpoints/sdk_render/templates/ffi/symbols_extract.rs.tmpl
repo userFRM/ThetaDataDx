@@ -1,3 +1,6 @@
+    // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
+    // C string pointers kept valid for the call duration; parse_symbol_array
+    // validates non-null + UTF-8 per element.
     let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
         Some(values) => values,
         None => return empty,

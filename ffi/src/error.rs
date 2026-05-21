@@ -168,6 +168,7 @@ pub(crate) unsafe fn cstr_to_str<'a>(
     if p.is_null() {
         return Ok(None);
     }
+    // SAFETY: caller supplies a NUL-terminated C string valid for the call duration.
     unsafe { CStr::from_ptr(p) }.to_str().map(Some)
 }
 
@@ -176,6 +177,7 @@ pub(crate) unsafe fn cstr_to_str<'a>(
 /// the given fallback value from the enclosing function.
 macro_rules! require_cstr {
     ($p:ident, $fallback:expr) => {
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
         match unsafe { $crate::error::cstr_to_str($p) } {
             Ok(Some(s)) => s,
             Ok(None) => {

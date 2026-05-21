@@ -158,6 +158,30 @@ jobs:
       # someone manually ran the doc step.
       - run: cargo test --doc --workspace --locked
 
+  rustdoc:
+    name: Rustdoc — Gate 13 catches broken intra-doc links a la disruptor-rs PR #35
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-rust-deps
+      # `[workspace.lints.rust] warnings = "deny"` promotes every
+      # rustdoc warning (broken intra-doc links, redundant explicit
+      # link targets, unresolved references) into a hard build error.
+      # Running `cargo doc --no-deps --workspace` therefore fails CI
+      # the moment a docstring links to a private item, a renamed
+      # symbol, or a path that no longer exists — closes the gap
+      # disruptor-rs PR #35 documented, where 33 broken links shipped
+      # because no CI job ever invoked `cargo doc`.
+      - run: cargo doc --no-deps --workspace --locked
+      # Validate the feature-gated docs too: `frames`, `arrow`, and
+      # `polars` add public docs that are silent on the default cargo
+      # doc invocation. docs.rs builds with `all-features = true`, so
+      # CI must mirror that contract or a broken link will land on
+      # docs.rs but pass CI.
+      - run: cargo doc --no-deps -p thetadatadx --features "arrow polars frames config-file" --locked
+
   bench:
     name: Bench regression gate
     runs-on: ubuntu-latest

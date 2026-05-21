@@ -158,7 +158,7 @@ pub(crate) const POOL_POISONED_REASON: &str = "decoder pool poisoned by worker p
 /// scheduler immediately rather than after the timer fires.
 const PUBLISH_RETRY_BACKOFF: Duration = Duration::from_micros(50);
 
-/// Failures returned by [`DecoderHandle::submit`].
+/// Failures returned by `DecoderHandle::submit`.
 ///
 /// `submit` previously could not fail — it published into a bounded
 /// ring and returned the receiver. After Finding 1 (panic
@@ -287,7 +287,7 @@ unsafe impl Sync for RingEvent {}
 /// [`Producer::publish`], re-checking the poison state between
 /// every attempt. A poison flip therefore propagates to every
 /// blocked submitter within one back-off window
-/// ([`PUBLISH_RETRY_BACKOFF`]) — they bail out with
+/// (50µs `PUBLISH_RETRY_BACKOFF`) — they bail out with
 /// [`DecoderSubmitError::Poisoned`] and drop their unsent
 /// `oneshot::Sender` so the caller's `await` is never parked on a
 /// ring nobody will service.
@@ -585,6 +585,7 @@ impl DecoderPool {
                     // the consumer barrier advances on closure
                     // return. No producer can reuse the slot, and
                     // no other consumer exists.
+                    // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
                     let request = unsafe { slot.take() };
                     let Some(DecodeRequest { work, reply }) = request else {
                         return;
@@ -760,10 +761,21 @@ mod tests {
 
     #[test]
     fn default_decoder_count_caps_to_channels() {
-        // Logical cores >> 4: capped to channel count.
-        assert!(default_decoder_thread_count(4) <= 4);
-        // Pathological channel = 0: lower-bound to 1.
-        assert!(default_decoder_thread_count(0) >= 1);
+        // Pathological channel = 0: lower-bound to exactly 1.
+        // Deterministic regardless of available_parallelism.
+        assert_eq!(default_decoder_thread_count(0), 1);
+
+        // Channel cap: when (logical_cores / 2) >= channels, the
+        // returned count is the channel count. Hoist the
+        // available_parallelism computation so the assertion lands
+        // on a concrete value instead of an `<=` range.
+        let logical = thread::available_parallelism()
+            .map(std::num::NonZero::get)
+            .unwrap_or(2);
+        let half = (logical / 2).max(1);
+        let channels = 4_usize;
+        let expected = half.min(channels);
+        assert_eq!(default_decoder_thread_count(channels), expected);
     }
 
     #[tokio::test]

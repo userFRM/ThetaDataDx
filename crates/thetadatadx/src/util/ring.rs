@@ -12,9 +12,9 @@
 //! valid size so the caller can correct the configuration without
 //! re-reading the source.
 //!
-//! Lifted out of [`crate::fpss::ring`] so the gRPC decoder pool can
-//! reuse the same validation and FPSS / gRPC stay in lockstep on the
-//! contract.
+//! Lifted out of the private `crate::fpss::ring` module so the gRPC
+//! decoder pool can reuse the same validation and FPSS / gRPC stay in
+//! lockstep on the contract.
 
 /// Minimum ring buffer size accepted by [`check_ring_size`].
 ///

@@ -299,7 +299,10 @@ mod tests {
     fn config_error_maps_to_root_class() {
         Python::initialize();
         Python::attach(|py| {
-            let err = to_py_err(thetadatadx::Error::config_invalid("mdds.uri", "invalid URI"));
+            let err = to_py_err(thetadatadx::Error::config_invalid(
+                "mdds.uri",
+                "invalid URI",
+            ));
             assert_exception_class(py, &err, "ThetaDataError");
         });
     }

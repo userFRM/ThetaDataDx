@@ -22,6 +22,8 @@ pub unsafe extern "C" fn tdx_stock_list_symbols_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_symbols", &args).await
@@ -65,6 +67,8 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let request_type = match unsafe { cstr_to_str(request_type) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -80,6 +84,8 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
             "request_type".to_string(),
             thetadatadx::EndpointArgValue::Str(request_type.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -101,6 +107,8 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_dates", &args).await
@@ -142,6 +150,9 @@ pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
+        // C string pointers kept valid for the call duration; parse_symbol_array
+        // validates non-null + UTF-8 per element.
         let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
             Some(values) => values,
             None => return empty,
@@ -156,6 +167,8 @@ pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_ohlc", &args).await
@@ -197,6 +210,9 @@ pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
+        // C string pointers kept valid for the call duration; parse_symbol_array
+        // validates non-null + UTF-8 per element.
         let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
             Some(values) => values,
             None => return empty,
@@ -211,6 +227,8 @@ pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_trade", &args).await
@@ -252,6 +270,9 @@ pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
+        // C string pointers kept valid for the call duration; parse_symbol_array
+        // validates non-null + UTF-8 per element.
         let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
             Some(values) => values,
             None => return empty,
@@ -266,6 +287,8 @@ pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_quote", &args).await
@@ -307,6 +330,9 @@ pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
+        // C string pointers kept valid for the call duration; parse_symbol_array
+        // validates non-null + UTF-8 per element.
         let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
             Some(values) => values,
             None => return empty,
@@ -321,6 +347,8 @@ pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_market_value", &args).await
@@ -366,6 +394,8 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -381,6 +411,8 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -396,6 +428,8 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -417,6 +451,8 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_eod", &args).await
@@ -460,6 +496,8 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -475,6 +513,8 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -496,6 +536,8 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc", &args).await
@@ -539,6 +581,8 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -554,6 +598,8 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -575,6 +621,8 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade", &args).await
@@ -618,6 +666,8 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -633,6 +683,8 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -654,6 +706,8 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_quote", &args).await
@@ -697,6 +751,8 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -712,6 +768,8 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -733,6 +791,8 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade_quote", &args).await
@@ -780,6 +840,8 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -795,6 +857,8 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -810,6 +874,8 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -825,6 +891,8 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -846,6 +914,8 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_trade", &args).await
@@ -893,6 +963,8 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -908,6 +980,8 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -923,6 +997,8 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -938,6 +1014,8 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -959,6 +1037,8 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_quote", &args).await
@@ -1004,6 +1084,8 @@ pub unsafe extern "C" fn tdx_option_list_symbols_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_symbols", &args).await
@@ -1049,6 +1131,8 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let request_type = match unsafe { cstr_to_str(request_type) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1064,6 +1148,8 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
             "request_type".to_string(),
             thetadatadx::EndpointArgValue::Str(request_type.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1079,6 +1165,8 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1100,6 +1188,8 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_dates", &args).await
@@ -1141,6 +1231,8 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1162,6 +1254,8 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_expirations", &args).await
@@ -1205,6 +1299,8 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1220,6 +1316,8 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1241,6 +1339,8 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_strikes", &args).await
@@ -1286,6 +1386,8 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let request_type = match unsafe { cstr_to_str(request_type) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1301,6 +1403,8 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
             "request_type".to_string(),
             thetadatadx::EndpointArgValue::Str(request_type.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1316,6 +1420,8 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1337,6 +1443,8 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_contracts", &args).await
@@ -1380,6 +1488,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1395,6 +1505,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1416,6 +1528,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_ohlc", &args).await
@@ -1459,6 +1573,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1474,6 +1590,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1495,6 +1613,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_trade", &args).await
@@ -1538,6 +1658,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1553,6 +1675,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1574,6 +1698,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_quote", &args).await
@@ -1617,6 +1743,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1632,6 +1760,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1653,6 +1783,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_open_interest", &args).await
@@ -1696,6 +1828,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1711,6 +1845,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1732,6 +1868,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_market_value", &args).await
@@ -1775,6 +1913,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1790,6 +1930,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1811,6 +1953,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_implied_volatility", &args).await
@@ -1854,6 +1998,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1869,6 +2015,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1890,6 +2038,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_all", &args).await
@@ -1933,6 +2083,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1948,6 +2100,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -1969,6 +2123,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_first_order", &args).await
@@ -2012,6 +2168,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2027,6 +2185,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2048,6 +2208,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_second_order", &args).await
@@ -2091,6 +2253,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2106,6 +2270,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2127,6 +2293,8 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_third_order", &args).await
@@ -2174,6 +2342,8 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2189,6 +2359,8 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2204,6 +2376,8 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2219,6 +2393,8 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2240,6 +2416,8 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_eod", &args).await
@@ -2285,6 +2463,8 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2300,6 +2480,8 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2315,6 +2497,8 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2336,6 +2520,8 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_ohlc", &args).await
@@ -2381,6 +2567,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2396,6 +2584,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2411,6 +2601,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2432,6 +2624,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade", &args).await
@@ -2477,6 +2671,8 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2492,6 +2688,8 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2507,6 +2705,8 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2528,6 +2728,8 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_quote", &args).await
@@ -2573,6 +2775,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2588,6 +2792,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2603,6 +2809,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2624,6 +2832,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_quote", &args).await
@@ -2669,6 +2879,8 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2684,6 +2896,8 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2699,6 +2913,8 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2720,6 +2936,8 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_open_interest", &args).await
@@ -2767,6 +2985,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2782,6 +3002,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2797,6 +3019,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2812,6 +3036,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2833,6 +3059,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
@@ -2878,6 +3106,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2893,6 +3123,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2908,6 +3140,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2929,6 +3163,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_all", &args).await
@@ -2974,6 +3210,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -2989,6 +3227,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3004,6 +3244,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3025,6 +3267,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
@@ -3070,6 +3314,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3085,6 +3331,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3100,6 +3348,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3121,6 +3371,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_first_order", &args).await
@@ -3166,6 +3418,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3181,6 +3435,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3196,6 +3452,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3217,6 +3475,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
@@ -3262,6 +3522,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3277,6 +3539,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3292,6 +3556,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3313,6 +3579,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_second_order", &args).await
@@ -3358,6 +3626,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3373,6 +3643,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3388,6 +3660,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3409,6 +3683,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
@@ -3454,6 +3730,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3469,6 +3747,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3484,6 +3764,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3505,6 +3787,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_third_order", &args).await
@@ -3550,6 +3834,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3565,6 +3851,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3580,6 +3868,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3601,6 +3891,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
@@ -3646,6 +3938,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3661,6 +3955,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3676,6 +3972,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3697,6 +3995,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_implied_volatility", &args).await
@@ -3742,6 +4042,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3757,6 +4059,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3772,6 +4076,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3793,6 +4099,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_implied_volatility", &args).await
@@ -3842,6 +4150,8 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3857,6 +4167,8 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3872,6 +4184,8 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3887,6 +4201,8 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3902,6 +4218,8 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3923,6 +4241,8 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_trade", &args).await
@@ -3972,6 +4292,8 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -3987,6 +4309,8 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let expiration = match unsafe { cstr_to_str(expiration) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4002,6 +4326,8 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4017,6 +4343,8 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4032,6 +4360,8 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4053,6 +4383,8 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_quote", &args).await
@@ -4098,6 +4430,8 @@ pub unsafe extern "C" fn tdx_index_list_symbols_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_symbols", &args).await
@@ -4139,6 +4473,8 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4160,6 +4496,8 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_dates", &args).await
@@ -4201,6 +4539,9 @@ pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
+        // C string pointers kept valid for the call duration; parse_symbol_array
+        // validates non-null + UTF-8 per element.
         let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
             Some(values) => values,
             None => return empty,
@@ -4215,6 +4556,8 @@ pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_ohlc", &args).await
@@ -4256,6 +4599,9 @@ pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
+        // C string pointers kept valid for the call duration; parse_symbol_array
+        // validates non-null + UTF-8 per element.
         let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
             Some(values) => values,
             None => return empty,
@@ -4270,6 +4616,8 @@ pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_price", &args).await
@@ -4311,6 +4659,9 @@ pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
+        // C string pointers kept valid for the call duration; parse_symbol_array
+        // validates non-null + UTF-8 per element.
         let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
             Some(values) => values,
             None => return empty,
@@ -4325,6 +4676,8 @@ pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_market_value", &args).await
@@ -4370,6 +4723,8 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4385,6 +4740,8 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4400,6 +4757,8 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4421,6 +4780,8 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_eod", &args).await
@@ -4466,6 +4827,8 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4481,6 +4844,8 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4496,6 +4861,8 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4517,6 +4884,8 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_ohlc", &args).await
@@ -4560,6 +4929,8 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4575,6 +4946,8 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4596,6 +4969,8 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_price", &args).await
@@ -4643,6 +5018,8 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4658,6 +5035,8 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4673,6 +5052,8 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4688,6 +5069,8 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4709,6 +5092,8 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_at_time_price", &args).await
@@ -4754,6 +5139,8 @@ pub unsafe extern "C" fn tdx_calendar_open_today_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_open_today", &args).await
@@ -4795,6 +5182,8 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let date = match unsafe { cstr_to_str(date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4816,6 +5205,8 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_on_date", &args).await
@@ -4857,6 +5248,8 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let year = match unsafe { cstr_to_str(year) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4878,6 +5271,8 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_year", &args).await
@@ -4923,6 +5318,8 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4938,6 +5335,8 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4953,6 +5352,8 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -4974,6 +5375,8 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "interest_rate_history_eod", &args).await
@@ -5019,6 +5422,8 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let symbol = match unsafe { cstr_to_str(symbol) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -5034,6 +5439,8 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let start_date = match unsafe { cstr_to_str(start_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -5049,6 +5456,8 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
         let end_date = match unsafe { cstr_to_str(end_date) } {
             Ok(Some(value)) => value,
             Ok(None) => {
@@ -5070,6 +5479,8 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
             return empty;
         }
 
+        // SAFETY: client is a non-null pointer returned by tdx_client_new
+        // and not yet freed by the matching tdx_client_free.
         let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc_range", &args).await

@@ -60,8 +60,6 @@ use pyo3::exceptions::{PyRuntimeError, PyStopAsyncIteration};
 use pyo3::prelude::*;
 
 use thetadatadx::fpss::wake::WakeFd;
-#[cfg(unix)]
-use thetadatadx::fpss::BackpressurePolicy as RustBackpressurePolicy;
 use thetadatadx::fpss::{FpssData, FpssEvent};
 use thetadatadx::{EventIterator as RustEventIterator, NextEvent};
 
@@ -80,67 +78,10 @@ const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
 /// without retuning queue size.
 const DEFAULT_MAX_QUEUE_DEPTH: usize = 4096;
 
-/// Typed handle to the underlying streaming client. Mirrors the
-/// `AsyncStreamableHandle` enum in `streaming_async_session.rs` —
-/// duplicated here because that one is `pub(crate)` and lives in a
-/// sibling module, and a third indirection through a shared module
-/// would force both surfaces to depend on a "common-batches" carrier
-/// type that adds zero value. Keeping the two enums separate is the
-/// simpler SSOT split: each surface owns its handle dispatch.
-pub(crate) enum AsyncBatchesStreamableHandle {
-    /// Unified `ThetaDataDxClient` (MDDS + FPSS).
-    Tdx(Py<crate::ThetaDataDxClient>),
-    /// Standalone FPSS-only client.
-    Fpss(Py<crate::fpss_client::FpssClient>),
-}
-
-impl AsyncBatchesStreamableHandle {
-    fn bind_any<'py>(&'py self, py: Python<'py>) -> Bound<'py, PyAny> {
-        match self {
-            Self::Tdx(handle) => handle.bind(py).clone().into_any(),
-            Self::Fpss(handle) => handle.bind(py).clone().into_any(),
-        }
-    }
-
-    #[cfg(unix)]
-    fn start(
-        &self,
-        py: Python<'_>,
-        write_fd: i32,
-        max_queue_depth: usize,
-        backpressure: RustBackpressurePolicy,
-    ) -> PyResult<(RustEventIterator, Arc<WakeFd>)> {
-        match self {
-            Self::Tdx(handle) => handle.borrow(py).start_streaming_async_inner(
-                write_fd,
-                max_queue_depth,
-                backpressure,
-            ),
-            Self::Fpss(handle) => handle.borrow(py).start_streaming_async_inner(
-                write_fd,
-                max_queue_depth,
-                backpressure,
-            ),
-        }
-    }
-
-    fn call_proxy(&self, py: Python<'_>, name: &str, arg: &Bound<'_, PyAny>) -> PyResult<()> {
-        let bound = self.bind_any(py);
-        bound.call_method1(name, (arg.clone(),))?;
-        Ok(())
-    }
-
-    fn stop_streaming(&self, py: Python<'_>) -> PyResult<()> {
-        let bound = self.bind_any(py);
-        bound.call_method0("stop_streaming")?;
-        Ok(())
-    }
-
-    fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<bool> {
-        let bound = self.bind_any(py);
-        bound.call_method1("await_drain", (timeout_ms,))?.extract()
-    }
-}
+// Re-export the shared handle under the local name so existing call
+// sites in this file don't need a global rename. The canonical
+// definition + impl live in `streaming_async_common`.
+pub(crate) use crate::streaming_async_common::AsyncStreamableHandle as AsyncBatchesStreamableHandle;
 
 /// Asyncio-native context manager + async iterator that yields one
 /// `pyarrow.RecordBatch` per OS wake.
@@ -408,8 +349,7 @@ impl StreamingAsyncBatchesSession {
             ));
         }
 
-        let (read_fd_raw, write_fd_raw) =
-            crate::streaming_async_session::alloc_wake_pipe()?;
+        let (read_fd_raw, write_fd_raw) = crate::streaming_async_session::alloc_wake_pipe()?;
 
         // SAFETY: both FDs were just allocated by `alloc_wake_pipe`,
         // are open, and have not been handed to any other owner.

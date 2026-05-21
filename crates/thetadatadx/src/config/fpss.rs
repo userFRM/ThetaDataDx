@@ -17,7 +17,7 @@ pub enum FpssFlushMode {
 /// `connect_timeout_ms`) and the disruptor `ring_size` are wired into
 /// the runtime: the values flow through [`crate::fpss::FpssConnectArgs`]
 /// into [`crate::fpss::FpssClient::connect`], which threads them to the
-/// connection, framing, and ping layers. [`DirectConfig::validate`]
+/// connection, framing, and ping layers. [`crate::DirectConfig::validate`]
 /// rejects out-of-range values before the connect attempt.
 ///
 /// The pre-Disruptor `queue_depth` knob (a separate event channel size)

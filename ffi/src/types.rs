@@ -42,6 +42,7 @@ pub struct TdxConfig {
 pub unsafe extern "C" fn tdx_string_free(s: *mut c_char) {
     ffi_boundary!((), {
         if !s.is_null() {
+            // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
             drop(unsafe { CString::from_raw(s) });
         }
     })
@@ -55,6 +56,7 @@ pub(crate) fn insert_optional_str_arg(
     key: &str,
     raw: *const c_char,
 ) -> Result<(), String> {
+    // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
     match unsafe { cstr_to_str(raw) } {
         Ok(None) => Ok(()),
         Ok(Some(value)) => {
@@ -138,6 +140,7 @@ macro_rules! tick_array_type {
 
             unsafe fn free(self) {
                 if !self.data.is_null() && self.len > 0 {
+                    // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
                     let _ = unsafe {
                         Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                             self.data as *mut $tick,
@@ -176,6 +179,7 @@ macro_rules! tick_array_free {
         #[no_mangle]
         pub unsafe extern "C" fn $fn_name(arr: $array_type) {
             ffi_boundary!((), {
+                // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
                 unsafe { arr.free() };
             })
         }
@@ -266,13 +270,16 @@ pub unsafe extern "C" fn tdx_option_contract_array_free(arr: TdxOptionContractAr
     ffi_boundary!((), {
         if !arr.data.is_null() && arr.len > 0 {
             // First free each symbol C string
+            // SAFETY: data + len describe a contiguous slice the caller is required to keep valid for the call duration.
             let slice = unsafe { std::slice::from_raw_parts(arr.data, arr.len) };
             for contract in slice {
                 if !contract.symbol.is_null() {
+                    // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
                     drop(unsafe { CString::from_raw(contract.symbol.cast_mut()) });
                 }
             }
             // Then free the array itself
+            // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
             let _ = unsafe {
                 Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                     arr.data.cast_mut(),
@@ -319,12 +326,15 @@ impl TdxStringArray {
 pub unsafe extern "C" fn tdx_string_array_free(arr: TdxStringArray) {
     ffi_boundary!((), {
         if !arr.data.is_null() && arr.len > 0 {
+            // SAFETY: data + len describe a contiguous slice the caller is required to keep valid for the call duration.
             let slice = unsafe { std::slice::from_raw_parts(arr.data, arr.len) };
             for &s in slice {
                 if !s.is_null() {
+                    // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
                     drop(unsafe { CString::from_raw(s.cast_mut()) });
                 }
             }
+            // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
             let _ = unsafe {
                 Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                     arr.data.cast_mut(),
@@ -353,9 +363,11 @@ pub(crate) unsafe fn parse_symbol_array(
         set_error("symbols array pointer is null");
         return None;
     }
+    // SAFETY: data + len describe a contiguous slice the caller is required to keep valid for the call duration.
     let ptrs = unsafe { std::slice::from_raw_parts(symbols, symbols_len) };
     let mut out = Vec::with_capacity(symbols_len);
     for (i, &p) in ptrs.iter().enumerate() {
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
         match unsafe { cstr_to_str(p) } {
             Ok(Some(s)) => out.push(s.to_owned()),
             Ok(None) => {

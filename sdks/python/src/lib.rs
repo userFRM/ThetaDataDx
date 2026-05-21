@@ -798,6 +798,12 @@ mod streaming_iter_session;
 use event_iterator::EventIterator;
 use streaming_iter_session::StreamingIterSession;
 
+// Shared machinery between the per-tick and Arrow-batched asyncio
+// streaming sessions — the typed `AsyncStreamableHandle` sum that
+// dispatches subscribe / start / stop / drain through the underlying
+// streaming pyclass.
+mod streaming_async_common;
+
 // Asyncio-native streaming surface — sibling of `StreamingSession`
 // (sync callback) and `StreamingIterSession` (sync iterator). Uses a
 // self-pipe write FD as the wake signal so the asyncio loop's

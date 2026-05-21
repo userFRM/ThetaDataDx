@@ -1,3 +1,5 @@
+    // SAFETY: caller supplies a NUL-terminated C string allocated by the host
+    // runtime; cstr_to_str validates non-null + UTF-8 before returning.
     let __NAME__ = match unsafe { cstr_to_str(__NAME__) } {
         Ok(Some(value)) => value,
         Ok(None) => {

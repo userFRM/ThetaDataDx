@@ -39,7 +39,7 @@
 //! # Disposal
 //!
 //! The owning [`super::EventIterator`] holds an `Arc<WakeFd>` and the
-//! consumer closure (via the [`super::events::Delivery::Queue`] variant)
+//! consumer closure (via the pull-iter `Delivery::Queue` variant)
 //! holds another `Arc<WakeFd>` clone. The write-end FD is closed inside
 //! [`WakeFd::drop`] when the refcount hits zero — i.e., after both the
 //! iterator and the consumer closure have been dropped. The read-end
@@ -111,21 +111,12 @@ impl WakeFd {
     /// the metric. The reader's `next_timeout` poll covers the wedged
     /// case as a long-stop.
     pub fn signal(&self) {
-        // Coalesce: only the first writer that observes `false` wins
-        // the write. The `AcqRel`/`Acquire` orderings on the
-        // compare-exchange serialise the producer's flag flip with
-        // the reader's `Release` clear in `rearm` — but the
-        // *meaningful* happens-before for cross-thread visibility is
-        // the wake-byte itself arriving in the pipe. The kernel
-        // synchronises `write(2)` on the producer side with
-        // `read(2)` on the asyncio-reader thread via the pipe's
-        // internal lock; the atomic flag is the userspace coalescing
-        // gate (so we don't issue redundant syscalls when several
-        // batches land before the reader drains), and `write(2)`'s
-        // kernel-side synchronisation provides the cross-thread
-        // visibility that lets the reader observe whatever the
-        // producer published on the bounded Disruptor queue prior
-        // to issuing the wake.
+        // Coalesce: first writer to observe `false` wins the write.
+        // Cross-thread visibility of the published event ride on the
+        // kernel's `write(2)` / `read(2)` pipe lock, not on the atomic;
+        // the atomic is just the userspace gate that suppresses
+        // redundant syscalls. Coalesce contract pinned by
+        // `tests::signal_writes_a_single_byte_until_rearm`.
         if self
             .signaled
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -142,6 +133,7 @@ impl WakeFd {
             return;
         }
         let byte: u8 = 1;
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         let res = unsafe {
             libc::write(
                 self.write_fd,
@@ -324,6 +316,7 @@ mod tests {
         }
         // Reading from the pipe should return EOF (0) now that the
         // write-end is closed.
+        // SAFETY: the raw fd was just produced (pipe2 / dup) and is exclusively owned by this scope.
         let mut reader = unsafe { std::fs::File::from_raw_fd(read_fd) };
         let mut buf = [0_u8; 4];
         let n = reader.read(&mut buf).expect("read should not error");

@@ -130,88 +130,10 @@ impl BackpressurePolicy {
 /// `streaming_async()` without kwargs reproduces today's behaviour.
 const DEFAULT_MAX_QUEUE_DEPTH: usize = 4096;
 
-/// Typed handle to the underlying streaming client. Mirrors the
-/// `StreamableHandle` enum in `streaming_session.rs` but specialised for
-/// the async path: subscribe / unsubscribe go through `tdx` core methods
-/// directly (no need to traverse the Python attribute proxy), and the
-/// wake-fd plumbing requires a method shape (`start_streaming_async`)
-/// that the sync surface does not have.
-pub(crate) enum AsyncStreamableHandle {
-    /// Unified `ThetaDataDxClient` (MDDS + FPSS).
-    Tdx(Py<crate::ThetaDataDxClient>),
-    /// Standalone FPSS-only client.
-    Fpss(Py<crate::fpss_client::FpssClient>),
-}
-
-impl AsyncStreamableHandle {
-    /// Bind the inner pyclass as a `Bound<PyAny>` for attribute / method
-    /// dispatch via the Python proxy. Mirrors the `bind_any` helper on
-    /// the sync [`crate::streaming_session::StreamableHandle`] — every
-    /// streaming method we forward (subscribe / unsubscribe /
-    /// stop_streaming / await_drain) is reachable via the Python
-    /// surface on both pyclasses already, so the proxy is the simplest
-    /// SSOT path.
-    fn bind_any<'py>(&'py self, py: Python<'py>) -> Bound<'py, PyAny> {
-        match self {
-            Self::Tdx(handle) => handle.bind(py).clone().into_any(),
-            Self::Fpss(handle) => handle.bind(py).clone().into_any(),
-        }
-    }
-
-    /// Open the iterator + wake FD pair on the underlying client.
-    /// Returns the Rust iterator and the shared `Arc<WakeFd>` so the
-    /// session can `rearm()` from the asyncio reader path. Dispatched
-    /// through the closed sum of the two streaming pyclasses — the
-    /// Rust-side internal entry points (`start_streaming_async_inner`)
-    /// live on inherent impls outside the `#[pymethods]` blocks so the
-    /// Rust types (`EventIterator`, `Arc<WakeFd>`) round-trip without
-    /// going through Python conversion.
-    #[cfg(unix)]
-    fn start(
-        &self,
-        py: Python<'_>,
-        write_fd: i32,
-        max_queue_depth: usize,
-        backpressure: RustBackpressurePolicy,
-    ) -> PyResult<(RustEventIterator, Arc<WakeFd>)> {
-        match self {
-            Self::Tdx(handle) => handle.borrow(py).start_streaming_async_inner(
-                write_fd,
-                max_queue_depth,
-                backpressure,
-            ),
-            Self::Fpss(handle) => handle.borrow(py).start_streaming_async_inner(
-                write_fd,
-                max_queue_depth,
-                backpressure,
-            ),
-        }
-    }
-
-    /// Proxy `subscribe` / `subscribe_many` / `unsubscribe` /
-    /// `unsubscribe_many` through the Python attribute lookup. The
-    /// underlying pyclass exposes these via `#[pymethods]` so the
-    /// Python method dispatch path is the SSOT — Rust-side direct
-    /// calls would require relaxing the methods' visibility to
-    /// `pub(crate)`, duplicating the binding's source-of-truth on which
-    /// type owns the contract.
-    fn call_proxy(&self, py: Python<'_>, name: &str, arg: &Bound<'_, PyAny>) -> PyResult<()> {
-        let bound = self.bind_any(py);
-        bound.call_method1(name, (arg.clone(),))?;
-        Ok(())
-    }
-
-    fn stop_streaming(&self, py: Python<'_>) -> PyResult<()> {
-        let bound = self.bind_any(py);
-        bound.call_method0("stop_streaming")?;
-        Ok(())
-    }
-
-    fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> PyResult<bool> {
-        let bound = self.bind_any(py);
-        bound.call_method1("await_drain", (timeout_ms,))?.extract()
-    }
-}
+// The typed `AsyncStreamableHandle` sum + its impl (start, call_proxy,
+// stop_streaming, await_drain) live in `streaming_async_common` so the
+// Arrow-batched session shares the same SSOT.
+pub(crate) use crate::streaming_async_common::AsyncStreamableHandle;
 
 /// Asyncio-native context manager + async iterator for FPSS streaming.
 ///
@@ -627,10 +549,7 @@ impl StreamingAsyncSession {
         // OwnedFd guard intact — Drop closes it on the way out.
         event_loop.call_method1(
             "add_reader",
-            (
-                std::os::fd::AsRawFd::as_raw_fd(&read_guard),
-                set_event,
-            ),
+            (std::os::fd::AsRawFd::as_raw_fd(&read_guard), set_event),
         )?;
 
         // Commit state. Storing in self only AFTER the asyncio
@@ -1086,7 +1005,7 @@ async fn for_each_loop(
     callback: Py<PyAny>,
 ) -> PyResult<Py<PyAny>> {
     loop {
-        let next_outcome = anext_step(session_handle.clone_ref_attached()).await;
+        let next_outcome = anext_step(clone_ref_attached(&session_handle)).await;
         let batch = match next_outcome {
             Ok(batch) => batch,
             Err(err) => {
@@ -1132,17 +1051,9 @@ async fn for_each_loop(
     }
 }
 
-/// Small helper trait — clone the `Py<T>` while we already hold a GIL
-/// token captured upstream. Keeps `for_each_loop` from re-attaching for
-/// a trivial refcount bump.
-trait CloneRefAttached {
-    fn clone_ref_attached(&self) -> Self;
-}
-
-impl<T> CloneRefAttached for Py<T> {
-    fn clone_ref_attached(&self) -> Self {
-        Python::attach(|py| self.clone_ref(py))
-    }
+/// Clone a `Py<T>` by attaching the GIL just for the refcount bump.
+fn clone_ref_attached<T>(handle: &Py<T>) -> Py<T> {
+    Python::attach(|py| handle.clone_ref(py))
 }
 
 // ── Inherent helpers on the streaming pyclasses ──────────────────────────

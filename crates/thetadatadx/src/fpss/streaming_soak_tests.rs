@@ -883,7 +883,8 @@ fn slow_callback_threshold_counts_overbudget_invocations() {
     drop(producer);
 
     let observed = slow.load(Ordering::Relaxed);
-    let expected = TOTAL.div_ceil(SLOW_PER) as u64; // ceil(100/10) = 10
+    // One slow-callback emission per `SLOW_PER` over-budget invocations.
+    let expected = TOTAL.div_ceil(SLOW_PER) as u64;
     assert_eq!(
         observed, expected,
         "slow_callback_count must reflect every over-budget invocation: \
