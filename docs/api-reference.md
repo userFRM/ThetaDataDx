@@ -590,9 +590,81 @@ let table = tdx.raw_query(|mut stub| {
 }).await?;
 ```
 
-### Streaming `_stream` Endpoint Variants
+### Universal `.stream(handler)` On Every Historical Builder
 
-These variants process gRPC response chunks via callback without materializing the full response in memory. Ideal for endpoints returning millions of rows. Each returns a builder that is finalized with `.stream()`.
+**Issue #565 fix.** Every parsed historical endpoint (the `_history_`, `_at_time_`, `_eod` family — anything that today returns `Vec<T>` from `.await`) also exposes a `.stream(handler)` method that drains the response chunk-by-chunk without ever materializing the full `Vec<T>`. The buffered `.await` path is preserved for back-compat; the new `.stream` path is the right choice for tick-interval ranges and any response whose row count would exceed available RSS.
+
+```rust
+// Buffered (existing) — collects every tick into memory before returning.
+let ticks: Vec<QuoteTick> = client
+    .option_history_quote("QQQ", "20260516", "20260516")
+    .interval("tick")
+    .strike_range(5)
+    .await?;
+
+// Streaming (new) — handler sees one chunk at a time; previous chunk
+// freed before next is fetched. Peak memory ≈ one chunk (~64 KiB).
+client
+    .option_history_quote("QQQ", "20260516", "20260516")
+    .interval("tick")
+    .strike_range(5)
+    .stream(|chunk: &[QuoteTick]| {
+        for tick in chunk {
+            // write to parquet, send to bus, accumulate stats, ...
+        }
+    })
+    .await?;
+```
+
+The same shape works on every historical builder regardless of tick type — `OhlcTick`, `EodTick`, `GreeksAllTick`, `MarketValueTick`, `OptionContract`, `CalendarDay`, `InterestRateTick`, every variant. The macro-driven builder generation guarantees there is no per-endpoint code drift between the buffered and streaming variants.
+
+### Memory Footprint Per Endpoint
+
+Per-row bytes (Rust core, x86_64) are pinned by the layout asserts in `tdbe::types::tick`:
+
+| Tick type | Bytes/row | Notes |
+|---|---|---|
+| `QuoteTick` | 64 | bid/ask + size + condition + exchange |
+| `TradeTick` | 56 | price + size + condition + exchange |
+| `TradeQuoteTick` | 112 | trade + quote pair |
+| `OhlcTick` | 56 | open/high/low/close + volume |
+| `EodTick` | 88 | OHLC + bid/ask close + volume |
+| `OpenInterestTick` | 16 | date + open-interest count |
+| `MarketValueTick` | 48 | mark + value indicators |
+| `GreeksAllTick` | 184 | every Greek + IV |
+| `GreeksFirstOrderTick` | 64 | delta + theta + vega + rho |
+| `GreeksSecondOrderTick` | 64 | gamma + charm + vanna + ... |
+| `IvTick` | 24 | implied volatility |
+| `PriceTick` | 32 | index price snapshot |
+| `CalendarDay` | 24 | date + status |
+| `InterestRateTick` | 32 | rate + maturity |
+| `OptionContract` | 56 | symbol + expiration + strike + right |
+
+**Memory budget formula** (buffered `.await` path):
+
+```
+peak_rss ≈ concurrency × rows × bytes_per_row × decode_factor
+
+decode_factor:
+  3.0 — buffered path (h2 frames + decompressed proto + decoded Vec live simultaneously)
+  2.0 — h2 frames + decompressed proto (intermediate states)
+  1.0 — `.stream()` path (one chunk live at a time, ~64 KiB peak)
+```
+
+**Worked example — the issue #565 reproduction**:
+
+- Endpoint: `option_history_quote(QQQ, 1DTE, interval=tick, strike_range=5)`
+- Typical rows: ~1.2 M ticks per (contract, day) for QQQ at tick interval
+- Strike range 5 expands to ~5 contracts → 6 M rows total per day
+- 32-permit concurrency at 1 day each
+- Buffered: `32 × 6_000_000 × 64 × 3.0` ≈ **36 GiB peak RSS** (matches the user's reported 23 GiB after partial parallelization)
+- `.stream()`: `32 × 64 KiB` ≈ **2 MiB peak RSS** — a ≥10⁴× reduction
+
+**Recommendation**: use `.stream()` for any request with `interval=tick`, for multi-day ranges on intraday endpoints (`stock_history_trade`, `stock_history_quote`, `option_history_trade`, `option_history_quote`), and for liquid-symbol option chains with non-trivial `strike_range`. The buffered `.await` path remains the right call for snapshot endpoints, EOD endpoints, and any request whose row count is known to be small (<10k).
+
+### Streaming `_stream` Endpoint Variants (legacy explicit endpoints)
+
+These variants process gRPC response chunks via callback without materializing the full response in memory. Ideal for endpoints returning millions of rows. Each returns a builder that is finalized with `.stream()`. Predates the universal `.stream(handler)` method above — kept for back-compat on the 4 endpoints that exposed it before issue #565.
 
 ```rust
 pub fn stock_history_trade_stream(&self, symbol: &str, date: &str) -> StreamBuilder<TradeTick>

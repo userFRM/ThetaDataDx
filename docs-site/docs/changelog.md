@@ -9,6 +9,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Universal `.stream(handler)` method on every historical builder
+  (#565). The buffered `.await -> Vec<T>` path held three live
+  copies (h2 frames + concatenated proto payload + decoded
+  `Vec<T>`) plus a `Vec::push` doubling transient, yielding 6×
+  memory amplification on tick-interval responses — a production
+  user hit 23 GiB RSS on
+  `option_history_quote(QQQ, 1DTE, interval=tick, strike_range=5)`
+  at 32-permit concurrency. The new `.stream(handler)` decodes
+  one chunk at a time, hands the slice to `handler`, then drops
+  the chunk before the next is fetched. Peak resident memory
+  drops to ~one chunk regardless of total row count. Available
+  on every parsed historical endpoint (option / stock / index
+  history, `_at_time_`, EOD, Greeks, market value, ...) without
+  SSOT churn — the streaming variant is macro-emitted alongside
+  the existing `IntoFuture` impl on every `parsed_endpoint!`
+  builder. Python builders gain `.stream(handler)` / `.stream_async(handler)`
+  terminals that hand each chunk to the user's callback as a typed
+  `list[Tick]`; the handler is dispatched under the GIL on the
+  tokio worker thread and the per-chunk `PyList` is dropped before
+  the next chunk fetch. Buffered `.await` / `.list()` /
+  `.list_async()` paths remain unchanged for back-compat.
+- Zero-copy gRPC frame detach in `ServerStreaming::poll_next`
+  (#565 Tier 4). The previous accumulator-peek did
+  `BytesMut::clone().freeze()` per poll — empirically a deep
+  copy of the entire accumulator (a 10 MiB buffer duplicates to a
+  fresh 10 MiB allocation), so a chunked response paid an
+  `O(polls × buf.len())` memory tax on the decode path. Replaced
+  with `peek_frame_length` (reads the 5-byte prefix in-place, no
+  allocation) followed by `BytesMut::split_to(frame_len).freeze()`
+  on the success branch (refcount-only). The codec invariant
+  ("Err ⇒ buf not consumed") is preserved end-to-end. Six new
+  unit tests pin the structural contract.
+- Memory footprint section in `docs/api-reference.md`,
+  `docs-site/docs/api-reference.md`, and the Python SDK README
+  (#565 Tier 5). Documents the per-tick bytes/row table, the
+  `concurrency × rows × bytes_per_row × decode_factor` budget
+  formula, the worked example for the reproducer, and the
+  `.stream()` vs `.await` recommendation matrix.
 - Python `FpssClient` and `MddsClient` standalone pyclasses
   (#541, #543). `FpssClient(creds, config)` opens ONLY the FPSS TLS
   transport; `MddsClient(creds, config)` opens ONLY the MDDS gRPC

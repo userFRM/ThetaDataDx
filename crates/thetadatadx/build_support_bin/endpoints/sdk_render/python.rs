@@ -751,6 +751,12 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
         builder_params(endpoint)
     };
     let is_streaming_kind = endpoint.kind == "stream";
+    // Snapshot endpoints (≤10 rows) don't benefit from `.stream()`. The
+    // 4 explicit `_stream` endpoints already collect via `for_each_chunk`
+    // for their `.list()` path; layering a chunk callback on top of
+    // that would re-buffer. The flag is read by `render_python_endpoint_builder`
+    // below to skip emitting the streaming terminal on those subsets.
+    let is_snapshot = is_snapshot_endpoint(endpoint);
     let mut out = String::new();
 
     // Struct definition. Setters mutate through `PyRefMut<'_, Self>`.
@@ -936,10 +942,272 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
         is_streaming_kind,
         "        ",
     );
-    out.push_str("    }\n");
+    out.push_str("    }\n\n");
+
+    // Streaming terminal — issue #565. Skip for snapshot endpoints (≤10
+    // rows, streaming is pointless) and for the explicit `_stream`
+    // builders (they already use `for_each_chunk` for their `.list()`
+    // path; layering another stream on top would re-buffer). Every
+    // other historical parsed endpoint gets `.stream(handler)` and
+    // `.stream_async(handler)` — the handler receives one Python list
+    // of typed tick instances per gRPC chunk, never the full Vec.
+    if !is_snapshot && !is_streaming_kind {
+        write_sync_stream_terminal(&mut out, endpoint, &method_params, &builder_params);
+        out.push_str("\n");
+        write_async_stream_terminal(&mut out, endpoint, &method_params, &builder_params);
+    }
+
     out.push_str("}\n");
 
     out
+}
+
+/// Emit the `stream(handler)` sync terminal that routes each gRPC
+/// chunk into a Python callback as a typed `list[Tick]`. The decoder-
+/// owned `Vec<tick::T>` is converted under the GIL via the per-tick
+/// `*_vec_to_pylist` factory then handed to the user's callable; once
+/// the call returns the Python list is dropped and the wire `Bytes`
+/// are released before the next chunk is fetched.
+///
+/// PyErr bridging: callback exceptions are captured into the spawned
+/// future's `Result<(), thetadatadx::Error>` via
+/// `Error::config_internal(msg)` so `run_blocking`'s signature is
+/// honoured. The captured PyErr is re-raised on the Python side via
+/// `Python::with_gil` before `run_blocking` returns. A wire error
+/// observed while a callback PyErr is also pending surfaces the
+/// callback error — the user's Python exception is the proximate
+/// cause of the stream's cancellation.
+fn write_sync_stream_terminal(
+    out: &mut String,
+    endpoint: &GeneratedEndpoint,
+    method_params: &[&GeneratedParam],
+    builder_params: &[&GeneratedParam],
+) {
+    let pylist_converter = python_vec_to_pylist_converter(&endpoint.return_type);
+    let doc = format!(
+        "Stream chunks of `{}` rows into `handler` without materialising the full \
+         response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is \
+         called once per gRPC chunk; the chunk is freed before the next is fetched. \
+         A `RuntimeError` raised by `handler` aborts the stream and propagates as the \
+         method's return value.",
+        endpoint.name
+    );
+    out.push_str(&render_rust_doc_block("    ", &doc));
+    out.push_str("    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {\n");
+    write_stream_dispatch_setup(out, method_params, builder_params, "        ");
+    out.push_str("        let handler_arc = std::sync::Arc::new(handler);\n");
+    out.push_str("        let handler_for_closure = std::sync::Arc::clone(&handler_arc);\n");
+    out.push_str("        // Callback PyErr is captured in a Mutex<Option<PyErr>>\n");
+    out.push_str("        // because the chunk closure is `FnMut`, not `FnOnce`, and\n");
+    out.push_str("        // can't move-out of `&mut Option<PyErr>`. The Mutex also\n");
+    out.push_str("        // gives us `Send`, which `run_blocking`'s bound requires.\n");
+    out.push_str("        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =\n");
+    out.push_str("            std::sync::Arc::new(std::sync::Mutex::new(None));\n");
+    out.push_str("        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);\n");
+    out.push_str("        run_blocking(py, async move {\n");
+    write_stream_request_setup(out, endpoint, method_params, builder_params, "            ");
+    out.push_str("            request.stream(|chunk| {\n");
+    out.push_str("                if cb_err_for_closure.lock().unwrap().is_some() {\n");
+    out.push_str("                    return;\n");
+    out.push_str("                }\n");
+    out.push_str("                Python::attach(|py| {\n");
+    out.push_str("                    let owned: Vec<_> = chunk.to_vec();\n");
+    writeln!(
+        out,
+        "                    let py_list = match {}(py, owned) {{",
+        pylist_converter
+    )
+    .unwrap();
+    out.push_str("                        Ok(list) => list,\n");
+    out.push_str("                        Err(e) => {\n");
+    out.push_str("                            *cb_err_for_closure.lock().unwrap() = Some(e);\n");
+    out.push_str("                            return;\n");
+    out.push_str("                        }\n");
+    out.push_str("                    };\n");
+    out.push_str(
+        "                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {\n",
+    );
+    out.push_str("                        *cb_err_for_closure.lock().unwrap() = Some(e);\n");
+    out.push_str("                    }\n");
+    out.push_str("                });\n");
+    out.push_str("            }).await\n");
+    out.push_str("        })?;\n");
+    out.push_str("        // Surface the callback PyErr (if any) AFTER run_blocking\n");
+    out.push_str("        // returns clean — `request.stream` returns Ok(()) when the\n");
+    out.push_str("        // wire finishes even if our chunk closure stopped processing.\n");
+    out.push_str("        if let Some(py_err) = callback_error.lock().unwrap().take() {\n");
+    out.push_str("            return Err(py_err);\n");
+    out.push_str("        }\n");
+    out.push_str("        Ok(())\n");
+    out.push_str("    }\n");
+}
+
+/// Emit the `stream_async(handler)` async terminal — awaitable variant
+/// of [`write_sync_stream_terminal`]. `handler` is invoked synchronously
+/// on the tokio worker thread (under the GIL via `Python::attach`); the
+/// awaitable resolves to `None` on clean drain, raises on first error.
+///
+/// Same PyErr-folding strategy as the sync path: the chunk closure
+/// stashes a captured PyErr inside an `Arc<Mutex<Option<PyErr>>>` so
+/// the spawned future's `Result<(), thetadatadx::Error>` stays free of
+/// PyErr (the bound on `spawn_awaitable` wouldn't accept it). The
+/// stashed PyErr is unstashed in the post-await converter step where
+/// the GIL is reacquired.
+fn write_async_stream_terminal(
+    out: &mut String,
+    endpoint: &GeneratedEndpoint,
+    method_params: &[&GeneratedParam],
+    builder_params: &[&GeneratedParam],
+) {
+    let pylist_converter = python_vec_to_pylist_converter(&endpoint.return_type);
+    let doc = format!(
+        "Async companion to `stream()` — awaitable yields `None` when the \
+         streamed response of `{}` rows finishes. Cancelling the awaitable \
+         drops the in-flight gRPC stream (RST_STREAM on the underlying h2 \
+         stream).",
+        endpoint.name
+    );
+    out.push_str(&render_rust_doc_block("    ", &doc));
+    out.push_str("    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {\n");
+    write_stream_dispatch_setup(out, method_params, builder_params, "        ");
+    out.push_str("        let handler_arc = std::sync::Arc::new(handler);\n");
+    out.push_str("        let handler_for_closure = std::sync::Arc::clone(&handler_arc);\n");
+    out.push_str("        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =\n");
+    out.push_str("            std::sync::Arc::new(std::sync::Mutex::new(None));\n");
+    out.push_str("        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);\n");
+    out.push_str("        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);\n");
+    out.push_str("        spawn_awaitable(py, async move {\n");
+    write_stream_request_setup(out, endpoint, method_params, builder_params, "            ");
+    out.push_str("            request.stream(|chunk| {\n");
+    out.push_str("                if cb_err_for_closure.lock().unwrap().is_some() {\n");
+    out.push_str("                    return;\n");
+    out.push_str("                }\n");
+    out.push_str("                Python::attach(|py| {\n");
+    out.push_str("                    let owned: Vec<_> = chunk.to_vec();\n");
+    writeln!(
+        out,
+        "                    let py_list = match {}(py, owned) {{",
+        pylist_converter
+    )
+    .unwrap();
+    out.push_str("                        Ok(list) => list,\n");
+    out.push_str("                        Err(e) => {\n");
+    out.push_str("                            *cb_err_for_closure.lock().unwrap() = Some(e);\n");
+    out.push_str("                            return;\n");
+    out.push_str("                        }\n");
+    out.push_str("                    };\n");
+    out.push_str(
+        "                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {\n",
+    );
+    out.push_str("                        *cb_err_for_closure.lock().unwrap() = Some(e);\n");
+    out.push_str("                    }\n");
+    out.push_str("                });\n");
+    out.push_str("            }).await\n");
+    out.push_str("        }, move |py, ()| {\n");
+    out.push_str("            // Post-await converter — reacquired GIL. Re-raise any\n");
+    out.push_str("            // captured callback PyErr before resolving the awaitable.\n");
+    out.push_str("            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {\n");
+    out.push_str("                return Err(py_err);\n");
+    out.push_str("            }\n");
+    out.push_str("            Ok::<_, PyErr>(py.None())\n");
+    out.push_str("        })\n");
+    out.push_str("    }\n");
+}
+
+/// Shared dispatch-setup emit: clones the Arc + every captured request
+/// param off `self` so the spawned future / blocking call owns its
+/// state. Mirrors [`write_sync_parsed_dispatch`] / [`write_async_parsed_dispatch`].
+fn write_stream_dispatch_setup(
+    out: &mut String,
+    method_params: &[&GeneratedParam],
+    builder_params: &[&GeneratedParam],
+    indent: &str,
+) {
+    let has_symbols = method_params
+        .iter()
+        .any(|param| param.param_type == "Symbols");
+    writeln!(out, "{indent}let tdx = self.tdx.clone();").unwrap();
+    if has_symbols {
+        writeln!(out, "{indent}let symbols = self.symbols.clone();").unwrap();
+    } else {
+        for param in method_params {
+            writeln!(
+                out,
+                "{indent}let {} = self.{}.clone();",
+                param.name, param.name
+            )
+            .unwrap();
+        }
+    }
+    for param in builder_params {
+        writeln!(
+            out,
+            "{indent}let {} = self.{}{};",
+            param.name,
+            param.name,
+            builder_field_clone_expr(param)
+        )
+        .unwrap();
+    }
+    writeln!(out, "{indent}let timeout_ms = self.timeout_ms;").unwrap();
+}
+
+/// Shared request-builder emit: turns the cloned state into a
+/// `tdx.<endpoint>(...)` builder with every chained setter applied.
+/// Lives inside the spawned future / `run_blocking` body; consumed by
+/// the `.stream(handler)` call right after.
+fn write_stream_request_setup(
+    out: &mut String,
+    endpoint: &GeneratedEndpoint,
+    method_params: &[&GeneratedParam],
+    builder_params: &[&GeneratedParam],
+    indent: &str,
+) {
+    let has_symbols = method_params
+        .iter()
+        .any(|param| param.param_type == "Symbols");
+    if has_symbols {
+        writeln!(
+            out,
+            "{indent}let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();"
+        )
+        .unwrap();
+    }
+    let positional_args = method_params
+        .iter()
+        .map(|param| {
+            if param.param_type == "Symbols" {
+                "&refs".into()
+            } else {
+                format!("&{}", param.name)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    writeln!(
+        out,
+        "{indent}let mut request = tdx.{}({});",
+        endpoint.name, positional_args
+    )
+    .unwrap();
+    for param in builder_params {
+        writeln!(out, "{indent}if let Some(value) = &{} {{", param.name).unwrap();
+        writeln!(
+            out,
+            "{indent}    request = request.{}({});",
+            param.name,
+            builder_apply_self_value(param)
+        )
+        .unwrap();
+        writeln!(out, "{indent}}}").unwrap();
+    }
+    writeln!(out, "{indent}if let Some(ms) = timeout_ms {{").unwrap();
+    writeln!(
+        out,
+        "{indent}    request = request.with_deadline(std::time::Duration::from_millis(ms));"
+    )
+    .unwrap();
+    writeln!(out, "{indent}}}").unwrap();
 }
 
 /// Builder constructor emitted on `ThetaDataDxClient` — `tdx.name_builder(...)` is

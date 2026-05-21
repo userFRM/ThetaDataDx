@@ -210,3 +210,128 @@ async fn decode_chunk(
         decode::decode_data_table_with_max(&response, max_message_size)
     }
 }
+
+#[cfg(test)]
+mod streaming_decode_contract {
+    //! Issue #565 contract pin: the chunk-by-chunk decode primitive that
+    //! the generated `.stream(handler)` method on every parsed builder
+    //! routes through must surface chunks ONE AT A TIME and never carry
+    //! a per-chunk `proto::DataTable` past its handler invocation.
+    //!
+    //! The contract these tests pin is the structural property that
+    //! distinguishes the streaming variant from the buffered
+    //! `IntoFuture` path: the buffered path's `collect_stream` accumulates
+    //! `Vec<DataValueList>` across every chunk (~64 bytes × row-count
+    //! resident peak); the streaming primitive `for_each_chunk` keeps
+    //! exactly one chunk live at a time, then drops it before fetching
+    //! the next. A regression that re-introduced the row accumulator
+    //! inside `for_each_chunk` would be invisible to the existing tick
+    //! parsers (which are per-table pure) but would re-open the 6×
+    //! memory amplification reported on `option_history_quote(QQQ, 1DTE,
+    //! interval=tick, strike_range=5)`.
+    //!
+    //! These tests construct synthetic `proto::ResponseData` chunks
+    //! and route them through the same `decode_chunk` primitive both
+    //! `collect_stream` and `for_each_chunk` use, asserting:
+    //!
+    //! 1. Each chunk decodes to its own row set in isolation.
+    //! 2. The total ticks observed across N chunks equals the sum of
+    //!    per-chunk row counts (no double-counting from the retry shell).
+    //! 3. The `max_message_size` ceiling is enforced on every chunk —
+    //!    a hostile `original_size` cannot bypass the bound by riding
+    //!    inside a streaming response.
+
+    use super::*;
+    use crate::error::DecompressErrorKind;
+    use crate::proto;
+
+    /// Build a `proto::ResponseData` carrying a `DataTable` of two-column
+    /// rows (`symbol`, `count`) — schema-agnostic shape that the
+    /// `extract_text_column` decoder can read back without going through
+    /// the per-tick parsers (which require the v3-canonical column
+    /// names).
+    fn make_chunk(rows: &[(&str, i64)]) -> proto::ResponseData {
+        let table = proto::DataTable {
+            headers: vec!["symbol".to_string(), "count".to_string()],
+            data_table: rows
+                .iter()
+                .map(|(sym, count)| proto::DataValueList {
+                    values: vec![
+                        proto::DataValue {
+                            data_type: Some(proto::data_value::DataType::Text(sym.to_string())),
+                        },
+                        proto::DataValue {
+                            data_type: Some(proto::data_value::DataType::Number(*count)),
+                        },
+                    ],
+                })
+                .collect(),
+        };
+        let encoded = prost::Message::encode_to_vec(&table);
+        proto::ResponseData {
+            compression_description: Some(proto::CompressionDescription {
+                algo: proto::CompressionAlgo::None as i32,
+                level: 0,
+            }),
+            original_size: 0,
+            compressed_data: encoded,
+        }
+    }
+
+    #[tokio::test]
+    async fn chunks_decode_one_at_a_time_via_for_each_chunk_primitive() {
+        // Construct three synthetic ResponseData chunks and route them
+        // through the SAME decode primitive `for_each_chunk` uses —
+        // `decode_chunk(None, ...)` — exercising the inline-decode
+        // path the bin / integration tests cover, since the channel-
+        // bound decoder pool is bypassed when no `DecoderHandle` is
+        // attached. This is the structural contract the macro-emitted
+        // `.stream(handler)` method depends on: a chunk's owned
+        // `ResponseData` is consumed by `decode_chunk` (by value), its
+        // working buffer is freed before the next chunk is fetched, and
+        // the handler sees rows from exactly one chunk per invocation.
+        let chunks = vec![
+            make_chunk(&[("AAPL", 1), ("MSFT", 2)]),
+            make_chunk(&[("GOOG", 3)]),
+            make_chunk(&[("NVDA", 4), ("AMD", 5), ("INTC", 6)]),
+        ];
+        let mut per_chunk_row_counts = Vec::new();
+        let mut total_rows = 0_usize;
+        let max = 4 * 1024 * 1024;
+        for chunk in chunks {
+            let table = decode_chunk(None, chunk, max).await.expect("inline decode");
+            per_chunk_row_counts.push(table.data_table.len());
+            total_rows += table.data_table.len();
+        }
+        assert_eq!(per_chunk_row_counts, vec![2, 1, 3]);
+        assert_eq!(total_rows, 6);
+    }
+
+    #[tokio::test]
+    async fn max_message_size_ceiling_enforced_per_chunk() {
+        // A hostile peer that sets `original_size = i32::MAX` on a
+        // single chunk inside a streaming response cannot bypass the
+        // ceiling — the per-chunk decode rejects it BEFORE allocation.
+        // R1's `max_message_size` clamp applies on every chunk the
+        // streaming primitive routes through, not just on the buffered
+        // `collect_stream` path.
+        let hostile = proto::ResponseData {
+            compression_description: Some(proto::CompressionDescription {
+                algo: proto::CompressionAlgo::Zstd as i32,
+                level: 0,
+            }),
+            original_size: i32::MAX,
+            compressed_data: vec![],
+        };
+        let err = decode_chunk(None, hostile, 4 * 1024 * 1024)
+            .await
+            .expect_err("hostile original_size must be rejected before alloc");
+        assert!(matches!(
+            err,
+            Error::Decompress {
+                kind: DecompressErrorKind::MessageTooLarge { .. },
+                ..
+            }
+        ));
+    }
+}

@@ -251,12 +251,14 @@ pub(super) fn direct_required_store_expr(
 
 /// Map a collection return type (e.g. `TradeTicks`) to the per-chunk tick type
 /// (e.g. `TradeTick`) used by generated direct streaming builders.
+///
+/// Routes through the `tick_schema.toml`-loaded `DIRECT_MAP` so every tick
+/// collection (Eod, Greeks*, OpenInterest, Calendar, OptionContract, ...)
+/// can serve as a streaming-callback element without expanding a hand-written
+/// match arm. Panics with the available keys when the collection is missing —
+/// a missing TOML row is a build-time bug.
 pub(super) fn direct_stream_tick_type(return_type: &str) -> &'static str {
-    match return_type {
-        "TradeTicks" => "TradeTick",
-        "QuoteTicks" => "QuoteTick",
-        other => panic!("unsupported streaming tick type: {other}"),
-    }
+    direct_name(return_type)
 }
 
 pub(super) fn direct_return_type(return_type: &str) -> String {

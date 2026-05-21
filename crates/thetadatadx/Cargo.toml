@@ -262,6 +262,10 @@ harness = false
 name = "bench_delta_decode"
 harness = false
 
+[[bench]]
+name = "historical_streaming_memory"
+harness = false
+
 [[bin]]
 name = "generate_sdk_surfaces"
 path = "src/bin/generate_sdk_surfaces.rs"

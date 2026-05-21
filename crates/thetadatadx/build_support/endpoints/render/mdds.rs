@@ -137,6 +137,18 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
         direct_parser_name(&endpoint.return_type)
     )
     .unwrap();
+    // Per-tick item type for the `.stream(handler)` method emitted
+    // by `parsed_endpoint!`. Issue #565: the streaming variant lets
+    // callers drain row-by-row instead of materializing the full
+    // `Vec<T>`, eliminating the 6× memory amplification on
+    // tick-interval responses (h2 frames + concatenated proto +
+    // decoded Vec + Vec::push doubling).
+    writeln!(
+        out,
+        "    item: {};",
+        direct_stream_tick_type(&endpoint.return_type)
+    )
+    .unwrap();
 
     let date_args = method_params
         .iter()
