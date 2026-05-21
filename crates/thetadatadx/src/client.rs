@@ -89,6 +89,40 @@ fn tier_label(tier: Option<crate::mdds::SubscriptionTier>) -> String {
     }
 }
 
+/// Parse a `YYYYMMDD` date string into an `i32`. Returns `0` on
+/// malformed input -- the only call site
+/// (`option_history_*_with_fallback`) treats `0` as the most-permissive
+/// "always pre-route" boundary, which is the safe default when the
+/// caller passed in something we can't classify. The malformed-input
+/// path also surfaces a `tracing::warn!`.
+fn parse_yyyymmdd(date: &str) -> i32 {
+    match date.parse::<i32>() {
+        Ok(d) if (10_000_000..100_000_000).contains(&d) => d,
+        _ => {
+            tracing::warn!(
+                target: "thetadatadx::client::fallback",
+                date,
+                "could not parse YYYYMMDD date; defaulting to 0 (pre-route to REST if policy permits)"
+            );
+            0
+        }
+    }
+}
+
+/// True iff `err` matches the issue #571 h2-cascade signature. Distinct
+/// from a generic `is_retryable` predicate -- only the specific
+/// connection-closed transport error counts. Other gRPC failures
+/// (auth, timeout, unauthenticated) propagate unchanged.
+fn is_h2_disconnect(err: &Error) -> bool {
+    matches!(
+        err,
+        Error::Transport {
+            kind: crate::error::TransportErrorKind::ConnectionClosed,
+            ..
+        }
+    )
+}
+
 /// Subscription tier information captured at authentication time.
 ///
 /// `#[non_exhaustive]` so new tiers (e.g. additional asset classes the
@@ -1025,6 +1059,217 @@ impl ThetaDataDxClient {
             indices: tier_label(self.historical.indices_tier()),
             interest_rate: tier_label(self.historical.interest_rate_tier()),
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // REST-fallback surface for h2-cascading endpoints (issue #571).
+    //
+    // Wrap the four affected gRPC endpoints with fallback-aware shims
+    // that consult `config.fallback` and dispatch to the REST transport
+    // (`crate::rest`) when the policy applies. Call sites that want
+    // gRPC-only behaviour keep using the existing generated methods on
+    // `self.historical` (e.g. `tdx.option_history_quote(...)`).
+    // ---------------------------------------------------------------------
+
+    /// Fetch option NBBO history via gRPC, falling back to REST per
+    /// [`crate::config::FallbackPolicy`] (issue #571).
+    ///
+    /// Behaviour by policy variant:
+    ///
+    /// * [`FallbackPolicy::Disabled`](crate::config::FallbackPolicy::Disabled)
+    ///   -- always gRPC, no fallback. Identical to
+    ///   `tdx.option_history_quote(symbol, expiration, date).await`.
+    ///
+    /// * [`FallbackPolicy::RestOnH2Disconnect`](crate::config::FallbackPolicy::RestOnH2Disconnect)
+    ///   -- try gRPC first; on
+    ///   [`crate::error::TransportErrorKind::ConnectionClosed`]
+    ///   (the issue #571 signature) re-issue over REST.
+    ///
+    /// * [`FallbackPolicy::RestAlwaysForDateRange { before, .. }`](crate::config::FallbackPolicy::RestAlwaysForDateRange)
+    ///   -- compare `date` (parsed as `YYYYMMDD` integer) against
+    ///   `before`. Strictly-earlier dates skip gRPC and route to REST
+    ///   immediately; on-or-after dates flow through gRPC.
+    ///
+    /// * [`FallbackPolicy::RestAlways`](crate::config::FallbackPolicy::RestAlways)
+    ///   -- always REST.
+    ///
+    /// `date` is the `YYYYMMDD` request date used by both transports;
+    /// `strike` / `right` follow the same string conventions as the
+    /// underlying gRPC and REST builders.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] on transport, parse, or REST decode failure.
+    /// Errors from the REST fallback path are converted via
+    /// `From<RestError>` (carrying the structured
+    /// [`crate::error::TransportErrorKind::UnexpectedHttpStatus`] /
+    /// `ConnectionClosed` discriminator).
+    pub async fn option_history_quote_with_fallback(
+        &self,
+        symbol: &str,
+        expiration: &str,
+        date: &str,
+        strike: Option<&str>,
+        right: Option<&str>,
+        interval: Option<&str>,
+    ) -> Result<Vec<tdbe::types::tick::QuoteTick>, Error> {
+        let policy = &self.config().fallback;
+        let start_date = parse_yyyymmdd(date);
+
+        if policy.pre_routes_to_rest(start_date) {
+            if let Some(base_url) = policy.base_url() {
+                tracing::info!(
+                    target: "thetadatadx::client::fallback",
+                    endpoint = "option_history_quote",
+                    date,
+                    "pre-routing to REST per FallbackPolicy"
+                );
+                return self
+                    .rest_quote(base_url, symbol, expiration, date, strike, right, interval)
+                    .await;
+            }
+        }
+
+        // gRPC path. Build via Deref into MddsClient.
+        let mut builder = self.option_history_quote(symbol, expiration, date);
+        if let Some(s) = strike {
+            builder = builder.strike(s);
+        }
+        if let Some(r) = right {
+            builder = builder.right(r);
+        }
+        if let Some(i) = interval {
+            builder = builder.interval(i);
+        }
+        match builder.await {
+            Ok(ticks) => Ok(ticks),
+            Err(err) => {
+                if policy.falls_back_on_h2_disconnect() && is_h2_disconnect(&err) {
+                    if let Some(base_url) = policy.base_url() {
+                        tracing::warn!(
+                            target: "thetadatadx::client::fallback",
+                            endpoint = "option_history_quote",
+                            error = %err,
+                            "h2 disconnect on gRPC, falling back to REST"
+                        );
+                        return self
+                            .rest_quote(base_url, symbol, expiration, date, strike, right, interval)
+                            .await;
+                    }
+                }
+                Err(err)
+            }
+        }
+    }
+
+    /// REST helper for [`Self::option_history_quote_with_fallback`].
+    /// Kept private so the high-level surface presents one method per
+    /// affected endpoint -- callers do not need to know the REST
+    /// transport exists unless they reach for [`crate::rest::RestClient`]
+    /// directly.
+    async fn rest_quote(
+        &self,
+        base_url: &str,
+        symbol: &str,
+        expiration: &str,
+        date: &str,
+        strike: Option<&str>,
+        right: Option<&str>,
+        interval: Option<&str>,
+    ) -> Result<Vec<tdbe::types::tick::QuoteTick>, Error> {
+        let rest = crate::rest::RestClient::new(base_url).map_err(Error::from)?;
+        let mut builder = rest.option_history_quote(symbol, expiration, date);
+        if let Some(s) = strike {
+            builder = builder.strike(s);
+        }
+        if let Some(r) = right {
+            builder = builder.right(r);
+        }
+        if let Some(i) = interval {
+            builder = builder.interval(i);
+        }
+        builder.execute().await.map_err(Error::from)
+    }
+
+    /// Fetch combined trade + quote history via gRPC, falling back to
+    /// REST per [`crate::config::FallbackPolicy`] (issue #571). Same
+    /// dispatch semantics as
+    /// [`Self::option_history_quote_with_fallback`].
+    ///
+    /// # Errors
+    ///
+    /// See [`Self::option_history_quote_with_fallback`].
+    pub async fn option_history_trade_quote_with_fallback(
+        &self,
+        symbol: &str,
+        expiration: &str,
+        date: &str,
+        strike: Option<&str>,
+        right: Option<&str>,
+    ) -> Result<Vec<tdbe::types::tick::TradeQuoteTick>, Error> {
+        let policy = &self.config().fallback;
+        let start_date = parse_yyyymmdd(date);
+
+        if policy.pre_routes_to_rest(start_date) {
+            if let Some(base_url) = policy.base_url() {
+                tracing::info!(
+                    target: "thetadatadx::client::fallback",
+                    endpoint = "option_history_trade_quote",
+                    date,
+                    "pre-routing to REST per FallbackPolicy"
+                );
+                return self
+                    .rest_trade_quote(base_url, symbol, expiration, date, strike, right)
+                    .await;
+            }
+        }
+
+        let mut builder = self.option_history_trade_quote(symbol, expiration, date);
+        if let Some(s) = strike {
+            builder = builder.strike(s);
+        }
+        if let Some(r) = right {
+            builder = builder.right(r);
+        }
+        match builder.await {
+            Ok(ticks) => Ok(ticks),
+            Err(err) => {
+                if policy.falls_back_on_h2_disconnect() && is_h2_disconnect(&err) {
+                    if let Some(base_url) = policy.base_url() {
+                        tracing::warn!(
+                            target: "thetadatadx::client::fallback",
+                            endpoint = "option_history_trade_quote",
+                            error = %err,
+                            "h2 disconnect on gRPC, falling back to REST"
+                        );
+                        return self
+                            .rest_trade_quote(base_url, symbol, expiration, date, strike, right)
+                            .await;
+                    }
+                }
+                Err(err)
+            }
+        }
+    }
+
+    async fn rest_trade_quote(
+        &self,
+        base_url: &str,
+        symbol: &str,
+        expiration: &str,
+        date: &str,
+        strike: Option<&str>,
+        right: Option<&str>,
+    ) -> Result<Vec<tdbe::types::tick::TradeQuoteTick>, Error> {
+        let rest = crate::rest::RestClient::new(base_url).map_err(Error::from)?;
+        let mut builder = rest.option_history_trade_quote(symbol, expiration, date);
+        if let Some(s) = strike {
+            builder = builder.strike(s);
+        }
+        if let Some(r) = right {
+            builder = builder.right(r);
+        }
+        builder.execute().await.map_err(Error::from)
     }
 
     // ---------------------------------------------------------------------

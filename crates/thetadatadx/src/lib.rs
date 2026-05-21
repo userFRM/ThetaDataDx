@@ -179,8 +179,8 @@ pub mod prelude {
     pub use tdbe::types::enums::SecType;
 }
 pub use config::{
-    DirectConfig, FlatFilesConfig, FpssFlushMode, ReconnectAttemptClass, ReconnectAttemptLimits,
-    ReconnectPolicy,
+    DirectConfig, FallbackPolicy, FlatFilesConfig, FpssFlushMode, ReconnectAttemptClass,
+    ReconnectAttemptLimits, ReconnectPolicy, DEFAULT_REST_BASE_URL,
 };
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use flatfiles::{
