@@ -54,6 +54,25 @@ pub(crate) const HEADER_ALIASES: &[(&str, &str)] = &[
 /// `option_snapshot_greeks_third_order` returning only the third-order Greek
 /// columns from the `GreeksTick` union schema) are by design. Header drift
 /// can be observed at the `trace` level via `RUST_LOG=thetadatadx=trace`.
+///
+/// # Legacy 6-field NBBO quote layout (issue #571)
+///
+/// Pre-2023 storage rows for 2022-era option NBBO quotes still live in the
+/// pre-extension 6-field layout
+/// `[ms_of_day, bid_size, bid, ask_size, ask, date]` — the upstream Java
+/// `QuoteTick` constructor throws `IllegalArgumentException` on these rows
+/// because it length-checks against the current 11-field shape, which
+/// cascades the h2 stream with no error frame. The patched Terminal
+/// (`theta-terminal-re/patches/QuoteTick.java`) upcasts those rows to the
+/// 11-field shape by zero-filling the absent columns, and the REST transport
+/// (`crate::rest`) accepts both shapes verbatim. On the decoder side, the
+/// `QuoteTick` schema declares `bid_exchange`, `bid_condition`,
+/// `ask_exchange`, `ask_condition` as optional columns — when the wire
+/// response omits them (legacy 6-field shape served through REST), the
+/// generator-emitted `opt_number(row, None)` arm defaults them to `0`, which
+/// matches the upstream patched-Terminal upcast contract. The regression
+/// test `tests::quote_tick_decodes_legacy_six_field_shape_with_zero_fill`
+/// in this module pins that behaviour.
 pub(crate) fn find_header(headers: &[&str], name: &str) -> Option<usize> {
     // Try exact match first.
     if let Some(pos) = headers.iter().position(|&s| s == name) {
