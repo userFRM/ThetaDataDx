@@ -208,6 +208,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   short-circuited re-entry. The error is now captured, the FD is
   reclaimed, and the captured error is re-raised so callers still
   see the underlying fault.
+- `next_req_id` widened from `AtomicI32` to `AtomicI64` with a
+  `wire_req_id` clamp at every wire-boundary call site. The previous
+  32-bit counter could wrap into the wire protocol's `-1`
+  "uncorrelated" sentinel after roughly `2^31` allocations (~ 5 days
+  at 5k subs/sec), breaking the user-side correlation between
+  manual subscribes and server `ReqResponse` frames. The clamp
+  masks the sign bit (`x & 0x7FFF_FFFF`) so wire ids stay strictly
+  non-negative even past `i32::MAX`.
+- Per-tick `metrics::counter!` lookup hoisted to `LazyLock<Counter>`
+  handles on the FPSS decode hot path. Eight handles (4 event
+  kinds × 2 metric names) replace the per-tick `(name, labels)`
+  hashmap probe inside the global recorder, dropping the per-call
+  observability cost from ~30 ns to ~5 ns (a single atomic add on
+  `Counter::increment`).
+- Rate-limit the "no contract for ID" warning at 1024 emissions to
+  match the existing slow-callback and clock-skew warn cadence.
+  A server-side replay-boundary anomaly that ticked unrecognised
+  ids previously flooded `tracing` with one line per tick and
+  crowded out genuinely diagnostic warnings.
+- Python `thetadatadx.__version__` now resolves through
+  `importlib.metadata.version("thetadatadx")` (PEP 396). The
+  attribute was missing on the top-level package, breaking
+  `pip show`, downstream version-pinning, and environment
+  snapshot scripts.
+- `Channel::Drop` aborts the spawned h2 connection-driver
+  `JoinHandle` as a belt-and-braces guard. The task was previously
+  detached at `Channel::handshake`; under repeated connect /
+  disconnect cycles a parked connection future could outlive the
+  `Channel` for an unbounded interval, accumulating background
+  tasks. `.abort()` is idempotent on already-finished tasks.
+- The `unwrap_or(u32::MAX)` in `Codec::encode_response_for_test`
+  becomes `.expect("…")` so a synthetic test response that ever
+  outgrows the 32-bit length prefix surfaces a diagnostic
+  failure instead of silently emitting `u32::MAX`.
+- `consecutive_timeouts * 50` in the FPSS io_loop is now
+  `consecutive_timeouts.saturating_mul(50_u64)` so a wild future
+  bump to `max_consecutive_timeouts` past `u64::MAX / 50` cannot
+  wrap the diagnostic on the warn line.
+- Per-disconnect metric label allocation: replaced
+  `format!("{:?}", reason)` with `RemoveReason::as_str()` so the
+  `reason` label points at a `&'static str` rather than allocating
+  a `String` per disconnect. Disconnects are rare, so this is a
+  consistency fix per the "no per-event allocations" discipline,
+  not a hot-path win.
+- `FpssConnectArgs::ring_size` doc comment corrected from "≈ 552
+  bytes after the typed-FpssControl variants" to the actual
+  `mem::size_of::<FpssEventInternal>() = 96` bytes on the current
+  64-bit layout; the per-`FpssClient` ring footprint at the
+  default `ring_size = 4096` is now documented as ~ 384 KiB.
+
+### CI
+
+- Workspace clippy invocation widened to
+  `cargo clippy --workspace --all-targets --locked -- -D warnings`
+  so `[[bench]]` and `#[cfg(test)]` unsafe blocks travel through
+  `clippy::undocumented_unsafe_blocks` on every PR. Adds SAFETY
+  comments on five bench-only `unsafe impl GlobalAlloc` blocks
+  and two test-only unsafe deref sites that previously escaped
+  the lint.
+- `scripts/check_banned_vocab.py` rejects the verbatim string
+  "see FFI boundary doc on the enclosing fn — raw pointers
+  satisfy the documented caller contract" outside `ffi/src/`.
+  The string was landed across 31 sites including 8 that are
+  not FFI raw-pointer contexts; the gate prevents future
+  bot-stamping from reintroducing the boilerplate.
 
 ## [10.0.0] - 2026-05-09
 

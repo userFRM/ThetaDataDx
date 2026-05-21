@@ -25,7 +25,7 @@ use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::Write;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -132,7 +132,10 @@ pub(in crate::fpss) struct IoLoopArgs {
     /// re-subscribe so `ReqResponse` events on the reconnected session
     /// carry ids correlatable to the original subscribe rather than
     /// the indistinguishable `-1` sentinel.
-    pub next_req_id: Arc<AtomicI32>,
+    ///
+    /// Widened to `AtomicI64`; the wire boundary clamps to a positive
+    /// `i32` via [`super::wire_req_id`].
+    pub next_req_id: Arc<AtomicI64>,
 }
 
 // Reason: all parameters are moved into this function from a spawned thread closure.
@@ -565,7 +568,13 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                         tracing::warn!(
                             timeout_ms = read_timeout_ms_total,
                             "FPSS read timed out (no data for {}ms)",
-                            consecutive_timeouts * 50
+                            // `saturating_mul` so a wild future bump to
+                            // `max_consecutive_timeouts` past `u64::MAX
+                            // / 50` cannot wrap the duration field on
+                            // the warn line. 50 is the inner-loop
+                            // poll cadence (ms); explicit `u64`
+                            // suffix pins the diagnostic shape.
+                            consecutive_timeouts.saturating_mul(50_u64)
                         );
                         if producer
                             .try_publish(|slot| {
@@ -950,7 +959,7 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
             // `ReqResponse` events on the reconnected session carry
             // correlatable ids — `-1` is indistinguishable from a
             // manual subscribe and breaks user-side correlation.
-            let req_id = next_req_id.fetch_add(1, Ordering::Relaxed);
+            let req_id = super::wire_req_id(next_req_id.fetch_add(1, Ordering::Relaxed));
             let payload = match protocol::build_subscribe_payload(req_id, contract) {
                 Ok(p) => p,
                 Err(e) => {
@@ -966,7 +975,7 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
             }
         }
         for (kind, sec_type) in &full_subs_snapshot {
-            let req_id = next_req_id.fetch_add(1, Ordering::Relaxed);
+            let req_id = super::wire_req_id(next_req_id.fetch_add(1, Ordering::Relaxed));
             let payload = protocol::build_full_type_subscribe_payload(req_id, *sec_type);
             let code = kind.subscribe_code();
             if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
@@ -1304,12 +1313,12 @@ mod tests {
     /// manual-subscribe responses and break user correlation.
     #[test]
     fn next_req_id_allocates_fresh_ids_for_resubscribe() {
-        let counter = Arc::new(AtomicI32::new(7));
+        let counter = Arc::new(AtomicI64::new(7));
         // Mimic the re-subscribe loop's allocation pattern: one
-        // fetch_add per re-subscribed contract.
-        let id_a = counter.fetch_add(1, Ordering::Relaxed);
-        let id_b = counter.fetch_add(1, Ordering::Relaxed);
-        let id_c = counter.fetch_add(1, Ordering::Relaxed);
+        // fetch_add + `wire_req_id` clamp per re-subscribed contract.
+        let id_a = super::super::wire_req_id(counter.fetch_add(1, Ordering::Relaxed));
+        let id_b = super::super::wire_req_id(counter.fetch_add(1, Ordering::Relaxed));
+        let id_c = super::super::wire_req_id(counter.fetch_add(1, Ordering::Relaxed));
         assert_eq!(id_a, 7);
         assert_eq!(id_b, 8);
         assert_eq!(id_c, 9);
@@ -1317,7 +1326,36 @@ mod tests {
         // Subsequent caller-issued subscribes off the same counter
         // see the next slot — proves the io_loop and the client share
         // one allocator without colliding.
-        assert_eq!(counter.fetch_add(1, Ordering::Relaxed), 10);
+        assert_eq!(
+            super::super::wire_req_id(counter.fetch_add(1, Ordering::Relaxed)),
+            10
+        );
+    }
+
+    /// The `AtomicI64` counter is widened so a long-running session
+    /// (5k subs/sec ≈ 5 days for `2^31`) cannot wrap into the `-1`
+    /// sentinel. `wire_req_id` masks off the sign bit and casts to
+    /// `i32`, so even past `i32::MAX` we stay strictly non-negative
+    /// and never collide with `-1`.
+    #[test]
+    fn wire_req_id_clamps_positive_past_i32_max() {
+        use super::super::wire_req_id;
+        // Below i32::MAX: pass through unchanged.
+        assert_eq!(wire_req_id(1), 1);
+        assert_eq!(wire_req_id(i64::from(i32::MAX)), i32::MAX);
+        // At i32::MAX + 1: the sign-bit mask wraps to 0 (NOT -1).
+        assert_eq!(wire_req_id(i64::from(i32::MAX) + 1), 0);
+        // Way past i32::MAX: stays positive, never `-1`.
+        for n in 0..256_i64 {
+            let v = i64::from(i32::MAX) + 1 + n * 1_000_000;
+            let wire = wire_req_id(v);
+            assert!(wire >= 0, "wire id must stay non-negative (got {wire})");
+            assert_ne!(wire, -1, "wire id must never equal the -1 sentinel");
+        }
+        // Counter value 2^32: low 31 bits clear, masks to 0.
+        assert_eq!(wire_req_id(1_i64 << 32), 0);
+        // Counter value 2^32 + 7: clamps to 7.
+        assert_eq!(wire_req_id((1_i64 << 32) + 7), 7);
     }
 
     /// Finding #2 coverage: transient disconnect reasons must NOT

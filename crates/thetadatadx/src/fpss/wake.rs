@@ -133,7 +133,14 @@ impl WakeFd {
             return;
         }
         let byte: u8 = 1;
-        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+        // SAFETY: `self.write_fd` is owned by this `WakeFd` (held alive
+        // by `&self`); it was either `-1` (filtered by the early return
+        // above) or a valid open writable FD passed in via
+        // `from_raw_write_fd`. The buffer is a single stack byte
+        // (`byte`) valid for the `len = 1` write, and one-byte writes
+        // on a pipe are atomic per POSIX (`pipe(7)`, `write(2)`
+        // PIPE_BUF). No aliasing — `byte` is a local on this stack
+        // frame.
         let res = unsafe {
             libc::write(
                 self.write_fd,
@@ -254,7 +261,13 @@ impl WakeFd {
     }
 }
 
-#[cfg(all(test, unix))]
+// `pipe2(2)` + `__errno_location` used by the test helper are
+// Linux-only libc symbols (macOS uses `pipe(2)` + `__error`). The
+// wake-coalesce logic the tests exercise is platform-agnostic, so
+// gating coverage to Linux is sufficient — the production path on
+// macOS uses the dedicated `streaming_async_session::alloc_wake_pipe`
+// fallback which already has its own coverage.
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
     use std::io::Read;
@@ -268,6 +281,10 @@ mod tests {
         let mut fds = [0_i32; 2];
         // SAFETY: `pipe2` writes two file descriptors into `fds`.
         let rc = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_NONBLOCK | libc::O_CLOEXEC) };
+        // SAFETY: `libc::__errno_location` returns a per-thread non-null
+        // pointer guaranteed by glibc / musl; the deref reads the current
+        // thread's errno slot and is sound on any platform with a POSIX C
+        // runtime.
         assert_eq!(rc, 0, "pipe2 failed: errno={}", unsafe {
             *libc::__errno_location()
         });

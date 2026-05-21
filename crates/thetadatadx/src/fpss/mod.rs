@@ -151,7 +151,7 @@ pub mod __test_internals {
     pub use super::framing::{read_frame_into, FrameReadState, MAX_PAYLOAD_LEN};
 }
 
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::{self, JoinHandle, ThreadId};
@@ -165,6 +165,26 @@ use tdbe::types::enums::{RemoveReason, StreamMsgType};
 use self::protocol::{
     build_credentials_payload, build_subscribe_payload, Contract, SubscriptionKind,
 };
+
+/// Clamp a 64-bit counter value into a positive 31-bit wire `req_id`.
+///
+/// The FPSS wire protocol carries `req_id` as a 32-bit signed integer
+/// and reserves the value `-1` as the "uncorrelated" sentinel emitted
+/// when the server cannot resolve a `ReqResponse` back to a caller-
+/// allocated id. Allocators therefore must never hand out `-1` (and,
+/// defensively, must stay strictly non-negative so a future server-side
+/// `id < 0` check cannot reject a legitimate frame).
+///
+/// `next_req_id` is widened to `AtomicI64` so a long-running session
+/// cannot wrap into the sentinel after `2^31` allocations (≈ 5 days at
+/// 5k subs/sec, well inside the realistic uptime envelope of a
+/// production streaming consumer). This helper masks off the sign bit
+/// and casts down, producing the positive `i32` the wire encoder
+/// expects.
+#[inline]
+pub(in crate::fpss) fn wire_req_id(counter_value: i64) -> i32 {
+    (counter_value & 0x7FFF_FFFF) as i32
+}
 
 // ---------------------------------------------------------------------------
 // FpssConnectArgs — typed parameter bundle for `FpssClient::connect`
@@ -198,13 +218,14 @@ pub struct FpssConnectArgs<'a> {
     pub hosts: &'a [(String, u16)],
     /// Disruptor ring buffer size (events). Must be a power of two.
     ///
-    /// Each ring slot stores one `FpssEventInternal` (≈ 552 bytes after
-    /// the typed-FpssControl variants). The default `ring_size = 4096`
-    /// allocates roughly `4096 × 552 ≈ 2.3 MB` per `FpssClient` for the
-    /// ring, plus per-event refcounted `Arc<Contract>` storage on top.
-    /// Tune downward (e.g., 1024) if memory is tight; tune upward
-    /// (e.g., 16_384) if you observe sustained `dropped_event_count()`
-    /// under bursty load.
+    /// Each ring slot stores one `FpssEventInternal` (96 bytes on the
+    /// current 64-bit layout, validated by the
+    /// `fpss_event_internal_layout_matches_public` test). The default
+    /// `ring_size = 4096` allocates roughly `4096 × 96 ≈ 384 KiB` per
+    /// `FpssClient` for the ring, plus per-event refcounted
+    /// `Arc<Contract>` storage on top. Tune downward (e.g., 1024) if
+    /// memory is tight; tune upward (e.g., 16_384) if you observe
+    /// sustained `dropped_event_count()` under bursty load.
     pub ring_size: usize,
     /// I/O thread flush behavior. See [`FpssFlushMode`].
     pub flush_mode: FpssFlushMode,
@@ -310,7 +331,14 @@ pub struct FpssClient {
     /// `req_id` correlatable to the original subscribe — server-side
     /// `ReqResponse` events with `req_id = -1` are indistinguishable
     /// from manual subscribes, which breaks user-side correlation.
-    next_req_id: Arc<AtomicI32>,
+    ///
+    /// Widened to `AtomicI64` so a long-running session at thousands of
+    /// subscribes/sec cannot wrap into the wire's `-1` sentinel after
+    /// `2^31` allocations (≈ 5 days at 5k subs/sec). The 31-bit clamp
+    /// to a positive `i32` happens at the wire boundary in
+    /// `build_subscribe_payload` / `build_full_type_subscribe_payload`
+    /// callers via `(x & 0x7FFF_FFFF) as i32`.
+    next_req_id: Arc<AtomicI64>,
     /// Active per-contract subscriptions for reconnection.
     pub(in crate::fpss) active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>>,
     /// Active full-type (full-stream) subscriptions for reconnection.
@@ -808,7 +836,7 @@ impl FpssClient {
         // owns one handle for caller-issued subscribes; the io_loop
         // borrows another so re-subscribe frames on auto-reconnect
         // allocate fresh ids correlatable through `ReqResponse`.
-        let next_req_id: Arc<AtomicI32> = Arc::new(AtomicI32::new(1));
+        let next_req_id: Arc<AtomicI64> = Arc::new(AtomicI64::new(1));
 
         // Command channel: FpssClient -> I/O thread
         let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
@@ -1038,7 +1066,7 @@ impl FpssClient {
         unsubscribe: bool,
     ) -> Result<(), Error> {
         self.check_connected()?;
-        let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
+        let req_id = wire_req_id(self.next_req_id.fetch_add(1, Ordering::Relaxed));
         let payload = protocol::build_full_type_subscribe_payload(req_id, sec_type);
         // Wire codes for full-stream subscribe / unsubscribe: code 22
         // (TRADE) / 52 (REMOVE_TRADE) for Trades, code 23
@@ -1083,7 +1111,7 @@ impl FpssClient {
         contract.validate()?;
         self.check_connected()?;
 
-        let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
+        let req_id = wire_req_id(self.next_req_id.fetch_add(1, Ordering::Relaxed));
         let payload = build_subscribe_payload(req_id, contract)?;
         let code = kind.subscribe_code();
 
@@ -1116,7 +1144,7 @@ impl FpssClient {
         contract.validate()?;
         self.check_connected()?;
 
-        let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
+        let req_id = wire_req_id(self.next_req_id.fetch_add(1, Ordering::Relaxed));
         let payload = build_subscribe_payload(req_id, contract)?;
         let code = kind.unsubscribe_code();
 
@@ -1278,7 +1306,7 @@ impl FpssClient {
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
         let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
-        let next_req_id: Arc<AtomicI32> = Arc::new(AtomicI32::new(1));
+        let next_req_id: Arc<AtomicI64> = Arc::new(AtomicI64::new(1));
 
         let (cmd_tx, _cmd_rx) = std_mpsc::channel::<IoCommand>();
 

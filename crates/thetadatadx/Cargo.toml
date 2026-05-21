@@ -183,10 +183,6 @@ criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
 # the umbrella `futures` crate (we already depend on `futures-core`
 # directly; this gives us the executor adapters as well, dev-only).
 futures = "0.3"
-# Signal-driven sampling profiler used by the concurrent-burst bench
-# to emit a flamegraph SVG when `THETADATADX_FLAMEGRAPH=1` is set.
-# Pure userspace — no perf / root required.
-pprof = { version = "0.15", features = ["flamegraph"] }
 proptest = "1.5"
 # Test-only: load captured-response fixtures and their sidecar .meta.toml
 # files for the decoder-regression suite (`tests/test_decode_captures.rs`).
@@ -200,6 +196,18 @@ toml = "1.1.2"
 # dev-dependency graph stays consistent. dev-only — never enters the
 # published crate graph.
 pyo3 = { version = "=0.28.3", features = ["auto-initialize"] }
+
+# Signal-driven sampling profiler used by the concurrent-burst bench
+# to emit a flamegraph SVG when `THETADATADX_FLAMEGRAPH=1` is set.
+# Pure userspace — no perf / root required. Unix-only: pprof relies on
+# POSIX signals + pthread types that don't exist on Windows. The
+# `cfg(unix)` target-conditional dev-dependencies table MUST live
+# AFTER the cross-platform `[dev-dependencies]` block — TOML table
+# headings absorb every subsequent k/v pair until the next heading,
+# so anything placed after `[target.'cfg(unix)'.dev-dependencies]`
+# silently becomes Unix-only too.
+[target.'cfg(unix)'.dev-dependencies]
+pprof = { version = "0.15", features = ["flamegraph"] }
 
 [build-dependencies]
 # `prost-build` compiles `proto/mdds.proto` into Rust message types;

@@ -546,7 +546,10 @@ mod tests {
             let payload_len = resp.encoded_len();
             let mut buf = BytesMut::with_capacity(FRAME_HEADER_LEN + payload_len);
             buf.put_u8(0);
-            buf.put_u32(u32::try_from(payload_len).unwrap_or(u32::MAX));
+            buf.put_u32(
+                u32::try_from(payload_len)
+                    .expect("synthetic test response must fit the gRPC 32-bit length prefix"),
+            );
             resp.encode(&mut buf)
                 .expect("test buffer sized for payload");
             buf.freeze()

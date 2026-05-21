@@ -38,6 +38,11 @@ struct CountingAllocator;
 static BYTES_ALLOCATED: AtomicU64 = AtomicU64::new(0);
 static BYTES_DEALLOCATED: AtomicU64 = AtomicU64::new(0);
 
+// SAFETY: every method forwards verbatim to `std::alloc::System`, which
+// itself satisfies the `GlobalAlloc` contract. Per-call `Relaxed` adds on
+// `AtomicU64` are pure observational state and cannot violate the
+// allocator's invariants. Bench-only; never linked into the shipped
+// library.
 unsafe impl GlobalAlloc for CountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         // SAFETY: forwarding to the system allocator under the same
@@ -279,6 +284,9 @@ fn bench_concurrent_burst(c: &mut Criterion) {
     // lands at `$THETADATADX_FLAMEGRAPH_OUT` (defaulting to
     // `/tmp/grpc_burst_flame.svg`). The profiler uses SIGPROF
     // sampling — no perf / root required, no kernel privileges.
+    // `pprof` is Unix-only (POSIX signals + pthread types), so the
+    // hook is `#[cfg(unix)]`-gated and silently no-ops on Windows.
+    #[cfg(unix)]
     let profiler = if std::env::var_os("THETADATADX_FLAMEGRAPH").is_some() {
         Some(
             pprof::ProfilerGuardBuilder::default()
@@ -290,6 +298,8 @@ fn bench_concurrent_burst(c: &mut Criterion) {
     } else {
         None
     };
+    #[cfg(not(unix))]
+    let profiler: Option<()> = None;
 
     let mut group = c.benchmark_group("concurrent_burst");
     group.throughput(Throughput::Elements(BURST_SIZE as u64));
@@ -333,6 +343,7 @@ fn bench_concurrent_burst(c: &mut Criterion) {
     });
     group.finish();
 
+    #[cfg(unix)]
     if let Some(profiler) = profiler {
         let out = std::env::var("THETADATADX_FLAMEGRAPH_OUT")
             .unwrap_or_else(|_| "/tmp/grpc_burst_flame.svg".to_string());
@@ -350,6 +361,8 @@ fn bench_concurrent_burst(c: &mut Criterion) {
             Err(e) => eprintln!("pprof report build failed: {e}"),
         }
     }
+    #[cfg(not(unix))]
+    let _ = profiler;
 
     let alloc_end = alloc_snapshot();
     let iters_total = iterations.load(Ordering::Relaxed);

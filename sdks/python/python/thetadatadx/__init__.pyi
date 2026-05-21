@@ -29,6 +29,12 @@ from typing import (
     final,
 )
 
+# PEP 396 — package version string, resolved at import time from the
+# installed wheel's metadata via `importlib.metadata.version`. Falls
+# back to the in-source default when the wheel metadata is absent
+# (editable installs, source-tree imports).
+__version__: str
+
 # ─────────────────────────────────────────────────────────────────────
 # Credentials + Config
 # ─────────────────────────────────────────────────────────────────────

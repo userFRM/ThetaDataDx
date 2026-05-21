@@ -247,6 +247,10 @@ extern "C" fn ffi_trampoline(ctx: *mut c_void, event_ptr: *const c_void) {
     // `drive_publish` call). `event_ptr` is a `*const FpssEvent` cast
     // to `*const c_void` by the caller.
     let ctx = unsafe { &*(ctx as *const FfiCtx) };
+    // SAFETY: `event_ptr` is a `*const FpssEvent` produced by the bench
+    // harness one stack frame above; the referent lives until
+    // `drive_publish` returns, which is strictly after this callback
+    // ends. No aliasing — the consumer is the sole reader.
     let evt = unsafe { &*(event_ptr as *const FpssEvent) };
     // Touch the event so the read is not elided. Match-arm chosen for
     // its uniqueness so the optimiser cannot collapse the load.
@@ -394,6 +398,10 @@ struct BenchPyEvent {
 // is `Send + Sync` (`Arc<Contract>` + scalars). The bench mirrors the
 // SDK's contract here exactly.
 unsafe impl Send for BenchPyEvent {}
+// SAFETY: same argument as the `Send` impl above — every field access
+// is gated by an `Acquire` load on `valid`, so a thread that observes a
+// live `BenchPyEvent` reads a non-stale `FpssEvent` reference. The
+// `FpssEvent` graph itself is `Sync`.
 unsafe impl Sync for BenchPyEvent {}
 
 impl BenchPyEvent {

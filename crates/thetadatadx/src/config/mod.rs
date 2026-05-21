@@ -1203,9 +1203,14 @@ mod tests {
     fn clear_env_matrix() {
         // Unset every variable the env-override path reads so no test
         // leaks into another. The guard above pins us as the sole writer.
-        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+        // SAFETY: the env-var tests serialise through `env_test_guard()`,
+        // a process-global `Mutex<()>` held for the full body of every
+        // env test; this function is only called from inside that
+        // critical section. The Rust 1.88 `unsafe fn` contract on
+        // `std::env::remove_var` requires the caller to ensure no other
+        // thread reads or writes the environment concurrently — the
+        // mutex provides exactly that.
         unsafe {
-            // Reason: test-only mutation; protected by env_test_guard.
             std::env::remove_var(ENV_MDDS_HOST);
             std::env::remove_var(ENV_MDDS_PORT);
             std::env::remove_var(ENV_NEXUS_URL);
@@ -1219,9 +1224,11 @@ mod tests {
     fn env_overrides_apply_on_production() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+        // SAFETY: `_guard` holds the process-global env-var mutex for
+        // the body of this test, so no other thread observes or mutates
+        // the environment while these writes land. `std::env::set_var`'s
+        // 1.88 `unsafe fn` contract is therefore upheld.
         unsafe {
-            // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_MDDS_HOST, "mdds.staging.example.com");
             std::env::set_var(ENV_MDDS_PORT, "8443");
             std::env::set_var(ENV_NEXUS_URL, "https://nexus.staging.example.com/auth");
@@ -1248,9 +1255,10 @@ mod tests {
     fn builder_takes_precedence_over_env_var() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+        // SAFETY: `_guard` holds the process-global env-var mutex for
+        // the body of this test, so no other thread observes or mutates
+        // the environment while this write lands.
         unsafe {
-            // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_CLIENT_TYPE, "env-wins-when-no-builder");
         }
         let config = DirectConfig::production().with_client_type("builder-wins");
@@ -1262,9 +1270,10 @@ mod tests {
     fn env_overrides_skipped_when_values_malformed() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+        // SAFETY: `_guard` holds the process-global env-var mutex for
+        // the body of this test, so no other thread observes or mutates
+        // the environment while these writes land.
         unsafe {
-            // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_MDDS_PORT, "not-a-port");
             std::env::set_var(ENV_FPSS_PORT, "0"); // reject zero
             std::env::set_var(ENV_MDDS_HOST, "   "); // whitespace-only
@@ -1281,9 +1290,10 @@ mod tests {
     fn production_defaults_are_not_sensitive_to_env() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+        // SAFETY: `_guard` holds the process-global env-var mutex for
+        // the body of this test, so no other thread observes or mutates
+        // the environment while these writes land.
         unsafe {
-            // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_MDDS_HOST, "ignored-by-defaults");
             std::env::set_var(ENV_MDDS_PORT, "9999");
         }
