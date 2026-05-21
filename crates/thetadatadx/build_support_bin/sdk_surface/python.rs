@@ -234,9 +234,18 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("    }\n");
         }
         MethodKind::ActiveSubscriptions => {
+            // P1 closure: project per-contract subscriptions to typed
+            // `PySubscription` values that round-trip with the
+            // `subscribe()` input shape. The previous generator emitted
+            // `Vec<HashMap<String, String>>` with debug-format strings,
+            // which lied about the `List[Subscription]` claim in the
+            // .pyi stub and broke the `for sub in client.active_subscriptions(): client.unsubscribe(sub)`
+            // user pattern. The hand-written `FpssClient` projection
+            // already followed this shape; this brings the unified
+            // pyclass into lockstep.
             writeln!(
                 out,
-                "    fn {}(&self) -> PyResult<Vec<std::collections::HashMap<String, String>>> {{",
+                "    fn {}(&self) -> PyResult<Vec<crate::fluent::PySubscription>> {{",
                 method.name
             )
             .unwrap();
@@ -244,13 +253,10 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("            .active_subscriptions()\n");
             out.push_str("            .map(|subs| {\n");
             out.push_str("                subs.into_iter()\n");
-            out.push_str("                    .map(|(kind, contract)| {\n");
-            out.push_str("                        let mut m = std::collections::HashMap::new();\n");
             out.push_str(
-                "                        m.insert(\"kind\".to_string(), format!(\"{kind:?}\"));\n",
+                "                    .map(|(kind, contract)| crate::fluent::PySubscription {\n",
             );
-            out.push_str("                        m.insert(\"contract\".to_string(), format!(\"{contract}\"));\n");
-            out.push_str("                        m\n");
+            out.push_str("                        inner: fpss::protocol::Subscription::Contract { contract, kind },\n");
             out.push_str("                    })\n");
             out.push_str("                    .collect()\n");
             out.push_str("            })\n");
