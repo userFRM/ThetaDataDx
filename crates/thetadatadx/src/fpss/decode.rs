@@ -164,13 +164,30 @@ pub fn decode_frame(
     // contract cache. Suppress for 5 seconds after STOP (market close) since
     // stale ticks are expected during teardown. Matches Java terminal behavior.
     // Uses the thread-local cache instead of locking the shared contract_map.
+    //
+    // Rate-limit at every 1024th hit to match the cadence of the
+    // slow-callback / clock-skew warnings (`decode.rs:96`,
+    // `mod.rs::slow_callback`). Without the limit, a server-side
+    // mis-routing or replay-boundary anomaly that emits ticks for an
+    // unknown id would flood `tracing` with a per-tick line on every
+    // affected contract — at FPSS arrival rates the log channel
+    // becomes the bottleneck.
     let warn_unknown_contract =
         |contract_id: i32,
          kind: &str,
          delta_state: &DeltaState,
          cache: &HashMap<i32, Arc<Contract>>| {
             if !cache.contains_key(&contract_id) && !delta_state.is_in_stop_suppression_window() {
-                tracing::warn!(contract_id, kind, "no contract for ID");
+                static MISS_COUNT: AtomicU64 = AtomicU64::new(0);
+                let prev = MISS_COUNT.fetch_add(1, Ordering::Relaxed);
+                if prev.is_multiple_of(1024) {
+                    tracing::warn!(
+                        contract_id,
+                        kind,
+                        miss_count = prev + 1,
+                        "no contract for ID (1 of every 1024 emitted)"
+                    );
+                }
             }
         };
 
