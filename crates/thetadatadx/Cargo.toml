@@ -90,8 +90,11 @@ x509-parser = "0.18.1"
 sha2 = "0.11.0"
 subtle = "2.6.1"
 
-# HTTP (auth against nexus-api)
-reqwest = { version = "0.13.3", features = ["json", "rustls"], default-features = false }
+# HTTP (auth against nexus-api + local-Terminal REST transport, #571).
+# `query` enables `RequestBuilder::query` for URL parameter encoding on
+# the REST path (`crate::rest`); adds serde + serde_urlencoded both
+# already in the workspace lockfile.
+reqwest = { version = "0.13.3", features = ["json", "query", "rustls"], default-features = false }
 
 # Serialization
 serde = { version = "1.0.228", features = ["derive"] }

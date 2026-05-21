@@ -99,6 +99,7 @@ pub mod fpss;
 pub mod frames;
 pub mod grpc;
 pub mod observability;
+pub mod rest;
 pub mod util;
 
 // Wave 3 layout: macros, registry, validate, wire_semantics, and the
@@ -178,8 +179,8 @@ pub mod prelude {
     pub use tdbe::types::enums::SecType;
 }
 pub use config::{
-    DirectConfig, FlatFilesConfig, FpssFlushMode, ReconnectAttemptClass, ReconnectAttemptLimits,
-    ReconnectPolicy,
+    DirectConfig, FallbackPolicy, FlatFilesConfig, FpssFlushMode, ReconnectAttemptClass,
+    ReconnectAttemptLimits, ReconnectPolicy, DEFAULT_REST_BASE_URL,
 };
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use flatfiles::{

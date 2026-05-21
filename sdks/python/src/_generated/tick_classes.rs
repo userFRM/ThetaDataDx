@@ -577,6 +577,18 @@ impl PriceTick {
 }
 
 /// Quote tick. NBBO quote data.
+/// 
+/// Wire layout: the post-extension shape is 11 columns (`ms_of_day`,
+/// `bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`,
+/// `ask_exchange`, `ask`, `ask_condition`, `price_type`, `date`).
+/// Pre-2023 storage rows for 2022-era options still live in the
+/// pre-extension 6-column layout (`ms_of_day`, `bid_size`, `bid`,
+/// `ask_size`, `ask`, `date`) (issue #571). The four exchange / condition
+/// columns are NOT in the `required` list below so the generator emits
+/// `opt_number(row, None) -> 0` arms for them, which matches the
+/// patched-Terminal `QuoteTick.normalizeData()` upcast contract verbatim
+/// and keeps REST-served legacy rows decoding bit-exact for the
+/// wire-present columns. See `docs-site/docs/legacy-quote-handling.md`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]

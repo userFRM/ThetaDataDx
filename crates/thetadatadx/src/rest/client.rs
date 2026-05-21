@@ -1,0 +1,664 @@
+//! `RestClient` -- talks HTTP to the local Terminal's `/v3/...` paths.
+//!
+//! Mirrors the gRPC builder shape so call sites can switch transports
+//! with a receiver swap; see the module docstring on [`super`] for the
+//! incident this exists to escape.
+
+use std::time::Duration;
+
+use reqwest::Client as ReqwestClient;
+use tdbe::types::tick::{GreeksFirstOrderTick, IvTick, QuoteTick, TradeQuoteTick};
+
+use super::csv::Table;
+use super::error::RestError;
+
+/// Default Terminal base URL (`http://127.0.0.1:25503`).
+pub const DEFAULT_TERMINAL_BASE_URL: &str = "http://127.0.0.1:25503";
+
+/// HTTP REST transport against the local ThetaTerminal.
+///
+/// `RestClient` is cheap to construct (no network round-trip on
+/// `new()`); the underlying [`reqwest::Client`] holds the connection
+/// pool. Clone is `O(1)` -- both fields are `Arc`-backed -- so handing
+/// the client across worker tasks does not duplicate connections.
+#[derive(Debug, Clone)]
+pub struct RestClient {
+    base_url: String,
+    http: ReqwestClient,
+}
+
+impl RestClient {
+    /// Build a REST client pointing at `base_url` (e.g.
+    /// `"http://127.0.0.1:25503"`).
+    ///
+    /// `connect_timeout`, `request_timeout` are set to sensible defaults
+    /// (5 s / 60 s); override via [`Self::with_http_client`] when the
+    /// caller wants a tuned `reqwest::Client`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying `reqwest::ClientBuilder`
+    /// fails to assemble (rustls platform-verifier init failure,
+    /// invalid timeout config). Hot in practice.
+    pub fn new(base_url: impl Into<String>) -> Result<Self, RestError> {
+        let http = ReqwestClient::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(60))
+            .build()?;
+        Ok(Self {
+            base_url: base_url.into(),
+            http,
+        })
+    }
+
+    /// Build a REST client with a caller-supplied [`reqwest::Client`].
+    ///
+    /// Use when the application already runs a tuned HTTP client
+    /// (custom timeouts, connection pool size, middleware) and wants
+    /// the REST transport to share it.
+    #[must_use]
+    pub fn with_http_client(base_url: impl Into<String>, http: ReqwestClient) -> Self {
+        Self {
+            base_url: base_url.into(),
+            http,
+        }
+    }
+
+    /// Base URL the client targets.
+    #[must_use]
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    /// Build a builder for `option_history_quote` (REST path
+    /// `/v3/option/history/quote`). The builder mirrors the gRPC
+    /// builder's setter surface (`strike`, `right`, `interval`, ...)
+    /// and decodes to `Vec<QuoteTick>` on `.await`.
+    #[must_use]
+    pub fn option_history_quote(
+        &self,
+        symbol: &str,
+        expiration: &str,
+        date: &str,
+    ) -> OptionHistoryQuoteRestBuilder<'_> {
+        OptionHistoryQuoteRestBuilder {
+            client: self,
+            symbol: symbol.to_string(),
+            expiration: expiration.to_string(),
+            start_date: date.to_string(),
+            end_date: date.to_string(),
+            strike: None,
+            right: None,
+            interval: None,
+        }
+    }
+
+    /// Build a builder for `option_history_trade_quote` (REST path
+    /// `/v3/option/history/trade_quote`).
+    #[must_use]
+    pub fn option_history_trade_quote(
+        &self,
+        symbol: &str,
+        expiration: &str,
+        date: &str,
+    ) -> OptionHistoryTradeQuoteRestBuilder<'_> {
+        OptionHistoryTradeQuoteRestBuilder {
+            client: self,
+            symbol: symbol.to_string(),
+            expiration: expiration.to_string(),
+            start_date: date.to_string(),
+            end_date: date.to_string(),
+            strike: None,
+            right: None,
+        }
+    }
+
+    /// Build a builder for `option_history_greeks_implied_volatility`
+    /// (REST path `/v3/option/history/greeks/implied_volatility`).
+    /// Listed in BUG_REPORT.md as a sibling endpoint to the
+    /// `_first_order` Greeks one that surfaces the same 6-field NBBO
+    /// row through its underlying-quote join.
+    #[must_use]
+    pub fn option_history_greeks_implied_volatility(
+        &self,
+        symbol: &str,
+        expiration: &str,
+        date: &str,
+    ) -> OptionHistoryGreeksIvRestBuilder<'_> {
+        OptionHistoryGreeksIvRestBuilder {
+            client: self,
+            symbol: symbol.to_string(),
+            expiration: expiration.to_string(),
+            start_date: date.to_string(),
+            end_date: date.to_string(),
+            strike: None,
+            right: None,
+            interval: None,
+        }
+    }
+
+    /// Build a builder for `option_history_greeks_first_order`
+    /// (REST path `/v3/option/history/greeks/first_order`).
+    #[must_use]
+    pub fn option_history_greeks_first_order(
+        &self,
+        symbol: &str,
+        expiration: &str,
+        date: &str,
+    ) -> OptionHistoryGreeksFirstOrderRestBuilder<'_> {
+        OptionHistoryGreeksFirstOrderRestBuilder {
+            client: self,
+            symbol: symbol.to_string(),
+            expiration: expiration.to_string(),
+            start_date: date.to_string(),
+            end_date: date.to_string(),
+            strike: None,
+            right: None,
+            interval: None,
+        }
+    }
+}
+
+/// Builder for [`RestClient::option_history_quote`].
+#[derive(Debug)]
+pub struct OptionHistoryQuoteRestBuilder<'a> {
+    client: &'a RestClient,
+    symbol: String,
+    expiration: String,
+    start_date: String,
+    end_date: String,
+    strike: Option<String>,
+    right: Option<String>,
+    interval: Option<String>,
+}
+
+impl<'a> OptionHistoryQuoteRestBuilder<'a> {
+    /// Set the option strike price (e.g. `"440"` for $440, `"17.5"`
+    /// for $17.50). `None` is equivalent to the wildcard query.
+    #[must_use]
+    pub fn strike(mut self, strike: impl Into<String>) -> Self {
+        self.strike = Some(strike.into());
+        self
+    }
+
+    /// Set the option right (`"call"`, `"put"`, or `"both"`).
+    #[must_use]
+    pub fn right(mut self, right: impl Into<String>) -> Self {
+        self.right = Some(right.into());
+        self
+    }
+
+    /// Set the sampling interval (`"tick"`, `"1s"`, `"1m"`, `"5m"`,
+    /// `"1h"`, ...).
+    #[must_use]
+    pub fn interval(mut self, interval: impl Into<String>) -> Self {
+        self.interval = Some(interval.into());
+        self
+    }
+
+    /// Override the end date (defaults to the same value as the
+    /// `date` parameter passed to `RestClient::option_history_quote`).
+    /// Use for multi-day requests.
+    #[must_use]
+    pub fn end_date(mut self, end_date: impl Into<String>) -> Self {
+        self.end_date = end_date.into();
+        self
+    }
+
+    /// Execute the REST request, decode the CSV body, and return the
+    /// resulting `Vec<QuoteTick>`. Decoder accepts both the current
+    /// 11-field and legacy 6-field NBBO header layouts; absent
+    /// columns zero-fill (issue #571).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RestError`] on HTTP transport failure, non-2xx
+    /// status, or CSV decode failure.
+    pub async fn execute(self) -> Result<Vec<QuoteTick>, RestError> {
+        let body = fetch_csv(
+            self.client,
+            "/v3/option/history/quote",
+            &[
+                ("symbol", self.symbol.as_str()),
+                ("expiration", self.expiration.as_str()),
+                ("start_date", self.start_date.as_str()),
+                ("end_date", self.end_date.as_str()),
+                ("strike", self.strike.as_deref().unwrap_or("")),
+                ("right", self.right.as_deref().unwrap_or("")),
+                ("interval", self.interval.as_deref().unwrap_or("")),
+                ("format", "csv"),
+            ],
+        )
+        .await?;
+        decode_quote_csv(&body)
+    }
+}
+
+/// Builder for [`RestClient::option_history_trade_quote`].
+#[derive(Debug)]
+pub struct OptionHistoryTradeQuoteRestBuilder<'a> {
+    client: &'a RestClient,
+    symbol: String,
+    expiration: String,
+    start_date: String,
+    end_date: String,
+    strike: Option<String>,
+    right: Option<String>,
+}
+
+impl<'a> OptionHistoryTradeQuoteRestBuilder<'a> {
+    #[must_use]
+    pub fn strike(mut self, strike: impl Into<String>) -> Self {
+        self.strike = Some(strike.into());
+        self
+    }
+
+    #[must_use]
+    pub fn right(mut self, right: impl Into<String>) -> Self {
+        self.right = Some(right.into());
+        self
+    }
+
+    #[must_use]
+    pub fn end_date(mut self, end_date: impl Into<String>) -> Self {
+        self.end_date = end_date.into();
+        self
+    }
+
+    /// # Errors
+    ///
+    /// See [`OptionHistoryQuoteRestBuilder::execute`].
+    pub async fn execute(self) -> Result<Vec<TradeQuoteTick>, RestError> {
+        let body = fetch_csv(
+            self.client,
+            "/v3/option/history/trade_quote",
+            &[
+                ("symbol", self.symbol.as_str()),
+                ("expiration", self.expiration.as_str()),
+                ("start_date", self.start_date.as_str()),
+                ("end_date", self.end_date.as_str()),
+                ("strike", self.strike.as_deref().unwrap_or("")),
+                ("right", self.right.as_deref().unwrap_or("")),
+                ("format", "csv"),
+            ],
+        )
+        .await?;
+        decode_trade_quote_csv(&body)
+    }
+}
+
+/// Builder for [`RestClient::option_history_greeks_implied_volatility`].
+#[derive(Debug)]
+pub struct OptionHistoryGreeksIvRestBuilder<'a> {
+    client: &'a RestClient,
+    symbol: String,
+    expiration: String,
+    start_date: String,
+    end_date: String,
+    strike: Option<String>,
+    right: Option<String>,
+    interval: Option<String>,
+}
+
+impl<'a> OptionHistoryGreeksIvRestBuilder<'a> {
+    #[must_use]
+    pub fn strike(mut self, strike: impl Into<String>) -> Self {
+        self.strike = Some(strike.into());
+        self
+    }
+
+    #[must_use]
+    pub fn right(mut self, right: impl Into<String>) -> Self {
+        self.right = Some(right.into());
+        self
+    }
+
+    #[must_use]
+    pub fn interval(mut self, interval: impl Into<String>) -> Self {
+        self.interval = Some(interval.into());
+        self
+    }
+
+    #[must_use]
+    pub fn end_date(mut self, end_date: impl Into<String>) -> Self {
+        self.end_date = end_date.into();
+        self
+    }
+
+    /// # Errors
+    ///
+    /// See [`OptionHistoryQuoteRestBuilder::execute`].
+    pub async fn execute(self) -> Result<Vec<IvTick>, RestError> {
+        let body = fetch_csv(
+            self.client,
+            "/v3/option/history/greeks/implied_volatility",
+            &[
+                ("symbol", self.symbol.as_str()),
+                ("expiration", self.expiration.as_str()),
+                ("start_date", self.start_date.as_str()),
+                ("end_date", self.end_date.as_str()),
+                ("strike", self.strike.as_deref().unwrap_or("")),
+                ("right", self.right.as_deref().unwrap_or("")),
+                ("interval", self.interval.as_deref().unwrap_or("")),
+                ("format", "csv"),
+            ],
+        )
+        .await?;
+        decode_iv_csv(&body)
+    }
+}
+
+/// Builder for [`RestClient::option_history_greeks_first_order`].
+#[derive(Debug)]
+pub struct OptionHistoryGreeksFirstOrderRestBuilder<'a> {
+    client: &'a RestClient,
+    symbol: String,
+    expiration: String,
+    start_date: String,
+    end_date: String,
+    strike: Option<String>,
+    right: Option<String>,
+    interval: Option<String>,
+}
+
+impl<'a> OptionHistoryGreeksFirstOrderRestBuilder<'a> {
+    #[must_use]
+    pub fn strike(mut self, strike: impl Into<String>) -> Self {
+        self.strike = Some(strike.into());
+        self
+    }
+
+    #[must_use]
+    pub fn right(mut self, right: impl Into<String>) -> Self {
+        self.right = Some(right.into());
+        self
+    }
+
+    #[must_use]
+    pub fn interval(mut self, interval: impl Into<String>) -> Self {
+        self.interval = Some(interval.into());
+        self
+    }
+
+    #[must_use]
+    pub fn end_date(mut self, end_date: impl Into<String>) -> Self {
+        self.end_date = end_date.into();
+        self
+    }
+
+    /// # Errors
+    ///
+    /// See [`OptionHistoryQuoteRestBuilder::execute`].
+    pub async fn execute(self) -> Result<Vec<GreeksFirstOrderTick>, RestError> {
+        let body = fetch_csv(
+            self.client,
+            "/v3/option/history/greeks/first_order",
+            &[
+                ("symbol", self.symbol.as_str()),
+                ("expiration", self.expiration.as_str()),
+                ("start_date", self.start_date.as_str()),
+                ("end_date", self.end_date.as_str()),
+                ("strike", self.strike.as_deref().unwrap_or("")),
+                ("right", self.right.as_deref().unwrap_or("")),
+                ("interval", self.interval.as_deref().unwrap_or("")),
+                ("format", "csv"),
+            ],
+        )
+        .await?;
+        decode_greeks_first_order_csv(&body)
+    }
+}
+
+// ─── Transport helper ────────────────────────────────────────────────
+
+/// Issue the GET request and return the body as `String`. Empty
+/// string-valued query params are dropped so the Terminal sees a
+/// clean URL.
+async fn fetch_csv(
+    client: &RestClient,
+    path: &str,
+    params: &[(&str, &str)],
+) -> Result<String, RestError> {
+    let url = format!("{}{}", client.base_url, path);
+    // Drop empty params so we don't send e.g. `strike=` to the
+    // Terminal -- the upstream parser treats empty as "missing", but
+    // some endpoints emit a 400 on an empty-valued required param.
+    let kept: Vec<(&str, &str)> = params
+        .iter()
+        .copied()
+        .filter(|(_, v)| !v.is_empty())
+        .collect();
+
+    tracing::debug!(target: "thetadatadx::rest", path, ?kept, "REST GET");
+
+    let resp = client.http.get(&url).query(&kept).send().await?;
+    let status = resp.status();
+    if !status.is_success() {
+        let body = resp
+            .text()
+            .await
+            .unwrap_or_else(|_| "<failed to read body>".to_string());
+        let truncated: String = body.chars().take(4096).collect();
+        return Err(RestError::HttpStatus {
+            status: status.as_u16(),
+            body: truncated,
+        });
+    }
+    Ok(resp.text().await?)
+}
+
+// ─── Per-tick CSV decoders ───────────────────────────────────────────
+//
+// Each decoder mirrors the gRPC `parse_<tick>_ticks` function: resolve
+// every column index up front, then iterate rows. Absent columns
+// zero-fill via `cell_i32_or_zero` / `cell_f64_or_zero` -- this is
+// the contract that makes the REST path immune to issue #571.
+
+/// Decode the `option_history_quote` CSV body into `Vec<QuoteTick>`.
+///
+/// Accepts both 11-field and legacy 6-field header layouts; absent
+/// columns default to 0 per the patched-Terminal `normalizeData()`
+/// upcast contract.
+///
+/// # Errors
+///
+/// Returns [`RestError`] when the body has no header, when one of the
+/// hard-required columns (`ms_of_day`, `date`) is missing on a
+/// non-empty response, or when a numeric cell fails to parse.
+pub fn decode_quote_csv(body: &str) -> Result<Vec<QuoteTick>, RestError> {
+    let table = Table::parse(body)?;
+    let ms_idx = table.column_index("ms_of_day");
+    let bid_size_idx = table.column_index("bid_size");
+    let bid_exg_idx = table.column_index("bid_exchange");
+    let bid_idx = table.column_index("bid");
+    let bid_cond_idx = table.column_index("bid_condition");
+    let ask_size_idx = table.column_index("ask_size");
+    let ask_exg_idx = table.column_index("ask_exchange");
+    let ask_idx = table.column_index("ask");
+    let ask_cond_idx = table.column_index("ask_condition");
+    let date_idx = table.column_index("date");
+
+    if table.rows.is_empty() {
+        // Empty response -- legitimate "no data today". No header
+        // validation, mirrors the gRPC path's empty-table guard.
+        return Ok(vec![]);
+    }
+
+    let mut out: Vec<QuoteTick> = Vec::with_capacity(table.rows.len());
+    for (row_idx, _) in table.rows.iter().enumerate() {
+        let ms_of_day = table.cell_i32_required(row_idx, ms_idx, "ms_of_day")?;
+        let date = table.cell_i32_required(row_idx, date_idx, "date")?;
+        let bid = table.cell_f64_or_zero(row_idx, bid_idx);
+        let ask = table.cell_f64_or_zero(row_idx, ask_idx);
+        let midpoint = (bid + ask) / 2.0;
+        // QuoteTick has contract-id fields (expiration / strike /
+        // right). The REST path doesn't currently carry them in the
+        // CSV -- they're per-request constants, not per-row. Zero /
+        // empty placeholders keep the struct populated; callers who
+        // need contract identity in the result attach it at the
+        // request layer.
+        out.push(QuoteTick {
+            ms_of_day,
+            bid_size: table.cell_i32_or_zero(row_idx, bid_size_idx),
+            bid_exchange: table.cell_i32_or_zero(row_idx, bid_exg_idx),
+            bid,
+            bid_condition: table.cell_i32_or_zero(row_idx, bid_cond_idx),
+            ask_size: table.cell_i32_or_zero(row_idx, ask_size_idx),
+            ask_exchange: table.cell_i32_or_zero(row_idx, ask_exg_idx),
+            ask,
+            ask_condition: table.cell_i32_or_zero(row_idx, ask_cond_idx),
+            date,
+            midpoint,
+            expiration: 0,
+            strike: 0.0,
+            right: 0,
+        });
+    }
+    Ok(out)
+}
+
+/// Decode `option_history_trade_quote` CSV into `Vec<TradeQuoteTick>`.
+///
+/// Combined trade+quote rows carry the quote-side columns the legacy
+/// rollover affects (`bid_exchange`, `bid_condition`,
+/// `ask_exchange`, `ask_condition`) -- those default to 0 when
+/// absent, same contract as the standalone quote path.
+///
+/// # Errors
+///
+/// See [`decode_quote_csv`].
+pub fn decode_trade_quote_csv(body: &str) -> Result<Vec<TradeQuoteTick>, RestError> {
+    let table = Table::parse(body)?;
+    if table.rows.is_empty() {
+        return Ok(vec![]);
+    }
+    let ms_idx = table.column_index("ms_of_day");
+    let price_idx = table.column_index("price");
+    let size_idx = table.column_index("size");
+    let exchange_idx = table.column_index("exchange");
+    let bid_size_idx = table.column_index("bid_size");
+    let bid_exg_idx = table.column_index("bid_exchange");
+    let bid_idx = table.column_index("bid");
+    let bid_cond_idx = table.column_index("bid_condition");
+    let ask_size_idx = table.column_index("ask_size");
+    let ask_exg_idx = table.column_index("ask_exchange");
+    let ask_idx = table.column_index("ask");
+    let ask_cond_idx = table.column_index("ask_condition");
+    let date_idx = table.column_index("date");
+
+    let mut out: Vec<TradeQuoteTick> = Vec::with_capacity(table.rows.len());
+    for row_idx in 0..table.rows.len() {
+        let ms_of_day = table.cell_i32_required(row_idx, ms_idx, "ms_of_day")?;
+        let date = table.cell_i32_required(row_idx, date_idx, "date")?;
+        let price = table.cell_f64_or_zero(row_idx, price_idx);
+        let bid = table.cell_f64_or_zero(row_idx, bid_idx);
+        let ask = table.cell_f64_or_zero(row_idx, ask_idx);
+        out.push(TradeQuoteTick {
+            ms_of_day,
+            sequence: 0,
+            ext_condition1: 0,
+            ext_condition2: 0,
+            ext_condition3: 0,
+            ext_condition4: 0,
+            condition: 0,
+            size: table.cell_i32_or_zero(row_idx, size_idx),
+            exchange: table.cell_i32_or_zero(row_idx, exchange_idx),
+            price,
+            condition_flags: 0,
+            price_flags: 0,
+            volume_type: 0,
+            records_back: 0,
+            quote_ms_of_day: ms_of_day,
+            bid_size: table.cell_i32_or_zero(row_idx, bid_size_idx),
+            bid_exchange: table.cell_i32_or_zero(row_idx, bid_exg_idx),
+            bid,
+            bid_condition: table.cell_i32_or_zero(row_idx, bid_cond_idx),
+            ask_size: table.cell_i32_or_zero(row_idx, ask_size_idx),
+            ask_exchange: table.cell_i32_or_zero(row_idx, ask_exg_idx),
+            ask,
+            ask_condition: table.cell_i32_or_zero(row_idx, ask_cond_idx),
+            date,
+            expiration: 0,
+            strike: 0.0,
+            right: 0,
+        });
+    }
+    Ok(out)
+}
+
+/// Decode `option_history_greeks_implied_volatility` CSV into
+/// `Vec<IvTick>`.
+///
+/// # Errors
+///
+/// See [`decode_quote_csv`].
+pub fn decode_iv_csv(body: &str) -> Result<Vec<IvTick>, RestError> {
+    let table = Table::parse(body)?;
+    if table.rows.is_empty() {
+        return Ok(vec![]);
+    }
+    let ms_idx = table.column_index("ms_of_day");
+    let iv_idx = table.column_index("implied_volatility");
+    let iv_err_idx = table.column_index("iv_error");
+    let date_idx = table.column_index("date");
+
+    let mut out: Vec<IvTick> = Vec::with_capacity(table.rows.len());
+    for row_idx in 0..table.rows.len() {
+        let ms_of_day = table.cell_i32_required(row_idx, ms_idx, "ms_of_day")?;
+        let date = table.cell_i32_required(row_idx, date_idx, "date")?;
+        out.push(IvTick {
+            ms_of_day,
+            implied_volatility: table.cell_f64_or_zero(row_idx, iv_idx),
+            iv_error: table.cell_f64_or_zero(row_idx, iv_err_idx),
+            date,
+            expiration: 0,
+            strike: 0.0,
+            right: 0,
+        });
+    }
+    Ok(out)
+}
+
+/// Decode `option_history_greeks_first_order` CSV into
+/// `Vec<GreeksFirstOrderTick>`.
+///
+/// # Errors
+///
+/// See [`decode_quote_csv`].
+pub fn decode_greeks_first_order_csv(body: &str) -> Result<Vec<GreeksFirstOrderTick>, RestError> {
+    let table = Table::parse(body)?;
+    if table.rows.is_empty() {
+        return Ok(vec![]);
+    }
+    let ms_idx = table.column_index("ms_of_day");
+    let date_idx = table.column_index("date");
+
+    let mut out: Vec<GreeksFirstOrderTick> = Vec::with_capacity(table.rows.len());
+    for row_idx in 0..table.rows.len() {
+        let ms_of_day = table.cell_i32_required(row_idx, ms_idx, "ms_of_day")?;
+        let date = table.cell_i32_required(row_idx, date_idx, "date")?;
+        out.push(GreeksFirstOrderTick {
+            ms_of_day,
+            bid: table.cell_f64_or_zero(row_idx, table.column_index("bid")),
+            ask: table.cell_f64_or_zero(row_idx, table.column_index("ask")),
+            delta: table.cell_f64_or_zero(row_idx, table.column_index("delta")),
+            theta: table.cell_f64_or_zero(row_idx, table.column_index("theta")),
+            vega: table.cell_f64_or_zero(row_idx, table.column_index("vega")),
+            rho: table.cell_f64_or_zero(row_idx, table.column_index("rho")),
+            epsilon: table.cell_f64_or_zero(row_idx, table.column_index("epsilon")),
+            lambda: table.cell_f64_or_zero(row_idx, table.column_index("lambda")),
+            implied_volatility: table
+                .cell_f64_or_zero(row_idx, table.column_index("implied_volatility")),
+            iv_error: table.cell_f64_or_zero(row_idx, table.column_index("iv_error")),
+            underlying_ms_of_day: table
+                .cell_i32_or_zero(row_idx, table.column_index("underlying_ms_of_day")),
+            underlying_price: table
+                .cell_f64_or_zero(row_idx, table.column_index("underlying_price")),
+            date,
+            expiration: 0,
+            strike: 0.0,
+            right: 0,
+        });
+    }
+    Ok(out)
+}

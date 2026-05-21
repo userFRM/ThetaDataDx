@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- REST transport + `FallbackPolicy` for h2-cascading endpoints
+  (#571). The upstream Terminal's Java `QuoteTick` /
+  `TradeQuoteTick` constructors length-check incoming rows against
+  a fixed 11 / 25 element shape and throw
+  `IllegalArgumentException` on the pre-extension 6-field NBBO rows
+  that 2022-era options storage still surfaces; the exception
+  bubbles through the gRPC handler and cascades the h2 stream with
+  no error frame. The new `crate::rest::RestClient` talks
+  HTTP/1.1 to the local Terminal's `/v3/...` paths, sidestepping
+  the cascade (HTTP/1.1 is per-request rather than h2 stream
+  multiplexing). Four endpoints from the failure matrix are
+  wired:
+  `option_history_quote` /
+  `option_history_trade_quote` /
+  `option_history_greeks_implied_volatility` /
+  `option_history_greeks_first_order`. The new `FallbackPolicy`
+  (`Disabled` / `RestOnH2Disconnect` /
+  `RestAlwaysForDateRange { before }` / `RestAlways`) drives
+  auto-routing on the new
+  `ThetaDataDxClient::option_history_quote_with_fallback` and
+  `option_history_trade_quote_with_fallback` shim methods; pre-2023
+  dates skip gRPC entirely (saving the failed round trip) while
+  current dates flow through the gRPC fast path unchanged. Default
+  is `Disabled` for back-compat -- callers opt in via
+  `DirectConfig::with_rest_fallback`. Full incident write-up and
+  the policy table land in `docs-site/docs/legacy-quote-handling.md`.
+
+- `local-terminal-patcher` CLI (#571). New workspace binary at
+  `tools/local-terminal-patcher/` that rewrites the local Terminal's
+  inner library jar to tolerate the 6-field NBBO rows on the gRPC
+  path. Resolves the inner jar via autodetect or `--jar` /
+  `--terminal-dir`, verifies the known-broken bytecode signature
+  (`bipush 11 / if_icmpeq`), compiles the patched
+  `QuoteTick.java` + `OhlcTick.java` via system `javac` (JDK 11+),
+  and swaps the two classes into a copy of the jar. Patches are
+  `include_str!`'d into the binary so the tool runs without a
+  separate patches/ directory once built. Smoke-verified against
+  the live broken jar; the patched output carries the new
+  `normalizeData()` upcast + diagnostic exception messages
+  replacing the original `"Wrong number of data fields"` throw.
+
 - Universal `.stream(handler)` method on every historical builder
   (#565). The buffered `.await -> Vec<T>` path held three live
   copies (h2 frames + concatenated proto payload + decoded
@@ -108,6 +149,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `QuoteTick` decoder is now explicit about lenient column extraction
+  for the legacy 6-field NBBO layout (#571). The `bid_exchange`,
+  `bid_condition`, `ask_exchange`, `ask_condition` columns were
+  already declared optional in `tick_schema.toml` so the
+  generator-emitted `opt_number(row, None) -> 0` arm handles
+  absent columns; the schema doc + the `find_header` doc now call
+  out the contract, and two regression tests pin both the legacy
+  6-field and current 11-field shapes through `parse_quote_ticks`.
+  Forward-compat with the eventual upstream fix is preserved -- if
+  ThetaData lands a server-side upcast that adds the columns back
+  on the wire, the decoder picks them up without any further
+  change.
+
+- `reqwest` workspace feature set gains `query` for URL parameter
+  encoding on the new REST transport (#571). Adds
+  `serde_urlencoded` to the lockfile; both deps were already
+  present transitively via the existing reqwest usage on the auth
+  path.
+
 - `Error::Transport` payload restructured from `String` into a
   typed `Transport { kind: TransportErrorKind, message: String }`
   shape mirroring the `Grpc { kind, message }` / `Decode { kind, message }`
@@ -197,6 +257,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the next major release.
 
 ### Fixed
+
+- `option_history_quote` / `option_history_trade_quote` /
+  `option_history_greeks_implied_volatility` /
+  `option_history_greeks_first_order` no longer leave production
+  users without a recovery path on 2022-era options (#571).
+  The upstream Terminal's h2-cascade bug remains -- the SDK now
+  ships three independent escape hatches: (a) `crate::rest::RestClient`
+  + `FallbackPolicy::Rest*` for client-side REST routing
+  (zero-friction, no Terminal change), (b) the
+  `local-terminal-patcher` CLI for users who prefer to keep the
+  gRPC fast path (one-time patch of the local jar), (c) lenient
+  optional-column extraction in the gRPC decoder so the eventual
+  upstream fix flows through without further SDK change. Closes
+  #571.
 
 - Python `StreamingAsyncSession.__aexit__` and
   `StreamingAsyncBatchesSession.__aexit__` now close the asyncio

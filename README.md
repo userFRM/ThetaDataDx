@@ -182,6 +182,10 @@ All endpoints return fully typed data in every language. See the [API Reference]
 
 **Additional surfaces** (not REST/gRPC endpoints): FPSS real-time streaming (7 subscribe/unsubscribe methods per contract and per full-stream type) and a local Greeks calculator (22 Black-Scholes Greeks plus an IV solver, callable individually or batched).
 
+### Coverage notes
+
+* **2022-era options NBBO quotes (#571)**: the upstream Terminal cascades the h2 stream on pre-extension 6-field NBBO rows that storage surfaces for some 2022 contracts. The SDK ships three independent recovery paths: a REST transport (`crate::rest::RestClient`) with a `FallbackPolicy` enum that routes the four affected endpoints over HTTP/1.1 automatically, a `local-terminal-patcher` CLI that rewrites the local Terminal jar to tolerate the legacy rows on the gRPC path, and a lenient gRPC decoder that picks up the eventual upstream fix without further SDK change. See [`docs-site/docs/legacy-quote-handling.md`](docs-site/docs/legacy-quote-handling.md) for the recipe.
+
 ## Architecture
 
 ```mermaid

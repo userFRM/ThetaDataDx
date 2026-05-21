@@ -47,6 +47,7 @@
 
 mod auth;
 mod env;
+mod fallback;
 mod flatfiles;
 mod fpss;
 mod mdds;
@@ -61,6 +62,7 @@ pub use auth::{AuthConfig, DEFAULT_CLIENT_TYPE, DEFAULT_NEXUS_URL};
 pub use env::{
     ENV_CLIENT_TYPE, ENV_FPSS_HOST, ENV_FPSS_PORT, ENV_MDDS_HOST, ENV_MDDS_PORT, ENV_NEXUS_URL,
 };
+pub use fallback::{FallbackPolicy, DEFAULT_REST_BASE_URL};
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
 pub use fpss::{bounds as fpss_bounds, FpssConfig, FpssFlushMode};
 pub use mdds::MddsConfig;
@@ -122,6 +124,11 @@ pub struct DirectConfig {
     pub metrics: MetricsConfig,
     /// Async runtime tuning.
     pub runtime: RuntimeConfig,
+    /// REST-fallback policy for h2-cascading endpoints (issue #571).
+    /// Default is [`FallbackPolicy::Disabled`] -- every request goes
+    /// over gRPC. Set via [`Self::with_rest_fallback`] when querying
+    /// 2022-era options data through a local Terminal.
+    pub fallback: FallbackPolicy,
 }
 
 impl DirectConfig {
@@ -163,6 +170,7 @@ impl DirectConfig {
             auth: AuthConfig::production_defaults(),
             metrics: MetricsConfig::default(),
             runtime: RuntimeConfig::default(),
+            fallback: FallbackPolicy::Disabled,
         }
     }
 
@@ -350,6 +358,33 @@ impl DirectConfig {
     #[must_use]
     pub fn with_client_type(mut self, client_type: impl Into<String>) -> Self {
         self.auth.client_type = client_type.into();
+        self
+    }
+
+    /// Configure REST fallback for h2-cascading endpoints (issue #571).
+    ///
+    /// Default is [`FallbackPolicy::Disabled`]; requests always flow
+    /// through gRPC. Set to one of the REST variants when querying
+    /// 2022-era options data through a local Terminal -- the four
+    /// affected endpoints (`option_history_quote`,
+    /// `option_history_trade_quote`,
+    /// `option_history_greeks_implied_volatility`,
+    /// `option_history_greeks_first_order`) check this policy on every
+    /// call and route to [`crate::rest::RestClient`] when the variant
+    /// would apply.
+    ///
+    /// ```rust,no_run
+    /// use thetadatadx::config::{DirectConfig, FallbackPolicy, DEFAULT_REST_BASE_URL};
+    /// let cfg = DirectConfig::production().with_rest_fallback(
+    ///     FallbackPolicy::RestAlwaysForDateRange {
+    ///         base_url: DEFAULT_REST_BASE_URL.to_string(),
+    ///         before: 20_230_101,
+    ///     },
+    /// );
+    /// ```
+    #[must_use]
+    pub fn with_rest_fallback(mut self, policy: FallbackPolicy) -> Self {
+        self.fallback = policy;
         self
     }
 
