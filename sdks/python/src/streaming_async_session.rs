@@ -786,7 +786,7 @@ fn drain_batch(py: Python<'_>, iterator: &RustEventIterator) -> PyResult<(Py<PyL
 /// Errors are mapped to Python `RuntimeError` with the kernel errno
 /// surfaced through `Error::last_os_error()`.
 #[cfg(all(unix, target_os = "linux"))]
-fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
+pub(crate) fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
     let mut fds = [0_i32; 2];
     // SAFETY: `pipe2(2)` writes two FDs into `fds`; documented safe
     // to invoke from any thread context. The `O_CLOEXEC | O_NONBLOCK`
@@ -809,7 +809,7 @@ fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
 /// single-threaded at `__aenter__` and never forks across this
 /// window, so the gap is benign.
 #[cfg(all(unix, not(target_os = "linux")))]
-fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
+pub(crate) fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
     let mut fds = [0_i32; 2];
     // SAFETY: `pipe(2)` writes two FDs into `fds`; documented safe
     // to invoke from any thread context.
@@ -869,10 +869,10 @@ fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
 /// directly without `async with`). Keeping a stub avoids a build-time
 /// dead-fn error on Windows without compromising the Unix hot path.
 #[cfg(not(unix))]
-fn drain_read_pipe(_read_fd: i32) {}
+pub(crate) fn drain_read_pipe(_read_fd: i32) {}
 
 #[cfg(unix)]
-fn drain_read_pipe(read_fd: i32) {
+pub(crate) fn drain_read_pipe(read_fd: i32) {
     if read_fd < 0 {
         return;
     }

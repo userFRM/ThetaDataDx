@@ -806,6 +806,12 @@ use streaming_iter_session::StreamingIterSession;
 mod streaming_async_session;
 use streaming_async_session::{BackpressurePolicy, StreamingAsyncSession};
 
+// Arrow IPC zero-copy batched streaming — sibling of the per-tick
+// `StreamingAsyncSession` that yields one `pyarrow.RecordBatch` per
+// OS wake instead of `list[FpssEvent]`. Closes #562.
+mod streaming_async_batches;
+use streaming_async_batches::StreamingAsyncBatchesSession;
+
 include!("_generated/historical_methods.rs");
 
 // `decode_response_bytes(endpoint, chunks)` hook used by the external
@@ -940,6 +946,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StreamingSession>()?;
     m.add_class::<StreamingIterSession>()?;
     m.add_class::<StreamingAsyncSession>()?;
+    m.add_class::<StreamingAsyncBatchesSession>()?;
     m.add_class::<BackpressurePolicy>()?;
     m.add_class::<EventIterator>()?;
     fluent::register(m)?;
