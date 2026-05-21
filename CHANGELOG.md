@@ -137,6 +137,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `HEADER_ALIASES` instead of returning a silent empty `Vec`. A
   non-empty `DataTable` whose column cannot be resolved emits a
   `warn` log naming the requested header and the available set.
+- `MddsClient::open_channel_pool` routes `ChannelError -> Error`
+  through the canonical `From<ChannelError> for Error` impl in
+  `error.rs`, dropping a hand-mapped duplicate `match` arm at the
+  connect site. The duplicate carried a `_ => ConnectionClosed`
+  fallback that would silently mis-categorise any future
+  `ChannelError` variant added to the connect surface; the
+  canonical impl covers every variant exhaustively. The
+  channel-index context (`"channel {idx}: ..."`) is preserved on
+  the `Transport`-shaped output.
 
 ### Added
 

@@ -375,28 +375,23 @@ async fn open_channel_pool(
             })?
         }
         .map_err(|e| {
-            // Route the channel-construction error through the
-            // structured `ChannelError -> Error` conversion so the typed
-            // [`TransportErrorKind`] is preserved (TCP / TLS /
-            // InvalidServerName / H2Handshake / ConnectionClosed etc.).
-            // The channel-index context lands in the message.
-            let kind = match &e {
-                crate::grpc::ChannelError::Tcp { .. } => crate::error::TransportErrorKind::Tcp,
-                crate::grpc::ChannelError::Tls { .. } => crate::error::TransportErrorKind::Tls,
-                crate::grpc::ChannelError::InvalidServerName { .. } => {
-                    crate::error::TransportErrorKind::InvalidServerName
-                }
-                crate::grpc::ChannelError::H2Handshake(_) => {
-                    crate::error::TransportErrorKind::H2Handshake
-                }
-                crate::grpc::ChannelError::ConnectionClosed(_) => {
-                    crate::error::TransportErrorKind::ConnectionClosed
-                }
-                _ => crate::error::TransportErrorKind::ConnectionClosed,
-            };
-            Error::Transport {
-                kind,
-                message: format!("channel {idx}: {e}"),
+            // Route through the canonical `From<ChannelError> for Error`
+            // so every transport-fault category (TCP / TLS /
+            // InvalidServerName / H2Handshake / H2Stream / Codec /
+            // EmptyResponse / UnexpectedHttpStatus / ConnectionClosed)
+            // maps to the right `TransportErrorKind` without a local
+            // duplicate match. Preserve the channel-index hint by
+            // re-wrapping the `Transport`-shaped output's message —
+            // other variants (Timeout / Grpc) keep their original
+            // shape so retry classifiers downstream still dispatch
+            // correctly. SSOT for the kind-map lives in
+            // `error::From<ChannelError> for Error`.
+            match Error::from(e) {
+                Error::Transport { kind, message } => Error::Transport {
+                    kind,
+                    message: format!("channel {idx}: {message}"),
+                },
+                other => other,
             }
         })?;
         channels.push(channel);
