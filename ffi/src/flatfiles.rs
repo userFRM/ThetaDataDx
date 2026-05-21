@@ -175,7 +175,16 @@ pub unsafe extern "C" fn tdx_flatfile_rows_count(rowlist: *const TdxFlatFileRowL
         if rowlist.is_null() {
             return 0;
         }
-        // SAFETY: pointer was returned by the matching constructor and not yet freed; ownership / lifetime is the caller's contract.
+        // SAFETY: caller's contract on this FFI function requires
+        // `rowlist` to be either null (rejected above) or the value
+        // returned by `tdx_flatfile_request_decoded`, which built it
+        // via `Box::into_raw(Box::new(TdxFlatFileRowList { .. }))`.
+        // No mutating call (only `tdx_flatfile_rowlist_free`, which
+        // consumes the pointer) runs concurrently — single-threaded
+        // FFI ownership — so the box is live, `#[repr(Rust)]`
+        // well-aligned, and a shared `&TdxFlatFileRowList` reborrow
+        // (`(*rowlist).rows.len()` reads only the `len` field of the
+        // inner `Vec`, no field of `rowlist` is mutated) is sound.
         unsafe { (*rowlist).rows.len() }
     })
 }
@@ -202,7 +211,17 @@ pub unsafe extern "C" fn tdx_flatfile_rows_to_arrow_ipc(
                     len: 0,
                 };
             }
-            // SAFETY: pointer was returned by the matching constructor and not yet freed; ownership / lifetime is the caller's contract.
+            // SAFETY: caller's contract on this FFI function requires
+            // `rowlist` to be either null (rejected above) or the value
+            // returned by `tdx_flatfile_request_decoded`, which built
+            // it via `Box::into_raw(Box::new(TdxFlatFileRowList { .. }))`.
+            // The reborrowed `&Vec<FlatFileRow>` lives only for the
+            // duration of this expression (it is consumed by
+            // `rows_to_arrow` synchronously below); since the only
+            // function that invalidates the box —
+            // `tdx_flatfile_rowlist_free` — takes `*mut` and cannot run
+            // concurrently across a single FFI call, the borrow is
+            // valid for that span.
             let rows = unsafe { &(*rowlist).rows };
             let batch = match flatfiles::arrow::rows_to_arrow(rows) {
                 Ok(b) => b,

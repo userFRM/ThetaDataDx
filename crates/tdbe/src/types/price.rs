@@ -76,8 +76,15 @@ pub struct Price {
     pub value: i32,
     /// Decimal type: 0 means zero, otherwise `10 - type` = fractional digits.
     ///
-    /// MUST stay within `0..=18` — the `POW10_I64` / `POW10_F64` tables
-    /// have 20 entries and every indexing path debug-asserts the bound.
+    /// MUST stay within `0..=19` — the `POW10_I64` / `POW10_F64` tables
+    /// have 20 entries (indices `0..=19`) and every indexing path
+    /// debug-asserts the bound. Index 19 is a reserved upper boundary:
+    /// the arithmetic only ever uses indices `0..=18` (since
+    /// `10^19` overflows `i64`, the index-19 slot stores `i64::MAX` as
+    /// an unreachable placeholder), but accepting `price_type = 19`
+    /// without rejecting it lets us widen the wire decode boundary
+    /// in one constant if a future server-side schema extends the
+    /// range.
     /// Public for backwards compatibility; new code should construct via
     /// [`Price::new`] (clamps) or [`Price::with_value_and_type`] (errors
     /// out of range) so the invariant is enforced at the boundary.
@@ -170,9 +177,11 @@ impl Price {
     }
 
     /// Convert to f64. This is lossy but useful for display/calculations.
-    // Reason: price_type is bounded to 0..=18 by new/with_value_and_type,
-    // and a debug_assert below pins the invariant for hand-constructed
-    // values that bypass those constructors.
+    // Reason: price_type is bounded to 0..=19 by new/with_value_and_type
+    // (index 19 is a reserved unreachable placeholder; see the constant
+    // doc on MAX_PRICE_TYPE), and a debug_assert below pins the
+    // invariant for hand-constructed values that bypass those
+    // constructors.
     #[allow(clippy::cast_sign_loss)]
     #[inline]
     #[must_use]
@@ -203,10 +212,12 @@ impl Price {
     }
 
     /// Normalize both prices to the same type for comparison.
-    // Reason: price_type is bounded to 0..=18, so differences are in
-    // 0..=18 (safe cast). `&self` required by PartialOrd/Ord trait
+    // Reason: price_type is bounded to 0..=19, so differences are in
+    // 0..=19 (safe cast). `&self` required by PartialOrd/Ord trait
     // implementations. Every index into POW10_I64 is guarded by a
-    // debug_assert in addition to the explicit `exp > 18` early-out.
+    // debug_assert in addition to the explicit `exp > 18` early-out
+    // (index 19 stores `i64::MAX` as an unreachable placeholder, so the
+    // early-out is what keeps the arithmetic correct).
     #[allow(clippy::cast_sign_loss, clippy::trivially_copy_pass_by_ref)]
     #[inline]
     fn compare(&self, other: &Self) -> Ordering {
@@ -270,9 +281,11 @@ impl fmt::Debug for Price {
 }
 
 impl fmt::Display for Price {
-    // Reason: price_type is bounded to 0..=18; debug_asserts pin the
+    // Reason: price_type is bounded to 0..=19; debug_asserts pin the
     // invariant for the formatter paths that arithmetic-cast it to
-    // unsigned.
+    // unsigned. The formatter never actually reaches an `exp` of 9
+    // (price_type 19) because `10^19` overflows i64 — the index-19 slot
+    // is an unreachable placeholder, see MAX_PRICE_TYPE.
     #[allow(clippy::cast_sign_loss)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.price_type == 0 {
@@ -345,9 +358,10 @@ mod tests {
         assert_eq!(a, c);
     }
 
-    /// Every valid `price_type` (0..=18) round-trips through Display
-    /// and to_f64 without panicking. Pins the invariant that the
-    /// POW10 tables are correctly sized for the supported range.
+    /// Every valid `price_type` (`0..=MAX_PRICE_TYPE`, i.e. `0..=19`)
+    /// round-trips through Display and to_f64 without panicking. Pins
+    /// the invariant that the POW10 tables are correctly sized for the
+    /// supported range, including the index-19 placeholder slot.
     #[test]
     fn every_valid_price_type_round_trips() {
         for pt in 0..=MAX_PRICE_TYPE {

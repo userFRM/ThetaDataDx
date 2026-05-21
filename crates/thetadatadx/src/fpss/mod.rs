@@ -181,6 +181,16 @@ use self::protocol::{
 /// production streaming consumer). This helper masks off the sign bit
 /// and casts down, producing the positive `i32` the wire encoder
 /// expects.
+///
+/// Same-value id collisions remain possible after `2^31` allocations —
+/// this is a wire-protocol limitation (31-bit positive id space, since
+/// `-1` is reserved as the uncorrelated sentinel and negative ids are
+/// defensively excluded). The widening only eliminates the `-1`
+/// sentinel collision; an honest cycle of the positive id space still
+/// reuses earlier ids. Consumers correlating responses across a span
+/// longer than `2^31` allocations must add their own disambiguation
+/// (e.g. per-subscription state on the caller side, or a session-id
+/// salt prepended to the caller-visible request handle).
 #[inline]
 pub(in crate::fpss) fn wire_req_id(counter_value: i64) -> i32 {
     (counter_value & 0x7FFF_FFFF) as i32
@@ -219,8 +229,8 @@ pub struct FpssConnectArgs<'a> {
     /// Disruptor ring buffer size (events). Must be a power of two.
     ///
     /// Each ring slot stores one `FpssEventInternal` (96 bytes on the
-    /// current 64-bit layout, validated by the
-    /// `fpss_event_internal_layout_matches_public` test). The default
+    /// current 64-bit layout, validated by the `assert_layout_compat`
+    /// test). The default
     /// `ring_size = 4096` allocates roughly `4096 × 96 ≈ 384 KiB` per
     /// `FpssClient` for the ring, plus per-event refcounted
     /// `Arc<Contract>` storage on top. Tune downward (e.g., 1024) if

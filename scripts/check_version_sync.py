@@ -24,6 +24,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CANONICAL_CARGO = ROOT / "crates" / "thetadatadx" / "Cargo.toml"
 CMAKE_LISTS = ROOT / "sdks" / "cpp" / "CMakeLists.txt"
+PY_INIT = ROOT / "sdks" / "python" / "python" / "thetadatadx" / "__init__.py"
+
+# Accepted values for the `__version__` fallback in the Python SDK
+# `__init__.py`. `"unknown"` is the canonical sentinel — anything that
+# happens to look like a semver literal (e.g. `"10.0.0"`) drifts
+# silently whenever `Cargo.toml` advances, so the gate warns the
+# operator immediately.
+PY_FALLBACK_OK = ("unknown",)
+PY_FALLBACK_RE = re.compile(r'__version__\s*=\s*"([^"]+)"')
 
 
 def cargo_version(path: Path) -> str:
@@ -80,6 +89,45 @@ DOC_PIN_PATHS = (
 DOC_PIN_RE = re.compile(
     r'thetadatadx\s*=\s*(?:"(\d+)(?:[.,)\'" ]|$)|\{\s*version\s*=\s*"(\d+)(?:[.,)\'" ]|$))'
 )
+
+
+def python_init_fallback_mismatches(canonical: str) -> list[str]:
+    """Warn if the Python SDK `__version__` fallback drifted away from
+    the `"unknown"` sentinel into a stale numeric literal.
+
+    A literal fallback like `"10.0.0"` silently lies whenever the
+    canonical `Cargo.toml` version advances — operators inspecting
+    `thetadatadx.__version__` on a source-tree import see a stale
+    number instead of an obvious "I cannot determine the version"
+    signal. The accepted value is the sentinel; anything else either
+    matches `canonical` (acceptable but fragile) or is stale.
+    """
+    if not PY_INIT.is_file():
+        return []
+    issues: list[str] = []
+    for lineno, line in enumerate(PY_INIT.read_text().splitlines(), start=1):
+        match = PY_FALLBACK_RE.search(line)
+        if not match:
+            continue
+        literal = match.group(1)
+        if literal in PY_FALLBACK_OK:
+            continue
+        if literal == canonical:
+            # Matches today, but will drift on the next bump — warn.
+            issues.append(
+                f"{PY_INIT.relative_to(ROOT)}:{lineno} `__version__` "
+                f'fallback is the numeric literal "{literal}" (matches '
+                "canonical today but will drift on next version bump — "
+                'prefer the "unknown" sentinel)'
+            )
+            continue
+        issues.append(
+            f"{PY_INIT.relative_to(ROOT)}:{lineno} `__version__` "
+            f'fallback is "{literal}", expected the "unknown" sentinel '
+            f"(canonical is {canonical} — a numeric literal here drifts "
+            "silently)"
+        )
+    return issues
 
 
 def doc_pin_mismatches(canonical_major: str) -> list[str]:
@@ -144,6 +192,11 @@ def main() -> int:
 
     # U5 closure: documentation pins must match the canonical major.
     failures.extend(doc_pin_mismatches(canonical_major))
+
+    # M4 closure (post-#572 audit): Python SDK `__version__` fallback
+    # must be the `"unknown"` sentinel, not a numeric literal that
+    # drifts silently.
+    failures.extend(python_init_fallback_mismatches(canonical))
 
     if failures:
         print("version-sync errors:")
