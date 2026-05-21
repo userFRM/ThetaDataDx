@@ -7,9 +7,10 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Instant;
 
+use metrics::Counter;
 use tdbe::types::enums::StreamMsgType;
 use tdbe::types::price::Price;
 
@@ -21,6 +22,38 @@ use super::protocol::{
     parse_contract_message, parse_disconnect_reason, parse_req_response, Contract,
 };
 use super::reconnect_delay;
+
+// ─── Hoisted per-tick counter handles ───────────────────────────────
+//
+// `metrics::counter!(name, "kind" => value)` resolves the (name, labels)
+// tuple to a `Counter` handle on every call — that lookup is a hashmap
+// probe inside the global recorder and runs ~30 ns per tick in the
+// observed bench. Hoisting the resolution to a `LazyLock<Counter>`
+// turns the per-tick increment into a single atomic add (~5 ns) since
+// `Counter::increment` is `&self`.
+//
+// One handle per (metric, kind) pair the decoder emits. Decode-failure
+// counters are kept separately so the dashboards can split healthy
+// events from FIT parse rejections.
+
+static FPSS_QUOTE_EVENTS: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.events", "kind" => "quote"));
+static FPSS_TRADE_EVENTS: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.events", "kind" => "trade"));
+static FPSS_OI_EVENTS: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.events", "kind" => "open_interest"));
+static FPSS_OHLCVC_EVENTS: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.events", "kind" => "ohlcvc"));
+
+static FPSS_QUOTE_DECODE_FAILURES: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "quote"));
+static FPSS_TRADE_DECODE_FAILURES: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "trade"));
+static FPSS_OI_DECODE_FAILURES: LazyLock<Counter> = LazyLock::new(
+    || metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "open_interest"),
+);
+static FPSS_OHLCVC_DECODE_FAILURES: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "ohlcvc"));
 
 /// Prefix on the [`Contract::symbol`] of an unresolved-contract sentinel
 /// returned for a tick that arrived before the matching
@@ -202,7 +235,7 @@ pub fn decode_frame(
             match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS, &mut buf) {
                 Some((contract_id, _n)) => {
                     warn_unknown_contract(contract_id, "quote", delta_state, local_contracts);
-                    metrics::counter!("thetadatadx.fpss.events", "kind" => "quote").increment(1);
+                    FPSS_QUOTE_EVENTS.increment(1);
                     let pt = buf[9];
                     (
                         Some(FpssEventInternal::Data(FpssData::Quote {
@@ -229,8 +262,7 @@ pub fn decode_frame(
                     // Truncated / corrupt FIT payload. Account for it on
                     // the public counter so operators see decode pressure
                     // without raw-byte fallout reaching the user callback.
-                    metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "quote")
-                        .increment(1);
+                    FPSS_QUOTE_DECODE_FAILURES.increment(1);
                     (Some(FpssEventInternal::Unparseable), None)
                 }
             }
@@ -241,7 +273,7 @@ pub fn decode_frame(
             match delta_state.decode_tick(msg_code, payload, TRADE_FIELDS, &mut buf) {
                 Some((contract_id, n_data)) => {
                     warn_unknown_contract(contract_id, "trade", delta_state, local_contracts);
-                    metrics::counter!("thetadatadx.fpss.events", "kind" => "trade").increment(1);
+                    FPSS_TRADE_EVENTS.increment(1);
 
                     if n_data != 8 && n_data != TRADE_FIELDS {
                         tracing::warn!(
@@ -339,8 +371,7 @@ pub fn decode_frame(
                 // DATE markers return None from decode_tick -- normal protocol flow.
                 None if delta_state.last_was_date => (None, None),
                 None => {
-                    metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "trade")
-                        .increment(1);
+                    FPSS_TRADE_DECODE_FAILURES.increment(1);
                     (Some(FpssEventInternal::Unparseable), None)
                 }
             }
@@ -356,8 +387,7 @@ pub fn decode_frame(
                         delta_state,
                         local_contracts,
                     );
-                    metrics::counter!("thetadatadx.fpss.events", "kind" => "open_interest")
-                        .increment(1);
+                    FPSS_OI_EVENTS.increment(1);
                     (
                         Some(FpssEventInternal::Data(FpssData::OpenInterest {
                             contract: resolve_contract(contract_id, local_contracts),
@@ -371,11 +401,7 @@ pub fn decode_frame(
                 }
                 None if delta_state.last_was_date => (None, None),
                 None => {
-                    metrics::counter!(
-                        "thetadatadx.fpss.decode_failures",
-                        "kind" => "open_interest",
-                    )
-                    .increment(1);
+                    FPSS_OI_DECODE_FAILURES.increment(1);
                     (Some(FpssEventInternal::Unparseable), None)
                 }
             }
@@ -386,7 +412,7 @@ pub fn decode_frame(
             match delta_state.decode_tick(msg_code, payload, OHLCVC_FIELDS, &mut buf) {
                 Some((contract_id, _n)) => {
                     warn_unknown_contract(contract_id, "ohlcvc", delta_state, local_contracts);
-                    metrics::counter!("thetadatadx.fpss.events", "kind" => "ohlcvc").increment(1);
+                    FPSS_OHLCVC_EVENTS.increment(1);
                     let acc = delta_state
                         .ohlcvc
                         .entry(contract_id)
@@ -413,8 +439,7 @@ pub fn decode_frame(
                 }
                 None if delta_state.last_was_date => (None, None),
                 None => {
-                    metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "ohlcvc")
-                        .increment(1);
+                    FPSS_OHLCVC_DECODE_FAILURES.increment(1);
                     (Some(FpssEventInternal::Unparseable), None)
                 }
             }
