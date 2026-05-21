@@ -111,6 +111,7 @@ pub(crate) mod pinning;
 pub mod protocol;
 pub(crate) mod ring;
 mod session;
+pub mod wake;
 
 #[cfg(test)]
 mod streaming_soak_tests;
@@ -459,6 +460,7 @@ impl FpssClient {
         let delivery = events::Delivery::Queue {
             queue: Arc::clone(&queue),
             iter_closed: Arc::clone(&iter_closed),
+            wake_fd: None,
         };
         let client = Self::connect_with_delivery(args, delivery)?;
         let iterator = EventIterator {
@@ -467,6 +469,115 @@ impl FpssClient {
             iter_closed,
         };
         Ok((client, iterator))
+    }
+
+    /// Connect with pull-iter delivery AND an asyncio-style FD wake-up
+    /// channel.
+    ///
+    /// Sibling of [`Self::connect_iter`] for asyncio / select-loop
+    /// consumers that cannot afford the 100 µs polling tick of the
+    /// blocking iterator. The caller allocates a self-pipe (typically
+    /// `pipe2(O_CLOEXEC | O_NONBLOCK)`) and passes the write-end FD to
+    /// this method. The Disruptor consumer thread writes a single
+    /// coalesced byte to the FD on every successful `queue.push` so the
+    /// reader's `epoll` / `kqueue` / `select` wake fires immediately —
+    /// no polling, no busy-wait.
+    ///
+    /// `wake_fd` ownership transfers to the returned [`wake::WakeFd`]
+    /// (stored inside the [`super::events::Delivery::Queue`] variant);
+    /// the FD is closed on `Drop` when the [`FpssClient`] and the
+    /// matching [`EventIterator`] are both released. Callers MUST NOT
+    /// `close(2)` the FD themselves.
+    ///
+    /// Use [`Self::connect_iter`] (no wake FD) for synchronous
+    /// consumers — the wake-fd path is pure overhead when the caller
+    /// drains via `next_timeout` polling.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same set of errors as [`Self::connect`] (TLS, login,
+    /// config validation).
+    pub fn connect_iter_with_wake(
+        args: FpssConnectArgs<'_>,
+        wake: wake::WakeFd,
+    ) -> Result<(Self, EventIterator), Error> {
+        let queue_capacity = args.ring_size;
+        let queue = Arc::new(crossbeam_queue::ArrayQueue::<FpssEvent>::new(
+            queue_capacity,
+        ));
+        let finished = Arc::new(AtomicBool::new(false));
+        let iter_closed = Arc::new(AtomicBool::new(false));
+        let wake_arc = Arc::new(wake);
+        let delivery = events::Delivery::Queue {
+            queue: Arc::clone(&queue),
+            iter_closed: Arc::clone(&iter_closed),
+            wake_fd: Some(Arc::clone(&wake_arc)),
+        };
+        let client = Self::connect_with_delivery(args, delivery)?;
+        let iterator = EventIterator {
+            queue,
+            finished,
+            iter_closed,
+        };
+        // `wake_arc` is intentionally not surfaced to the caller — the
+        // [`Delivery::Queue`] variant captured a clone, and the iterator
+        // / client lifetime governs the FD close. The Python SDK keeps
+        // a third `Arc<WakeFd>` clone for the `rearm()` path that runs
+        // on the asyncio reader thread; that clone is acquired via the
+        // explicit `connect_iter_with_wake_keep_handle` constructor in
+        // `streaming_async_session.rs`, which forwards through this
+        // method.
+        let _ = wake_arc;
+        Ok((client, iterator))
+    }
+
+    /// Variant of [`Self::connect_iter_with_wake`] that hands back the
+    /// `Arc<WakeFd>` so the caller can drive [`wake::WakeFd::rearm`]
+    /// from the reader thread. The async wake protocol requires:
+    ///
+    /// 1. Reader observes pipe-read-ready on the asyncio loop.
+    /// 2. Reader calls `wake.rearm()` BEFORE draining the pipe.
+    /// 3. Reader drains the pipe with one or more non-blocking `read(2)`.
+    /// 4. Reader drains the event queue via `iterator.try_next` until
+    ///    `NextEvent::Timeout` or `NextEvent::Closed`.
+    /// 5. Reader awaits the next FD-ready signal.
+    ///
+    /// Step 2 is what makes the wake re-arm — without it, a producer
+    /// push observed between the rearm-elsewhere and the drain would
+    /// fail to re-fire the wake. Returning the shared `Arc<WakeFd>` is
+    /// the only safe way to expose `rearm()` to the reader.
+    ///
+    /// Internally builds the same [`super::events::Delivery::Queue`]
+    /// variant as [`Self::connect_iter_with_wake`]; the only difference
+    /// is the third return value carrying the shared handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same set of errors as [`Self::connect`] (TLS, login,
+    /// config validation).
+    pub fn connect_iter_with_wake_keep_handle(
+        args: FpssConnectArgs<'_>,
+        wake: wake::WakeFd,
+    ) -> Result<(Self, EventIterator, Arc<wake::WakeFd>), Error> {
+        let queue_capacity = args.ring_size;
+        let queue = Arc::new(crossbeam_queue::ArrayQueue::<FpssEvent>::new(
+            queue_capacity,
+        ));
+        let finished = Arc::new(AtomicBool::new(false));
+        let iter_closed = Arc::new(AtomicBool::new(false));
+        let wake_arc = Arc::new(wake);
+        let delivery = events::Delivery::Queue {
+            queue: Arc::clone(&queue),
+            iter_closed: Arc::clone(&iter_closed),
+            wake_fd: Some(Arc::clone(&wake_arc)),
+        };
+        let client = Self::connect_with_delivery(args, delivery)?;
+        let iterator = EventIterator {
+            queue,
+            finished,
+            iter_closed,
+        };
+        Ok((client, iterator, wake_arc))
     }
 
     fn connect_with_delivery(

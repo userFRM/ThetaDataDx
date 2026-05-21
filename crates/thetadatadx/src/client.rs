@@ -389,6 +389,63 @@ impl ThetaDataDxClient {
         Ok(iterator)
     }
 
+    /// Start FPSS streaming in pull-iter delivery mode with an asyncio
+    /// FD-readiness signal.
+    ///
+    /// Sibling of [`Self::start_streaming_iter`] for asyncio /
+    /// select-loop consumers. The supplied [`crate::fpss::wake::WakeFd`]
+    /// is wired into the [`crate::fpss::events::Delivery::Queue`]
+    /// variant on the Disruptor consumer; every successful `queue.push`
+    /// writes a coalesced byte to the FD so the host event loop wakes
+    /// without polling.
+    ///
+    /// Returns the [`EventIterator`] paired with the shared
+    /// `Arc<WakeFd>` so the asyncio reader thread can call `rearm()`
+    /// before draining the pipe. Bridging through `Arc` is what lets
+    /// the wake survive across the `start` boundary — the wake FD is
+    /// owned by the Disruptor consumer closure inside the
+    /// [`FpssClient`], which only releases it on stop_streaming +
+    /// drain.
+    ///
+    /// # Mutual exclusion
+    ///
+    /// Same as [`Self::start_streaming_iter`] — push and pull are
+    /// mutually exclusive on a given client.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same error set as [`Self::start_streaming`] (TLS,
+    /// auth, config validation).
+    pub fn start_streaming_iter_with_wake(
+        &self,
+        wake: crate::fpss::wake::WakeFd,
+    ) -> Result<(EventIterator, std::sync::Arc<crate::fpss::wake::WakeFd>), Error> {
+        if matches!(&**self.state.load(), StreamingSlot::Live { .. }) {
+            return Err(Self::already_streaming());
+        }
+
+        let gen_at_entry = self.stop_generation.load(Ordering::Acquire);
+
+        let config = self.historical.config();
+        let (client, iterator, wake_arc) = FpssClient::connect_iter_with_wake_keep_handle(
+            crate::fpss::FpssConnectArgs {
+                creds: &self.creds,
+                hosts: &config.fpss.hosts,
+                ring_size: config.fpss.ring_size,
+                flush_mode: config.fpss.flush_mode,
+                policy: config.reconnect.policy.clone(),
+                derive_ohlcvc: config.fpss.derive_ohlcvc,
+                connect_timeout_ms: config.fpss.connect_timeout_ms,
+                read_timeout_ms: config.fpss.timeout_ms,
+                ping_interval_ms: config.fpss.ping_interval_ms,
+            },
+            wake,
+        )?;
+
+        self.install_live(Self::live_slot(client), gen_at_entry)?;
+        Ok((iterator, wake_arc))
+    }
+
     /// Atomically swap the slot to a fresh `Live` state.
     ///
     /// Rejects the install when:

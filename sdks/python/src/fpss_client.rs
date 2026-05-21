@@ -170,6 +170,43 @@ impl FpssClient {
         })?;
         f(client).map_err(to_py_err)
     }
+
+    /// Open the FPSS TLS connection in pull-iter delivery mode AND
+    /// wire an asyncio FD-readiness signal into the Disruptor consumer.
+    ///
+    /// Consumed by the [`crate::streaming_async_session::StreamingAsyncSession`]
+    /// pyclass; not exposed directly on the Python surface (the public
+    /// path is `client.streaming_async()`). Returns the raw Rust
+    /// [`thetadatadx::EventIterator`] paired with the shared
+    /// `Arc<WakeFd>` so the asyncio reader thread can call `rearm()`
+    /// from the GIL-attached event handler.
+    ///
+    /// Lives in the inherent impl (not `#[pymethods]`) so the return
+    /// tuple stays a Rust type — neither the iterator nor the
+    /// `Arc<WakeFd>` has a Python representation.
+    ///
+    /// Push-callback / sync pull-iter / async pull-iter are all
+    /// mutually exclusive on a given client.
+    #[cfg(unix)]
+    pub(crate) fn start_streaming_iter_with_wake_internal(
+        &self,
+        write_fd: i32,
+    ) -> PyResult<(
+        thetadatadx::EventIterator,
+        std::sync::Arc<thetadatadx::fpss::wake::WakeFd>,
+    )> {
+        if self.lock_inner().is_some() {
+            return Err(PyRuntimeError::new_err(
+                "streaming already started -- call stop_streaming() before streaming_async()",
+            ));
+        }
+        let wake = thetadatadx::fpss::wake::WakeFd::from_raw_write_fd(write_fd);
+        let (client, iter, wake_arc) =
+            RustFpssClient::connect_iter_with_wake_keep_handle(self.params.args(), wake)
+                .map_err(to_py_err)?;
+        *self.lock_inner() = Some(client);
+        Ok((iter, wake_arc))
+    }
 }
 
 #[pymethods]
