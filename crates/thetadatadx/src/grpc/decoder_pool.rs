@@ -579,13 +579,14 @@ impl DecoderPool {
             let producer = build_multi_producer(ring_size, RingEvent::default, wait_strategy)
                 .thread_name("mdds-decoder")
                 .handle_events_with(move |slot: &RingEvent, _seq: Sequence, _eob: bool| {
-                    // SAFETY: the disruptor consumer barrier
-                    // guarantees this thread holds exclusive access
-                    // to the slot at this sequence position until
-                    // the consumer barrier advances on closure
-                    // return. No producer can reuse the slot, and
-                    // no other consumer exists.
-                    // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+                    // SAFETY: the disruptor consumer barrier guarantees
+                    // this thread holds exclusive access to the slot at
+                    // this sequence position until the consumer barrier
+                    // advances on closure return. No producer can reuse
+                    // the slot, and no other consumer exists. The
+                    // `unsafe fn` invariant on `RingEvent::take`
+                    // (documented at its declaration) is therefore
+                    // upheld.
                     let request = unsafe { slot.take() };
                     let Some(DecodeRequest { work, reply }) = request else {
                         return;

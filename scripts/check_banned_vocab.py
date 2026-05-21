@@ -241,6 +241,47 @@ def _scan_pr_metadata() -> list[tuple[str, str, str]]:
     return hits
 
 
+# Stamped SAFETY-comment string the bot-author landed across the
+# codebase in lieu of writing a real SAFETY annotation. Keeping it as
+# boilerplate at every `unsafe { ... }` site reduces SAFETY comments to
+# noise — the whole point of the lint is that each unsafe block names
+# the invariant the caller upholds. The exact verbatim string below is
+# blocked everywhere EXCEPT inside `ffi/src/`, where every site IS an
+# `extern "C" fn` raw-pointer deref whose caller contract is documented
+# on the enclosing fn signature; rewriting each of those would just
+# duplicate the function-level doc.
+STAMPED_SAFETY = (
+    "see FFI boundary doc on the enclosing fn "
+    "— raw pointers satisfy the documented caller contract"
+)
+STAMPED_SAFETY_SCOPE_EXEMPT_PREFIXES = ("ffi/src/",)
+
+
+def _scan_stamped_safety() -> list[tuple[pathlib.Path, int, str]]:
+    """Reject the stamped SAFETY boilerplate outside `ffi/src/`.
+
+    Regression guard against future bot-stamping. The string is exact
+    (no fuzzy match) so any rewrite that names the actual invariant
+    sails through.
+    """
+    hits: list[tuple[pathlib.Path, int, str]] = []
+    needle = STAMPED_SAFETY
+    for path in _iter_files():
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        if any(rel.startswith(p) for p in STAMPED_SAFETY_SCOPE_EXEMPT_PREFIXES):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if needle not in text:
+            continue
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if needle in line:
+                hits.append((path.relative_to(REPO_ROOT), lineno, line.rstrip()))
+    return hits
+
+
 def main() -> int:
     total = 0
 
@@ -269,12 +310,28 @@ def main() -> int:
         for where, phrase, line in pr_hits:
             print(f"  {where} [{phrase}] {line[:160]}")
 
-    if total:
+    stamped_hits = _scan_stamped_safety()
+    if stamped_hits:
+        total += len(stamped_hits)
         print(
-            "\nFix: either rephrase, or add `VOCAB-OK: <reason>` on the "
-            "same line for genuinely-legitimate uses (e.g. quoting a "
-            "third-party standard name)."
+            f"banned-vocab: {len(stamped_hits)} stamped-SAFETY hit(s) "
+            f"outside ffi/src/"
         )
+        for rel, lineno, line in stamped_hits:
+            print(f"  {rel}:{lineno} {line[:160]}")
+        print(
+            "  -> Rewrite the comment to name the actual invariant "
+            "(what's true here that makes the unsafe block sound). "
+            "Stamped boilerplate is not a SAFETY annotation."
+        )
+
+    if total:
+        if file_hits or commit_hits or pr_hits:
+            print(
+                "\nFix: either rephrase, or add `VOCAB-OK: <reason>` on the "
+                "same line for genuinely-legitimate uses (e.g. quoting a "
+                "third-party standard name)."
+            )
         return 1
 
     print("banned-vocab: clean")

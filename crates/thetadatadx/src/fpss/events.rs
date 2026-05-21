@@ -345,16 +345,18 @@ impl FpssEventInternal {
                 // optimisation; it compiles to a no-op move on every
                 // backend Rust ships.
                 core::hint::black_box(d);
-                // SAFETY: this arm proves the discriminant is
-                // `FPSS_EVENT_TAG_DATA`. Both `FpssEvent` and
-                // `FpssEventInternal` are `#[repr(C, u8)]` with
+                // SAFETY: this match arm proves the discriminant is
+                // `FPSS_EVENT_TAG_DATA`. `FpssEvent` and
+                // `FpssEventInternal` are both `#[repr(C, u8)]` with
                 // identical `Data(FpssData)` payloads at that
-                // discriminant, so the layout is shared (Rust
-                // reference, "Primitive representation of enums with
-                // fields"). The reborrow inherits the `&self`
-                // lifetime; aliasing rules treat it like the
-                // original borrow.
-                // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+                // discriminant, so the in-memory layout is shared
+                // (Rust reference, "Primitive representation of enums
+                // with fields"). `assert_layout_compat` (run as a unit
+                // test) pins size, alignment, and discriminant equality
+                // at compile time, so a future divergence trips the
+                // build before it can corrupt a callback. The reborrow
+                // inherits the `&self` lifetime; aliasing rules treat
+                // it like the original borrow.
                 Some(unsafe { &*(self as *const Self as *const FpssEvent) })
             }
             Self::Control(c) => {

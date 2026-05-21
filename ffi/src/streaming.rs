@@ -2209,7 +2209,12 @@ mod tests {
         // integer variants, so the first 4 bytes of `*event` are the
         // tag value. Reading by reference would `move` the non-Copy
         // enum, which `&self` access on a `*const` borrow forbids.
-        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+        //
+        // SAFETY: `event` is non-null (asserted above) and points at a
+        // `#[repr(C, i32)]`-shaped `TdxFpssEvent` whose first 4 bytes
+        // are the discriminant; a `*const i32` deref of those bytes is
+        // sound. The FFI boundary on `capture_callback`'s caller
+        // guarantees the pointee outlives the call.
         let kind = unsafe { *event.cast::<i32>() };
         ctx.last_kind.store(kind, Ordering::Relaxed);
         // Record the OS thread id so the test can compare against the

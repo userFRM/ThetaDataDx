@@ -133,7 +133,14 @@ impl WakeFd {
             return;
         }
         let byte: u8 = 1;
-        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+        // SAFETY: `self.write_fd` is owned by this `WakeFd` (held alive
+        // by `&self`); it was either `-1` (filtered by the early return
+        // above) or a valid open writable FD passed in via
+        // `from_raw_write_fd`. The buffer is a single stack byte
+        // (`byte`) valid for the `len = 1` write, and one-byte writes
+        // on a pipe are atomic per POSIX (`pipe(7)`, `write(2)`
+        // PIPE_BUF). No aliasing — `byte` is a local on this stack
+        // frame.
         let res = unsafe {
             libc::write(
                 self.write_fd,
