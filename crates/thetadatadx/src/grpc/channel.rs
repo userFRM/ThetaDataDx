@@ -192,6 +192,21 @@ pub struct Channel {
     /// hands every chunk to a dedicated decoder thread so the
     /// reactor never blocks on a multi-millisecond zstd payload.
     decoder: Option<DecoderHandle>,
+    /// Handle on the background task that drives the h2 connection.
+    ///
+    /// Dropping `send_request` is sufficient for a clean shutdown —
+    /// the h2 connection winds down and the task exits naturally. The
+    /// handle is retained so `Channel::Drop` can call `.abort()` as a
+    /// belt-and-braces guard against the case where the connection
+    /// future is parked on a slow socket and would otherwise outlive
+    /// the `Channel` for an unbounded interval (e.g. peer never sends
+    /// the final GOAWAY ACK before the test runner moves on). The
+    /// abort is idempotent — a task that already finished is a no-op.
+    ///
+    /// `Option` so [`Drop`] can take ownership without leaving a
+    /// half-moved field; `Send` + `'static` because the task is
+    /// dispatched onto the multi-thread tokio runtime.
+    connection_task: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl Channel {
@@ -321,7 +336,12 @@ impl Channel {
         // Drive the h2 connection on a dedicated task. When the
         // `Channel` is dropped, `send_request` drops, which lets the
         // connection wind down naturally; the task exits at that point.
-        tokio::spawn(async move {
+        // The handle is retained on `Channel::connection_task` so the
+        // `Drop` impl can call `.abort()` as a belt-and-braces guard
+        // against a connection future parked on a slow socket
+        // outliving the `Channel` (cf. the test fixture pattern that
+        // tears down the server before the client).
+        let connection_task = tokio::spawn(async move {
             if let Err(err) = connection.await {
                 tracing::debug!(error = %err, "in-house gRPC h2 connection ended");
             }
@@ -354,6 +374,7 @@ impl Channel {
             scheme,
             in_flight: Arc::new(AtomicUsize::new(0)),
             decoder: None,
+            connection_task: Some(connection_task),
         })
     }
 
@@ -705,6 +726,25 @@ impl Channel {
     }
 }
 
+impl Drop for Channel {
+    /// Cancel the background h2 connection-driver task on drop.
+    ///
+    /// Dropping `send_request` (one of the `Channel`'s other fields)
+    /// is sufficient for a clean shutdown of a healthy connection —
+    /// the h2 connection winds down and the task returns from its
+    /// `.await`. The explicit `.abort()` here is belt-and-braces for
+    /// the case where the connection future is parked on a slow or
+    /// half-closed socket and would otherwise outlive the `Channel`
+    /// for an unbounded interval. `.abort()` is idempotent on a task
+    /// that already finished, so the common clean-shutdown path pays
+    /// at most one extra atomic on `Drop`.
+    fn drop(&mut self) {
+        if let Some(handle) = self.connection_task.take() {
+            handle.abort();
+        }
+    }
+}
+
 /// Encode a [`Duration`] as a gRPC `grpc-timeout` header value.
 ///
 /// Picks the smallest unit that fits the budget in at most 8 ASCII
@@ -972,6 +1012,74 @@ mod tests {
         // scheme field flows through to the wire for both transports
         // and there's no accidental constant-override anywhere.
         assert_scheme_round_trip(Scheme::HTTP, "http").await;
+    }
+
+    /// Dropping the `Channel` must abort the spawned h2 connection-
+    /// driver task. Without the `JoinHandle::abort()` in `Drop`, the
+    /// task would survive until the underlying socket closed itself —
+    /// which, under repeated connect/disconnect cycles in a long-
+    /// running consumer, lets background tasks accumulate. The check
+    /// here drives one `Channel::handshake` over `tokio::io::duplex`,
+    /// drops the channel, then awaits a short interval. The audit
+    /// invariant: `connection_task.is_finished()` is `true` by the
+    /// time the join lands.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn dropping_channel_aborts_h2_connection_task() {
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        // Server side: complete the h2 handshake and then park
+        // indefinitely on a `pending` future. Without the abort, the
+        // client's connection-driver task would also park forever.
+        let server_task = tokio::spawn(async move {
+            let mut conn = h2::server::handshake(server_io)
+                .await
+                .expect("server handshake");
+            // Park; the duplex closing on the client side will surface
+            // as `accept().await` returning None / Err, which we
+            // ignore — the test is interested in whether the *client*
+            // task gets reaped, not in the server side's behaviour.
+            let _ = conn.accept().await;
+        });
+
+        let mut channel = Channel::handshake(
+            client_io,
+            "127.0.0.1",
+            0,
+            DEFAULT_MAX_FOR_TEST,
+            Scheme::HTTP,
+        )
+        .await
+        .expect("client handshake");
+        // Snapshot the handle BEFORE drop so the test can `.is_finished()`
+        // it after; the `Channel`'s `Drop` would otherwise consume the
+        // only handle and we'd have no observable.
+        let task = channel
+            .connection_task
+            .take()
+            .expect("Channel constructed with a connection_task");
+        // Snapshot abort_handle so we can observe completion after the
+        // explicit drop without holding the JoinHandle (which would
+        // race the drop).
+        let abort_handle = task.abort_handle();
+        // Re-park the task in a JoinHandle the test owns; restore the
+        // channel field as `Some` so the `Drop` impl will abort it.
+        channel.connection_task = Some(task);
+        drop(channel);
+        // Yield + short sleep until the abort signal lands on the
+        // task. `abort()` is asynchronous (it schedules the task for
+        // cancellation; the actual finish happens the next time the
+        // runtime polls it), so a polite poll loop with a deadline is
+        // the canonical pattern.
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while !abort_handle.is_finished() && std::time::Instant::now() < deadline {
+            tokio::task::yield_now().await;
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        assert!(
+            abort_handle.is_finished(),
+            "Channel::Drop must abort the spawned h2 connection-driver task",
+        );
+        server_task.abort();
+        let _ = server_task.await;
     }
 
     #[test]
