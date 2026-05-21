@@ -506,13 +506,13 @@ class ThetaDataDxClient:
     def streaming_async(
         self,
         *,
-        max_queue_depth: int = 4096,
+        max_queue_depth: int = ...,
         backpressure: BackpressurePolicy = ...,
     ) -> StreamingAsyncSession: ...
     def streaming_async_batches(
         self,
         *,
-        max_queue_depth: int = 4096,
+        max_queue_depth: int = ...,
         backpressure: BackpressurePolicy = ...,
     ) -> StreamingAsyncBatchesSession: ...
 
@@ -597,13 +597,13 @@ class FpssClient:
     def streaming_async(
         self,
         *,
-        max_queue_depth: int = 4096,
+        max_queue_depth: int = ...,
         backpressure: BackpressurePolicy = ...,
     ) -> StreamingAsyncSession: ...
     def streaming_async_batches(
         self,
         *,
-        max_queue_depth: int = 4096,
+        max_queue_depth: int = ...,
         backpressure: BackpressurePolicy = ...,
     ) -> StreamingAsyncBatchesSession: ...
 
@@ -879,7 +879,6 @@ class BackpressurePolicy:
 
     def __repr__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
 
 
 # ─────────────────────────────────────────────────────────────────────

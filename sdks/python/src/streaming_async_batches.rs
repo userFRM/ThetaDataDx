@@ -60,7 +60,9 @@ use pyo3::exceptions::{PyRuntimeError, PyStopAsyncIteration};
 use pyo3::prelude::*;
 
 use thetadatadx::fpss::wake::WakeFd;
-use thetadatadx::fpss::{BackpressurePolicy as RustBackpressurePolicy, FpssData, FpssEvent};
+#[cfg(unix)]
+use thetadatadx::fpss::BackpressurePolicy as RustBackpressurePolicy;
+use thetadatadx::fpss::{FpssData, FpssEvent};
 use thetadatadx::{EventIterator as RustEventIterator, NextEvent};
 
 use crate::streaming_async_session::BackpressurePolicy;

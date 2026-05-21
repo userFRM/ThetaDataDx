@@ -50,6 +50,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 
 use thetadatadx::fpss::wake::WakeFd;
+#[cfg(unix)]
 use thetadatadx::fpss::BackpressurePolicy as RustBackpressurePolicy;
 use thetadatadx::{EventIterator as RustEventIterator, NextEvent};
 
@@ -103,6 +104,13 @@ impl BackpressurePolicy {
     }
 }
 
+// `to_core` lowers the Python enum into the Rust core's
+// `BackpressurePolicy`. Only reachable on Unix targets — the
+// `#[cfg(unix)]` `aenter_inner` paths on both async session pyclasses
+// are the only call sites, and Windows raises at construction time
+// without ever calling into the core's streaming-iter surface. Gating
+// keeps the Windows wheel clippy-clean.
+#[cfg(unix)]
 impl BackpressurePolicy {
     /// Lower into the Rust core's [`thetadatadx::fpss::BackpressurePolicy`].
     /// Single source of truth so the Python enum cannot drift from
