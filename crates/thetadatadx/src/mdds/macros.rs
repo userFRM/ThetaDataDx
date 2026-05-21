@@ -546,9 +546,9 @@ macro_rules! parsed_endpoint {
             /// expiry. `Error::Decompress { kind: MessageTooLarge }`
             /// when the channel's `max_message_size` ceiling rejects
             /// an oversized chunk.
-            pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>
+            pub async fn stream<F>(self, handler: F) -> Result<(), Error>
             where
-                F: FnMut(&[$item]),
+                F: FnMut(&[$item]) + Send,
             {
                 let $builder_name {
                     client,
@@ -565,27 +565,27 @@ macro_rules! parsed_endpoint {
                     let _permit = client.request_semaphore.acquire().await
                         .map_err(|_| Error::config_internal("request semaphore closed"))?;
                     let policy = client.config().retry;
-                    // The retry-loop helper drives an `FnMut` closure
-                    // that returns a future. The user `handler: FnMut`
-                    // must outlive multiple closure invocations
-                    // (post-refresh restart) AND be reachable from
-                    // inside the `for_each_chunk` callback. Wrap it
-                    // in a `RefCell` so the future can borrow it
-                    // mutably without the outer closure capturing a
-                    // `&mut` that would escape its body.
-                    let handler_cell = std::cell::RefCell::new(&mut handler);
-                    let handler_cell = &handler_cell;
+                    // The user handler is `FnMut + Send`; wrap it in a
+                    // `Mutex` so the per-attempt closure passed to
+                    // `run_streaming_retry_loop` can acquire a unique
+                    // mutable borrow on each invocation without
+                    // capturing a `&mut` whose lifetime would escape
+                    // the closure body. `Mutex<F>` where `F: Send` is
+                    // `Send + Sync`, so the future stays Send (the
+                    // Python SDK's `spawn_awaitable` requires this).
+                    let handler_mutex = std::sync::Mutex::new(handler);
+                    let handler_mutex = &handler_mutex;
                     $crate::mdds::macros::run_streaming_retry_loop(
                         client.session(),
                         &policy,
                         stringify!($name),
                         move |snap| {
-                            // Clone per-attempt: the FnMut closure
-                            // may be invoked twice (post-refresh
-                            // restart), and the proto request takes
-                            // ownership of the param values, so the
-                            // owned bindings must outlive the loop
-                            // and clone fresh on each iteration.
+                            // Clone per-attempt: the FnMut closure may
+                            // be invoked twice (post-refresh restart),
+                            // and the proto request takes ownership of
+                            // the param values, so the owned bindings
+                            // must outlive the loop and clone fresh on
+                            // each iteration.
                             $(let $req_arg = $req_arg.clone();)*
                             $(let $opt_name = $opt_name.clone();)*
                             async move {
@@ -617,7 +617,19 @@ macro_rules! parsed_endpoint {
                                         data_table: rows.to_vec(),
                                     };
                                     match $parser(&chunk_table) {
-                                        Ok(ticks) => (handler_cell.borrow_mut())(&ticks),
+                                        Ok(ticks) => {
+                                            // Mutex is single-threaded
+                                            // in practice (one call
+                                            // chain at a time); a
+                                            // poisoned mutex here only
+                                            // surfaces if `for_each_chunk`
+                                            // panicked mid-callback,
+                                            // which would already be
+                                            // a hard error path.
+                                            if let Ok(mut h) = handler_mutex.lock() {
+                                                (*h)(&ticks);
+                                            }
+                                        }
                                         Err(e) => decode_error = Some(Error::from(e)),
                                     }
                                 }).await;

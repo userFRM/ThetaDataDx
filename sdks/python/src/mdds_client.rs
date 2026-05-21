@@ -229,7 +229,6 @@ impl MddsClient {
         Ok(Self { inner })
     }
 
-
     /// Forward unknown attribute access to the wrapped
     /// [`crate::ThetaDataDxClient`].
     ///
