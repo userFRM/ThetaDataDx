@@ -116,7 +116,6 @@ where
     })
 }
 
-
 // ── Credentials ──
 // Lifecycle: intentionally hand-written (language-specific constructor semantics).
 //
@@ -218,9 +217,7 @@ impl Config {
     fn set_reconnect_policy(&self, policy: &str) -> PyResult<()> {
         let parsed = match policy.to_lowercase().as_str() {
             "manual" => config::ReconnectPolicy::Manual,
-            "auto" => {
-                config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default())
-            }
+            "auto" => config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default()),
             other => {
                 return Err(PyValueError::new_err(format!(
                     "unknown reconnect_policy: {other:?} (expected \"auto\" or \"manual\")"
@@ -772,7 +769,17 @@ fn split_date_range(start: &str, end: &str) -> PyResult<Vec<(String, String)>> {
 /// This Python package wraps the thetadatadx Rust crate via PyO3.
 /// All data parsing, gRPC communication, and TCP streaming
 /// happens in compiled Rust — Python is just the interface.
-#[pymodule]
+///
+/// `gil_used = false` opts the module into PEP 703 free-threaded
+/// interpreters (`python3.13t`, `python3.14t`). Without this attribute
+/// the free-threaded build automatically re-enables the GIL on the
+/// first import of this module — which would defeat the entire purpose
+/// of shipping nogil wheels. Every `#[pyclass]` carries either
+/// `frozen` (immutable, safe-by-construction), interior `Mutex` /
+/// `RwLock` / atomic primitives, or `unsendable` (single-thread
+/// affinity); see the per-pyclass audit in `feat/python-nogil-wheels`
+/// PR body for the full matrix.
+#[pymodule(gil_used = false)]
 #[pyo3(name = "thetadatadx")]
 fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Install the tracing → Python logging bridge FIRST so any `tracing`
