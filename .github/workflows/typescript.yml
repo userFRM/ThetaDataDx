@@ -82,7 +82,22 @@ jobs:
       # fenced-code blocks from `index.d.ts` and run each one with
       # `tsx`. Today `index.d.ts` carries no `@example` blocks (the
       # napi-rs emitter doesn't pass them from the Rust source);
-      # the gate is wired so future TS doc examples are exercised.
+      # the gate is wired so future TS doc examples are exercised
+      # automatically once the napi-rs emitter starts forwarding them.
+      #
+      # C3 closure: the cross-language Gate 3 scope is now scoped
+      # narrowly to:
+      #   - Rust:     `cargo test --doc --workspace` (active, runs)
+      #   - Python:   stubtest (active — verifies stub <-> runtime)
+      #   - TS:       `tsx`-based extractor below (wired, no examples
+      #               present yet; passes through with a clean exit)
+      #   - C++:      NOT wired. Documented as a follow-up item; the
+      #               C++ surface examples live in the README rather
+      #               than as runnable Catch2 doctest blocks. Adding
+      #               a doctest extractor for C++ requires a Catch2
+      #               build-flag toggle in CMakeLists.txt and is
+      #               deferred until C++ examples start carrying
+      #               machine-checkable fences.
       - name: Doc-example harness
         if: matrix.os == 'ubuntu-latest'
         working-directory: sdks/typescript

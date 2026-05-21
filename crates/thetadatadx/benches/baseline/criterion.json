@@ -1,6 +1,6 @@
 {
     "_meta": {
-        "comment": "Gate 10 (#553) expansion: bench_fpss_event::{event_clone,event_match} run in CI but are not gated yet — they will be added here once a first p50 sample lands on `main`. Python `Contract.stock(...)` and C++ `tdx::FpssClient` construction-cost benches are deferred until a baseline harness lands; they are tracked as deferred-baseline work. The `_meta` key is ignored by `scripts/check_bench_regression.py` because the loader explicitly extracts `criterion_path` + `p50_ns` and treats malformed entries as skip."
+        "comment": "Gate 10 (#553) baseline. C10 closure: FPSS event benches (FpssEvent__clone/{Quote,Trade,Ohlcvc} and FpssEvent__match/{Quote,Trade,Ohlcvc}) are now included in the gated set so a regression on the streaming hot path's per-event cost fails CI rather than silently landing. Threshold was tightened from 100% to 25% on the same PR — see ci.yml. Sample p50s were captured on a developer workstation; the first green-main run will refresh them against the GH-hosted runner perf profile via a single-sample bench job, and the refreshed JSON lands in its own PR per the gate workflow. The `_meta` key is ignored by `scripts/check_bench_regression.py` because the loader explicitly extracts `criterion_path` + `p50_ns` and treats malformed entries as skip."
     },
     "stock_list_symbols/in_house": {
         "p50_ns": 115997.0,
@@ -17,5 +17,29 @@
     "streaming_channels/disruptor_cross_thread/100k_events": {
         "p50_ns": 1608503.0,
         "criterion_path": "streaming_channels_disruptor_cross_thread/100k_events"
+    },
+    "FpssEvent::clone/Quote": {
+        "p50_ns": 17.5,
+        "criterion_path": "FpssEvent__clone/Quote"
+    },
+    "FpssEvent::clone/Trade": {
+        "p50_ns": 20.1,
+        "criterion_path": "FpssEvent__clone/Trade"
+    },
+    "FpssEvent::clone/Ohlcvc": {
+        "p50_ns": 17.7,
+        "criterion_path": "FpssEvent__clone/Ohlcvc"
+    },
+    "FpssEvent::match/Quote": {
+        "p50_ns": 0.86,
+        "criterion_path": "FpssEvent__match/Quote"
+    },
+    "FpssEvent::match/Trade": {
+        "p50_ns": 0.94,
+        "criterion_path": "FpssEvent__match/Trade"
+    },
+    "FpssEvent::match/Ohlcvc": {
+        "p50_ns": 0.96,
+        "criterion_path": "FpssEvent__match/Ohlcvc"
     }
 }

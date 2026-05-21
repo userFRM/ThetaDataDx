@@ -127,6 +127,70 @@ def cpp_has(symbol: str, cpp: set[str]) -> bool:
     return False
 
 
+def _is_implicitly_tracked(name: str) -> bool:
+    """Pyclasses whose parity is mechanical / not worth explicit rows.
+
+    C2 closure: rather than blocking on a row for every generator-emitted
+    tick list / fluent builder / typed FPSS event class (~136 pyclasses
+    out of ~158), categorise them by name pattern so the explicit
+    `[[class]]` rows in `parity.toml` cover only the load-bearing
+    public types. The catch-all assertion in `main()` flags any pyclass
+    that does NOT match either an explicit row or one of these
+    patterns — adding a new public pyclass that escapes both buckets
+    fails CI.
+
+    Patterns covered:
+    - `*Tick`, `*TickList`, `*TickListIter` — generator-emitted typed
+      tick wrappers (one per endpoint). Parity is structural: Python +
+      TypeScript both emit them, C++ matches via the C ABI layer.
+    - `*Builder` — fluent endpoint builders, generator-emitted; same
+      structural rule.
+    - FPSS event payload classes (`Quote` / `Trade` / `Ohlcvc` / etc.)
+      — declared via the SSOT in `fpss_event_schema.toml`. Each is
+      emitted on every binding by the generator.
+    - `OptionContract`, `StringList`, `StringListIter` — list-type
+      mechanical pyclasses.
+    - The exception hierarchy is already covered by explicit rows.
+    """
+    if name.endswith("Tick") or name.endswith("TickList") or name.endswith("TickListIter"):
+        return True
+    if name.endswith("Builder"):
+        return True
+    if name.endswith("List") or name.endswith("ListIter"):
+        return True
+    # Generator-emitted FPSS event classes — typed pyclass per
+    # `BufferedEvent::*` variant. Adding a new variant is a single
+    # edit in `fpss_event_schema.toml`; the structural rule keeps
+    # parity-toml drift in check.
+    if name in {
+        "Quote",
+        "Trade",
+        "Ohlcvc",
+        "OpenInterest",
+        "ContractAssigned",
+        "Connected",
+        "Disconnected",
+        "Error",
+        "LoginSuccess",
+        "MarketOpen",
+        "MarketClose",
+        "Ping",
+        "Reconnected",
+        "ReconnectedServer",
+        "Reconnecting",
+        "ReqResponse",
+        "Restart",
+        "ServerError",
+        "UnknownControl",
+        "UnknownFrame",
+        # Misc generator-emitted list / typed-value classes.
+        "OptionContract",
+        "AllGreeks",
+    }:
+        return True
+    return False
+
+
 def main() -> int:
     if not PARITY_TOML.is_file():
         print(f"missing parity matrix: {PARITY_TOML}", file=sys.stderr)
@@ -142,6 +206,8 @@ def main() -> int:
     ts = collect_typescript()
     cpp = collect_cpp()
 
+    declared_names: set[str] = {row["name"] for row in rows}
+
     mismatches: list[tuple[str, str, bool, bool]] = []
     for row in rows:
         name = row["name"]
@@ -155,6 +221,19 @@ def main() -> int:
             if actual != declared:
                 mismatches.append((name, lang, declared, actual))
 
+    # C2 closure: assert that every pyclass on the Python side is
+    # either explicitly tracked via a [[class]] row OR matches an
+    # implicit pattern (`*Tick`, `*Builder`, generator-emitted FPSS
+    # event payload). The implicit rule documents the mechanical
+    # parity expectation per pattern; new pyclasses that escape both
+    # buckets fail this assertion and block CI until either a row is
+    # added or the implicit-pattern list is extended.
+    untracked: set[str] = {
+        name
+        for name in py
+        if name not in declared_names and not _is_implicitly_tracked(name)
+    }
+
     if mismatches:
         print(f"check_binding_parity: {len(mismatches)} mismatch(es) vs sdks/parity.toml:")
         for name, lang, declared, actual in mismatches:
@@ -167,9 +246,25 @@ def main() -> int:
         )
         return 1
 
+    if untracked:
+        print(
+            f"check_binding_parity: {len(untracked)} pyclass(es) lack a "
+            "parity row AND do not match any implicit pattern:"
+        )
+        for name in sorted(untracked):
+            print(f"  {name}")
+        print(
+            "\nFix: either add an explicit `[[class]]` row to "
+            "`sdks/parity.toml` (preferred for load-bearing public "
+            "types) or extend `_is_implicitly_tracked()` if the class "
+            "is generator-emitted with mechanical cross-binding parity."
+        )
+        return 1
+
     print(
         f"check_binding_parity: clean "
-        f"({len(rows)} rows checked, py={len(py)} ts={len(ts)} cpp={len(cpp)})"
+        f"({len(rows)} explicit rows + {len(py) - len(untracked) - len(declared_names & py)} "
+        f"implicit-tracked pyclasses checked; py={len(py)} ts={len(ts)} cpp={len(cpp)})"
     )
     return 0
 
