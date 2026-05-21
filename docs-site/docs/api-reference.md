@@ -2586,19 +2586,17 @@ auto creds = tdx::Credentials::from_email("email@example.com", "password");
 ::: code-group
 ```rust [Rust]
 pub enum Error {
-    Transport(tonic::transport::Error), // gRPC channel errors
-    Status(Box<tonic::Status>),         // gRPC status codes (enriched with ThetaData error info)
-    Decompress(String),                 // zstd decompression failure
-    Decode(String),                     // protobuf decode failure
-    NoData,                             // endpoint returned no usable data
-    Auth(String),                       // Nexus auth errors (401/404)
-    Fpss(String),                       // FPSS connection errors
-    FpssProtocol(String),               // FPSS wire protocol errors
-    FpssDisconnected(String),           // FPSS server rejected connection
-    Config(String),                     // configuration errors
-    Http(reqwest::Error),               // HTTP request errors
-    Io(std::io::Error),                 // I/O errors
-    Tls(rustls::Error),                 // TLS handshake errors
+    Transport { kind: TransportErrorKind, message: String },  // in-house gRPC channel errors (v10)
+    Grpc { kind: GrpcStatusKind, message: String },           // gRPC status codes
+    Decompress { kind: DecompressErrorKind, message: String },// zstd decompression failure
+    Decode { kind: DecodeErrorKind, message: String },        // protobuf decode failure
+    NoData,                                                   // endpoint returned no usable data
+    Auth { kind: AuthErrorKind, message: String },            // Nexus auth errors
+    Fpss { kind: FpssErrorKind, message: String },            // FPSS connection / protocol errors
+    Config { kind: ConfigErrorKind, message: String },        // configuration errors
+    Http(reqwest::Error),                                     // HTTP request errors
+    Io(std::io::Error),                                       // I/O errors
+    Tls(rustls::Error),                                       // TLS handshake errors
 }
 ```
 ```python [Python]

@@ -31,7 +31,7 @@ maturin develop --release
 
 Binary wheels use CPython's stable ABI (`abi3`) with a minimum Python version of 3.9, so one wheel per platform supports Python 3.9+.
 
-Separate per-version wheels are published for PEP 703 free-threaded interpreters (`python3.13t`, `python3.14t`). These wheels carry `gil_used = false` on the extension module, so the GIL stays disabled after `import thetadatadx` and CPU-bound Python threads run truly in parallel with the gRPC dispatcher. `pip` automatically selects the matching wheel — install on a free-threaded interpreter and a `cp313-cp313t-*` or `cp314-cp314t-*` wheel will be picked up; install on a stock interpreter and the `cp39-abi3-*` wheel applies.
+Separate per-version wheels for PEP 703 free-threaded interpreters (`python3.13t`, `python3.14t`) will be picked up by `pip` automatically once the next PyPI release ships. The wheels carry `gil_used = false` on the extension module, so the GIL stays disabled after `import thetadatadx` and CPU-bound Python threads run truly in parallel with the gRPC dispatcher. After the next release lands, install on a free-threaded interpreter and a `cp313-cp313t-*` or `cp314-cp314t-*` wheel will be picked up; install on a stock interpreter and the `cp39-abi3-*` wheel applies.
 
 ## Quick Start
 
@@ -533,7 +533,7 @@ Available `flat_files.*` methods: `option_quote`, `option_trade`,
 ```mermaid
 graph TD
     A["Python code"] - "PyO3 FFI" --> B["thetadatadx Rust crate"]
-    B - "tonic gRPC / TLS TCP" --> C["ThetaData servers"]
+    B - "in-house gRPC / TLS TCP" --> C["ThetaData servers"]
 ```
 
 No HTTP middleware, no Java terminal, no subprocess. Direct wire-protocol access from the Rust core.

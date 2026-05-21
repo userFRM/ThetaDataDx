@@ -43,7 +43,7 @@ Rust SDK for ThetaData market data — single Rust core, four language surfaces 
 
 ```toml
 [dependencies]
-thetadatadx = "9"
+thetadatadx = "10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -67,7 +67,7 @@ Opt into chainable DataFrame ergonomics by enabling the `polars` and/or `arrow` 
 
 ```toml
 [dependencies]
-thetadatadx = { version = "9", features = ["polars"] }
+thetadatadx = { version = "10", features = ["polars"] }
 ```
 
 ```rust
@@ -116,8 +116,10 @@ for (const t of tdx.stockHistoryEOD('AAPL', '20240101', '20240301')) {
 #include <cstdio>
 
 int main() {
-    auto tdx = thetadatadx::ThetaDataDxClient::connect_from_file("creds.txt");
-    for (const auto& t : tdx.stock_history_eod("AAPL", "20240101", "20240301")) {
+    auto creds  = tdx::Credentials::from_file("creds.txt");
+    auto config = tdx::Config::production();
+    auto client = tdx::Client::connect(creds, config);
+    for (const auto& t : client.stock_history_eod("AAPL", "20240101", "20240301")) {
         std::printf("%d: O=%.2f H=%.2f L=%.2f C=%.2f V=%lld\n",
             t.date, t.open, t.high, t.low, t.close, (long long)t.volume);
     }
@@ -197,7 +199,7 @@ flowchart TB
     core -->|PyO3 / maturin| python["Python SDK<br/>(pyo3 · Arrow)"]
     ffi -->|napi-rs| ts["TypeScript SDK<br/>(N-API · BigInt)"]
     ffi -->|extern C| cpp["C++ SDK<br/>(RAII header-only)"]
-    core -->|tonic| rust["Rust consumer<br/>(direct crate)"]
+    core -->|in-house gRPC| rust["Rust consumer<br/>(direct crate)"]
 
     classDef coreStyle fill:#1e3a8a,stroke:#0c1e5c,color:#fff
     classDef ffiStyle fill:#7c2d12,stroke:#450a0a,color:#fff

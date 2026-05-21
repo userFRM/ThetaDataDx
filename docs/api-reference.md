@@ -26,7 +26,7 @@ let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 |--------|-----------|-------------|
 | `config()` | `&self -> &DirectConfig` | Return config snapshot |
 | `session_uuid()` | `&self -> &str` | Return the Nexus session UUID |
-| `channel()` | `&self -> &tonic::transport::Channel` | Access the underlying gRPC channel |
+| `channel()` | `&self -> &thetadatadx::grpc::Channel` | Access the underlying gRPC channel |
 | `raw_query_info()` | `&self -> proto_v3::QueryInfo` | Get a QueryInfo for use with raw_query |
 
 ### Streaming Response Processing
@@ -34,7 +34,7 @@ let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 ```rust
 pub async fn for_each_chunk<F>(
     &self,
-    stream: tonic::Streaming<ResponseData>,
+    stream: thetadatadx::grpc::ServerStreaming<ResponseData>,
     f: F,
 ) -> Result<(), Error>
 where
@@ -1818,7 +1818,7 @@ DirectConfig::dev()         // Dev FPSS servers (port 20200, infinite replay)
 
 ```rust
 pub enum Error {
-    Transport(tonic::transport::Error),
+    Transport { kind: TransportErrorKind, message: String },
     Grpc { kind: GrpcStatusKind, message: String },
     Decompress { kind: DecompressErrorKind, message: String },
     Decode { kind: DecodeErrorKind, message: String },
@@ -1835,7 +1835,7 @@ pub enum Error {
 }
 ```
 
-All variants implement `Display` and `std::error::Error`. Automatic conversions via `From` are provided for `tonic::transport::Error`, `tonic::Status`, `reqwest::Error`, `std::io::Error`, and `rustls::Error`.
+All variants implement `Display` and `std::error::Error`. Automatic conversions via `From` are provided for `thetadatadx::grpc::ChannelError`, `thetadatadx::grpc::Status`, `reqwest::Error`, `std::io::Error`, and `rustls::Error`. The in-house gRPC transport (v10) replaces the v9 `tonic` dependency end-to-end; `Error::Transport` now carries a typed `TransportErrorKind` rather than a bare `tonic::transport::Error`.
 
 ### Programmatic recovery via `kind`
 

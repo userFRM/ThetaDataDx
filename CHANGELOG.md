@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Python `FpssClient` and `MddsClient` standalone pyclasses
+  (#541, #543). `FpssClient(creds, config)` opens ONLY the FPSS TLS
+  transport; `MddsClient(creds, config)` opens ONLY the MDDS gRPC
+  channel plus Nexus auth and surfaces the historical / FLATFILES
+  API while raising `AttributeError` on every FPSS-touching method.
+  Mirrors the C ABI `tdx_fpss_*` / `tdx_client_*` split and the C++
+  `tdx::FpssClient` / `tdx::Client` shape.
+- Asyncio-native streaming surface
+  `ThetaDataDxClient.streaming_async()` / `FpssClient.streaming_async()`
+  (#559). The session bridges the Disruptor consumer thread to the
+  asyncio loop via a self-pipe wake FD: zero polling cost during
+  quiet periods, one OS wake per coalesced batch.
+- Free-threaded (PEP 703) wheels for CPython 3.13t / 3.14t (#561).
+  The extension carries `gil_used = false` on `#[pymodule]` so the
+  GIL stays disabled after `import thetadatadx`. Every
+  `block_on(...)` call site on the unified client and on the FPSS
+  / MDDS standalone pyclasses releases the GIL via `py.detach`
+  before driving the tokio runtime; the parallel-throughput gate
+  asserts `< 1.8x` overhead under contention on the free-threaded
+  matrix entries (`3.13t` / `3.14t`).
+- 12-gate CI invariant suite (#560). Gates cover: cross-binding
+  parity (`sdks/parity.toml` matrix), C ABI completeness (now
+  sourced from `nm` on the compiled .so so macro-emitted symbols
+  are tracked), wire-schema drift, banned-vocab scrubber, version
+  sync (Cargo / `package.json` / CMake / docs pins all in
+  lockstep), wheel + npm tarball content inspection, stubtest
+  `.pyi` ↔ runtime, fresh-install venv smoke, doc-example harness,
+  cargo-semver-checks (baseline now anchored at `v10.0.0`),
+  bench-regression gate (threshold 25% against the GH-runner
+  baseline), nogil throughput overhead gate.
+- Renamed FPSS event payload type from `Contract` to `ContractRef`
+  (#558). `event.contract` now returns `ContractRef` (the read-only
+  event payload accessor) without colliding with the fluent
+  `Contract` builder used in `subscribe()` inputs.
+
 ### Changed
 
 - `Error::Transport` payload restructured from `String` into a
