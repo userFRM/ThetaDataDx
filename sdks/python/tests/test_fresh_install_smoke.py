@@ -122,3 +122,23 @@ def test_documented_implied_volatility_runs(mod) -> None:
     iv, err = mod.implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C")
     assert iv > 0
     assert err >= 0
+
+
+def test_version_attribute_exposed(mod) -> None:
+    """PEP 396: `thetadatadx.__version__` must be a non-empty string.
+
+    A fresh install of the wheel resolves the version through
+    `importlib.metadata.version("thetadatadx")`; the source-tree
+    fallback returns the in-source default. Either way, the attribute
+    must exist and be a non-empty string — downstream packagers,
+    `pip show`, and bug-report scripts rely on it.
+    """
+    assert hasattr(mod, "__version__"), (
+        "`thetadatadx.__version__` is missing — PEP 396 requires every "
+        "distributable Python package to expose this attribute."
+    )
+    version = mod.__version__
+    assert isinstance(version, str), (
+        f"`thetadatadx.__version__` must be a string, got {type(version).__name__}."
+    )
+    assert version, "`thetadatadx.__version__` must be a non-empty string."
