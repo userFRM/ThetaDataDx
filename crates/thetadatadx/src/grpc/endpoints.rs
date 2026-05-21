@@ -253,15 +253,13 @@ pub mod bench_support {
 
 /// Lift a [`ChannelError`] into the crate's umbrella [`Error`] type.
 ///
-/// Wire-level failures (`Rpc`, `Codec`, `H2Stream`, ...) flow through
-/// [`Error::config_internal`] with the underlying message preserved in
-/// the carried `String`. Callers that need structured discrimination
-/// match on the [`ChannelError`] directly via [`Channel::server_streaming`].
+/// Delegates to the canonical `From<ChannelError> for Error` impl in
+/// [`crate::error`], which preserves the structured taxonomy:
+/// `Rpc` becomes `Error::Grpc { kind: GrpcStatusKind::*, .. }`,
+/// `DeadlineExceeded` becomes `Error::Timeout`, and every transport
+/// fault folds into `Error::Transport { kind: TransportErrorKind::*, .. }`.
+/// The retry classifier in [`crate::mdds::macros`] then dispatches on
+/// the typed `kind` rather than parsing `Display` strings.
 fn map_channel_error(err: ChannelError) -> Error {
-    match err {
-        ChannelError::Rpc { status } => Error::config_internal(format!(
-            "in-house grpc rpc returned non-ok status: {status}"
-        )),
-        other => Error::config_internal(format!("in-house grpc transport: {other}")),
-    }
+    Error::from(err)
 }

@@ -282,54 +282,68 @@ macro_rules! list_endpoint {
                 let policy = self.config().retry;
                 let budget = policy.max_attempts.max(1);
                 let mut refreshed_already = false;
-                let mut last_err: Option<Error> = None;
-                let table: proto::DataTable = 'retry: loop {
-                    for attempt in 1..=budget {
-                        let snap = self.session().snapshot().await;
-                        let qi = self.build_query_info(snap.uuid.clone());
-                        let request = proto::$req {
-                            query_info: Some(qi),
-                            params: Some(proto::$query { $($field : $val),* }),
-                        };
-                        let attempt_result: Result<proto::DataTable, Error> = async {
-                            // Bind the lease to a local so it lives
-                            // across the await — the pre-dispatch
-                            // reservation must outlive `server_streaming`
-                            // for the picker fix (Finding 4) to count
-                            // pending opens correctly under burst
-                            // contention. Deref coercion from
-                            // `&ChannelLease` to `&Channel` satisfies
-                            // the generated stub signature.
-                            let lease = self.channel();
-                            let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                &lease,
-                                request,
-                            )
-                            .await
-                            .map_err(|e| -> Error { e.into() })?;
-                            self.collect_stream(stream).await
-                        }
-                        .await;
-                        match $crate::mdds::macros::classify_attempt(
-                            self.session(),
-                            &snap,
-                            &mut refreshed_already,
-                            stringify!($name),
-                            attempt_result,
-                        ).await {
-                            $crate::mdds::macros::AttemptStep::Ok(t) => break 'retry t,
-                            $crate::mdds::macros::AttemptStep::Terminal(err) => return Err::<Vec<String>, Error>(err),
-                            $crate::mdds::macros::AttemptStep::Retry(err) => {
-                                if attempt == budget {
-                                    last_err = Some(err);
-                                    break;
-                                }
-                                $crate::mdds::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
-                                last_err = Some(err);
+                // Auth recovery (session refresh) is a documented
+                // contract distinct from transient-retry policy: even
+                // with `RetryPolicy::disabled()` (budget=1), a caller
+                // expects refresh + one re-attempt on `Unauthenticated`.
+                // `refresh_retry_used` tracks the one-shot
+                // post-refresh re-attempt independently of the
+                // transient-retry budget.
+                let mut refresh_retry_used = false;
+                let mut attempt: u32 = 1;
+                let table: proto::DataTable = loop {
+                    let snap = self.session().snapshot().await;
+                    let qi = self.build_query_info(snap.uuid.clone());
+                    let request = proto::$req {
+                        query_info: Some(qi),
+                        params: Some(proto::$query { $($field : $val),* }),
+                    };
+                    let attempt_result: Result<proto::DataTable, Error> = async {
+                        // Bind the lease to a local so it lives
+                        // across the await — the pre-dispatch
+                        // reservation must outlive `server_streaming`
+                        // for the picker fix (Finding 4) to count
+                        // pending opens correctly under burst
+                        // contention. Deref coercion from
+                        // `&ChannelLease` to `&Channel` satisfies
+                        // the generated stub signature.
+                        let lease = self.channel();
+                        let stream = $crate::proto::beta_theta_terminal::$grpc(
+                            &lease,
+                            request,
+                        )
+                        .await
+                        .map_err(|e| -> Error { e.into() })?;
+                        self.collect_stream(stream).await
+                    }
+                    .await;
+                    let refreshed_before = refreshed_already;
+                    match $crate::mdds::macros::classify_attempt(
+                        self.session(),
+                        &snap,
+                        &mut refreshed_already,
+                        stringify!($name),
+                        attempt_result,
+                    ).await {
+                        $crate::mdds::macros::AttemptStep::Ok(t) => break t,
+                        $crate::mdds::macros::AttemptStep::Terminal(err) => return Err::<Vec<String>, Error>(err),
+                        $crate::mdds::macros::AttemptStep::Retry(err) => {
+                            // Refresh just flipped this iteration?
+                            // Grant one post-refresh attempt outside
+                            // the transient-retry budget.
+                            let refresh_just_now = !refreshed_before && refreshed_already;
+                            let can_post_refresh = refresh_just_now && !refresh_retry_used;
+                            if attempt >= budget && !can_post_refresh {
+                                return Err::<Vec<String>, Error>(err);
                             }
+                            if can_post_refresh {
+                                refresh_retry_used = true;
+                            } else {
+                                $crate::mdds::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
+                            }
+                            attempt += 1;
                         }
                     }
-                    return Err(last_err.unwrap_or_else(|| Error::config_internal("retry loop exited without result")));
                 };
                 metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
                     .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
@@ -472,8 +486,14 @@ macro_rules! parsed_endpoint {
                     let policy = client.config().retry;
                     let budget = policy.max_attempts.max(1);
                     let mut refreshed_already = false;
-                    let mut last_err: Option<Error> = None;
-                    for attempt in 1..=budget {
+                    // Auth recovery is independent of transient-retry
+                    // budget: `RetryPolicy::disabled()` (budget=1) on
+                    // a streaming call still gets refresh + restart
+                    // on `Unauthenticated`. `refresh_retry_used`
+                    // gates the one-shot post-refresh re-attempt.
+                    let mut refresh_retry_used = false;
+                    let mut attempt: u32 = 1;
+                    loop {
                         let snap = client.session().snapshot().await;
                         let qi = client.build_query_info(snap.uuid.clone());
                         let request = proto::$req {
@@ -529,20 +549,31 @@ macro_rules! parsed_endpoint {
                                 return Err::<(), Error>(err);
                             }
                             $crate::mdds::macros::StreamingAttemptOutcome::Refresh(err) => {
+                                // Refresh succeeded — restart from
+                                // chunk zero. Grant the post-refresh
+                                // attempt even if `attempt >= budget`
+                                // (auth-recovery contract).
+                                if refresh_retry_used {
+                                    // Should never reach here: the
+                                    // classifier only emits Refresh
+                                    // once per call (refresh budget
+                                    // = 1). Defensive — surface the
+                                    // error rather than spin.
+                                    return Err::<(), Error>(err);
+                                }
+                                refresh_retry_used = true;
                                 tracing::warn!(endpoint = stringify!($name), attempt, error = %err, "session refresh during stream — restarting from chunk zero");
-                                last_err = Some(err);
+                                attempt += 1;
                             }
                             $crate::mdds::macros::StreamingAttemptOutcome::Backoff(err) => {
-                                if attempt == budget {
-                                    last_err = Some(err);
-                                    break;
+                                if attempt >= budget {
+                                    return Err::<(), Error>(err);
                                 }
                                 $crate::mdds::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
-                                last_err = Some(err);
+                                attempt += 1;
                             }
                         }
                     }
-                    Err::<(), Error>(last_err.unwrap_or_else(|| Error::config_internal("streaming retry loop exited without result")))
                 }).await
             }
 
@@ -571,53 +602,63 @@ macro_rules! parsed_endpoint {
                         let policy = client.config().retry;
                         let budget = policy.max_attempts.max(1);
                         let mut refreshed_already = false;
-                        let mut last_err: Option<Error> = None;
-                        let table: proto::DataTable = 'retry: loop {
-                            for attempt in 1..=budget {
-                                let snap = client.session().snapshot().await;
-                                let qi = client.build_query_info(snap.uuid.clone());
-                                let request = proto::$req {
-                                    query_info: Some(qi),
-                                    params: Some(proto::$query { $($field : $val),* }),
-                                };
-                                let attempt_result: Result<proto::DataTable, Error> = async {
-                                    // Bind the lease to a local so it
-                                    // lives across the await — see the
-                                    // sibling macro arm above for the
-                                    // full rationale. Deref coercion
-                                    // from `&ChannelLease` to `&Channel`
-                                    // satisfies the generated stub
-                                    // signature.
-                                    let lease = client.channel();
-                                    let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                        &lease,
-                                        request,
-                                    )
-                                    .await
-                                    .map_err(|e| -> Error { e.into() })?;
-                                    client.collect_stream(stream).await
-                                }
-                                .await;
-                                match $crate::mdds::macros::classify_attempt(
-                                    client.session(),
-                                    &snap,
-                                    &mut refreshed_already,
-                                    stringify!($name),
-                                    attempt_result,
-                                ).await {
-                                    $crate::mdds::macros::AttemptStep::Ok(t) => break 'retry t,
-                                    $crate::mdds::macros::AttemptStep::Terminal(err) => return Err::<$ret, Error>(err),
-                                    $crate::mdds::macros::AttemptStep::Retry(err) => {
-                                        if attempt == budget {
-                                            last_err = Some(err);
-                                            break;
-                                        }
-                                        $crate::mdds::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
-                                        last_err = Some(err);
+                        // See list_endpoint macro arm: refresh budget
+                        // is auth-recovery contract, distinct from
+                        // transient-retry policy. With
+                        // `RetryPolicy::disabled()` (budget=1) a
+                        // `NeedsRefresh` still gets refresh + one
+                        // retry.
+                        let mut refresh_retry_used = false;
+                        let mut attempt: u32 = 1;
+                        let table: proto::DataTable = loop {
+                            let snap = client.session().snapshot().await;
+                            let qi = client.build_query_info(snap.uuid.clone());
+                            let request = proto::$req {
+                                query_info: Some(qi),
+                                params: Some(proto::$query { $($field : $val),* }),
+                            };
+                            let attempt_result: Result<proto::DataTable, Error> = async {
+                                // Bind the lease to a local so it
+                                // lives across the await — see the
+                                // sibling macro arm above for the
+                                // full rationale. Deref coercion
+                                // from `&ChannelLease` to `&Channel`
+                                // satisfies the generated stub
+                                // signature.
+                                let lease = client.channel();
+                                let stream = $crate::proto::beta_theta_terminal::$grpc(
+                                    &lease,
+                                    request,
+                                )
+                                .await
+                                .map_err(|e| -> Error { e.into() })?;
+                                client.collect_stream(stream).await
+                            }
+                            .await;
+                            let refreshed_before = refreshed_already;
+                            match $crate::mdds::macros::classify_attempt(
+                                client.session(),
+                                &snap,
+                                &mut refreshed_already,
+                                stringify!($name),
+                                attempt_result,
+                            ).await {
+                                $crate::mdds::macros::AttemptStep::Ok(t) => break t,
+                                $crate::mdds::macros::AttemptStep::Terminal(err) => return Err::<$ret, Error>(err),
+                                $crate::mdds::macros::AttemptStep::Retry(err) => {
+                                    let refresh_just_now = !refreshed_before && refreshed_already;
+                                    let can_post_refresh = refresh_just_now && !refresh_retry_used;
+                                    if attempt >= budget && !can_post_refresh {
+                                        return Err::<$ret, Error>(err);
                                     }
+                                    if can_post_refresh {
+                                        refresh_retry_used = true;
+                                    } else {
+                                        $crate::mdds::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
+                                    }
+                                    attempt += 1;
                                 }
                             }
-                            return Err(last_err.unwrap_or_else(|| Error::config_internal("retry loop exited without result")));
                         };
                         metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
                             .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
@@ -957,5 +998,322 @@ mod streaming_attempt_tests {
         .await;
         assert!(matches!(out, StreamingAttemptOutcome::Terminal(_)));
         assert!(!refreshed, "decode terminal must not touch refresh budget");
+    }
+}
+
+#[cfg(test)]
+mod refresh_retry_disabled_tests {
+    //! Regression tests for the auth-recovery contract: when
+    //! `RetryPolicy::disabled()` is set (`max_attempts = 1`), a
+    //! `NeedsRefresh` outcome must still trigger session refresh +
+    //! one post-refresh re-attempt. Auth recovery is a separate
+    //! contract from transient-retry policy.
+    //!
+    //! These tests replay the exact control-flow algorithm embedded
+    //! in the `list_endpoint!` / `parsed_endpoint!` macro arms with
+    //! a queue of canned attempt outcomes. The replay is faithful to
+    //! the macro logic: same `refreshed_already` / `refresh_retry_used`
+    //! / `attempt` state machine, same `classify_attempt` invocation,
+    //! same break / retry decisions.
+    //!
+    //! A `SessionToken` is constructed pointing at an unreachable
+    //! Nexus URL; the test pre-bumps the token version via
+    //! `bump_for_test` so `session.refresh(&stale)` short-circuits on
+    //! the dedup fast-path and returns Ok without HTTP.
+    use super::{
+        classify_attempt, classify_streaming_attempt, AttemptStep, StreamingAttemptOutcome,
+    };
+    use crate::auth::session::{SessionSnapshot, SessionToken};
+    use crate::auth::Credentials;
+    use crate::config::RetryPolicy;
+    use crate::error::{Error, GrpcStatusKind};
+
+    fn fake_token(uuid: &str) -> SessionToken {
+        SessionToken::new(
+            uuid.to_string(),
+            "https://nexus.example.invalid/auth".to_string(),
+            Credentials::new("user@example.com", "hunter2"),
+        )
+    }
+
+    fn grpc(kind: GrpcStatusKind) -> Error {
+        Error::Grpc {
+            kind,
+            message: String::new(),
+        }
+    }
+
+    /// Replay the unary macro arm's retry-loop algorithm against a
+    /// queue of canned per-attempt outcomes. Returns the final result
+    /// plus the number of attempts the loop made — the regression
+    /// asserts that a `NeedsRefresh` outcome triggers a second
+    /// attempt even when `RetryPolicy::disabled()` would normally
+    /// permit only one.
+    async fn replay_unary_macro_loop(
+        session: &SessionToken,
+        snap: &SessionSnapshot,
+        policy: &RetryPolicy,
+        mut outcomes: Vec<Result<&'static str, Error>>,
+    ) -> (Result<&'static str, Error>, u32) {
+        outcomes.reverse(); // pop from end = FIFO
+        let budget = policy.max_attempts.max(1);
+        let mut refreshed_already = false;
+        let mut refresh_retry_used = false;
+        let mut attempt: u32 = 1;
+        let mut attempts_made: u32 = 0;
+        let result = loop {
+            attempts_made += 1;
+            let attempt_result = outcomes
+                .pop()
+                .expect("test fed fewer outcomes than the loop drove");
+            let refreshed_before = refreshed_already;
+            match classify_attempt(
+                session,
+                snap,
+                &mut refreshed_already,
+                "test_endpoint",
+                attempt_result,
+            )
+            .await
+            {
+                AttemptStep::Ok(t) => break Ok(t),
+                AttemptStep::Terminal(err) => break Err(err),
+                AttemptStep::Retry(err) => {
+                    let refresh_just_now = !refreshed_before && refreshed_already;
+                    let can_post_refresh = refresh_just_now && !refresh_retry_used;
+                    if attempt >= budget && !can_post_refresh {
+                        break Err(err);
+                    }
+                    if can_post_refresh {
+                        refresh_retry_used = true;
+                    }
+                    // Skip the backoff sleep in tests — the contract
+                    // we care about is loop-control, not wall-clock
+                    // delay.
+                    attempt += 1;
+                }
+            }
+        };
+        (result, attempts_made)
+    }
+
+    /// Replay the streaming macro arm's retry-loop algorithm.
+    async fn replay_streaming_macro_loop(
+        session: &SessionToken,
+        snap: &SessionSnapshot,
+        policy: &RetryPolicy,
+        mut outcomes: Vec<Result<(), Error>>,
+    ) -> (Result<(), Error>, u32) {
+        outcomes.reverse();
+        let budget = policy.max_attempts.max(1);
+        let mut refreshed_already = false;
+        let mut refresh_retry_used = false;
+        let mut attempt: u32 = 1;
+        let mut attempts_made: u32 = 0;
+        let result = loop {
+            attempts_made += 1;
+            let attempt_result = outcomes
+                .pop()
+                .expect("test fed fewer outcomes than the loop drove");
+            match classify_streaming_attempt(
+                session,
+                snap,
+                &mut refreshed_already,
+                "test_stream_endpoint",
+                attempt_result,
+            )
+            .await
+            {
+                StreamingAttemptOutcome::Done => break Ok(()),
+                StreamingAttemptOutcome::Terminal(err) => break Err(err),
+                StreamingAttemptOutcome::Refresh(err) => {
+                    if refresh_retry_used {
+                        break Err(err);
+                    }
+                    refresh_retry_used = true;
+                    attempt += 1;
+                }
+                StreamingAttemptOutcome::Backoff(err) => {
+                    if attempt >= budget {
+                        break Err(err);
+                    }
+                    attempt += 1;
+                }
+            }
+        };
+        (result, attempts_made)
+    }
+
+    #[tokio::test]
+    async fn disabled_policy_unary_refresh_then_retry_succeeds() {
+        // Setup: token at v0, pre-bump to v1 so refresh fast-paths
+        // without HTTP. First attempt returns NeedsRefresh; classify
+        // calls refresh (fast-path Ok, refreshed_already flips); the
+        // S2 fix grants ONE post-refresh attempt even though
+        // budget = 1. Second attempt returns Ok("payload").
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        session.bump_for_test("v1").await;
+        let policy = RetryPolicy::disabled();
+        assert_eq!(policy.max_attempts, 1, "preconditions: budget=1");
+
+        let outcomes: Vec<Result<&'static str, Error>> =
+            vec![Err(grpc(GrpcStatusKind::Unauthenticated)), Ok("payload")];
+        let (result, attempts) = replay_unary_macro_loop(&session, &snap, &policy, outcomes).await;
+
+        assert_eq!(result.expect("post-refresh retry must succeed"), "payload");
+        assert_eq!(
+            attempts, 2,
+            "loop must fire a second attempt after refresh even under RetryPolicy::disabled"
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_policy_unary_refresh_then_terminal_surfaces_second_err() {
+        // After a successful refresh + retry, if the second attempt
+        // also fails terminally, surface that terminal error
+        // (NotFound here) — not a fabricated "retry exhausted"
+        // shape.
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        session.bump_for_test("v1").await;
+        let policy = RetryPolicy::disabled();
+
+        let outcomes: Vec<Result<&'static str, Error>> = vec![
+            Err(grpc(GrpcStatusKind::Unauthenticated)),
+            Err(grpc(GrpcStatusKind::NotFound)),
+        ];
+        let (result, attempts) = replay_unary_macro_loop(&session, &snap, &policy, outcomes).await;
+
+        let err = result.expect_err("second attempt failed terminally");
+        match err {
+            Error::Grpc {
+                kind: GrpcStatusKind::NotFound,
+                ..
+            } => {}
+            other => panic!("expected NotFound on second attempt, got {other:?}"),
+        }
+        assert_eq!(attempts, 2);
+    }
+
+    #[tokio::test]
+    async fn disabled_policy_unary_transient_does_not_get_extra_attempt() {
+        // Control case: a transient (Unavailable) under
+        // RetryPolicy::disabled() still surfaces after one attempt.
+        // The S2 fix targets refresh recovery specifically — it must
+        // NOT grant a free retry to bare transients.
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        let policy = RetryPolicy::disabled();
+
+        let outcomes: Vec<Result<&'static str, Error>> =
+            vec![Err(grpc(GrpcStatusKind::Unavailable))];
+        let (result, attempts) = replay_unary_macro_loop(&session, &snap, &policy, outcomes).await;
+
+        assert!(matches!(
+            result,
+            Err(Error::Grpc {
+                kind: GrpcStatusKind::Unavailable,
+                ..
+            })
+        ));
+        assert_eq!(
+            attempts, 1,
+            "disabled policy must NOT grant a free transient retry"
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_policy_unary_only_one_post_refresh_attempt() {
+        // The refresh-recovery budget is one post-refresh attempt.
+        // If the post-refresh attempt also returns NeedsRefresh,
+        // classify_attempt surfaces it as Terminal (refreshed_already
+        // is true), and the loop ends without a third attempt.
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        session.bump_for_test("v1").await;
+        let policy = RetryPolicy::disabled();
+
+        let outcomes: Vec<Result<&'static str, Error>> = vec![
+            Err(grpc(GrpcStatusKind::Unauthenticated)),
+            Err(grpc(GrpcStatusKind::Unauthenticated)),
+        ];
+        let (result, attempts) = replay_unary_macro_loop(&session, &snap, &policy, outcomes).await;
+
+        assert!(matches!(
+            result,
+            Err(Error::Grpc {
+                kind: GrpcStatusKind::Unauthenticated,
+                ..
+            })
+        ));
+        assert_eq!(
+            attempts, 2,
+            "exactly one post-refresh attempt, then surface as terminal"
+        );
+    }
+
+    #[tokio::test]
+    async fn disabled_policy_streaming_refresh_then_done_succeeds() {
+        // Streaming arm: same contract as unary. Disabled policy +
+        // mid-stream Unauthenticated must refresh + restart from
+        // chunk zero, and the restart must succeed (Done).
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        session.bump_for_test("v1").await;
+        let policy = RetryPolicy::disabled();
+
+        let outcomes: Vec<Result<(), Error>> =
+            vec![Err(grpc(GrpcStatusKind::Unauthenticated)), Ok(())];
+        let (result, attempts) =
+            replay_streaming_macro_loop(&session, &snap, &policy, outcomes).await;
+
+        result.expect("post-refresh stream must complete");
+        assert_eq!(attempts, 2);
+    }
+
+    #[tokio::test]
+    async fn disabled_policy_streaming_transient_no_extra_attempt() {
+        // Streaming arm: disabled policy + transient (Unavailable)
+        // must surface after the first attempt, no free retry.
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        let policy = RetryPolicy::disabled();
+
+        let outcomes: Vec<Result<(), Error>> = vec![Err(grpc(GrpcStatusKind::Unavailable))];
+        let (result, attempts) =
+            replay_streaming_macro_loop(&session, &snap, &policy, outcomes).await;
+
+        assert!(matches!(
+            result,
+            Err(Error::Grpc {
+                kind: GrpcStatusKind::Unavailable,
+                ..
+            })
+        ));
+        assert_eq!(attempts, 1);
+    }
+
+    #[tokio::test]
+    async fn default_policy_unary_refresh_does_not_consume_transient_budget() {
+        // With max_attempts = 3, a NeedsRefresh on attempt 1 must
+        // grant the refresh-retry attempt without burning a transient
+        // budget slot. The post-refresh attempt succeeds → final
+        // attempts = 2, not 3.
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        session.bump_for_test("v1").await;
+        let policy = RetryPolicy {
+            initial_delay: std::time::Duration::ZERO,
+            max_delay: std::time::Duration::ZERO,
+            max_attempts: 3,
+            jitter: false,
+        };
+
+        let outcomes: Vec<Result<&'static str, Error>> =
+            vec![Err(grpc(GrpcStatusKind::Unauthenticated)), Ok("payload")];
+        let (result, attempts) = replay_unary_macro_loop(&session, &snap, &policy, outcomes).await;
+        assert_eq!(result.expect("must succeed"), "payload");
+        assert_eq!(attempts, 2);
     }
 }

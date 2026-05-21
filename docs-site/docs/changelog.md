@@ -92,10 +92,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `streaming_async_batches(max_queue_depth=, backpressure=)`.
 - `ThetaDataDxClient.streaming_async_batches()` /
   `FpssClient.streaming_async_batches()` (#564). Arrow IPC zero-copy
-  surface: each `async for batch in session` yields a `pyarrow.Table`
-  whose column buffers alias the Disruptor consumer's pre-grouped
-  Arrow `RecordBatch` — no per-event Python object construction on
-  the reader path. Same self-pipe wake-FD signalling as
+  surface: each `async for batch in session` yields a
+  `pyarrow.RecordBatch` whose column buffers alias the Disruptor
+  consumer's pre-grouped Arrow `RecordBatch` — no per-event Python
+  object construction on the reader path. Same self-pipe wake-FD
+  signalling as
   `streaming_async()`; the column-shape SSOT (`tick_schema.toml`)
   guarantees schema parity with the per-event variant.
 - `queue_depth()` and `dropped_event_count()` getters on

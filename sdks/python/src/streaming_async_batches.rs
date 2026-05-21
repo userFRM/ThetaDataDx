@@ -385,42 +385,84 @@ impl StreamingAsyncBatchesSession {
         }
     }
 
+    /// `__aenter__` body for the batched surface — mirrors the
+    /// row-based `StreamingAsyncSession::aenter_inner` FD-safety
+    /// pattern (see `streaming_async_session.rs` lines 547-557).
+    ///
+    /// Both pipe ends are wrapped in scope-local `OwnedFd` guards
+    /// immediately after `alloc_wake_pipe` so every fallible step
+    /// (`handle.start`, `asyncio.import`, `get_running_loop`,
+    /// `Event()`, `getattr("set")`, `add_reader`) drops the guard
+    /// on `?`-early-return and closes the FD via `OwnedFd::Drop`.
+    /// The write-end is released via `into_raw_fd()` only at the
+    /// instant `handle.start` is invoked (the Rust core's `WakeFd`
+    /// takes ownership inside `start`); the read-end is released
+    /// only on the committed path right before `self.read_fd = ...`.
     #[cfg(unix)]
     fn aenter_inner(&mut self, py: Python<'_>) -> PyResult<()> {
+        use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
+
         if self.iterator.is_some() {
             return Err(PyRuntimeError::new_err(
                 "StreamingAsyncBatchesSession is already entered -- one session enters at most once",
             ));
         }
 
-        let (read_fd, write_fd) = crate::streaming_async_session::alloc_wake_pipe()?;
+        let (read_fd_raw, write_fd_raw) =
+            crate::streaming_async_session::alloc_wake_pipe()?;
 
+        // SAFETY: both FDs were just allocated by `alloc_wake_pipe`,
+        // are open, and have not been handed to any other owner.
+        // `OwnedFd` takes exclusive ownership; its `Drop` closes the
+        // FD if we return early via `?` before committing.
+        let read_guard = unsafe { OwnedFd::from_raw_fd(read_fd_raw) };
+        let write_guard = unsafe { OwnedFd::from_raw_fd(write_fd_raw) };
+
+        // Hand the write-end to the Rust core. The `Arc<WakeFd>`
+        // returned takes ownership of the write-end. We
+        // `into_raw_fd()` only at the call site so a panic / failure
+        // inside `start` does not double-close (the `OwnedFd` is
+        // dropped by `?` before `into_raw_fd` runs).
+        let write_fd_for_start = write_guard.into_raw_fd();
         let (rust_iter, wake) = match self.handle.start(
             py,
-            write_fd,
+            write_fd_for_start,
             self.max_queue_depth,
             self.backpressure.to_core(),
         ) {
             Ok(pair) => pair,
             Err(err) => {
-                // SAFETY: both FDs are open, owned by this scope,
-                // and not yet shared.
+                // `start` failed — the write FD was never observed
+                // by WakeFd, but we already released the guard.
+                // Close it manually so we do not leak.
+                // SAFETY: `write_fd_for_start` is open, owned by
+                // this scope, and not yet shared (start failed
+                // before building the WakeFd).
                 unsafe {
-                    libc::close(read_fd);
-                    libc::close(write_fd);
+                    libc::close(write_fd_for_start);
                 }
+                // `read_guard` is still alive and will Drop here,
+                // closing the read-end.
                 return Err(err);
             }
         };
 
+        // Every fallible step from here through `add_reader` keeps
+        // `read_guard` alive on the stack — a `?`-early-return drops
+        // the guard and closes the FD.
         let asyncio = py.import("asyncio")?;
         let event_loop = asyncio.call_method0("get_running_loop")?;
         let asyncio_event = asyncio.call_method0("Event")?;
 
         let set_event = asyncio_event.getattr("set")?;
-        event_loop.call_method1("add_reader", (read_fd, set_event))?;
+        // Borrow the FD via `as_raw_fd` so a failure leaves the
+        // `OwnedFd` guard intact — Drop closes it on the way out.
+        event_loop.call_method1("add_reader", (read_guard.as_raw_fd(), set_event))?;
 
-        self.read_fd = read_fd;
+        // Commit state. `into_raw_fd()` releases the guard's Drop
+        // and transfers FD ownership to `self.read_fd`; `__aexit__`
+        // is responsible for closing it from here on.
+        self.read_fd = read_guard.into_raw_fd();
         self.wake = Some(wake);
         self.iterator = Some(Arc::new(rust_iter));
         self.event_loop = Some(event_loop.unbind());
@@ -1108,5 +1150,171 @@ impl crate::fpss_client::FpssClient {
             py,
             StreamingAsyncBatchesSession::from_fpss(slf, max_queue_depth, backpressure),
         )
+    }
+}
+
+#[cfg(test)]
+#[cfg(unix)]
+mod fd_safety_tests {
+    //! Regression tests for the `aenter_inner` FD-leak fix.
+    //!
+    //! The full asyncio path requires a live `FpssClient` with an
+    //! actual TLS connection, so these tests cannot drive
+    //! `__aenter__` end-to-end. Instead they pin the underlying
+    //! `OwnedFd::Drop` contract that the fix relies on:
+    //!
+    //! 1. `alloc_wake_pipe` returns a pair of open FDs.
+    //! 2. Wrapping in `OwnedFd` immediately transfers ownership.
+    //! 3. Dropping the `OwnedFd` closes the FD (verified by probing
+    //!    the specific FD numbers with `fcntl(F_GETFD)`).
+    //! 4. The "release on commit" pattern (`into_raw_fd`) cancels
+    //!    the Drop so the bare integer survives the scope exit.
+    //!
+    //! Probing specific FD numbers via `fcntl(F_GETFD)` rather than
+    //! counting `/proc/self/fd` entries avoids the test-harness
+    //! noise from stderr-capture FDs and the `read_dir` handle
+    //! itself.
+    use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
+
+    use crate::streaming_async_session::alloc_wake_pipe;
+
+    /// Probe whether an FD is open by calling `fcntl(F_GETFD)`.
+    /// Returns `true` iff the kernel still recognises the FD.
+    /// `F_GETFD` is read-only and returns `EBADF` for a closed FD,
+    /// the documented portable probe.
+    fn fd_is_open(fd: i32) -> bool {
+        // SAFETY: F_GETFD is a read-only fcntl that returns the
+        // close-on-exec flag without modifying kernel state.
+        unsafe { libc::fcntl(fd, libc::F_GETFD) != -1 }
+    }
+
+    #[test]
+    fn alloc_wake_pipe_yields_two_open_fds() {
+        let (r, w) = alloc_wake_pipe().expect("pipe allocation must succeed");
+        assert!(fd_is_open(r), "read FD must be open after alloc");
+        assert!(fd_is_open(w), "write FD must be open after alloc");
+        assert_ne!(r, w, "read and write FDs must differ");
+        // Manual cleanup — no OwnedFd guard in this branch.
+        // SAFETY: the FDs are open and owned by this test.
+        unsafe {
+            libc::close(r);
+            libc::close(w);
+        }
+    }
+
+    #[test]
+    fn owned_fd_drop_closes_pipe_ends_on_early_return() {
+        // Simulates the S1 audit scenario: every fallible step
+        // between `alloc_wake_pipe` and the final `self.read_fd = ...`
+        // assignment must drop both `OwnedFd` guards on early-return,
+        // closing the FDs via the std `Drop` impl.
+        //
+        // Test discipline: probe each FD IMMEDIATELY after the
+        // expected close (no other syscalls in between) since the
+        // kernel recycles closed FDs to the next `open()` call.
+        let (read_raw, write_raw) = alloc_wake_pipe().expect("alloc must succeed");
+        // SAFETY: alloc_wake_pipe just allocated these FDs; we own
+        // them exclusively. OwnedFd takes ownership.
+        let read_guard = unsafe { OwnedFd::from_raw_fd(read_raw) };
+        let write_guard = unsafe { OwnedFd::from_raw_fd(write_raw) };
+        // Drop both — this simulates the `?`-early-return path
+        // through aenter_inner. `OwnedFd::Drop` must close both
+        // FDs via `libc::close`.
+        drop(write_guard);
+        assert!(
+            !fd_is_open(write_raw),
+            "OwnedFd::Drop must have closed the write end (fd {write_raw})"
+        );
+        drop(read_guard);
+        assert!(
+            !fd_is_open(read_raw),
+            "OwnedFd::Drop must have closed the read end (fd {read_raw})"
+        );
+    }
+
+    #[test]
+    fn into_raw_fd_cancels_drop_on_committed_path() {
+        // The committed branch: `into_raw_fd()` releases the
+        // `OwnedFd`'s Drop and transfers FD ownership to the
+        // session's `i32` field. After the `OwnedFd` is gone the
+        // bare integer must still refer to an open FD because the
+        // caller is now responsible for closing it.
+        let (read_raw, write_raw) = alloc_wake_pipe().expect("alloc must succeed");
+        // SAFETY: just-allocated, exclusively owned.
+        let read_guard = unsafe { OwnedFd::from_raw_fd(read_raw) };
+        let write_guard = unsafe { OwnedFd::from_raw_fd(write_raw) };
+        // Borrow path: as_raw_fd must NOT consume the guard.
+        assert_eq!(read_guard.as_raw_fd(), read_raw);
+        // Commit path: into_raw_fd releases Drop.
+        let read_committed = read_guard.into_raw_fd();
+        let write_committed = write_guard.into_raw_fd();
+        assert_eq!(read_committed, read_raw);
+        assert_eq!(write_committed, write_raw);
+        assert!(
+            fd_is_open(read_committed),
+            "committed read FD must remain open after into_raw_fd"
+        );
+        assert!(
+            fd_is_open(write_committed),
+            "committed write FD must remain open after into_raw_fd"
+        );
+        // Caller-side cleanup (mirrors `__aexit__`).
+        // SAFETY: caller owns both FDs after into_raw_fd.
+        unsafe {
+            libc::close(read_committed);
+            libc::close(write_committed);
+        }
+        assert!(!fd_is_open(read_committed));
+        assert!(!fd_is_open(write_committed));
+    }
+
+    #[test]
+    fn write_end_handoff_pattern_does_not_double_close() {
+        // The write-end is handed off via `into_raw_fd()` to the
+        // Rust core's `WakeFd` at the moment `handle.start` is
+        // invoked. If `start` itself fails, the integer was already
+        // released from the OwnedFd guard, so the failure branch
+        // must `libc::close` it manually — and the read-end (still
+        // wrapped) must Drop separately. Pin the contract: both FDs
+        // closed exactly once, no double-close, no leak.
+        //
+        // Test discipline: the kernel recycles closed FDs at the
+        // next `open()`-family call, so we cannot probe "is FD N
+        // closed?" after the test has done any other I/O. Instead
+        // we probe immediately after each close, with no other
+        // syscalls in between.
+        let (read_raw, write_raw) = alloc_wake_pipe().expect("alloc must succeed");
+        // SAFETY: just-allocated, exclusively owned.
+        let read_guard = unsafe { OwnedFd::from_raw_fd(read_raw) };
+        let write_guard = unsafe { OwnedFd::from_raw_fd(write_raw) };
+        // Both FDs must be open right after wrapping.
+        assert!(fd_is_open(read_raw));
+        assert!(fd_is_open(write_raw));
+        // Release write-end to a bare i32 (simulating "about to
+        // call handle.start(write_fd, ...)").
+        let write_released = write_guard.into_raw_fd();
+        assert_eq!(write_released, write_raw);
+        // Write end still open (into_raw_fd cancels Drop but doesn't close).
+        assert!(fd_is_open(write_released));
+        // Simulated handle.start failure → manual close of the
+        // released write-end. The read-end (still wrapped) Drops
+        // when we explicitly drop it below.
+        // SAFETY: write_released is open, owned, not yet shared.
+        unsafe {
+            libc::close(write_released);
+        }
+        // Immediately after close, the FD is gone — probe before
+        // any other syscall recycles it.
+        assert!(
+            !fd_is_open(write_released),
+            "write end must be closed by manual libc::close (fd {write_released})"
+        );
+        // Drop the read guard → close(read_raw) via Drop impl.
+        drop(read_guard);
+        // Probe immediately — no other syscalls in between.
+        assert!(
+            !fd_is_open(read_raw),
+            "read end must be closed by OwnedFd::Drop (fd {read_raw})"
+        );
     }
 }
