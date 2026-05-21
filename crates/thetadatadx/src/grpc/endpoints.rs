@@ -148,7 +148,7 @@ async fn decode_chunk(
             }),
         }
     } else {
-        decode::decode_data_table(&response, max_message_size)
+        decode::decode_data_table_with_max(&response, max_message_size)
     }
 }
 

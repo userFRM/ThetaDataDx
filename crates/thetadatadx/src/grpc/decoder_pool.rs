@@ -336,8 +336,9 @@ impl DecoderHandle {
         response: proto::ResponseData,
         max_message_size: usize,
     ) -> Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError> {
-        let work: Box<dyn FnOnce() -> DecodeResult + Send + 'static> =
-            Box::new(move || crate::mdds::decode::decode_data_table(&response, max_message_size));
+        let work: Box<dyn FnOnce() -> DecodeResult + Send + 'static> = Box::new(move || {
+            crate::mdds::decode::decode_data_table_with_max(&response, max_message_size)
+        });
         self.submit_work(work)
     }
 

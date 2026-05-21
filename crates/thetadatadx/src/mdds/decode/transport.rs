@@ -43,6 +43,24 @@ thread_local! {
     ));
 }
 
+/// Decompress a `ResponseData` payload (legacy signature; no
+/// `max_message_size` ceiling). Equivalent to
+/// [`decompress_response_with_max`] with the
+/// [`crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE`] ceiling. Kept on
+/// the public API for backwards compatibility with v10.0.x consumers
+/// that already call this fn; new callers should prefer the
+/// `_with_max` variant so they thread their channel's configured
+/// ceiling through.
+///
+/// # Errors
+///
+/// Returns [`Error::Decompress`] if the compression algorithm is unknown,
+/// `original_size` exceeds the default ceiling, or zstd decompression
+/// fails.
+pub fn decompress_response(response: &proto::ResponseData) -> Result<Vec<u8>, Error> {
+    decompress_response_with_max(response, crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE)
+}
+
 /// Decompress a `ResponseData` payload with a `max_message_size` ceiling.
 ///
 /// The peer-advertised `ResponseData.original_size` is validated against
@@ -77,7 +95,7 @@ thread_local! {
 /// `original_size` exceeds `max_message_size`, or zstd decompression fails.
 // Reason: original_size is a protobuf u64 that fits in usize for valid payloads.
 #[allow(clippy::cast_possible_truncation)]
-pub fn decompress_response(
+pub fn decompress_response_with_max(
     response: &proto::ResponseData,
     max_message_size: usize,
 ) -> Result<Vec<u8>, Error> {
@@ -129,6 +147,21 @@ pub fn decompress_response(
     }
 }
 
+/// Decode a `ResponseData` into a `DataTable` (legacy signature;
+/// uses [`crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE`] as the
+/// ceiling). Kept on the public API for backwards compatibility with
+/// v10.0.x consumers; new callers should prefer
+/// [`decode_data_table_with_max`].
+///
+/// # Errors
+///
+/// Returns [`Error::Decompress`] if decompression fails (including
+/// `original_size > DEFAULT_MAX_MESSAGE_SIZE`) or [`Error::Decode`]
+/// if protobuf deserialization fails.
+pub fn decode_data_table(response: &proto::ResponseData) -> Result<proto::DataTable, Error> {
+    decode_data_table_with_max(response, crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE)
+}
+
 /// Decode a `ResponseData` into a `DataTable`, honouring the channel's
 /// `max_message_size` ceiling.
 ///
@@ -142,11 +175,11 @@ pub fn decompress_response(
 /// Returns [`Error::Decompress`] if decompression fails (including
 /// `original_size > max_message_size`) or [`Error::Decode`] if
 /// protobuf deserialization fails.
-pub fn decode_data_table(
+pub fn decode_data_table_with_max(
     response: &proto::ResponseData,
     max_message_size: usize,
 ) -> Result<proto::DataTable, Error> {
-    let bytes = decompress_response(response, max_message_size)?;
+    let bytes = decompress_response_with_max(response, max_message_size)?;
     let table: proto::DataTable = prost::Message::decode(bytes.as_slice())
         .map_err(|e| Error::decode_protobuf(e.to_string()))?;
     Ok(table)
@@ -179,7 +212,8 @@ mod r1_tests {
             compressed_data: vec![],
         };
         let max = 4 * 1024 * 1024;
-        let err = decompress_response(&response, max).expect_err("must reject hostile size");
+        let err =
+            decompress_response_with_max(&response, max).expect_err("must reject hostile size");
         match err {
             Error::Decompress {
                 kind: DecompressErrorKind::MessageTooLarge { size, max: ceiling },
@@ -207,7 +241,8 @@ mod r1_tests {
             compressed_data: vec![0_u8; 5 * 1024 * 1024],
         };
         let max = 4 * 1024 * 1024;
-        let err = decompress_response(&response, max).expect_err("must reject oversized payload");
+        let err = decompress_response_with_max(&response, max)
+            .expect_err("must reject oversized payload");
         assert!(matches!(
             err,
             Error::Decompress {
@@ -229,7 +264,8 @@ mod r1_tests {
             original_size: -1,
             compressed_data: vec![],
         };
-        let err = decompress_response(&response, 4 * 1024 * 1024).expect_err("must reject");
+        let err =
+            decompress_response_with_max(&response, 4 * 1024 * 1024).expect_err("must reject");
         assert!(matches!(
             err,
             Error::Decompress {
