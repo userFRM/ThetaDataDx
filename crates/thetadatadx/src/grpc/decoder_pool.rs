@@ -760,10 +760,21 @@ mod tests {
 
     #[test]
     fn default_decoder_count_caps_to_channels() {
-        // Logical cores >> 4: capped to channel count.
-        assert!(default_decoder_thread_count(4) <= 4);
-        // Pathological channel = 0: lower-bound to 1.
-        assert!(default_decoder_thread_count(0) >= 1);
+        // Pathological channel = 0: lower-bound to exactly 1.
+        // Deterministic regardless of available_parallelism.
+        assert_eq!(default_decoder_thread_count(0), 1);
+
+        // Channel cap: when (logical_cores / 2) >= channels, the
+        // returned count is the channel count. Hoist the
+        // available_parallelism computation so the assertion lands
+        // on a concrete value instead of an `<=` range.
+        let logical = thread::available_parallelism()
+            .map(std::num::NonZero::get)
+            .unwrap_or(2);
+        let half = (logical / 2).max(1);
+        let channels = 4_usize;
+        let expected = half.min(channels);
+        assert_eq!(default_decoder_thread_count(channels), expected);
     }
 
     #[tokio::test]

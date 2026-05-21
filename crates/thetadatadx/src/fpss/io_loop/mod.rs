@@ -55,8 +55,6 @@ use crate::error::Error;
 use super::connection;
 use super::decode::decode_frame;
 use super::delta::DeltaState;
-#[cfg(test)]
-use super::events::FpssEvent;
 use super::events::{BackpressurePolicy, Delivery, FpssControl, FpssEventInternal, IoCommand};
 use super::framing::{
     self, is_drain_yield, read_frame_into_with_stall_timeout, write_frame, write_raw_frame,
@@ -1374,38 +1372,6 @@ mod tests {
                 "reason {reason:?} must be classified as transient so the reconnect \
                  path keeps looping instead of tearing down the I/O thread"
             );
-        }
-    }
-
-    /// Finding #2 coverage at the control-flow level: when the
-    /// reconnect handshake returns `LoginResult::Disconnected` with a
-    /// permanent reason, the io_loop path must publish
-    /// `FpssControl::Disconnected` and store `shutdown = true`. This
-    /// exercises the decision piece without standing up a full TLS
-    /// stack -- running the real I/O loop would need a live socket.
-    #[test]
-    fn permanent_reconnect_rejection_sets_shutdown_and_emits_disconnected() {
-        // Mirror the io_loop branch: reason -> reconnect_delay.is_none()
-        // -> emit Disconnected + set shutdown. The real path lives in
-        // `io_loop::io_loop`; the logic here is the exact boolean
-        // predicate plus the event shape the operator sees.
-        let shutdown = std::sync::atomic::AtomicBool::new(false);
-        let reason = RemoveReason::InvalidCredentials;
-        let mut events: Vec<FpssEvent> = Vec::new();
-        if super::super::reconnect_delay(reason).is_none() {
-            events.push(FpssEvent::Control(FpssControl::Disconnected { reason }));
-            shutdown.store(true, std::sync::atomic::Ordering::Release);
-        }
-        assert!(
-            shutdown.load(std::sync::atomic::Ordering::Acquire),
-            "permanent reason must flip shutdown -> true"
-        );
-        assert_eq!(events.len(), 1);
-        match &events[0] {
-            FpssEvent::Control(FpssControl::Disconnected { reason: r }) => {
-                assert_eq!(*r, RemoveReason::InvalidCredentials);
-            }
-            other => panic!("expected Disconnected event, got {other:?}"),
         }
     }
 }

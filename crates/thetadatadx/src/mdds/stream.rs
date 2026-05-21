@@ -279,17 +279,15 @@ mod streaming_decode_contract {
     }
 
     #[tokio::test]
-    async fn chunks_decode_one_at_a_time_via_for_each_chunk_primitive() {
-        // Construct three synthetic ResponseData chunks and route them
-        // through the SAME decode primitive `for_each_chunk` uses —
-        // `decode_chunk(None, ...)` — exercising the inline-decode
-        // path the bin / integration tests cover, since the channel-
-        // bound decoder pool is bypassed when no `DecoderHandle` is
-        // attached. This is the structural contract the macro-emitted
-        // `.stream(handler)` method depends on: a chunk's owned
-        // `ResponseData` is consumed by `decode_chunk` (by value), its
-        // working buffer is freed before the next chunk is fetched, and
-        // the handler sees rows from exactly one chunk per invocation.
+    async fn decode_chunk_handles_inline_decode_with_no_pool() {
+        // `decode_chunk(None, ...)` is the inline-decode branch taken
+        // when no `DecoderHandle` is attached to the channel. Each
+        // chunk's owned `ResponseData` is consumed by value, the
+        // working buffer is freed before the next chunk is fetched,
+        // and the returned `DataTable` carries exactly the rows the
+        // chunk encoded. Pins the inline branch — the higher-level
+        // `for_each_chunk` peak-memory contract is exercised by the
+        // integration tests in `tests/`.
         let chunks = vec![
             make_chunk(&[("AAPL", 1), ("MSFT", 2)]),
             make_chunk(&[("GOOG", 3)]),

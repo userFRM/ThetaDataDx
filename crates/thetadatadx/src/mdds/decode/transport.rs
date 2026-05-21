@@ -214,16 +214,18 @@ mod r1_tests {
         let max = 4 * 1024 * 1024;
         let err =
             decompress_response_with_max(&response, max).expect_err("must reject hostile size");
-        match err {
-            Error::Decompress {
-                kind: DecompressErrorKind::MessageTooLarge { size, max: ceiling },
-                ..
-            } => {
-                assert!(size > ceiling, "size {size} must exceed ceiling {ceiling}");
-                assert_eq!(ceiling, max);
-            }
-            other => panic!("expected MessageTooLarge, got {other:?}"),
-        }
+        let Error::Decompress {
+            kind: DecompressErrorKind::MessageTooLarge { size, max: ceiling },
+            ..
+        } = err
+        else {
+            panic!("expected MessageTooLarge, got {err:?}");
+        };
+        // Wire fixture advertised exactly i32::MAX; the rejection
+        // surfaces that value verbatim against the configured
+        // ceiling.
+        assert_eq!(size, i32::MAX as usize);
+        assert_eq!(ceiling, max);
     }
 
     /// Uncompressed-algo path is also size-guarded — a synthetic
@@ -231,6 +233,7 @@ mod r1_tests {
     /// algorithm cannot bypass the 4 MiB ceiling.
     #[test]
     fn hostile_uncompressed_payload_rejected() {
+        let payload_bytes = 5 * 1024 * 1024;
         let response = proto::ResponseData {
             compression_description: Some(proto::CompressionDescription {
                 algo: proto::CompressionAlgo::None as i32,
@@ -238,18 +241,20 @@ mod r1_tests {
             }),
             original_size: 0,
             // 5 MiB payload — exceeds the 4 MiB ceiling.
-            compressed_data: vec![0_u8; 5 * 1024 * 1024],
+            compressed_data: vec![0_u8; payload_bytes],
         };
         let max = 4 * 1024 * 1024;
         let err = decompress_response_with_max(&response, max)
             .expect_err("must reject oversized payload");
-        assert!(matches!(
-            err,
-            Error::Decompress {
-                kind: DecompressErrorKind::MessageTooLarge { .. },
-                ..
-            }
-        ));
+        let Error::Decompress {
+            kind: DecompressErrorKind::MessageTooLarge { size, max: ceiling },
+            ..
+        } = err
+        else {
+            panic!("expected MessageTooLarge, got {err:?}");
+        };
+        assert_eq!(size, payload_bytes);
+        assert_eq!(ceiling, max);
     }
 
     /// A negative `original_size` (sign-flipped on the wire) folds to
@@ -264,14 +269,19 @@ mod r1_tests {
             original_size: -1,
             compressed_data: vec![],
         };
-        let err =
-            decompress_response_with_max(&response, 4 * 1024 * 1024).expect_err("must reject");
-        assert!(matches!(
-            err,
-            Error::Decompress {
-                kind: DecompressErrorKind::MessageTooLarge { .. },
-                ..
-            }
-        ));
+        let max = 4 * 1024 * 1024;
+        let err = decompress_response_with_max(&response, max).expect_err("must reject");
+        let Error::Decompress {
+            kind: DecompressErrorKind::MessageTooLarge { size, max: ceiling },
+            ..
+        } = err
+        else {
+            panic!("expected MessageTooLarge, got {err:?}");
+        };
+        // i32::MIN .. -1 all fold to usize::MAX through
+        // try_from(negative_i32). The exact saturation point is the
+        // contract under test.
+        assert_eq!(size, usize::MAX);
+        assert_eq!(ceiling, max);
     }
 }
