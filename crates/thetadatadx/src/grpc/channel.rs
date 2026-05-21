@@ -145,8 +145,12 @@ pub enum ChannelError {
 
 /// One HTTP/2 connection to a gRPC server.
 ///
-/// Clone-cheap — the inner `SendRequest<Bytes>` is itself an h2 channel
-/// handle that serializes through the connection's stream multiplexer.
+/// Owns the spawned h2 connection driver task via `connection_task`
+/// (`Option<JoinHandle<()>>`), which is `!Clone`. `Channel` is never
+/// cloned anywhere in the codebase — each pool entry holds one
+/// `Channel` and recycles it on `ConnectionClosed`. New streams open
+/// through the inner `SendRequest<Bytes>` clone, not through a
+/// `Channel` clone.
 pub struct Channel {
     /// Outbound stream factory. Cloning this gives a second handle to
     /// the same h2 connection; new streams it opens share the connection.

@@ -172,6 +172,14 @@ pub fn decode_frame(
     // unknown id would flood `tracing` with a per-tick line on every
     // affected contract — at FPSS arrival rates the log channel
     // becomes the bottleneck.
+    //
+    // `MISS_COUNT` is process-global (static AtomicU64), so the
+    // cadence is shared across every `FpssClient` running inside the
+    // same process. Operators reading the warning should treat the
+    // "1 of every 1024" rate as a process-wide aggregate, not a
+    // per-client signal — two clients each missing 512 unique
+    // contracts together hit the warn boundary exactly once between
+    // them.
     let warn_unknown_contract =
         |contract_id: i32,
          kind: &str,
@@ -185,7 +193,7 @@ pub fn decode_frame(
                         contract_id,
                         kind,
                         miss_count = prev + 1,
-                        "no contract for ID (1 of every 1024 emitted)"
+                        "no contract for ID (1 of every 1024 emitted across all FpssClients in this process)"
                     );
                 }
             }
