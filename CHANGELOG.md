@@ -187,6 +187,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `decompress_zstd`, etc.). The constructors will be removed in
   the next major release.
 
+### Fixed
+
+- Python `StreamingAsyncSession.__aexit__` and
+  `StreamingAsyncBatchesSession.__aexit__` now close the asyncio
+  read-end FD unconditionally even when `event_loop.remove_reader`
+  raises (e.g. event loop closed mid-shutdown, FD already
+  unregistered). The previous code propagated the `remove_reader`
+  error via `?` before the close path, so a shutdown-race
+  permanently leaked the pipe read-end because `self.closed`
+  short-circuited re-entry. The error is now captured, the FD is
+  reclaimed, and the captured error is re-raised so callers still
+  see the underlying fault.
+
 ## [10.0.0] - 2026-05-09
 
 **In-house gRPC transport** replaces `tonic` on the MDDS server-streaming

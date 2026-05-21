@@ -65,7 +65,7 @@ use thetadatadx::fpss::BackpressurePolicy as RustBackpressurePolicy;
 use thetadatadx::fpss::{FpssData, FpssEvent};
 use thetadatadx::{EventIterator as RustEventIterator, NextEvent};
 
-use crate::streaming_async_session::BackpressurePolicy;
+use crate::streaming_async_session::{close_read_fd_propagating_error, BackpressurePolicy};
 
 /// Drain timeout applied on `__aexit__`. Same 5 s budget as the sync
 /// `StreamingSession` / `StreamingIterSession` and the per-tick async
@@ -486,23 +486,32 @@ impl StreamingAsyncBatchesSession {
         }
         self.closed = true;
 
+        // Remove the asyncio reader BEFORE closing the FD so the loop
+        // doesn't try to read from a closed descriptor on its next
+        // iteration. `remove_reader` can raise on a shutdown-race
+        // (event loop closed mid-`__aexit__`, FD already unregistered
+        // by a sibling teardown path, etc.); capture the error rather
+        // than `?`-propagating because `self.closed` is already true,
+        // so an early-return would permanently leak `self.read_fd`
+        // (re-entry short-circuits on the `self.closed` guard above).
+        // The close path below runs UNCONDITIONALLY and the captured
+        // error is re-raised at the end.
+        let mut remove_err: Option<PyErr> = None;
         if let (Some(loop_obj), read_fd) = (self.event_loop.as_ref(), self.read_fd) {
             if read_fd >= 0 {
                 let bound = loop_obj.bind(py);
-                let _ = bound.call_method1("remove_reader", (read_fd,))?;
+                if let Err(err) = bound.call_method1("remove_reader", (read_fd,)) {
+                    remove_err = Some(err);
+                }
             }
         }
 
-        #[cfg(unix)]
-        if self.read_fd >= 0 {
-            // SAFETY: `self.read_fd` was allocated in `aenter_inner`,
-            // owned by this session, and the asyncio reader was
-            // removed in the step above so no other thread touches it.
-            unsafe {
-                libc::close(self.read_fd);
-            }
-            self.read_fd = -1;
-        }
+        // Close the read-end FD UNCONDITIONALLY, then re-raise any
+        // error remove_reader produced. The shared helper encodes the
+        // ordering invariant — see
+        // [`close_read_fd_propagating_error`] in
+        // `streaming_async_session`.
+        close_read_fd_propagating_error(&mut self.read_fd, remove_err)?;
 
         self.handle.stop_streaming(py)?;
         let drained = self.handle.await_drain(py, EXIT_DRAIN_TIMEOUT_MS)?;
@@ -1176,7 +1185,10 @@ mod fd_safety_tests {
     //! itself.
     use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd};
 
-    use crate::streaming_async_session::alloc_wake_pipe;
+    use pyo3::exceptions::PyRuntimeError;
+    use pyo3::prelude::*;
+
+    use crate::streaming_async_session::{alloc_wake_pipe, close_read_fd_propagating_error};
 
     /// Probe whether an FD is open by calling `fcntl(F_GETFD)`.
     /// Returns `true` iff the kernel still recognises the FD.
@@ -1316,5 +1328,85 @@ mod fd_safety_tests {
             !fd_is_open(read_raw),
             "read end must be closed by OwnedFd::Drop (fd {read_raw})"
         );
+    }
+
+    /// N1 regression — `__aexit__` must close `self.read_fd` even when
+    /// `remove_reader` raises. Drives the shared close-then-rethrow
+    /// helper directly with a captured PyErr to simulate the
+    /// asyncio-side fault; asserts the FD is reclaimed AND the
+    /// captured error is re-raised verbatim.
+    ///
+    /// The pre-fix code propagated the `remove_reader` error via `?`
+    /// before the close path, so `self.closed = true` latched and the
+    /// FD leaked permanently because re-entry short-circuits.
+    #[test]
+    fn aexit_close_runs_when_remove_reader_raises() {
+        let (read_raw, write_raw) = alloc_wake_pipe().expect("alloc must succeed");
+        assert!(fd_is_open(read_raw));
+        let mut fd_slot = read_raw;
+        let result = Python::attach(|_py| {
+            let err = PyRuntimeError::new_err("simulated remove_reader failure");
+            close_read_fd_propagating_error(&mut fd_slot, Some(err))
+        });
+        // Probe FD immediately — no other syscalls between close and
+        // probe so the kernel hasn't recycled the slot.
+        assert!(
+            !fd_is_open(read_raw),
+            "read FD (fd {read_raw}) must be closed even when remove_reader raised"
+        );
+        assert_eq!(
+            fd_slot, -1,
+            "read_fd slot must be sentinel-reclaimed to prevent double-close on re-entry"
+        );
+        let err = result.expect_err("captured remove_reader error must be re-raised");
+        Python::attach(|py| {
+            assert!(
+                err.is_instance_of::<PyRuntimeError>(py),
+                "re-raised error must be the captured RuntimeError"
+            );
+        });
+        // Manual cleanup of the write end — its peer was closed above.
+        // SAFETY: write_raw was alloc_wake_pipe-allocated and is the only owner.
+        unsafe {
+            libc::close(write_raw);
+        }
+    }
+
+    /// N1 companion — sentinel slot (`read_fd == -1`) must short-circuit
+    /// the close path, surfacing only the captured error. Pins the
+    /// double-close guard: a re-entrant `__aexit__` after the first
+    /// teardown set the sentinel finds nothing to close, so the FD
+    /// can never be `libc::close`'d twice.
+    #[test]
+    fn aexit_close_is_idempotent_on_sentinel_slot() {
+        let mut fd_slot: i32 = -1;
+        let result = Python::attach(|_py| close_read_fd_propagating_error(&mut fd_slot, None));
+        assert!(
+            result.is_ok(),
+            "sentinel-slot close path must succeed silently"
+        );
+        assert_eq!(fd_slot, -1, "sentinel slot must remain -1");
+    }
+
+    /// N1 companion — happy path (no remove_reader error) must still
+    /// close the FD AND return Ok. Mirrors the production code path
+    /// where remove_reader succeeded and aexit continues to step 3
+    /// (stop_streaming + await_drain).
+    #[test]
+    fn aexit_close_succeeds_when_no_error_captured() {
+        let (read_raw, write_raw) = alloc_wake_pipe().expect("alloc must succeed");
+        assert!(fd_is_open(read_raw));
+        let mut fd_slot = read_raw;
+        let result = Python::attach(|_py| close_read_fd_propagating_error(&mut fd_slot, None));
+        assert!(
+            !fd_is_open(read_raw),
+            "read FD must be closed on the happy path (fd {read_raw})"
+        );
+        assert_eq!(fd_slot, -1, "read_fd slot must be sentinel-reclaimed");
+        assert!(result.is_ok(), "happy-path close must return Ok");
+        // SAFETY: write_raw was alloc_wake_pipe-allocated and is the only owner.
+        unsafe {
+            libc::close(write_raw);
+        }
     }
 }
