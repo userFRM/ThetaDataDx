@@ -67,13 +67,15 @@ use crate::{Config, Credentials, ThetaDataDxClient};
 /// which compares the Python-side `BLOCKED_FPSS_METHODS` against the
 /// `_blocked_fpss_methods()` introspection helper exposed below.
 pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
+    // Generator-emitted streaming methods (declared in
+    // `crates/thetadatadx/sdk_surface.toml`). The compile-time guard
+    // below asserts every name in `PYTHON_UNIFIED_FPSS_METHODS` is
+    // present here — adding a new generator-emitted FPSS method
+    // without extending this list fails the build.
     "start_streaming",
-    "start_streaming_iter",
     "stop_streaming",
     "shutdown",
     "reconnect",
-    "streaming",
-    "streaming_iter",
     "is_streaming",
     "await_drain",
     "subscribe",
@@ -84,6 +86,24 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     "active_full_subscriptions",
     "dropped_event_count",
     "panic_count",
+    // Hand-written `#[pymethods]` entries on `ThetaDataDxClient` /
+    // sibling streaming pyclasses. These factories return a
+    // streaming-session pyclass (sync, sync-iter, or asyncio) — the
+    // session itself transitively opens the FPSS surface, so an
+    // MDDS-only handle must refuse access. Drift guard: the offline
+    // coverage test in
+    // `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`
+    // pairs every name here with the
+    // `mdds_client._blocked_fpss_methods()` introspection helper.
+    "start_streaming_iter",
+    "streaming",
+    "streaming_iter",
+    // P2 closure: `streaming_async()` was added by PR #559 (async
+    // FD-readiness surface) and the unified pyclass exposes it
+    // hand-written in `streaming_async_session.rs`. Reaching for it
+    // through `MddsClient` would open the FPSS surface bound to the
+    // hidden inner unified client, so block at the proxy layer.
+    "streaming_async",
 ];
 
 /// `const fn` byte-wise string compare for the compile-time guard
@@ -153,7 +173,12 @@ const _: () = {
 /// Calling streaming / subscribe methods on this pyclass raises
 /// `AttributeError` — use the standalone [`crate::FpssClient`] or the
 /// bundled [`crate::ThetaDataDxClient`] when you need both surfaces.
-#[pyclass(module = "thetadatadx", name = "MddsClient")]
+// N5: `frozen` — every `#[pymethods]` entry takes `&self` (never
+// `&mut self`). The wrapped `inner: Py<ThetaDataDxClient>` carries its
+// own interior state; the pyclass shell is immutable. A future
+// `&mut self` regression surfaces as a `cargo check` failure rather
+// than slipping silently.
+#[pyclass(module = "thetadatadx", name = "MddsClient", frozen)]
 pub(crate) struct MddsClient {
     /// Hidden inner unified client. Opens MDDS gRPC + Nexus at
     /// `connect` time and lazily opens FPSS only on `start_streaming*`
@@ -181,13 +206,26 @@ impl MddsClient {
     }
 
     /// Convenience constructor: `MddsClient.from_file("creds.txt")`.
-    /// Loads credentials from a two-line file and connects with
-    /// production defaults.
+    /// Loads credentials from a two-line file and connects with the
+    /// supplied `config`, defaulting to `Config.production()`.
+    ///
+    /// P6 closure: the `config` kwarg is optional. The historical
+    /// behaviour (no kwarg = production endpoint) is preserved; tests
+    /// and dev / stage environments now reach a single-arg constructor
+    /// shape via `MddsClient.from_file("creds.txt", config=Config.dev())`.
     #[staticmethod]
-    fn from_file(py: Python<'_>, path: &str) -> PyResult<Self> {
+    #[pyo3(signature = (path, config=None))]
+    fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
         let creds = Credentials::from_file(path)?;
-        let config = Config::production();
-        let inner = Py::new(py, ThetaDataDxClient::new(py, &creds, &config)?)?;
+        let owned_default;
+        let cfg = match config {
+            Some(c) => c,
+            None => {
+                owned_default = Config::production();
+                &owned_default
+            }
+        };
+        let inner = Py::new(py, ThetaDataDxClient::new(py, &creds, cfg)?)?;
         Ok(Self { inner })
     }
 

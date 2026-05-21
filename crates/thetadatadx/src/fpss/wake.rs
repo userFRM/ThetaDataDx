@@ -112,9 +112,20 @@ impl WakeFd {
     /// case as a long-stop.
     pub fn signal(&self) {
         // Coalesce: only the first writer that observes `false` wins
-        // the write. `Acquire` on the compare-exchange pairs with the
-        // `Release` in `rearm`, ensuring any state change the reader
-        // made before clearing the flag is visible to the producer.
+        // the write. The `AcqRel`/`Acquire` orderings on the
+        // compare-exchange serialise the producer's flag flip with
+        // the reader's `Release` clear in `rearm` — but the
+        // *meaningful* happens-before for cross-thread visibility is
+        // the wake-byte itself arriving in the pipe. The kernel
+        // synchronises `write(2)` on the producer side with
+        // `read(2)` on the asyncio-reader thread via the pipe's
+        // internal lock; the atomic flag is the userspace coalescing
+        // gate (so we don't issue redundant syscalls when several
+        // batches land before the reader drains), and `write(2)`'s
+        // kernel-side synchronisation provides the cross-thread
+        // visibility that lets the reader observe whatever the
+        // producer published on the bounded Disruptor queue prior
+        // to issuing the wake.
         if self
             .signaled
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)

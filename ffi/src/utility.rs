@@ -180,72 +180,97 @@ pub unsafe extern "C" fn tdx_implied_volatility(
 //  predicates and integer accessors for trade-sequence math.
 // ═══════════════════════════════════════════════════════════════════════
 
+// R4: every `tdx_condition_*` / `tdx_exchange_*` / `tdx_quote_condition_*`
+// entry point wraps its body in `ffi_boundary!` so a panic in the
+// `tdbe` lookup tables (debug-build invariant trips, etc.) or in
+// `static_cstr` (cache mutex contention, allocator OOM) cannot abort
+// the host process. The wrappers return the documented "unknown"
+// sentinel:
+//   - `*const c_char` returners → `std::ptr::null()` (caller already
+//     handles NUL on unknown codes — every binding's lookup contract
+//     is "NULL or unknown sentinel = no data").
+//   - `bool` returners → `false` (the predicate convention is "false
+//     by default; only true when the table positively asserts").
+
 /// Look up the human-readable trade condition name for `code`.
 ///
 /// Returns a NUL-terminated `'static` UTF-8 C string. The pointer is
 /// owned by the library and MUST NOT be freed. Returns the literal
-/// `"UNKNOWN"` for codes outside the table.
+/// `"UNKNOWN"` for codes outside the table; returns `NULL` if the
+/// boundary catches a panic — surfaced through `tdx_last_error()`.
 #[no_mangle]
 pub extern "C" fn tdx_condition_name(code: i32) -> *const c_char {
-    static_cstr(tdbe::conditions::condition_name(code))
+    ffi_boundary!(std::ptr::null(), {
+        static_cstr(tdbe::conditions::condition_name(code))
+    })
 }
 
 /// Look up the human-readable trade condition description for `code`.
 ///
 /// Returns a NUL-terminated `'static` UTF-8 C string (empty string for
 /// unknown codes). The pointer is owned by the library and MUST NOT be
-/// freed.
+/// freed. Returns `NULL` if the boundary catches a panic.
 #[no_mangle]
 pub extern "C" fn tdx_condition_description(code: i32) -> *const c_char {
-    static_cstr(tdbe::conditions::condition_description(code))
+    ffi_boundary!(std::ptr::null(), {
+        static_cstr(tdbe::conditions::condition_description(code))
+    })
 }
 
 /// True if the trade condition code represents a cancellation.
 #[no_mangle]
 pub extern "C" fn tdx_condition_is_cancel(code: i32) -> bool {
-    tdbe::conditions::is_cancel(code)
+    ffi_boundary!(false, { tdbe::conditions::is_cancel(code) })
 }
 
 /// True if the trade condition code updates the volume bar.
 #[no_mangle]
 pub extern "C" fn tdx_condition_updates_volume(code: i32) -> bool {
-    tdbe::conditions::updates_volume(code)
+    ffi_boundary!(false, { tdbe::conditions::updates_volume(code) })
 }
 
 /// Look up the human-readable quote condition name for `code`.
 #[no_mangle]
 pub extern "C" fn tdx_quote_condition_name(code: i32) -> *const c_char {
-    static_cstr(tdbe::conditions::quote_condition_name(code))
+    ffi_boundary!(std::ptr::null(), {
+        static_cstr(tdbe::conditions::quote_condition_name(code))
+    })
 }
 
 /// Look up the human-readable quote condition description for `code`.
 #[no_mangle]
 pub extern "C" fn tdx_quote_condition_description(code: i32) -> *const c_char {
-    static_cstr(tdbe::conditions::quote_condition_description(code))
+    ffi_boundary!(std::ptr::null(), {
+        static_cstr(tdbe::conditions::quote_condition_description(code))
+    })
 }
 
 /// True if the quote condition is firm (binding).
 #[no_mangle]
 pub extern "C" fn tdx_quote_condition_is_firm(code: i32) -> bool {
-    tdbe::conditions::is_firm(code)
+    ffi_boundary!(false, { tdbe::conditions::is_firm(code) })
 }
 
 /// True if the quote condition indicates a trading halt.
 #[no_mangle]
 pub extern "C" fn tdx_quote_condition_is_halted(code: i32) -> bool {
-    tdbe::conditions::is_halted(code)
+    ffi_boundary!(false, { tdbe::conditions::is_halted(code) })
 }
 
 /// Look up the human-readable exchange name for a numeric code.
 #[no_mangle]
 pub extern "C" fn tdx_exchange_name(code: i32) -> *const c_char {
-    static_cstr(tdbe::exchange::exchange_name(code))
+    ffi_boundary!(std::ptr::null(), {
+        static_cstr(tdbe::exchange::exchange_name(code))
+    })
 }
 
 /// Look up the MIC-like symbol for a numeric exchange code.
 #[no_mangle]
 pub extern "C" fn tdx_exchange_symbol(code: i32) -> *const c_char {
-    static_cstr(tdbe::exchange::exchange_symbol(code))
+    ffi_boundary!(std::ptr::null(), {
+        static_cstr(tdbe::exchange::exchange_symbol(code))
+    })
 }
 
 /// Convert a signed wire-encoded trade-sequence value to its unsigned
@@ -267,6 +292,16 @@ pub extern "C" fn tdx_sequence_unsigned_to_signed(unsigned: u64) -> i64 {
 /// of NUL-free `&'static str`; we register one `CString` per distinct
 /// string in a process-lifetime `OnceLock<Mutex<HashMap<...>>>` and
 /// return the cached pointer so the C side can hold it indefinitely.
+///
+/// R4: poison-tolerant via `PoisonError::into_inner` rather than
+/// `.expect(...)`. A panic in a previous holder of this cache mutex
+/// (e.g. an OOM during `Box::leak`) leaves the map structurally
+/// valid — we have no transient half-mutated state because every
+/// insertion is `guard.insert(k, v)` after a successful allocation,
+/// not a partial update. Recovering the inner map rather than
+/// panicking again keeps every `tdx_condition_*` / `tdx_exchange_*`
+/// /`tdx_quote_condition_*` lookup non-aborting, matching the
+/// `ffi_boundary!` contract on every other FFI entry point.
 fn static_cstr(s: &'static str) -> *const c_char {
     use std::collections::HashMap;
     use std::ffi::CString;
@@ -274,9 +309,7 @@ fn static_cstr(s: &'static str) -> *const c_char {
     static CACHE: std::sync::OnceLock<Mutex<HashMap<&'static str, &'static CString>>> =
         std::sync::OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut guard = cache
-        .lock()
-        .expect("static_cstr cache mutex poisoned -- previous holder panicked");
+    let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
     let cstr_ref: &'static CString = match guard.get(&s) {
         Some(existing) => existing,
         None => {

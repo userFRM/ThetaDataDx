@@ -294,6 +294,10 @@ export default withMermaid(defineConfig({
         collapsed: true,
         items: [
           { text: 'Changelog', link: '/changelog' },
+          // U11 closure: v9 → v10 migration guide. Linked here so
+          // existing v9 users have a one-click landing page covering
+          // every breaking change in the v10 wave.
+          { text: 'Migrating v9 → v10', link: '/migration/v9-to-v10' },
         ],
       },
     ],

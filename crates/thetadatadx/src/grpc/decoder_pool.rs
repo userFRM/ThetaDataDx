@@ -310,8 +310,10 @@ impl DecoderHandle {
     ///
     /// `max_message_size` is honoured at decode time so an
     /// adversarial `original_size` field cannot trigger a runaway
-    /// allocation. Returns a `oneshot::Receiver` that resolves to
-    /// the decoded `DataTable` (or the underlying decode error).
+    /// allocation — the decoder thread rejects the response with
+    /// `Error::Decompress { kind: MessageTooLarge, .. }` before any
+    /// `Vec::resize` runs. Returns a `oneshot::Receiver` that resolves
+    /// to the decoded `DataTable` (or the underlying decode error).
     ///
     /// Cancelling the receiver before the decoder reaches the slot
     /// causes the decoder to elide the decompress entirely — the
@@ -332,9 +334,11 @@ impl DecoderHandle {
     pub(crate) fn submit(
         &self,
         response: proto::ResponseData,
+        max_message_size: usize,
     ) -> Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError> {
-        let work: Box<dyn FnOnce() -> DecodeResult + Send + 'static> =
-            Box::new(move || crate::mdds::decode::decode_data_table(&response));
+        let work: Box<dyn FnOnce() -> DecodeResult + Send + 'static> = Box::new(move || {
+            crate::mdds::decode::decode_data_table_with_max(&response, max_message_size)
+        });
         self.submit_work(work)
     }
 
@@ -767,7 +771,9 @@ mod tests {
         let pool = DecoderPool::new(1, 64).expect("pool");
         let handle = pool.handle(0).clone();
         let response = make_response(3);
-        let rx = handle.submit(response).expect("submit succeeds");
+        let rx = handle
+            .submit(response, usize::MAX)
+            .expect("submit succeeds");
         let table = rx
             .await
             .expect("oneshot delivered")
@@ -783,7 +789,11 @@ mod tests {
         let handle = pool.handle(0).clone();
         let mut rxs = Vec::with_capacity(16);
         for _ in 0..16 {
-            rxs.push(handle.submit(make_response(8)).expect("submit succeeds"));
+            rxs.push(
+                handle
+                    .submit(make_response(8), usize::MAX)
+                    .expect("submit succeeds"),
+            );
         }
         for rx in rxs {
             let table = rx
@@ -799,13 +809,17 @@ mod tests {
     async fn cancelled_request_is_skipped() {
         let pool = DecoderPool::new(1, 64).expect("pool");
         let handle = pool.handle(0).clone();
-        let rx = handle.submit(make_response(1)).expect("submit succeeds");
+        let rx = handle
+            .submit(make_response(1), usize::MAX)
+            .expect("submit succeeds");
         // Drop the receiver before the decoder reaches it. The
         // decoder elides the work; observable side effect is the
         // pool drains cleanly without panic.
         drop(rx);
         // Subsequent submission still succeeds.
-        let rx = handle.submit(make_response(2)).expect("submit succeeds");
+        let rx = handle
+            .submit(make_response(2), usize::MAX)
+            .expect("submit succeeds");
         let table = tokio::time::timeout(Duration::from_secs(2), rx)
             .await
             .expect("decode within deadline")
@@ -822,7 +836,7 @@ mod tests {
         assert_eq!(pool.len(), clone.len());
         let rx = clone
             .handle(0)
-            .submit(make_response(1))
+            .submit(make_response(1), usize::MAX)
             .expect("submit succeeds");
         let table = rx
             .await
@@ -933,7 +947,7 @@ mod tests {
         }
         assert!(handle.is_poisoned(), "pool poisoned after first panic");
         // Subsequent submits must refuse without parking on the ring.
-        match handle.submit(make_response(1)) {
+        match handle.submit(make_response(1), usize::MAX) {
             Err(DecoderSubmitError::Poisoned) => { /* expected */ }
             other => panic!("expected DecoderSubmitError::Poisoned, got {other:?}"),
         }

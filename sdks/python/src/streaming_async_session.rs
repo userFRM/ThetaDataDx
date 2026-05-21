@@ -412,43 +412,71 @@ impl StreamingAsyncSession {
     /// `__aenter__` body — runs under the asyncio coroutine, holds the
     /// GIL via the outer `Python::attach`. Splits out the sync work so
     /// the awaitable body stays small.
+    ///
+    /// R2: `read_fd` is wrapped in a scope-local `OwnedFd` between
+    /// allocation and the final `self.read_fd = ...` assignment, so
+    /// every fallible step in between (`asyncio.import`,
+    /// `get_running_loop`, `Event()`, `getattr("set")`, `add_reader`)
+    /// drops the wrapper on `?`-early-return and closes the FD via
+    /// `OwnedFd::Drop`. The write-end follows the same pattern —
+    /// owned locally until handed to `WakeFd` on `self.handle.start`
+    /// (which acquires ownership inside the Rust core). Only on the
+    /// committed path do we `into_raw_fd()` the read-end so the
+    /// session keeps the bare `i32` for `loop.remove_reader(fd)` in
+    /// `__aexit__`.
     #[cfg(unix)]
     fn aenter_inner(&mut self, py: Python<'_>) -> PyResult<()> {
+        use std::os::fd::{FromRawFd, IntoRawFd, OwnedFd};
+
         if self.iterator.is_some() {
             return Err(PyRuntimeError::new_err(
                 "StreamingAsyncSession is already entered -- one session enters at most once",
             ));
         }
 
-        // Allocate a non-blocking self-pipe. `pipe2(O_CLOEXEC | O_NONBLOCK)`
-        // is the atomic Linux primitive but macOS / BSD only ship plain
-        // `pipe(2)` — we fall through to `fcntl(F_SETFD/F_SETFL)` to
-        // set the same flags. The non-atomic path has a fork-window
-        // hazard (a `fork()` after `pipe()` but before `fcntl()` would
-        // inherit the FDs without `O_CLOEXEC`), but the Python SDK is
-        // single-threaded at `__aenter__` time and never forks across
-        // this window, so the gap is benign.
-        let (read_fd, write_fd) = alloc_wake_pipe()?;
+        // Allocate a non-blocking self-pipe — `pipe2(O_CLOEXEC |
+        // O_NONBLOCK)` on Linux (atomic; closes the fork-window
+        // hazard), `pipe(2)` + `fcntl` on macOS / BSD where `pipe2`
+        // is unavailable. See `alloc_wake_pipe` for the per-OS
+        // selection.
+        let (read_fd_raw, write_fd_raw) = alloc_wake_pipe()?;
+
+        // SAFETY: both FDs were just allocated by `alloc_wake_pipe`,
+        // are open, and have not been handed to any other owner.
+        // `OwnedFd` takes exclusive ownership; its `Drop` closes the
+        // FD if we return early via `?` before committing.
+        let read_guard = unsafe { OwnedFd::from_raw_fd(read_fd_raw) };
+        let write_guard = unsafe { OwnedFd::from_raw_fd(write_fd_raw) };
 
         // Hand the write-end to the Rust core via the wake-fd-keeping
-        // constructor. The shared `Arc<WakeFd>` returned lets us call
-        // `rearm()` from the asyncio reader path on this thread.
-        let (rust_iter, wake) = match self.handle.start(py, write_fd) {
+        // constructor. The shared `Arc<WakeFd>` returned takes
+        // ownership of the write-end. We `into_raw_fd()` only when
+        // the start call is about to commit, so a panic / failure
+        // inside `start` does not double-close (the OwnedFd is
+        // dropped by `?` before `into_raw_fd` runs).
+        let write_fd_for_start = write_guard.into_raw_fd();
+        let (rust_iter, wake) = match self.handle.start(py, write_fd_for_start) {
             Ok(pair) => pair,
             Err(err) => {
-                // Close the FDs we allocated — the wake never took
-                // ownership because the start failed.
-                // SAFETY: both FDs are open, owned by this scope, and
-                // not yet shared.
+                // `start` failed — the write FD was never observed by
+                // WakeFd, but we already released the `OwnedFd`
+                // guard. Close it manually so we do not leak.
+                // SAFETY: write_fd_for_start is open, owned by this
+                // scope, and not yet shared (start failed before
+                // building the WakeFd).
                 unsafe {
-                    libc::close(read_fd);
-                    libc::close(write_fd);
+                    libc::close(write_fd_for_start);
                 }
+                // `read_guard` is still alive and will Drop here,
+                // closing the read-end.
                 return Err(err);
             }
         };
 
         // Capture the running asyncio loop and create the wake event.
+        // Every fallible step from here through `add_reader` keeps
+        // `read_guard` alive on the stack — a `?`-early-return drops
+        // the guard and closes the FD.
         let asyncio = py.import("asyncio")?;
         let event_loop = asyncio.call_method0("get_running_loop")?;
         let asyncio_event = asyncio.call_method0("Event")?;
@@ -458,12 +486,24 @@ impl StreamingAsyncSession {
         // callback synchronously on the loop thread. Setting the
         // asyncio.Event from there is the canonical pattern.
         let set_event = asyncio_event.getattr("set")?;
-        event_loop.call_method1("add_reader", (read_fd, set_event))?;
+        // `add_reader` may raise (closed loop, FD already registered).
+        // Borrow the FD via `as_raw_fd` so a failure leaves the
+        // OwnedFd guard intact — Drop closes it on the way out.
+        event_loop.call_method1(
+            "add_reader",
+            (
+                std::os::fd::AsRawFd::as_raw_fd(&read_guard),
+                set_event,
+            ),
+        )?;
 
         // Commit state. Storing in self only AFTER the asyncio
         // registration succeeds keeps `__aexit__` cleanup safe — a
         // partial enter never leaves a registered reader behind.
-        self.read_fd = read_fd;
+        // `into_raw_fd()` releases the guard's Drop and transfers FD
+        // ownership to `self.read_fd`; `__aexit__` is responsible
+        // for closing it from here on.
+        self.read_fd = read_guard.into_raw_fd();
         self.wake = Some(wake);
         self.iterator = Some(Arc::new(rust_iter));
         self.event_loop = Some(event_loop.unbind());
@@ -606,16 +646,44 @@ fn drain_batch(
 /// same logical batch.
 /// Allocate a self-pipe with `O_CLOEXEC` + `O_NONBLOCK` on both ends.
 ///
-/// Returns `(read_fd, write_fd)`. Uses `libc::pipe(2)` plus
-/// `fcntl(F_SETFD, FD_CLOEXEC)` and `fcntl(F_SETFL, O_NONBLOCK)`
-/// because macOS (and other BSDs) don't ship the atomic `pipe2(2)`
-/// extension. The non-atomic path is correct for our single-threaded
-/// `__aenter__` callsite; see the call-site comment for the
-/// fork-window analysis.
+/// Returns `(read_fd, write_fd)`. On Linux this uses the atomic
+/// `pipe2(2)` extension so the `O_CLOEXEC` flag is set under the same
+/// kernel critical section that creates the FD pair — a concurrent
+/// `fork()` on a sibling thread cannot observe the FDs without
+/// `O_CLOEXEC` (the R5 fork-window closure). macOS / BSD do not ship
+/// `pipe2(2)`, so the legacy `pipe(2)` + `fcntl(F_SETFD/F_SETFL)`
+/// fallback is gated behind `#[cfg(not(target_os = "linux"))]`. The
+/// non-atomic fallback is benign in our single-threaded `__aenter__`
+/// callsite (no concurrent fork; see the call-site comment), but the
+/// Linux atomic path is the correct primitive and we ship it
+/// preferentially.
 ///
 /// Errors are mapped to Python `RuntimeError` with the kernel errno
 /// surfaced through `Error::last_os_error()`.
-#[cfg(unix)]
+#[cfg(all(unix, target_os = "linux"))]
+fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
+    let mut fds = [0_i32; 2];
+    // SAFETY: `pipe2(2)` writes two FDs into `fds`; documented safe
+    // to invoke from any thread context. The `O_CLOEXEC | O_NONBLOCK`
+    // flag bitmask is the documented atomic combination for closing
+    // the fork-window race and configuring non-blocking I/O on both
+    // ends in one syscall.
+    let rc = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) };
+    if rc != 0 {
+        let err = std::io::Error::last_os_error();
+        return Err(PyRuntimeError::new_err(format!(
+            "pipe2(2) failed allocating wake FDs for streaming_async: {err}"
+        )));
+    }
+    Ok((fds[0], fds[1]))
+}
+
+/// macOS / BSD fallback: `pipe(2)` + `fcntl(F_SETFD/F_SETFL)`. The
+/// non-atomic gap between `pipe(2)` and the `fcntl` calls is a
+/// fork-window hazard on a multi-threaded host, but the Python SDK is
+/// single-threaded at `__aenter__` and never forks across this
+/// window, so the gap is benign.
+#[cfg(all(unix, not(target_os = "linux")))]
 fn alloc_wake_pipe() -> PyResult<(i32, i32)> {
     let mut fds = [0_i32; 2];
     // SAFETY: `pipe(2)` writes two FDs into `fds`; documented safe

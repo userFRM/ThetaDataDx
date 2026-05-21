@@ -23,6 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CANONICAL_CARGO = ROOT / "crates" / "thetadatadx" / "Cargo.toml"
+CMAKE_LISTS = ROOT / "sdks" / "cpp" / "CMakeLists.txt"
 
 
 def cargo_version(path: Path) -> str:
@@ -41,8 +42,67 @@ def package_json_optional_deps(path: Path) -> dict[str, str]:
     return json.loads(path.read_text()).get("optionalDependencies", {})
 
 
+def cmake_project_version(path: Path) -> str | None:
+    """Extract the `project(... VERSION x.y.z ...)` value from a
+    CMakeLists.txt. U4 closure: the version-sync check previously
+    returned clean even when `sdks/cpp/CMakeLists.txt` still pinned
+    `VERSION 8.0.23` against a Cargo-side v10. Match the `VERSION
+    x.y.z` substring inside the `project(...)` call so a future CMake
+    drift fails this gate.
+    """
+    if not path.is_file():
+        return None
+    text = path.read_text()
+    match = re.search(
+        r"project\s*\(\s*[\w\-]+\s+VERSION\s+(\d+\.\d+\.\d+)",
+        text,
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    return match.group(1)
+
+
+# U5 closure: the same gate scans documentation pins for the
+# `thetadatadx = "<major>"` shape. Drift between the canonical Cargo
+# version and a doc pin (README.md, docs-site quickstart /
+# installation) silently aged the docs across v9 → v10 — this gate
+# now catches that case.
+DOC_PIN_PATHS = (
+    ROOT / "README.md",
+    ROOT / "docs-site" / "docs" / "getting-started" / "installation.md",
+    ROOT / "docs-site" / "docs" / "getting-started" / "quickstart.md",
+)
+# Match `thetadatadx = "<MAJOR>"` (Cargo.toml-ish pin) and
+# `thetadatadx = { version = "<MAJOR>", ... }` (Cargo.toml feature
+# pin). Both shapes have a single major-version-only literal that
+# must match the canonical major.
+DOC_PIN_RE = re.compile(
+    r'thetadatadx\s*=\s*(?:"(\d+)(?:[.,)\'" ]|$)|\{\s*version\s*=\s*"(\d+)(?:[.,)\'" ]|$))'
+)
+
+
+def doc_pin_mismatches(canonical_major: str) -> list[str]:
+    issues: list[str] = []
+    for path in DOC_PIN_PATHS:
+        if not path.is_file():
+            continue
+        for lineno, line in enumerate(path.read_text().splitlines(), start=1):
+            match = DOC_PIN_RE.search(line)
+            if not match:
+                continue
+            pinned = match.group(1) or match.group(2)
+            if pinned != canonical_major:
+                issues.append(
+                    f"{path.relative_to(ROOT)}:{lineno} pins "
+                    f'`thetadatadx = "{pinned}"`, expected major {canonical_major}'
+                )
+    return issues
+
+
 def main() -> int:
     canonical = cargo_version(CANONICAL_CARGO)
+    canonical_major = canonical.split(".", 1)[0]
     print(f"canonical version (Cargo.toml): {canonical}")
 
     failures: list[str] = []
@@ -67,6 +127,23 @@ def main() -> int:
                 f"{platform_pkg.relative_to(ROOT)} version is "
                 f"{package_json_version(platform_pkg)}, expected {canonical}"
             )
+
+    # U4 closure: CMake project version must match the canonical
+    # crates Cargo version exactly.
+    cmake_version = cmake_project_version(CMAKE_LISTS)
+    if cmake_version is None:
+        failures.append(
+            f"{CMAKE_LISTS.relative_to(ROOT)}: could not parse "
+            "`project(... VERSION ...)` value"
+        )
+    elif cmake_version != canonical:
+        failures.append(
+            f"{CMAKE_LISTS.relative_to(ROOT)} VERSION is "
+            f"{cmake_version}, expected {canonical}"
+        )
+
+    # U5 closure: documentation pins must match the canonical major.
+    failures.extend(doc_pin_mismatches(canonical_major))
 
     if failures:
         print("version-sync errors:")

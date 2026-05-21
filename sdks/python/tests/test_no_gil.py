@@ -164,7 +164,16 @@ def test_historical_releases_gil() -> None:
 
 def test_parallel_throughput_bench_runs() -> None:
     """Smoke-runs the parallel-throughput bench so CI catches an
-    import-time regression on either GIL or nogil interpreters."""
+    import-time regression on either GIL or nogil interpreters.
+
+    N12 closure: when running on a free-threaded interpreter (where
+    ``sys._is_gil_enabled() is False``), this test ALSO asserts the
+    nogil claim — the binding must achieve `overhead_ratio < 1.8` and
+    `gil_enabled == False` on the bench's output. The 1.8x threshold
+    matches the C16-updated CI gate; a regression that re-acquires
+    the GIL on the hot path pushes the ratio toward ~2.0x and trips
+    both this test and the GH Actions gate.
+    """
     bench = Path(__file__).resolve().parent.parent / "benches" / "bench_parallel_throughput.py"
     assert bench.is_file(), f"missing bench script: {bench}"
     result = subprocess.run(
@@ -184,3 +193,21 @@ def test_parallel_throughput_bench_runs() -> None:
     assert "gil_enabled" in payload
     assert payload["baseline_rate_hz"] > 0
     assert payload["contended_rate_hz"] > 0
+    assert "overhead_ratio" in payload
+
+    # On a free-threaded interpreter, pin the actual nogil claim. The
+    # `sys._is_gil_enabled` probe is the load-bearing source of truth
+    # (Python 3.13t / 3.14t); falling back via `getattr` so the GIL-
+    # build path leaves this assertion latent.
+    is_gil_enabled = getattr(sys, "_is_gil_enabled", None)
+    if is_gil_enabled is not None and is_gil_enabled() is False:
+        assert payload["gil_enabled"] is False, (
+            "bench reported gil_enabled=True on a free-threaded interpreter — "
+            "the binding's `gil_used = false` attribute may have regressed"
+        )
+        ratio = payload["overhead_ratio"]
+        assert ratio < 1.8, (
+            f"nogil overhead ratio {ratio:.3f}x ≥ 1.8x — the GIL may be "
+            "held on the streaming hot path (audit the `block_on` call "
+            "sites in `sdks/python/src/lib.rs`)"
+        )

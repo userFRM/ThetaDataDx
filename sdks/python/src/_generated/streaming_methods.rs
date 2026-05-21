@@ -113,16 +113,13 @@ impl ThetaDataDxClient {
     }
 
     /// Get a snapshot of currently active subscriptions.
-    fn active_subscriptions(&self) -> PyResult<Vec<std::collections::HashMap<String, String>>> {
+    fn active_subscriptions(&self) -> PyResult<Vec<crate::fluent::PySubscription>> {
         self.tdx
             .active_subscriptions()
             .map(|subs| {
                 subs.into_iter()
-                    .map(|(kind, contract)| {
-                        let mut m = std::collections::HashMap::new();
-                        m.insert("kind".to_string(), format!("{kind:?}"));
-                        m.insert("contract".to_string(), format!("{contract}"));
-                        m
+                    .map(|(kind, contract)| crate::fluent::PySubscription {
+                        inner: fpss::protocol::Subscription::Contract { contract, kind },
                     })
                     .collect()
             })

@@ -17,6 +17,13 @@ fn decode_chunks_into_table(
                     "decode_response_bytes: chunk {idx} is not a valid proto::ResponseData: {e}"
                 ))
             })?;
+        // Offline test harness path — uses the default ceiling
+        // (`DEFAULT_MAX_MESSAGE_SIZE`) which is the v10 channel-side
+        // default. Test fixtures embed pre-captured `ResponseData`
+        // bytes that were already validated against the live channel's
+        // `max_message_size` at capture time. The R1 ceiling exists
+        // to defend against a hostile peer, not against re-decoding
+        // captured frames.
         let table = thetadatadx::decode::decode_data_table(&response).map_err(|e| {
             pyo3::exceptions::PyRuntimeError::new_err(format!(
                 "decode_response_bytes: chunk {idx} decode failed: {e}"

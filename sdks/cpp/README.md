@@ -319,16 +319,19 @@ int main() {
         }
     });
 
-    // Fluent contract-first subscriptions (primary surface).
+    // Fluent contract-first subscriptions (primary surface). U3
+    // closure: every call below targets the same `fpss` handle
+    // constructed above — the previous example referenced an
+    // undefined `unified` variable and would not compile.
     auto stock  = tdx::Contract::stock("AAPL");
     auto option = tdx::Contract::option("SPY", "20260620", "550", "C");
 
-    unified.subscribe(stock.quote());
-    unified.subscribe(option.trade());
-    unified.subscribe(tdx::SecType::option().full_trades());
+    fpss.subscribe(stock.quote());
+    fpss.subscribe(option.trade());
+    fpss.subscribe(tdx::SecType::option().full_trades());
 
     // Bulk install:
-    unified.subscribe_many({stock.quote(), option.quote()});
+    fpss.subscribe_many({stock.quote(), option.quote()});
 
     // ... let the callback run ...
 
@@ -487,7 +490,7 @@ libthetadatadx_ffi.so / .a
     |  (Rust FFI crate)
     v
 thetadatadx Rust crate
-    |  (tonic gRPC / tokio TCP)
+    |  (in-house gRPC / tokio TCP)
     v
 ThetaData servers
 ```

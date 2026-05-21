@@ -167,6 +167,21 @@ pub enum DecompressErrorKind {
     /// `proto::CompressionAlgo` discriminant.
     #[error("unknown algorithm: {algo}")]
     UnknownAlgorithm { algo: i32 },
+    /// The peer-advertised decompressed size exceeded the
+    /// `max_message_size` ceiling threaded from
+    /// [`crate::config::MddsConfig::max_message_size`]. A hostile peer
+    /// that sets `ResponseData.original_size = i32::MAX` (≈ 2 GiB) is
+    /// rejected at this variant before any `Vec::resize` runs, so the
+    /// decoder cannot be coerced into a runaway allocation.
+    #[error("decompressed payload size {size} exceeds max_message_size {max}")]
+    MessageTooLarge {
+        /// Advertised decompressed size on the wire (`original_size`
+        /// for zstd; `compressed_data.len()` for the no-compress
+        /// path).
+        size: usize,
+        /// Configured ceiling — mirrors `MddsConfig::max_message_size`.
+        max: usize,
+    },
     /// Generic decompression failure that hasn't been categorized.
     #[error("other: {0}")]
     Other(String),
@@ -623,6 +638,18 @@ impl Error {
     #[must_use]
     pub fn decompress_unknown_algorithm(algo: i32) -> Self {
         let kind = DecompressErrorKind::UnknownAlgorithm { algo };
+        let message = kind.to_string();
+        Self::Decompress { kind, message }
+    }
+
+    /// Build a `Decompress` error for a payload whose advertised
+    /// decompressed size exceeds the channel's `max_message_size`
+    /// ceiling. Used by the MDDS decode path to refuse a hostile
+    /// `ResponseData.original_size` before any `Vec::resize` runs —
+    /// see [`crate::mdds::decode::decompress_response`].
+    #[must_use]
+    pub fn decompress_message_too_large(size: usize, max: usize) -> Self {
+        let kind = DecompressErrorKind::MessageTooLarge { size, max };
         let message = kind.to_string();
         Self::Decompress { kind, message }
     }

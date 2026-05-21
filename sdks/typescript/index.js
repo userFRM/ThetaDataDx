@@ -577,6 +577,15 @@ if (!nativeBinding) {
 
 module.exports = nativeBinding
 module.exports.ContractRef = nativeBinding.ContractRef
+// U7 closure: `Contract` is the documented public name for the
+// fluent contract builder. The napi-rs emitter ships the class as
+// `ContractRef` to avoid colliding with the FPSS event payload
+// type's own `Contract` field; we re-export the same constructor
+// under the documented name here so user code matches the README
+// (`Contract.stock("AAPL")`, `Contract.option(...)`) without an
+// extra import gymnastic. Keep both names live for backwards
+// compatibility with users already on `ContractRef`.
+module.exports.Contract = nativeBinding.ContractRef
 module.exports.EventIterator = nativeBinding.EventIterator
 module.exports.FlatFileRowList = nativeBinding.FlatFileRowList
 module.exports.FlatFilesNamespace = nativeBinding.FlatFilesNamespace

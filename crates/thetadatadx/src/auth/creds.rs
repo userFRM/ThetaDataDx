@@ -68,12 +68,33 @@ impl Credentials {
     /// Returns an error on network, authentication, or parsing failure.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
+        // U12 closure: previously the error message duplicated the
+        // path inside the `(kind)` portion of the `Error::Config`
+        // Display, producing
+        // `configuration error (config file I/O: failed to read
+        // credentials file PATH: ERR): failed to read credentials
+        // file PATH: ERR`.
+        //
+        // The `Error::Config` outer Display is structurally
+        // `"configuration error ({kind}): {message}"`. We keep the
+        // detail on the `kind` side (the typed
+        // `ConfigErrorKind::Io(String)` retains the full diagnostic
+        // for log parsers / retry classifiers) and reduce the outer
+        // `message` to a short label so the parenthesised section is
+        // not duplicated in the human-readable form.
         let contents = Zeroizing::new(std::fs::read_to_string(path).map_err(|e| {
-            Error::config_io(format!(
-                "failed to read credentials file {}: {}",
-                path.display(),
-                e
-            ))
+            // The typed Io variant carries the long form (path + os
+            // error) so structural callers can extract it; the
+            // shorter `message` field is what users see after the
+            // `(kind)` prefix.
+            Error::Config {
+                kind: crate::error::ConfigErrorKind::Io(format!(
+                    "failed to read credentials file {}: {}",
+                    path.display(),
+                    e
+                )),
+                message: "credentials file unreadable".to_string(),
+            }
         })?);
 
         Self::parse(&contents)

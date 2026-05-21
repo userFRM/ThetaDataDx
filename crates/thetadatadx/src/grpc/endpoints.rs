@@ -79,17 +79,26 @@ pub async fn collect_stream(
     let mut headers: Vec<String> = Vec::new();
     let mut chunk_index: usize = 0;
     let decoder = stream.decoder().cloned();
+    let max_message_size = stream.max_message_size();
 
     while let Some(response) = stream.next().await {
         let response = response.map_err(map_channel_error)?;
 
         if all_rows.is_empty() && response.original_size > 0 {
-            // Same pre-allocation hint the tonic path uses: ~64 bytes
-            // per row keeps the row vec from reallocating mid-stream.
-            all_rows.reserve(usize::try_from(response.original_size).unwrap_or(0) / 64);
+            // R1: reserve hint must also respect the channel's
+            // `max_message_size` so a hostile peer that claims
+            // `original_size = i32::MAX` cannot inflate `all_rows`'
+            // capacity to 33 M slots (≈ 32 MiB of `DataValueList`
+            // header overhead) ahead of the decompression-layer
+            // rejection that follows.
+            let hint = usize::try_from(response.original_size).unwrap_or(0);
+            let bounded = hint.min(max_message_size);
+            // ~64 bytes per row keeps the row vec from reallocating
+            // mid-stream.
+            all_rows.reserve(bounded / 64);
         }
 
-        let table = decode_chunk(decoder.as_ref(), response).await?;
+        let table = decode_chunk(decoder.as_ref(), response, max_message_size).await?;
         if headers.is_empty() {
             headers = table.headers;
         } else if !table.headers.is_empty() && table.headers != headers {
@@ -118,16 +127,19 @@ pub async fn collect_stream(
 async fn decode_chunk(
     decoder: Option<&crate::grpc::DecoderHandle>,
     response: proto::ResponseData,
+    max_message_size: usize,
 ) -> Result<proto::DataTable, Error> {
     if let Some(handle) = decoder {
         // `submit` short-circuits with `DecoderSubmitError::Poisoned`
         // when a prior worker-thread panic has flipped the pool's
         // poison flag — surface as a transport-level failure so
         // higher layers can decide on retry vs. rebuild.
-        let rx = handle.submit(response).map_err(|err| Error::Transport {
-            kind: crate::error::TransportErrorKind::DecoderPoisoned,
-            message: format!("mdds decoder pool rejected submission: {err}"),
-        })?;
+        let rx = handle
+            .submit(response, max_message_size)
+            .map_err(|err| Error::Transport {
+                kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                message: format!("mdds decoder pool rejected submission: {err}"),
+            })?;
         match rx.await {
             Ok(result) => result,
             Err(_) => Err(Error::Transport {
@@ -136,7 +148,7 @@ async fn decode_chunk(
             }),
         }
     } else {
-        decode::decode_data_table(&response)
+        decode::decode_data_table_with_max(&response, max_message_size)
     }
 }
 

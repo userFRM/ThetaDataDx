@@ -31,7 +31,11 @@ pub(crate) const DEFAULT_MAX_MESSAGE_SIZE: usize = 4 * 1024 * 1024;
 ///
 /// All variants are owned (no borrowed wire bytes) so the error can be
 /// propagated past the `Bytes` buffer that produced it.
+///
+/// `#[non_exhaustive]` so downstream `match` arms must include a
+/// wildcard; new variants land without breaking semver.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum CodecError {
     /// Compressed-flag byte in the frame prefix was `1`. The codec
     /// accepts only `grpc-encoding: identity` frames.

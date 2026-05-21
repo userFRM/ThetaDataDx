@@ -50,6 +50,7 @@ impl MddsClient {
         // task — used by the unit-test channels that construct a
         // `Channel` without a pool.
         let decoder = stream.decoder().cloned();
+        let max_message_size = stream.max_message_size();
 
         while let Some(response) = stream.next().await {
             let response = response?;
@@ -57,11 +58,17 @@ impl MddsClient {
             // Use original_size as a rough pre-allocation hint on the first chunk.
             // Each DataValueList row is ~64 bytes on average (header-dependent),
             // so original_size / 64 gives a reasonable row-count estimate.
+            //
+            // R1 bound: cap the hint at `max_message_size` so a hostile
+            // `original_size = i32::MAX` cannot inflate `all_rows`'
+            // capacity past the channel's configured ceiling before the
+            // decompression layer rejects the payload.
             if all_rows.is_empty() && response.original_size > 0 {
-                all_rows.reserve(usize::try_from(response.original_size).unwrap_or(0) / 64);
+                let hint = usize::try_from(response.original_size).unwrap_or(0);
+                all_rows.reserve(hint.min(max_message_size) / 64);
             }
 
-            let table = decode_chunk(decoder.as_ref(), response).await?;
+            let table = decode_chunk(decoder.as_ref(), response, max_message_size).await?;
             if headers.is_empty() {
                 headers = table.headers;
             } else if !table.headers.is_empty() && table.headers != headers {
@@ -138,9 +145,10 @@ impl MddsClient {
         let mut saved_headers: Option<Vec<String>> = None;
         let mut chunk_index: usize = 0;
         let decoder = stream.decoder().cloned();
+        let max_message_size = stream.max_message_size();
         while let Some(response) = stream.next().await {
             let response = response?;
-            let table = decode_chunk(decoder.as_ref(), response).await?;
+            let table = decode_chunk(decoder.as_ref(), response, max_message_size).await?;
             if saved_headers.is_none() && !table.headers.is_empty() {
                 saved_headers = Some(table.headers.clone());
             } else if let Some(first) = saved_headers.as_deref() {
@@ -174,16 +182,19 @@ impl MddsClient {
 async fn decode_chunk(
     decoder: Option<&crate::grpc::DecoderHandle>,
     response: proto::ResponseData,
+    max_message_size: usize,
 ) -> Result<proto::DataTable, Error> {
     if let Some(handle) = decoder {
         // `submit` short-circuits when the pool has been poisoned by
         // a prior worker-thread panic — surface as a transport-level
         // failure so the retry layer can decide on rebuild instead
         // of hanging on a dead ring.
-        let rx = handle.submit(response).map_err(|err| Error::Transport {
-            kind: crate::error::TransportErrorKind::DecoderPoisoned,
-            message: format!("mdds decoder pool rejected submission: {err}"),
-        })?;
+        let rx = handle
+            .submit(response, max_message_size)
+            .map_err(|err| Error::Transport {
+                kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                message: format!("mdds decoder pool rejected submission: {err}"),
+            })?;
         match rx.await {
             Ok(result) => result,
             // `oneshot::Receiver` errors only when the sender is
@@ -196,6 +207,6 @@ async fn decode_chunk(
             }),
         }
     } else {
-        decode::decode_data_table(&response)
+        decode::decode_data_table_with_max(&response, max_message_size)
     }
 }

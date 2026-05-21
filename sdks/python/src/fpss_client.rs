@@ -122,7 +122,12 @@ impl FpssParams {
 /// # ... events arrive on the Disruptor consumer thread ...
 /// fpss.stop_streaming()
 /// ```
-#[pyclass(module = "thetadatadx", name = "FpssClient")]
+// N5: `frozen` — every `#[pymethods]` entry takes `&self` (never
+// `&mut self`). The inner `Arc<Mutex<Option<fpss::FpssClient>>>`
+// carries its own interior mutability; the pyclass shell is
+// immutable. A future `&mut self` regression surfaces as a
+// `cargo check` failure rather than slipping silently.
+#[pyclass(module = "thetadatadx", name = "FpssClient", frozen)]
 pub(crate) struct FpssClient {
     /// Connect parameters captured at construction time. Reused on
     /// every `start_streaming*` / `reconnect`.
@@ -240,6 +245,29 @@ impl FpssClient {
             callback: Mutex::new(None),
             prev_drained: Mutex::new(Vec::new()),
         })
+    }
+
+    /// Convenience constructor: `FpssClient.from_file("creds.txt")`.
+    /// Loads credentials from a two-line file and connects with the
+    /// supplied `config`, defaulting to `Config.production()`.
+    ///
+    /// P7 closure: parity with `ThetaDataDxClient.from_file()`,
+    /// `AsyncThetaDataDxClient.from_file()`, and
+    /// `MddsClient.from_file()` — every standalone Python client now
+    /// surfaces the same one-shot constructor shape.
+    #[staticmethod]
+    #[pyo3(signature = (path, config=None))]
+    fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
+        let creds = Credentials::from_file(path)?;
+        let owned_default;
+        let cfg = match config {
+            Some(c) => c,
+            None => {
+                owned_default = Config::production();
+                &owned_default
+            }
+        };
+        Self::new(py, &creds, cfg)
     }
 
     fn __repr__(&self) -> String {

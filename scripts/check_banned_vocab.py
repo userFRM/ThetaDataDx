@@ -51,11 +51,22 @@ BANNED = [
 
 
 # File globs walked relative to repo root.
+#
+# C11 closure: the scrubber now also covers `proto/**/*.proto` (gRPC
+# wire schema comments), `crates/**/*.md` (per-crate READMEs and
+# inline maintenance guides), `tools/**/*.md` (CLI / MCP / server
+# crate READMEs), and `docs/**/*.md` (top-level docs, already
+# covered — pinned redundantly so a future glob trim still includes
+# them). Marketing or internal-process vocabulary that lands inline
+# in any of those files now trips the gate.
 SCAN_GLOBS = [
     "crates/**/*.rs",
     "crates/**/*.toml",
+    "crates/**/*.md",
     "ffi/**/*.rs",
     "ffi/**/*.toml",
+    "ffi/**/*.md",
+    "proto/**/*.proto",
     "sdks/**/*.rs",
     "sdks/**/*.py",
     "sdks/**/*.pyi",
@@ -69,6 +80,7 @@ SCAN_GLOBS = [
     "sdks/**/*.md",
     "tools/**/*.rs",
     "tools/**/*.toml",
+    "tools/**/*.md",
     "docs/**/*.md",
     "scripts/**/*.py",
     ".github/**/*.yml",
