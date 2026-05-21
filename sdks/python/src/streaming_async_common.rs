@@ -18,13 +18,16 @@
 //! pyenum still live in `streaming_async_session` for backwards-compat
 //! re-export. Both batched and per-tick paths import them from there.
 
+#[cfg(unix)]
 use std::sync::Arc;
 
 use pyo3::prelude::*;
 
+#[cfg(unix)]
 use thetadatadx::fpss::wake::WakeFd;
 #[cfg(unix)]
 use thetadatadx::fpss::BackpressurePolicy as RustBackpressurePolicy;
+#[cfg(unix)]
 use thetadatadx::EventIterator as RustEventIterator;
 
 /// Typed handle to the underlying streaming client used by BOTH the
