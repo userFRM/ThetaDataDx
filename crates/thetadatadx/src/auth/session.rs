@@ -177,6 +177,18 @@ impl SessionToken {
     pub async fn current_uuid(&self) -> String {
         self.state.read().await.uuid.clone()
     }
+
+    /// Test-only: bump the in-memory token version and swap the UUID
+    /// without going through Nexus. Lets retry / refresh tests
+    /// simulate "another task already refreshed past stale" so a
+    /// subsequent `refresh(&stale)` call takes the fast-path return
+    /// without an HTTP round-trip to an unreachable URL.
+    #[cfg(test)]
+    pub(crate) async fn bump_for_test(&self, new_uuid: &str) {
+        let mut guard = self.state.write().await;
+        guard.uuid = new_uuid.to_string();
+        guard.version = guard.version.wrapping_add(1);
+    }
 }
 
 impl std::fmt::Debug for SessionToken {
