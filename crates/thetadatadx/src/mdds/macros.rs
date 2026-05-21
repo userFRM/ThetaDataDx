@@ -378,6 +378,7 @@ macro_rules! parsed_endpoint {
         request: $req:ident;
         query: $query:ident { $($field:ident : $val:expr),* $(,)? };
         parse: $parser:expr;
+        item: $item:ty;
         $(dates: $($date_arg:ident),+ ;)?
         optional { $($opt_name:ident : $opt_kind:tt = $opt_default:expr),* $(,)? }
     ) => {
@@ -412,6 +413,139 @@ macro_rules! parsed_endpoint {
                 self.deadline = if duration.is_zero() { None } else { Some(duration) };
                 self
             }
+
+            /// Stream the response chunk-by-chunk via `handler`, never
+            /// materializing the full `Vec<T>`.
+            ///
+            /// Issue #565 OOM fix: the buffered `.await -> Vec<T>` path
+            /// holds three live copies (h2 frames + concatenated proto
+            /// payload + decoded `Vec<T>`) plus a `Vec::push` doubling
+            /// transient, yielding the 6× memory amplification the
+            /// production user reproduced on `option_history_quote`
+            /// with `interval=tick`, `strike_range=5`, 1DTE, 32-permit
+            /// concurrency (~23 GiB RSS). The `.stream()` variant
+            /// decodes one chunk at a time, hands the slice to
+            /// `handler`, then drops the chunk before the next is
+            /// fetched — bounded peak memory regardless of response
+            /// size.
+            ///
+            /// # Retry / refresh semantics
+            ///
+            /// Same shell as the buffered path: transient gRPC
+            /// statuses (`Unavailable`, `DeadlineExceeded`,
+            /// `ResourceExhausted`) trigger backoff + restart;
+            /// mid-stream `Unauthenticated` triggers one session
+            /// refresh then restart from chunk zero (upstream MDDS
+            /// has no resume token). Keep `handler` idempotent —
+            /// the first N chunks of a failed attempt are visible
+            /// to `handler` BEFORE the retry begins.
+            ///
+            /// Decode / decompress failures are terminal and surface
+            /// immediately without retry — the wire bytes won't fix
+            /// themselves on a re-attempt.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`Error`] if the gRPC call fails terminally or
+            /// response parsing fails. `Error::Timeout` on deadline
+            /// expiry. `Error::Decompress { kind: MessageTooLarge }`
+            /// when the channel's `max_message_size` ceiling rejects
+            /// an oversized chunk.
+            pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>
+            where
+                F: FnMut(&[$item]),
+            {
+                let $builder_name {
+                    client,
+                    $($req_arg,)*
+                    $($opt_name,)*
+                    deadline,
+                } = self;
+                let _ = &client;
+                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
+                    tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
+                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
+                    let _metrics_start = std::time::Instant::now();
+                    let _permit = client.request_semaphore.acquire().await
+                        .map_err(|_| Error::config_internal("request semaphore closed"))?;
+                    let policy = client.config().retry;
+                    let budget = policy.max_attempts.max(1);
+                    let mut refreshed_already = false;
+                    let mut last_err: Option<Error> = None;
+                    for attempt in 1..=budget {
+                        let snap = client.session().snapshot().await;
+                        let qi = client.build_query_info(snap.uuid.clone());
+                        let request = proto::$req {
+                            query_info: Some(qi),
+                            params: Some(proto::$query { $($field : $val),* }),
+                        };
+                        let attempt_result: Result<(), Error> = async {
+                            let lease = client.channel();
+                            let stream = $crate::proto::beta_theta_terminal::$grpc(
+                                &lease,
+                                request,
+                            )
+                            .await
+                            .map_err(|e| -> Error { e.into() })?;
+                            // Strict decode: a parse error inside a
+                            // chunk is captured here and surfaced
+                            // after `for_each_chunk` returns. The
+                            // `for_each_chunk` closure cannot
+                            // propagate Result, so the short-circuit
+                            // is via the captured `Option<Error>`.
+                            let mut decode_error: Option<Error> = None;
+                            let drain_result = client.for_each_chunk(stream, |_headers, rows| {
+                                if decode_error.is_some() {
+                                    return;
+                                }
+                                let chunk_table = proto::DataTable {
+                                    headers: _headers.to_vec(),
+                                    data_table: rows.to_vec(),
+                                };
+                                match $parser(&chunk_table) {
+                                    Ok(ticks) => handler(&ticks),
+                                    Err(e) => decode_error = Some(Error::from(e)),
+                                }
+                            }).await;
+                            drain_result.and_then(|()| match decode_error {
+                                Some(e) => Err(e),
+                                None => Ok(()),
+                            })
+                        }.await;
+                        match $crate::mdds::macros::classify_streaming_attempt(
+                            client.session(),
+                            &snap,
+                            &mut refreshed_already,
+                            stringify!($name),
+                            attempt_result,
+                        ).await {
+                            $crate::mdds::macros::StreamingAttemptOutcome::Done => {
+                                metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
+                                    .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
+                                return Ok::<(), Error>(());
+                            }
+                            $crate::mdds::macros::StreamingAttemptOutcome::Terminal(err) => {
+                                return Err::<(), Error>(err);
+                            }
+                            $crate::mdds::macros::StreamingAttemptOutcome::Refresh(err) => {
+                                tracing::warn!(endpoint = stringify!($name), attempt, error = %err, "session refresh during stream — restarting from chunk zero");
+                                last_err = Some(err);
+                            }
+                            $crate::mdds::macros::StreamingAttemptOutcome::Backoff(err) => {
+                                if attempt == budget {
+                                    last_err = Some(err);
+                                    break;
+                                }
+                                $crate::mdds::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
+                                last_err = Some(err);
+                            }
+                        }
+                    }
+                    Err::<(), Error>(last_err.unwrap_or_else(|| Error::config_internal("streaming retry loop exited without result")))
+                }).await
+            }
+
         }
 
         impl<'a> IntoFuture for $builder_name<'a> {

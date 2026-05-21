@@ -443,6 +443,41 @@ the blocking `get()`.
 | `reconnect()` | Reconnect streaming and re-register the previously installed callback; restores all subscriptions. |
 | `shutdown()` | Graceful shutdown — drops the registered callback. |
 
+### Streaming — `.stream(handler)` for large responses (issue #565)
+
+Every historical builder exposes `.stream(handler)` and `.stream_async(handler)` alongside the buffered `.list()` / `.list_async()` terminals. The streaming variants drain the response chunk-by-chunk; the previous chunk is freed before the next is fetched. Peak resident memory stays at ~one chunk (≈64 KiB) regardless of total response size — eliminates the OOM mode reported on `option_history_quote(QQQ, 1DTE, interval=tick, strike_range=5)` at 32-permit concurrency (23 GiB RSS buffered → ~2 MiB streaming).
+
+```python
+# Sync: handler is called once per gRPC chunk with a typed list[QuoteTick].
+def on_chunk(ticks):
+    for t in ticks:
+        # write to parquet / send to bus / accumulate stats
+        pass
+
+tdx.option_history_quote_builder("QQQ", "20260516", "20260516") \
+    .interval("tick") \
+    .strike_range(5) \
+    .stream(on_chunk)
+
+# Async: same handler shape, awaitable resolves to None on clean drain.
+async def main():
+    await tdx.option_history_quote_builder("QQQ", "20260516", "20260516") \
+        .interval("tick") \
+        .strike_range(5) \
+        .stream_async(on_chunk)
+```
+
+The streaming variant is available on every historical builder regardless of tick type (`QuoteTick`, `TradeTick`, `OhlcTick`, `EodTick`, `GreeksAllTick`, `MarketValueTick`, `OptionContract`, `CalendarDay`, `InterestRateTick`, ...). Snapshot endpoints (≤10 rows) and the legacy `*_stream` endpoints don't expose the universal terminal — those keep their existing one-shot surface.
+
+**Memory budget formula**:
+
+```
+peak_rss ≈ concurrency × rows × bytes_per_row × decode_factor
+decode_factor: 3.0 buffered  /  1.0 streamed
+```
+
+For tick-interval requests across multi-day ranges or wide strike ranges, **always use `.stream()`** — the buffered path's `decode_factor=3.0` reflects the simultaneous residency of h2 frames + decompressed proto + decoded `Vec<T>` plus the `Vec::push` doubling transient.
+
 ### Chained DataFrame terminals
 
 Every historical endpoint returns a typed list wrapper (`EodTickList`,

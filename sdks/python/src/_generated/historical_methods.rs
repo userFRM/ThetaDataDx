@@ -223,6 +223,7 @@ impl StockSnapshotOhlcBuilder {
             request.await
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get the latest trade snapshot for one or more stocks.
@@ -317,6 +318,7 @@ impl StockSnapshotTradeBuilder {
             request.await
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get the latest NBBO quote snapshot for one or more stocks.
@@ -411,6 +413,7 @@ impl StockSnapshotQuoteBuilder {
             request.await
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get the latest market value snapshot for one or more stocks.
@@ -505,6 +508,7 @@ impl StockSnapshotMarketValueBuilder {
             request.await
         }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
@@ -579,6 +583,101 @@ impl StockHistoryEodBuilder {
             }
             request.await
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `stock_history_eod` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_eod` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.stock_history_eod(&symbol, &start_date, &end_date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -744,6 +843,147 @@ impl StockHistoryOhlcBuilder {
             request.await
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `stock_history_ohlc` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let venue = self.venue.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.stock_history_ohlc(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_ohlc` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let venue = self.venue.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.stock_history_ohlc(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch all trades for a stock on a given date.
@@ -890,6 +1130,139 @@ impl StockHistoryTradeBuilder {
             }
             request.await
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `stock_history_trade` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let venue = self.venue.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.stock_history_trade(&symbol, &date);
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_trade` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let venue = self.venue.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.stock_history_trade(&symbol, &date);
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -1056,6 +1429,147 @@ impl StockHistoryQuoteBuilder {
             request.await
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `stock_history_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let venue = self.venue.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.stock_history_quote(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let venue = self.venue.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.stock_history_quote(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
@@ -1219,6 +1733,147 @@ impl StockHistoryTradeQuoteBuilder {
             request.await
         }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `stock_history_trade_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let exclusive = self.exclusive;
+        let venue = self.venue.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.stock_history_trade_quote(&symbol, &date);
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &exclusive {
+                request = request.exclusive(*value);
+            }
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_trade_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let exclusive = self.exclusive;
+        let venue = self.venue.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.stock_history_trade_quote(&symbol, &date);
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &exclusive {
+                request = request.exclusive(*value);
+            }
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch the trade at a specific time of day across a date range.
@@ -1327,6 +1982,111 @@ impl StockAtTimeTradeBuilder {
             request.await
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let time_of_day = self.time_of_day.clone();
+        let venue = self.venue.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_trade` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let time_of_day = self.time_of_day.clone();
+        let venue = self.venue.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch the quote at a specific time of day across a date range.
@@ -1434,6 +2194,111 @@ impl StockAtTimeQuoteBuilder {
             }
             request.await
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let time_of_day = self.time_of_day.clone();
+        let venue = self.venue.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let time_of_day = self.time_of_day.clone();
+        let venue = self.venue.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -1814,6 +2679,109 @@ impl OptionListContractsBuilder {
             request.await
         }, |py, ticks| option_contracts_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `option_list_contracts` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let request_type = self.request_type.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let max_dte = self.max_dte;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match option_contracts_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_list_contracts` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let request_type = self.request_type.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let max_dte = self.max_dte;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_list_contracts(&request_type, &symbol, &date);
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match option_contracts_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Get the latest OHLC snapshot for an option contract.
@@ -1960,6 +2928,7 @@ impl OptionSnapshotOhlcBuilder {
             request.await
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get the latest trade snapshot for an option contract.
@@ -2092,6 +3061,7 @@ impl OptionSnapshotTradeBuilder {
             request.await
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get the latest NBBO quote snapshot for an option contract.
@@ -2239,6 +3209,7 @@ impl OptionSnapshotQuoteBuilder {
             request.await
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get the latest open interest snapshot for an option contract.
@@ -2387,6 +3358,7 @@ impl OptionSnapshotOpenInterestBuilder {
             request.await
         }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get the latest market value snapshot for an option contract.
@@ -2532,6 +3504,7 @@ impl OptionSnapshotMarketValueBuilder {
             request.await
         }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get implied volatility snapshot for an option contract (from ThetaData server).
@@ -2773,6 +3746,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             request.await
         }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get all Greeks snapshot for an option contract (from ThetaData server).
@@ -3014,6 +3988,7 @@ impl OptionSnapshotGreeksAllBuilder {
             request.await
         }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -3255,6 +4230,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             request.await
         }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -3496,6 +4472,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             request.await
         }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
@@ -3737,6 +4714,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             request.await
         }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Fetch end-of-day option data for a contract over a date range.
@@ -3887,6 +4865,135 @@ impl OptionHistoryEodBuilder {
             }
             request.await
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_eod` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_eod` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -4092,6 +5199,165 @@ impl OptionHistoryOhlcBuilder {
             request.await
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `option_history_ohlc` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_ohlc(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_ohlc` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_ohlc(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch all trades for an option contract on a given date.
@@ -4295,6 +5561,165 @@ impl OptionHistoryTradeBuilder {
             }
             request.await
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_trade` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_trade(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_trade(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -4514,6 +5939,173 @@ impl OptionHistoryQuoteBuilder {
             }
             request.await
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_quote(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_quote(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -4735,6 +6327,173 @@ impl OptionHistoryTradeQuoteBuilder {
             request.await
         }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `option_history_trade_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let exclusive = self.exclusive;
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &exclusive {
+                request = request.exclusive(*value);
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let exclusive = self.exclusive;
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_trade_quote(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &exclusive {
+                request = request.exclusive(*value);
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch open interest history for an option contract.
@@ -4905,6 +6664,149 @@ impl OptionHistoryOpenInterestBuilder {
             }
             request.await
         }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_open_interest` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_open_interest(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match open_interest_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_open_interest` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_open_interest(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match open_interest_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -5133,6 +7035,175 @@ impl OptionHistoryGreeksEodBuilder {
             }
             request.await
         }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_greeks_eod` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let underlyer_use_nbbo = self.underlyer_use_nbbo;
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(*value);
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_eod` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let underlyer_use_nbbo = self.underlyer_use_nbbo;
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(*value);
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -5401,6 +7472,197 @@ impl OptionHistoryGreeksAllBuilder {
             request.await
         }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `option_history_greeks_all` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_all` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_greeks_all(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch all Greeks on each trade for an option contract.
@@ -5666,6 +7928,197 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             request.await
         }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_trade_greeks_all` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_all` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_trade_greeks_all(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -5934,6 +8387,197 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             request.await
         }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `option_history_greeks_first_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_first_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_greeks_first_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch first-order Greeks on each trade for an option contract.
@@ -6199,6 +8843,197 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             request.await
         }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_trade_greeks_first_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_first_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -6467,6 +9302,197 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             request.await
         }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `option_history_greeks_second_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_second_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_greeks_second_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch second-order Greeks on each trade for an option contract.
@@ -6732,6 +9758,197 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             request.await
         }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_trade_greeks_second_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_second_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -7000,6 +10217,197 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             request.await
         }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `option_history_greeks_third_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_third_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_greeks_third_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch third-order Greeks on each trade for an option contract.
@@ -7265,6 +10673,197 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             request.await
         }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_trade_greeks_third_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_third_order` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -7532,6 +11131,197 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             request.await
         }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `option_history_greeks_implied_volatility` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match iv_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_implied_volatility` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match iv_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch implied volatility on each trade for an option contract.
@@ -7797,6 +11587,197 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             request.await
         }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `option_history_trade_greeks_implied_volatility` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match iv_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_implied_volatility` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let date = self.date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match iv_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch the trade at a specific time of day across a date range for an option.
@@ -7957,6 +11938,137 @@ impl OptionAtTimeTradeBuilder {
             request.await
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let time_of_day = self.time_of_day.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_trade` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let time_of_day = self.time_of_day.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch the quote at a specific time of day across a date range for an option.
@@ -8114,6 +12226,137 @@ impl OptionAtTimeQuoteBuilder {
             }
             request.await
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let time_of_day = self.time_of_day.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_quote` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let time_of_day = self.time_of_day.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -8311,6 +12554,7 @@ impl IndexSnapshotOhlcBuilder {
             request.await
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get the latest price snapshot for one or more indices.
@@ -8386,6 +12630,7 @@ impl IndexSnapshotPriceBuilder {
             request.await
         }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get the latest market value snapshot for one or more indices.
@@ -8461,6 +12706,7 @@ impl IndexSnapshotMarketValueBuilder {
             request.await
         }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Fetch end-of-day index data for a date range.
@@ -8535,6 +12781,101 @@ impl IndexHistoryEodBuilder {
             }
             request.await
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `index_history_eod` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_eod` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.index_history_eod(&symbol, &start_date, &end_date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -8662,6 +13003,125 @@ impl IndexHistoryOhlcBuilder {
             }
             request.await
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `index_history_ohlc` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_ohlc` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.index_history_ohlc(&symbol, &start_date, &end_date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -8812,6 +13272,139 @@ impl IndexHistoryPriceBuilder {
             request.await
         }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `index_history_price` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.index_history_price(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match price_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_price` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.index_history_price(&symbol, &date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match price_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Fetch the index price at a specific time of day across a date range.
@@ -8897,6 +13490,103 @@ impl IndexAtTimePriceBuilder {
             request.await
         }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
+    /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let time_of_day = self.time_of_day.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match price_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_at_time_price` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let time_of_day = self.time_of_day.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match price_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
+    }
 }
 
 /// Check whether the market is open today.
@@ -8947,6 +13637,7 @@ impl CalendarOpenTodayBuilder {
             request.await
         }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get calendar information for a specific date.
@@ -9007,6 +13698,7 @@ impl CalendarOnDateBuilder {
             request.await
         }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Get calendar information for an entire year.
@@ -9067,6 +13759,7 @@ impl CalendarYearBuilder {
             request.await
         }, |py, ticks| calendar_days_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
+
 }
 
 /// Fetch end-of-day interest rate history.
@@ -9141,6 +13834,101 @@ impl InterestRateHistoryEodBuilder {
             }
             request.await
         }, |py, ticks| interest_rate_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `interest_rate_history_eod` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match interest_rate_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `interest_rate_history_eod` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.interest_rate_history_eod(&symbol, &start_date, &end_date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match interest_rate_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 
@@ -9280,6 +14068,133 @@ impl StockHistoryOhlcRangeBuilder {
             }
             request.await
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `stock_history_ohlc_range` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let venue = self.venue.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        run_blocking(py, async move {
+            let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        })?;
+        // Surface the callback PyErr (if any) AFTER run_blocking
+        // returns clean — `request.stream` returns Ok(()) when the
+        // wire finishes even if our chunk closure stopped processing.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_ohlc_range` rows finishes. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream).
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let tdx = self.tdx.clone();
+        let symbol = self.symbol.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let venue = self.venue.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = tdx.stock_history_ohlc_range(&symbol, &start_date, &end_date);
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream(|chunk| {
+                if cb_err_for_closure.lock().unwrap().is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let owned: Vec<_> = chunk.to_vec();
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                        Ok(list) => list,
+                        Err(e) => {
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
+                        *cb_err_for_closure.lock().unwrap() = Some(e);
+                    }
+                });
+            }).await
+        }, move |py, ()| {
+            // Post-await converter — reacquired GIL. Re-raise any
+            // captured callback PyErr before resolving the awaitable.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            Ok::<_, PyErr>(py.None())
+        })
     }
 }
 

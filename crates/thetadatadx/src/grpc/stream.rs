@@ -32,7 +32,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{BufMut, BytesMut};
 use futures_core::Stream;
 use h2::RecvStream;
 use pin_project_lite::pin_project;
@@ -214,6 +214,54 @@ where
     }
 }
 
+/// Peek the 5-byte gRPC frame prefix in-place and return the total
+/// frame size (header + payload) when the accumulator already holds a
+/// full frame, `None` when more wire bytes are needed, or an error on
+/// a malformed header.
+///
+/// Issue #565 Tier 4: replaces the previous per-poll
+/// `this.buf.clone().freeze()` which deep-copied the entire
+/// accumulator on every poll. This helper reads the header bytes
+/// directly off the `BytesMut` slice (no allocation, no clone) and
+/// lets the outer poll loop detach exactly one frame's worth via
+/// `BytesMut::split_to` on the success branch — refcount-only.
+///
+/// Header layout (gRPC spec § 7.1):
+///   * byte 0      — compressed flag (0 = identity, 1 = compressed)
+///   * bytes 1..=4 — big-endian u32 payload length
+///
+/// Header-level rejection (compressed flag != 0, payload length >
+/// `max_message_size`) surfaces as a [`super::codec::CodecError`]
+/// before any frame detach so the caller's "Err ⇒ buf not consumed"
+/// invariant holds.
+fn peek_frame_length(
+    buf: &bytes::BytesMut,
+    max_message_size: usize,
+) -> Result<Option<usize>, super::codec::CodecError> {
+    if buf.len() < super::codec::FRAME_HEADER_LEN {
+        return Ok(None);
+    }
+    let header = &buf[..super::codec::FRAME_HEADER_LEN];
+    let compressed_flag = header[0];
+    match compressed_flag {
+        0 => {}
+        1 => return Err(super::codec::CodecError::CompressionUnsupported),
+        other => return Err(super::codec::CodecError::InvalidCompressedFlag(other)),
+    }
+    let payload_len = u32::from_be_bytes([header[1], header[2], header[3], header[4]]) as usize;
+    if payload_len > max_message_size {
+        return Err(super::codec::CodecError::FrameTooLarge {
+            length: payload_len,
+            max: max_message_size,
+        });
+    }
+    let total = super::codec::FRAME_HEADER_LEN + payload_len;
+    if buf.len() < total {
+        return Ok(None);
+    }
+    Ok(Some(total))
+}
+
 /// Classify an `h2::Error` into the matching [`ChannelError`] variant.
 ///
 /// Connection-level failures (`GOAWAY` in either direction, IO errors
@@ -250,13 +298,49 @@ where
         loop {
             // Drain any frames that already fit in the accumulator
             // before bothering the deadline / body.
+            //
+            // Issue #565 Tier 4: peek the 5-byte length prefix WITHOUT
+            // cloning the entire accumulator. The previous implementation
+            // did `this.buf.clone().freeze()` per poll — `BytesMut::clone`
+            // is a deep copy (verified empirically: a 10 MiB accumulator
+            // duplicates to a fresh 10 MiB allocation), so a single
+            // chunked response of N MiB paid an O(polls × N) memory tax
+            // on the decode path. The optimised path below reads the
+            // prefix in-place, splits off exactly one frame's worth on
+            // the success branch (Bytes::split_to is refcounted, zero-
+            // copy), and stays inside the accumulator on the
+            // need-more-bytes branch.
             if *this.state != StreamState::Closed {
-                let mut peek = this.buf.clone().freeze();
-                match this.codec.decode(&mut peek) {
-                    Ok(Some(msg)) => {
-                        let consumed = this.buf.len() - peek.remaining();
-                        this.buf.advance(consumed);
-                        return Poll::Ready(Some(Ok(msg)));
+                match peek_frame_length(this.buf, this.codec.max_message_size()) {
+                    Ok(Some(frame_len)) => {
+                        // Full frame already buffered — detach exactly
+                        // `frame_len` bytes (refcount-only, no copy),
+                        // hand them to the codec, and yield the
+                        // decoded message. The codec's internal
+                        // `Bytes::split_to(payload_len)` then peels off
+                        // the payload from the framed prefix.
+                        let mut frame = this.buf.split_to(frame_len).freeze();
+                        match this.codec.decode(&mut frame) {
+                            Ok(Some(msg)) => {
+                                return Poll::Ready(Some(Ok(msg)));
+                            }
+                            Ok(None) => {
+                                // Cannot happen — `peek_frame_length`
+                                // returned `Some` so the codec has the
+                                // bytes it needs. Defensive: surface
+                                // an internal error.
+                                *this.state = StreamState::Closed;
+                                return Poll::Ready(Some(Err(ChannelError::Codec(
+                                    super::codec::CodecError::Decode(
+                                        "internal: codec returned None on a sized frame".into(),
+                                    ),
+                                ))));
+                            }
+                            Err(e) => {
+                                *this.state = StreamState::Closed;
+                                return Poll::Ready(Some(Err(e.into())));
+                            }
+                        }
                     }
                     Ok(None) => {
                         // Need more bytes — fall through to body poll.
@@ -367,5 +451,98 @@ where
                 StreamState::Closed => return Poll::Ready(None),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod peek_frame_length_tests {
+    //! Issue #565 Tier 4 pin: the accumulator-peek primitive that
+    //! replaced the per-poll `BytesMut::clone()` must:
+    //!
+    //! 1. Return `Ok(None)` when fewer than 5 bytes are buffered (the
+    //!    header isn't yet readable).
+    //! 2. Return `Ok(None)` when the header is buffered but the payload
+    //!    isn't yet complete.
+    //! 3. Return `Ok(Some(5 + payload_len))` when a full frame is ready.
+    //! 4. Reject hostile prefixes (oversized length, compressed flag !=
+    //!    0) WITHOUT mutating the accumulator — the outer poll's
+    //!    "Err ⇒ buf not consumed" invariant depends on this.
+    //!
+    //! These are the structural contracts that distinguish the Tier 4
+    //! zero-copy path from the previous deep-clone path. A regression
+    //! that re-introduced `BytesMut::clone()` here would pass every
+    //! integration test (the semantics are identical) but would
+    //! silently re-impose the per-poll O(buf.len()) memory tax.
+    use super::*;
+    use bytes::{BufMut, BytesMut};
+
+    fn header(payload_len: u32) -> [u8; 5] {
+        let mut hdr = [0u8; 5];
+        hdr[0] = 0; // identity flag
+        hdr[1..5].copy_from_slice(&payload_len.to_be_bytes());
+        hdr
+    }
+
+    #[test]
+    fn returns_none_when_header_incomplete() {
+        let mut buf = BytesMut::new();
+        buf.put_slice(&[0u8, 0u8, 0u8]); // 3 of 5 header bytes
+        assert!(matches!(peek_frame_length(&buf, 4 * 1024 * 1024), Ok(None)));
+        assert_eq!(buf.len(), 3, "accumulator must not be consumed on Ok(None)");
+    }
+
+    #[test]
+    fn returns_none_when_payload_incomplete() {
+        let mut buf = BytesMut::new();
+        buf.put_slice(&header(100));
+        buf.put_slice(&[0u8; 50]); // 50 of 100 payload bytes
+        assert!(matches!(peek_frame_length(&buf, 4 * 1024 * 1024), Ok(None)));
+        assert_eq!(
+            buf.len(),
+            55,
+            "accumulator must not be consumed on Ok(None)"
+        );
+    }
+
+    #[test]
+    fn returns_total_frame_length_when_full() {
+        let mut buf = BytesMut::new();
+        buf.put_slice(&header(100));
+        buf.put_slice(&[0u8; 100]);
+        match peek_frame_length(&buf, 4 * 1024 * 1024) {
+            Ok(Some(total)) => assert_eq!(total, 5 + 100),
+            other => panic!("expected Ok(Some(105)), got {other:?}"),
+        }
+        assert_eq!(buf.len(), 105, "peek must not consume on success");
+    }
+
+    #[test]
+    fn rejects_oversized_payload_without_mutating_buf() {
+        let mut buf = BytesMut::new();
+        buf.put_slice(&header(10 * 1024 * 1024)); // 10 MiB claimed
+        let before = buf.len();
+        match peek_frame_length(&buf, 4 * 1024 * 1024) {
+            Err(super::super::codec::CodecError::FrameTooLarge { length, max }) => {
+                assert_eq!(length, 10 * 1024 * 1024);
+                assert_eq!(max, 4 * 1024 * 1024);
+            }
+            other => panic!("expected FrameTooLarge, got {other:?}"),
+        }
+        assert_eq!(buf.len(), before, "buf must not be consumed on error");
+    }
+
+    #[test]
+    fn rejects_compressed_flag_without_mutating_buf() {
+        let mut buf = BytesMut::new();
+        let mut hdr = header(10);
+        hdr[0] = 1; // compressed flag
+        buf.put_slice(&hdr);
+        buf.put_slice(&[0u8; 10]);
+        let before = buf.len();
+        match peek_frame_length(&buf, 4 * 1024 * 1024) {
+            Err(super::super::codec::CodecError::CompressionUnsupported) => {}
+            other => panic!("expected CompressionUnsupported, got {other:?}"),
+        }
+        assert_eq!(buf.len(), before, "buf must not be consumed on error");
     }
 }
