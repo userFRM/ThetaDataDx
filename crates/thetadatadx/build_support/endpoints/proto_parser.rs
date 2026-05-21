@@ -7,9 +7,7 @@
 
 use std::collections::HashMap;
 
-use super::model::{
-    GeneratedEndpoint, GeneratedParam, ParsedEndpoints, ProtoField, Rpc, TestFixtures,
-};
+use super::model::{GeneratedEndpoint, GeneratedParam, ProtoField, Rpc, WireEndpoints};
 
 /// Parse endpoint metadata from `mdds.proto` into a reusable intermediate form.
 ///
@@ -20,7 +18,7 @@ use super::model::{
 /// runtime, and SDK surface stay aligned while the explicit endpoint surface
 /// spec is validated against the wire contract.
 #[allow(clippy::too_many_lines)] // Reason: build-time endpoint parser coordinates multiple passes over one proto source.
-pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::error::Error>> {
+pub(super) fn load_proto_endpoints() -> Result<WireEndpoints, Box<dyn std::error::Error>> {
     let proto = std::fs::read_to_string("proto/mdds.proto")?;
 
     // ── Parse RPCs ──────────────────────────────────────────────────────────
@@ -87,10 +85,9 @@ pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::err
                 name,
                 description,
                 param_type,
-                enum_name: None,
                 required,
                 binding: String::new(),
-                arg_name: None,
+                _arg_name: None,
                 default: None,
             })
             .collect::<Vec<_>>();
@@ -101,7 +98,7 @@ pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::err
             description: String::new(),
             category: String::new(),
             subcategory: String::new(),
-            rest_path: String::new(),
+            _rest_path: String::new(),
             grpc_name: format!("get_{}", rpc_to_method(&rpc.rpc_name)),
             request_type: rpc.request_type.clone(),
             query_type: query_msg_name,
@@ -129,11 +126,7 @@ pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::err
         endpoints.push(range);
     }
 
-    Ok(ParsedEndpoints {
-        endpoints,
-        enums: Vec::new(),
-        fixtures: TestFixtures::default(),
-    })
+    Ok(WireEndpoints { endpoints })
 }
 
 fn is_simple_list_method(method: &str) -> bool {

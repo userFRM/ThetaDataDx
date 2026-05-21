@@ -24,6 +24,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 config-file = ["dep:toml"]
+# Pulls `prost-build` into the regular dep graph for the
+# `refresh_grpc_snapshot` developer binary. Strictly off for normal
+# crate builds — the build script keeps its own `prost-build` under
+# `[build-dependencies]`.
+grpc-codegen = ["dep:prost-build"]
 # Optional Prometheus exporter. When enabled, a `metrics-exporter-prometheus`
 # HTTP listener binds to `DirectConfig::metrics_port` (see the
 # `observability` module) and serves recorder state on `/metrics`.
@@ -38,18 +43,40 @@ frames = ["polars", "arrow"]
 # Opt-in gate for tests that hit live MDDS / FPSS endpoints. Default-off
 # so `cargo test` never burns a live call without the user asking for it.
 live-tests = []
+# Optional mimalloc allocator. Library crates do not install a
+# `#[global_allocator]` of their own — that belongs in the consuming
+# binary. Enabling this feature pulls `mimalloc` into the dependency
+# graph so the binary can register it with one extra line; see
+# `docs-site/docs/configuration.md` ("Performance tuning") for the
+# integration snippet. Default-off — applications that prefer the
+# system allocator pay no compile or link cost.
+mimalloc-allocator = ["dep:mimalloc"]
 
 [dependencies]
 tdbe = { version = "0.13.1", path = "../tdbe" }
 
-# gRPC + protobuf (tonic 0.14 extracted prost codec into tonic-prost)
-tonic = { version = "=0.14.5", features = ["tls-ring", "tls-native-roots", "channel", "transport"] }
-tonic-prost = "=0.14.5"
+# Protobuf message types for the MDDS wire contract. The in-house
+# gRPC client stack (`src/grpc/`) consumes these directly — no tonic.
 prost = "=0.14.3"
 prost-types = "=0.14.3"
 
+# In-house gRPC transport — direct h2 implementation. These deps used
+# to ride in via tonic transitively; declaring them explicitly pins
+# versions now that tonic is gone.
+h2 = "0.4"
+http = "1"
+http-body = "1"
+bytes = "1"
+pin-project-lite = "0.2"
+futures-core = "0.3"
+# RFC 3986 percent-decoding for the `grpc-message` trailer (see
+# https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md —
+# the spec mandates `%HH` decoding and forbids a malformed message
+# from invalidating an otherwise-valid `grpc-status`).
+percent-encoding = "2"
+
 # Async runtime
-tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync", "fs"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync", "fs"] }
 tokio-stream = "0.1.18"
 tokio-rustls = "0.26.4"
 rustls = { version = "0.23.40", features = ["ring"] }
@@ -94,7 +121,7 @@ toml = { version = "1.1.2", optional = true }
 regex = "1.12.3"
 
 # Lock-free ring buffer (LMAX Disruptor pattern) for FPSS event dispatch
-disruptor = "4.1.0"
+disruptor = "4.2.0"
 
 # Lock-free MPMC bounded queue used by the pull-iter delivery mode
 # (`ThetaDataDxClient::start_streaming_iter`). The Disruptor consumer
@@ -112,7 +139,7 @@ polars = { version = "0.53", optional = true, default-features = false }
 # arrow-array + arrow-schema cover RecordBatch construction for the
 # optional `frames` feature only. Kept optional so the default dep
 # graph stays slim — FLATFILES does not pull in arrow.
-arrow-array = { version = "58.1.0", optional = true }
+arrow-array = { version = "58.3.0", optional = true }
 arrow-schema = { version = "58.1.0", optional = true }
 # JSON encoder for the FLATFILES `Format::Jsonl` output. One serde_json
 # Value per row; `to_writer` emits compact form, then we append `\n`.
@@ -130,8 +157,36 @@ zeroize = { version = "1.8.2", features = ["derive"] }
 # to a single `state.load()`.
 arc-swap = "1.7"
 
+# Faster uncontended Mutex for the single-consumer FPSS Disruptor hot
+# path (~5ns vs std::sync::Mutex's ~20-40ns). Used only at the io_loop
+# delivery site; the rest of the crate stays on `std::sync::Mutex` for
+# the standard poison-on-panic semantics.
+parking_lot = "0.12"
+
+# Optional mimalloc allocator. Gated behind the `mimalloc-allocator`
+# feature so the default dependency graph stays unchanged; consumers
+# install it as `#[global_allocator]` in their own binary. See
+# `docs-site/docs/configuration.md` for the integration snippet.
+# `default-features = false` skips the bundled override that mimalloc
+# would otherwise install at runtime — the consuming binary owns that
+# choice, not us.
+mimalloc = { version = "0.1", default-features = false, optional = true }
+
+# Optional prost-build for the `refresh_grpc_snapshot` developer
+# binary. Stays out of the default dep graph (the build script keeps
+# its own copy under `[build-dependencies]`).
+prost-build = { version = "=0.14.3", optional = true }
+
 [dev-dependencies]
-criterion = { version = "0.8.2", features = ["html_reports"] }
+criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
+# `futures::future::join_all` for the concurrent-burst bench. Pulls in
+# the umbrella `futures` crate (we already depend on `futures-core`
+# directly; this gives us the executor adapters as well, dev-only).
+futures = "0.3"
+# Signal-driven sampling profiler used by the concurrent-burst bench
+# to emit a flamegraph SVG when `THETADATADX_FLAMEGRAPH=1` is set.
+# Pure userspace — no perf / root required.
+pprof = { version = "0.15", features = ["flamegraph"] }
 proptest = "1.5"
 # Test-only: load captured-response fixtures and their sidecar .meta.toml
 # files for the decoder-regression suite (`tests/test_decode_captures.rs`).
@@ -144,16 +199,28 @@ toml = "1.1.2"
 # same patch as the Python SDK shim under `sdks/python/` so the
 # dev-dependency graph stays consistent. dev-only — never enters the
 # published crate graph.
-pyo3 = { version = "=0.28.2", features = ["auto-initialize"] }
+pyo3 = { version = "=0.28.3", features = ["auto-initialize"] }
 
 [build-dependencies]
-# tonic 0.14 extracted build integration into tonic-prost-build
-tonic-prost-build = "=0.14.5"
+# `prost-build` compiles `proto/mdds.proto` into Rust message types;
+# the in-house gRPC client stubs are emitted by a custom service
+# generator under `build_support/grpc/`, replacing `tonic-build`
+# entirely.
 prost-build = "=0.14.3"
 regex = "1.12.3"
 toml = "1.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
 tdbe = { version = "0.13.1", path = "../tdbe" }
+
+# POSIX `pipe2` / `write` / `close` for the asyncio wake-fd bridge used
+# by the Python SDK's `streaming_async()` surface (see
+# `crates/thetadatadx/src/fpss/wake.rs`). Pure libc — no abstraction layer
+# — because we only need three syscalls and want the wake path to stay
+# zero-allocation. Already in the dep graph transitively (rustls /
+# rand_chacha pull libc on Unix); declaring it explicitly pins the
+# binding-version contract.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [[bench]]
 name = "bench_decode"
@@ -183,7 +250,28 @@ harness = false
 name = "streaming_throughput"
 harness = false
 
+[[bench]]
+name = "grpc_channel"
+harness = false
+
+[[bench]]
+name = "grpc_concurrent_burst"
+harness = false
+
+[[bench]]
+name = "bench_delta_decode"
+harness = false
+
+[[bench]]
+name = "historical_streaming_memory"
+harness = false
+
 [[bin]]
 name = "generate_sdk_surfaces"
 path = "src/bin/generate_sdk_surfaces.rs"
 required-features = ["config-file"]
+
+[[bin]]
+name = "refresh_grpc_snapshot"
+path = "src/bin/refresh_grpc_snapshot.rs"
+required-features = ["grpc-codegen"]

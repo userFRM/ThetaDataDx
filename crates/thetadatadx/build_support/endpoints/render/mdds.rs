@@ -9,13 +9,14 @@
 
 use std::fmt::Write as _;
 
-use super::super::helpers::compose_endpoint_doc;
-use super::super::helpers::{
+use super::super::build_helpers::{
     direct_date_arg_name, direct_method_arg_name, direct_optional_kind_and_default,
     direct_optional_rust_type, direct_optional_setter_arg_type, direct_optional_setter_assign_expr,
-    direct_parser_name, direct_required_field_type, direct_required_kind,
-    direct_required_param_type, direct_required_store_expr, direct_return_type,
-    direct_stream_tick_type, is_method_call_param, to_pascal_case,
+    direct_required_field_type, direct_required_kind, direct_required_param_type,
+    direct_required_store_expr, direct_return_type, direct_stream_tick_type,
+};
+use super::super::helpers::{
+    compose_endpoint_doc, direct_parser_name, is_method_call_param, to_pascal_case,
 };
 use super::super::model::{GeneratedEndpoint, ProtoField};
 
@@ -136,6 +137,18 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
         direct_parser_name(&endpoint.return_type)
     )
     .unwrap();
+    // Per-tick item type for the `.stream(handler)` method emitted
+    // by `parsed_endpoint!`. Issue #565: the streaming variant lets
+    // callers drain row-by-row instead of materializing the full
+    // `Vec<T>`, eliminating the 6× memory amplification on
+    // tick-interval responses (h2 frames + concatenated proto +
+    // decoded Vec + Vec::push doubling).
+    writeln!(
+        out,
+        "    item: {};",
+        direct_stream_tick_type(&endpoint.return_type)
+    )
+    .unwrap();
 
     let date_args = method_params
         .iter()
@@ -204,6 +217,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         )
         .unwrap();
     }
+    out.push_str("    pub(crate) deadline: Option<std::time::Duration>,\n");
     out.push_str("}\n\n");
 
     writeln!(out, "impl<'a> {builder_name}<'a> {{").unwrap();
@@ -243,6 +257,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     for param in &optional_params {
         writeln!(out, "            {},", param.name).unwrap();
     }
+    out.push_str("            deadline,\n");
     out.push_str("        } = self;\n");
     out.push_str("        let _ = &client;\n");
     for arg in method_params
@@ -251,56 +266,74 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     {
         writeln!(out, "        validate_date_required(&{arg})?;").unwrap();
     }
+    let endpoint_name_literal = format!("{:?}", endpoint.name);
+    // Outer deadline + retry shell. The deadline wraps the entire
+    // retry loop so the caller's budget covers all attempts; an
+    // individual attempt does not get its own copy of the deadline
+    // because callers reason about end-to-end latency, not per-try.
     writeln!(
         out,
-        "        tracing::debug!(endpoint = {:?}, \"gRPC streaming request\");",
-        endpoint.name
+        "        crate::mdds::macros::run_with_optional_deadline(deadline, async move {{"
     )
     .unwrap();
     writeln!(
         out,
-        "        metrics::counter!(\"thetadatadx.grpc.requests\", \"endpoint\" => {:?}).increment(1);",
-        endpoint.name
+        "            tracing::debug!(endpoint = {endpoint_name_literal}, \"gRPC streaming request\");"
     )
     .unwrap();
-    out.push_str("        let _metrics_start = std::time::Instant::now();\n");
-    out.push_str("        let _permit = client.request_semaphore.acquire().await\n");
+    writeln!(
+        out,
+        "            metrics::counter!(\"thetadatadx.grpc.requests\", \"endpoint\" => {endpoint_name_literal}).increment(1);"
+    )
+    .unwrap();
+    out.push_str("            let _metrics_start = std::time::Instant::now();\n");
+    out.push_str("            let _permit = client.request_semaphore.acquire().await\n");
     out.push_str(
-        "            .map_err(|_| Error::config_internal(\"request semaphore closed\"))?;\n",
+        "                .map_err(|_| Error::config_internal(\"request semaphore closed\"))?;\n",
     );
+    out.push_str("            let policy = client.config().retry;\n");
+    out.push_str("            let budget = policy.max_attempts.max(1);\n");
+    out.push_str("            let mut refreshed_already = false;\n");
+    out.push_str("            let mut last_err: Option<Error> = None;\n");
+    out.push_str("            for attempt in 1..=budget {\n");
+    out.push_str("                let snap = client.session().snapshot().await;\n");
+    out.push_str("                let qi = client.build_query_info(snap.uuid.clone());\n");
+    // Per-attempt request: pin to this attempt's session UUID so a
+    // concurrent refresh doesn't mix new and old UUIDs on the same
+    // call.
     writeln!(
         out,
-        "        let request = proto::{} {{",
+        "                let request = proto::{} {{",
         endpoint.request_type
     )
     .unwrap();
-    out.push_str("            query_info: Some(client.query_info().await),\n");
+    out.push_str("                    query_info: Some(qi),\n");
     if endpoint.fields.is_empty() {
         writeln!(
             out,
-            "            params: Some(proto::{} {{}}),",
+            "                    params: Some(proto::{} {{}}),",
             endpoint.query_type
         )
         .unwrap();
     } else {
         writeln!(
             out,
-            "            params: Some(proto::{} {{",
+            "                    params: Some(proto::{} {{",
             endpoint.query_type
         )
         .unwrap();
         for field in &endpoint.fields {
             let expr = mdds_query_field_expr(endpoint, field, false);
             if expr == field.name {
-                writeln!(out, "                {expr},").unwrap();
+                writeln!(out, "                        {expr},").unwrap();
             } else {
-                writeln!(out, "                {}: {expr},", field.name).unwrap();
+                writeln!(out, "                        {}: {expr},", field.name).unwrap();
             }
         }
-        out.push_str("            }),\n");
+        out.push_str("                    }),\n");
     }
-    out.push_str("        };\n");
-    let endpoint_name_literal = format!("{:?}", endpoint.name);
+    out.push_str("                };\n");
+    out.push_str("                let attempt_result: Result<(), Error> = async {\n");
     out.push_str(
         &include_str!("templates/mdds/stub_call_error_arm.rs.tmpl")
             .replace("__GRPC_NAME__", &endpoint.grpc_name)
@@ -310,10 +343,63 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         &include_str!("templates/mdds/for_each_chunk_body.rs.tmpl")
             .replace("__PARSER_NAME__", &parser_name),
     );
+    out.push_str("                }.await;\n");
+    out.push_str("                match crate::mdds::macros::classify_streaming_attempt(\n");
+    out.push_str("                    client.session(),\n");
+    out.push_str("                    &snap,\n");
+    out.push_str("                    &mut refreshed_already,\n");
+    writeln!(out, "                    {endpoint_name_literal},").unwrap();
+    out.push_str("                    attempt_result,\n");
+    out.push_str("                ).await {\n");
+    out.push_str("                    crate::mdds::macros::StreamingAttemptOutcome::Done => {\n");
+    writeln!(
+        out,
+        "                        metrics::histogram!(\"thetadatadx.grpc.latency_ms\", \"endpoint\" => {endpoint_name_literal})"
+    )
+    .unwrap();
     out.push_str(
-        &include_str!("templates/mdds/metrics_result_block.rs.tmpl")
-            .replace("__ENDPOINT_NAME__", &endpoint_name_literal),
+        "                            .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);\n",
     );
+    out.push_str("                        return Ok::<(), Error>(());\n");
+    out.push_str("                    }\n");
+    out.push_str(
+        "                    crate::mdds::macros::StreamingAttemptOutcome::Terminal(err) => {\n",
+    );
+    out.push_str("                        return Err::<(), Error>(err);\n");
+    out.push_str("                    }\n");
+    out.push_str(
+        "                    crate::mdds::macros::StreamingAttemptOutcome::Refresh(err) => {\n",
+    );
+    // Refresh path: no backoff sleep, restart immediately on the
+    // fresh session UUID picked up at the top of the loop.
+    writeln!(
+        out,
+        "                        tracing::warn!(endpoint = {endpoint_name_literal}, attempt, error = %err, \"session refresh during stream — restarting from chunk zero\");"
+    )
+    .unwrap();
+    out.push_str("                        last_err = Some(err);\n");
+    out.push_str("                    }\n");
+    out.push_str(
+        "                    crate::mdds::macros::StreamingAttemptOutcome::Backoff(err) => {\n",
+    );
+    out.push_str("                        if attempt == budget {\n");
+    out.push_str("                            last_err = Some(err);\n");
+    out.push_str("                            break;\n");
+    out.push_str("                        }\n");
+    writeln!(
+        out,
+        "                        crate::mdds::macros::sleep_for_retry(&policy, attempt, {endpoint_name_literal}, &err).await;"
+    )
+    .unwrap();
+    out.push_str("                        last_err = Some(err);\n");
+    out.push_str("                    }\n");
+    out.push_str("                }\n");
+    out.push_str("            }\n");
+    out.push_str(
+        "            Err::<(), Error>(last_err.unwrap_or_else(|| Error::config_internal(\"streaming retry loop exited without result\")))\n",
+    );
+    out.push_str("        }).await\n");
+    out.push_str(include_str!("templates/mdds/metrics_result_block.rs.tmpl"));
 
     writeln!(out, "impl MddsClient {{").unwrap();
     write!(out, "    pub fn {}(&self", endpoint.name).unwrap();
@@ -342,6 +428,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         let (_, default) = direct_optional_kind_and_default(param);
         writeln!(out, "            {}: {},", param.name, default).unwrap();
     }
+    out.push_str("            deadline: None,\n");
     out.push_str("        }\n");
     out.push_str("    }\n");
     out.push_str("}\n\n");

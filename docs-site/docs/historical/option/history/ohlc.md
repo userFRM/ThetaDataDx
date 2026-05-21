@@ -49,35 +49,43 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
-</div>
-<div class="param">
-<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Strike price in dollars as a string</div>
-</div>
-<div class="param">
-<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc"><code>"C"</code> for call, <code>"P"</code> for put</div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> or <code>YYYY-MM-DD</code> format, or <code>"*"</code> for all expirations</div>
 </div>
 <div class="param">
 <div class="param-header"><code>date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
 <div class="param-desc">Date in <code>YYYYMMDD</code> format</div>
 </div>
 <div class="param">
-<div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Accepts milliseconds (<code>"60000"</code>) or shorthand (<code>"1m"</code>). Valid presets: <code>100ms</code>, <code>500ms</code>, <code>1s</code>, <code>5s</code>, <code>10s</code>, <code>15s</code>, <code>30s</code>, <code>1m</code>, <code>5m</code>, <code>10m</code>, <code>15m</code>, <code>30m</code>, <code>1h</code>.</div>
+<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Strike price in dollars (e.g. <code>"550"</code> or <code>"17.5"</code>), or <code>"*"</code> for all strikes. Default: <code>"*"</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Option side: <code>"call"</code>, <code>"put"</code>, or <code>"both"</code>. SDK also accepts <code>"C"</code>/<code>"P"</code>. Default: <code>"both"</code>.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>interval</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Bar size. Allowed values: <code>tick</code>, <code>10ms</code>, <code>100ms</code>, <code>500ms</code>, <code>1s</code>, <code>5s</code>, <code>10s</code>, <code>15s</code>, <code>30s</code>, <code>1m</code>, <code>5m</code>, <code>10m</code>, <code>15m</code>, <code>30m</code>, <code>1h</code>. Millisecond strings (e.g. <code>"60000"</code>) are accepted and snapped to the nearest preset. Default: <code>"1s"</code>. Sub-minute intervals are available only for single-day requests.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>start_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Start time as milliseconds from midnight</div>
+<div class="param-desc">Start time (inclusive) in <code>HH:MM:SS.SSS</code> ET wall-clock format. Default: <code>"09:30:00"</code>. Legacy millisecond strings are also accepted.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>end_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">End time as milliseconds from midnight</div>
+<div class="param-desc">End time (inclusive) in <code>HH:MM:SS.SSS</code> ET wall-clock format. Default: <code>"16:00:00"</code>.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>strike_range</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Strike range filter</div>
+<div class="param-desc">Returns <code>n</code> strikes above and below spot price plus one ATM strike (up to <code>2n + 1</code> strikes).</div>
+</div>
+<div class="param">
+<div class="param-header"><code>start_date</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Start date in <code>YYYYMMDD</code> format. Use with <code>end_date</code> for multi-day requests. The <code>date</code> argument overrides <code>start_date</code>/<code>end_date</code> when present.</div>
+</div>
+<div class="param">
+<div class="param-header"><code>end_date</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">End date in <code>YYYYMMDD</code> format.</div>
 </div>
 </div>
 
@@ -133,4 +141,5 @@ for (const auto& t : data) {
 
 ## Notes
 
+- Multi-day requests are limited to one calendar month and must specify an `expiration` value (a single expiration or `"*"`).
 - Shorthand is supported: `"1m"`, `"5m"`, `"15m"`, `"1h"`. Milliseconds (`"60000"`, `"300000"`, `"900000"`, `"3600000"`) are auto-converted to the nearest valid preset.

@@ -22,11 +22,11 @@ Option contracts are identified by four parameters:
 
 ## Endpoint Categories
 
-### [List](./list/roots) (5 endpoints)
+### [List](./list/symbols) (5 endpoints)
 
 Discover available symbols, expirations, strikes, dates, and contracts.
 
-- [List Roots](./list/roots) - all option underlying symbols
+- [List Symbols](./list/symbols) - all option underlying symbols
 - [List Dates](./list/dates) - available dates for a contract
 - [List Strikes](./list/strikes) - strike prices for an expiration
 - [List Expirations](./list/expirations) - expiration dates for an underlying

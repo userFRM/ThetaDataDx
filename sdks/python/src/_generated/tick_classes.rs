@@ -868,7 +868,15 @@ impl CalendarDayList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct CalendarDayListIter {
     inner: Vec<tick::CalendarDay>,
     cursor: usize,
@@ -1059,7 +1067,15 @@ impl EodTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct EodTickListIter {
     inner: Vec<tick::EodTick>,
     cursor: usize,
@@ -1298,7 +1314,15 @@ impl GreeksAllTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct GreeksAllTickListIter {
     inner: Vec<tick::GreeksAllTick>,
     cursor: usize,
@@ -1506,7 +1530,15 @@ impl GreeksFirstOrderTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct GreeksFirstOrderTickListIter {
     inner: Vec<tick::GreeksFirstOrderTick>,
     cursor: usize,
@@ -1697,7 +1729,15 @@ impl GreeksSecondOrderTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct GreeksSecondOrderTickListIter {
     inner: Vec<tick::GreeksSecondOrderTick>,
     cursor: usize,
@@ -1884,7 +1924,15 @@ impl GreeksThirdOrderTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct GreeksThirdOrderTickListIter {
     inner: Vec<tick::GreeksThirdOrderTick>,
     cursor: usize,
@@ -2034,7 +2082,15 @@ impl InterestRateTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct InterestRateTickListIter {
     inner: Vec<tick::InterestRateTick>,
     cursor: usize,
@@ -2184,7 +2240,15 @@ impl IvTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct IvTickListIter {
     inner: Vec<tick::IvTick>,
     cursor: usize,
@@ -2341,7 +2405,15 @@ impl MarketValueTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct MarketValueTickListIter {
     inner: Vec<tick::MarketValueTick>,
     cursor: usize,
@@ -2508,7 +2580,15 @@ impl OhlcTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct OhlcTickListIter {
     inner: Vec<tick::OhlcTick>,
     cursor: usize,
@@ -2663,7 +2743,15 @@ impl OpenInterestTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct OpenInterestTickListIter {
     inner: Vec<tick::OpenInterestTick>,
     cursor: usize,
@@ -2807,7 +2895,15 @@ impl OptionContractList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct OptionContractListIter {
     inner: Vec<tick::OptionContract>,
     cursor: usize,
@@ -2946,7 +3042,15 @@ impl PriceTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct PriceTickListIter {
     inner: Vec<tick::PriceTick>,
     cursor: usize,
@@ -3117,7 +3221,15 @@ impl QuoteTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct QuoteTickListIter {
     inner: Vec<tick::QuoteTick>,
     cursor: usize,
@@ -3338,7 +3450,15 @@ impl TradeQuoteTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct TradeQuoteTickListIter {
     inner: Vec<tick::TradeQuoteTick>,
     cursor: usize,
@@ -3545,7 +3665,15 @@ impl TradeTickList {
 /// instances until the wrapped `Vec` is exhausted, then raises
 /// `StopIteration`. One allocation at construction (Vec clone); each
 /// `__next__` only copies one tick out of the inner buffer.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct TradeTickListIter {
     inner: Vec<tick::TradeTick>,
     cursor: usize,
@@ -3664,6 +3792,41 @@ pub(crate) fn calendar_days_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::Calen
                 open_time: t.open_time,
                 close_time: t.close_time,
                 status: t.status,
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `EodTick` pyclass instances without allocating a
+/// `EodTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn eod_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::EodTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             EodTick {
+                ms_of_day: t.ms_of_day,
+                ms_of_day2: t.ms_of_day2,
+                open: t.open,
+                high: t.high,
+                low: t.low,
+                close: t.close,
+                volume: t.volume,
+                count: t.count,
+                bid_size: t.bid_size,
+                bid_exchange: t.bid_exchange,
+                bid: t.bid,
+                bid_condition: t.bid_condition,
+                ask_size: t.ask_size,
+                ask_exchange: t.ask_exchange,
+                ask: t.ask,
+                ask_condition: t.ask_condition,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -3811,6 +3974,24 @@ pub(crate) fn greeks_third_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<
 }
 
 /// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `InterestRateTick` pyclass instances without allocating a
+/// `InterestRateTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn interest_rate_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::InterestRateTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             InterestRateTick {
+                ms_of_day: t.ms_of_day,
+                rate: t.rate,
+                date: t.date,
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
 /// `PyList` of `IvTick` pyclass instances without allocating a
 /// `IvTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
@@ -3903,6 +4084,25 @@ pub(crate) fn open_interest_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick:
 }
 
 /// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `OptionContract` pyclass instances without allocating a
+/// `OptionContractList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn option_contracts_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::OptionContract>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             OptionContract {
+                symbol: t.symbol.clone(),
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
 /// `PyList` of `PriceTick` pyclass instances without allocating a
 /// `PriceTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
@@ -3939,6 +4139,48 @@ pub(crate) fn quote_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::QuoteTi
                 ask_condition: t.ask_condition,
                 date: t.date,
                 midpoint: t.midpoint,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `TradeQuoteTick` pyclass instances without allocating a
+/// `TradeQuoteTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn trade_quote_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::TradeQuoteTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             TradeQuoteTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                condition_flags: t.condition_flags,
+                price_flags: t.price_flags,
+                volume_type: t.volume_type,
+                records_back: t.records_back,
+                quote_ms_of_day: t.quote_ms_of_day,
+                bid_size: t.bid_size,
+                bid_exchange: t.bid_exchange,
+                bid: t.bid,
+                bid_condition: t.bid_condition,
+                ask_size: t.ask_size,
+                ask_exchange: t.ask_exchange,
+                ask: t.ask,
+                ask_condition: t.ask_condition,
+                date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,
                 right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
@@ -4072,7 +4314,15 @@ impl StringList {
 /// `__next__` (clone of the inner entry); the underlying Vec is
 /// cloned once at construction so mutating it mid-iteration is
 /// a non-issue.
-#[pyclass(module = "thetadatadx", skip_from_py_object)]
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
 pub(crate) struct StringListIter {
     inner: Vec<String>,
     cursor: usize,

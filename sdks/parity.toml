@@ -1,0 +1,197 @@
+# Cross-binding parity matrix (Gate 2 / issue #545).
+#
+# Every user-facing class registered on Python is declared here with
+# its current state in TypeScript (napi) and C++ (`thetadx.hpp`).
+# `scripts/check_binding_parity.py` parses this file and compares the
+# actual binding state of each SDK to the declared state; mismatches
+# fail CI.
+#
+# When you intentionally ship a binding asymmetry (e.g. you land a
+# Python pyclass first and TS/C++ are tracked separately), update the
+# row here. When you intend to keep the three bindings in lockstep,
+# every row should be `true` in every column and CI will block any
+# Python-only PR that forgets to update TS / C++.
+
+[[class]]
+name = "Credentials"
+python = true
+typescript = false  # JS takes credentials as constructor args, not a class
+cpp = true
+
+[[class]]
+name = "Config"
+python = true
+typescript = false  # JS takes config as a plain object literal, not a class
+cpp = true
+
+[[class]]
+name = "ThetaDataDxClient"
+python = true
+typescript = true
+cpp = true          # exposed as `tdx::Client` + `tdx::UnifiedClient`
+
+[[class]]
+name = "AsyncThetaDataDxClient"
+python = true
+typescript = false  # not yet ported — issue #545 follow-up
+cpp = false         # not yet ported — issue #545 follow-up
+
+[[class]]
+name = "FpssClient"
+python = true
+typescript = false  # not yet ported — issue #545 follow-up
+cpp = true
+
+[[class]]
+name = "MddsClient"
+python = true
+typescript = false  # not yet ported — issue #545 follow-up
+cpp = false         # not yet ported — issue #545 follow-up
+
+[[class]]
+name = "StreamingSession"
+python = true
+typescript = false  # JS uses a Promise-based async iterator instead — equivalent ergonomics
+cpp = false         # C++ uses RAII guard pattern instead
+
+[[class]]
+name = "StreamingIterSession"
+python = true
+typescript = false  # JS uses `[Symbol.asyncIterator]` directly on `EventIterator`
+cpp = true          # exposed as `tdx::UnifiedFpssIterSession`
+
+[[class]]
+name = "StreamingAsyncSession"
+python = true
+typescript = false  # JS asyncio analogue is `[Symbol.asyncIterator]` on `EventIterator` + the async-IPC bridge below; no separate session class
+cpp = false         # C++ async surface deferred — RAII guard + sync iter cover the documented C++ idiom
+
+[[class]]
+name = "StreamingAsyncBatchesSession"
+python = true
+typescript = false  # Python-only for now — Arrow IPC zero-copy surface lands on the Python binding first; TS/C++ follow once napi-arrow / arrow-cpp shape lock in
+cpp = false         # Python-only for now — same rationale as StreamingAsyncSession plus zero-copy Arrow buffer aliasing depends on pyo3's PyCapsule integration
+
+[[class]]
+name = "BackpressurePolicy"
+python = true
+typescript = false  # Python-only for now — TS streaming surface ships DropNewest-only; the Block / DropOldest knobs land once the cross-binding asyncio analogue is ported
+cpp = false         # Python-only for now — C++ async surface deferred, so the policy enum follows the session class
+
+[[class]]
+name = "EventIterator"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "Contract"
+python = true
+typescript = true   # exposed as `ContractRef` (Contract aliased post-build)
+cpp = true          # exposed as `tdx::FluentContract`
+
+[[class]]
+name = "ContractRef"
+python = true
+typescript = true   # primary class name on TS side (Contract is the post-build alias)
+cpp = false         # C++ uses the C ABI `TdxContract` struct; no dedicated C++ class wrapper
+
+[[class]]
+name = "CalendarDay"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "NoDataFoundError"
+python = true
+typescript = false
+cpp = false         # C++ folds NoData into the generic `Error` class with `.kind == NoData`
+
+[[class]]
+name = "TimeoutError"
+python = true
+typescript = false
+cpp = false         # C++ folds Timeout into the generic `Error` class with `.kind == Timeout`
+
+[[class]]
+name = "Subscription"
+python = true
+typescript = true
+cpp = true          # exposed as `tdx::FluentSubscription`
+
+[[class]]
+name = "SecType"
+python = true
+typescript = true
+cpp = true          # exposed as `tdx::FluentSecType`
+
+[[class]]
+name = "FlatFilesNamespace"
+python = true
+typescript = true
+cpp = true          # exposed as `tdx::FlatFiles`
+
+[[class]]
+name = "FlatFileRowList"
+python = true
+typescript = true
+cpp = true
+
+# ── Typed exception hierarchy.
+#
+# C++ exposes one class per leaf, matching the Python tree.
+# TypeScript surfaces every error variant via a single discriminated
+# `Error` class with `.kind` (see `index.d.ts` line ~1127); the
+# narrowing pattern is `if (e.kind === "InvalidCredentials")`. That
+# is intentional — JS error classes don't compose with `instanceof`
+# across native module boundaries — so each row below records the TS
+# column as `false` rather than misrepresenting the surface.
+
+[[class]]
+name = "ThetaDataError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "AuthenticationError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "InvalidCredentialsError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "SubscriptionError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "RateLimitError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "NetworkError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "SchemaMismatchError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "StreamError"
+python = true
+typescript = false
+cpp = true

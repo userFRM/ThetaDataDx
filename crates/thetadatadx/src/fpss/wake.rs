@@ -1,0 +1,332 @@
+//! Async wake-up signal for the pull-iter delivery path.
+//!
+//! Bridges the Disruptor consumer thread (Rust-side, holds no event-loop
+//! reference) to an asyncio / select-loop reader (Python / external code,
+//! waiting on a file descriptor). The bridge is one-directional: every
+//! time the consumer pushes an event into the iterator queue and the
+//! caller has registered a wake FD, a single byte is written so the
+//! reader's `epoll` / `kqueue` / `select` wake fires.
+//!
+//! # Design
+//!
+//! Built on a self-pipe (POSIX `pipe2(O_CLOEXEC | O_NONBLOCK)`) so it
+//! works under every POSIX event loop today — Python asyncio
+//! `loop.add_reader(fd)`, C `poll`, Tcl, etc. Linux `eventfd` is a tighter
+//! fit (single 8-byte counter, no buffer pressure) but adds a Linux-only
+//! code path. The self-pipe approach is portable across macOS, Linux, and
+//! BSD without losing the "single wake per non-empty transition" semantic
+//! we actually care about.
+//!
+//! # Coalescing
+//!
+//! A naïve "write one byte per push" would flood a small pipe (default
+//! 64 KiB on Linux) under load and back-pressure the consumer thread on
+//! `write`. To avoid that, every [`WakeFd`] carries a `signaled`
+//! `AtomicBool`: the producer only writes when it observes the bool was
+//! `false`, after which it sets the bool to `true`. The reader is
+//! responsible for clearing the bool **before** it drains the pipe so the
+//! next producer push re-arms the wake — see [`WakeFd::rearm`].
+//!
+//! Ordering: the producer sets `signaled` to `true` and then writes the
+//! byte. The reader clears `signaled` to `false` and then drains the
+//! pipe. The two orderings together guarantee that any push observed
+//! AFTER the reader cleared `signaled` will write a fresh byte the reader
+//! will see on its next `epoll` wait. The race in which the reader
+//! clears the bool while a push is mid-write is benign — the byte the
+//! producer wrote is still in the pipe, and the reader's drain will
+//! consume it.
+//!
+//! # Disposal
+//!
+//! The owning [`super::EventIterator`] holds an `Arc<WakeFd>` and the
+//! consumer closure (via the [`super::events::Delivery::Queue`] variant)
+//! holds another `Arc<WakeFd>` clone. The write-end FD is closed inside
+//! [`WakeFd::drop`] when the refcount hits zero — i.e., after both the
+//! iterator and the consumer closure have been dropped. The read-end
+//! FD is the caller's responsibility; the SDK never owns it.
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+// `RawFd` is `i32` everywhere POSIX. On non-Unix targets we stub the
+// type at `i32` so the struct definition stays portable while the
+// `signal()` / `rearm()` paths bail out early via the `#[cfg(unix)]`
+// implementations below.
+#[cfg(unix)]
+use std::os::unix::io::RawFd;
+#[cfg(not(unix))]
+type RawFd = i32;
+
+/// Coalesced wake-up signal backed by a self-pipe write FD.
+///
+/// Cheap to clone (it isn't `Clone`; consumers share via `Arc<WakeFd>`),
+/// holds a single `AtomicBool` and a `RawFd`. Constructing a `WakeFd`
+/// requires a write-end file descriptor the caller already owns; the
+/// [`Drop`] impl closes it.
+#[derive(Debug)]
+pub struct WakeFd {
+    /// Write-end of the self-pipe. Closed on `Drop`. `-1` on platforms
+    /// that do not support the wake mechanism (e.g. Windows) — every
+    /// `signal()` short-circuits and the SDK falls back to the timeout
+    /// poll path on the iterator side.
+    write_fd: RawFd,
+    /// `true` while a wake byte is in the pipe waiting to be consumed.
+    /// Set to `true` by [`Self::signal`] before the byte is written and
+    /// cleared to `false` by [`Self::rearm`] before the reader drains
+    /// the pipe.
+    signaled: AtomicBool,
+}
+
+#[cfg(unix)]
+impl WakeFd {
+    /// Wrap a previously-allocated write-end FD.
+    ///
+    /// The caller retains responsibility for the matching read-end FD
+    /// (set it on the event loop with `loop.add_reader(read_fd, ...)`).
+    /// `write_fd` should be opened with `O_NONBLOCK` so a backed-up
+    /// pipe never blocks the Disruptor consumer thread — see
+    /// [`crate::fpss::FpssClient::connect_iter_with_wake`].
+    #[must_use]
+    pub fn from_raw_write_fd(write_fd: RawFd) -> Self {
+        Self {
+            write_fd,
+            signaled: AtomicBool::new(false),
+        }
+    }
+
+    /// Signal the reader that the iterator queue has at least one fresh
+    /// event ready. Idempotent under load — at most one wake byte is in
+    /// the pipe at any time.
+    ///
+    /// Called from the Disruptor consumer thread on every successful
+    /// `queue.push`. The first call after an empty pipe writes one
+    /// byte; subsequent calls see `signaled == true` and short-circuit
+    /// without touching the pipe FD until [`Self::rearm`] clears the
+    /// flag.
+    ///
+    /// `write(2)` on `O_NONBLOCK` may return `EAGAIN` when the pipe is
+    /// full (consumer hung). That case is logged via `tracing::warn!`
+    /// and counted on the [`super::FpssClient::dropped_count`] axis is
+    /// NOT incremented — the missed wake is recoverable on the next
+    /// push, and an over-counted drop would mislead operators reading
+    /// the metric. The reader's `next_timeout` poll covers the wedged
+    /// case as a long-stop.
+    pub fn signal(&self) {
+        // Coalesce: only the first writer that observes `false` wins
+        // the write. The `AcqRel`/`Acquire` orderings on the
+        // compare-exchange serialise the producer's flag flip with
+        // the reader's `Release` clear in `rearm` — but the
+        // *meaningful* happens-before for cross-thread visibility is
+        // the wake-byte itself arriving in the pipe. The kernel
+        // synchronises `write(2)` on the producer side with
+        // `read(2)` on the asyncio-reader thread via the pipe's
+        // internal lock; the atomic flag is the userspace coalescing
+        // gate (so we don't issue redundant syscalls when several
+        // batches land before the reader drains), and `write(2)`'s
+        // kernel-side synchronisation provides the cross-thread
+        // visibility that lets the reader observe whatever the
+        // producer published on the bounded Disruptor queue prior
+        // to issuing the wake.
+        if self
+            .signaled
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+        // SAFETY: `self.write_fd` is either `-1` (handled below) or a
+        // valid open write-end FD the caller passed to `from_raw_write_fd`
+        // and that hasn't been dropped yet (this method holds `&self`,
+        // which holds the FD alive via `Drop`). The 1-byte buffer points
+        // into stack memory and is valid for `len = 1`.
+        if self.write_fd < 0 {
+            return;
+        }
+        let byte: u8 = 1;
+        let res = unsafe {
+            libc::write(
+                self.write_fd,
+                std::ptr::addr_of!(byte).cast::<libc::c_void>(),
+                1,
+            )
+        };
+        if res < 0 {
+            // `Error::last_os_error()` reads `errno` portably across
+            // every libc layout (glibc, musl, macOS, BSD) without
+            // dispatching on `__errno_location` / `__error`. We only
+            // need the numeric code for the EAGAIN / EWOULDBLOCK / EPIPE
+            // filter — no allocation, no formatting.
+            let err = std::io::Error::last_os_error();
+            let errno = err.raw_os_error().unwrap_or(0);
+            // EAGAIN / EWOULDBLOCK on a full pipe is the only expected
+            // failure under load. EPIPE means the reader closed the
+            // read-end — also benign; the wake_fd is about to be torn
+            // down. Anything else is unexpected and worth a warn.
+            if errno != libc::EAGAIN && errno != libc::EWOULDBLOCK && errno != libc::EPIPE {
+                tracing::warn!(
+                    target: "thetadatadx::fpss::wake",
+                    errno,
+                    "wake-fd write failed; async reader may miss a wake-up until the next push",
+                );
+            }
+        }
+    }
+
+    /// Clear the wake-pending flag so the next [`Self::signal`] call
+    /// writes a fresh byte to the pipe. Must be called by the reader
+    /// BEFORE it drains the pipe with `read(2)`, so a producer push
+    /// observed between the clear and the drain still writes a wake
+    /// byte the reader will consume on its next `epoll` wait.
+    pub fn rearm(&self) {
+        // `Release` pairs with the `AcqRel` on the producer's
+        // `compare_exchange` in `signal` — every wake byte the producer
+        // wrote before the reader's clear is guaranteed to be visible
+        // (in the pipe) by the time the reader gets here, and any
+        // producer push after the clear will write a fresh byte.
+        self.signaled.store(false, Ordering::Release);
+    }
+
+    /// Snapshot of the current wake-pending state. Diagnostic only.
+    #[must_use]
+    pub fn is_signaled(&self) -> bool {
+        self.signaled.load(Ordering::Acquire)
+    }
+
+    /// Underlying write-end FD. Diagnostic only — callers MUST NOT
+    /// `close(2)` this FD; the [`Drop`] impl owns it.
+    #[must_use]
+    pub fn write_fd(&self) -> RawFd {
+        self.write_fd
+    }
+}
+
+#[cfg(unix)]
+impl Drop for WakeFd {
+    fn drop(&mut self) {
+        if self.write_fd >= 0 {
+            // SAFETY: `write_fd` was passed in via `from_raw_write_fd`
+            // and has not been closed by anything else in the SDK —
+            // [`signal`] only writes to it. Closing here is the
+            // canonical ownership transfer.
+            unsafe {
+                libc::close(self.write_fd);
+            }
+        }
+    }
+}
+
+// Stub on non-Unix platforms. The pyclass surfaces a clear "asyncio
+// streaming is POSIX-only" error at construction time; the core SDK
+// keeps the WakeFd type so the cross-platform signatures compile.
+#[cfg(not(unix))]
+impl WakeFd {
+    /// Stub constructor on non-Unix platforms. The caller's FD is
+    /// stashed verbatim so [`Self::write_fd`] returns it, but
+    /// [`Self::signal`] never touches it — there is no portable
+    /// `write(2)` we can call without dragging a Windows-specific
+    /// HANDLE/IOCP abstraction into the core SDK.
+    ///
+    /// Callers of `streaming_async()` on non-Unix raise a clear
+    /// runtime error at the Python pyclass entry; this stub exists so
+    /// the Rust signatures remain cross-platform.
+    #[must_use]
+    pub fn from_raw_write_fd(write_fd: i32) -> Self {
+        Self {
+            write_fd,
+            signaled: AtomicBool::new(false),
+        }
+    }
+
+    /// No-op on non-Unix.
+    pub fn signal(&self) {
+        let _ = self.signaled.swap(true, Ordering::AcqRel);
+    }
+
+    /// No-op on non-Unix.
+    pub fn rearm(&self) {
+        self.signaled.store(false, Ordering::Release);
+    }
+
+    /// Always `false` on non-Unix.
+    #[must_use]
+    pub fn is_signaled(&self) -> bool {
+        false
+    }
+
+    /// Returns the FD value stashed at construction time. On non-Unix
+    /// the SDK never reads or writes through it — the value is opaque
+    /// — but echoing it back keeps the cross-platform getter contract
+    /// symmetric with the Unix impl.
+    #[must_use]
+    pub fn write_fd(&self) -> i32 {
+        self.write_fd
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::io::Read;
+    use std::os::unix::io::FromRawFd;
+    use std::sync::Arc;
+
+    /// Allocate a non-blocking self-pipe for the unit tests.
+    ///
+    /// Returns `(read_fd, write_fd)`. Both are `O_NONBLOCK | O_CLOEXEC`.
+    fn make_pipe() -> (RawFd, RawFd) {
+        let mut fds = [0_i32; 2];
+        // SAFETY: `pipe2` writes two file descriptors into `fds`.
+        let rc = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_NONBLOCK | libc::O_CLOEXEC) };
+        assert_eq!(rc, 0, "pipe2 failed: errno={}", unsafe {
+            *libc::__errno_location()
+        });
+        (fds[0], fds[1])
+    }
+
+    #[test]
+    fn signal_writes_a_single_byte_until_rearm() {
+        let (read_fd, write_fd) = make_pipe();
+        let wake = Arc::new(WakeFd::from_raw_write_fd(write_fd));
+
+        wake.signal();
+        wake.signal();
+        wake.signal();
+
+        // SAFETY: `read_fd` is a valid open pipe-read FD we just allocated.
+        let mut reader = unsafe { std::fs::File::from_raw_fd(read_fd) };
+        let mut buf = [0_u8; 8];
+        let n = reader.read(&mut buf).expect("read should not block");
+        assert_eq!(
+            n, 1,
+            "exactly one wake byte is in the pipe under coalescing"
+        );
+        assert_eq!(buf[0], 1);
+
+        // No rearm yet — additional `signal()` calls must stay short-circuited.
+        wake.signal();
+        let mut buf2 = [0_u8; 8];
+        let err = reader
+            .read(&mut buf2)
+            .expect_err("read should EAGAIN — wake is still pending");
+        assert_eq!(err.kind(), std::io::ErrorKind::WouldBlock);
+
+        // After rearm, a fresh signal makes another byte available.
+        wake.rearm();
+        wake.signal();
+        let n = reader.read(&mut buf2).expect("read should not block");
+        assert_eq!(n, 1);
+    }
+
+    #[test]
+    fn drop_closes_write_fd() {
+        let (read_fd, write_fd) = make_pipe();
+        {
+            let _wake = WakeFd::from_raw_write_fd(write_fd);
+        }
+        // Reading from the pipe should return EOF (0) now that the
+        // write-end is closed.
+        let mut reader = unsafe { std::fs::File::from_raw_fd(read_fd) };
+        let mut buf = [0_u8; 4];
+        let n = reader.read(&mut buf).expect("read should not error");
+        assert_eq!(n, 0, "write-end closed should produce EOF on the read-end");
+    }
+}

@@ -53,6 +53,28 @@ pub struct MddsConfig {
     /// can raise this to absorb slow handshakes without altering keepalive
     /// cadence.
     pub connect_timeout_secs: u64,
+
+    /// Number of dedicated decoder threads in the MDDS pool.
+    ///
+    /// Every server-streaming response chunk is zstd-decompressed and
+    /// protobuf-decoded on one of these threads instead of on the
+    /// tokio reactor — the same pattern Bloomberg / LSEG feed
+    /// handlers use to keep IO and CPU work separated. `0` auto-sizes
+    /// to `min(channels, available_parallelism / 2)`, which leaves
+    /// half the logical cores for the reactor and the application's
+    /// own work. Override to a fixed value when running on shared
+    /// hosts where the auto-sizing reads the wrong number from
+    /// `/proc`.
+    pub decoder_threads: usize,
+
+    /// Per-thread decoder ring size. Must be a power of two `>= 64`.
+    ///
+    /// Larger rings absorb burstier IO without back-pressuring the
+    /// h2 receive task; smaller rings reduce memory footprint. `256`
+    /// is the production default — enough headroom for a 64-way
+    /// burst across 4 channels to land on the same decoder thread
+    /// without queue-full back-pressure.
+    pub decoder_ring_size: usize,
 }
 
 impl MddsConfig {
@@ -70,6 +92,8 @@ impl MddsConfig {
             window_size_kb: 64,
             connection_window_size_kb: 64,
             connect_timeout_secs: 10,
+            decoder_threads: 0,
+            decoder_ring_size: 256,
         }
     }
 }

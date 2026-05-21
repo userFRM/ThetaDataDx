@@ -21,9 +21,9 @@
     }
   },
   "scripts": {
-    "build": "napi build --platform --release",
-    "build:debug": "napi build --platform",
-    "test": "node --test __tests__/basic.test.mjs __tests__/dropped_events.test.mjs __tests__/asyncdispose.test.mjs __tests__/util_helpers.test.mjs __tests__/iter_mode.test.mjs __tests__/fpss_control_variants.test.mjs",
+    "build": "napi build --platform --release && node scripts/postbuild_alias_contract.mjs",
+    "build:debug": "napi build --platform && node scripts/postbuild_alias_contract.mjs",
+    "test": "node --test __tests__/basic.test.mjs __tests__/dropped_events.test.mjs __tests__/asyncdispose.test.mjs __tests__/util_helpers.test.mjs __tests__/iter_mode.test.mjs __tests__/fpss_control_variants.test.mjs __tests__/streaming-iter.test.mjs __tests__/typed-errors.test.mjs",
     "version": "napi version"
   },
   "devDependencies": {

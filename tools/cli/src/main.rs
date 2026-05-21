@@ -57,7 +57,7 @@ fn build_cli() -> Command {
                 .long("timeout-ms")
                 .global(true)
                 .value_parser(clap::value_parser!(u64))
-                .help("Per-call deadline in milliseconds (W3). On expiry the in-flight gRPC call is cancelled."),
+                .help("Per-call deadline in milliseconds. On expiry the in-flight gRPC call is cancelled."),
         );
 
     app = add_generated_utility_commands(app);

@@ -16,9 +16,16 @@ mod coerce;
 mod errors;
 mod flatfile_methods;
 mod fluent;
+mod fpss_client;
 mod logging_bridge;
+mod mdds_client;
 mod util_helpers;
 
+// These imports look unused at source level — they are pulled in by
+// the `include!("_generated/historical_methods.rs")` and
+// `include!("_generated/streaming_methods.rs")` blocks below, which
+// expand inside this module and reference these names without their
+// own `use` declarations.
 use async_runtime::spawn_awaitable;
 use coerce::{PyDateArg, PyStringArg, PySymbols, PyTimeArg};
 use errors::to_py_err;
@@ -109,7 +116,6 @@ where
     })
 }
 
-
 // ── Credentials ──
 // Lifecycle: intentionally hand-written (language-specific constructor semantics).
 //
@@ -198,13 +204,20 @@ impl Config {
 
     /// Set the FPSS reconnect policy.
     ///
-    /// - "auto" (default): auto-reconnect matching Java terminal behavior.
+    /// - "auto" (default): auto-reconnect with split per-class attempt
+    ///   budgets ([`config::ReconnectAttemptLimits`] defaults — 3
+    ///   attempts for generic transients, 100 for rate-limited).
     /// - "manual": no auto-reconnect, user calls reconnect explicitly.
+    ///
+    /// Per-class attempt budgets and the stable-window timer are
+    /// configured via the dedicated `reconnect_max_attempts`,
+    /// `reconnect_max_rate_limited_attempts`, and
+    /// `reconnect_stable_window_secs` setters.
     #[setter]
     fn set_reconnect_policy(&self, policy: &str) -> PyResult<()> {
         let parsed = match policy.to_lowercase().as_str() {
             "manual" => config::ReconnectPolicy::Manual,
-            "auto" => config::ReconnectPolicy::Auto,
+            "auto" => config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default()),
             other => {
                 return Err(PyValueError::new_err(format!(
                     "unknown reconnect_policy: {other:?} (expected \"auto\" or \"manual\")"
@@ -220,11 +233,51 @@ impl Config {
     #[getter]
     fn get_reconnect_policy(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        match guard.reconnect.policy {
-            config::ReconnectPolicy::Auto => "auto",
+        match &guard.reconnect.policy {
+            config::ReconnectPolicy::Auto(_) => "auto",
             config::ReconnectPolicy::Manual => "manual",
             config::ReconnectPolicy::Custom(_) => "custom",
         }
+    }
+
+    /// Set the per-class transient-failure attempt budget for the
+    /// auto-reconnect path. Default `3`. Has no effect when the
+    /// reconnect policy is `"manual"` or `"custom"`.
+    #[setter]
+    fn set_reconnect_max_attempts(&self, max_attempts: u32) -> PyResult<()> {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.max_attempts = max_attempts;
+        }
+        Ok(())
+    }
+
+    /// Set the per-class rate-limited (`TooManyRequests`) attempt budget
+    /// for the auto-reconnect path. Default `100`. Has no effect when
+    /// the reconnect policy is `"manual"` or `"custom"`.
+    #[setter]
+    fn set_reconnect_max_rate_limited_attempts(
+        &self,
+        max_rate_limited_attempts: u32,
+    ) -> PyResult<()> {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.max_rate_limited_attempts = max_rate_limited_attempts;
+        }
+        Ok(())
+    }
+
+    /// Set the continuous successful-data-flow window (in seconds)
+    /// after which the auto-reconnect attempt counters reset. Default
+    /// `60`. Has no effect when the reconnect policy is `"manual"` or
+    /// `"custom"`.
+    #[setter]
+    fn set_reconnect_stable_window_secs(&self, secs: u64) -> PyResult<()> {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.stable_window = std::time::Duration::from_secs(secs);
+        }
+        Ok(())
     }
 
     /// Set whether to derive OHLCVC bars locally from trade events.
@@ -242,6 +295,38 @@ impl Config {
     fn get_derive_ohlcvc(&self) -> bool {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.fpss.derive_ohlcvc
+    }
+
+    /// Override the MDDS gRPC host. Used by structural tests that need
+    /// to point the MDDS channel at a known-refused endpoint to prove
+    /// the FPSS-only surface never opens it; production code paths
+    /// should keep the `Config::production()` default.
+    #[setter]
+    fn set_mdds_host(&self, host: String) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.host = host;
+    }
+
+    /// Current MDDS gRPC host.
+    #[getter]
+    fn get_mdds_host(&self) -> String {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.host.clone()
+    }
+
+    /// Override the MDDS gRPC port. Companion to `mdds_host` — same
+    /// rationale and same test-only usage.
+    #[setter]
+    fn set_mdds_port(&self, port: u16) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.port = port;
+    }
+
+    /// Current MDDS gRPC port.
+    #[getter]
+    fn get_mdds_port(&self) -> u16 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.port
     }
 
     fn __repr__(&self) -> String {
@@ -302,7 +387,15 @@ include!("_generated/buffered_event.rs");
 ///     tdx.subscribe(Contract.stock("AAPL").quote())
 ///     # ... events arrive on the dispatcher's drain thread ...
 ///     tdx.stop_streaming()
-#[pyclass]
+// N5: `frozen` — every `#[pymethods]` entry on this pyclass takes
+// `&self` (never `&mut self`). The inner `tdx: Arc<...>` carries its
+// own mutex / atomic state for transient surfaces; the pyclass shell
+// is immutable from Rust's perspective, which lets PyO3 elide the
+// `RefCell` borrow-check overhead on every attribute / method
+// dispatch under the free-threaded interpreter. A future `&mut self`
+// regression surfaces as a `cargo check` failure rather than slipping
+// silently through.
+#[pyclass(frozen)]
 struct ThetaDataDxClient {
     /// The underlying Rust unified client (Deref to MddsClient for historical).
     ///
@@ -493,6 +586,131 @@ impl ThetaDataDxClient {
 /// safelisted set of synchronous lifecycle methods that have no
 /// async counterpart on the wrapped surface
 /// (`subscribe`/`unsubscribe`/`stop_streaming`/...).
+/// Sync method names safelisted for proxy access on
+/// [`AsyncThetaDataDxClient`]. Every name MUST exist as a
+/// `#[pymethods]` entry on [`ThetaDataDxClient`]; the const-eval
+/// assertion below pins that invariant at compile time so we cannot
+/// promise a method that the inner pyclass does not implement.
+///
+/// P3 closure: `is_authenticated` (lives only on `FpssClient` — not
+/// on the unified client) and `config` (no such getter) were removed
+/// from this list. The remaining names map 1:1 to public methods on
+/// `ThetaDataDxClient` reachable via `bound.getattr(name)`.
+pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
+    // Subscription management.
+    "subscribe",
+    "subscribe_many",
+    "unsubscribe",
+    "unsubscribe_many",
+    "active_subscriptions",
+    // Streaming lifecycle.
+    "start_streaming",
+    "start_streaming_iter",
+    "stop_streaming",
+    "shutdown",
+    "reconnect",
+    "streaming",
+    "streaming_iter",
+    "streaming_async",
+    "is_streaming",
+    "await_drain",
+    // Diagnostics.
+    "dropped_event_count",
+    // FLATFILES namespace getter.
+    "flat_files",
+    // NOTE: `session_uuid` / `subscription_info` are NOT on
+    // `ThetaDataDxClient` — they live on `StreamingSession` (returned
+    // by `client.streaming(callback)`) per their natural lifecycle
+    // scope. Reaching for them through the unified async surface
+    // raises `AttributeError` via the runtime `bound.getattr` after
+    // the allowlist check, identical to the sync client.
+];
+
+/// Hand-written `#[pymethods]` entries on `ThetaDataDxClient` outside
+/// the generator-emitted streaming surface (`PYTHON_UNIFIED_FPSS_METHODS`).
+/// Pairs with the generator-emitted set in the
+/// `ALLOWED_UNIFIED_PROXY_METHODS` const-eval assertion below — every
+/// name in `ALLOWED_UNIFIED_PROXY_METHODS` must appear in either this
+/// list or `PYTHON_UNIFIED_FPSS_METHODS`, otherwise the build fails.
+const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
+    // Hand-written streaming-session factories.
+    "start_streaming_iter",
+    "streaming",
+    "streaming_iter",
+    "streaming_async",
+    // FLATFILES namespace getter (lives in `flatfile_methods.rs`).
+    "flat_files",
+    // Subscription management (hand-written on the unified client to
+    // accept polymorphic `Subscription` PyAny inputs).
+    "subscribe",
+    "subscribe_many",
+    "unsubscribe",
+    "unsubscribe_many",
+    // Diagnostic getter — `dropped_event_count` lives directly on
+    // `ThetaDataDxClient` (lib.rs); `panic_count` is on the
+    // session pyclass and intentionally NOT proxied through the
+    // unified client.
+    "dropped_event_count",
+];
+
+/// `const fn` byte-equal helper for the compile-time guard below.
+/// PyO3 attribute names are ASCII; byte equality is exact.
+const fn const_str_eq(a: &str, b: &str) -> bool {
+    let a = a.as_bytes();
+    let b = b.as_bytes();
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+/// P3 compile-time assertion: every safelisted proxy name must
+/// resolve to a real `#[pymethods]` entry on `ThetaDataDxClient`.
+/// Names that fail this check would previously have raised a
+/// confusing `AttributeError` from the inner `getattr` after the
+/// allowlist passed — pinning the inventory here makes the failure
+/// surface at compile time instead of runtime.
+const _: () = {
+    let mut i = 0;
+    while i < ALLOWED_UNIFIED_PROXY_METHODS.len() {
+        let needle = ALLOWED_UNIFIED_PROXY_METHODS[i];
+        let mut found = false;
+        let mut j = 0;
+        while j < HANDWRITTEN_UNIFIED_PYMETHODS.len() {
+            if const_str_eq(HANDWRITTEN_UNIFIED_PYMETHODS[j], needle) {
+                found = true;
+                break;
+            }
+            j += 1;
+        }
+        if !found {
+            let mut k = 0;
+            while k < PYTHON_UNIFIED_FPSS_METHODS.len() {
+                if const_str_eq(PYTHON_UNIFIED_FPSS_METHODS[k], needle) {
+                    found = true;
+                    break;
+                }
+                k += 1;
+            }
+        }
+        assert!(
+            found,
+            "ALLOWED_UNIFIED_PROXY_METHODS contains a name not present \
+             in `PYTHON_UNIFIED_FPSS_METHODS` (generated) nor in \
+             `HANDWRITTEN_UNIFIED_PYMETHODS` — the AsyncThetaDataDxClient \
+             would promise a method ThetaDataDxClient does not implement."
+        );
+        i += 1;
+    }
+};
+
 #[pyclass(module = "thetadatadx", name = "AsyncThetaDataDxClient")]
 struct AsyncThetaDataDxClient {
     inner: Py<ThetaDataDxClient>,
@@ -507,11 +725,21 @@ impl AsyncThetaDataDxClient {
     }
 
     /// Convenience constructor: `AsyncThetaDataDxClient.from_file("creds.txt")`.
+    /// Accepts an optional `config` kwarg defaulting to
+    /// `Config.production()` — P6 closure for non-production env tests.
     #[staticmethod]
-    fn from_file(py: Python<'_>, path: &str) -> PyResult<Self> {
+    #[pyo3(signature = (path, config=None))]
+    fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
         let creds = Credentials::from_file(path)?;
-        let config = Config::production();
-        let tdx = Py::new(py, ThetaDataDxClient::new(py, &creds, &config)?)?;
+        let owned_default;
+        let cfg = match config {
+            Some(c) => c,
+            None => {
+                owned_default = Config::production();
+                &owned_default
+            }
+        };
+        let tdx = Py::new(py, ThetaDataDxClient::new(py, &creds, cfg)?)?;
         Ok(Self { inner: tdx })
     }
 
@@ -519,28 +747,16 @@ impl AsyncThetaDataDxClient {
     /// Async-suffixed methods plus the safelisted lifecycle / streaming
     /// methods are reachable; everything else raises `AttributeError`
     /// so callers who picked the async surface stay on the async path.
+    ///
+    /// P3 closure: every name in `ALLOWED` is checked at compile time
+    /// (see the `_ALLOWED_NAMES_ON_UNIFIED` const-eval block below)
+    /// to actually exist on `ThetaDataDxClient`. The previous list
+    /// promised `is_authenticated` (only on `FpssClient`) and `config`
+    /// (no such getter); both lookups raised `AttributeError` from
+    /// the inner `getattr` after the allowlist passed, surfacing as
+    /// a confusing error. The new list is verified by `_ALLOWED_NAMES`.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
-        const ALLOWED: &[&str] = &[
-            "subscribe",
-            "subscribe_many",
-            "unsubscribe",
-            "unsubscribe_many",
-            "start_streaming",
-            "stop_streaming",
-            "shutdown",
-            "streaming",
-            "is_streaming",
-            "is_authenticated",
-            "active_subscriptions",
-            "reconnect",
-            "await_drain",
-            "dropped_event_count",
-            "session_uuid",
-            "subscription_info",
-            "config",
-            "flat_files",
-        ];
-        if !name.ends_with("_async") && !ALLOWED.contains(&name) {
+        if !name.ends_with("_async") && !ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) {
             return Err(pyo3::exceptions::PyAttributeError::new_err(format!(
                 "AsyncThetaDataDxClient surfaces only `*_async` historical methods plus \
                  streaming lifecycle helpers; `{name}` is not on the async surface. \
@@ -581,6 +797,20 @@ mod event_iterator;
 mod streaming_iter_session;
 use event_iterator::EventIterator;
 use streaming_iter_session::StreamingIterSession;
+
+// Asyncio-native streaming surface — sibling of `StreamingSession`
+// (sync callback) and `StreamingIterSession` (sync iterator). Uses a
+// self-pipe write FD as the wake signal so the asyncio loop's
+// `add_reader` wakes the awaiting coroutine without polling. See
+// `streaming_async_session.rs` for the FD-readiness protocol.
+mod streaming_async_session;
+use streaming_async_session::{BackpressurePolicy, StreamingAsyncSession};
+
+// Arrow IPC zero-copy batched streaming — sibling of the per-tick
+// `StreamingAsyncSession` that yields one `pyarrow.RecordBatch` per
+// OS wake instead of `list[FpssEvent]`. Closes #562.
+mod streaming_async_batches;
+use streaming_async_batches::StreamingAsyncBatchesSession;
 
 include!("_generated/historical_methods.rs");
 
@@ -663,8 +893,7 @@ fn pyarrow_table_to_polars(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAn
 ///
 ///     >>> import thetadatadx
 ///     >>> thetadatadx.split_date_range("20200101", "20231231")
-///     [('20200101', '20201230'), ('20201231', '20211230'),
-///      ('20211231', '20221230'), ('20221231', '20231231')]
+///     [('20200101', '20201230'), ('20201231', '20211230'), ('20211231', '20221230'), ('20221231', '20231230'), ('20231231', '20231231')]
 #[pyfunction]
 fn split_date_range(start: &str, end: &str) -> PyResult<Vec<(String, String)>> {
     chunking::split_date_range(start, end).map_err(|e| PyValueError::new_err(e.to_string()))
@@ -677,7 +906,17 @@ fn split_date_range(start: &str, end: &str) -> PyResult<Vec<(String, String)>> {
 /// This Python package wraps the thetadatadx Rust crate via PyO3.
 /// All data parsing, gRPC communication, and TCP streaming
 /// happens in compiled Rust — Python is just the interface.
-#[pymodule]
+///
+/// `gil_used = false` opts the module into PEP 703 free-threaded
+/// interpreters (`python3.13t`, `python3.14t`). Without this attribute
+/// the free-threaded build automatically re-enables the GIL on the
+/// first import of this module — which would defeat the entire purpose
+/// of shipping nogil wheels. Every `#[pyclass]` carries either
+/// `frozen` (immutable, safe-by-construction), interior `Mutex` /
+/// `RwLock` / atomic primitives, or `unsendable` (single-thread
+/// affinity); see the per-pyclass audit in `feat/python-nogil-wheels`
+/// PR body for the full matrix.
+#[pymodule(gil_used = false)]
 #[pyo3(name = "thetadatadx")]
 fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Install the tracing → Python logging bridge FIRST so any `tracing`
@@ -702,8 +941,13 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Config>()?;
     m.add_class::<ThetaDataDxClient>()?;
     m.add_class::<AsyncThetaDataDxClient>()?;
+    m.add_class::<fpss_client::FpssClient>()?;
+    m.add_class::<mdds_client::MddsClient>()?;
     m.add_class::<StreamingSession>()?;
     m.add_class::<StreamingIterSession>()?;
+    m.add_class::<StreamingAsyncSession>()?;
+    m.add_class::<StreamingAsyncBatchesSession>()?;
+    m.add_class::<BackpressurePolicy>()?;
     m.add_class::<EventIterator>()?;
     fluent::register(m)?;
     m.add_class::<flatfile_methods::FlatFilesNamespace>()?;
@@ -722,5 +966,8 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(decode_response_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(split_date_range, m)?)?;
+    // Introspection helper for the offline `MddsClient` block-list
+    // coverage test. Mirrors `mdds_client::FPSS_TOUCHING_METHODS`.
+    m.add_function(wrap_pyfunction!(mdds_client::blocked_fpss_methods, m)?)?;
     Ok(())
 }

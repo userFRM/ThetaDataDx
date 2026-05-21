@@ -111,6 +111,7 @@ pub(crate) mod pinning;
 pub mod protocol;
 pub(crate) mod ring;
 mod session;
+pub mod wake;
 
 #[cfg(test)]
 mod streaming_soak_tests;
@@ -120,7 +121,7 @@ mod streaming_soak_tests;
 // crate-private; only the round-trip primitives are exposed.
 pub use self::decode::UNRESOLVED_CONTRACT_SYMBOL_PREFIX;
 use self::events::IoCommand;
-pub use self::events::{FpssControl, FpssData, FpssEvent};
+pub use self::events::{BackpressurePolicy, FpssControl, FpssData, FpssEvent};
 // `Delivery` stays crate-private; it is the union type the io_loop
 // dispatches on. Public callers reach the two modes via
 // `FpssClient::connect` (push-callback) and `FpssClient::connect_iter`
@@ -304,8 +305,12 @@ pub struct FpssClient {
     shutdown: Arc<AtomicBool>,
     /// Whether we are authenticated and the connection is live.
     authenticated: Arc<AtomicBool>,
-    /// Monotonically increasing request ID counter.
-    next_req_id: AtomicI32,
+    /// Monotonically increasing request ID counter, shared with the
+    /// fpss-io reconnect path so re-subscribe frames carry a fresh
+    /// `req_id` correlatable to the original subscribe — server-side
+    /// `ReqResponse` events with `req_id = -1` are indistinguishable
+    /// from manual subscribes, which breaks user-side correlation.
+    next_req_id: Arc<AtomicI32>,
     /// Active per-contract subscriptions for reconnection.
     pub(in crate::fpss) active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>>,
     /// Active full-type (full-stream) subscriptions for reconnection.
@@ -438,6 +443,11 @@ impl FpssClient {
             queue_capacity,
         ));
         let finished = Arc::new(AtomicBool::new(false));
+        // Sync pull-iter retains legacy `DropNewest` behaviour (silent
+        // overflow drops). The async surfaces route through
+        // [`Self::connect_iter_with_wake_keep_handle_policy`] when
+        // they want explicit policy control.
+        let policy = events::BackpressurePolicy::DropNewest;
         // Dedicated terminal predicate for the iterator. Flipped to
         // `true` ONLY after the Disruptor consumer thread has exited
         // its consume loop and dropped the closure that owns the queue
@@ -455,6 +465,8 @@ impl FpssClient {
         let delivery = events::Delivery::Queue {
             queue: Arc::clone(&queue),
             iter_closed: Arc::clone(&iter_closed),
+            wake_fd: None,
+            policy,
         };
         let client = Self::connect_with_delivery(args, delivery)?;
         let iterator = EventIterator {
@@ -463,6 +475,161 @@ impl FpssClient {
             iter_closed,
         };
         Ok((client, iterator))
+    }
+
+    /// Connect with pull-iter delivery AND an asyncio-style FD wake-up
+    /// channel.
+    ///
+    /// Sibling of [`Self::connect_iter`] for asyncio / select-loop
+    /// consumers that cannot afford the 100 µs polling tick of the
+    /// blocking iterator. The caller allocates a self-pipe (typically
+    /// `pipe2(O_CLOEXEC | O_NONBLOCK)`) and passes the write-end FD to
+    /// this method. The Disruptor consumer thread writes a single
+    /// coalesced byte to the FD on every successful `queue.push` so the
+    /// reader's `epoll` / `kqueue` / `select` wake fires immediately —
+    /// no polling, no busy-wait.
+    ///
+    /// `wake_fd` ownership transfers to the returned [`wake::WakeFd`]
+    /// (stored inside the [`super::events::Delivery::Queue`] variant);
+    /// the FD is closed on `Drop` when the [`FpssClient`] and the
+    /// matching [`EventIterator`] are both released. Callers MUST NOT
+    /// `close(2)` the FD themselves.
+    ///
+    /// Use [`Self::connect_iter`] (no wake FD) for synchronous
+    /// consumers — the wake-fd path is pure overhead when the caller
+    /// drains via `next_timeout` polling.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same set of errors as [`Self::connect`] (TLS, login,
+    /// config validation).
+    pub fn connect_iter_with_wake(
+        args: FpssConnectArgs<'_>,
+        wake: wake::WakeFd,
+    ) -> Result<(Self, EventIterator), Error> {
+        let queue_capacity = args.ring_size;
+        let queue = Arc::new(crossbeam_queue::ArrayQueue::<FpssEvent>::new(
+            queue_capacity,
+        ));
+        let finished = Arc::new(AtomicBool::new(false));
+        let iter_closed = Arc::new(AtomicBool::new(false));
+        let wake_arc = Arc::new(wake);
+        // Async pull-iter without explicit policy defaults to `Block`
+        // — the safe default for new callers. Existing consumers that
+        // want legacy `DropNewest` semantics call the `_policy`
+        // variant below.
+        let policy = events::BackpressurePolicy::Block;
+        let delivery = events::Delivery::Queue {
+            queue: Arc::clone(&queue),
+            iter_closed: Arc::clone(&iter_closed),
+            wake_fd: Some(Arc::clone(&wake_arc)),
+            policy,
+        };
+        let client = Self::connect_with_delivery(args, delivery)?;
+        let iterator = EventIterator {
+            queue,
+            finished,
+            iter_closed,
+        };
+        // `wake_arc` is intentionally not surfaced to the caller — the
+        // [`Delivery::Queue`] variant captured a clone, and the iterator
+        // / client lifetime governs the FD close. The Python SDK keeps
+        // a third `Arc<WakeFd>` clone for the `rearm()` path that runs
+        // on the asyncio reader thread; that clone is acquired via the
+        // explicit `connect_iter_with_wake_keep_handle` constructor in
+        // `streaming_async_session.rs`, which forwards through this
+        // method.
+        let _ = wake_arc;
+        Ok((client, iterator))
+    }
+
+    /// Variant of [`Self::connect_iter_with_wake`] that hands back the
+    /// `Arc<WakeFd>` so the caller can drive [`wake::WakeFd::rearm`]
+    /// from the reader thread. The async wake protocol requires:
+    ///
+    /// 1. Reader observes pipe-read-ready on the asyncio loop.
+    /// 2. Reader calls `wake.rearm()` BEFORE draining the pipe.
+    /// 3. Reader drains the pipe with one or more non-blocking `read(2)`.
+    /// 4. Reader drains the event queue via `iterator.try_next` until
+    ///    `NextEvent::Timeout` or `NextEvent::Closed`.
+    /// 5. Reader awaits the next FD-ready signal.
+    ///
+    /// Step 2 is what makes the wake re-arm — without it, a producer
+    /// push observed between the rearm-elsewhere and the drain would
+    /// fail to re-fire the wake. Returning the shared `Arc<WakeFd>` is
+    /// the only safe way to expose `rearm()` to the reader.
+    ///
+    /// Internally builds the same [`super::events::Delivery::Queue`]
+    /// variant as [`Self::connect_iter_with_wake`]; the only difference
+    /// is the third return value carrying the shared handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same set of errors as [`Self::connect`] (TLS, login,
+    /// config validation).
+    pub fn connect_iter_with_wake_keep_handle(
+        args: FpssConnectArgs<'_>,
+        wake: wake::WakeFd,
+    ) -> Result<(Self, EventIterator, Arc<wake::WakeFd>), Error> {
+        Self::connect_iter_with_wake_keep_handle_policy(
+            args,
+            wake,
+            None,
+            events::BackpressurePolicy::Block,
+        )
+    }
+
+    /// Variant of [`Self::connect_iter_with_wake_keep_handle`] that
+    /// accepts an explicit [`events::BackpressurePolicy`] and an
+    /// optional `max_queue_depth` override.
+    ///
+    /// * `max_queue_depth` — `None` reuses `args.ring_size` (the
+    ///   existing implicit sizing); `Some(n)` caps the
+    ///   [`crossbeam_queue::ArrayQueue`] at `n` events. Must satisfy
+    ///   the same power-of-two + [`ring::MIN_RING_SIZE`] constraints
+    ///   the ring does, validated via [`ring::check_ring_size`].
+    /// * `policy` — overflow strategy. See [`events::BackpressurePolicy`].
+    ///
+    /// Production callers reach this through the Python
+    /// `client.streaming_async(max_queue_depth=..., backpressure=...)`
+    /// kwargs.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same set of errors as [`Self::connect`] (TLS,
+    /// login, config validation), plus [`Error::Config`] when
+    /// `max_queue_depth` is below [`ring::MIN_RING_SIZE`] or is not a
+    /// power of two.
+    pub fn connect_iter_with_wake_keep_handle_policy(
+        args: FpssConnectArgs<'_>,
+        wake: wake::WakeFd,
+        max_queue_depth: Option<usize>,
+        policy: events::BackpressurePolicy,
+    ) -> Result<(Self, EventIterator, Arc<wake::WakeFd>), Error> {
+        let queue_capacity = match max_queue_depth {
+            Some(n) => ring::check_ring_size(n)
+                .map_err(|e| Error::config_invalid("fpss.max_queue_depth", e.to_string()))?,
+            None => args.ring_size,
+        };
+        let queue = Arc::new(crossbeam_queue::ArrayQueue::<FpssEvent>::new(
+            queue_capacity,
+        ));
+        let finished = Arc::new(AtomicBool::new(false));
+        let iter_closed = Arc::new(AtomicBool::new(false));
+        let wake_arc = Arc::new(wake);
+        let delivery = events::Delivery::Queue {
+            queue: Arc::clone(&queue),
+            iter_closed: Arc::clone(&iter_closed),
+            wake_fd: Some(Arc::clone(&wake_arc)),
+            policy,
+        };
+        let client = Self::connect_with_delivery(args, delivery)?;
+        let iterator = EventIterator {
+            queue,
+            finished,
+            iter_closed,
+        };
+        Ok((client, iterator, wake_arc))
     }
 
     fn connect_with_delivery(
@@ -637,6 +804,12 @@ impl FpssClient {
         // thread -> drop producer -> join consumer thread = self).
         let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
 
+        // Shared `next_req_id` counter — the FpssClient public API
+        // owns one handle for caller-issued subscribes; the io_loop
+        // borrows another so re-subscribe frames on auto-reconnect
+        // allocate fresh ids correlatable through `ReqResponse`.
+        let next_req_id: Arc<AtomicI32> = Arc::new(AtomicI32::new(1));
+
         // Command channel: FpssClient -> I/O thread
         let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
 
@@ -656,6 +829,7 @@ impl FpssClient {
         let io_consumer_thread_id = Arc::clone(&consumer_thread_id);
         let io_slow_threshold_ns = Arc::clone(&slow_callback_threshold_ns);
         let io_slow_count = Arc::clone(&slow_callback_count);
+        let io_next_req_id = Arc::clone(&next_req_id);
 
         let io_handle = thread::Builder::new()
             .name("fpss-io".to_owned())
@@ -684,6 +858,7 @@ impl FpssClient {
                     slow_callback_count: io_slow_count,
                     connect_timeout,
                     read_timeout,
+                    next_req_id: io_next_req_id,
                 });
             })
             .map_err(|e| Error::Fpss {
@@ -716,7 +891,7 @@ impl FpssClient {
             ping_handle: Some(ping_handle),
             shutdown,
             authenticated,
-            next_req_id: AtomicI32::new(1),
+            next_req_id: Arc::clone(&next_req_id),
             active_subs,
             active_full_subs,
             server_addr,
@@ -1103,6 +1278,7 @@ impl FpssClient {
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
         let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
+        let next_req_id: Arc<AtomicI32> = Arc::new(AtomicI32::new(1));
 
         let (cmd_tx, _cmd_rx) = std_mpsc::channel::<IoCommand>();
 
@@ -1191,7 +1367,7 @@ impl FpssClient {
             ping_handle: None,
             shutdown,
             authenticated,
-            next_req_id: AtomicI32::new(1),
+            next_req_id: Arc::clone(&next_req_id),
             active_subs,
             active_full_subs,
             server_addr: "test://self-join".to_owned(),

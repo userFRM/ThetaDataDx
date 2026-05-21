@@ -7,7 +7,196 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Universal `.stream(handler)` method on every historical builder
+  (#565). The buffered `.await -> Vec<T>` path held three live
+  copies (h2 frames + concatenated proto payload + decoded
+  `Vec<T>`) plus a `Vec::push` doubling transient, yielding 6×
+  memory amplification on tick-interval responses — a production
+  user hit 23 GiB RSS on
+  `option_history_quote(QQQ, 1DTE, interval=tick, strike_range=5)`
+  at 32-permit concurrency. The new `.stream(handler)` decodes
+  one chunk at a time, hands the slice to `handler`, then drops
+  the chunk before the next is fetched. Peak resident memory
+  drops to ~one chunk regardless of total row count. Available
+  on every parsed historical endpoint (option / stock / index
+  history, `_at_time_`, EOD, Greeks, market value, ...) without
+  SSOT churn — the streaming variant is macro-emitted alongside
+  the existing `IntoFuture` impl on every `parsed_endpoint!`
+  builder. Python builders gain `.stream(handler)` / `.stream_async(handler)`
+  terminals that hand each chunk to the user's callback as a typed
+  `list[Tick]`; the handler is dispatched under the GIL on the
+  tokio worker thread and the per-chunk `PyList` is dropped before
+  the next chunk fetch. Buffered `.await` / `.list()` /
+  `.list_async()` paths remain unchanged for back-compat.
+- Zero-copy gRPC frame detach in `ServerStreaming::poll_next`
+  (#565 Tier 4). The previous accumulator-peek did
+  `BytesMut::clone().freeze()` per poll — empirically a deep
+  copy of the entire accumulator (a 10 MiB buffer duplicates to a
+  fresh 10 MiB allocation), so a chunked response paid an
+  `O(polls × buf.len())` memory tax on the decode path. Replaced
+  with `peek_frame_length` (reads the 5-byte prefix in-place, no
+  allocation) followed by `BytesMut::split_to(frame_len).freeze()`
+  on the success branch (refcount-only). The codec invariant
+  ("Err ⇒ buf not consumed") is preserved end-to-end. Six new
+  unit tests pin the structural contract.
+- Memory footprint section in `docs/api-reference.md`,
+  `docs-site/docs/api-reference.md`, and the Python SDK README
+  (#565 Tier 5). Documents the per-tick bytes/row table, the
+  `concurrency × rows × bytes_per_row × decode_factor` budget
+  formula, the worked example for the reproducer, and the
+  `.stream()` vs `.await` recommendation matrix.
+- Python `FpssClient` and `MddsClient` standalone pyclasses
+  (#541, #543). `FpssClient(creds, config)` opens ONLY the FPSS TLS
+  transport; `MddsClient(creds, config)` opens ONLY the MDDS gRPC
+  channel plus Nexus auth and surfaces the historical / FLATFILES
+  API while raising `AttributeError` on every FPSS-touching method.
+  Mirrors the C ABI `tdx_fpss_*` / `tdx_client_*` split and the C++
+  `tdx::FpssClient` / `tdx::Client` shape.
+- Asyncio-native streaming surface
+  `ThetaDataDxClient.streaming_async()` / `FpssClient.streaming_async()`
+  (#559). The session bridges the Disruptor consumer thread to the
+  asyncio loop via a self-pipe wake FD: zero polling cost during
+  quiet periods, one OS wake per coalesced batch.
+- Free-threaded (PEP 703) wheels for CPython 3.13t / 3.14t (#561).
+  The extension carries `gil_used = false` on `#[pymodule]` so the
+  GIL stays disabled after `import thetadatadx`. Every
+  `block_on(...)` call site on the unified client and on the FPSS
+  / MDDS standalone pyclasses releases the GIL via `py.detach`
+  before driving the tokio runtime; the parallel-throughput gate
+  asserts `< 1.8x` overhead under contention on the free-threaded
+  matrix entries (`3.13t` / `3.14t`).
+- 12-gate CI invariant suite (#560). Gates cover: cross-binding
+  parity (`sdks/parity.toml` matrix), C ABI completeness (now
+  sourced from `nm` on the compiled .so so macro-emitted symbols
+  are tracked), wire-schema drift, banned-vocab scrubber, version
+  sync (Cargo / `package.json` / CMake / docs pins all in
+  lockstep), wheel + npm tarball content inspection, stubtest
+  `.pyi` ↔ runtime, fresh-install venv smoke, doc-example harness,
+  cargo-semver-checks (baseline now anchored at `v10.0.0`),
+  bench-regression gate (threshold 25% against the GH-runner
+  baseline), nogil throughput overhead gate.
+- Renamed FPSS event payload type from `Contract` to `ContractRef`
+  (#558). `event.contract` now returns `ContractRef` (the read-only
+  event payload accessor) without colliding with the fluent
+  `Contract` builder used in `subscribe()` inputs.
+- `BackpressurePolicy` enum on the FPSS pull-iter / async surfaces
+  (#564). Variants: `Block` (preserves every event by stalling the
+  Disruptor consumer until the queue drains), `DropOldest` (evicts
+  the queue head on full, preserves recency), `DropNewest` (skips
+  the new event on full, preserves history; legacy behaviour).
+  Exposed in Python as `thetadatadx.BackpressurePolicy` and threaded
+  through `streaming_iter(max_queue_depth=, backpressure=)`,
+  `streaming_async(max_queue_depth=, backpressure=)`, and
+  `streaming_async_batches(max_queue_depth=, backpressure=)`.
+- `ThetaDataDxClient.streaming_async_batches()` /
+  `FpssClient.streaming_async_batches()` (#564). Arrow IPC zero-copy
+  surface: each `async for batch in session` yields a `pyarrow.Table`
+  whose column buffers alias the Disruptor consumer's pre-grouped
+  Arrow `RecordBatch` — no per-event Python object construction on
+  the reader path. Same self-pipe wake-FD signalling as
+  `streaming_async()`; the column-shape SSOT (`tick_schema.toml`)
+  guarantees schema parity with the per-event variant.
+- `queue_depth()` and `dropped_event_count()` getters on
+  `StreamingAsyncSession` and `StreamingAsyncBatchesSession` (#564).
+  Mirror the counters already exposed on the sync pull-iter surface
+  so callers can dashboard the in-flight queue depth and the count
+  of events dropped under non-`Block` policies without holding a
+  `FpssClient` reference.
+
+### Changed
+
+- `Error::Transport` payload restructured from `String` into a
+  typed `Transport { kind: TransportErrorKind, message: String }`
+  shape mirroring the `Grpc { kind, message }` / `Decode { kind, message }`
+  layout. `TransportErrorKind` enumerates the concrete fault
+  categories (`Tcp`, `Tls`, `InvalidServerName`, `H2Handshake`,
+  `H2Stream`, `ConnectionClosed`, `UnexpectedHttpStatus`,
+  `EmptyResponse`, `InvalidPath`, `Codec`, `DecoderPoisoned`,
+  `DecoderReplyDropped`) so retry classifiers and binding consumers
+  can dispatch on the structured `kind` without parsing `Display`.
+  The `Display` shape is stable
+  (`transport error (<kind>): <message>`) so existing string-keyed
+  consumers keep working.
+- The fpss `io_loop` thread now uses `Producer::try_publish` on
+  every publish path (handshake control frames, login success,
+  data frames, disconnect emission, reconnect control frames).
+  A saturated ring no longer wedges the TLS reader; overflow
+  increments the shared `dropped` counter and emits a `warn` log.
+- The fpss auto-reconnect re-subscribe path allocates fresh
+  `req_id` values from the shared `next_req_id` counter instead of
+  emitting `-1`. Server-side `ReqResponse` events on the
+  reconnected session now carry ids correlatable to the original
+  subscribe.
+- MDDS `extract_text_column`, `extract_number_column`, and
+  `extract_price_column` resolve headers through the alias-aware
+  `headers::find_header` helper. Upstream column renames (e.g.
+  `symbol` → `root`, `timestamp` → `ms_of_day`) now resolve through
+  `HEADER_ALIASES` instead of returning a silent empty `Vec`. A
+  non-empty `DataTable` whose column cannot be resolved emits a
+  `warn` log naming the requested header and the available set.
+
+### Added
+
+- Standalone `FpssClient` and `MddsClient` pyclasses on the Python
+  binding. `FpssClient(creds, config)` opens ONLY the FPSS TLS
+  transport (no MDDS gRPC channel, no Nexus HTTP auth); `MddsClient(creds,
+  config)` opens ONLY the MDDS gRPC channel plus the Nexus
+  authentication and surfaces the historical / FLATFILES API while
+  raising `AttributeError` on every FPSS-touching method. The bundled
+  `ThetaDataDxClient` keeps its current behaviour — the new classes
+  are purely additive and align the Python surface with the
+  standalone clients already exposed by the C ABI (`tdx_fpss_*` /
+  `tdx_client_*`) and the C++ wrapper (`tdx::FpssClient` /
+  `tdx::Client`).
+- gRPC `grpc-timeout` header is now emitted on every
+  deadline-bearing RPC (`server_streaming_with_deadline`,
+  `mdds_client.with_deadline(...)`). The header carries the
+  smallest unit that fits the budget per the gRPC HTTP/2 spec
+  (`n` / `u` / `m` / `S` / `M` / `H`), so the server can
+  short-circuit on deadline elapse instead of completing work the
+  client will discard.
+- `TransportErrorKind` is exported from `thetadatadx::error` for
+  binding consumers and retry classifiers.
+- `tdbe::types::price::Price::with_value_and_type` constructor
+  rejects out-of-range `price_type` values with a typed
+  `PriceError` instead of clamping. `Price::value()` and
+  `Price::price_type()` accessors join the public API so future
+  field visibility changes do not break call sites.
+  `Price::is_unset()` and `Price::is_zero_value()` split the
+  previous `is_zero()` conflation into the two distinct signals
+  (sentinel vs real zero).
+- `Price` POW10 indexing paths carry `debug_assert!` invariant
+  guards so a hand-constructed `Price { value, price_type }`
+  outside `0..=MAX_PRICE_TYPE` traps in debug builds rather than
+  reading past the end of the lookup tables.
+- `AuthUser::max_concurrent_requests` now routes the
+  subscription-tier shift through `SubscriptionTier::from_wire`.
+  Hostile wire bytes (negative, `> 3`, `i32::MAX`) fold to
+  `Free=1` and emit a `warn` instead of panicking on the old
+  `1usize << tier` path.
+
+### Deprecated
+
+- `Error::config_other`, `Error::decode_other`, and
+  `Error::decompress_other` constructors are deprecated and
+  `#[doc(hidden)]`. New call sites should pick the matching typed
+  `*Kind` variant (`config_invalid`, `decode_codec`,
+  `decompress_zstd`, etc.). The constructors will be removed in
+  the next major release.
+
 ## [10.0.0] - 2026-05-09
+
+**In-house gRPC transport** replaces `tonic` on the MDDS server-streaming
+path. The SDK now drives `h2` directly: prost encode → length-prefix
+frame → HTTP/2 DATA → response stream → trailers parse, with no tower
+stack, no boxed bodies, and no `async-trait` dyn dispatch. New public
+module `thetadatadx::grpc::*` exposes `Channel`, `ChannelPool`,
+`ChannelLease`, `ServerStreaming`, `Codec`, `Status`, `DecoderPool`,
+`DecoderHandle` and the matching error types (`ChannelError`,
+`CodecError`, `StatusParseError`, `DecoderPoolError`,
+`DecoderSubmitError`).
 
 Semver-honest version bump for the v9.1.0 surface. The v9.0.x →
 v9.1.0 wave introduced 12 major API breaks per
@@ -21,19 +210,87 @@ additions, `FpssConfig.queue_depth` removal, flat
 `TdxFpssControl` → typed per-variant structs, Go SDK removal).
 Rust semver classifies that diff as a major bump.
 
-v10.0.0 is the v9.1.0 surface with no further code changes —
-bumping the version number to align with semver discipline. The
-audit chain on the v9.1.0 wave (cargo fmt, clippy --workspace
--- -D warnings, test --workspace, deny check, generate_sdk_surfaces
---check, npm test 19/19, C++ CMake build, Python wheel + pytest)
-all passed; no findings remain after the closeout chain.
-
 ### Changed
 
+- **In-house gRPC transport** replaces `tonic`; full module surface
+  (`Channel`, `ChannelPool`, `ChannelLease`, `ServerStreaming`,
+  `Codec`, `Status`, `DecoderPool`, `DecoderHandle`,
+  `ChannelError`, `CodecError`, `StatusParseError`,
+  `DecoderPoolError`, `DecoderSubmitError`).
+- `Error::Transport` payload changed from `tonic::transport::Error`
+  to `String` (later restructured to typed `{ kind, message }` —
+  see `[Unreleased]`).
+- `ChannelPool::next()` returns a `ChannelLease<'a>` instead of
+  `&'a Channel`. The lease pre-reserves an in-flight slot on the
+  picked channel synchronously so concurrent burst dispatches
+  observe each reservation immediately and route around loaded
+  channels.
+- `Status::from_trailers` tolerates malformed `grpc-message`
+  trailers per the gRPC HTTP/2 spec. The parser percent-decodes
+  (RFC 3986, `%HH` escapes only); if decoded bytes are valid UTF-8
+  they become the message, otherwise the raw header bytes fall
+  back to UTF-8 interpretation, with an empty message for opaque
+  non-UTF-8 inputs.
 - Project version: 9.1.0 → 10.0.0 across `crates/thetadatadx`,
   `crates/tdbe` dependents, `ffi`, `tools/{cli,mcp,server}`,
   `sdks/{python,typescript}`. tdbe stays at 0.13.1 (no API change
   in this bump). All standalone Cargo.lock files re-locked.
+
+### Added (in-house gRPC)
+
+- `MddsConfig::decoder_threads` and `MddsConfig::decoder_ring_size`
+  control the dedicated decoder pool that runs zstd decompress +
+  protobuf decode off the tokio reactor. `decoder_threads = 0`
+  auto-sizes to `min(channels, available_parallelism / 2)`;
+  `decoder_ring_size` must be a power of two `>= 64`.
+- `DecoderHandle::submit` returns
+  `Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError>`.
+  Submits made after a worker-thread panic poisoned the pool fail
+  fast with `DecoderSubmitError::Poisoned` rather than parking the
+  caller on a dead consumer ring.
+- `ChannelError` variant routing: connection-level h2 failures —
+  `GOAWAY` (either direction), IO failure on the h2 transport, peer
+  shutdown, and open-phase connection drops (failures observed on
+  `ready()` / `send_request()` / `send_data()`) — surface as
+  `ChannelError::ConnectionClosed`. `ChannelError::H2Stream` is
+  scoped strictly to per-stream `RST_STREAM` (any reason code) and
+  h2 library-detected stream-scoped protocol errors.
+
+### Removed (in-house gRPC)
+
+- `tonic` dependency removed. The `inhouse-grpc` feature flag is
+  also gone — the in-house transport is the only path. Direct uses
+  of `tonic::transport::Channel`, `tonic::Status`, or
+  `tonic::Streaming` through `thetadatadx` re-exports are no longer
+  available.
+- `MddsClient::stub` was removed. Internal call sites now reach the
+  generated stubs through `proto::beta_theta_terminal::*` directly.
+- `GrpcStatusKind::from_code()` was renamed to
+  `GrpcStatusKind::from_u32()` to match the wire type. The enum
+  `repr` is now `u32` (was `i32`).
+- `StatusParseError::MessageNotUtf8` was removed. Malformed
+  `grpc-message` no longer fails the trailers parse; exhaustive
+  matches on `StatusParseError` need to drop the variant.
+
+### Migration (in-house gRPC)
+
+- Replace `Error::Transport(msg)` pattern with the typed shape:
+  `Error::Transport { kind, message }`. The `Display` shape stays
+  `transport error (<kind>): <message>` for legacy string-keyed
+  consumers.
+- Replace `GrpcStatusKind::from_code(n)` with
+  `GrpcStatusKind::from_u32(n)`.
+- When constructing `MddsConfig` field-by-field, add
+  `decoder_threads: 0, decoder_ring_size: 256` (or call
+  `MddsConfig::production_defaults()`).
+- Update `match` arms on `StatusParseError` — drop the
+  `MessageNotUtf8` branch.
+- `pool.next()` callers that bind the result across an `await`
+  must keep the lease alive for the dispatch window. Pattern:
+  `let lease = pool.next(); stub_fn(&lease, req).await?;`.
+- `DecoderHandle::submit` returns `Result<_, DecoderSubmitError>`.
+  Update callers from `let rx = handle.submit(r); rx.await` to
+  `let rx = handle.submit(r)?; rx.await`.
 
 ### Migration from v9.1.0
 

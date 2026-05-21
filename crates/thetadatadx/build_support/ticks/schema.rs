@@ -1,4 +1,9 @@
-//! TOML-backed schema types for `tick_schema.toml`.
+//! TOML-backed schema types for `tick_schema.toml` reachable from `build.rs`.
+//!
+//! Only the fields the wire decoder (`parser`) consumes live here. The
+//! bin tree (`build_support_bin/ticks/`) deserializes the same TOML into
+//! a richer `Schema` with the per-language render block + doc / copy /
+//! align metadata it needs.
 
 use std::collections::HashMap;
 
@@ -9,16 +14,10 @@ pub(crate) struct Schema {
     pub(crate) types: HashMap<String, TickTypeDef>,
 }
 
-/// Parsed from `tick_schema.toml`. `doc`, `copy`, and `align` drive the
-/// generated tick struct layout (see `crates/tdbe/build_support`); `render`
-/// drives the per-language binding name lookups consumed by every renderer
-/// in `build_support/endpoints/render` and `build_support/ticks`.
+/// Parsed from `tick_schema.toml` — only the fields the build-script's
+/// wire-decoder emitter (`parser`) reads.
 #[derive(Debug, Deserialize)]
 pub(crate) struct TickTypeDef {
-    pub(crate) doc: String,
-    pub(crate) copy: bool,
-    #[serde(default)]
-    pub(crate) align: Option<u32>,
     pub(crate) parser: String,
     #[serde(default)]
     pub(crate) required: Vec<String>,
@@ -27,10 +26,6 @@ pub(crate) struct TickTypeDef {
     #[serde(default)]
     pub(crate) contract_id: bool,
     pub(crate) columns: Vec<ColumnDef>,
-    /// Per-language binding name map. Populated for every tick type so the
-    /// 19 helper match arms collapse into single-key lookups (see
-    /// `build_support/endpoints/helpers.rs::render_for`).
-    pub(crate) render: TickRenderDef,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,57 +35,9 @@ pub(crate) struct ColumnDef {
     pub(crate) r#type: String,
 }
 
-/// Every per-language binding name a renderer needs for one tick type.
-/// Single TOML row replaces the parallel match arms previously hand-coded
-/// across `helpers.rs` and `ticks/mod.rs::pyclass_name`.
-#[derive(Debug, Deserialize, Clone)]
-pub(crate) struct TickRenderDef {
-    /// Wire-collection plural keying every renderer call (e.g. `"GreeksTicks"`).
-    /// Matches the `returns` value declared on each endpoint in
-    /// `endpoint_surface.toml`. Build-time validator rejects duplicates and
-    /// strays.
-    pub(crate) collection: String,
-    pub(crate) direct: String,
-    pub(crate) parser: String,
-    pub(crate) ffi_array: String,
-    pub(crate) ffi_output_variant: String,
-    pub(crate) ffi_from_vec_array: String,
-    pub(crate) ffi_header_return: String,
-    pub(crate) ffi_free_fn: String,
-    pub(crate) cpp_value: String,
-    pub(crate) python_converter: String,
-    pub(crate) python_columnar: String,
-    pub(crate) python_pyclass_list: String,
-    pub(crate) python_vec_to_pylist: String,
-    pub(crate) python_slice_arrow: String,
-    pub(crate) ts_class: String,
-    pub(crate) ts_class_vec: String,
-    pub(crate) pyclass: String,
-}
-
 pub(super) fn load_schema() -> Result<Schema, Box<dyn std::error::Error>> {
     let schema_path = "tick_schema.toml";
     let schema_str = std::fs::read_to_string(schema_path)?;
     let schema: Schema = toml::from_str(&schema_str)?;
     Ok(schema)
-}
-
-/// Borrow the render block of a schema type by name. Panics with the
-/// available keys when the type is missing -- a missing tick type is a
-/// build-time bug. Used by every ticks/* emitter that previously kept a
-/// hand-coded match arm per tick type for FFI / Python / TS binding
-/// names.
-pub(crate) fn render_for_type<'a>(schema: &'a Schema, type_name: &str) -> &'a TickRenderDef {
-    schema
-        .types
-        .get(type_name)
-        .map(|d| &d.render)
-        .unwrap_or_else(|| {
-            let mut keys: Vec<&str> = schema.types.keys().map(String::as_str).collect();
-            keys.sort();
-            panic!(
-                "no render block for tick type '{type_name}' in tick_schema.toml; available: {}",
-                keys.join(", ")
-            )
-        })
 }

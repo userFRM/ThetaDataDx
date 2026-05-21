@@ -31,6 +31,8 @@ maturin develop --release
 
 Binary wheels use CPython's stable ABI (`abi3`) with a minimum Python version of 3.9, so one wheel per platform supports Python 3.9+.
 
+Separate per-version wheels for PEP 703 free-threaded interpreters (`python3.13t`, `python3.14t`) will be picked up by `pip` automatically once the next PyPI release ships. The wheels carry `gil_used = false` on the extension module, so the GIL stays disabled after `import thetadatadx` and CPU-bound Python threads run truly in parallel with the gRPC dispatcher. After the next release lands, install on a free-threaded interpreter and a `cp313-cp313t-*` or `cp314-cp314t-*` wheel will be picked up; install on a stock interpreter and the `cp39-abi3-*` wheel applies.
+
 ## Quick Start
 
 ```python
@@ -379,7 +381,7 @@ path.
 
 Both patterns drain the SDK callback into a Python-native data
 structure so business logic runs off the GIL-acquisition hot path.
-Pattern A is the institutional default — it matches the
+Pattern A is the recommended default — it matches the
 direct-callback shape used by every major market-data vendor's native
 API and runs ~2-5x faster than Pattern B because `deque.append` /
 `popleft` are GIL-atomic single ops with no condition-variable
@@ -440,6 +442,41 @@ the blocking `get()`.
 | `dropped_event_count()` | Cumulative count of events the FPSS reader could not publish into the Disruptor ring because the consumer fell behind and the ring was full. Resets to 0 on `reconnect()` (which rebuilds the FPSS client) and reads 0 after `stop_streaming()`. Snapshot the value before reconnect if you need to accumulate drops across session boundaries. |
 | `reconnect()` | Reconnect streaming and re-register the previously installed callback; restores all subscriptions. |
 | `shutdown()` | Graceful shutdown — drops the registered callback. |
+
+### Streaming — `.stream(handler)` for large responses (issue #565)
+
+Every historical builder exposes `.stream(handler)` and `.stream_async(handler)` alongside the buffered `.list()` / `.list_async()` terminals. The streaming variants drain the response chunk-by-chunk; the previous chunk is freed before the next is fetched. Peak resident memory stays at ~one chunk (≈64 KiB) regardless of total response size — eliminates the OOM mode reported on `option_history_quote(QQQ, 1DTE, interval=tick, strike_range=5)` at 32-permit concurrency (23 GiB RSS buffered → ~2 MiB streaming).
+
+```python
+# Sync: handler is called once per gRPC chunk with a typed list[QuoteTick].
+def on_chunk(ticks):
+    for t in ticks:
+        # write to parquet / send to bus / accumulate stats
+        pass
+
+tdx.option_history_quote_builder("QQQ", "20260516", "20260516") \
+    .interval("tick") \
+    .strike_range(5) \
+    .stream(on_chunk)
+
+# Async: same handler shape, awaitable resolves to None on clean drain.
+async def main():
+    await tdx.option_history_quote_builder("QQQ", "20260516", "20260516") \
+        .interval("tick") \
+        .strike_range(5) \
+        .stream_async(on_chunk)
+```
+
+The streaming variant is available on every historical builder regardless of tick type (`QuoteTick`, `TradeTick`, `OhlcTick`, `EodTick`, `GreeksAllTick`, `MarketValueTick`, `OptionContract`, `CalendarDay`, `InterestRateTick`, ...). Snapshot endpoints (≤10 rows) and the legacy `*_stream` endpoints don't expose the universal terminal — those keep their existing one-shot surface.
+
+**Memory budget formula**:
+
+```
+peak_rss ≈ concurrency × rows × bytes_per_row × decode_factor
+decode_factor: 3.0 buffered  /  1.0 streamed
+```
+
+For tick-interval requests across multi-day ranges or wide strike ranges, **always use `.stream()`** — the buffered path's `decode_factor=3.0` reflects the simultaneous residency of h2 frames + decompressed proto + decoded `Vec<T>` plus the `Vec::push` doubling transient.
 
 ### Chained DataFrame terminals
 
@@ -531,7 +568,7 @@ Available `flat_files.*` methods: `option_quote`, `option_trade`,
 ```mermaid
 graph TD
     A["Python code"] - "PyO3 FFI" --> B["thetadatadx Rust crate"]
-    B - "tonic gRPC / TLS TCP" --> C["ThetaData servers"]
+    B - "in-house gRPC / TLS TCP" --> C["ThetaData servers"]
 ```
 
 No HTTP middleware, no Java terminal, no subprocess. Direct wire-protocol access from the Rust core.

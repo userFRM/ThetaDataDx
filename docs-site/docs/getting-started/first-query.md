@@ -83,7 +83,7 @@ Every historical endpoint returns a typed tick list with the same JSON-like shap
 ## What runs under the hood
 
 1. `connect()` loads credentials and authenticates against ThetaData's Nexus endpoint, retrieving a session UUID.
-2. The session UUID is attached to an HTTP/2 (`tonic` / `gRPC`) channel to the MDDS datacenter.
+2. The session UUID is attached to an HTTP/2 gRPC channel (in-house transport, `thetadatadx::grpc::Channel`) to the MDDS datacenter.
 3. `stock_history_eod(...)` streams a compressed protobuf `DataTable` response.
 4. A Rust decoder turns the `DataTable` into a `Vec<StockEodTick>` (~86k rows/sec per core on wide-schema data). The Python / TypeScript / C++ bindings expose this slice as the language's native collection.
 

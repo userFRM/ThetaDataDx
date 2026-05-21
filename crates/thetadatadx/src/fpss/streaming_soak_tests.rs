@@ -922,26 +922,24 @@ fn slow_callback_disabled_when_threshold_zero() {
 }
 
 // ---------------------------------------------------------------------------
-// PR #514 HIGH-001 — multi-generation drain barrier soak coverage
+// Multi-generation drain barrier soak coverage
 // ---------------------------------------------------------------------------
 
 /// Drive three retired-generation drain flags through the same
 /// `Mutex<Vec<Arc<AtomicBool>>>` storage `ThetaDataDxClient::prev_drained`
 /// and `TdxFpssHandle::prev_drained` use. Stagger the drain order
 /// (gen `c` flips first, then `a`, then `b`) so the barrier cannot
-/// pass by inspecting only the most-recently pushed entry — the
-/// pre-fix single-slot tracker would have observed `flag_c` flipping
-/// at 40ms and reported quiescence while `flag_a` / `flag_b` were
-/// still pending.
+/// pass by inspecting only the most-recently pushed entry — a
+/// single-slot tracker would observe `flag_c` flipping at 40ms and
+/// report quiescence while `flag_a` / `flag_b` were still pending.
 ///
-/// The audit (PR #514 HIGH-001) explicitly authorised this shape as
-/// the alternate path: "drive 3 `Arc<AtomicBool>` flags directly
-/// through the new `prev_drained: Vec<...>`, simulate the stagger of
-/// `B`'s flag flips before `A`'s, and verify await_drain doesn't
-/// return until all 3 are flipped." The full live-`FpssClient`
-/// stacking path is structurally tested by
+/// This is the direct multi-generation drive: 3 `Arc<AtomicBool>`
+/// flags through `prev_drained: Vec<...>`, with `B`'s flag flipping
+/// before `A`'s, asserting `await_drain` does not return until all 3
+/// are flipped. The full live-`FpssClient` stacking path is
+/// structurally tested by
 /// `callback_triggered_stop_then_await_drain_completes` (single-gen);
-/// HIGH-001 is the multi-gen sequencing of those flags into a Vec.
+/// this case covers the multi-gen sequencing of those flags into a Vec.
 ///
 /// The barrier loop here is byte-identical to the production
 /// `ThetaDataDxClient::await_drain` / `tdx_fpss_await_drain` poll: lock,

@@ -78,10 +78,13 @@ pub(crate) mod writer;
 #[cfg(feature = "arrow")]
 pub mod arrow;
 
-pub use decoded::{default_output_filename, flatfile_request, flatfile_request_decoded};
+pub use decoded::{
+    default_output_filename, flatfile_request, flatfile_request_decoded,
+    flatfile_request_decoded_with_config, flatfile_request_with_config,
+};
 pub use decoded_row::{FlatFileRow, FlatFileValue};
 pub use format::FlatFileFormat;
-pub use request::flatfile_request_raw;
+pub use request::{flatfile_request_raw, flatfile_request_raw_with_config};
 pub use types::{FlatFilesUnavailableReason, ReqType, SecType};
 
 /// Decode an already-saved raw FLATFILES blob into a typed output file.

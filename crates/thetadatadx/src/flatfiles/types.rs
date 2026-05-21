@@ -57,6 +57,19 @@ impl ReqType {
 ///
 /// Returned inside `Error::FlatFilesUnavailable` so callers can decide
 /// whether to fall back to the V3 fan-out path or to retry later.
+///
+/// The variants partition into two retry classes consumed by
+/// [`FlatFilesUnavailableReason::is_transient`]:
+///
+/// * **Terminal** — re-running the request with identical inputs will
+///   fail the same way. Auth rejection on a permanent credential reason
+///   code, and `RequestRejected` from a malformed request, both fall
+///   here. The flatfile driver gives up immediately; no automatic retry.
+/// * **Transient** — the request might succeed on a fresh connection
+///   (server hop, momentary network blip, mid-stream truncation). The
+///   flatfile driver retries with exponential backoff up to the
+///   [`crate::config::FlatFilesConfig::max_attempts`] budget before
+///   surfacing the error.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FlatFilesUnavailableReason {
@@ -68,6 +81,53 @@ pub enum FlatFilesUnavailableReason {
     RequestRejected { server_message: String },
     /// Connection dropped before the response completed.
     StreamTruncated { bytes_received: u64 },
+}
+
+impl FlatFilesUnavailableReason {
+    /// Returns `true` when the same request issued on a fresh connection
+    /// might succeed (network blip, mid-stream drop). Drives the
+    /// flatfile retry loop's terminal-vs-retryable decision.
+    ///
+    /// `AuthRejected` is treated as terminal for every credential
+    /// reason code in the permanent set
+    /// ([`crate::fpss::reconnect_delay`] returns `None` for these); the
+    /// transient auth reasons (e.g. `ServerRestarting`) are surfaced as
+    /// retryable. `RequestRejected` is always terminal — bad params
+    /// will not fix themselves on retry. `StreamTruncated` is always
+    /// transient.
+    #[must_use]
+    pub fn is_transient(&self) -> bool {
+        match self {
+            Self::StreamTruncated { .. } => true,
+            Self::RequestRejected { .. } => false,
+            Self::AuthRejected { reason_code } => auth_reason_is_transient(*reason_code),
+        }
+    }
+
+    /// Inverse of [`Self::is_transient`]. Provided so callers can keep
+    /// the intent line-by-line readable in classifier chains.
+    #[must_use]
+    pub fn is_terminal(&self) -> bool {
+        !self.is_transient()
+    }
+}
+
+/// Classify a `RemoveReason` ordinal received during MDDS legacy login
+/// as transient (retry on a fresh connection) vs terminal (no amount of
+/// retrying will fix it).
+///
+/// Mirrors [`crate::fpss::reconnect_delay`]: the same permanent set
+/// applies on both surfaces — `InvalidCredentials`, `InvalidLoginValues`,
+/// `InvalidLoginSize`, `AccountAlreadyConnected`, `FreeAccount`,
+/// `ServerUserDoesNotExist`, `InvalidCredentialsNullUser`. Every other
+/// reason code (and the `0` sentinel emitted when the payload is too
+/// short) routes through the retry path.
+fn auth_reason_is_transient(reason_code: u16) -> bool {
+    // Wire ordinals match `crate::fpss::protocol::wire::remove_reason_from_code`.
+    //   0 InvalidCredentials, 1 InvalidLoginValues, 2 InvalidLoginSize,
+    //   6 AccountAlreadyConnected, 9 FreeAccount,
+    //   17 ServerUserDoesNotExist, 18 InvalidCredentialsNullUser.
+    !matches!(reason_code, 0 | 1 | 2 | 6 | 9 | 17 | 18)
 }
 
 impl fmt::Display for FlatFilesUnavailableReason {

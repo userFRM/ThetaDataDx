@@ -151,6 +151,86 @@ pub(crate) async fn sleep_for_retry(
     }
 }
 
+/// Decision returned by the streaming retry classifier after a single
+/// attempt of an MDDS server-streaming RPC.
+///
+/// The streaming retry shell drives one of three transitions on each
+/// outcome:
+///
+/// | Variant     | Meaning                                                                                  |
+/// |-------------|------------------------------------------------------------------------------------------|
+/// | `Done`      | The stream completed (chunk handler saw end-of-stream cleanly).                          |
+/// | `Refresh`   | `Unauthenticated` observed — refresh the session and restart from chunk zero.            |
+/// | `Backoff`   | Transient (`Unavailable` / `DeadlineExceeded` / `ResourceExhausted`) — sleep + restart.  |
+/// | `Terminal`  | Decode / decompress / non-retryable status — surface to caller.                          |
+#[cfg_attr(test, derive(Debug))]
+pub(crate) enum StreamingAttemptOutcome {
+    Done,
+    Refresh(crate::error::Error),
+    Backoff(crate::error::Error),
+    Terminal(crate::error::Error),
+}
+
+/// Classify the outcome of a single streaming-RPC attempt for the
+/// retry / refresh shell driven from the generated streaming endpoints.
+///
+/// Mirrors [`classify_attempt`] for the non-streaming path but resolves
+/// the refresh side-effect inline so the caller does not have to track
+/// `refreshed_already` in two places. Refresh budget is the same as the
+/// unary path: at most one refresh per call.
+///
+/// Upstream MDDS does not support mid-stream resume, so a successful
+/// refresh restarts the stream from chunk zero. Callers that drive the
+/// chunk handler must therefore tolerate seeing the first N chunks
+/// twice on a refresh; idempotent counters / accumulators are the
+/// expected handler shape.
+pub(crate) async fn classify_streaming_attempt(
+    session: &crate::auth::SessionToken,
+    snap: &crate::auth::session::SessionSnapshot,
+    refreshed_already: &mut bool,
+    endpoint: &'static str,
+    out: Result<(), crate::error::Error>,
+) -> StreamingAttemptOutcome {
+    match out {
+        Ok(()) => StreamingAttemptOutcome::Done,
+        Err(err) => match classify_error(&err) {
+            StatusClass::Transient => {
+                metrics::counter!(
+                    "thetadatadx.grpc.errors",
+                    "endpoint" => endpoint.to_string()
+                )
+                .increment(1);
+                StreamingAttemptOutcome::Backoff(err)
+            }
+            StatusClass::NeedsRefresh => {
+                if *refreshed_already {
+                    metrics::counter!(
+                        "thetadatadx.grpc.errors",
+                        "endpoint" => endpoint.to_string()
+                    )
+                    .increment(1);
+                    return StreamingAttemptOutcome::Terminal(err);
+                }
+                match session.refresh(snap).await {
+                    Ok(_new_snap) => {
+                        *refreshed_already = true;
+                        StreamingAttemptOutcome::Refresh(err)
+                    }
+                    Err(refresh_err) => StreamingAttemptOutcome::Terminal(refresh_err),
+                }
+            }
+            StatusClass::Terminal => {
+                metrics::counter!(
+                    "thetadatadx.grpc.errors",
+                    "endpoint" => endpoint.to_string()
+                )
+                .increment(1);
+                StreamingAttemptOutcome::Terminal(err)
+            }
+        },
+    }
+}
+
 /// Classify an [`Error`] for retry / refresh routing.
 ///
 /// `From<tonic::Status>` folds the tonic enum into
@@ -212,10 +292,24 @@ macro_rules! list_endpoint {
                             params: Some(proto::$query { $($field : $val),* }),
                         };
                         let attempt_result: Result<proto::DataTable, Error> = async {
-                            let stream = self.stub().$grpc(request).await
-                                .map_err(|e| -> Error { e.into() })?;
-                            self.collect_stream(stream.into_inner()).await
-                        }.await;
+                            // Bind the lease to a local so it lives
+                            // across the await — the pre-dispatch
+                            // reservation must outlive `server_streaming`
+                            // for the picker fix (Finding 4) to count
+                            // pending opens correctly under burst
+                            // contention. Deref coercion from
+                            // `&ChannelLease` to `&Channel` satisfies
+                            // the generated stub signature.
+                            let lease = self.channel();
+                            let stream = $crate::proto::beta_theta_terminal::$grpc(
+                                &lease,
+                                request,
+                            )
+                            .await
+                            .map_err(|e| -> Error { e.into() })?;
+                            self.collect_stream(stream).await
+                        }
+                        .await;
                         match $crate::mdds::macros::classify_attempt(
                             self.session(),
                             &snap,
@@ -258,6 +352,10 @@ macro_rules! list_endpoint {
 /// # Example
 ///
 /// ```rust,ignore
+/// // `ignore` here because the macro example references a live
+/// // `client` value — there is no in-scope construction path for a
+/// // doc-test to spin up an authenticated `MddsClient` without
+/// // credentials.
 /// // Simple -- just .await the builder directly
 /// let ticks = client.stock_history_ohlc("AAPL", "20260401").await?;
 ///
@@ -280,6 +378,7 @@ macro_rules! parsed_endpoint {
         request: $req:ident;
         query: $query:ident { $($field:ident : $val:expr),* $(,)? };
         parse: $parser:expr;
+        item: $item:ty;
         $(dates: $($date_arg:ident),+ ;)?
         optional { $($opt_name:ident : $opt_kind:tt = $opt_default:expr),* $(,)? }
     ) => {
@@ -314,6 +413,139 @@ macro_rules! parsed_endpoint {
                 self.deadline = if duration.is_zero() { None } else { Some(duration) };
                 self
             }
+
+            /// Stream the response chunk-by-chunk via `handler`, never
+            /// materializing the full `Vec<T>`.
+            ///
+            /// Issue #565 OOM fix: the buffered `.await -> Vec<T>` path
+            /// holds three live copies (h2 frames + concatenated proto
+            /// payload + decoded `Vec<T>`) plus a `Vec::push` doubling
+            /// transient, yielding the 6× memory amplification the
+            /// production user reproduced on `option_history_quote`
+            /// with `interval=tick`, `strike_range=5`, 1DTE, 32-permit
+            /// concurrency (~23 GiB RSS). The `.stream()` variant
+            /// decodes one chunk at a time, hands the slice to
+            /// `handler`, then drops the chunk before the next is
+            /// fetched — bounded peak memory regardless of response
+            /// size.
+            ///
+            /// # Retry / refresh semantics
+            ///
+            /// Same shell as the buffered path: transient gRPC
+            /// statuses (`Unavailable`, `DeadlineExceeded`,
+            /// `ResourceExhausted`) trigger backoff + restart;
+            /// mid-stream `Unauthenticated` triggers one session
+            /// refresh then restart from chunk zero (upstream MDDS
+            /// has no resume token). Keep `handler` idempotent —
+            /// the first N chunks of a failed attempt are visible
+            /// to `handler` BEFORE the retry begins.
+            ///
+            /// Decode / decompress failures are terminal and surface
+            /// immediately without retry — the wire bytes won't fix
+            /// themselves on a re-attempt.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`Error`] if the gRPC call fails terminally or
+            /// response parsing fails. `Error::Timeout` on deadline
+            /// expiry. `Error::Decompress { kind: MessageTooLarge }`
+            /// when the channel's `max_message_size` ceiling rejects
+            /// an oversized chunk.
+            pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>
+            where
+                F: FnMut(&[$item]),
+            {
+                let $builder_name {
+                    client,
+                    $($req_arg,)*
+                    $($opt_name,)*
+                    deadline,
+                } = self;
+                let _ = &client;
+                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
+                    tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
+                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
+                    let _metrics_start = std::time::Instant::now();
+                    let _permit = client.request_semaphore.acquire().await
+                        .map_err(|_| Error::config_internal("request semaphore closed"))?;
+                    let policy = client.config().retry;
+                    let budget = policy.max_attempts.max(1);
+                    let mut refreshed_already = false;
+                    let mut last_err: Option<Error> = None;
+                    for attempt in 1..=budget {
+                        let snap = client.session().snapshot().await;
+                        let qi = client.build_query_info(snap.uuid.clone());
+                        let request = proto::$req {
+                            query_info: Some(qi),
+                            params: Some(proto::$query { $($field : $val),* }),
+                        };
+                        let attempt_result: Result<(), Error> = async {
+                            let lease = client.channel();
+                            let stream = $crate::proto::beta_theta_terminal::$grpc(
+                                &lease,
+                                request,
+                            )
+                            .await
+                            .map_err(|e| -> Error { e.into() })?;
+                            // Strict decode: a parse error inside a
+                            // chunk is captured here and surfaced
+                            // after `for_each_chunk` returns. The
+                            // `for_each_chunk` closure cannot
+                            // propagate Result, so the short-circuit
+                            // is via the captured `Option<Error>`.
+                            let mut decode_error: Option<Error> = None;
+                            let drain_result = client.for_each_chunk(stream, |_headers, rows| {
+                                if decode_error.is_some() {
+                                    return;
+                                }
+                                let chunk_table = proto::DataTable {
+                                    headers: _headers.to_vec(),
+                                    data_table: rows.to_vec(),
+                                };
+                                match $parser(&chunk_table) {
+                                    Ok(ticks) => handler(&ticks),
+                                    Err(e) => decode_error = Some(Error::from(e)),
+                                }
+                            }).await;
+                            drain_result.and_then(|()| match decode_error {
+                                Some(e) => Err(e),
+                                None => Ok(()),
+                            })
+                        }.await;
+                        match $crate::mdds::macros::classify_streaming_attempt(
+                            client.session(),
+                            &snap,
+                            &mut refreshed_already,
+                            stringify!($name),
+                            attempt_result,
+                        ).await {
+                            $crate::mdds::macros::StreamingAttemptOutcome::Done => {
+                                metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
+                                    .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
+                                return Ok::<(), Error>(());
+                            }
+                            $crate::mdds::macros::StreamingAttemptOutcome::Terminal(err) => {
+                                return Err::<(), Error>(err);
+                            }
+                            $crate::mdds::macros::StreamingAttemptOutcome::Refresh(err) => {
+                                tracing::warn!(endpoint = stringify!($name), attempt, error = %err, "session refresh during stream — restarting from chunk zero");
+                                last_err = Some(err);
+                            }
+                            $crate::mdds::macros::StreamingAttemptOutcome::Backoff(err) => {
+                                if attempt == budget {
+                                    last_err = Some(err);
+                                    break;
+                                }
+                                $crate::mdds::macros::sleep_for_retry(&policy, attempt, stringify!($name), &err).await;
+                                last_err = Some(err);
+                            }
+                        }
+                    }
+                    Err::<(), Error>(last_err.unwrap_or_else(|| Error::config_internal("streaming retry loop exited without result")))
+                }).await
+            }
+
         }
 
         impl<'a> IntoFuture for $builder_name<'a> {
@@ -349,10 +581,23 @@ macro_rules! parsed_endpoint {
                                     params: Some(proto::$query { $($field : $val),* }),
                                 };
                                 let attempt_result: Result<proto::DataTable, Error> = async {
-                                    let stream = client.stub().$grpc(request).await
-                                        .map_err(|e| -> Error { e.into() })?;
-                                    client.collect_stream(stream.into_inner()).await
-                                }.await;
+                                    // Bind the lease to a local so it
+                                    // lives across the await — see the
+                                    // sibling macro arm above for the
+                                    // full rationale. Deref coercion
+                                    // from `&ChannelLease` to `&Channel`
+                                    // satisfies the generated stub
+                                    // signature.
+                                    let lease = client.channel();
+                                    let stream = $crate::proto::beta_theta_terminal::$grpc(
+                                        &lease,
+                                        request,
+                                    )
+                                    .await
+                                    .map_err(|e| -> Error { e.into() })?;
+                                    client.collect_stream(stream).await
+                                }
+                                .await;
                                 match $crate::mdds::macros::classify_attempt(
                                     client.session(),
                                     &snap,
@@ -531,12 +776,186 @@ mod classify_error_tests {
     #[test]
     fn non_grpc_errors_are_terminal() {
         assert_eq!(
-            classify_error(&Error::config_other("bad config")),
+            classify_error(&Error::config_invalid("mdds.endpoint", "bad config")),
             StatusClass::Terminal
         );
         assert_eq!(
             classify_error(&Error::decode_codec("parse fail")),
             StatusClass::Terminal
         );
+    }
+}
+
+#[cfg(test)]
+mod streaming_attempt_tests {
+    //! Outcome routing for the streaming retry / refresh shell driven by
+    //! the generated streaming endpoints. The classifier is the seam the
+    //! generator hooks into — these tests pin its behaviour so a future
+    //! refactor of the generated code cannot accidentally re-introduce
+    //! the silent-fail-on-mid-stream-Unauthenticated regression.
+    use super::{classify_streaming_attempt, StreamingAttemptOutcome};
+    use crate::auth::session::{SessionSnapshot, SessionToken};
+    use crate::auth::Credentials;
+    use crate::error::{Error, GrpcStatusKind};
+
+    fn fake_token(uuid: &str) -> SessionToken {
+        SessionToken::new(
+            uuid.to_string(),
+            "https://nexus.example.invalid/auth".to_string(),
+            Credentials::new("user@example.com", "hunter2"),
+        )
+    }
+
+    fn grpc(kind: GrpcStatusKind) -> Error {
+        Error::Grpc {
+            kind,
+            message: String::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn ok_attempt_yields_done() {
+        let session = fake_token("v0");
+        let snap = SessionSnapshot {
+            uuid: "v0".to_string(),
+            version: 0,
+        };
+        let mut refreshed = false;
+        let out = classify_streaming_attempt(
+            &session,
+            &snap,
+            &mut refreshed,
+            "test_stream_endpoint",
+            Ok::<(), Error>(()),
+        )
+        .await;
+        assert!(matches!(out, StreamingAttemptOutcome::Done));
+        assert!(!refreshed, "Done path must not consume refresh budget");
+    }
+
+    #[tokio::test]
+    async fn transient_status_routes_to_backoff() {
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        let mut refreshed = false;
+        for kind in [
+            GrpcStatusKind::Unavailable,
+            GrpcStatusKind::DeadlineExceeded,
+            GrpcStatusKind::ResourceExhausted,
+        ] {
+            let out = classify_streaming_attempt(
+                &session,
+                &snap,
+                &mut refreshed,
+                "test_stream_endpoint",
+                Err::<(), Error>(grpc(kind)),
+            )
+            .await;
+            assert!(
+                matches!(out, StreamingAttemptOutcome::Backoff(_)),
+                "transient kind {kind:?} should route to Backoff"
+            );
+        }
+        assert!(
+            !refreshed,
+            "Backoff path must not consume the refresh budget"
+        );
+    }
+
+    #[tokio::test]
+    async fn unauthenticated_exhausted_budget_routes_to_terminal() {
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        let mut refreshed = true; // budget already consumed by a prior attempt
+        let out = classify_streaming_attempt(
+            &session,
+            &snap,
+            &mut refreshed,
+            "test_stream_endpoint",
+            Err::<(), Error>(grpc(GrpcStatusKind::Unauthenticated)),
+        )
+        .await;
+        match out {
+            StreamingAttemptOutcome::Terminal(err) => match err {
+                Error::Grpc {
+                    kind: GrpcStatusKind::Unauthenticated,
+                    ..
+                } => {}
+                other => panic!("expected Unauthenticated, got {other:?}"),
+            },
+            other => panic!("expected Terminal after refresh budget exhausted, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn unauthenticated_with_failed_refresh_routes_to_terminal() {
+        // Refresh attempt hits the unreachable Nexus URL — the classifier
+        // must surface the refresh error as terminal rather than silently
+        // pretending a refresh happened. The `refreshed_already` flag
+        // must NOT flip when the refresh failed.
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        let mut refreshed = false;
+        let out = classify_streaming_attempt(
+            &session,
+            &snap,
+            &mut refreshed,
+            "test_stream_endpoint",
+            Err::<(), Error>(grpc(GrpcStatusKind::Unauthenticated)),
+        )
+        .await;
+        assert!(
+            matches!(out, StreamingAttemptOutcome::Terminal(_)),
+            "failed refresh must terminate"
+        );
+        assert!(
+            !refreshed,
+            "refresh budget must NOT flip when the refresh round-trip itself failed"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_retryable_status_routes_to_terminal() {
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        let mut refreshed = false;
+        for kind in [
+            GrpcStatusKind::PermissionDenied,
+            GrpcStatusKind::NotFound,
+            GrpcStatusKind::InvalidArgument,
+        ] {
+            let out = classify_streaming_attempt(
+                &session,
+                &snap,
+                &mut refreshed,
+                "test_stream_endpoint",
+                Err::<(), Error>(grpc(kind)),
+            )
+            .await;
+            assert!(
+                matches!(out, StreamingAttemptOutcome::Terminal(_)),
+                "kind {kind:?} should route to Terminal"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn decode_failure_routes_to_terminal() {
+        // Decode and decompress errors are payload-shape failures — they
+        // cannot fix themselves on retry, so the streaming shell must
+        // surface them immediately without backoff or refresh.
+        let session = fake_token("v0");
+        let snap = session.snapshot().await;
+        let mut refreshed = false;
+        let out = classify_streaming_attempt(
+            &session,
+            &snap,
+            &mut refreshed,
+            "test_stream_endpoint",
+            Err::<(), Error>(Error::decode_codec("cell type mismatch")),
+        )
+        .await;
+        assert!(matches!(out, StreamingAttemptOutcome::Terminal(_)));
+        assert!(!refreshed, "decode terminal must not touch refresh budget");
     }
 }
