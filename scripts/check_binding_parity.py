@@ -35,7 +35,7 @@ CPP_HEADER = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadx.hpp"
 
 PYCLASS_RE = re.compile(
     r"#\[pyclass(?:\(([^)]*)\))?\][^{]*?"
-    r"(?:pub(?:\(crate\))?\s+)?struct\s+(\w+)",
+    r"(?:pub(?:\(crate\))?\s+)?(?:struct|enum)\s+(\w+)",
     re.MULTILINE | re.DOTALL,
 )
 NAME_ATTR_RE = re.compile(r'name\s*=\s*"([^"]+)"')
