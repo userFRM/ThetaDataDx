@@ -24,9 +24,9 @@
 //! NBBO layout (`ms_of_day, bid_size, bid, ask_size, ask, date`) is
 //! served verbatim by the patched Terminal on REST for 2022-era rows;
 //! when the four exchange / condition columns are absent from the
-//! header, [`Table::column_index`] returns `None` and downstream row
-//! decoders default the absent fields to 0 -- the same contract as the
-//! gRPC path's `opt_number(row, None) -> 0` arm (see
+//! header, the table's `column_index` lookup returns `None` and the
+//! downstream row decoders default the absent fields to 0 -- the same
+//! contract as the gRPC path's `opt_number(row, None) -> 0` arm (see
 //! `crates/thetadatadx/build_support/ticks/parser.rs`).
 
 use super::error::RestError;

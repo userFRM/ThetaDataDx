@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- REST transport + `FallbackPolicy` for h2-cascading endpoints
+  (#571). See [legacy-quote-handling](legacy-quote-handling.md)
+  for the full incident write-up and the policy table. The new
+  `crate::rest::RestClient` talks HTTP/1.1 to the local Terminal's
+  `/v3/...` paths, sidestepping the upstream Java
+  `IllegalArgumentException` that cascades the h2 stream on
+  pre-extension 6-field NBBO rows from 2022-era options storage.
+  Four endpoints from the failure matrix are wired:
+  `option_history_quote`,
+  `option_history_trade_quote`,
+  `option_history_greeks_implied_volatility`,
+  `option_history_greeks_first_order`. New `FallbackPolicy` enum
+  (`Disabled` / `RestOnH2Disconnect` /
+  `RestAlwaysForDateRange { before }` / `RestAlways`) drives
+  auto-routing on the new `option_history_quote_with_fallback` /
+  `option_history_trade_quote_with_fallback` shim methods on
+  `ThetaDataDxClient`. Default is `Disabled` -- opt in via
+  `DirectConfig::with_rest_fallback`.
+
+- `local-terminal-patcher` CLI for the server-side path (#571).
+  Rewrites the local Terminal's inner library jar to tolerate the
+  6-field NBBO rows on the gRPC path. See
+  [legacy-quote-handling](legacy-quote-handling.md) for the
+  recipe.
+
 - Universal `.stream(handler)` method on every historical builder
   (#565). The buffered `.await -> Vec<T>` path held three live
   copies (h2 frames + concatenated proto payload + decoded
