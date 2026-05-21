@@ -59,6 +59,11 @@ BLOCKED_FPSS_METHODS = (
     "reconnect",
     "streaming",
     "streaming_iter",
+    # P2 closure: `streaming_async()` is the asyncio-native FPSS surface
+    # added in PR #559; reaching it through `MddsClient` would open
+    # the FPSS slot via the hidden inner unified client, so it MUST
+    # raise `AttributeError` on the standalone MDDS handle.
+    "streaming_async",
     "is_streaming",
     "await_drain",
     "subscribe",
