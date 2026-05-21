@@ -44,6 +44,10 @@ pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> 
     out.push_str("    options: *const TdxEndpointRequestOptions,\n");
     out.push_str(") -> Result<(), String> {\n");
     out.push_str("    if options.is_null() {\n        return Ok(());\n    }\n\n");
+    out.push_str("    // SAFETY: options is non-null (checked above) and the caller is required\n");
+    out.push_str(
+        "    // to keep the TdxEndpointRequestOptions alive for the duration of this call.\n",
+    );
     out.push_str("    let options = unsafe { &*options };\n");
     for param in params {
         if !ffi_option_has_flag(param) {
@@ -176,6 +180,8 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("            set_error(&message);\n");
     out.push_str("            return empty;\n");
     out.push_str("        }\n\n");
+    out.push_str("        // SAFETY: client is a non-null pointer returned by tdx_client_new\n");
+    out.push_str("        // and not yet freed by the matching tdx_client_free.\n");
     out.push_str("        let client = unsafe { &*client };\n");
     out.push_str("        match runtime().block_on(async {\n");
     writeln!(

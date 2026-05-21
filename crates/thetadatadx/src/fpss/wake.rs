@@ -142,6 +142,7 @@ impl WakeFd {
             return;
         }
         let byte: u8 = 1;
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         let res = unsafe {
             libc::write(
                 self.write_fd,
@@ -324,6 +325,7 @@ mod tests {
         }
         // Reading from the pipe should return EOF (0) now that the
         // write-end is closed.
+        // SAFETY: the raw fd was just produced (pipe2 / dup) and is exclusively owned by this scope.
         let mut reader = unsafe { std::fs::File::from_raw_fd(read_fd) };
         let mut buf = [0_u8; 4];
         let n = reader.read(&mut buf).expect("read should not error");

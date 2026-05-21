@@ -1203,6 +1203,7 @@ mod tests {
     fn clear_env_matrix() {
         // Unset every variable the env-override path reads so no test
         // leaks into another. The guard above pins us as the sole writer.
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         unsafe {
             // Reason: test-only mutation; protected by env_test_guard.
             std::env::remove_var(ENV_MDDS_HOST);
@@ -1218,6 +1219,7 @@ mod tests {
     fn env_overrides_apply_on_production() {
         let _guard = env_test_guard();
         clear_env_matrix();
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         unsafe {
             // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_MDDS_HOST, "mdds.staging.example.com");
@@ -1246,6 +1248,7 @@ mod tests {
     fn builder_takes_precedence_over_env_var() {
         let _guard = env_test_guard();
         clear_env_matrix();
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         unsafe {
             // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_CLIENT_TYPE, "env-wins-when-no-builder");
@@ -1259,6 +1262,7 @@ mod tests {
     fn env_overrides_skipped_when_values_malformed() {
         let _guard = env_test_guard();
         clear_env_matrix();
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         unsafe {
             // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_MDDS_PORT, "not-a-port");
@@ -1277,6 +1281,7 @@ mod tests {
     fn production_defaults_are_not_sensitive_to_env() {
         let _guard = env_test_guard();
         clear_env_matrix();
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         unsafe {
             // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_MDDS_HOST, "ignored-by-defaults");

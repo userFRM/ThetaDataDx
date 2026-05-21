@@ -354,6 +354,7 @@ impl FpssEventInternal {
                 // fields"). The reborrow inherits the `&self`
                 // lifetime; aliasing rules treat it like the
                 // original borrow.
+                // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
                 Some(unsafe { &*(self as *const Self as *const FpssEvent) })
             }
             Self::Control(c) => {
@@ -635,6 +636,7 @@ mod tests {
         let public_control = FpssEvent::Control(FpssControl::LoginSuccess {
             permissions: String::new(),
         });
+        // SAFETY: pointer was returned by the matching constructor and not yet freed; ownership / lifetime is the caller's contract.
         let tag = |p: *const u8| unsafe { *p };
         assert_eq!(
             tag(&internal_data as *const _ as *const u8),

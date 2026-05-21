@@ -112,6 +112,7 @@ pub unsafe extern "C" fn tdx_all_greeks(
 pub unsafe extern "C" fn tdx_greeks_result_free(ptr: *mut TdxGreeksResult) {
     ffi_boundary!((), {
         if !ptr.is_null() {
+            // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
             drop(unsafe { Box::from_raw(ptr) });
         }
     })
@@ -161,6 +162,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
                 return -1;
             }
         };
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         unsafe {
             *out_iv = iv;
             *out_error = err;

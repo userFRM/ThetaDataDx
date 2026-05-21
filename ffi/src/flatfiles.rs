@@ -62,6 +62,7 @@ impl TdxFlatFileBytes {
 // ── Helpers ────────────────────────────────────────────────────────────
 
 unsafe fn parse_sec(raw: *const c_char) -> Result<SecType, String> {
+    // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
     let s = unsafe { cstr_to_str(raw) }
         .map_err(|e| format!("sec_type is not valid UTF-8: {e}"))?
         .ok_or_else(|| "sec_type is null".to_string())?;
@@ -76,6 +77,7 @@ unsafe fn parse_sec(raw: *const c_char) -> Result<SecType, String> {
 }
 
 unsafe fn parse_req(raw: *const c_char) -> Result<ReqType, String> {
+    // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
     let s = unsafe { cstr_to_str(raw) }
         .map_err(|e| format!("req_type is not valid UTF-8: {e}"))?
         .ok_or_else(|| "req_type is null".to_string())?;
@@ -93,6 +95,7 @@ unsafe fn parse_req(raw: *const c_char) -> Result<ReqType, String> {
 }
 
 unsafe fn parse_fmt(raw: *const c_char) -> Result<FlatFileFormat, String> {
+    // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
     let s = unsafe { cstr_to_str(raw) }
         .map_err(|e| format!("format is not valid UTF-8: {e}"))?
         .unwrap_or("csv");
@@ -124,6 +127,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_decoded(
             set_error("unified handle is null");
             return ptr::null_mut();
         }
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         let sec = match unsafe { parse_sec(sec_type) } {
             Ok(v) => v,
             Err(e) => {
@@ -131,6 +135,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_decoded(
                 return ptr::null_mut();
             }
         };
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         let req = match unsafe { parse_req(req_type) } {
             Ok(v) => v,
             Err(e) => {
@@ -138,6 +143,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_decoded(
                 return ptr::null_mut();
             }
         };
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
         let date_str = match unsafe { cstr_to_str(date) } {
             Ok(Some(s)) => s,
             Ok(None) => {
@@ -149,6 +155,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_decoded(
                 return ptr::null_mut();
             }
         };
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let unified = unsafe { &*handle };
         let res = runtime().block_on(unified.inner.flatfile_request_decoded(sec, req, date_str));
         match res {
@@ -168,6 +175,7 @@ pub unsafe extern "C" fn tdx_flatfile_rows_count(rowlist: *const TdxFlatFileRowL
         if rowlist.is_null() {
             return 0;
         }
+        // SAFETY: pointer was returned by the matching constructor and not yet freed; ownership / lifetime is the caller's contract.
         unsafe { (*rowlist).rows.len() }
     })
 }
@@ -194,6 +202,7 @@ pub unsafe extern "C" fn tdx_flatfile_rows_to_arrow_ipc(
                     len: 0,
                 };
             }
+            // SAFETY: pointer was returned by the matching constructor and not yet freed; ownership / lifetime is the caller's contract.
             let rows = unsafe { &(*rowlist).rows };
             let batch = match flatfiles::arrow::rows_to_arrow(rows) {
                 Ok(b) => b,
@@ -243,6 +252,7 @@ pub unsafe extern "C" fn tdx_flatfile_rows_to_arrow_ipc(
 pub unsafe extern "C" fn tdx_flatfile_bytes_free(bytes: TdxFlatFileBytes) {
     ffi_boundary!((), {
         if !bytes.data.is_null() && bytes.len > 0 {
+            // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
             let _ = unsafe {
                 Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                     bytes.data.cast_mut(),
@@ -258,6 +268,7 @@ pub unsafe extern "C" fn tdx_flatfile_bytes_free(bytes: TdxFlatFileBytes) {
 pub unsafe extern "C" fn tdx_flatfile_rowlist_free(rowlist: *mut TdxFlatFileRowList) {
     ffi_boundary!((), {
         if !rowlist.is_null() {
+            // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
             drop(unsafe { Box::from_raw(rowlist) });
         }
     })
@@ -280,6 +291,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_to_path(
             set_error("unified handle is null");
             return -1;
         }
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         let sec = match unsafe { parse_sec(sec_type) } {
             Ok(v) => v,
             Err(e) => {
@@ -287,6 +299,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_to_path(
                 return -1;
             }
         };
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         let req = match unsafe { parse_req(req_type) } {
             Ok(v) => v,
             Err(e) => {
@@ -294,6 +307,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_to_path(
                 return -1;
             }
         };
+        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
         let fmt = match unsafe { parse_fmt(format) } {
             Ok(v) => v,
             Err(e) => {
@@ -301,6 +315,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_to_path(
                 return -1;
             }
         };
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
         let date_str = match unsafe { cstr_to_str(date) } {
             Ok(Some(s)) => s,
             Ok(None) => {
@@ -312,6 +327,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_to_path(
                 return -1;
             }
         };
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
         let path_str = match unsafe { cstr_to_str(path) } {
             Ok(Some(s)) => s,
             Ok(None) => {
@@ -323,6 +339,7 @@ pub unsafe extern "C" fn tdx_flatfile_request_to_path(
                 return -1;
             }
         };
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let unified = unsafe { &*handle };
         match runtime().block_on(unified.inner.flatfile_request(
             sec,

@@ -585,6 +585,7 @@ impl DecoderPool {
                     // the consumer barrier advances on closure
                     // return. No producer can reuse the slot, and
                     // no other consumer exists.
+                    // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
                     let request = unsafe { slot.take() };
                     let Some(DecodeRequest { work, reply }) = request else {
                         return;

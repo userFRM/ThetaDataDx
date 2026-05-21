@@ -21,6 +21,7 @@ pub unsafe extern "C" fn tdx_credentials_new(
     password: *const c_char,
 ) -> *mut TdxCredentials {
     ffi_boundary!(ptr::null_mut(), {
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
         let email = match unsafe { cstr_to_str(email) } {
             Ok(Some(s)) => s,
             Ok(None) => {
@@ -32,6 +33,7 @@ pub unsafe extern "C" fn tdx_credentials_new(
                 return ptr::null_mut();
             }
         };
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
         let password = match unsafe { cstr_to_str(password) } {
             Ok(Some(s)) => s,
             Ok(None) => {
@@ -54,6 +56,7 @@ pub unsafe extern "C" fn tdx_credentials_new(
 #[no_mangle]
 pub unsafe extern "C" fn tdx_credentials_from_file(path: *const c_char) -> *mut TdxCredentials {
     ffi_boundary!(ptr::null_mut(), {
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
         let path = match unsafe { cstr_to_str(path) } {
             Ok(Some(s)) => s,
             Ok(None) => {
@@ -80,6 +83,7 @@ pub unsafe extern "C" fn tdx_credentials_from_file(path: *const c_char) -> *mut 
 pub unsafe extern "C" fn tdx_credentials_free(creds: *mut TdxCredentials) {
     ffi_boundary!((), {
         if !creds.is_null() {
+            // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
             drop(unsafe { Box::from_raw(creds) });
         }
     })
@@ -122,6 +126,7 @@ pub extern "C" fn tdx_config_stage() -> *mut TdxConfig {
 pub unsafe extern "C" fn tdx_config_free(config: *mut TdxConfig) {
     ffi_boundary!((), {
         if !config.is_null() {
+            // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
             drop(unsafe { Box::from_raw(config) });
         }
     })
@@ -137,6 +142,7 @@ pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode:
         if config.is_null() {
             return;
         }
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &mut *config };
         config.inner.fpss.flush_mode = match mode {
             1 => thetadatadx::FpssFlushMode::Immediate,
@@ -158,6 +164,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_policy(config: *mut TdxConfig,
         if config.is_null() {
             return;
         }
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &mut *config };
         config.inner.reconnect.policy = match policy {
             1 => thetadatadx::ReconnectPolicy::Manual,
@@ -178,6 +185,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_attempts(
         if config.is_null() {
             return;
         }
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &mut *config };
         if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
             limits.max_attempts = max_attempts;
@@ -197,6 +205,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_rate_limited_attempts(
         if config.is_null() {
             return;
         }
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &mut *config };
         if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
             limits.max_rate_limited_attempts = max_rate_limited_attempts;
@@ -216,6 +225,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_stable_window_secs(
         if config.is_null() {
             return;
         }
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &mut *config };
         if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
             limits.stable_window = std::time::Duration::from_secs(secs);
@@ -233,6 +243,7 @@ pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, en
         if config.is_null() {
             return;
         }
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &mut *config };
         config.inner.fpss.derive_ohlcvc = enabled != 0;
     })
@@ -257,7 +268,9 @@ pub unsafe extern "C" fn tdx_client_connect(
             set_error("config handle is null");
             return ptr::null_mut();
         }
+        // SAFETY: creds is a non-null pointer returned by tdx_credentials_new / tdx_credentials_from_file and not yet freed.
         let creds = unsafe { &*creds };
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
         match runtime().block_on(thetadatadx::mdds::MddsClient::connect(
             &creds.inner,
@@ -277,6 +290,7 @@ pub unsafe extern "C" fn tdx_client_connect(
 pub unsafe extern "C" fn tdx_client_free(client: *mut TdxClient) {
     ffi_boundary!((), {
         if !client.is_null() {
+            // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
             drop(unsafe { Box::from_raw(client) });
         }
     })
