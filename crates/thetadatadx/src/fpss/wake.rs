@@ -261,7 +261,13 @@ impl WakeFd {
     }
 }
 
-#[cfg(all(test, unix))]
+// `pipe2(2)` + `__errno_location` used by the test helper are
+// Linux-only libc symbols (macOS uses `pipe(2)` + `__error`). The
+// wake-coalesce logic the tests exercise is platform-agnostic, so
+// gating coverage to Linux is sufficient — the production path on
+// macOS uses the dedicated `streaming_async_session::alloc_wake_pipe`
+// fallback which already has its own coverage.
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
     use std::io::Read;

@@ -284,6 +284,9 @@ fn bench_concurrent_burst(c: &mut Criterion) {
     // lands at `$THETADATADX_FLAMEGRAPH_OUT` (defaulting to
     // `/tmp/grpc_burst_flame.svg`). The profiler uses SIGPROF
     // sampling — no perf / root required, no kernel privileges.
+    // `pprof` is Unix-only (POSIX signals + pthread types), so the
+    // hook is `#[cfg(unix)]`-gated and silently no-ops on Windows.
+    #[cfg(unix)]
     let profiler = if std::env::var_os("THETADATADX_FLAMEGRAPH").is_some() {
         Some(
             pprof::ProfilerGuardBuilder::default()
@@ -295,6 +298,8 @@ fn bench_concurrent_burst(c: &mut Criterion) {
     } else {
         None
     };
+    #[cfg(not(unix))]
+    let profiler: Option<()> = None;
 
     let mut group = c.benchmark_group("concurrent_burst");
     group.throughput(Throughput::Elements(BURST_SIZE as u64));
@@ -338,6 +343,7 @@ fn bench_concurrent_burst(c: &mut Criterion) {
     });
     group.finish();
 
+    #[cfg(unix)]
     if let Some(profiler) = profiler {
         let out = std::env::var("THETADATADX_FLAMEGRAPH_OUT")
             .unwrap_or_else(|_| "/tmp/grpc_burst_flame.svg".to_string());
@@ -355,6 +361,8 @@ fn bench_concurrent_burst(c: &mut Criterion) {
             Err(e) => eprintln!("pprof report build failed: {e}"),
         }
     }
+    #[cfg(not(unix))]
+    let _ = profiler;
 
     let alloc_end = alloc_snapshot();
     let iters_total = iterations.load(Ordering::Relaxed);
