@@ -61,6 +61,12 @@ typescript = false  # JS uses `[Symbol.asyncIterator]` directly on `EventIterato
 cpp = true          # exposed as `tdx::UnifiedFpssIterSession`
 
 [[class]]
+name = "StreamingAsyncSession"
+python = true
+typescript = false  # JS asyncio analogue is `[Symbol.asyncIterator]` on `EventIterator` + the async-IPC bridge below; no separate session class
+cpp = false         # C++ async surface deferred — RAII guard + sync iter cover the documented C++ idiom
+
+[[class]]
 name = "EventIterator"
 python = true
 typescript = true
@@ -71,6 +77,30 @@ name = "Contract"
 python = true
 typescript = true   # exposed as `ContractRef` (Contract aliased post-build)
 cpp = true          # exposed as `tdx::FluentContract`
+
+[[class]]
+name = "ContractRef"
+python = true
+typescript = true   # primary class name on TS side (Contract is the post-build alias)
+cpp = false         # C++ uses the C ABI `TdxContract` struct; no dedicated C++ class wrapper
+
+[[class]]
+name = "CalendarDay"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "NoDataFoundError"
+python = true
+typescript = false
+cpp = false         # C++ folds NoData into the generic `Error` class with `.kind == NoData`
+
+[[class]]
+name = "TimeoutError"
+python = true
+typescript = false
+cpp = false         # C++ folds Timeout into the generic `Error` class with `.kind == Timeout`
 
 [[class]]
 name = "Subscription"

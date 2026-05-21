@@ -47,7 +47,11 @@ thetadatadx\.ThetaDataDxClient\.__new__
 thetadatadx\.AsyncThetaDataDxClient\.__init__
 thetadatadx\.AsyncThetaDataDxClient\.__new__
 thetadatadx\.AsyncThetaDataDxClient\.__getattr__
-thetadatadx\.ThetaDataDxClient\.__getattr__
+# `ThetaDataDxClient.__getattr__` is intentionally NOT stubbed —
+# every public method on the unified client is hand-listed in the
+# .pyi so stubtest catches drift on the load-bearing pyclass (C6
+# closure). Generator-emitted historical builders reach the module
+# via the module-level `__getattr__` instead.
 thetadatadx\.FpssClient\.__init__
 thetadatadx\.FpssClient\.__new__
 thetadatadx\.MddsClient\.__init__
@@ -74,3 +78,20 @@ thetadatadx\.EventCallback
 # positional-but-stubbed-as-keyword variant as drift. Allow it: the
 # user-visible default is keyword-only, the runtime is permissive.
 thetadatadx\.Contract\.option
+
+# P4 closure: `FpssParseError` is the stub-side rename for the
+# FPSS-event payload class whose runtime name is `Error`. The
+# runtime exposes a single `Error` class (the typed FPSS-parse
+# error variant); the stub uses `FpssParseError` to avoid colliding
+# with the generic `Error` exception type that is also exposed as
+# `Error`. Both names point to the runtime class via the
+# module-level `__getattr__` fallback. The stubtest "not present at
+# runtime" diagnostic on `FpssParseError` is intentional — the
+# runtime exposes the variant under the `Error` symbol, not
+# `FpssParseError`.
+thetadatadx\.FpssParseError
+
+# `FpssEvent` is a type alias declared in the stub for
+# documentation purposes — it never appears at runtime (there is
+# no runtime use that needs it as a value).
+thetadatadx\.FpssEvent
