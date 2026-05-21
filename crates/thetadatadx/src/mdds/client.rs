@@ -326,16 +326,25 @@ async fn open_channel_pool(
 ) -> Result<ChannelPool, Error> {
     let connect_timeout = Duration::from_secs(config.mdds.connect_timeout_secs);
     let max_message_size = config.mdds.max_message_size;
+    // `rustls::ClientConfig` is designed for `Arc` sharing across
+    // connections — the root store + ALPN list are immutable after
+    // construction. Build once and clone the `Arc` into every
+    // channel in the pool rather than rebuilding the webpki roots
+    // and the cipher-suite tables on each iteration.
+    let tls_config = if tls {
+        Some(build_rustls_config()?)
+    } else {
+        None
+    };
     let mut channels = Vec::with_capacity(pool_size);
     for idx in 0..pool_size {
-        let channel = if tls {
-            let tls_config = build_rustls_config()?;
+        let channel = if let Some(tls_config) = tls_config.as_ref() {
             tokio::time::timeout(
                 connect_timeout,
                 Channel::connect_tls_with_max_message_size(
                     host,
                     port,
-                    tls_config,
+                    tls_config.clone(),
                     max_message_size,
                 ),
             )
