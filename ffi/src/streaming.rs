@@ -2197,6 +2197,11 @@ mod tests {
         // duration of the call and `ctx` is the pointer registered
         // alongside `capture_callback`.
         assert!(!event.is_null(), "FFI handed null event pointer");
+        // SAFETY: `ctx` was registered as a `&TestCtx` cast to
+        // `*mut c_void` two lines below in `tdx_unified_set_callback_ctx`
+        // and the `TestCtx` value outlives the call (held in a stack
+        // `Arc` for the duration of the test). Cast back to the
+        // originating type is sound.
         let ctx = unsafe { &*(ctx.cast::<TestCtx>()) };
         ctx.hits.fetch_add(1, Ordering::Relaxed);
         // Read the kind discriminant via a pointer cast to i32. The

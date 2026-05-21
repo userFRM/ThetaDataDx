@@ -268,6 +268,10 @@ mod tests {
         let mut fds = [0_i32; 2];
         // SAFETY: `pipe2` writes two file descriptors into `fds`.
         let rc = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_NONBLOCK | libc::O_CLOEXEC) };
+        // SAFETY: `libc::__errno_location` returns a per-thread non-null
+        // pointer guaranteed by glibc / musl; the deref reads the current
+        // thread's errno slot and is sound on any platform with a POSIX C
+        // runtime.
         assert_eq!(rc, 0, "pipe2 failed: errno={}", unsafe {
             *libc::__errno_location()
         });

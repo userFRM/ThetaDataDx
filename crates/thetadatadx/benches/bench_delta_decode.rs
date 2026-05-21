@@ -41,6 +41,11 @@ struct CountingAllocator;
 static BYTES_ALLOCATED: AtomicU64 = AtomicU64::new(0);
 static ALLOC_COUNT: AtomicU64 = AtomicU64::new(0);
 
+// SAFETY: every method forwards verbatim to `std::alloc::System`, which
+// itself satisfies the `GlobalAlloc` contract. Per-call `Relaxed` adds on
+// `AtomicU64` are pure observational state and cannot violate the
+// allocator's invariants. Bench-only; never linked into the shipped
+// library.
 unsafe impl GlobalAlloc for CountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         // SAFETY: forwarding to the system allocator under the same

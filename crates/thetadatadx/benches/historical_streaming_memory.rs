@@ -43,6 +43,12 @@ static BYTES_ALLOCATED: AtomicU64 = AtomicU64::new(0);
 static BYTES_DEALLOCATED: AtomicU64 = AtomicU64::new(0);
 static MAX_LIVE_BYTES: AtomicU64 = AtomicU64::new(0);
 
+// SAFETY: every method forwards verbatim to `std::alloc::System`, which
+// itself satisfies the `GlobalAlloc` contract (ptr provenance, layout
+// honoured on dealloc, no over-aligned over-promises). The atomic counters
+// are pure observational state — `Relaxed` adds on `AtomicU64` cannot
+// violate alloc semantics. Bench-only allocator; never linked into the
+// shipped library.
 unsafe impl GlobalAlloc for CountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         // SAFETY: forwarding to the system allocator under the same
