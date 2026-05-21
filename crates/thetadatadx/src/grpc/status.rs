@@ -81,7 +81,11 @@ impl std::fmt::Display for Status {
 }
 
 /// Errors raised by [`Status::from_trailers`].
+///
+/// `#[non_exhaustive]` so downstream `match` arms must include a
+/// wildcard; new variants land without breaking semver.
 #[derive(Debug, Error, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StatusParseError {
     /// `grpc-status` trailer was absent entirely. Per the gRPC HTTP/2
     /// spec every response must carry one; its absence is a wire-level

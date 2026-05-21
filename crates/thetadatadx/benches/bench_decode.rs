@@ -214,7 +214,7 @@ fn bench_decode_zstd_small(c: &mut Criterion) {
     let response = build_zstd_response(&table);
     c.bench_function("decode_zstd_small", |b| {
         b.iter(|| {
-            black_box(decompress_response(black_box(&response)).unwrap());
+            black_box(decompress_response(black_box(&response), usize::MAX).unwrap());
         });
     });
 }
@@ -225,7 +225,7 @@ fn bench_decode_zstd_large(c: &mut Criterion) {
     let response = build_zstd_response(&table);
     c.bench_function("decode_zstd_large", |b| {
         b.iter(|| {
-            black_box(decompress_response(black_box(&response)).unwrap());
+            black_box(decompress_response(black_box(&response), usize::MAX).unwrap());
         });
     });
 }
@@ -235,7 +235,7 @@ fn bench_decode_data_table_10_rows(c: &mut Criterion) {
     let response = build_uncompressed_response(&table);
     c.bench_function("decode_data_table_10_rows", |b| {
         b.iter(|| {
-            black_box(decode_data_table(black_box(&response)).unwrap());
+            black_box(decode_data_table(black_box(&response), usize::MAX).unwrap());
         });
     });
 }
@@ -245,7 +245,7 @@ fn bench_decode_data_table_1000_rows(c: &mut Criterion) {
     let response = build_uncompressed_response(&table);
     c.bench_function("decode_data_table_1000_rows", |b| {
         b.iter(|| {
-            black_box(decode_data_table(black_box(&response)).unwrap());
+            black_box(decode_data_table(black_box(&response), usize::MAX).unwrap());
         });
     });
 }

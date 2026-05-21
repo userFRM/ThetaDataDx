@@ -42,7 +42,11 @@ const TE_TRAILERS: &str = "trailers";
 const USER_AGENT_PREFIX: &str = "thetadatadx-grpc";
 
 /// Errors raised by [`Channel`] construction and RPC dispatch.
+///
+/// `#[non_exhaustive]` so downstream `match` arms must include a
+/// wildcard; new variants land without breaking semver.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ChannelError {
     /// Underlying TCP connect failed.
     #[error("tcp connect to {host}:{port}: {source}")]

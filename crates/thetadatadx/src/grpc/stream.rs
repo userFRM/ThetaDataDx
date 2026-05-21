@@ -185,6 +185,16 @@ where
         self.decoder.as_ref()
     }
 
+    /// Per-frame ceiling configured on this stream's codec. Mirrors
+    /// `DirectConfig::mdds.max_message_size` and is propagated to the
+    /// decompression layer so a hostile `ResponseData.original_size`
+    /// cannot trigger a runaway allocation past this bound (see
+    /// [`crate::mdds::decode::decompress_response`]).
+    #[must_use]
+    pub fn max_message_size(&self) -> usize {
+        self.codec.max_message_size()
+    }
+
     /// Build a stream that immediately yields `Ok(None)`. Used when the
     /// server emitted a trailers-only OK response (status=0 on the
     /// initial HEADERS frame, no DATA frames, no trailing HEADERS
