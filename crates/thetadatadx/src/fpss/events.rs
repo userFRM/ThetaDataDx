@@ -380,6 +380,66 @@ impl From<FpssEvent> for FpssEventInternal {
 }
 
 // ---------------------------------------------------------------------------
+// BackpressurePolicy — overflow strategy for the pull-iter queue
+// ---------------------------------------------------------------------------
+
+/// Producer-side strategy when the [`Delivery::Queue`] ring saturates.
+///
+/// Pull-iter delivery routes events through a bounded
+/// [`crossbeam_queue::ArrayQueue`] shared with an [`super::EventIterator`].
+/// When the iterator falls behind, the queue fills. This enum tells the
+/// Disruptor consumer thread how to react.
+///
+/// Default is [`Self::Block`] — preserves every event at the cost of
+/// upstream backpressure into the TLS reader (which can ultimately get
+/// disconnected by the server if the wait runs long). Trading
+/// systems that cannot tolerate dropped ticks should hold the default;
+/// dashboards and cold-consumer tooling that prefer freshness over
+/// completeness should explicitly opt into [`Self::DropOldest`] or
+/// [`Self::DropNewest`].
+///
+/// Mirrors the standard Kafka client `acks` axis (BLOCK / DROP_OLDEST /
+/// DROP_NEWEST) and Bloomberg BLPAPI `eventQueue` overflow modes — same
+/// operator vocabulary across vendors so users coming from kdb+/kx or
+/// BLPAPI carry their mental model over without translation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BackpressurePolicy {
+    /// The Disruptor consumer parks (with backoff) on a full queue
+    /// until the iterator drains. No events are dropped; the TLS
+    /// reader applies upstream backpressure because the Disruptor
+    /// ring saturates next and `try_publish` starts incrementing the
+    /// `dropped` counter.
+    ///
+    /// This is the safe default — every event the SDK decoded is
+    /// guaranteed to reach the iterator. A sustained slow consumer
+    /// risks the server kicking the session
+    /// (`RemoveReason::TimedOut`) because the TCP read window stops
+    /// advancing, which is the correct failure mode for a
+    /// configuration that has explicitly asked for no drops.
+    #[default]
+    Block,
+    /// Evict the head of the queue before pushing the new event. The
+    /// freshest events stay; the stalest events are dropped. The
+    /// shared [`super::FpssClient::dropped_count`] counter still
+    /// increments per evicted event so operators can graph the drop
+    /// rate.
+    ///
+    /// Recommended for dashboards and visualisers where the user
+    /// cares about "what is the market doing right now" and tolerates
+    /// gaps in stale history.
+    DropOldest,
+    /// Skip the new event when the queue is full. The events already
+    /// in flight are preserved; the new event is dropped, and the
+    /// shared `dropped` counter increments.
+    ///
+    /// Equivalent to the legacy pre-v10.1 behaviour (silent
+    /// best-effort delivery). Recommended when downstream processing
+    /// is strictly causal — once an event is enqueued you want to
+    /// finish processing it before considering a newer one.
+    DropNewest,
+}
+
+// ---------------------------------------------------------------------------
 // Delivery — push (callback) vs pull (iterator queue) selection
 // ---------------------------------------------------------------------------
 
@@ -450,6 +510,19 @@ pub(crate) enum Delivery {
         /// optional preserves zero-cost on the existing sync path —
         /// no atomic load, no FD write, no extra Arc clone.
         wake_fd: Option<std::sync::Arc<super::wake::WakeFd>>,
+        /// Overflow strategy. See [`BackpressurePolicy`]. The default
+        /// [`BackpressurePolicy::Block`] preserves every event at the
+        /// cost of upstream pressure into the TLS reader; the
+        /// `DropOldest` / `DropNewest` variants trade event-loss for
+        /// liveness.
+        ///
+        /// The sync pull-iter path
+        /// ([`super::FpssClient::connect_iter`]) hard-codes
+        /// `DropNewest` to preserve legacy behaviour. The async
+        /// surfaces (`streaming_async()`,
+        /// `streaming_async_batches()`) thread the policy through via
+        /// [`super::FpssClient::connect_iter_with_wake_keep_handle_policy`].
+        policy: BackpressurePolicy,
     },
 }
 
@@ -472,6 +545,33 @@ pub(super) enum IoCommand {
 mod tests {
     use super::*;
     use tdbe::types::price::Price;
+
+    /// The default [`BackpressurePolicy`] must be `Block` — the safe
+    /// option that preserves every event. A future contributor
+    /// flipping the default would silently introduce drop-on-overflow
+    /// on every caller of the pull-iter surfaces; pin the contract.
+    #[test]
+    fn backpressure_policy_default_is_block() {
+        assert_eq!(BackpressurePolicy::default(), BackpressurePolicy::Block);
+    }
+
+    /// All three [`BackpressurePolicy`] variants must be distinct,
+    /// Copy, and Eq so callers can store the policy in a `#[pyclass]`
+    /// field without an `Arc` wrapper and compare it cheaply in the
+    /// io_loop hot path's `match`.
+    #[test]
+    fn backpressure_policy_variants_are_distinct() {
+        let block = BackpressurePolicy::Block;
+        let drop_oldest = BackpressurePolicy::DropOldest;
+        let drop_newest = BackpressurePolicy::DropNewest;
+        assert_ne!(block, drop_oldest);
+        assert_ne!(block, drop_newest);
+        assert_ne!(drop_oldest, drop_newest);
+        // Copy: bind through fresh `let`s.
+        let _copy: BackpressurePolicy = block;
+        let _copy: BackpressurePolicy = drop_oldest;
+        let _copy: BackpressurePolicy = drop_newest;
+    }
 
     /// Pin the layout-compatibility invariant
     /// `FpssEventInternal::as_public` relies on. Any future change that
