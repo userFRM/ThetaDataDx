@@ -1,45 +1,45 @@
 {
     "_meta": {
-        "comment": "Gate 10 (#553) baseline. C10 closure: FPSS event benches (FpssEvent__clone/{Quote,Trade,Ohlcvc} and FpssEvent__match/{Quote,Trade,Ohlcvc}) are now included in the gated set so a regression on the streaming hot path's per-event cost fails CI rather than silently landing. Threshold was tightened from 100% to 25% on the same PR — see ci.yml. Sample p50s were captured on a developer workstation; the first green-main run will refresh them against the GH-hosted runner perf profile via a single-sample bench job, and the refreshed JSON lands in its own PR per the gate workflow. The `_meta` key is ignored by `scripts/check_bench_regression.py` because the loader explicitly extracts `criterion_path` + `p50_ns` and treats malformed entries as skip."
+        "comment": "Gate 10 (#553) baseline. C10 closure: refreshed against GitHub-hosted runner perf profile on PR #566 (2026-05-21). The previous baseline was captured on a developer workstation and over-tightened the threshold to 25% — observed CI deltas of +24-52% were the local↔CI runner spread, not a real regression. The p50s below were sampled on GH-hosted Ubuntu via the bench job; the gate threshold stays at 25% so a real regression past this calibrated baseline trips CI. FPSS event benches (FpssEvent::clone/{Quote,Trade,Ohlcvc} + FpssEvent::match/{Quote,Trade,Ohlcvc}) are included in the gated set per the audit closure. The `_meta` key is ignored by `scripts/check_bench_regression.py` because the loader explicitly extracts `criterion_path` + `p50_ns` and treats malformed entries as skip."
     },
     "stock_list_symbols/in_house": {
-        "p50_ns": 115997.0,
+        "p50_ns": 148653.7,
         "criterion_path": "stock_list_symbols/in_house"
     },
     "streaming_channels/direct_callback/100k_events": {
-        "p50_ns": 530467.0,
+        "p50_ns": 807151.3,
         "criterion_path": "streaming_channels_direct_callback/100k_events"
     },
     "streaming_channels/disruptor_consumer_panic_isolated/100k_events": {
-        "p50_ns": 1484906.0,
+        "p50_ns": 2116315.6,
         "criterion_path": "streaming_channels_disruptor_consumer_panic_isolated/100k_events"
     },
     "streaming_channels/disruptor_cross_thread/100k_events": {
-        "p50_ns": 1608503.0,
+        "p50_ns": 2151760.2,
         "criterion_path": "streaming_channels_disruptor_cross_thread/100k_events"
     },
     "FpssEvent::clone/Quote": {
-        "p50_ns": 17.5,
+        "p50_ns": 21.9,
         "criterion_path": "FpssEvent__clone/Quote"
     },
     "FpssEvent::clone/Trade": {
-        "p50_ns": 20.1,
+        "p50_ns": 26.5,
         "criterion_path": "FpssEvent__clone/Trade"
     },
     "FpssEvent::clone/Ohlcvc": {
-        "p50_ns": 17.7,
+        "p50_ns": 21.9,
         "criterion_path": "FpssEvent__clone/Ohlcvc"
     },
     "FpssEvent::match/Quote": {
-        "p50_ns": 0.86,
+        "p50_ns": 1.2,
         "criterion_path": "FpssEvent__match/Quote"
     },
     "FpssEvent::match/Trade": {
-        "p50_ns": 0.94,
+        "p50_ns": 1.0,
         "criterion_path": "FpssEvent__match/Trade"
     },
     "FpssEvent::match/Ohlcvc": {
-        "p50_ns": 0.96,
+        "p50_ns": 1.0,
         "criterion_path": "FpssEvent__match/Ohlcvc"
     }
 }
