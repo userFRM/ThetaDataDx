@@ -503,7 +503,12 @@ class ThetaDataDxClient:
     # Context managers.
     def streaming(self, callback: EventCallback) -> StreamingSession: ...
     def streaming_iter(self) -> StreamingIterSession: ...
-    def streaming_async(self) -> StreamingAsyncSession: ...
+    def streaming_async(
+        self,
+        *,
+        max_queue_depth: int = 4096,
+        backpressure: BackpressurePolicy = ...,
+    ) -> StreamingAsyncSession: ...
 
     # FLATFILES namespace getter.
     @property
@@ -583,7 +588,12 @@ class FpssClient:
 
     def streaming(self, callback: EventCallback) -> StreamingSession: ...
     def streaming_iter(self) -> StreamingIterSession: ...
-    def streaming_async(self) -> StreamingAsyncSession: ...
+    def streaming_async(
+        self,
+        *,
+        max_queue_depth: int = 4096,
+        backpressure: BackpressurePolicy = ...,
+    ) -> StreamingAsyncSession: ...
 
     def __repr__(self) -> str: ...
 
@@ -770,6 +780,39 @@ class StreamingAsyncSession:
     # Diagnostic — instantaneous queue depth between the Disruptor
     # consumer and this session.
     def queue_len(self) -> int: ...
+    def queue_depth(self) -> int: ...
+    def dropped_event_count(self) -> int: ...
+
+    # Echoed-back configuration.
+    @property
+    def max_queue_depth(self) -> int: ...
+    @property
+    def backpressure(self) -> BackpressurePolicy: ...
+
+
+@final
+class BackpressurePolicy:
+    """Producer-side overflow strategy on the pull-iter queue.
+
+    Mirrors the core ``thetadatadx::fpss::BackpressurePolicy`` enum.
+    Pass one of the variants as the ``backpressure`` kwarg on
+    ``streaming_async(...)``.
+
+    * ``Block`` — preserve every event; producer parks when the queue
+      saturates. Default.
+    * ``DropOldest`` — evict queue head on full insert; preserve
+      recency. Increments ``dropped_event_count`` per eviction.
+    * ``DropNewest`` — skip new event on full insert; preserve
+      in-flight history. Increments ``dropped_event_count`` per skip.
+    """
+
+    Block: BackpressurePolicy
+    DropOldest: BackpressurePolicy
+    DropNewest: BackpressurePolicy
+
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 
 # ─────────────────────────────────────────────────────────────────────

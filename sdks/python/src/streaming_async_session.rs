@@ -50,6 +50,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 
 use thetadatadx::fpss::wake::WakeFd;
+use thetadatadx::fpss::BackpressurePolicy as RustBackpressurePolicy;
 use thetadatadx::{EventIterator as RustEventIterator, NextEvent};
 
 use crate::buffered_event_to_typed;
@@ -61,6 +62,65 @@ use crate::fpss_event_to_buffered;
 /// `StreamingSession` / `StreamingIterSession` so the three context
 /// managers' teardown behaviour stays uniform.
 const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
+
+/// Producer-side overflow policy on the pull-iter queue between the
+/// Disruptor consumer and an asyncio reader.
+///
+/// Mirrors [`thetadatadx::fpss::BackpressurePolicy`] one-for-one. The
+/// Python-facing enum is `frozen` + `eq` + `eq_int` so callers can
+/// pass either a member (`BackpressurePolicy.Block`) or compare against
+/// an int via the canonical discriminant.
+///
+/// See the core type's docs for the trade-off matrix — Block preserves
+/// every event at the cost of upstream pressure; DropOldest evicts the
+/// stalest events; DropNewest skips on full (legacy behaviour).
+#[pyclass(
+    module = "thetadatadx",
+    name = "BackpressurePolicy",
+    eq,
+    eq_int,
+    frozen,
+    from_py_object
+)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum BackpressurePolicy {
+    /// Block the producer; preserves every event.
+    Block,
+    /// Evict the queue head on full; preserves recency.
+    DropOldest,
+    /// Skip the new event on full; preserves history.
+    DropNewest,
+}
+
+#[pymethods]
+impl BackpressurePolicy {
+    fn __repr__(&self) -> &'static str {
+        match self {
+            Self::Block => "BackpressurePolicy.Block",
+            Self::DropOldest => "BackpressurePolicy.DropOldest",
+            Self::DropNewest => "BackpressurePolicy.DropNewest",
+        }
+    }
+}
+
+impl BackpressurePolicy {
+    /// Lower into the Rust core's [`thetadatadx::fpss::BackpressurePolicy`].
+    /// Single source of truth so the Python enum cannot drift from
+    /// the core variants.
+    pub(crate) fn to_core(self) -> RustBackpressurePolicy {
+        match self {
+            Self::Block => RustBackpressurePolicy::Block,
+            Self::DropOldest => RustBackpressurePolicy::DropOldest,
+            Self::DropNewest => RustBackpressurePolicy::DropNewest,
+        }
+    }
+}
+
+/// Default `max_queue_depth` for the async pull-iter surfaces when the
+/// caller does not override. Matches the existing `FpssConfig.ring_size`
+/// default of 4096 — keeping a sibling-compatible bound so passing
+/// `streaming_async()` without kwargs reproduces today's behaviour.
+const DEFAULT_MAX_QUEUE_DEPTH: usize = 4096;
 
 /// Typed handle to the underlying streaming client. Mirrors the
 /// `StreamableHandle` enum in `streaming_session.rs` but specialised for
@@ -103,10 +163,20 @@ impl AsyncStreamableHandle {
         &self,
         py: Python<'_>,
         write_fd: i32,
+        max_queue_depth: usize,
+        backpressure: RustBackpressurePolicy,
     ) -> PyResult<(RustEventIterator, Arc<WakeFd>)> {
         match self {
-            Self::Tdx(handle) => handle.borrow(py).start_streaming_async_inner(write_fd),
-            Self::Fpss(handle) => handle.borrow(py).start_streaming_async_inner(write_fd),
+            Self::Tdx(handle) => handle.borrow(py).start_streaming_async_inner(
+                write_fd,
+                max_queue_depth,
+                backpressure,
+            ),
+            Self::Fpss(handle) => handle.borrow(py).start_streaming_async_inner(
+                write_fd,
+                max_queue_depth,
+                backpressure,
+            ),
         }
     }
 
@@ -117,12 +187,7 @@ impl AsyncStreamableHandle {
     /// calls would require relaxing the methods' visibility to
     /// `pub(crate)`, duplicating the binding's source-of-truth on which
     /// type owns the contract.
-    fn call_proxy(
-        &self,
-        py: Python<'_>,
-        name: &str,
-        arg: &Bound<'_, PyAny>,
-    ) -> PyResult<()> {
+    fn call_proxy(&self, py: Python<'_>, name: &str, arg: &Bound<'_, PyAny>) -> PyResult<()> {
         let bound = self.bind_any(py);
         bound.call_method1(name, (arg.clone(),))?;
         Ok(())
@@ -178,7 +243,8 @@ pub(crate) struct StreamingAsyncSession {
     /// `__aexit__` window.
     wake: Option<Arc<WakeFd>>,
     /// Rust iterator handle. Created in `__aenter__` via
-    /// `connect_iter_with_wake_keep_handle`. `None` outside the window.
+    /// `connect_iter_with_wake_keep_handle_policy`. `None` outside the
+    /// window.
     iterator: Option<Arc<RustEventIterator>>,
     /// Cached event-loop reference captured in `__aenter__`. Stored as
     /// a `Py<PyAny>` (rather than rebinding on every wake) so
@@ -194,6 +260,19 @@ pub(crate) struct StreamingAsyncSession {
     /// short-circuits to `StopAsyncIteration` afterward without
     /// touching the (now-closed) read FD or the dropped iterator.
     closed: bool,
+    /// Maximum number of events the pull-iter queue can hold between
+    /// the Disruptor consumer and this session. Snapshotted at session
+    /// construction (`streaming_async(max_queue_depth=...)`) and threaded
+    /// through to [`thetadatadx::fpss::FpssClient::connect_iter_with_wake_keep_handle_policy`]
+    /// at `__aenter__`. Must be a power of two ≥
+    /// [`thetadatadx::fpss::ring::MIN_RING_SIZE`].
+    max_queue_depth: usize,
+    /// Producer-side overflow policy. See
+    /// [`BackpressurePolicy`]. Snapshotted at construction so the same
+    /// policy applies across the session's lifetime — runtime mutation
+    /// would race with the Disruptor consumer's `match *policy`
+    /// dispatch.
+    backpressure: BackpressurePolicy,
 }
 
 #[pymethods]
@@ -273,9 +352,10 @@ impl StreamingAsyncSession {
     ///    batch is empty), raises `StopAsyncIteration`.
     fn __anext__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let session_handle: Py<Self> = slf.into();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            anext_step(session_handle).await
-        })
+        pyo3_async_runtimes::tokio::future_into_py(
+            py,
+            async move { anext_step(session_handle).await },
+        )
     }
 
     /// Awaitable wrapper around `subscribe`. The underlying FPSS
@@ -327,9 +407,7 @@ impl StreamingAsyncSession {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             Python::attach(|py| {
                 let session = session_handle.borrow(py);
-                session
-                    .handle
-                    .call_proxy(py, "unsubscribe", sub.bind(py))?;
+                session.handle.call_proxy(py, "unsubscribe", sub.bind(py))?;
                 Ok::<Py<PyAny>, PyErr>(py.None())
             })
         })
@@ -380,11 +458,48 @@ impl StreamingAsyncSession {
     fn queue_len(&self) -> usize {
         self.iterator.as_ref().map_or(0, |it| it.queue_len())
     }
+
+    /// Alias for [`Self::queue_len`]. Per #563 the operator-facing
+    /// name for the depth getter is `queue_depth` — matches the kdb+
+    /// / Bloomberg BLPAPI vocabulary. The legacy `queue_len()` getter
+    /// (#559) is kept as an alias so existing callers do not break.
+    fn queue_depth(&self) -> usize {
+        self.queue_len()
+    }
+
+    /// Cumulative count of FPSS events the Disruptor consumer could
+    /// not deliver onto the pull-iter queue (`DropOldest` /
+    /// `DropNewest`) or the publish ring (`Block`). Routed through
+    /// the underlying client's `dropped_event_count()` so operators
+    /// see one signal for queue-overflow + ring-overflow pressure.
+    fn dropped_event_count(&self, py: Python<'_>) -> PyResult<u64> {
+        let bound = self.handle.bind_any(py);
+        bound.call_method0("dropped_event_count")?.extract()
+    }
+
+    /// Configured maximum queue depth. Echoes back the
+    /// `max_queue_depth` kwarg passed to `streaming_async(...)`.
+    /// Diagnostic only.
+    #[getter]
+    fn max_queue_depth(&self) -> usize {
+        self.max_queue_depth
+    }
+
+    /// Configured backpressure policy. Echoes back the `backpressure`
+    /// kwarg passed to `streaming_async(...)`.
+    #[getter]
+    fn backpressure(&self) -> BackpressurePolicy {
+        self.backpressure
+    }
 }
 
 impl StreamingAsyncSession {
     /// Construct a session bound to the unified client.
-    pub(crate) fn from_tdx(handle: Py<crate::ThetaDataDxClient>) -> Self {
+    pub(crate) fn from_tdx(
+        handle: Py<crate::ThetaDataDxClient>,
+        max_queue_depth: usize,
+        backpressure: BackpressurePolicy,
+    ) -> Self {
         Self {
             handle: AsyncStreamableHandle::Tdx(handle),
             read_fd: -1,
@@ -393,11 +508,17 @@ impl StreamingAsyncSession {
             event_loop: None,
             asyncio_event: None,
             closed: false,
+            max_queue_depth,
+            backpressure,
         }
     }
 
     /// Construct a session bound to the standalone FPSS client.
-    pub(crate) fn from_fpss(handle: Py<crate::fpss_client::FpssClient>) -> Self {
+    pub(crate) fn from_fpss(
+        handle: Py<crate::fpss_client::FpssClient>,
+        max_queue_depth: usize,
+        backpressure: BackpressurePolicy,
+    ) -> Self {
         Self {
             handle: AsyncStreamableHandle::Fpss(handle),
             read_fd: -1,
@@ -406,6 +527,8 @@ impl StreamingAsyncSession {
             event_loop: None,
             asyncio_event: None,
             closed: false,
+            max_queue_depth,
+            backpressure,
         }
     }
 
@@ -455,7 +578,12 @@ impl StreamingAsyncSession {
         // inside `start` does not double-close (the OwnedFd is
         // dropped by `?` before `into_raw_fd` runs).
         let write_fd_for_start = write_guard.into_raw_fd();
-        let (rust_iter, wake) = match self.handle.start(py, write_fd_for_start) {
+        let (rust_iter, wake) = match self.handle.start(
+            py,
+            write_fd_for_start,
+            self.max_queue_depth,
+            self.backpressure.to_core(),
+        ) {
             Ok(pair) => pair,
             Err(err) => {
                 // `start` failed — the write FD was never observed by
@@ -606,10 +734,7 @@ impl StreamingAsyncSession {
 /// is `true` when the iterator's `try_next` reported `Closed` — the
 /// caller surfaces that as `StopAsyncIteration` once the batch (which
 /// may still contain the last tail of events) is delivered.
-fn drain_batch(
-    py: Python<'_>,
-    iterator: &RustEventIterator,
-) -> PyResult<(Py<PyList>, bool)> {
+fn drain_batch(py: Python<'_>, iterator: &RustEventIterator) -> PyResult<(Py<PyList>, bool)> {
     // `Bound<PyList>::new` returns the list bound to `py`; we'll
     // append the typed pyclass objects in-place and unbind at the end.
     let batch = PyList::empty(py);
@@ -758,13 +883,7 @@ fn drain_read_pipe(read_fd: i32) {
         // thread which holds the GIL, and we're holding it too via
         // `Python::attach` upstream). `buf` is a valid 64-byte stack
         // buffer.
-        let n = unsafe {
-            libc::read(
-                read_fd,
-                buf.as_mut_ptr().cast::<libc::c_void>(),
-                buf.len(),
-            )
-        };
+        let n = unsafe { libc::read(read_fd, buf.as_mut_ptr().cast::<libc::c_void>(), buf.len()) };
         if n > 0 {
             continue;
         }
@@ -958,7 +1077,7 @@ impl<T> CloneRefAttached for Py<T> {
 impl crate::ThetaDataDxClient {
     /// Internal helper consumed by `StreamingAsyncSession::__aenter__`.
     /// Routes through the core's
-    /// [`thetadatadx::ThetaDataDxClient::start_streaming_iter_with_wake`]
+    /// [`thetadatadx::ThetaDataDxClient::start_streaming_iter_with_wake_policy`]
     /// so we never bypass the streaming-slot generation guard that
     /// rejects concurrent `start_streaming` / `streaming_async` /
     /// `streaming_iter` calls on the same client.
@@ -966,10 +1085,16 @@ impl crate::ThetaDataDxClient {
     pub(crate) fn start_streaming_async_inner(
         &self,
         write_fd: i32,
+        max_queue_depth: usize,
+        backpressure: RustBackpressurePolicy,
     ) -> PyResult<(RustEventIterator, Arc<WakeFd>)> {
         let inner = Arc::clone(&self.tdx);
         inner
-            .start_streaming_iter_with_wake(WakeFd::from_raw_write_fd(write_fd))
+            .start_streaming_iter_with_wake_policy(
+                WakeFd::from_raw_write_fd(write_fd),
+                Some(max_queue_depth),
+                backpressure,
+            )
             .map_err(to_py_err)
     }
 }
@@ -985,8 +1110,10 @@ impl crate::fpss_client::FpssClient {
     pub(crate) fn start_streaming_async_inner(
         &self,
         write_fd: i32,
+        max_queue_depth: usize,
+        backpressure: RustBackpressurePolicy,
     ) -> PyResult<(RustEventIterator, Arc<WakeFd>)> {
-        self.start_streaming_iter_with_wake_internal(write_fd)
+        self.start_streaming_iter_with_wake_internal(write_fd, max_queue_depth, backpressure)
     }
 }
 
@@ -1035,8 +1162,28 @@ impl crate::ThetaDataDxClient {
     /// manager), and drops the wake handle so the write-end FD closes.
     /// A drain timeout fires a `RuntimeWarning` rather than raising,
     /// so exceptions raised inside the `async with` body propagate.
-    fn streaming_async(slf: Py<Self>, py: Python<'_>) -> PyResult<Py<StreamingAsyncSession>> {
-        Py::new(py, StreamingAsyncSession::from_tdx(slf))
+    ///
+    /// # Backpressure
+    ///
+    /// `max_queue_depth` caps the pull-iter queue between the
+    /// Disruptor consumer and this session. Must be a power of two ≥
+    /// the configured ring minimum; default `4096` matches the
+    /// existing `FpssConfig.ring_size` default.
+    ///
+    /// `backpressure` selects the producer-side overflow strategy
+    /// (see [`BackpressurePolicy`]). Default `Block` preserves every
+    /// event at the cost of upstream pressure into the TLS reader.
+    #[pyo3(signature = (*, max_queue_depth = DEFAULT_MAX_QUEUE_DEPTH, backpressure = BackpressurePolicy::Block))]
+    fn streaming_async(
+        slf: Py<Self>,
+        py: Python<'_>,
+        max_queue_depth: usize,
+        backpressure: BackpressurePolicy,
+    ) -> PyResult<Py<StreamingAsyncSession>> {
+        Py::new(
+            py,
+            StreamingAsyncSession::from_tdx(slf, max_queue_depth, backpressure),
+        )
     }
 }
 
@@ -1052,7 +1199,16 @@ impl crate::fpss_client::FpssClient {
     /// MDDS / Nexus surface, so an asyncio app that wants only the
     /// real-time stream (e.g. coexisting with a Java MDDS process)
     /// pays no MDDS connection cost.
-    fn streaming_async(slf: Py<Self>, py: Python<'_>) -> PyResult<Py<StreamingAsyncSession>> {
-        Py::new(py, StreamingAsyncSession::from_fpss(slf))
+    #[pyo3(signature = (*, max_queue_depth = DEFAULT_MAX_QUEUE_DEPTH, backpressure = BackpressurePolicy::Block))]
+    fn streaming_async(
+        slf: Py<Self>,
+        py: Python<'_>,
+        max_queue_depth: usize,
+        backpressure: BackpressurePolicy,
+    ) -> PyResult<Py<StreamingAsyncSession>> {
+        Py::new(
+            py,
+            StreamingAsyncSession::from_fpss(slf, max_queue_depth, backpressure),
+        )
     }
 }

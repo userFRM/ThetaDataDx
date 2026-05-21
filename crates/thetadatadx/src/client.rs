@@ -420,6 +420,33 @@ impl ThetaDataDxClient {
         &self,
         wake: crate::fpss::wake::WakeFd,
     ) -> Result<(EventIterator, std::sync::Arc<crate::fpss::wake::WakeFd>), Error> {
+        self.start_streaming_iter_with_wake_policy(
+            wake,
+            None,
+            crate::fpss::BackpressurePolicy::Block,
+        )
+    }
+
+    /// Variant of [`Self::start_streaming_iter_with_wake`] that
+    /// accepts an explicit [`crate::fpss::BackpressurePolicy`]
+    /// and optional `max_queue_depth` override.
+    ///
+    /// Forwards through
+    /// [`crate::fpss::FpssClient::connect_iter_with_wake_keep_handle_policy`].
+    /// Production callers reach this through the Python
+    /// `streaming_async(backpressure=..., max_queue_depth=...)` kwargs.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same error set as [`Self::start_streaming`] (TLS,
+    /// auth, config validation), plus [`Error::Config`] when
+    /// `max_queue_depth` is out of range.
+    pub fn start_streaming_iter_with_wake_policy(
+        &self,
+        wake: crate::fpss::wake::WakeFd,
+        max_queue_depth: Option<usize>,
+        policy: crate::fpss::BackpressurePolicy,
+    ) -> Result<(EventIterator, std::sync::Arc<crate::fpss::wake::WakeFd>), Error> {
         if matches!(&**self.state.load(), StreamingSlot::Live { .. }) {
             return Err(Self::already_streaming());
         }
@@ -427,7 +454,7 @@ impl ThetaDataDxClient {
         let gen_at_entry = self.stop_generation.load(Ordering::Acquire);
 
         let config = self.historical.config();
-        let (client, iterator, wake_arc) = FpssClient::connect_iter_with_wake_keep_handle(
+        let (client, iterator, wake_arc) = FpssClient::connect_iter_with_wake_keep_handle_policy(
             crate::fpss::FpssConnectArgs {
                 creds: &self.creds,
                 hosts: &config.fpss.hosts,
@@ -440,6 +467,8 @@ impl ThetaDataDxClient {
                 ping_interval_ms: config.fpss.ping_interval_ms,
             },
             wake,
+            max_queue_depth,
+            policy,
         )?;
 
         self.install_live(Self::live_slot(client), gen_at_entry)?;

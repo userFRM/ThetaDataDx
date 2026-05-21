@@ -196,6 +196,8 @@ impl FpssClient {
     pub(crate) fn start_streaming_iter_with_wake_internal(
         &self,
         write_fd: i32,
+        max_queue_depth: usize,
+        backpressure: thetadatadx::fpss::BackpressurePolicy,
     ) -> PyResult<(
         thetadatadx::EventIterator,
         std::sync::Arc<thetadatadx::fpss::wake::WakeFd>,
@@ -206,9 +208,13 @@ impl FpssClient {
             ));
         }
         let wake = thetadatadx::fpss::wake::WakeFd::from_raw_write_fd(write_fd);
-        let (client, iter, wake_arc) =
-            RustFpssClient::connect_iter_with_wake_keep_handle(self.params.args(), wake)
-                .map_err(to_py_err)?;
+        let (client, iter, wake_arc) = RustFpssClient::connect_iter_with_wake_keep_handle_policy(
+            self.params.args(),
+            wake,
+            Some(max_queue_depth),
+            backpressure,
+        )
+        .map_err(to_py_err)?;
         *self.lock_inner() = Some(client);
         Ok((iter, wake_arc))
     }

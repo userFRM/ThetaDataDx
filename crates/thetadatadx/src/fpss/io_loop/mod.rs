@@ -347,9 +347,7 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                             // eviction / skipped push so operators see
                             // one signal for queue-overflow pressure.
                             let pushed = match *policy {
-                                BackpressurePolicy::Block => {
-                                    push_with_block(queue, evt.clone())
-                                }
+                                BackpressurePolicy::Block => push_with_block(queue, evt.clone()),
                                 BackpressurePolicy::DropOldest => {
                                     // `force_push` returns `Some(old)`
                                     // when the queue was full and the
