@@ -15,16 +15,28 @@ use super::error::RestError;
 /// Default Terminal base URL (`http://127.0.0.1:25503`).
 pub const DEFAULT_TERMINAL_BASE_URL: &str = "http://127.0.0.1:25503";
 
+/// Default maximum response body size (256 MiB).
+///
+/// The Terminal can in principle return arbitrarily large CSVs (a
+/// year-wide `start_date` / `end_date` window on a busy underlying
+/// crosses 100M rows); the default cap protects against accidental
+/// OOM when a caller forgets to bound the date range. Raise the cap
+/// via [`RestClient::with_max_response_bytes`] for legitimate
+/// large-window queries.
+pub const DEFAULT_MAX_RESPONSE_BYTES: u64 = 256 * 1024 * 1024;
+
 /// HTTP REST transport against the local ThetaTerminal.
 ///
 /// `RestClient` is cheap to construct (no network round-trip on
 /// `new()`); the underlying [`reqwest::Client`] holds the connection
-/// pool. Clone is `O(1)` -- both fields are `Arc`-backed -- so handing
-/// the client across worker tasks does not duplicate connections.
+/// pool. Clone is `O(1)` -- the `reqwest::Client` is `Arc`-backed and
+/// the cap is a `u64` -- so handing the client across worker tasks
+/// does not duplicate connections.
 #[derive(Debug, Clone)]
 pub struct RestClient {
     base_url: String,
     http: ReqwestClient,
+    max_response_bytes: u64,
 }
 
 impl RestClient {
@@ -48,6 +60,7 @@ impl RestClient {
         Ok(Self {
             base_url: base_url.into(),
             http,
+            max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
         })
     }
 
@@ -61,13 +74,37 @@ impl RestClient {
         Self {
             base_url: base_url.into(),
             http,
+            max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
         }
+    }
+
+    /// Override the maximum response body size (in bytes) the client
+    /// accepts. Defaults to [`DEFAULT_MAX_RESPONSE_BYTES`] (256 MiB).
+    ///
+    /// The cap is checked against `Content-Length` when the server
+    /// emits one and against the streamed byte count as the body
+    /// arrives -- either route surfaces
+    /// [`RestError::ResponseTooLarge`] before the buffer reaches the
+    /// caller's allocator.
+    ///
+    /// Pass `u64::MAX` to effectively disable the cap.
+    #[must_use]
+    pub fn with_max_response_bytes(mut self, max_response_bytes: u64) -> Self {
+        self.max_response_bytes = max_response_bytes;
+        self
     }
 
     /// Base URL the client targets.
     #[must_use]
     pub fn base_url(&self) -> &str {
         &self.base_url
+    }
+
+    /// Configured maximum response body size (in bytes). See
+    /// [`Self::with_max_response_bytes`].
+    #[must_use]
+    pub fn max_response_bytes(&self) -> u64 {
+        self.max_response_bytes
     }
 
     /// Build a builder for `option_history_quote` (REST path
@@ -444,7 +481,36 @@ async fn fetch_csv(
             body: truncated,
         });
     }
-    Ok(resp.text().await?)
+
+    let limit = client.max_response_bytes;
+
+    // Pre-flight on Content-Length when the server emits one. Cheap
+    // O(1) reject before we touch the network buffer.
+    if let Some(cl) = resp.content_length() {
+        if cl > limit {
+            return Err(RestError::ResponseTooLarge { size: cl, limit });
+        }
+    }
+
+    // Stream the body in chunks. The cap is checked on every chunk so a
+    // server that under-reports `Content-Length` (or omits it entirely
+    // when transfer-encoding=chunked) cannot smuggle past the limit.
+    let mut buf = Vec::new();
+    let mut stream = resp;
+    while let Some(chunk) = stream.chunk().await? {
+        let new_len = (buf.len() as u64).saturating_add(chunk.len() as u64);
+        if new_len > limit {
+            return Err(RestError::ResponseTooLarge {
+                size: new_len,
+                limit,
+            });
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    String::from_utf8(buf).map_err(|e| RestError::CsvDecode {
+        reason: format!("response body is not valid UTF-8: {e}"),
+        row: usize::MAX,
+    })
 }
 
 // ─── Per-tick CSV decoders ───────────────────────────────────────────
@@ -482,6 +548,23 @@ pub fn decode_quote_csv(body: &str) -> Result<Vec<QuoteTick>, RestError> {
         // Empty response -- legitimate "no data today". No header
         // validation, mirrors the gRPC path's empty-table guard.
         return Ok(vec![]);
+    }
+
+    // N3: validate required columns BEFORE allocating the row buffer.
+    // A response missing `ms_of_day` / `date` is a wire-format failure;
+    // surfacing it before `Vec::with_capacity(rows.len())` saves a
+    // potentially-large allocation on a malformed million-row body.
+    if ms_idx.is_none() {
+        return Err(RestError::MissingColumn {
+            column: "ms_of_day",
+            available: table.headers.join(","),
+        });
+    }
+    if date_idx.is_none() {
+        return Err(RestError::MissingColumn {
+            column: "date",
+            available: table.headers.join(","),
+        });
     }
 
     let mut out: Vec<QuoteTick> = Vec::with_capacity(table.rows.len());
@@ -546,6 +629,20 @@ pub fn decode_trade_quote_csv(body: &str) -> Result<Vec<TradeQuoteTick>, RestErr
     let ask_cond_idx = table.column_index("ask_condition");
     let date_idx = table.column_index("date");
 
+    // N3: required columns validated before the row-buffer allocation.
+    if ms_idx.is_none() {
+        return Err(RestError::MissingColumn {
+            column: "ms_of_day",
+            available: table.headers.join(","),
+        });
+    }
+    if date_idx.is_none() {
+        return Err(RestError::MissingColumn {
+            column: "date",
+            available: table.headers.join(","),
+        });
+    }
+
     let mut out: Vec<TradeQuoteTick> = Vec::with_capacity(table.rows.len());
     for row_idx in 0..table.rows.len() {
         let ms_of_day = table.cell_i32_required(row_idx, ms_idx, "ms_of_day")?;
@@ -602,6 +699,20 @@ pub fn decode_iv_csv(body: &str) -> Result<Vec<IvTick>, RestError> {
     let iv_err_idx = table.column_index("iv_error");
     let date_idx = table.column_index("date");
 
+    // N3: required columns validated before the row-buffer allocation.
+    if ms_idx.is_none() {
+        return Err(RestError::MissingColumn {
+            column: "ms_of_day",
+            available: table.headers.join(","),
+        });
+    }
+    if date_idx.is_none() {
+        return Err(RestError::MissingColumn {
+            column: "date",
+            available: table.headers.join(","),
+        });
+    }
+
     let mut out: Vec<IvTick> = Vec::with_capacity(table.rows.len());
     for row_idx in 0..table.rows.len() {
         let ms_of_day = table.cell_i32_required(row_idx, ms_idx, "ms_of_day")?;
@@ -648,6 +759,20 @@ pub fn decode_greeks_first_order_csv(body: &str) -> Result<Vec<GreeksFirstOrderT
     let iv_err_idx = table.column_index("iv_error");
     let und_ms_idx = table.column_index("underlying_ms_of_day");
     let und_price_idx = table.column_index("underlying_price");
+
+    // N3: required columns validated before the row-buffer allocation.
+    if ms_idx.is_none() {
+        return Err(RestError::MissingColumn {
+            column: "ms_of_day",
+            available: table.headers.join(","),
+        });
+    }
+    if date_idx.is_none() {
+        return Err(RestError::MissingColumn {
+            column: "date",
+            available: table.headers.join(","),
+        });
+    }
 
     let mut out: Vec<GreeksFirstOrderTick> = Vec::with_capacity(table.rows.len());
     for row_idx in 0..table.rows.len() {
