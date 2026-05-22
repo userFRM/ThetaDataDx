@@ -5,25 +5,16 @@ title: Channel pool design — in-place reconnect
 # Channel pool — in-place reconnect on `ConnectionClosed`
 
 This page documents the gRPC channel pool's reconnect contract and
-the operational guarantees long-running clients can rely on. It also
-serves as the correction pin for issues #571 / #577 / #589 — the
-prior investigation trail in
-`docs-site/docs/legacy-quote-577-investigation.md` and
-`docs-site/docs/legacy-quote-handling.md` misattributed those
-cascades to an upstream Java exception, and the lenient 6-field
-decoder + REST fallback shipped in PRs #573 / #577 / #589 were
-incorrect causal fixes. The lenient decoder is retained as
-defense-in-depth, but the real cause was the SDK's own pool design.
-This document is the truthful description; the misattribution
-investigation files have been removed from the docs site.
+the operational guarantees long-running clients can rely on.
 
 ## Symptom
 
 Long-running clients running 8-concurrent (or any sustained
-concurrency above 1) against MDDS gRPC observed a "cascade" where,
-after several hours of uptime, every subsequent RPC failed with
-`TransportErrorKind::ConnectionClosed` regardless of the date range
-or endpoint. The pool never recovered without a process restart.
+concurrency above 1) against MDDS gRPC observed a ConnectionClosed
+regression where, after several hours of uptime, every subsequent
+RPC failed with `TransportErrorKind::ConnectionClosed` regardless of
+the date range or endpoint. The pool never recovered without a
+process restart.
 
 ## Root cause
 
@@ -106,40 +97,3 @@ across a 60-minute window with 8-concurrent dispatch; the pool's
 reconnect-event metric (`thetadatadx.grpc.channel.reconnects_total`)
 should increment as connections rotate without any RPC failing
 upward to the caller.
-
-## What was removed
-
-PRs #573 / #577 / #578 / #582 / #583 / #589 added a substantial
-amount of code that the wrong-cause investigation called for:
-
-* `Channel::is_dead` / `Channel::mark_dead` / `Channel::dead_handle`
-* `ChannelPool::all_dead` / `ChannelPool::dead_count`
-* `ChannelError::UpstreamCascade` (never made it past a draft)
-* `FallbackPolicy::RestOnH2Disconnect`
-* `FallbackPolicy::RestAlwaysForDateRange`
-* The `_with_fallback` shims dispatching on the deleted policy
-  variants
-* `tests/test_577_2020_onward.rs`
-* `docs-site/docs/legacy-quote-577-investigation.md`
-* `docs-site/docs/legacy-quote-589-investigation.md` (never
-  committed; was draft-only)
-* `docs-site/docs/legacy-quote-handling.md`
-
-The lenient 6-/11-/12-field NBBO decoder added in #573 is retained
-as defense-in-depth — `find_header` + `opt_number(row, None) -> 0`
-is good API design regardless of cause, and a subset NBBO layout
-could appear from any upstream storage tier in the future.
-`FallbackPolicy::RestAlways` is retained as the user-facing
-escape hatch for callers who genuinely want a single REST transport
-for every historical-quote call.
-
-## Historical pin
-
-Future contributors investigating a "cascade" symptom should not
-reach for "the upstream Terminal threw a Java exception" first.
-That story is wrong. The hosted MDDS server at `mdds-01.thetadata.us`
-serves every endpoint cleanly across every date range we have
-verified. Connection drops happen at the h2 transport layer, not in
-upstream data parsing. The fix lives at
-`crate::grpc::channel::Channel::trigger_reconnect` and
-`crate::grpc::channel::Channel::run_reconnect`.

@@ -1,7 +1,8 @@
 {
     "_meta": {
-        "comment": "Gate 10 (#553) baseline. C10 closure: refreshed against GitHub-hosted runner perf profile on PR #566 (2026-05-21). The previous baseline was captured on a developer workstation and over-tightened the threshold to 25% — observed CI deltas of +24-52% were the local↔CI runner spread, not a real regression. The p50s below were sampled on GH-hosted Ubuntu via the bench job; the gate threshold stays at 25% so a real regression past this calibrated baseline trips CI. FPSS event benches (FpssEvent::clone/{Quote,Trade,Ohlcvc} + FpssEvent::match/{Quote,Trade,Ohlcvc}) are included in the gated set per the audit closure. The `_meta` key is ignored by `scripts/check_bench_regression.py` because the loader explicitly extracts `criterion_path` + `p50_ns` and treats malformed entries as skip."
+        "comment": "Gate 10 (#553) baseline. Calibrated against the GitHub-hosted runner perf profile (PR #566, 2026-05-21). Threshold stays at 25% so a real regression past this baseline trips CI. The loader in `scripts/check_bench_regression.py` ignores `_meta` and the per-entry `_captured_on` field; only `criterion_path` + `p50_ns` are gated."
     },
+    "_captured_on": "2026-05-21",
     "stock_list_symbols/in_house": {
         "p50_ns": 148653.7,
         "criterion_path": "stock_list_symbols/in_house"

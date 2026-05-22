@@ -91,7 +91,7 @@ pub(crate) async fn classify_attempt<T>(
             StatusClass::Transient => {
                 metrics::counter!(
                     "thetadatadx.grpc.errors",
-                    "endpoint" => endpoint.to_string()
+                    "endpoint" => endpoint
                 )
                 .increment(1);
                 AttemptStep::Retry(err)
@@ -100,7 +100,7 @@ pub(crate) async fn classify_attempt<T>(
                 if *refreshed_already {
                     metrics::counter!(
                         "thetadatadx.grpc.errors",
-                        "endpoint" => endpoint.to_string()
+                        "endpoint" => endpoint
                     )
                     .increment(1);
                     return AttemptStep::Terminal(err);
@@ -116,7 +116,7 @@ pub(crate) async fn classify_attempt<T>(
             StatusClass::Terminal => {
                 metrics::counter!(
                     "thetadatadx.grpc.errors",
-                    "endpoint" => endpoint.to_string()
+                    "endpoint" => endpoint
                 )
                 .increment(1);
                 AttemptStep::Terminal(err)
@@ -136,7 +136,7 @@ pub(crate) async fn sleep_for_retry(
     let delay = policy.delay_for_attempt(attempt);
     metrics::counter!(
         "thetadatadx.grpc.retries",
-        "endpoint" => endpoint.to_string()
+        "endpoint" => endpoint
     )
     .increment(1);
     tracing::warn!(
@@ -197,7 +197,7 @@ pub(crate) async fn classify_streaming_attempt(
             StatusClass::Transient => {
                 metrics::counter!(
                     "thetadatadx.grpc.errors",
-                    "endpoint" => endpoint.to_string()
+                    "endpoint" => endpoint
                 )
                 .increment(1);
                 StreamingAttemptOutcome::Backoff(err)
@@ -206,7 +206,7 @@ pub(crate) async fn classify_streaming_attempt(
                 if *refreshed_already {
                     metrics::counter!(
                         "thetadatadx.grpc.errors",
-                        "endpoint" => endpoint.to_string()
+                        "endpoint" => endpoint
                     )
                     .increment(1);
                     return StreamingAttemptOutcome::Terminal(err);
@@ -222,7 +222,7 @@ pub(crate) async fn classify_streaming_attempt(
             StatusClass::Terminal => {
                 metrics::counter!(
                     "thetadatadx.grpc.errors",
-                    "endpoint" => endpoint.to_string()
+                    "endpoint" => endpoint
                 )
                 .increment(1);
                 StreamingAttemptOutcome::Terminal(err)
@@ -415,7 +415,7 @@ pub(crate) fn warn_buffered_response_size(
             row_count,
             bytes_est,
             threshold_bytes,
-            "buffered .await returned a large response — consider .stream(handler) for this workload (see docs-site/docs/streaming-api.md)"
+            "buffered .await returned a large response — consider .stream(handler) for this workload (see docs-site/docs/streaming/connection.md)"
         );
     }
 }

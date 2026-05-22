@@ -47,6 +47,21 @@ BANNED = [
     "next-generation",
     "next generation",
     "minimum vs complete",
+    # ConnectionClosed regression closure: ban the wrong-cause
+    # vocabulary so future PRs cannot reintroduce the misattribution.
+    # `cascade` is the noun; `h2-cascade` / `UpstreamCascade` / the
+    # field-count quote layouts are the artifacts.
+    "cascade",
+    "6-field NBBO",
+    "11-field NBBO",
+    "12-field NBBO",
+    "normalizeData",
+    "UpstreamCascade",
+    "RestOnH2Disconnect",
+    "RestAlwaysForDateRange",
+    "h2-cascade",
+    "legacy quote investigation",
+    "theta-terminal-re/patches",
 ]
 
 
@@ -114,6 +129,12 @@ EXEMPT_PATH_FRAGMENTS = (
     "/target/",
     "/__pycache__/",
     "/.git/",
+    # C++ build tree's `_deps/` carries the unpacked Catch2 source
+    # tarball plus other third-party deps the CMake fetch step
+    # materialises into the build dir. Their markdown / source
+    # contains vocabulary the gate has no opinion on.
+    "/build_tests/",
+    "/_deps/",
 )
 
 

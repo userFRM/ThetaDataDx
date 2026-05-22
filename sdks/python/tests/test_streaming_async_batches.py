@@ -189,18 +189,17 @@ def test_streaming_async_batches_end_to_end_smoke() -> None:
     not _creds_path() or pa is None,
     reason="needs THETADX_TEST_CREDS / THETADX_LIVE_CREDS + market data + pyarrow",
 )
-def test_streaming_async_batches_throughput_beats_per_tick() -> None:
+def test_streaming_async_batches_throughput_beats_per_tick_by_1_5x() -> None:
     """Drain the same hot stream twice — once via the per-tick
     `streaming_async()` surface, once via `streaming_async_batches()`
-    — and assert the batched path delivers more events per second.
+    — and assert the batched path delivers at least 1.5x more events
+    per second.
 
-    The 5x threshold matches the spec's documented improvement
-    floor. A polling implementation, or one that paid per-row Python
-    construction, would NOT beat the per-tick path by 5x; only the
-    real Arrow C Data Interface zero-copy path does. We deliberately
-    keep the bound loose (5x rather than 10x) because the per-tick
-    surface already amortises one drain wake across an N-event batch
-    — the per-event PyObject construction is what we are saving."""
+    The 1.5x floor is set well below the spec's modelled improvement
+    so a noisy CI runner does not flap. A polling implementation, or
+    one that paid per-row Python construction, would fail this even
+    under noise; only the real Arrow C Data Interface zero-copy path
+    survives the bound."""
     mod = _import_module()
     creds_path = _creds_path()
     assert creds_path is not None
@@ -247,10 +246,8 @@ def test_streaming_async_batches_throughput_beats_per_tick() -> None:
     assert per_tick_eps > 0
     assert batched_eps > 0
 
-    # The 5x threshold is the spec floor. Allow some headroom for
-    # noisy CI runners — but if the runner is so noisy that batched
-    # is slower than per-tick, the path is broken (not a noise
-    # artefact).
+    # 1.5x floor — see docstring. A regression below this floor is
+    # the path being broken, not a noise artefact.
     ratio = batched_eps / per_tick_eps
     assert ratio >= 1.5, (
         f"batched/per-tick events-per-sec ratio = {ratio:.2f}x "

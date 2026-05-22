@@ -114,7 +114,6 @@ impl MddsClient {
         let session_uuid = auth_resp.session_id.clone();
 
         tracing::debug!(
-            session_id_prefix = %&session_uuid[..8.min(session_uuid.len())],
             stock_tier = ?auth_resp.user.as_ref().and_then(|u| u.stock_subscription),
             "session established (session_id redacted)"
         );
@@ -432,7 +431,7 @@ async fn open_channel_pool(
         channels.push(channel);
     }
     let stage1_threads = if config.mdds.decoder_threads == 0 {
-        default_decoder_thread_count(pool_size)
+        default_decoder_thread_count()
     } else {
         // `decoder_threads` is the deprecated alias for stage-1
         // thread count under the two-stage pipeline. Emit the

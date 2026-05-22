@@ -243,19 +243,19 @@ jobs:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: ./.github/actions/install-protoc
-      # C9 closure: `cargo-semver-checks` baseline anchored at
-      # `v10.0.0`. Per the audit recommendation, breaking changes past
-      # the baseline require explicit owner sign-off — `continue-on-error`
-      # surfaces the diff for review without blocking PR merges. The
-      # job's status (and the diff in the log) is the load-bearing
-      # signal; main-branch protection toggles the require-pass policy
-      # when v11 prep starts and the accumulated v10→v11 candidate
-      # breaks (e.g. `ReconnectPolicy::Auto` shape change,
-      # `GrpcStatusKind::from_code` removal, `SubscriptionInfo`
-      # non-exhaustive) move from "informational" to "owner has
-      # signed off + version bump committed". The false
-      # `BREAKING CHANGE` footer claim from PR #560 is corrected in
-      # this comment: no footer override is honoured.
+      # Gate 9: `cargo-semver-checks` baseline anchored at `v10.0.0`.
+      #
+      # `continue-on-error: true` is retained until the owner-signed
+      # v11.0.0 bump lands. Several breaking changes have accumulated
+      # past the v10.0.0 baseline in the v10→v11 candidate window
+      # (`GrpcStatusKind` repr change, `Error::Transport` variant
+      # shape change, `ReconnectPolicy::Auto` shape change,
+      # `SubscriptionInfo` non-exhaustive, the `_with_fallback`
+      # surface) — each was an intentional design decision but the
+      # version bump that legalises them is the owner's call. The
+      # job's log (and the diff against v10.0.0) is the load-bearing
+      # signal; main-branch protection toggles the require-pass
+      # policy when the v11 bump commits.
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         continue-on-error: true
         with:

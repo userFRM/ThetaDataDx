@@ -167,7 +167,8 @@ pub(crate) async fn fetch_csv(
 
     // Pre-flight on Content-Length when the server emits one. Cheap
     // O(1) reject before we touch the network buffer.
-    if let Some(cl) = resp.content_length() {
+    let advertised_len = resp.content_length();
+    if let Some(cl) = advertised_len {
         if cl > limit {
             return Err(RestError::ResponseTooLarge { size: cl, limit });
         }
@@ -176,7 +177,14 @@ pub(crate) async fn fetch_csv(
     // Stream the body in chunks. The cap is checked on every chunk so a
     // server that under-reports `Content-Length` (or omits it entirely
     // when transfer-encoding=chunked) cannot smuggle past the limit.
-    let mut buf = Vec::new();
+    // Seed the accumulator with the advertised content-length when the
+    // server provided one and it fits the cap — saves the
+    // double-and-copy growth pattern on the typical historical-quote
+    // response (multi-MB bodies, single-shot consumption).
+    let mut buf: Vec<u8> = match advertised_len {
+        Some(cl) if cl <= limit => Vec::with_capacity(usize::try_from(cl).unwrap_or(0)),
+        _ => Vec::new(),
+    };
     let mut stream = resp;
     while let Some(chunk) = stream.chunk().await? {
         let new_len = (buf.len() as u64).saturating_add(chunk.len() as u64);

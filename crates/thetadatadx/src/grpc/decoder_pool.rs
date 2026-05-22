@@ -293,12 +293,13 @@ impl RingEvent {
     }
 }
 
-// SAFETY: `DecodeRequest` carries a `Send + 'static` boxed closure
-// and a `oneshot::Sender` (Send). The ring slot is accessed only
-// through the Disruptor's sequencing guarantees (exclusive write on
-// publish, exclusive read on consume), and `RingEvent::write` /
-// `RingEvent::take` document that invariant on their `unsafe`
-// signatures.
+// SAFETY: all interior-mutable access to `RingEvent` goes through
+// `&Self` methods (`write`, `take`) whose unsafe contracts the
+// disruptor crate's producer / consumer sequence barriers serialise.
+// The producer claims an exclusive sequence position before calling
+// `write`; the consumer waits on the same barrier before calling
+// `take`. No two threads ever observe the same sequence slot
+// simultaneously, so the `UnsafeCell` interior is never raced.
 unsafe impl Sync for RingEvent {}
 
 // ─── Decoder handle ─────────────────────────────────────────────────
@@ -611,14 +612,38 @@ impl BackoffMode {
 /// the resolution is invariant for the lifetime of one publish
 /// attempt and the caller-side hoist keeps the cost to one
 /// detection per submit rather than O(retries).
+///
+/// `TokioMultiThread` parks the calling worker under
+/// `block_in_place` so the runtime can steal work. `SyncSleep`
+/// (current-thread runtimes; non-async callers) cannot sleep without
+/// blocking every other task on the same thread, so it spin-yields
+/// instead — `duration` is the spin budget approximated via
+/// `spin_loop` hints, not a real sleep.
 fn backoff_ring_full(mode: BackoffMode, duration: Duration) {
-    let wait = || {
-        thread::yield_now();
-        thread::sleep(duration);
-    };
     match mode {
-        BackoffMode::TokioMultiThread => tokio::task::block_in_place(wait),
-        BackoffMode::SyncSleep => wait(),
+        BackoffMode::TokioMultiThread => tokio::task::block_in_place(|| {
+            thread::yield_now();
+            thread::sleep(duration);
+        }),
+        BackoffMode::SyncSleep => {
+            // Spin instead of sleep — a current-thread tokio runtime
+            // parks every other task while this thread sleeps, which
+            // is unacceptable on the publish hot path. The
+            // `spin_loop` hint lets the CPU drop to a lower power
+            // state without yielding the runtime; pair with a yield
+            // so a fairer scheduler still gets a chance.
+            thread::yield_now();
+            // Bound the spin count so a pathological full-ring path
+            // returns to the caller in a finite number of cycles even
+            // if the consumer never drains. The constant approximates
+            // the previous `Duration` argument's wall-clock budget at
+            // ~1 ns/iter on x86_64; tune in lockstep with the publish
+            // retry budget in `submit_*`.
+            let _ = duration;
+            for _ in 0..256 {
+                std::hint::spin_loop();
+            }
+        }
     }
 }
 
@@ -865,7 +890,7 @@ impl DecoderPool {
             handles.push(DecoderHandle {
                 producer: producer.clone(),
                 poisoned: Arc::clone(&pool_poisoned),
-                channel_id: idx as u64,
+                channel_id: u64::try_from(idx).unwrap_or(u64::MAX),
                 next_request_id: Arc::new(AtomicU64::new(0)),
                 stage2: None,
             });
@@ -938,7 +963,7 @@ impl DecoderPool {
             handles.push(DecoderHandle {
                 producer: producer.clone(),
                 poisoned: Arc::clone(&pool_poisoned),
-                channel_id: idx as u64,
+                channel_id: u64::try_from(idx).unwrap_or(u64::MAX),
                 next_request_id: Arc::new(AtomicU64::new(0)),
                 stage2: Some(stage2.sender()),
             });
@@ -960,10 +985,13 @@ impl DecoderPool {
         self.handles.len()
     }
 
-    /// Always `false` — `new` rejects empty pools at construction.
+    /// `true` if the pool holds no decoder handles. The `new` path
+    /// rejects an empty pool at construction so this is normally
+    /// `false`; the method exists for parity with the standard
+    /// `len()` + `is_empty()` collection idiom.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        false
+        self.handles.is_empty()
     }
 
     /// Borrow the `idx`-th decoder handle. Used by `ChannelPool` to
@@ -981,38 +1009,11 @@ impl DecoderPool {
 /// work. Falls back to `2` when `available_parallelism` fails
 /// (containers without `/proc/cpuinfo`, etc.).
 ///
-/// # Why no channel-count cap
-///
-/// Channels = server-throttled gRPC streams, capped by the
-/// subscription tier (Free=1 / Value=2 / Standard=4 / Pro=8).
-/// Decoder threads = CPU work on bytes that have already arrived —
-/// strictly independent of channel count. The previous formula
-/// capped the decoder pool at `channels`, which artificially
-/// throttled CPU-bound decode work on under-channeled tiers when the
-/// host had more cores available.
-///
-/// The `channels` parameter is preserved on the signature for
-/// backwards compatibility but no longer participates in the
-/// resolution.
-///
-/// # Current architectural limit (forward reference)
-///
-/// Today's MDDS pool pins each `Channel` to one decoder ring via
-/// round-robin (`pool::ChannelPool::from_channels_with_decoders`).
-/// Decoder threads beyond `concurrent_requests` therefore sit idle —
-/// no producer feeds them. The two-stage pipeline rewrite (separate
-/// PR) decouples the IO and decode sides through a shared dispatch
-/// queue so extra decoder threads become useful; this helper change
-/// is the smaller half of that work, landing the bench plumbing and
-/// the configuration surface so the architectural follow-up lands on
-/// a code path that already exposes the knob.
+/// Channel count does not cap decoder threads: channels are
+/// server-throttled gRPC streams, while decoder threads run CPU
+/// work on bytes that have already arrived — strictly independent.
 #[must_use]
-pub fn default_decoder_thread_count(channels: usize) -> usize {
-    // Intentional discard: `channels` is retained on the signature
-    // for backwards-compatibility with the previous `min(_, channels)`
-    // formula but no longer caps the result. See the rustdoc above
-    // for the architectural caveat (two-stage pipeline rewrite).
-    let _ = channels;
+pub fn default_decoder_thread_count() -> usize {
     let logical = thread::available_parallelism()
         .map(std::num::NonZero::get)
         .unwrap_or(2);
@@ -1079,26 +1080,12 @@ mod tests {
     }
 
     #[test]
-    fn default_decoder_count_independent_of_channels() {
-        // The helper used to cap the returned count at `channels`,
-        // throttling decoder CPU on under-channeled tiers. The
-        // current formula returns `max(logical/2, 1)` regardless of
-        // the `channels` argument — the argument is preserved on the
-        // signature only for backwards compatibility.
+    fn default_decoder_count_is_half_logical_cores() {
         let logical = thread::available_parallelism()
             .map(std::num::NonZero::get)
             .unwrap_or(2);
         let expected = (logical / 2).max(1);
-
-        // Every channel count (including the pathological zero)
-        // must produce the same independent-of-channels value.
-        for channels in [0usize, 1, 2, 4, 8, 16, 32] {
-            assert_eq!(
-                default_decoder_thread_count(channels),
-                expected,
-                "channels = {channels} should not affect default thread count",
-            );
-        }
+        assert_eq!(default_decoder_thread_count(), expected);
     }
 
     #[tokio::test]

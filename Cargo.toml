@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/tdbe", "crates/thetadatadx", "tools/cli", "tools/local-terminal-patcher", "ffi"]
+members = ["crates/tdbe", "crates/thetadatadx", "tools/cli", "ffi"]
 exclude = ["sdks/python", "sdks/typescript", "tools/mcp", "tools/server"]
 resolver = "2"
 

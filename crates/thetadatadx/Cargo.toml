@@ -90,7 +90,7 @@ x509-parser = "0.18.1"
 sha2 = "0.11.0"
 subtle = "2.6.1"
 
-# HTTP (auth against nexus-api + local-Terminal REST transport, #571).
+# HTTP (auth against nexus-api + local-Terminal REST transport).
 # `query` enables `RequestBuilder::query` for URL parameter encoding on
 # the REST path (`crate::rest`); adds serde + serde_urlencoded both
 # already in the workspace lockfile.

@@ -124,7 +124,11 @@ where
         Self {
             body: Some(body),
             codec,
-            buf: BytesMut::new(),
+            // Seed at 64 KiB so the typical DATA-frame chunk fits
+            // without a per-frame realloc-and-copy on the hot decode
+            // path. Empty streams pay one allocation up front; high-
+            // throughput streams stop paying it per chunk.
+            buf: BytesMut::with_capacity(64 * 1024),
             state: StreamState::Receiving,
             deadline: None,
             deadline_duration_ms: 0,
@@ -150,7 +154,8 @@ where
         Self {
             body: Some(body),
             codec,
-            buf: BytesMut::new(),
+            // Seed at 64 KiB; see `with_codec` above for the rationale.
+            buf: BytesMut::with_capacity(64 * 1024),
             state: StreamState::Receiving,
             deadline: Some(Box::pin(tokio::time::sleep_until(
                 Instant::now() + deadline,

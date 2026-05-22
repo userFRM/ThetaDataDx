@@ -1090,20 +1090,22 @@ fn parse_greeks_third_order_ticks_decodes_third_order_subset() {
     assert_eq!(t.date, 20_240_614);
 }
 
-// ─────────── Lenient subset NBBO column handling ───────────
+// ─────────── Subset NBBO header set: decoder must zero-fill absent
+// ─────────── exchange/condition columns
 //
 // Defense-in-depth: a `DataTable` whose header set is a subset of
-// the 11-field NBBO schema — i.e. 6 of 11 columns present, with the
-// other four (`bid_exchange`, `bid_condition`, `ask_exchange`,
-// `ask_condition`) absent — must decode without error and zero-fill
-// the absent columns. The subset layout
-// `[ms_of_day, bid_size, bid, ask_size, ask, date]` is the canonical
-// shape these tests exercise.
+// the canonical NBBO schema (six of eleven columns present, with
+// `bid_exchange`, `bid_condition`, `ask_exchange`, `ask_condition`
+// absent) must decode without error and zero-fill the absent
+// columns. The subset layout
+// `[ms_of_day, bid_size, bid, ask_size, ask, date]` is the
+// canonical shape these tests exercise.
 //
 // This pair of tests pins that behaviour so a future regression in
-// `find_header` / the generator's `opt_number(idx)` arm surfaces here.
+// `find_header` / the generator's `opt_number(idx)` arm surfaces
+// here.
 
-/// A `DataTable` whose headers match the 6-field NBBO subset shape
+/// A `DataTable` whose headers match the subset NBBO shape
 /// (`ms_of_day, bid_size, bid, ask_size, ask, date`) must decode to a
 /// `QuoteTick` with the absent exchange / condition columns zero-filled.
 #[test]

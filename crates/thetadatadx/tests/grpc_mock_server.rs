@@ -224,7 +224,7 @@ async fn run(
     serve_one_connection(socket, chunks, status_code, status_message, behaviour).await
 }
 
-async fn serve_one_connection(
+pub async fn serve_one_connection(
     socket: TcpStream,
     chunks: Vec<ResponseData>,
     status_code: u32,
@@ -1465,13 +1465,12 @@ async fn channel_pool_concurrent_dispatch_spreads_across_members() {
 
     let max_per_member = *observed_per_member.iter().max().expect("non-empty");
     // Under the CAS-retry picker, even with full concurrency the
-    // spread stays bounded. We allow up to 8 (50%) on any single
-    // member as a generous upper bound that still fails decisively
-    // against the broken picker (which can pin a large fraction of
-    // the picks onto one channel under contention). Every channel
-    // must also see at least one pick.
+    // spread stays tight. 16 picks across 4 channels ideal-balances
+    // at 4 per member; we allow at most one over ideal (5) to absorb
+    // a single lost CAS race without flapping on the GH-hosted
+    // runner. Every channel must also see at least one pick.
     assert!(
-        max_per_member <= 8,
+        max_per_member <= 5,
         "concurrent burst spread must stay bounded: picks={observed_per_member:?}"
     );
     for (idx, count) in observed_per_member.iter().enumerate() {
@@ -1546,7 +1545,9 @@ async fn channel_keepalive_survives_server_ping() {
     // Pump a PING every 50ms. The connection sits idle for ~250ms
     // between the first and second RPC; a broken keep-alive (no PONG)
     // would surface as the second RPC failing or the connection
-    // already being torn down. We assert both RPCs complete.
+    // already being torn down. We assert that a second RPC on the
+    // same channel completes after the idle window — that is the
+    // load-bearing keep-alive contract.
     let chunks = vec![make_response_data(&["AAPL"])];
     let mock = MockServer::spawn_with_behaviour(
         chunks.clone(),
@@ -1576,13 +1577,26 @@ async fn channel_keepalive_survives_server_ping() {
     // exercise the keep-alive code path before the next dispatch.
     tokio::time::sleep(Duration::from_millis(250)).await;
 
-    // The mock served exactly one RPC by spec — to second-test the
-    // connection liveness, spin up a second mock + channel. The
-    // first channel reaching this point WITHOUT the connection
-    // having been torn down by a missed PONG response is the
-    // assertion. The second mock is just to keep the test
-    // structurally similar to the others (mock spawns serve one RPC
-    // each in this suite).
+    // Second RPC on the same channel after the keep-alive window.
+    // The mock's `accept().await` loop multiplexes streams over the
+    // single TCP+h2 connection, so the same channel can drive a
+    // fresh stream without re-handshaking; if the connection has
+    // been torn down by a missed PONG round-trip this open call
+    // surfaces a connection-level error.
+    let second = channel
+        .server_streaming::<DataValueList, ResponseData>(
+            "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
+            empty_request(),
+        )
+        .await
+        .expect("second RPC must open on the same channel after keep-alive idle");
+    let second_msgs = collect(second).await.expect("second RPC completes");
+    assert_eq!(
+        second_msgs.len(),
+        chunks.len(),
+        "second RPC must deliver the full chunk count over the surviving connection",
+    );
+
     drop(channel);
 }
 
@@ -1636,8 +1650,6 @@ async fn channel_observes_small_initial_window() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn channel_pool_routes_around_saturated_member() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
     // Two mocks; the first advertises MAX_CONCURRENT_STREAMS=1 and
     // holds the in-flight RPC open via `pre_response_delay`. The
     // second is a normal fast responder. The pool's `next()` must
@@ -1661,7 +1673,6 @@ async fn channel_pool_routes_around_saturated_member() {
     let fast_channel = Channel::connect_h2c("127.0.0.1", fast_mock.addr.port())
         .await
         .expect("h2c connect (fast)");
-    let slow_addr = slow_mock.addr;
     let pool = ChannelPool::from_channels(vec![slow_channel, fast_channel]);
 
     // Saturate the slow channel: open one RPC that holds the only
@@ -1705,8 +1716,8 @@ async fn channel_pool_routes_around_saturated_member() {
         .await
         .expect("slow-channel RPC ok");
 
-    // Hold the static analyzer's attention: confirm the slow mock
-    // was actually the saturated one. `slow_addr` is captured to
-    // silence the unused-binding lint without `#[allow]`.
-    let _used = AtomicUsize::new(slow_addr.port() as usize).load(Ordering::Relaxed);
+    // Touch `slow_addr` so the binding's lifetime extends to the
+    // end of the test (the live mock listener is dropped here, not
+    // earlier by an aggressive optimiser pass).
+    let _slow_addr = slow_mock.addr;
 }

@@ -365,10 +365,7 @@ pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthRespo
         ),
     })?;
 
-    tracing::debug!(
-        session_id_prefix = %&auth.session_id[..8.min(auth.session_id.len())],
-        "authenticated successfully (session_id redacted)"
-    );
+    tracing::debug!("authenticated successfully (session_id redacted)");
 
     metrics::histogram!("thetadatadx.auth.latency_ms")
         .record(auth_start.elapsed().as_secs_f64() * 1_000.0);

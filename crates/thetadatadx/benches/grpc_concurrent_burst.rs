@@ -279,7 +279,7 @@ fn bench_concurrent_burst(c: &mut Criterion) {
     // / 2` capped at `POOL_SIZE`, ring = 256 slots (the production
     // default).
     let decoder_pool =
-        DecoderPool::new(default_decoder_thread_count(POOL_SIZE), 256).expect("decoder pool init");
+        DecoderPool::new(default_decoder_thread_count(), 256).expect("decoder pool init");
     let pool = ChannelPool::from_channels_with_decoders(channels, decoder_pool);
 
     let alloc_start = alloc_snapshot();

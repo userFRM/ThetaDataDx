@@ -90,7 +90,7 @@ class Config:
     reconnect_stable_window_secs: int
     # FPSS tunables.
     derive_ohlcvc: bool
-    # REST-fallback variant (issue #571). Read-only -- write via
+    # REST-routing variant. Read-only -- write via
     # `with_rest_fallback`.
     fallback_variant: str
 
@@ -99,7 +99,7 @@ class Config:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# FallbackPolicy (issue #571 REST-fallback wiring)
+# FallbackPolicy — REST routing for the four historical-quote endpoints
 # ─────────────────────────────────────────────────────────────────────
 
 
@@ -558,9 +558,9 @@ class ThetaDataDxClient:
     # Metrics.
     def dropped_event_count(self) -> int: ...
 
-    # REST-fallback surface (issue #571). Returns the typed tick-list
-    # wrappers; chain `.to_polars()` / `.to_pandas()` / `.to_arrow()`
-    # for columnar consumers.
+    # REST-routing surface for the four historical-quote endpoints.
+    # Returns the typed tick-list wrappers; chain `.to_polars()` /
+    # `.to_pandas()` / `.to_arrow()` for columnar consumers.
     def option_history_quote_with_fallback(
         self,
         symbol: str,
