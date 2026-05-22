@@ -1201,28 +1201,38 @@ impl ThetaDataDxClient {
         &self,
         symbol: &str,
         expiration: &str,
-        date: &str,
+        start_date: &str,
+        end_date: Option<&str>,
         strike: Option<&str>,
         right: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::TradeQuoteTick>, Error> {
         let policy = &self.config().fallback;
-        let start_date = parse_yyyymmdd("date", date)?;
+        let start_int = parse_yyyymmdd("start_date", start_date)?;
+        if let Some(end) = end_date {
+            parse_yyyymmdd("end_date", end)?;
+        }
 
-        if policy.pre_routes_to_rest(start_date) {
+        if policy.pre_routes_to_rest(start_int) {
             if let Some(base_url) = policy.base_url() {
                 tracing::info!(
                     target: "thetadatadx::client::fallback",
                     endpoint = "option_history_trade_quote",
-                    date,
+                    start_date,
+                    end_date,
                     "pre-routing to REST per FallbackPolicy"
                 );
                 return self
-                    .rest_trade_quote(base_url, symbol, expiration, date, strike, right)
+                    .rest_trade_quote(
+                        base_url, symbol, expiration, start_date, end_date, strike, right,
+                    )
                     .await;
             }
         }
 
-        let mut builder = self.option_history_trade_quote(symbol, expiration, date);
+        let mut builder = self.option_history_trade_quote(symbol, expiration, start_date);
+        if let Some(e) = end_date {
+            builder = builder.end_date(e);
+        }
         if let Some(s) = strike {
             builder = builder.strike(s);
         }
@@ -1241,7 +1251,9 @@ impl ThetaDataDxClient {
                             "h2 disconnect on gRPC, falling back to REST"
                         );
                         return self
-                            .rest_trade_quote(base_url, symbol, expiration, date, strike, right)
+                            .rest_trade_quote(
+                                base_url, symbol, expiration, start_date, end_date, strike, right,
+                            )
                             .await;
                     }
                 }
@@ -1250,22 +1262,246 @@ impl ThetaDataDxClient {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn rest_trade_quote(
         &self,
         base_url: &str,
         symbol: &str,
         expiration: &str,
-        date: &str,
+        start_date: &str,
+        end_date: Option<&str>,
         strike: Option<&str>,
         right: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::TradeQuoteTick>, Error> {
         let rest = crate::rest::RestClient::new(base_url).map_err(Error::from)?;
-        let mut builder = rest.option_history_trade_quote(symbol, expiration, date);
+        let mut builder = rest.option_history_trade_quote(symbol, expiration, start_date);
+        if let Some(e) = end_date {
+            builder = builder.end_date(e);
+        }
         if let Some(s) = strike {
             builder = builder.strike(s);
         }
         if let Some(r) = right {
             builder = builder.right(r);
+        }
+        builder.execute().await.map_err(Error::from)
+    }
+
+    /// Fetch option implied-volatility history via gRPC, falling back
+    /// to REST per [`crate::config::FallbackPolicy`] (issue #571). Same
+    /// dispatch semantics as
+    /// [`Self::option_history_quote_with_fallback`].
+    ///
+    /// The implied-volatility endpoint joins each option's quote with
+    /// the underlying's NBBO; the underlying-side join is what triggers
+    /// the issue #571 cascade on 2022-era rows, so this shim covers
+    /// the same date range the quote endpoint does.
+    ///
+    /// # Errors
+    ///
+    /// See [`Self::option_history_quote_with_fallback`].
+    pub async fn option_history_greeks_implied_volatility_with_fallback(
+        &self,
+        symbol: &str,
+        expiration: &str,
+        start_date: &str,
+        end_date: Option<&str>,
+        strike: Option<&str>,
+        right: Option<&str>,
+        interval: Option<&str>,
+    ) -> Result<Vec<tdbe::types::tick::IvTick>, Error> {
+        let policy = &self.config().fallback;
+        let start_int = parse_yyyymmdd("start_date", start_date)?;
+        if let Some(end) = end_date {
+            parse_yyyymmdd("end_date", end)?;
+        }
+
+        if policy.pre_routes_to_rest(start_int) {
+            if let Some(base_url) = policy.base_url() {
+                tracing::info!(
+                    target: "thetadatadx::client::fallback",
+                    endpoint = "option_history_greeks_implied_volatility",
+                    start_date,
+                    end_date,
+                    "pre-routing to REST per FallbackPolicy"
+                );
+                return self
+                    .rest_iv(
+                        base_url, symbol, expiration, start_date, end_date, strike, right, interval,
+                    )
+                    .await;
+            }
+        }
+
+        let mut builder =
+            self.option_history_greeks_implied_volatility(symbol, expiration, start_date);
+        if let Some(s) = strike {
+            builder = builder.strike(s);
+        }
+        if let Some(r) = right {
+            builder = builder.right(r);
+        }
+        if let Some(i) = interval {
+            builder = builder.interval(i);
+        }
+        match builder.await {
+            Ok(ticks) => Ok(ticks),
+            Err(err) => {
+                if policy.falls_back_on_h2_disconnect() && is_h2_disconnect(&err) {
+                    if let Some(base_url) = policy.base_url() {
+                        tracing::warn!(
+                            target: "thetadatadx::client::fallback",
+                            endpoint = "option_history_greeks_implied_volatility",
+                            error = %err,
+                            "h2 disconnect on gRPC, falling back to REST"
+                        );
+                        return self
+                            .rest_iv(
+                                base_url, symbol, expiration, start_date, end_date, strike, right,
+                                interval,
+                            )
+                            .await;
+                    }
+                }
+                Err(err)
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn rest_iv(
+        &self,
+        base_url: &str,
+        symbol: &str,
+        expiration: &str,
+        start_date: &str,
+        end_date: Option<&str>,
+        strike: Option<&str>,
+        right: Option<&str>,
+        interval: Option<&str>,
+    ) -> Result<Vec<tdbe::types::tick::IvTick>, Error> {
+        let rest = crate::rest::RestClient::new(base_url).map_err(Error::from)?;
+        let mut builder =
+            rest.option_history_greeks_implied_volatility(symbol, expiration, start_date);
+        if let Some(e) = end_date {
+            builder = builder.end_date(e);
+        }
+        if let Some(s) = strike {
+            builder = builder.strike(s);
+        }
+        if let Some(r) = right {
+            builder = builder.right(r);
+        }
+        if let Some(i) = interval {
+            builder = builder.interval(i);
+        }
+        builder.execute().await.map_err(Error::from)
+    }
+
+    /// Fetch option first-order Greeks history via gRPC, falling back
+    /// to REST per [`crate::config::FallbackPolicy`] (issue #571). Same
+    /// dispatch semantics as
+    /// [`Self::option_history_quote_with_fallback`].
+    ///
+    /// The Greeks endpoint shares the same underlying-quote join as
+    /// the implied-volatility endpoint, so it cascades on the same
+    /// 2022-era rows.
+    ///
+    /// # Errors
+    ///
+    /// See [`Self::option_history_quote_with_fallback`].
+    pub async fn option_history_greeks_first_order_with_fallback(
+        &self,
+        symbol: &str,
+        expiration: &str,
+        start_date: &str,
+        end_date: Option<&str>,
+        strike: Option<&str>,
+        right: Option<&str>,
+        interval: Option<&str>,
+    ) -> Result<Vec<tdbe::types::tick::GreeksFirstOrderTick>, Error> {
+        let policy = &self.config().fallback;
+        let start_int = parse_yyyymmdd("start_date", start_date)?;
+        if let Some(end) = end_date {
+            parse_yyyymmdd("end_date", end)?;
+        }
+
+        if policy.pre_routes_to_rest(start_int) {
+            if let Some(base_url) = policy.base_url() {
+                tracing::info!(
+                    target: "thetadatadx::client::fallback",
+                    endpoint = "option_history_greeks_first_order",
+                    start_date,
+                    end_date,
+                    "pre-routing to REST per FallbackPolicy"
+                );
+                return self
+                    .rest_greeks_first_order(
+                        base_url, symbol, expiration, start_date, end_date, strike, right, interval,
+                    )
+                    .await;
+            }
+        }
+
+        let mut builder = self.option_history_greeks_first_order(symbol, expiration, start_date);
+        if let Some(s) = strike {
+            builder = builder.strike(s);
+        }
+        if let Some(r) = right {
+            builder = builder.right(r);
+        }
+        if let Some(i) = interval {
+            builder = builder.interval(i);
+        }
+        match builder.await {
+            Ok(ticks) => Ok(ticks),
+            Err(err) => {
+                if policy.falls_back_on_h2_disconnect() && is_h2_disconnect(&err) {
+                    if let Some(base_url) = policy.base_url() {
+                        tracing::warn!(
+                            target: "thetadatadx::client::fallback",
+                            endpoint = "option_history_greeks_first_order",
+                            error = %err,
+                            "h2 disconnect on gRPC, falling back to REST"
+                        );
+                        return self
+                            .rest_greeks_first_order(
+                                base_url, symbol, expiration, start_date, end_date, strike, right,
+                                interval,
+                            )
+                            .await;
+                    }
+                }
+                Err(err)
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn rest_greeks_first_order(
+        &self,
+        base_url: &str,
+        symbol: &str,
+        expiration: &str,
+        start_date: &str,
+        end_date: Option<&str>,
+        strike: Option<&str>,
+        right: Option<&str>,
+        interval: Option<&str>,
+    ) -> Result<Vec<tdbe::types::tick::GreeksFirstOrderTick>, Error> {
+        let rest = crate::rest::RestClient::new(base_url).map_err(Error::from)?;
+        let mut builder = rest.option_history_greeks_first_order(symbol, expiration, start_date);
+        if let Some(e) = end_date {
+            builder = builder.end_date(e);
+        }
+        if let Some(s) = strike {
+            builder = builder.strike(s);
+        }
+        if let Some(r) = right {
+            builder = builder.right(r);
+        }
+        if let Some(i) = interval {
+            builder = builder.interval(i);
         }
         builder.execute().await.map_err(Error::from)
     }
