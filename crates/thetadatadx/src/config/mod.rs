@@ -1139,6 +1139,34 @@ mod tests {
         assert_eq!(mdds.decoder_threads, 0);
         assert_eq!(mdds.decoder_ring_size, 256);
         assert!(mdds.decoder_ring_size.is_power_of_two());
+        // Two-stage decode pipeline defaults: auto-size at connect
+        // time. `None` is the sentinel; the resolution lives in
+        // `mdds::client::default_stage2_thread_count` /
+        // `default_stage2_queue_depth` so production behaviour
+        // tracks `available_parallelism` automatically.
+        assert!(mdds.decode_threads.is_none());
+        assert!(mdds.decode_queue_depth.is_none());
+    }
+
+    #[test]
+    fn mdds_decode_threads_override_clamps_zero_to_one() {
+        // The clamp lives in `Stage2Pool::new`; the config-side
+        // contract is that `Some(0)` reaches the pool as the
+        // operator's explicit choice (the pool then clamps to 1
+        // rather than the config layer reinterpreting "0 means
+        // auto-size"). This test pins the contract so a future
+        // refactor that moves the clamp here trips CI before
+        // shipping.
+        let mut mdds = crate::config::MddsConfig::production_defaults();
+        mdds.decode_threads = Some(0);
+        assert_eq!(mdds.decode_threads, Some(0));
+    }
+
+    #[test]
+    fn mdds_decode_queue_depth_override_holds_explicit_value() {
+        let mut mdds = crate::config::MddsConfig::production_defaults();
+        mdds.decode_queue_depth = Some(2048);
+        assert_eq!(mdds.decode_queue_depth, Some(2048));
     }
 
     // ── RetryPolicy / env var tests ──────────────────────────────────

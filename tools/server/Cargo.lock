@@ -417,6 +417,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-channel"
+version = "0.5.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-queue"
 version = "0.3.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2354,7 +2363,9 @@ version = "10.0.0"
 dependencies = [
  "arc-swap",
  "bytes",
+ "crossbeam-channel",
  "crossbeam-queue",
+ "crossbeam-utils",
  "disruptor",
  "futures-core",
  "h2",
