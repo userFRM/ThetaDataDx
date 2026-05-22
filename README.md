@@ -163,8 +163,32 @@ tdx.subscribe_many(vec![stock.quote(), option.quote()])?;
 
 All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64`, decoded during parsing.
 
+### Choosing buffered vs streaming for historical pulls
 
-All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64`, decoded during parsing.
+Every historical builder (`option_history_*`, `stock_history_*`,
+`index_history_*`, `interest_rate_history_*`) supports two terminals:
+
+| Workload | Use |
+|---|---|
+| Single day / one-shot ad-hoc query | `.await` |
+| Single day, deterministic small response | `.await` |
+| Bulk / multi-day backfill | `.stream(handler)` |
+| Tick-interval responses | `.stream(handler)` |
+| Greeks responses across a long horizon | `.stream(handler)` |
+
+Buffered `.await` collects the full response into `Vec<Tick>` before
+returning. On a 2.4 M-tick day this consumes ~5 GiB of RSS before any
+caller code runs. `.stream(handler)` yields chunks via
+`handler(&[Tick])` and drops each chunk before the next is fetched —
+peak RSS stays at ~150 MiB regardless of response size.
+
+When the buffered path returns a response whose estimated size exceeds
+`MddsConfig::warn_on_buffered_threshold_bytes` (default 100 MiB), the
+SDK emits a single `tracing::warn!` event suggesting `.stream(handler)`
+for the workload (`endpoint`, `row_count`, `bytes_est` fields). Set the
+threshold to `0` to disable. See
+[`docs-site/docs/legacy-quote-handling.md`](docs-site/docs/legacy-quote-handling.md)
+for the full migration recipe.
 
 ## API coverage
 

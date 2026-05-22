@@ -380,4 +380,90 @@ through a 2022 reproducer and asserts a non-empty response.
 * GitHub issue: [#571](https://github.com/userFRM/ThetaDataDx/issues/571)
 * Patch sources: `tools/local-terminal-patcher/patches/`
 * SDK module: [`crate::rest`](https://docs.rs/thetadatadx/latest/thetadatadx/rest/index.html)
+
+# Buffered `.await` vs streaming `.stream(handler)` (issue #576)
+
+The two terminals on every historical builder serve the same data
+over the same wire — pick by workload, not by capability.
+
+| Workload | Use |
+|---|---|
+| Single day / one-shot ad-hoc query | `.await` |
+| Single day, deterministic small response | `.await` |
+| Aggregates over full response (mean, std, count) | `.await` |
+| Notebook / script prototyping | `.await` |
+| Bulk / multi-day backfill | `.stream(handler)` |
+| Tick-interval responses | `.stream(handler)` |
+| Greeks responses across a long horizon | `.stream(handler)` |
+| Response > ~100k rows | `.stream(handler)` |
+| Bounded-RSS or low-memory environment | `.stream(handler)` |
+
+Buffered `.await` materializes the full response into `Vec<Tick>`
+before returning. Per the reproducer in issue #565, a 2.4 M-tick day
+on `option_history_quote(QQQ, 1DTE, interval=tick, strike_range=25)`
+at 4-permit concurrency consumes ~5 GiB of RSS before any caller code
+runs. The streaming variant decodes one chunk at a time, hands the
+slice to `handler`, drops the chunk before the next is fetched — peak
+RSS stays at ~150 MiB regardless of response size (35× lower on the
+same workload).
+
+## Runtime warning on large buffered responses
+
+When the buffered `.await` path returns a response whose estimated
+size (`row_count * size_of::<Tick>`) exceeds
+[`MddsConfig::warn_on_buffered_threshold_bytes`] (default 100 MiB), the
+SDK emits a single `tracing::warn!` event:
+
+```text
+buffered .await returned a large response — consider .stream(handler)
+for this workload (see docs-site/docs/legacy-quote-handling.md)
+endpoint=option_history_quote
+row_count=2_412_383
+bytes_est=2_315_887_680
+threshold_bytes=104_857_600
+```
+
+* **Threshold is configurable.** Set
+  `config.mdds.warn_on_buffered_threshold_bytes = X` to tune. `0`
+  disables the warn entirely; `usize::MAX` effectively disables it
+  too.
+* **One warn per request.** The warn fires once at the end of the
+  buffered collect — no per-chunk torrent. Long-running workloads
+  see exactly one log line per offending request.
+* **Logging only.** No panic, no API change, no policy enforcement.
+  The buffered call still returns the full `Vec<Tick>` to the
+  caller; the warn is the operator-visible "wrong API for this
+  workload" signal.
+
+## Side-by-side
+
+```rust
+use thetadatadx::ThetaDataDxClient;
+
+// Buffered — fine for ad-hoc one-shots.
+let ticks = tdx
+    .option_history_quote("QQQ", "20260516")
+    .strike(550.0)
+    .right("call")
+    .await?;
+println!("{} rows", ticks.len());
+
+// Streaming — required for bulk pulls.
+tdx.option_history_quote("QQQ", "20260516")
+    .strike_range(25)
+    .interval("tick")
+    .stream(|chunk| {
+        // write to parquet / accumulate stats / push to a bus
+        for tick in chunk {
+            // ...
+        }
+    })
+    .await?;
+```
+
+Both APIs serve identical wire payloads; the only difference is whether
+the SDK materializes the full `Vec` for the caller or hands chunks to a
+handler. See the Python SDK README for the `.stream(handler)` /
+`.stream_async(handler)` Python shapes (same memory profile, same
+warn-on-buffered behaviour).
 * Fallback policy: [`crate::FallbackPolicy`](https://docs.rs/thetadatadx/latest/thetadatadx/enum.FallbackPolicy.html)
