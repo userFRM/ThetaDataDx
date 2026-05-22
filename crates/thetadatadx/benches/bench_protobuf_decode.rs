@@ -30,63 +30,13 @@ use criterion::{
 };
 use prost::Message;
 
-use thetadatadx::wire as proto;
-use thetadatadx::wire::{data_value, DataTable, DataValue, DataValueList};
+use thetadatadx::wire::{DataTable, DataValueList};
 
-// ─── DataTable fixture builders ─────────────────────────────────────
+#[path = "common/quote_fixture.rs"]
+mod fixture;
+use fixture::{build_quote_data_table, dv_number, dv_price};
 
-fn dv_number(n: i64) -> DataValue {
-    DataValue {
-        data_type: Some(data_value::DataType::Number(n)),
-    }
-}
-
-fn dv_price(value: i32, ty: i32) -> DataValue {
-    DataValue {
-        data_type: Some(data_value::DataType::Price(proto::Price {
-            value,
-            r#type: ty,
-        })),
-    }
-}
-
-/// Build a quote-tick `DataTable` with `n` rows. Mirrors the
-/// canonical 10-column quote schema MDDS emits.
-fn build_quote_data_table(n: usize) -> DataTable {
-    let headers = vec![
-        "ms_of_day".to_string(),
-        "bid_size".to_string(),
-        "bid_exchange".to_string(),
-        "bid".to_string(),
-        "bid_condition".to_string(),
-        "ask_size".to_string(),
-        "ask_exchange".to_string(),
-        "ask".to_string(),
-        "ask_condition".to_string(),
-        "date".to_string(),
-    ];
-    let mut rows = Vec::with_capacity(n);
-    for i in 0..n {
-        rows.push(DataValueList {
-            values: vec![
-                dv_number(34_200_000 + i as i64 * 50),
-                dv_number(10 + (i % 100) as i64),
-                dv_number(4),
-                dv_price(15_020 + (i % 100) as i32, 8),
-                dv_number(1),
-                dv_number(5 + (i % 80) as i64),
-                dv_number(4),
-                dv_price(15_030 + (i % 100) as i32, 8),
-                dv_number(1),
-                dv_number(20_240_315),
-            ],
-        });
-    }
-    DataTable {
-        headers,
-        data_table: rows,
-    }
-}
+// ─── Trade fixture (quote fixture lives in `fixture`) ───────────────
 
 /// Build a trade-tick `DataTable` with `n` rows. Mirrors the
 /// canonical 15-column trade schema MDDS emits.

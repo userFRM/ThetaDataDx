@@ -108,7 +108,7 @@ impl MddsClient {
                 .acquire()
                 .await
                 .map_err(|_| Error::config_internal("request semaphore closed"))?;
-            tracing::debug!(
+            tracing::trace!(
                 target: "thetadatadx::mdds::fallback",
                 endpoint = "option_history_quote",
                 start_date,
@@ -171,7 +171,7 @@ impl MddsClient {
                 .acquire()
                 .await
                 .map_err(|_| Error::config_internal("request semaphore closed"))?;
-            tracing::debug!(
+            tracing::trace!(
                 target: "thetadatadx::mdds::fallback",
                 endpoint = "option_history_trade_quote",
                 start_date,
@@ -229,7 +229,7 @@ impl MddsClient {
                 .acquire()
                 .await
                 .map_err(|_| Error::config_internal("request semaphore closed"))?;
-            tracing::debug!(
+            tracing::trace!(
                 target: "thetadatadx::mdds::fallback",
                 endpoint = "option_history_greeks_implied_volatility",
                 start_date,
@@ -295,7 +295,7 @@ impl MddsClient {
                 .acquire()
                 .await
                 .map_err(|_| Error::config_internal("request semaphore closed"))?;
-            tracing::debug!(
+            tracing::trace!(
                 target: "thetadatadx::mdds::fallback",
                 endpoint = "option_history_greeks_first_order",
                 start_date,

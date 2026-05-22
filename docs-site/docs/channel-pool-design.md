@@ -18,22 +18,18 @@ process restart.
 
 ## Root cause
 
-`crate::grpc::pool::ChannelPool` (versions through PR #588) marked
-each channel dead on the first observed `ConnectionClosed` and had
-no recycling counterpart. Production h2 connections occasionally
-drop: hosted MDDS rotates connections on a scheduled cadence
-(server-side GOAWAY), network blips happen, tokio runtime hiccups
-can surface as `inactive stream` errors. Each drop flipped one
-channel's death flag permanently. Over a long enough uptime every
-pool member accumulated a drop, and the picker's last-resort
-fallback routed every subsequent RPC through a permanently-dead
-channel — instant `ConnectionClosed` forever.
+`crate::grpc::pool::ChannelPool` historically marked each channel
+dead on the first observed `ConnectionClosed` with no recycling
+counterpart. Production h2 connections drop on a scheduled cadence
+(server-side GOAWAY), network blips, tokio runtime hiccups that
+surface as `inactive stream`. Each drop flipped one channel's
+death flag permanently; over enough uptime every pool member
+accumulated a drop and the picker's last-resort fallback routed
+every subsequent RPC through a permanently-dead channel.
 
-The previous transport (tonic 0.x via `tonic::transport::Channel`)
-did not exhibit this because tonic's channel reconnects transparently
-on connection-level faults. PR #524 swapped tonic for the in-house
-`h2` transport for two-stage decode pipeline reasons, and the
-recycling contract was not carried over.
+The previous transport (tonic) reconnected transparently on
+connection-level faults; the in-house `h2` transport did not carry
+that recycling contract over.
 
 ## Fix
 
@@ -97,3 +93,14 @@ across a 60-minute window with 8-concurrent dispatch; the pool's
 reconnect-event metric (`thetadatadx.grpc.channel.reconnects_total`)
 should increment as connections rotate without any RPC failing
 upward to the caller.
+
+## Future narrowing
+
+The crate-level `pub mod grpc` re-export currently exposes the
+channel, channel pool, codec, and decoder-pool surface. The wide
+surface is acceptable for the v10.x line so embedded callers can
+build custom transports while the API stabilises. v11 will narrow
+this to `pub(crate)` plus a curated `pub use` allowlist; embedded
+callers that need a public symbol that doesn't survive the narrowing
+should open an issue against the v11 milestone so the allowlist
+captures the call site before the bump lands.

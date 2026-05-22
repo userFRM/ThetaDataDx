@@ -201,3 +201,31 @@ name = "StreamError"
 python = true
 typescript = false
 cpp = true
+
+# ─── Documented Rust-only knobs ────────────────────────────────────────
+#
+# Cross-binding parity gaps that are deliberately not yet bound on
+# Python / TS / C++. The retry-tuning knobs on `FlatFilesConfig`
+# (`max_attempts`, `initial_backoff`, `max_backoff`) are Rust-only
+# today; binding them requires a cross-binding setter sweep beyond
+# the scope of the audit-closure PR. Tracked at the time of this row's
+# landing (see CHANGELOG entry); to be flipped to `true` once the
+# follow-up binding PR lands.
+
+[[class]]
+name = "FlatFilesConfig.max_attempts"
+python = false
+typescript = false
+cpp = false
+
+[[class]]
+name = "FlatFilesConfig.initial_backoff_secs"
+python = false
+typescript = false
+cpp = false
+
+[[class]]
+name = "FlatFilesConfig.max_backoff_secs"
+python = false
+typescript = false
+cpp = false

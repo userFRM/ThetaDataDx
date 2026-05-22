@@ -62,8 +62,12 @@ The decoder pool also lands in v10:
 `MddsConfig::decoder_threads` and `MddsConfig::decoder_ring_size`
 control a dedicated pool that runs zstd decompress + protobuf
 decode off the tokio reactor. `decoder_threads = 0` auto-sizes to
-`min(channels, available_parallelism / 2)`; `decoder_ring_size`
+`(available_parallelism / 2).max(1)`[^auto-size]; `decoder_ring_size`
 must be a power of two `>= 64`.
+
+[^auto-size]: Pre-v10.0.1 also capped this by the channel count; the
+cap was dropped because channels (server-throttled streams) and
+decoder threads (CPU work on already-arrived bytes) are independent.
 
 ## ContractRef rename
 

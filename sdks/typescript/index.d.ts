@@ -56,9 +56,15 @@ export declare class Config {
    * leaving half the logical cores for the tokio reactor and the
    * application's own work. Override on shared hosts or to widen
    * the decode pipeline on heavy historical backfills.
+   *
+   * @deprecated since v10.0.1, use setDecodeThreads().
    */
   setDecoderThreads(n: number): void
-  /** Current `decoder_threads` setting (`0` = auto-detect). */
+  /**
+   * Current `decoder_threads` setting (`0` = auto-detect).
+   *
+   * @deprecated since v10.0.1, use decodeThreads.
+   */
   get decoderThreads(): number
   /**
    * Set the per-thread decoder ring size.

@@ -275,9 +275,8 @@ fn bench_concurrent_burst(c: &mut Criterion) {
         }
     });
     // Dedicated decoder pool: same shape as production
-    // `MddsClient::connect` wires up. Threads = `available_parallelism
-    // / 2` capped at `POOL_SIZE`, ring = 256 slots (the production
-    // default).
+    // `MddsClient::connect` wires up. Threads = `(available_parallelism
+    // / 2).max(1)`, ring = 256 slots (the production default).
     let decoder_pool =
         DecoderPool::new(default_decoder_thread_count(), 256).expect("decoder pool init");
     let pool = ChannelPool::from_channels_with_decoders(channels, decoder_pool);

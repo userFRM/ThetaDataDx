@@ -1167,7 +1167,7 @@ fn push_with_block(
 /// classification so all three FPSS read sites (this loop, mid-header,
 /// mid-payload) share one definition. Recognises `WouldBlock`,
 /// `TimedOut`, and Windows `ERROR_IO_PENDING` (raw OS 997, surfaced as
-/// `ErrorKind::Uncategorized` by `std`) — see issue #469.
+/// `ErrorKind::Uncategorized` by `std`).
 fn is_read_timeout(e: &Error) -> bool {
     match e {
         Error::Io(io_err) => super::framing::is_transient_read(io_err),

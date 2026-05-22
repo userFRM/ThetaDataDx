@@ -192,6 +192,36 @@ macro_rules! require_cstr {
     };
 }
 
+/// Dereference an opaque `*const TdxClient` (or equivalent) handle into a
+/// `&` reference, returning the supplied fallback after setting
+/// `tdx_last_error` on null. Hides the boilerplate `if is_null() { ... };
+/// unsafe { &*client }` pattern that the FFI endpoint codegen emits at
+/// every call site.
+macro_rules! require_client {
+    ($client:ident, $fallback:expr) => {{
+        if $client.is_null() {
+            $crate::error::set_error(concat!(stringify!($client), " handle is null"));
+            return $fallback;
+        }
+        // SAFETY: caller passes a pointer returned by `tdx_client_connect` (or `_new`) that has not been freed by `tdx_client_free`; null was rejected above; `&*` produces a shared reference valid for the call duration because the caller owns the Box.
+        unsafe { &*$client }
+    }};
+}
+
+/// Decode a C array of C string pointers `(symbols, symbols_len)` into
+/// `Vec<String>`, returning the supplied fallback after setting
+/// `tdx_last_error` on null/UTF-8 failure. Wraps `parse_symbol_array`
+/// so endpoint shims do not repeat the inline null/UTF-8 branch.
+macro_rules! require_symbol_array {
+    ($symbols:ident, $symbols_len:ident, $fallback:expr) => {
+        // SAFETY: caller passes a contiguous array of `symbols_len` non-null NUL-terminated C strings kept valid for the call duration; `parse_symbol_array` validates each element and surfaces errors via `tdx_last_error`.
+        match unsafe { $crate::types::parse_symbol_array($symbols, $symbols_len) } {
+            Some(values) => values,
+            None => return $fallback,
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     //! Unit tests for the typed error-code surface introduced by the
@@ -340,5 +370,170 @@ mod tests {
         set_error("plain error");
         assert_eq!(tdx_last_error_code(), TDX_ERR_OTHER);
         tdx_clear_error();
+    }
+
+    // ───────── macro coverage ─────────────────────────────────────────
+    //
+    // `require_cstr!`, `require_client!`, and `require_symbol_array!`
+    // are the three macros emitted at every FFI endpoint shim. The
+    // tests below drive the macros themselves (not a re-implementation
+    // of the underlying path) and verify the observable contract: the
+    // thread-local error slot gets populated on failure, the fallback
+    // value is returned, and the success path does not perturb the
+    // slot.
+
+    use std::ffi::{c_char, CString};
+    use std::ptr;
+
+    // Helper that returns the macro's `&str` result (or the supplied
+    // fallback) so the test body can inspect both branches. Returning
+    // `&'static str` keeps the helper signature simple — the macro
+    // itself produces a `&str` borrowed from the input C string, so
+    // for the success path the test holds the `CString` alive across
+    // the call.
+    fn run_require_cstr(p: *const c_char, fallback: &str) -> &str {
+        let s_ptr = p;
+        require_cstr!(s_ptr, fallback)
+    }
+
+    #[test]
+    fn require_cstr_null_returns_fallback_and_sets_error() {
+        tdx_clear_error();
+        let result = run_require_cstr(ptr::null(), "fallback");
+        assert_eq!(result, "fallback");
+        assert_eq!(tdx_last_error_code(), TDX_ERR_OTHER);
+        // SAFETY: `tdx_last_error()` returns a `*const c_char` pointing to the thread-local `LAST_ERROR` slot's `CString`; non-null per the assertion just above (or the surrounding test confirmed the slot was populated), and the slot lives until the next `set_error` / `tdx_clear_error` call on this thread.
+        let msg = unsafe { std::ffi::CStr::from_ptr(tdx_last_error()) }
+            .to_str()
+            .unwrap();
+        assert!(msg.contains("is null"), "expected null mention, got {msg}");
+        tdx_clear_error();
+    }
+
+    #[test]
+    fn require_cstr_valid_utf8_returns_str() {
+        tdx_clear_error();
+        let cstr = CString::new("payload").unwrap();
+        let result = run_require_cstr(cstr.as_ptr(), "fallback");
+        assert_eq!(result, "payload");
+        assert_eq!(tdx_last_error_code(), TDX_ERR_NONE);
+        assert!(tdx_last_error().is_null());
+    }
+
+    #[test]
+    fn require_cstr_invalid_utf8_returns_fallback_and_sets_error() {
+        tdx_clear_error();
+        // 0xFF is not a valid UTF-8 leading byte; the second 0x00 is
+        // the NUL terminator so the buffer is a well-formed C string
+        // but a malformed Rust `&str`.
+        let bytes: [u8; 2] = [0xFF, 0x00];
+        let p = bytes.as_ptr().cast::<c_char>();
+        let result = run_require_cstr(p, "fallback");
+        assert_eq!(result, "fallback");
+        assert_eq!(tdx_last_error_code(), TDX_ERR_OTHER);
+        // SAFETY: `tdx_last_error()` returns a `*const c_char` pointing to the thread-local `LAST_ERROR` slot's `CString`; non-null per the assertion just above (or the surrounding test confirmed the slot was populated), and the slot lives until the next `set_error` / `tdx_clear_error` call on this thread.
+        let msg = unsafe { std::ffi::CStr::from_ptr(tdx_last_error()) }
+            .to_str()
+            .unwrap();
+        assert!(msg.contains("UTF-8"), "expected UTF-8 mention, got {msg}");
+        tdx_clear_error();
+    }
+
+    #[test]
+    fn require_cstr_empty_returns_empty_str_no_error() {
+        tdx_clear_error();
+        let bytes: [u8; 1] = [0x00];
+        let p = bytes.as_ptr().cast::<c_char>();
+        let result = run_require_cstr(p, "fallback");
+        assert_eq!(result, "");
+        assert_eq!(tdx_last_error_code(), TDX_ERR_NONE);
+        assert!(tdx_last_error().is_null());
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // `require_client!` macro coverage. Uses a synthetic non-opaque
+    // pointee so the test does not need a real `TdxClient` handle (the
+    // macro only reads the pointer null-ness and dereferences for
+    // borrowing).
+    fn run_require_client<T>(p: *const T, fallback: i32) -> i32 {
+        let client = p;
+        let _ref = require_client!(client, fallback);
+        // Return a sentinel distinct from `fallback` so the success
+        // branch is observable.
+        0
+    }
+
+    #[test]
+    fn require_client_null_returns_fallback_and_sets_error() {
+        tdx_clear_error();
+        let result = run_require_client::<u32>(ptr::null(), -1);
+        assert_eq!(result, -1);
+        assert_eq!(tdx_last_error_code(), TDX_ERR_OTHER);
+        // SAFETY: `tdx_last_error()` returns a `*const c_char` pointing to the thread-local `LAST_ERROR` slot's `CString`; non-null per the assertion just above (or the surrounding test confirmed the slot was populated), and the slot lives until the next `set_error` / `tdx_clear_error` call on this thread.
+        let msg = unsafe { std::ffi::CStr::from_ptr(tdx_last_error()) }
+            .to_str()
+            .unwrap();
+        assert!(
+            msg.contains("handle is null"),
+            "expected handle-is-null mention, got {msg}"
+        );
+        tdx_clear_error();
+    }
+
+    #[test]
+    fn require_client_valid_returns_ref() {
+        tdx_clear_error();
+        let storage: u32 = 0x00C0_FFEE_u32;
+        let result = run_require_client(&storage as *const u32, -1);
+        assert_eq!(result, 0);
+        assert_eq!(tdx_last_error_code(), TDX_ERR_NONE);
+        assert!(tdx_last_error().is_null());
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // `require_symbol_array!` macro coverage. Drives the macro with
+    // the three input shapes endpoint shims see in the wild.
+    fn run_require_symbol_array(
+        symbols: *const *const c_char,
+        symbols_len: usize,
+    ) -> Result<Vec<String>, ()> {
+        let symbols_arg = symbols;
+        let symbols_len_arg = symbols_len;
+        Ok(require_symbol_array!(symbols_arg, symbols_len_arg, Err(())))
+    }
+
+    #[test]
+    fn require_symbol_array_null_pointer_zero_len_ok() {
+        tdx_clear_error();
+        let out = run_require_symbol_array(ptr::null(), 0).expect("(null, 0) is the Go-empty case");
+        assert!(out.is_empty());
+        assert_eq!(tdx_last_error_code(), TDX_ERR_NONE);
+    }
+
+    #[test]
+    fn require_symbol_array_null_pointer_nonzero_len_returns_fallback_and_sets_error() {
+        tdx_clear_error();
+        let result = run_require_symbol_array(ptr::null(), 3);
+        assert!(result.is_err());
+        // SAFETY: `tdx_last_error()` returns a `*const c_char` pointing to the thread-local `LAST_ERROR` slot's `CString`; non-null per the assertion just above (or the surrounding test confirmed the slot was populated), and the slot lives until the next `set_error` / `tdx_clear_error` call on this thread.
+        let msg = unsafe { std::ffi::CStr::from_ptr(tdx_last_error()) }
+            .to_str()
+            .unwrap();
+        assert!(
+            msg.contains("symbols array pointer is null"),
+            "expected null-array mention, got {msg}"
+        );
+        tdx_clear_error();
+    }
+
+    #[test]
+    fn require_symbol_array_valid_returns_strings() {
+        tdx_clear_error();
+        let a = CString::new("AAPL").unwrap();
+        let b = CString::new("MSFT").unwrap();
+        let arr: [*const c_char; 2] = [a.as_ptr(), b.as_ptr()];
+        let out = run_require_symbol_array(arr.as_ptr(), arr.len()).expect("valid input");
+        assert_eq!(out, vec!["AAPL".to_owned(), "MSFT".to_owned()]);
+        assert_eq!(tdx_last_error_code(), TDX_ERR_NONE);
     }
 }

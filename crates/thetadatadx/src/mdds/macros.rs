@@ -395,7 +395,7 @@ pub(crate) fn should_warn_buffered_size(
 
 /// Emit a single `tracing::warn!` event when the buffered `.await`
 /// path on a `parsed_endpoint!` builder crosses
-/// `mdds.warn_on_buffered_threshold_bytes` (issue #576).
+/// `mdds.warn_on_buffered_threshold_bytes`.
 ///
 /// Fires AT MOST ONCE per call — the macro invokes this helper
 /// immediately after the `Vec<Tick>` materializes, before returning

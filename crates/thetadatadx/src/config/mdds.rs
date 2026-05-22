@@ -1,42 +1,22 @@
 //! MDDS (gRPC) sub-configuration.
 //!
-//! Defaults match what the v3 terminal sends in production.
+//! Three knobs control SDK-side throughput on large historical pulls
+//! (multi-day backfills, wide `strike_range`, `interval = 1s` /
+//! `tick`):
 //!
-//! # Throughput tuning (issue #584)
+//! | Workload                                        | `concurrent_requests` | `decode_threads` | `decoder_ring_size` |
+//! |-------------------------------------------------|-----------------------|------------------|---------------------|
+//! | One-shot single-day single-strike query         | `1`                   | auto             | default (256)       |
+//! | Multi-day backfill, narrow strike scope (sr<10) | `4` (PRO)             | auto             | default (256)       |
+//! | Wide `strike_range` or `1s`/`tick` interval bulk| `8` (PRO max)         | `8`              | default (256)       |
+//! | Server-side tier caps                           | FREE=1 / VALUE=2 / STANDARD=4 / PRO=8 |  |                     |
 //!
-//! For large historical pulls (multi-day backfills, wide
-//! `strike_range`, `interval = 1s` / `tick`), three knobs control the
-//! SDK-side throughput. Each is independently tunable:
+//! `concurrent_requests` is clamped to the resolved subscription
+//! tier cap at connect time (a setting of `32` on a PRO tier opens
+//! 8 channels and emits a `tracing::warn!`).
 //!
-//! | Workload                                        | `concurrent_requests` | `decoder_threads` | `decoder_ring_size` |
-//! |-------------------------------------------------|-----------------------|-------------------|---------------------|
-//! | One-shot single-day single-strike query         | `1`                   | auto              | default (256)       |
-//! | Multi-day backfill, narrow strike scope (sr<10) | `4` (PRO)             | auto              | default (256)       |
-//! | Wide `strike_range` or `1s`/`tick` interval bulk| `8` (PRO max)         | `8`               | default (256)       |
-//! | Reference: server-side tier caps                | FREE=1 / VALUE=2 / STANDARD=4 / PRO=8 |   |                     |
-//!
-//! ## Subscription-tier clamp
-//!
-//! `concurrent_requests` is **clamped to the resolved subscription
-//! tier cap** at connect time. Setting `concurrent_requests = 32` on
-//! a PRO tier opens 8 channels (not 32) and emits a
-//! `tracing::warn!`. The clamp surfaces the misconfiguration locally
-//! instead of producing the confusing per-RPC `ResourceExhausted`
-//! rejections the previous (unclamped) behaviour exhibited.
-//!
-//! ## Architectural caveat for `decoder_threads`
-//!
-//! Today's MDDS pool pins each gRPC channel to one decoder ring via
-//! round-robin distribution. Decoder threads beyond
-//! `concurrent_requests` therefore sit idle — no producer feeds
-//! them. The two-stage pipeline rewrite (separate PR) decouples the
-//! IO and decode sides so extra decoder threads become useful;
-//! until then, setting `decoder_threads > concurrent_requests` is
-//! wasted memory (each idle thread keeps a `decoder_ring_size`-slot
-//! ring allocated).
-//!
-//! See the `docs-site/docs/configuration.md` "Throughput Tuning"
-//! section for the full guidance with per-binding code samples.
+//! See `docs-site/docs/configuration.md` for the per-binding setter
+//! samples.
 
 /// MDDS gRPC client tuning.
 #[derive(Debug, Clone)]
@@ -90,37 +70,25 @@ pub struct MddsConfig {
     /// cadence.
     pub connect_timeout_secs: u64,
 
-    /// Number of dedicated decoder threads in the MDDS pool.
+    /// Number of stage-1 decoder threads in the MDDS pool.
     ///
-    /// Every server-streaming response chunk is zstd-decompressed and
-    /// protobuf-decoded on one of these threads instead of on the
-    /// tokio reactor — the same pattern Bloomberg / LSEG feed
-    /// handlers use to keep IO and CPU work separated. `0` auto-sizes
-    /// to `min(channels, available_parallelism / 2)`, which leaves
-    /// half the logical cores for the reactor and the application's
-    /// own work. Override to a fixed value when running on shared
-    /// hosts where the auto-sizing reads the wrong number from
-    /// `/proc`.
+    /// Each server-streaming response chunk is zstd-decompressed on
+    /// one of these threads off the tokio reactor. `0` auto-sizes to
+    /// `(available_parallelism / 2).max(1)`, leaving half the logical
+    /// cores for the reactor and the caller's own work.
     ///
-    /// # Deprecated alias
+    /// # Deprecated
     ///
-    /// Deprecated since v10.0.1: in the two-stage decode pipeline
-    /// shipped under [`Self::decode_threads`] /
-    /// [`Self::decode_queue_depth`], this field controls the
-    /// **stage-1** decoder thread count (per-channel decompress) and
-    /// aliases the same auto-sizing logic as before. Set
-    /// [`Self::decode_threads`] instead to tune the **stage-2** prost
-    /// decode + Tick build worker pool — the new knob is the one
-    /// operators reach for under the updated mental model.
+    /// Deprecated since v10.0.1: use [`Self::decode_threads`].
+    /// `decode_threads` tunes the stage-2 prost-decode + Tick-build
+    /// worker pool — the knob operators reach for under the two-stage
+    /// pipeline model.
     ///
     /// The `#[deprecated]` attribute is intentionally NOT set on the
-    /// field; the workspace lints promote rustc warnings to errors
-    /// (`warnings = "deny"`), and the field is still read from
-    /// every cross-binding `Config` setter, so attaching the attribute
-    /// would force `#[allow(deprecated)]` at every internal access
-    /// site. The rustdoc deprecation note above is the source of
-    /// truth for downstream consumers — `cargo doc` surfaces it on
-    /// the field's docs page.
+    /// field; workspace lints promote rustc warnings to errors and
+    /// every cross-binding setter still writes the field, so attaching
+    /// the attribute would force `#[allow(deprecated)]` at every
+    /// access site.
     pub decoder_threads: usize,
 
     /// Stage-2 worker thread count for the two-stage decode
@@ -170,13 +138,13 @@ pub struct MddsConfig {
     ///
     /// The buffered path materializes the full response as
     /// `Vec<Tick>` before returning; the streaming path drops each
-    /// chunk after the user callback consumes it (see issue #565 +
-    /// #576). When `row_count * size_of::<Tick>() > threshold`, the
-    /// SDK logs an `endpoint = ..., row_count = ..., bytes_est = ...`
-    /// warn once at the end of the buffered collect — enough signal
-    /// for an operator running `RUST_LOG=warn` to notice that this
-    /// workload is on the wrong API, with zero impact on the value
-    /// returned to the caller.
+    /// chunk after the user callback consumes it. When
+    /// `row_count * size_of::<Tick>() > threshold`, the SDK logs an
+    /// `endpoint = ..., row_count = ..., bytes_est = ...` warn once
+    /// at the end of the buffered collect — enough signal for an
+    /// operator running `RUST_LOG=warn` to notice that this workload
+    /// is on the wrong API, with zero impact on the value returned
+    /// to the caller.
     ///
     /// Default `100 * 1024 * 1024` (100 MiB) — catches bulk pulls
     /// (multi-million-row option chains, multi-day backfills) while

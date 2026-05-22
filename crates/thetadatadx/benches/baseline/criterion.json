@@ -42,5 +42,10 @@
     "FpssEvent::match/Ohlcvc": {
         "p50_ns": 1.0,
         "criterion_path": "FpssEvent__match/Ohlcvc"
+    },
+    "_deferred": {
+        "decoder_pool/threads/4": "Sample requires the GitHub-hosted runner profile — the local laptop p50 diverges from CI by ~3x for the four-thread case (NUMA effects on consumer hardware). Land alongside the next refresh-baseline PR once a GH-hosted run is captured.",
+        "protobuf_decode/quote_chunk/1024": "Sub-100ns/row at 1024 rows means the criterion sample window collapses to ~10 ns/iter on the hosted runner — within the timer resolution noise floor. Defer until the noise-aware throughput gate (SERIOUS #23, post-v10.0.x) lands.",
+        "stage_pipeline/throughput/workers=4": "Bench requires the `bench-internals` feature; the gated runner config does not enable arbitrary features yet. Defer until the feature toggle lands in `scripts/check_bench_regression.py`'s build invocation."
     }
 }

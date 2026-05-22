@@ -448,16 +448,13 @@ pub unsafe extern "C" fn tdx_config_get_decode_threads(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: callers supply non-null pointers per the contract
-        // documented above; `config` was returned by `tdx_config_*`,
-        // out-pointers reference caller stack/heap storage with at
-        // least `sizeof(T)` lifetime extending past this call.
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let (has_value, n) = match config.inner.mdds.decode_threads {
             Some(v) => (true, v),
             None => (false, 0),
         };
-        // SAFETY: see above.
+        // SAFETY: out_has_value/out_n null-checked above; caller pins the storage they point at for the call duration.
         unsafe {
             *out_has_value = has_value;
             *out_n = n;
@@ -479,14 +476,13 @@ pub unsafe extern "C" fn tdx_config_get_decode_queue_depth(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: callers supply non-null pointers per the contract;
-        // see `tdx_config_get_decode_threads` for the full invariant.
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let (has_value, n) = match config.inner.mdds.decode_queue_depth {
             Some(v) => (true, v),
             None => (false, 0),
         };
-        // SAFETY: see above.
+        // SAFETY: out_has_value/out_n null-checked above; caller pins the storage they point at for the call duration.
         unsafe {
             *out_has_value = has_value;
             *out_n = n;

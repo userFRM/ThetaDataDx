@@ -9,6 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `decoder_threads` deprecation parity across every binding.
+  Rust rustdoc, Python `.pyi`, C++ Doxygen, and TypeScript JSDoc all
+  carry an identical `since v10.0.1, use decode_threads` note +
+  attribute (`[[deprecated]]` on C++, `@deprecated` JSDoc tag
+  propagated via napi-rs doc-comment forwarding).
+- `MddsConfig::decoder_threads` auto-sizing rustdoc + bench
+  + migration-doc rewrites match the post-v10.0.0 formula
+  (`(available_parallelism / 2).max(1)`, no channel cap).
+- `crate::mdds::decode::{decompress_response, decompress_response_with_max,
+  decode_data_table, decode_data_table_with_max}` take `&mut
+  ResponseData` so the identity-compression path can move
+  `compressed_data` out via `std::mem::take` instead of cloning.
+  Behaviour preserved on every existing call site; the move is
+  observable only when callers retain the `ResponseData` past the
+  decode (no in-tree consumer does so).
+- `crates/thetadatadx/src/rest/client.rs` seeds the chunked-transfer
+  body accumulator with a 64 KiB floor so the first DATA frame on a
+  chunked REST response does not trigger a per-chunk realloc.
+- `MddsClient` REST-fallback shims downgrade per-call `start_date` /
+  `end_date` logging from `tracing::debug!` to `tracing::trace!` so
+  routine operator-visible logs no longer echo request date ranges.
+- FFI codegen template emits `require_client!` + `require_symbol_array!`
+  macro calls in place of the 61 inline `// SAFETY: client is a
+  non-null pointer ...` blocks and the 7 inline
+  `// SAFETY: caller supplies a contiguous array ...` blocks the
+  prior endpoint shims carried. Regenerated
+  `ffi/src/endpoint_with_options.rs` keeps a single per-macro
+  invariant-naming SAFETY comment instead of stamping the same
+  boilerplate at every call site.
+- Every hand-written `// SAFETY: see FFI boundary doc on the
+  enclosing fn …` line in `ffi/src/{flatfiles,streaming,utility,types}.rs`
+  rewritten to name the specific invariant the local `unsafe`
+  consumes (pointer provenance, layout, lifetime, ordering).
+- `Stage2Pool::submit_for_bench` feature-gated behind
+  `cfg(any(test, feature = "bench-internals"))` so the bench-only
+  entry point does not appear on the production public surface.
+  `crates/thetadatadx/benches/bench_stage_pipeline.rs` declares
+  `required-features = ["bench-internals"]` in the
+  `[[bench]]` entry so `cargo bench` enables it automatically.
+- `crate::grpc::decoder_pool::backoff_ring_full` split into
+  `backoff_ring_full_async(duration)` (tokio multi-thread; honours
+  the duration via `block_in_place + thread::sleep`) and
+  `backoff_ring_full_sync()` (current-thread / non-async; fixed
+  256-iter spin) so the sync arm does not silently discard a
+  parameter the async arm uses.
+
 - `crate::grpc::pool::ChannelPool` now reconnects channels on
   `ConnectionClosed` in-place rather than marking them permanently
   dead. Long-running clients no longer cascade after sustained load:
@@ -23,6 +69,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   misattributed the cascade to a server-side schema variant; the
   actual cause was the SDK's own dead-channel mechanism introduced
   in #578 with no recycling counterpart.
+
+### Fixed
+
+- Greeks `_with_fallback` regression coverage. Four new integration
+  tests pin `end_date` forwarding on both the REST and gRPC arms of
+  `option_history_greeks_implied_volatility_with_fallback` and
+  `option_history_greeks_first_order_with_fallback`, locking the
+  prior-round fix against silent regression.
+- Tier-clamp regression coverage. A new integration test runs two
+  concurrent `option_history_quote_with_fallback` calls against an
+  in-process REST mock with `concurrent_requests = 1`; the assertion
+  observes the second call parking on the semaphore until the first
+  completes.
+
+### Added
+
+- `require_client!` and `require_symbol_array!` macros (with full
+  unit-test coverage: null-pointer / valid / invalid-UTF-8 / Go-empty
+  branches) alongside the existing `require_cstr!` macro. `require_cstr!`
+  also gains direct unit tests against the macro itself.
+- `crates/thetadatadx/benches/common/quote_fixture.rs` — single
+  source for the 10-column quote-tick `DataTable` builder + the
+  `dv_number` / `dv_price` helpers. `bench_decode`,
+  `bench_decoder_pool`, `bench_protobuf_decode`, and
+  `bench_stage_pipeline` include it via `#[path = "common/..."]`.
+- Documented Rust-only `FlatFilesConfig` retry knobs in
+  `sdks/parity.toml` (`max_attempts`, `initial_backoff_secs`,
+  `max_backoff_secs`) with the binding-gap flagged in the matrix.
+- `_deferred` baseline notes in `benches/baseline/criterion.json`
+  for the three bench entries that cannot land their first sample
+  without a clean GitHub-hosted runner pass
+  (`decoder_pool/threads/4`, `protobuf_decode/quote_chunk/1024`,
+  `stage_pipeline/throughput/workers=4`).
+- `bench-internals` cargo feature on `thetadatadx`, opt-in surface
+  for the bench harness only (see `Changed` for the gating
+  rationale).
 
 ### Removed
 

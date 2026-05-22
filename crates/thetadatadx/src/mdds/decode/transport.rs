@@ -43,60 +43,56 @@ thread_local! {
     ));
 }
 
-/// Decompress a `ResponseData` payload (legacy signature; no
-/// `max_message_size` ceiling). Equivalent to
-/// [`decompress_response_with_max`] with the
-/// [`crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE`] ceiling. Kept on
-/// the public API for backwards compatibility with v10.0.x consumers
-/// that already call this fn; new callers should prefer the
-/// `_with_max` variant so they thread their channel's configured
-/// ceiling through.
+/// Decompress a `ResponseData` payload using the default ceiling.
+///
+/// Equivalent to [`decompress_response_with_max`] with
+/// [`crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE`]; new callers
+/// should prefer the `_with_max` variant so they thread their
+/// channel's configured ceiling through.
+///
+/// Takes the response by `&mut` so the identity-compression path can
+/// move the payload `Vec` out instead of cloning.
 ///
 /// # Errors
 ///
-/// Returns [`Error::Decompress`] if the compression algorithm is unknown,
-/// `original_size` exceeds the default ceiling, or zstd decompression
-/// fails.
-pub fn decompress_response(response: &proto::ResponseData) -> Result<Vec<u8>, Error> {
+/// Returns [`Error::Decompress`] if the compression algorithm is
+/// unknown, `original_size` exceeds the default ceiling, or zstd
+/// decompression fails.
+pub fn decompress_response(response: &mut proto::ResponseData) -> Result<Vec<u8>, Error> {
     decompress_response_with_max(response, crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE)
 }
 
 /// Decompress a `ResponseData` payload with a `max_message_size` ceiling.
 ///
-/// The peer-advertised `ResponseData.original_size` is validated against
-/// `max_message_size` BEFORE any `Vec::resize` runs. A hostile peer
-/// that sets `original_size = i32::MAX` (≈ 2 GiB) cannot trigger a
-/// runaway allocation: the function returns
-/// [`Error::Decompress`] (`DecompressErrorKind::MessageTooLarge`) first.
+/// The peer-advertised `ResponseData.original_size` is checked against
+/// `max_message_size` BEFORE any `Vec::resize` runs so a hostile peer
+/// (`original_size = i32::MAX`, ≈ 2 GiB) cannot trigger a runaway
+/// allocation; the function returns `MessageTooLarge` first.
 ///
 /// `max_message_size` mirrors the channel's
-/// [`crate::grpc::codec::Codec::max_message_size`], which mirrors
-/// `MddsConfig::max_message_size`. The frame-level codec already
-/// rejects oversized FRAMES on the wire; this guard rejects oversized
-/// DECOMPRESSED PAYLOADS, which the codec cannot see because the
-/// `original_size` field rides inside the compressed payload.
+/// [`crate::grpc::codec::Codec::max_message_size`]. The frame-level
+/// codec rejects oversized FRAMES on the wire; this guard rejects
+/// oversized DECOMPRESSED PAYLOADS, which the codec cannot see
+/// because `original_size` rides inside the compressed payload.
 ///
-/// # Unknown compression algorithms
+/// Prost's `.algo()` maps unknown enum values to `None`, so the
+/// branch dispatches on the raw `i32` instead.
 ///
-/// Prost's `.algo()` silently maps unknown enum values to the default (None=0),
-/// so we check the raw i32 to detect truly unknown algorithms. Without this,
-/// an unrecognized algorithm would be treated as uncompressed, producing garbage.
-///
-/// # Buffer recycling
-///
-/// Uses a thread-local `(Decompressor, Vec<u8>)` pair. The `Vec` retains its
-/// capacity across calls, so repeated decompressions of similar-sized payloads
-/// avoid hitting the allocator for the working buffer. The returned `Vec<u8>`
-/// is a clone (we must return ownership), but the internal slab persists.
+/// On the identity (`CompressionAlgo::None`) path the payload `Vec`
+/// is moved out of `response.compressed_data` via `mem::take` — the
+/// `&mut` borrow allows the move and the caller observes an empty
+/// inner `Vec` after the call. The zstd path uses a thread-local
+/// working buffer for the decompressed bytes.
 ///
 /// # Errors
 ///
-/// Returns [`Error::Decompress`] if the compression algorithm is unknown,
-/// `original_size` exceeds `max_message_size`, or zstd decompression fails.
+/// Returns [`Error::Decompress`] if the compression algorithm is
+/// unknown, `original_size` exceeds `max_message_size`, or zstd
+/// decompression fails.
 // Reason: original_size is a protobuf u64 that fits in usize for valid payloads.
 #[allow(clippy::cast_possible_truncation)]
 pub fn decompress_response_with_max(
-    response: &proto::ResponseData,
+    response: &mut proto::ResponseData,
     max_message_size: usize,
 ) -> Result<Vec<u8>, Error> {
     let algo_raw = response
@@ -117,7 +113,15 @@ pub fn decompress_response_with_max(
                     max_message_size,
                 ));
             }
-            Ok(response.compressed_data.clone())
+            // Identity path: move the `Vec` out by value. The previous
+            // `.clone()` allocated a fresh `Vec` of
+            // `compressed_data.len()` bytes on every uncompressed
+            // response; `mem::take` swaps the field for an empty `Vec`
+            // (one-pointer write) and hands the original buffer to the
+            // caller. Caller owns the response, so the take is
+            // observable but harmless — every existing internal caller
+            // discards the `ResponseData` immediately after the decode.
+            Ok(std::mem::take(&mut response.compressed_data))
         }
         Ok(proto::CompressionAlgo::Zstd) => {
             // Reject hostile `original_size` BEFORE `Vec::resize`. The
@@ -158,7 +162,7 @@ pub fn decompress_response_with_max(
 /// Returns [`Error::Decompress`] if decompression fails (including
 /// `original_size > DEFAULT_MAX_MESSAGE_SIZE`) or [`Error::Decode`]
 /// if protobuf deserialization fails.
-pub fn decode_data_table(response: &proto::ResponseData) -> Result<proto::DataTable, Error> {
+pub fn decode_data_table(response: &mut proto::ResponseData) -> Result<proto::DataTable, Error> {
     decode_data_table_with_max(response, crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE)
 }
 
@@ -176,7 +180,7 @@ pub fn decode_data_table(response: &proto::ResponseData) -> Result<proto::DataTa
 /// `original_size > max_message_size`) or [`Error::Decode`] if
 /// protobuf deserialization fails.
 pub fn decode_data_table_with_max(
-    response: &proto::ResponseData,
+    response: &mut proto::ResponseData,
     max_message_size: usize,
 ) -> Result<proto::DataTable, Error> {
     let bytes = decompress_response_with_max(response, max_message_size)?;
@@ -197,7 +201,7 @@ mod r1_tests {
     /// the runaway allocation; the fix returns a clean error.
     #[test]
     fn hostile_original_size_rejected_before_alloc() {
-        let response = proto::ResponseData {
+        let mut response = proto::ResponseData {
             compression_description: Some(proto::CompressionDescription {
                 algo: proto::CompressionAlgo::Zstd as i32,
                 level: 0,
@@ -213,7 +217,7 @@ mod r1_tests {
         };
         let max = 4 * 1024 * 1024;
         let err =
-            decompress_response_with_max(&response, max).expect_err("must reject hostile size");
+            decompress_response_with_max(&mut response, max).expect_err("must reject hostile size");
         let Error::Decompress {
             kind: DecompressErrorKind::MessageTooLarge { size, max: ceiling },
             ..
@@ -234,7 +238,7 @@ mod r1_tests {
     #[test]
     fn hostile_uncompressed_payload_rejected() {
         let payload_bytes = 5 * 1024 * 1024;
-        let response = proto::ResponseData {
+        let mut response = proto::ResponseData {
             compression_description: Some(proto::CompressionDescription {
                 algo: proto::CompressionAlgo::None as i32,
                 level: 0,
@@ -244,7 +248,7 @@ mod r1_tests {
             compressed_data: vec![0_u8; payload_bytes],
         };
         let max = 4 * 1024 * 1024;
-        let err = decompress_response_with_max(&response, max)
+        let err = decompress_response_with_max(&mut response, max)
             .expect_err("must reject oversized payload");
         let Error::Decompress {
             kind: DecompressErrorKind::MessageTooLarge { size, max: ceiling },
@@ -261,7 +265,7 @@ mod r1_tests {
     /// `usize::MAX` via `try_from` and is rejected without panicking.
     #[test]
     fn negative_original_size_rejected() {
-        let response = proto::ResponseData {
+        let mut response = proto::ResponseData {
             compression_description: Some(proto::CompressionDescription {
                 algo: proto::CompressionAlgo::Zstd as i32,
                 level: 0,
@@ -270,7 +274,7 @@ mod r1_tests {
             compressed_data: vec![],
         };
         let max = 4 * 1024 * 1024;
-        let err = decompress_response_with_max(&response, max).expect_err("must reject");
+        let err = decompress_response_with_max(&mut response, max).expect_err("must reject");
         let Error::Decompress {
             kind: DecompressErrorKind::MessageTooLarge { size, max: ceiling },
             ..

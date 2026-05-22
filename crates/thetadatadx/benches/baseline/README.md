@@ -22,6 +22,15 @@ versus the baseline — the threshold was calibrated against the
 GitHub-hosted runner's observed local↔CI spread in PR #566. A 10×
 slowdown that previously landed silently now fails the build.
 
+### Deferred entries
+
+The `_deferred` object at the bottom of `criterion.json` lists
+benches that should eventually join the gated set but cannot land
+their first baseline without a clean GitHub-hosted runner sample.
+Each entry's value is the one-line reason and the unblock signal.
+The script skips any key starting with `_`, so deferred entries do
+not perturb the gate.
+
 ### Sub-10 ns p50 baselines
 
 Entries with a `p50_ns` below ~10 ns (e.g. the `FpssEvent::match/*`

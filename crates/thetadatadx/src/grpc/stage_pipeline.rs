@@ -344,16 +344,15 @@ impl Stage2Pool {
     /// crates can exercise the pipeline without re-implementing the
     /// `Stage2Job` construction.
     ///
-    /// `#[doc(hidden)]` so the helper is invisible to docs.rs and
-    /// downstream consumers — it exists solely so the criterion
-    /// harness at `benches/bench_stage_pipeline.rs` can drive the
-    /// pipeline from outside the crate. Production callers go through
-    /// the `DecoderPool` integration, not this entry point.
+    /// Compiled only under `cfg(any(test, feature = "bench-internals"))`
+    /// so the helper does not leak onto the production public surface;
+    /// the criterion harness at `benches/bench_stage_pipeline.rs`
+    /// enables the feature via its own `[features]` toggle.
     ///
     /// Returns `Err` with the rejected payload if the pool is
     /// poisoned or fully torn down. Otherwise the returned receiver
     /// resolves to the `DecodeResult` produced by a stage-2 worker.
-    #[doc(hidden)]
+    #[cfg(any(test, feature = "bench-internals"))]
     pub fn submit_for_bench(
         &self,
         payload: DecodedPayload,

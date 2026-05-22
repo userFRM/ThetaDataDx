@@ -60,27 +60,26 @@ class Config:
     def dev() -> Config: ...
     @staticmethod
     def stage() -> Config: ...
-    # MDDS host / port — settable so structural tests can point at a
-    # known-refused endpoint.
+    # MDDS host / port.
     mdds_host: str
     mdds_port: int
-    # MDDS pool sizing (issue #584). `concurrent_requests = 0` and
-    # `decoder_threads = 0` are auto-detect sentinels; explicit values
-    # above the tier cap are clamped at connect time with a warn.
-    # `decoder_ring_size` must be a power of two >= 64; the setter
-    # raises ValueError otherwise.
+    # MDDS pool sizing. `concurrent_requests = 0` auto-detects from
+    # the tier; explicit values above the tier cap are clamped at
+    # connect time with a warn. `decoder_ring_size` must be a power
+    # of two >= 64; the setter raises ValueError otherwise.
     concurrent_requests: int
+    # Deprecated since v10.0.1: use `decode_threads`. Aliases the
+    # stage-1 (per-channel zstd decompress) worker count; the
+    # stage-2 prost-decode + Tick-build pool is sized by
+    # `decode_threads` under the two-stage decode pipeline.
     decoder_threads: int
     decoder_ring_size: int
-    # MDDS two-stage decode pipeline (Phase 3 / PRs #587 #588 #this).
-    # `decode_threads` controls the stage-2 prost-decode + Tick-build
-    # worker pool size; `decode_queue_depth` controls the bounded MPSC
-    # queue between stage-1 (per-channel zstd decompress) and stage-2.
-    # Both default to `None` (auto-size at connect time): stage-2 sizes
-    # to `os.process_cpu_count()`, queue depth sizes to
-    # `concurrent_requests * 64`. Explicit `int` values override; the
-    # underlying pool clamps `0` to `1` internally so a zero-worker
-    # pool cannot deadlock stage-1. Negative values raise ValueError.
+    # MDDS two-stage decode pipeline. `decode_threads` sizes the
+    # stage-2 prost-decode + Tick-build worker pool;
+    # `decode_queue_depth` sizes the bounded MPSC queue between
+    # stage-1 (per-channel zstd decompress) and stage-2. `None`
+    # auto-sizes at connect time; `int` overrides. `0` clamps to
+    # `1` internally so a zero-worker pool cannot deadlock stage-1.
     decode_threads: Optional[int]
     decode_queue_depth: Optional[int]
     # Reconnect tunables.
@@ -570,7 +569,20 @@ class ThetaDataDxClient:
         strike: Optional[str] = None,
         right: Optional[str] = None,
         interval: Optional[str] = None,
-    ) -> Any: ...
+    ) -> Any:
+        """Fetch option NBBO history per the configured FallbackPolicy.
+
+        Raises:
+            NetworkError: transport or REST-status failure.
+            AuthenticationError: invalid credentials / unauthenticated.
+            TimeoutError: SDK-side request deadline exceeded.
+            SubscriptionError: tier does not permit the request.
+            RateLimitError: backend signalled too-many-requests.
+            NoDataFoundError: the request returned no rows.
+            SchemaMismatchError: response failed strict schema decode.
+        """
+        ...
+
     def option_history_trade_quote_with_fallback(
         self,
         symbol: str,
@@ -579,7 +591,20 @@ class ThetaDataDxClient:
         end_date: Optional[str] = None,
         strike: Optional[str] = None,
         right: Optional[str] = None,
-    ) -> Any: ...
+    ) -> Any:
+        """Fetch combined trade + NBBO history per the configured FallbackPolicy.
+
+        Raises:
+            NetworkError: transport or REST-status failure.
+            AuthenticationError: invalid credentials / unauthenticated.
+            TimeoutError: SDK-side request deadline exceeded.
+            SubscriptionError: tier does not permit the request.
+            RateLimitError: backend signalled too-many-requests.
+            NoDataFoundError: the request returned no rows.
+            SchemaMismatchError: response failed strict schema decode.
+        """
+        ...
+
     def option_history_greeks_implied_volatility_with_fallback(
         self,
         symbol: str,
@@ -589,7 +614,20 @@ class ThetaDataDxClient:
         strike: Optional[str] = None,
         right: Optional[str] = None,
         interval: Optional[str] = None,
-    ) -> Any: ...
+    ) -> Any:
+        """Fetch implied-volatility history per the configured FallbackPolicy.
+
+        Raises:
+            NetworkError: transport or REST-status failure.
+            AuthenticationError: invalid credentials / unauthenticated.
+            TimeoutError: SDK-side request deadline exceeded.
+            SubscriptionError: tier does not permit the request.
+            RateLimitError: backend signalled too-many-requests.
+            NoDataFoundError: the request returned no rows.
+            SchemaMismatchError: response failed strict schema decode.
+        """
+        ...
+
     def option_history_greeks_first_order_with_fallback(
         self,
         symbol: str,
@@ -599,7 +637,19 @@ class ThetaDataDxClient:
         strike: Optional[str] = None,
         right: Optional[str] = None,
         interval: Optional[str] = None,
-    ) -> Any: ...
+    ) -> Any:
+        """Fetch first-order Greeks history per the configured FallbackPolicy.
+
+        Raises:
+            NetworkError: transport or REST-status failure.
+            AuthenticationError: invalid credentials / unauthenticated.
+            TimeoutError: SDK-side request deadline exceeded.
+            SubscriptionError: tier does not permit the request.
+            RateLimitError: backend signalled too-many-requests.
+            NoDataFoundError: the request returned no rows.
+            SchemaMismatchError: response failed strict schema decode.
+        """
+        ...
 
     # Context managers.
     def streaming(self, callback: EventCallback) -> StreamingSession: ...

@@ -140,7 +140,7 @@ macro_rules! tick_array_type {
 
             unsafe fn free(self) {
                 if !self.data.is_null() && self.len > 0 {
-                    // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+                    // SAFETY: `self.data` was returned by `Box::into_raw` on a `Box<[$tick]>` of length `self.len` in `from_vec`; ownership returns to Rust for drop. Null + zero-len gated by the surrounding `if`.
                     let _ = unsafe {
                         Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                             self.data as *mut $tick,
@@ -179,7 +179,7 @@ macro_rules! tick_array_free {
         #[no_mangle]
         pub unsafe extern "C" fn $fn_name(arr: $array_type) {
             ffi_boundary!((), {
-                // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+                // SAFETY: `arr` is a `$array_type` returned by the matching FFI endpoint via `from_vec`; the enclosed `free()` matches the `Box::into_raw` that produced `arr.data`.
                 unsafe { arr.free() };
             })
         }
@@ -279,7 +279,7 @@ pub unsafe extern "C" fn tdx_option_contract_array_free(arr: TdxOptionContractAr
                 }
             }
             // Then free the array itself
-            // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+            // SAFETY: `arr.data` was returned by `Box::into_raw` on a `Box<[TdxOptionContract]>` of length `arr.len`; ownership returns to Rust for drop. Null + zero-len gated above; per-element symbol strings were freed in the loop above.
             let _ = unsafe {
                 Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                     arr.data.cast_mut(),
@@ -334,7 +334,7 @@ pub unsafe extern "C" fn tdx_string_array_free(arr: TdxStringArray) {
                     drop(unsafe { CString::from_raw(s.cast_mut()) });
                 }
             }
-            // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+            // SAFETY: `arr.data` was returned by `Box::into_raw` on a `Box<[*const c_char]>` of length `arr.len`; ownership returns to Rust for drop. Null + zero-len gated above; per-element C strings were freed in the loop above.
             let _ = unsafe {
                 Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                     arr.data.cast_mut(),

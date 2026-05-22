@@ -39,75 +39,16 @@ use criterion::{
 use prost::Message;
 use tokio::runtime::Builder as RuntimeBuilder;
 
-use thetadatadx::wire as proto;
-use thetadatadx::wire::{
-    data_value, CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList,
-    ResponseData,
-};
+use thetadatadx::wire::{CompressionAlgo, CompressionDescription, DataTable, ResponseData};
 
 // Public API: the pool itself.
 use thetadatadx::grpc::DecoderPool;
 
+#[path = "common/quote_fixture.rs"]
+mod fixture;
+use fixture::build_quote_data_table;
+
 // ─── Fixture builder ────────────────────────────────────────────────
-
-/// Build a quote-tick `DataTable` with `n` rows.
-///
-/// Matches the canonical 10-column quote schema (`ms_of_day`,
-/// `bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`,
-/// `ask_exchange`, `ask`, `ask_condition`, `date`) so the decode
-/// path under test is the same one production endpoints exercise.
-fn build_quote_data_table(n: usize) -> DataTable {
-    let headers = vec![
-        "ms_of_day".to_string(),
-        "bid_size".to_string(),
-        "bid_exchange".to_string(),
-        "bid".to_string(),
-        "bid_condition".to_string(),
-        "ask_size".to_string(),
-        "ask_exchange".to_string(),
-        "ask".to_string(),
-        "ask_condition".to_string(),
-        "date".to_string(),
-    ];
-    let mut rows = Vec::with_capacity(n);
-    for i in 0..n {
-        let bid = 15_020 + (i % 100) as i32;
-        let ask = 15_030 + (i % 100) as i32;
-        rows.push(DataValueList {
-            values: vec![
-                dv_number(34_200_000 + i as i64 * 50),
-                dv_number(10 + (i % 100) as i64),
-                dv_number(4),
-                dv_price(bid, 8),
-                dv_number(1),
-                dv_number(5 + (i % 80) as i64),
-                dv_number(4),
-                dv_price(ask, 8),
-                dv_number(1),
-                dv_number(20_240_315),
-            ],
-        });
-    }
-    DataTable {
-        headers,
-        data_table: rows,
-    }
-}
-
-fn dv_number(n: i64) -> DataValue {
-    DataValue {
-        data_type: Some(data_value::DataType::Number(n)),
-    }
-}
-
-fn dv_price(value: i32, ty: i32) -> DataValue {
-    DataValue {
-        data_type: Some(data_value::DataType::Price(proto::Price {
-            value,
-            r#type: ty,
-        })),
-    }
-}
 
 /// Compress a `DataTable` into a zstd-wrapped `ResponseData`.
 fn build_zstd_response(table: &DataTable) -> ResponseData {

@@ -20,7 +20,7 @@ fn decode_chunks_into_table(
     let mut headers: Vec<String> = Vec::new();
     let mut rows: Vec<thetadatadx::wire::DataValueList> = Vec::new();
     for (idx, chunk) in chunks.iter().enumerate() {
-        let response = <thetadatadx::wire::ResponseData as prost::Message>::decode(*chunk)
+        let mut response = <thetadatadx::wire::ResponseData as prost::Message>::decode(*chunk)
             .map_err(|e| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "decode_response_bytes: chunk {idx} is not a valid proto::ResponseData: {e}"
@@ -33,7 +33,7 @@ fn decode_chunks_into_table(
         // `max_message_size` at capture time. The R1 ceiling exists
         // to defend against a hostile peer, not against re-decoding
         // captured frames.
-        let table = thetadatadx::decode::decode_data_table(&response).map_err(|e| {
+        let table = thetadatadx::decode::decode_data_table(&mut response).map_err(|e| {
             pyo3::exceptions::PyRuntimeError::new_err(format!(
                 "decode_response_bytes: chunk {idx} decode failed: {e}"
             ))
