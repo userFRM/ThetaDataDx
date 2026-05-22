@@ -429,6 +429,45 @@ impl Stage2Pool {
             .as_ref()
             .is_some_and(Stage2PoolSender::is_poisoned)
     }
+
+    /// Bench-only entry point: push a `DecodedPayload` directly onto
+    /// the stage-2 queue and return the reply receiver. Wraps the
+    /// `pub(crate)` [`Stage2PoolSender::send`] path so external bench
+    /// crates can exercise the pipeline without re-implementing the
+    /// `Stage2Job` construction.
+    ///
+    /// `#[doc(hidden)]` so the helper is invisible to docs.rs and
+    /// downstream consumers — it exists solely so the criterion
+    /// harness at `benches/bench_stage_pipeline.rs` can drive the
+    /// pipeline from outside the crate. Production callers go through
+    /// the `DecoderPool` integration, not this entry point.
+    ///
+    /// Returns `Err` with the rejected payload if the pool is
+    /// poisoned or fully torn down. Otherwise the returned receiver
+    /// resolves to the `DecodeResult` produced by a stage-2 worker.
+    #[doc(hidden)]
+    pub fn submit_for_bench(
+        &self,
+        payload: DecodedPayload,
+        max_message_size: usize,
+    ) -> Result<oneshot::Receiver<DecodeResult>, DecodedPayload> {
+        let sender = self
+            .sender
+            .as_ref()
+            .expect("Stage2Pool::submit_for_bench called after Drop");
+        let (reply, rx) = oneshot::channel();
+        let job = Stage2Job {
+            payload,
+            reply,
+            max_message_size,
+        };
+        match sender.send(job) {
+            Ok(()) => Ok(rx),
+            Err(Stage2SendError::Poisoned { job } | Stage2SendError::PoolClosed { job }) => {
+                Err(job.payload)
+            }
+        }
+    }
 }
 
 impl Drop for Stage2Pool {

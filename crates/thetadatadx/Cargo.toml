@@ -311,6 +311,10 @@ harness = false
 name = "bench_protobuf_decode"
 harness = false
 
+[[bench]]
+name = "bench_stage_pipeline"
+harness = false
+
 [[bin]]
 name = "generate_sdk_surfaces"
 path = "src/bin/generate_sdk_surfaces.rs"
