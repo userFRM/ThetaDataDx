@@ -331,7 +331,7 @@ impl DecoderHandle {
     /// the producer polls [`Self::is_poisoned`] between every
     /// [`Producer::try_publish`] retry, so a poison flip propagates
     /// to every blocked submitter within one back-off window.
-    pub(crate) fn submit(
+    pub fn submit(
         &self,
         response: proto::ResponseData,
         max_message_size: usize,
