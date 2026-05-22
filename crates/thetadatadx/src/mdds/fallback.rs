@@ -98,21 +98,21 @@ impl MddsClient {
     }
 
     /// Fetch option NBBO history via gRPC, falling back to REST per
-    /// [`FallbackPolicy`] (issue #571).
+    /// [`crate::config::FallbackPolicy`] (issue #571).
     ///
     /// Behaviour by policy variant:
     ///
-    /// * [`FallbackPolicy::Disabled`] -- always gRPC, no fallback.
+    /// * [`crate::config::FallbackPolicy::Disabled`] -- always gRPC, no fallback.
     ///   Identical to `tdx.option_history_quote(symbol, expiration,
     ///   date).await`.
-    /// * [`FallbackPolicy::RestOnH2Disconnect`] -- try gRPC first; on
+    /// * [`crate::config::FallbackPolicy::RestOnH2Disconnect`] -- try gRPC first; on
     ///   [`crate::error::TransportErrorKind::ConnectionClosed`] (the
     ///   issue #571 signature) re-issue over REST.
-    /// * [`FallbackPolicy::RestAlwaysForDateRange`] -- compare
+    /// * [`crate::config::FallbackPolicy::RestAlwaysForDateRange`] -- compare
     ///   `start_date` (parsed as `YYYYMMDD` integer) against `before`.
     ///   Strictly-earlier dates skip gRPC and route to REST immediately;
     ///   on-or-after dates flow through gRPC.
-    /// * [`FallbackPolicy::RestAlways`] -- always REST.
+    /// * [`crate::config::FallbackPolicy::RestAlways`] -- always REST.
     ///
     /// # Errors
     ///
@@ -228,7 +228,7 @@ impl MddsClient {
     }
 
     /// Fetch combined trade + quote history via gRPC, falling back to
-    /// REST per [`FallbackPolicy`] (issue #571). Same dispatch semantics
+    /// REST per [`crate::config::FallbackPolicy`] (issue #571). Same dispatch semantics
     /// as [`Self::option_history_quote_with_fallback`].
     ///
     /// # Errors
@@ -325,7 +325,7 @@ impl MddsClient {
     }
 
     /// Fetch option implied-volatility history via gRPC, falling back
-    /// to REST per [`FallbackPolicy`] (issue #571). Same dispatch
+    /// to REST per [`crate::config::FallbackPolicy`] (issue #571). Same dispatch
     /// semantics as [`Self::option_history_quote_with_fallback`].
     ///
     /// The implied-volatility endpoint joins each option's quote with
@@ -436,7 +436,7 @@ impl MddsClient {
     }
 
     /// Fetch option first-order Greeks history via gRPC, falling back
-    /// to REST per [`FallbackPolicy`] (issue #571). Same dispatch
+    /// to REST per [`crate::config::FallbackPolicy`] (issue #571). Same dispatch
     /// semantics as [`Self::option_history_quote_with_fallback`].
     ///
     /// The Greeks endpoint shares the same underlying-quote join as
