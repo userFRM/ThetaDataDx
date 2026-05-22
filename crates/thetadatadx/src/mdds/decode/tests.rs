@@ -1090,29 +1090,22 @@ fn parse_greeks_third_order_ticks_decodes_third_order_subset() {
     assert_eq!(t.date, 20_240_614);
 }
 
-// ─────────── Legacy 6-field NBBO quote layout (issue #571) ───────────
+// ─────────── Lenient subset NBBO column handling ───────────
 //
-// Pre-2023 storage rows for 2022-era option NBBO quotes still live in the
-// pre-extension 6-field layout `[ms_of_day, bid_size, bid, ask_size, ask,
-// date]`. The patched Terminal upcasts those rows to the 11-field shape
-// before they reach the gRPC handler; the REST transport (`crate::rest`)
-// accepts both shapes verbatim. On the decoder side the only guarantee
-// callers need is that a `DataTable` whose header set is a subset of
-// the 11-field NBBO schema — i.e. legacy 6 of 11 columns present, with the
-// other five (`bid_exchange`, `bid_condition`, `ask_exchange`,
-// `ask_condition`) absent — decodes without error and zero-fills the
-// absent columns.
+// Defense-in-depth: a `DataTable` whose header set is a subset of
+// the 11-field NBBO schema — i.e. 6 of 11 columns present, with the
+// other four (`bid_exchange`, `bid_condition`, `ask_exchange`,
+// `ask_condition`) absent — must decode without error and zero-fill
+// the absent columns. The subset layout
+// `[ms_of_day, bid_size, bid, ask_size, ask, date]` is the canonical
+// shape these tests exercise.
 //
 // This pair of tests pins that behaviour so a future regression in
 // `find_header` / the generator's `opt_number(idx)` arm surfaces here.
 
-/// A `DataTable` whose headers match the legacy 6-field NBBO shape
+/// A `DataTable` whose headers match the 6-field NBBO subset shape
 /// (`ms_of_day, bid_size, bid, ask_size, ask, date`) must decode to a
 /// `QuoteTick` with the absent exchange / condition columns zero-filled.
-/// Mirrors the patched-Terminal `QuoteTick.normalizeData()` contract in
-/// `theta-terminal-re/patches/QuoteTick.java` so the SDK reads the
-/// REST-served legacy rows with the same field-by-field shape as the
-/// upcast gRPC rows. Reproducer for issue #571.
 #[test]
 fn quote_tick_decodes_legacy_six_field_shape_with_zero_fill() {
     let table = proto::DataTable {
@@ -1145,8 +1138,8 @@ fn quote_tick_decodes_legacy_six_field_shape_with_zero_fill() {
     assert!((t.ask - 1.5041).abs() < 1e-9);
     assert_eq!(t.date, 20_220_414);
 
-    // Wire-absent columns zero-fill: matches the patched Terminal's
-    // `normalizeData()` upcast contract verbatim.
+    // Wire-absent columns zero-fill: mirrors the gRPC decoder's
+    // `opt_number(row, None) -> 0` contract.
     assert_eq!(t.bid_exchange, 0);
     assert_eq!(t.bid_condition, 0);
     assert_eq!(t.ask_exchange, 0);
@@ -1158,9 +1151,9 @@ fn quote_tick_decodes_legacy_six_field_shape_with_zero_fill() {
     assert!((t.midpoint - 1.50315).abs() < 1e-9);
 }
 
-/// The current 11-field shape must continue to decode all columns. A
-/// fix that accidentally narrowed the parser to the legacy layout would
-/// surface as wrong values on `bid_exchange` / `ask_condition`.
+/// The full 11-field shape must continue to decode all columns. A
+/// fix that accidentally narrowed the parser to the 6-field subset
+/// layout would surface as wrong values on `bid_exchange` / `ask_condition`.
 #[test]
 fn quote_tick_decodes_current_eleven_field_shape_unchanged() {
     let table = proto::DataTable {

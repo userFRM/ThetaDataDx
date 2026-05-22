@@ -1,12 +1,12 @@
-//! REST-fallback policy napi bindings + `Config` napi class.
+//! REST-routing policy napi bindings + `Config` napi class.
 //!
 //! Mirrors the Python `FallbackPolicy` pyclass + `Config.with_rest_fallback`
 //! method one-for-one, plus the four `option_history_*_with_fallback`
 //! methods on the `ThetaDataDxClient` napi class.
 //!
 //! See [`thetadatadx::config::FallbackPolicy`] for the underlying
-//! contract and `docs-site/docs/legacy-quote-handling.md` for the
-//! per-policy guidance.
+//! contract and `docs-site/docs/channel-pool-design.md` for the
+//! gRPC channel-pool reconnect story.
 
 use std::sync::{Arc, Mutex};
 
@@ -14,9 +14,9 @@ use thetadatadx::config;
 
 use crate::to_napi_err;
 
-/// REST-fallback policy. Mirrors [`thetadatadx::config::FallbackPolicy`].
+/// REST-routing policy. Mirrors [`thetadatadx::config::FallbackPolicy`].
 ///
-/// Constructed via one of the four static factories, then installed on
+/// Constructed via one of the static factories, then installed on
 /// a [`Config`] via [`Config::withRestFallback`]. A `Config` with an
 /// installed policy is then passed to
 /// [`ThetaDataDxClient.connectWithConfig`] / `connectFromFileWithConfig`
@@ -27,12 +27,12 @@ use crate::to_napi_err;
 /// ```js
 /// const { FallbackPolicy, Config, ThetaDataDxClient } = require('@userfrm/thetadatadx');
 ///
-/// const policy = FallbackPolicy.restAlwaysForDateRange('http://127.0.0.1:25503', 20230101);
+/// const policy = FallbackPolicy.restAlways('http://127.0.0.1:25503');
 /// const cfg = Config.production();
 /// cfg.withRestFallback(policy);
 /// const tdx = ThetaDataDxClient.connectWithConfig('user@example.com', 'pw', cfg);
 /// const ticks = await tdx.optionHistoryQuoteWithFallback({
-///     symbol: 'AAPL', expiration: '20240105', startDate: '20220414',
+///     symbol: 'AAPL', expiration: '20240105', startDate: '20240104',
 /// });
 /// ```
 #[napi]
@@ -43,8 +43,8 @@ pub struct FallbackPolicy {
 
 #[napi]
 impl FallbackPolicy {
-    /// REST fallback disabled. Every affected endpoint goes over gRPC.
-    /// Default state.
+    /// REST routing disabled. Every historical-quote endpoint goes
+    /// over gRPC. Default state.
     #[napi(factory)]
     pub fn disabled() -> Self {
         Self {
@@ -52,32 +52,8 @@ impl FallbackPolicy {
         }
     }
 
-    /// Fall back to REST only on the h2-disconnect signature (issue #571).
-    /// Cheaper than the always-REST variants for workloads where the
-    /// gRPC path is the fast common case; pays one failed gRPC round
-    /// trip per affected request.
-    #[napi(factory, js_name = "restOnH2Disconnect")]
-    pub fn rest_on_h2_disconnect(base_url: String) -> Self {
-        Self {
-            inner: config::FallbackPolicy::RestOnH2Disconnect { base_url },
-        }
-    }
-
-    /// Pre-route every request whose `start_date` (YYYYMMDD) is strictly
-    /// before `beforeYyyymmdd` directly to REST. Requests on or after
-    /// the cutoff flow through gRPC.
-    #[napi(factory, js_name = "restAlwaysForDateRange")]
-    pub fn rest_always_for_date_range(base_url: String, before_yyyymmdd: i32) -> Self {
-        Self {
-            inner: config::FallbackPolicy::RestAlwaysForDateRange {
-                base_url,
-                before: before_yyyymmdd,
-            },
-        }
-    }
-
-    /// Always route the four affected endpoints over REST regardless
-    /// of the requested date range.
+    /// Always route the four historical-quote endpoints over REST
+    /// regardless of the requested date range.
     #[napi(factory, js_name = "restAlways")]
     pub fn rest_always(base_url: String) -> Self {
         Self {
@@ -85,23 +61,20 @@ impl FallbackPolicy {
         }
     }
 
-    /// Human-readable variant name: `"Disabled"`, `"RestOnH2Disconnect"`,
-    /// `"RestAlwaysForDateRange"`, `"RestAlways"`. The Rust enum is
-    /// `#[non_exhaustive]`, so a future variant returns `"Unknown"`
-    /// here until the binding is updated.
+    /// Human-readable variant name: `"Disabled"` or `"RestAlways"`.
+    /// The Rust enum is `#[non_exhaustive]`, so a future variant
+    /// returns `"Unknown"` here until the binding is updated.
     #[napi(getter)]
     pub fn variant(&self) -> &'static str {
         match &self.inner {
             config::FallbackPolicy::Disabled => "Disabled",
-            config::FallbackPolicy::RestOnH2Disconnect { .. } => "RestOnH2Disconnect",
-            config::FallbackPolicy::RestAlwaysForDateRange { .. } => "RestAlwaysForDateRange",
             config::FallbackPolicy::RestAlways { .. } => "RestAlways",
             _ => "Unknown",
         }
     }
 
-    /// Return the REST base URL the policy would target on a fallback,
-    /// or `null` for `disabled()`.
+    /// Return the REST base URL the policy would target, or `null`
+    /// for `disabled()`.
     #[napi(getter, js_name = "baseUrl")]
     pub fn base_url(&self) -> Option<String> {
         self.inner.base_url().map(str::to_owned)
@@ -187,8 +160,6 @@ impl Config {
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(match &guard.fallback {
             config::FallbackPolicy::Disabled => "Disabled",
-            config::FallbackPolicy::RestOnH2Disconnect { .. } => "RestOnH2Disconnect",
-            config::FallbackPolicy::RestAlwaysForDateRange { .. } => "RestAlwaysForDateRange",
             config::FallbackPolicy::RestAlways { .. } => "RestAlways",
             _ => "Unknown",
         })
@@ -298,15 +269,13 @@ impl Config {
 /// Default base URL for the local Terminal's REST surface. Mirrors
 /// [`thetadatadx::config::DEFAULT_REST_BASE_URL`]. Exposed as a module-
 /// level constant so callers can write
-/// `FallbackPolicy.restAlwaysForDateRange(DEFAULT_REST_BASE_URL, 20230101)`
+/// `FallbackPolicy.restAlways(DEFAULT_REST_BASE_URL)`
 /// instead of repeating the URL literal.
 #[napi]
 pub const DEFAULT_REST_BASE_URL: &str = config::DEFAULT_REST_BASE_URL;
 
 /// Forwarder used by the `ThetaDataDxClient` napi class to dispatch the
-/// four `_with_fallback` endpoint calls. Centralizes the
-/// `run_blocking + to_napi_err` pattern so the four methods stay
-/// boilerplate-only.
+/// four `_with_fallback` endpoint calls.
 pub(crate) fn err_from_thetadatadx(e: thetadatadx::Error) -> napi::Error {
     to_napi_err(e)
 }

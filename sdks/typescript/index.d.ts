@@ -151,9 +151,9 @@ export declare class EventIterator {
 }
 
 /**
- * REST-fallback policy. Mirrors [`thetadatadx::config::FallbackPolicy`].
+ * REST-routing policy. Mirrors [`thetadatadx::config::FallbackPolicy`].
  *
- * Constructed via one of the four static factories, then installed on
+ * Constructed via one of the static factories, then installed on
  * a [`Config`] via [`Config::withRestFallback`]. A `Config` with an
  * installed policy is then passed to
  * [`ThetaDataDxClient.connectWithConfig`] / `connectFromFileWithConfig`
@@ -164,49 +164,35 @@ export declare class EventIterator {
  * ```js
  * const { FallbackPolicy, Config, ThetaDataDxClient } = require('@userfrm/thetadatadx');
  *
- * const policy = FallbackPolicy.restAlwaysForDateRange('http://127.0.0.1:25503', 20230101);
+ * const policy = FallbackPolicy.restAlways('http://127.0.0.1:25503');
  * const cfg = Config.production();
  * cfg.withRestFallback(policy);
  * const tdx = ThetaDataDxClient.connectWithConfig('user@example.com', 'pw', cfg);
  * const ticks = await tdx.optionHistoryQuoteWithFallback({
- *     symbol: 'AAPL', expiration: '20240105', startDate: '20220414',
+ *     symbol: 'AAPL', expiration: '20240105', startDate: '20240104',
  * });
  * ```
  */
 export declare class FallbackPolicy {
   /**
-   * REST fallback disabled. Every affected endpoint goes over gRPC.
-   * Default state.
+   * REST routing disabled. Every historical-quote endpoint goes
+   * over gRPC. Default state.
    */
   static disabled(): FallbackPolicy
   /**
-   * Fall back to REST only on the h2-disconnect signature (issue #571).
-   * Cheaper than the always-REST variants for workloads where the
-   * gRPC path is the fast common case; pays one failed gRPC round
-   * trip per affected request.
-   */
-  static restOnH2Disconnect(baseUrl: string): FallbackPolicy
-  /**
-   * Pre-route every request whose `start_date` (YYYYMMDD) is strictly
-   * before `beforeYyyymmdd` directly to REST. Requests on or after
-   * the cutoff flow through gRPC.
-   */
-  static restAlwaysForDateRange(baseUrl: string, beforeYyyymmdd: number): FallbackPolicy
-  /**
-   * Always route the four affected endpoints over REST regardless
-   * of the requested date range.
+   * Always route the four historical-quote endpoints over REST
+   * regardless of the requested date range.
    */
   static restAlways(baseUrl: string): FallbackPolicy
   /**
-   * Human-readable variant name: `"Disabled"`, `"RestOnH2Disconnect"`,
-   * `"RestAlwaysForDateRange"`, `"RestAlways"`. The Rust enum is
-   * `#[non_exhaustive]`, so a future variant returns `"Unknown"`
-   * here until the binding is updated.
+   * Human-readable variant name: `"Disabled"` or `"RestAlways"`.
+   * The Rust enum is `#[non_exhaustive]`, so a future variant
+   * returns `"Unknown"` here until the binding is updated.
    */
   get variant(): string
   /**
-   * Return the REST base URL the policy would target on a fallback,
-   * or `null` for `disabled()`.
+   * Return the REST base URL the policy would target, or `null`
+   * for `disabled()`.
    */
   get baseUrl(): string | null
 }
@@ -1301,7 +1287,7 @@ export interface ContractAssigned {
  * Default base URL for the local Terminal's REST surface. Mirrors
  * [`thetadatadx::config::DEFAULT_REST_BASE_URL`]. Exposed as a module-
  * level constant so callers can write
- * `FallbackPolicy.restAlwaysForDateRange(DEFAULT_REST_BASE_URL, 20230101)`
+ * `FallbackPolicy.restAlways(DEFAULT_REST_BASE_URL)`
  * instead of repeating the URL literal.
  */
 export const DEFAULT_REST_BASE_URL: string

@@ -441,25 +441,24 @@ struct FallbackPolicyDeleter {
     void operator()(TdxFallbackPolicy* p) const { if (p) tdx_fallback_policy_free(p); }
 };
 
-// ── REST fallback policy (issue #571 mitigation) ──
+// ── REST routing policy ──
 
 /**
- * REST-fallback policy for the four h2-cascading historical endpoints.
+ * REST-routing policy for the four historical-quote endpoints.
  *
  * Mirrors `thetadatadx::config::FallbackPolicy`. Construct via one of
- * the four named factories, install on a `Config` via
+ * the named factories, install on a `Config` via
  * `Config::withRestFallback`, and pass that `Config` to
  * `Client::connect`. Subsequent calls to the four
  * `Client::optionHistory*WithFallback` methods consult the policy.
  *
  * @code{.cpp}
- * auto policy = tdx::FallbackPolicy::restAlwaysForDateRange(
- *     "http://127.0.0.1:25503", 20230101);
+ * auto policy = tdx::FallbackPolicy::restAlways("http://127.0.0.1:25503");
  * auto config = tdx::Config::production();
  * config.withRestFallback(policy);
  * auto client = tdx::Client::connect(creds, config);
  * auto ticks = client.optionHistoryQuoteWithFallback(
- *     "AAPL", "20240105", "20220414");
+ *     "AAPL", "20240105", "20240104");
  * @endcode
  *
  * Move-only: the underlying handle is heap-owned through a
@@ -469,21 +468,10 @@ struct FallbackPolicyDeleter {
  */
 class FallbackPolicy {
 public:
-    /** REST fallback disabled. Every affected endpoint goes over gRPC. */
+    /** REST routing disabled. Every historical-quote endpoint goes over gRPC. */
     static FallbackPolicy disabled();
 
-    /** Fall back to REST only on the h2-disconnect signature (issue #571). */
-    static FallbackPolicy restOnH2Disconnect(const std::string& base_url);
-
-    /**
-     * Pre-route every request whose start_date < before_yyyymmdd (YYYYMMDD)
-     * directly to REST without trying gRPC first. Requests on or after the
-     * boundary flow through gRPC.
-     */
-    static FallbackPolicy restAlwaysForDateRange(const std::string& base_url,
-                                                 int32_t before_yyyymmdd);
-
-    /** Always route the affected endpoints over REST regardless of date. */
+    /** Always route the historical-quote endpoints over REST regardless of date. */
     static FallbackPolicy restAlways(const std::string& base_url);
 
     /** Move-only. */

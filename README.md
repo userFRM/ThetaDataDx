@@ -186,9 +186,7 @@ When the buffered path returns a response whose estimated size exceeds
 `MddsConfig::warn_on_buffered_threshold_bytes` (default 100 MiB), the
 SDK emits a single `tracing::warn!` event suggesting `.stream(handler)`
 for the workload (`endpoint`, `row_count`, `bytes_est` fields). Set the
-threshold to `0` to disable. See
-[`docs-site/docs/legacy-quote-handling.md`](docs-site/docs/legacy-quote-handling.md)
-for the full migration recipe.
+threshold to `0` to disable.
 
 ## API coverage
 
@@ -208,7 +206,8 @@ All endpoints return fully typed data in every language. See the [API Reference]
 
 ### Coverage notes
 
-* **2022-era options NBBO quotes (#571)**: the upstream Terminal cascades the h2 stream on pre-extension 6-field NBBO rows that storage surfaces for some 2022 contracts. The SDK ships three independent recovery paths: a REST transport (`crate::rest::RestClient`) with a `FallbackPolicy` enum that routes the four affected endpoints over HTTP/1.1 automatically, a `local-terminal-patcher` CLI that rewrites the local Terminal jar to tolerate the legacy rows on the gRPC path, and a lenient gRPC decoder that picks up the eventual upstream fix without further SDK change. See [`docs-site/docs/legacy-quote-handling.md`](docs-site/docs/legacy-quote-handling.md) for the recipe.
+* **Long-running gRPC channel pool**: every transport-level fault (GOAWAY, IO failure, peer shutdown, open-phase drop) triggers an in-place reconnect of the channel's underlying h2 session (single-flight, bounded backoff). Long-lived clients survive server-side connection rotation, network blips, and tokio runtime hiccups transparently. See [`docs-site/docs/channel-pool-design.md`](docs-site/docs/channel-pool-design.md) for the contract.
+* **REST transport (`crate::rest::RestClient`)** is wired in as an alternative transport reachable via `FallbackPolicy::RestAlways` for callers who explicitly want every historical-quote call routed through a locally-running Terminal's REST surface (e.g. when network policy disallows direct MDDS access).
 
 ## Architecture
 

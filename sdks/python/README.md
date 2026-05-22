@@ -4,7 +4,7 @@ Python bindings over the Rust core. Every call crosses the PyO3 boundary into Ru
 
 > **Surface coverage:** the Python binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `tdx.flat_files.*()` with `.to_arrow()`, `.to_polars()`, `.to_pandas()`, and `.to_list()` terminals plus a `flatfile_to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
 >
-> **REST fallback (issue #571 mitigation):** `FallbackPolicy` + `Config.with_rest_fallback` + four `option_history_*_with_fallback` methods route 2022-era options' h2-cascading quote endpoints over the local Terminal's REST surface. See [legacy quote handling](../../docs-site/docs/legacy-quote-handling.md) for the four policy variants and per-binding examples.
+> **REST routing escape hatch:** `FallbackPolicy.rest_always` + `Config.with_rest_fallback` + four `option_history_*_with_fallback` methods route the historical-quote endpoints over a locally-running Terminal's REST surface when the caller wants a single transport for every quote-bearing call. See [channel pool design](../../docs-site/docs/channel-pool-design.md) for the connection-recovery story.
 
 ## Installation
 
@@ -486,8 +486,8 @@ configured threshold (default 100 MiB), the SDK emits a single
 `tracing::warn!` event with `endpoint`, `row_count`, and `bytes_est`
 fields suggesting `.stream(handler)` for the workload. Tune via
 `MddsConfig::warn_on_buffered_threshold_bytes` (set to `0` to disable).
-See [`docs-site/docs/legacy-quote-handling.md`](../../docs-site/docs/legacy-quote-handling.md)
-for the streaming-vs-buffered recipe.
+See [`docs-site/docs/channel-pool-design.md`](../../docs-site/docs/channel-pool-design.md)
+for the gRPC channel-pool reconnect story.
 
 ### Chained DataFrame terminals
 

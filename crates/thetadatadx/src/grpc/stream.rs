@@ -18,8 +18,8 @@
 //! poll surfaces [`ChannelError::DeadlineExceeded`] and drops the h2
 //! stream (sending RST_STREAM to the server). h2 connection-level
 //! `GOAWAY` frames surface as [`ChannelError::ConnectionClosed`]
-//! distinct from a stream-level reset so connection-pool consumers
-//! can recycle the channel rather than retry on the same one.
+//! distinct from a stream-level reset so the source [`super::Channel`]
+//! can swap in a fresh h2 session in place.
 //!
 //! # Cancellation
 //!
@@ -29,8 +29,6 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -40,7 +38,7 @@ use h2::RecvStream;
 use pin_project_lite::pin_project;
 use tokio::time::{Instant, Sleep};
 
-use super::channel::ChannelError;
+use super::channel::{classify_h2_error_ref, ChannelError, ReconnectHandle};
 use super::codec::Codec;
 use super::decoder_pool::DecoderHandle;
 use super::status::Status;
@@ -93,15 +91,13 @@ pin_project! {
         // paths), in which case consumers fall back to inline
         // decode on the caller's tokio task.
         decoder: Option<DecoderHandle>,
-        // Channel death-flag handle (issue #577 #3). Cloned from
-        // the source `Channel` at request dispatch so the stream
-        // can mark the channel dead as soon as it observes
-        // `ChannelError::ConnectionClosed` during a poll. The
-        // pool picker reads this flag on every subsequent
-        // `next()` and routes around dead channels. `None` for
-        // streams constructed without a source channel
-        // (`already_closed`, unit-test fixtures).
-        channel_dead: Option<Arc<AtomicBool>>,
+        // Reconnect handle on the source channel. When the streaming
+        // poll observes `ChannelError::ConnectionClosed` the handle's
+        // `.trigger()` kicks the channel into a fresh h2 session
+        // (single-flight, bounded backoff). `None` for streams
+        // constructed without a source channel (`already_closed`,
+        // unit-test fixtures); production paths always wire one in.
+        reconnect: Option<ReconnectHandle>,
     }
 }
 
@@ -134,7 +130,7 @@ where
             deadline_duration_ms: 0,
             in_flight_token: None,
             decoder: None,
-            channel_dead: None,
+            reconnect: None,
         }
     }
 
@@ -162,7 +158,7 @@ where
             deadline_duration_ms: duration_ms,
             in_flight_token: None,
             decoder: None,
-            channel_dead: None,
+            reconnect: None,
         }
     }
 
@@ -223,23 +219,23 @@ where
             deadline_duration_ms: 0,
             in_flight_token: None,
             decoder: None,
-            channel_dead: None,
+            reconnect: None,
         }
     }
 
-    /// Attach the source channel's death-flag handle (issue #577 #3).
-    /// When the stream observes
-    /// [`ChannelError::ConnectionClosed`] during a poll, it marks
-    /// the channel dead via this flag so the pool picker routes
-    /// around the broken connection on every subsequent
-    /// [`super::pool::ChannelPool::next`].
+    /// Attach a reconnect-trigger handle on the source channel. When
+    /// the streaming poll observes
+    /// [`ChannelError::ConnectionClosed`], the handle's
+    /// `.trigger()` kicks the channel into an in-place reconnect
+    /// (single-flight, bounded backoff) so the next RPC dispatched
+    /// through the channel observes the fresh h2 session.
     ///
     /// Builder-style; takes `self` to keep the existing chained
     /// construction shape at request dispatch in
     /// [`super::channel::Channel::server_streaming_frame`].
     #[must_use]
-    pub(crate) fn with_channel_dead_handle(mut self, dead: Arc<AtomicBool>) -> Self {
-        self.channel_dead = Some(dead);
+    pub(crate) fn with_reconnect_handle(mut self, handle: ReconnectHandle) -> Self {
+        self.reconnect = Some(handle);
         self
     }
 }
@@ -290,30 +286,6 @@ fn peek_frame_length(
         return Ok(None);
     }
     Ok(Some(total))
-}
-
-/// Classify an `h2::Error` into the matching [`ChannelError`] variant.
-///
-/// Connection-level failures (`GOAWAY` in either direction, IO errors
-/// at the h2 layer) surface as [`ChannelError::ConnectionClosed`] so
-/// pool consumers recycle the channel. Per-stream `RST_STREAM` (any
-/// reason code) stays as [`ChannelError::H2Stream`] — the h2
-/// connection itself is healthy and the next RPC can succeed on the
-/// same channel; classifying it as connection-level would force the
-/// pool to recycle a still-good channel and burn retry budgets.
-///
-/// HTTP/2 spec § 7 (Error Codes) is the canonical list of reason
-/// codes; the per-stream / connection-level distinction here matches
-/// the wire-level scope of each frame type.
-fn classify_h2_error(e: &h2::Error) -> ChannelError {
-    if e.is_go_away() || e.is_io() {
-        ChannelError::ConnectionClosed(e.to_string())
-    } else {
-        // is_reset() (per-stream RST_STREAM) and everything else
-        // (library protocol error, user error, bare Reason) — the
-        // h2 connection itself survives.
-        ChannelError::H2Stream(e.to_string())
-    }
 }
 
 impl<Resp> Stream for ServerStreaming<Resp>
@@ -417,14 +389,16 @@ where
                     }
                     Poll::Ready(Some(Err(e))) => {
                         *this.state = StreamState::Closed;
-                        let classified = classify_h2_error(&e);
+                        let classified = classify_h2_error_ref(&e);
                         if matches!(classified, ChannelError::ConnectionClosed(_)) {
-                            // Issue #577 #3: the source h2 connection is
-                            // gone -- flip the channel's death flag so
-                            // the pool picker routes subsequent RPCs to
-                            // a live member.
-                            if let Some(dead) = this.channel_dead.as_ref() {
-                                dead.store(true, Ordering::Release);
+                            // Connection-level death observed mid-stream.
+                            // Kick the source channel into an in-place
+                            // reconnect so the next RPC dispatched
+                            // through the channel lands on a fresh h2
+                            // session. Idempotent under the channel's
+                            // single-flight CAS.
+                            if let Some(handle) = this.reconnect.as_ref() {
+                                handle.trigger();
                             }
                         }
                         return Poll::Ready(Some(Err(classified)));
@@ -483,14 +457,14 @@ where
                         }
                         Poll::Ready(Err(e)) => {
                             *this.state = StreamState::Closed;
-                            let classified = classify_h2_error(&e);
+                            let classified = classify_h2_error_ref(&e);
                             if matches!(classified, ChannelError::ConnectionClosed(_)) {
-                                // Issue #577 #3: connection death on the
-                                // trailers poll -- same treatment as the
-                                // body-poll branch above. Flip the death
-                                // flag so the pool routes around.
-                                if let Some(dead) = this.channel_dead.as_ref() {
-                                    dead.store(true, Ordering::Release);
+                                // Trailers-phase ConnectionClosed gets
+                                // the same treatment as body-phase:
+                                // kick the source channel into a fresh
+                                // h2 session.
+                                if let Some(handle) = this.reconnect.as_ref() {
+                                    handle.trigger();
                                 }
                             }
                             return Poll::Ready(Some(Err(classified)));

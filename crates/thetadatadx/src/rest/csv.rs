@@ -20,13 +20,14 @@
 //!    maintaining a small parser here is lower than the long-term cost
 //!    of an extra crate in the lockfile.
 //!
-//! The decoder is **lenient on absent columns** -- the legacy 6-field
-//! NBBO layout (`ms_of_day, bid_size, bid, ask_size, ask, date`) is
-//! served verbatim by the patched Terminal on REST for 2022-era rows;
-//! when the four exchange / condition columns are absent from the
-//! header, the table's `column_index` lookup returns `None` and the
-//! downstream row decoders default the absent fields to 0 -- the same
-//! contract as the gRPC path's `opt_number(row, None) -> 0` arm (see
+//! The decoder is **lenient on absent columns** -- defense-in-depth
+//! against subset NBBO layouts the upstream may emit for older
+//! storage tiers (`ms_of_day, bid_size, bid, ask_size, ask, date`
+//! without the exchange / condition columns). When the four
+//! exchange / condition columns are absent from the header, the
+//! table's `column_index` lookup returns `None` and the downstream
+//! row decoders default the absent fields to 0 -- the same contract
+//! as the gRPC path's `opt_number(row, None) -> 0` arm (see
 //! `crates/thetadatadx/build_support/ticks/parser.rs`).
 
 use super::error::RestError;
@@ -96,9 +97,9 @@ impl<'a> Table<'a> {
     /// Decode a column as `i32` with the following three-way contract:
     ///
     /// * `None` column index -> `Ok(0)`. The header lacks the column
-    ///   entirely (legacy 6-field NBBO row missing the four exchange /
-    ///   condition columns); the patched-Terminal `normalizeData()`
-    ///   contract upcasts those absent fields to zero.
+    ///   entirely (subset NBBO row missing the four exchange /
+    ///   condition columns); absent fields zero-fill, mirroring the
+    ///   gRPC decoder's `opt_number(row, None) -> 0` contract.
     /// * `Some` index but `""` cell -> `Ok(0)`. The Terminal serializes
     ///   a deliberately-null cell as an empty string; absence semantics
     ///   apply, same as a missing column.

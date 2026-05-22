@@ -1,22 +1,12 @@
-//! REST transport for the local ThetaTerminal HTTP API (issue #571).
+//! REST transport for the local ThetaTerminal HTTP API.
 //!
-//! Mirrors a strict subset of the gRPC endpoint surface against the local
-//! Terminal's HTTP `/v3/...` paths. The motivating use-case is the
-//! issue #571 h2-cascade bug: the upstream Terminal's Java `QuoteTick`
-//! / `TradeQuoteTick` constructors length-check incoming row arrays
-//! against a fixed 11 / 25 element shape, and throw
-//! `IllegalArgumentException` when the storage tier surfaces a
-//! pre-extension 6-field NBBO row from 2022-era options data. The
-//! exception bubbles through the gRPC handler and terminates the
-//! HTTP/2 stream with no error frame -- the SDK observes
-//! [`crate::error::TransportErrorKind::ConnectionClosed`] mid-response
-//! with no recovery path. The patched Terminal at
-//! `theta-terminal-re/patches/QuoteTick.java` upcasts 6-field rows to
-//! the 11-field shape by zero-filling the absent exchange / condition
-//! columns; the REST API path serves the same upcast rows directly,
-//! one request per HTTP transaction, so a per-row exception does not
-//! cascade across multiple results (HTTP/1.1 per-request isolation
-//! versus h2 stream multiplexing).
+//! Mirrors a strict subset of the MDDS gRPC endpoint surface against
+//! the local Terminal's HTTP `/v3/...` paths. Wired in as the
+//! alternative transport reached via [`crate::config::FallbackPolicy::RestAlways`]
+//! when an operator wants every historical-quote call routed over a
+//! locally-running Terminal — useful when network policy disallows
+//! direct MDDS access or when the local Terminal exposes column
+//! extensions the upstream gRPC service does not yet expose.
 //!
 //! # Surface
 //!
@@ -29,8 +19,7 @@
 //!
 //! # Scope
 //!
-//! Only the four quote-bearing endpoints from issue #571's failure
-//! matrix are wired in this revision:
+//! The four historical-quote endpoints are wired in this revision:
 //!
 //! | Endpoint                                  | Tick type                |
 //! |-------------------------------------------|--------------------------|
@@ -42,7 +31,7 @@
 //! Additional endpoints can be added with the same shape; the existing
 //! gRPC `parsed_endpoint!` macro is not reused here because the wire
 //! payload is CSV, not protobuf `DataTable`. The CSV decoder is
-//! deliberately small (~150 lines including legacy-column handling)
+//! deliberately small (~150 lines including lenient-column handling)
 //! and lives at [`mod@csv`].
 //!
 //! # Authentication

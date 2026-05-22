@@ -415,7 +415,7 @@ pub(crate) fn warn_buffered_response_size(
             row_count,
             bytes_est,
             threshold_bytes,
-            "buffered .await returned a large response — consider .stream(handler) for this workload (see docs-site/docs/legacy-quote-handling.md)"
+            "buffered .await returned a large response — consider .stream(handler) for this workload (see docs-site/docs/streaming-api.md)"
         );
     }
 }
@@ -428,19 +428,18 @@ pub(crate) fn warn_buffered_response_size(
 /// strings. Other `Error` variants are terminal -- a `Decode` or
 /// `Decompress` failure won't fix itself on retry.
 ///
-/// `Error::Transport { kind: ConnectionClosed, .. }` is the issue
-/// #577 h2-cascade signature -- an upstream tick-shape exception
-/// aborted the h2 stream mid-response. The source channel's
-/// death-flag is flipped by the streaming-poll classifier so the
-/// pool picker routes around it; classifying the error as transient
-/// here lets the retry shell re-attempt the RPC on a fresh channel
-/// pick instead of surfacing the cascade to the user. If every
-/// channel in the pool is dead the next pick still returns a
-/// (dead) channel and the second attempt fails identically -- the
-/// cascade surfaces after the retry budget is exhausted, which
-/// matches the previous user-visible behaviour without the
-/// dead-channel routing benefit. With at least one live channel
-/// remaining, the retry succeeds.
+/// `Error::Transport { kind: ConnectionClosed, .. }` covers every
+/// connection-level h2 fault (GOAWAY, IO failure, peer shutdown,
+/// open-phase drops). The source channel reacts by kicking off a
+/// single-flight in-place reconnect of its underlying
+/// `SendRequest<Bytes>` (see [`crate::grpc::channel::Channel::trigger_reconnect`]);
+/// classifying the error as Transient here lets the retry shell
+/// re-attempt the RPC on the next pool pick — by which point either
+/// the same channel has swapped in a fresh h2 session or the pool's
+/// load-balancing picker has routed the retry to a different
+/// channel. Either way, a transient connection blip on a long-
+/// running pool surfaces to the caller only if the reconnect itself
+/// exhausts its retry budget.
 fn classify_error(err: &crate::error::Error) -> StatusClass {
     use crate::error::{GrpcStatusKind, TransportErrorKind};
     match err {
@@ -981,20 +980,22 @@ mod classify_error_tests {
         );
     }
 
-    /// Issue #577 #3 regression: the h2-cascade signature
+    /// Connection-level transport errors
     /// (`Error::Transport { kind: ConnectionClosed, .. }`) must
     /// classify as Transient so the retry shell re-attempts the RPC.
-    /// Combined with the pool's dead-channel routing, the retry
-    /// picks a live channel and the call succeeds. If this test
-    /// flips back to Terminal a future contributor has re-broken
-    /// the cascade recovery -- the cascade resurfaces to the user
-    /// as before #577 was closed.
+    /// Combined with the channel's in-place reconnect of its inner
+    /// `SendRequest<Bytes>`, the retry lands either on the same
+    /// channel (post-swap) or on a sibling pool member and the call
+    /// succeeds. If this test flips back to Terminal a future
+    /// contributor has re-broken the long-running-pool recovery —
+    /// every GOAWAY / network blip would terminate the user-facing
+    /// call instead of healing transparently.
     #[test]
     fn connection_closed_transport_error_maps_to_transient() {
         use crate::error::TransportErrorKind;
         let err = Error::Transport {
             kind: TransportErrorKind::ConnectionClosed,
-            message: "h2 connection closed: upstream tick exception".to_string(),
+            message: "h2 connection closed".to_string(),
         };
         assert_eq!(classify_error(&err), StatusClass::Transient);
     }

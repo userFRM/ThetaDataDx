@@ -1,4 +1,4 @@
-// REST-fallback policy + `optionHistory*WithFallback` shims (issue #571).
+// REST-routing policy + `optionHistory*WithFallback` shims.
 //
 // Hand-written -- not part of the SDK-surface generator. Mirrors the
 // Python `FallbackPolicy` pyclass + `Config.with_rest_fallback` +
@@ -8,20 +8,6 @@
 
 FallbackPolicy FallbackPolicy::disabled() {
     auto h = tdx_fallback_policy_disabled();
-    if (!h) detail::throw_last_ffi_error();
-    return FallbackPolicy(h);
-}
-
-FallbackPolicy FallbackPolicy::restOnH2Disconnect(const std::string& base_url) {
-    auto h = tdx_fallback_policy_rest_on_h2_disconnect(base_url.c_str());
-    if (!h) detail::throw_last_ffi_error();
-    return FallbackPolicy(h);
-}
-
-FallbackPolicy FallbackPolicy::restAlwaysForDateRange(const std::string& base_url,
-                                                      int32_t before_yyyymmdd) {
-    auto h = tdx_fallback_policy_rest_always_for_date_range(base_url.c_str(),
-                                                            before_yyyymmdd);
     if (!h) detail::throw_last_ffi_error();
     return FallbackPolicy(h);
 }

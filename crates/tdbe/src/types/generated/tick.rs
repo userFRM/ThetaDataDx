@@ -298,17 +298,15 @@ pub struct PriceTick {
 
 /// Quote tick -- 10 fields + midpoint. NBBO quote data.
 ///
-/// Wire layout: the post-extension shape is 11 columns (`ms_of_day`,
+/// Wire layout: the full shape is 11 columns (`ms_of_day`,
 /// `bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`,
 /// `ask_exchange`, `ask`, `ask_condition`, `price_type`, `date`).
-/// Pre-2023 storage rows for 2022-era options still live in the
-/// pre-extension 6-column layout (`ms_of_day`, `bid_size`, `bid`,
-/// `ask_size`, `ask`, `date`) (issue #571). The four exchange / condition
-/// columns are NOT in the `required` list below so the generator emits
-/// `opt_number(row, None) -> 0` arms for them, which matches the
-/// patched-Terminal `QuoteTick.normalizeData()` upcast contract verbatim
-/// and keeps REST-served legacy rows decoding bit-exact for the
-/// wire-present columns. See `docs-site/docs/legacy-quote-handling.md`.
+/// The four exchange / condition columns are NOT in the `required` list
+/// below so the generator emits `opt_number(row, None) -> 0` arms for
+/// them; this lets the decoder accept subset NBBO layouts (e.g. the
+/// 6-field `[ms_of_day, bid_size, bid, ask_size, ask, date]` shape some
+/// storage tiers emit) without erroring, while still decoding the full
+/// 11-field shape bit-exact when every column is present.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
