@@ -243,6 +243,8 @@ flowchart TB
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, pre-commit checks, and pull-request process. Community discussion happens on the [ThetaData Discord](https://discord.thetadata.us/).
 
+Before opening a PR, read [`docs/internal/audit-protocol.md`](docs/internal/audit-protocol.md) — the standing audit + review rulebook every contributor (human or LLM-assisted) is expected to clear. It codifies the patterns past audit cycles have already paid for and the CI gates that catch regressions.
+
 ## License
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](./LICENSE).

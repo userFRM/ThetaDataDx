@@ -3,6 +3,12 @@
 Thank you for your interest in contributing. This guide covers everything
 you need to get started.
 
+> **Before any code change, read
+> [`docs/internal/audit-protocol.md`](docs/internal/audit-protocol.md).**
+> It is the standing rulebook every contributor (human or LLM-assisted) is
+> expected to clear — code-review smell catalog, CI gate map, postmortems
+> from past audit cycles, and the pre-PR self-review checklist.
+
 The SDK speaks three independent ThetaData surfaces — MDDS (gRPC), FPSS
 (streaming), and FLATFILES (whole-universe daily blobs). When opening
 an issue or PR that touches any of them, name the surface in the title
