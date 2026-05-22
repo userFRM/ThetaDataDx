@@ -81,6 +81,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on bytes already arrived. The previous cap conflated the two and
   throttled CPU-bound decode on under-channeled tiers.
 
+- Two-stage MDDS decode pipeline scaffold (core only; benches +
+  bindings land in stacked follow-ups). The decoder pool now splits
+  the existing `zstd decompress -> prost decode -> Tick build` chain
+  into two stages so each scales independently to the workload
+  shape:
+  - **Stage 1**: per-channel decoder threads (unchanged thread
+    shape) run *only* `zstd::bulk::Decompressor::decompress_to_buffer`
+    and push a `DecodedPayload { channel_id, request_id, payload:
+    Bytes }` onto a shared bounded MPSC queue
+    (`crossbeam_channel::bounded`). Stage-1 parks on a full queue
+    rather than dropping — silent drops on a market-data feed are
+    unacceptable. Park duration accumulates into
+    `Stage2Counters::total_parked` (nanoseconds) and is
+    `tracing::debug!`-logged so operators see backpressure events.
+  - **Stage 2**: shared worker pool (`Stage2Pool`) pulls jobs from
+    the queue, runs `prost::Message::decode`, and replies through
+    the caller's `oneshot::Sender`. Worker count and queue depth
+    are independently tunable.
+  - New `MddsConfig::decode_threads: Option<usize>` controls the
+    stage-2 worker pool size (defaults to
+    `available_parallelism()` when `None`); `Some(0)` clamps to 1.
+  - New `MddsConfig::decode_queue_depth: Option<usize>` controls
+    the bounded queue depth (defaults to `pool_size * 64` when
+    `None`); `Some(0)` clamps to 1.
+  - `MddsConfig::decoder_threads` becomes the deprecated alias for
+    the stage-1 thread count; reads emit a single
+    `tracing::warn!` per pool construction pointing operators at
+    `decode_threads`.
+  - `Stage2Counters` wraps three `AtomicU64`s in
+    `crossbeam_utils::CachePadded` so false-sharing across sockets
+    cannot stall the pipeline under load. Struct alignment is
+    asserted at `>= 3 * CachePadded<AtomicU64>` so a regression
+    that drops the padding trips CI immediately.
+  - Panic containment carries over from the legacy pool: a stage-2
+    worker panic flips the shared `poisoned` flag, future jobs
+    drain with `Error::Transport { kind: DecoderPoisoned, .. }`,
+    and stage-1 producers parked on a full queue observe the
+    flip on their next push. Stage-1 owns its own `catch_unwind`
+    around the zstd decompress so a degenerate compressed payload
+    cannot kill the decoder thread.
+  - The public `.stream(handler)` callback receives the same
+    `&[QuoteTick]` as before — only the internal pipeline shape
+    changed. Existing integration tests + the lib suite pass
+    unchanged.
+  - Criterion benches and per-binding mirrors (Python / TS / C++ /
+    FFI) follow in stacked PRs.
+
 - `MddsConfig::warn_on_buffered_threshold_bytes` (#576). Buffered
   `.await` historical responses whose estimated size exceeds the
   threshold (default 100 MiB) now emit a single `tracing::warn!`

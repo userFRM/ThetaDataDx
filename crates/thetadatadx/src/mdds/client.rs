@@ -431,22 +431,71 @@ async fn open_channel_pool(
         })?;
         channels.push(channel);
     }
-    let decoder_threads = if config.mdds.decoder_threads == 0 {
+    let stage1_threads = if config.mdds.decoder_threads == 0 {
         default_decoder_thread_count(pool_size)
     } else {
+        // `decoder_threads` is the deprecated alias for stage-1
+        // thread count under the two-stage pipeline. Emit the
+        // deprecation warn once per pool construction so operators
+        // see it without spam on every RPC.
+        tracing::warn!(
+            target: "thetadatadx::mdds::client",
+            decoder_threads = config.mdds.decoder_threads,
+            "MddsConfig::decoder_threads is deprecated; \
+             set MddsConfig::decode_threads to tune the stage-2 \
+             decode worker pool (this knob now controls stage-1 \
+             zstd decompress threads)"
+        );
         config.mdds.decoder_threads
     };
-    let decoder_pool =
-        DecoderPool::new(decoder_threads, config.mdds.decoder_ring_size).map_err(Error::from)?;
+    let stage2_threads = config
+        .mdds
+        .decode_threads
+        .map_or_else(default_stage2_thread_count, |n| n.max(1));
+    let queue_depth = config
+        .mdds
+        .decode_queue_depth
+        .map_or_else(|| default_stage2_queue_depth(pool_size), |n| n.max(1));
+    let decoder_pool = DecoderPool::new_two_stage(
+        stage1_threads,
+        config.mdds.decoder_ring_size,
+        stage2_threads,
+        queue_depth,
+    )
+    .map_err(Error::from)?;
     tracing::debug!(
-        decoder_threads = decoder_pool.len(),
+        stage1_threads = decoder_pool.len(),
+        stage2_threads,
         decoder_ring_size = config.mdds.decoder_ring_size,
-        "MDDS decoder pool initialised"
+        queue_depth,
+        "MDDS two-stage decode pipeline initialised"
     );
     Ok(ChannelPool::from_channels_with_decoders(
         channels,
         decoder_pool,
     ))
+}
+
+/// Default stage-2 worker count when [`crate::config::MddsConfig::decode_threads`]
+/// is `None`. Uses [`std::thread::available_parallelism`] with a
+/// minimum of `1` — stage-2 is parser-bound, so the full core
+/// count is the right starting point (unlike stage-1 which is
+/// capped against the per-channel decoder count).
+#[must_use]
+fn default_stage2_thread_count() -> usize {
+    std::thread::available_parallelism()
+        .map(std::num::NonZero::get)
+        .unwrap_or(2)
+        .max(1)
+}
+
+/// Default queue depth between stage-1 and stage-2 when
+/// [`crate::config::MddsConfig::decode_queue_depth`] is `None`.
+/// Sizes to `pool_size * 64` so a 64-way burst on every channel
+/// has headroom without exhausting buffer memory.
+#[must_use]
+fn default_stage2_queue_depth(pool_size: usize) -> usize {
+    pool_size.saturating_mul(64).max(64)
 }
 
 /// Build a `rustls::ClientConfig` with webpki roots and `h2` advertised

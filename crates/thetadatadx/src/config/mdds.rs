@@ -101,7 +101,49 @@ pub struct MddsConfig {
     /// own work. Override to a fixed value when running on shared
     /// hosts where the auto-sizing reads the wrong number from
     /// `/proc`.
+    ///
+    /// # Deprecated alias
+    ///
+    /// In the two-stage decode pipeline shipped under
+    /// [`Self::decode_threads`] / [`Self::decode_queue_depth`], this
+    /// field controls the **stage-1** decoder thread count
+    /// (per-channel zstd decompress) and aliases the same auto-sizing
+    /// logic as before. Set [`Self::decode_threads`] instead to
+    /// tune the **stage-2** prost decode + Tick build worker pool
+    /// — the new knob is the one operators reach for under the
+    /// updated mental model.
     pub decoder_threads: usize,
+
+    /// Stage-2 worker thread count for the two-stage decode
+    /// pipeline. Stage-2 runs `prost::Message::decode` and the
+    /// downstream Tick build off a bounded MPSC queue fed by the
+    /// stage-1 decoder threads.
+    ///
+    /// `None` (the default) sizes the pool to
+    /// [`std::thread::available_parallelism`] with a minimum of `1`,
+    /// matching how Bloomberg / LSEG feed handlers fan parsing work
+    /// across every logical core when the workload is parser-bound
+    /// rather than IO-bound. `Some(0)` clamps to `1` (a zero-worker
+    /// pool would deadlock stage-1 on the first push). `Some(n)`
+    /// pins the worker count to `n` regardless of the available
+    /// core count — useful on shared hosts where
+    /// `available_parallelism` reads the wrong number from `/proc`.
+    pub decode_threads: Option<usize>,
+
+    /// Bounded queue depth between stage-1 (zstd decompress) and
+    /// stage-2 (prost decode + Tick build). When stage-2 cannot
+    /// keep up, stage-1's `send()` parks the decoder thread rather
+    /// than dropping the payload — silent drops on a market data
+    /// feed are unacceptable, so the queue prefers backpressure.
+    ///
+    /// `None` (the default) sizes the queue to
+    /// `concurrent_requests * 64`, picked so a 64-way burst on
+    /// every configured channel pool has a chunk-worth of headroom
+    /// without leaving stage-2 starved. `Some(n)` pins the depth to
+    /// `n` slots; `Some(0)` clamps to `1` (a zero-slot queue
+    /// degenerates to a rendezvous channel — still backpressure-
+    /// preserving but no buffer).
+    pub decode_queue_depth: Option<usize>,
 
     /// Per-thread decoder ring size. Must be a power of two `>= 64`.
     ///
@@ -172,6 +214,8 @@ impl MddsConfig {
             connection_window_size_kb: 64,
             connect_timeout_secs: 10,
             decoder_threads: 0,
+            decode_threads: None,
+            decode_queue_depth: None,
             decoder_ring_size: 256,
             // 100 MiB — empirically catches bulk pulls (multi-million
             // row option-chain or multi-day backfill responses) while
