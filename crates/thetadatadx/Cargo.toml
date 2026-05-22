@@ -133,6 +133,21 @@ disruptor = "4.2.0"
 # the Python binding.
 crossbeam-queue = "0.3.12"
 
+# Bounded MPSC queue between the two-stage decode pipeline's stage-1
+# (zstd decompress) and stage-2 (prost decode + Tick build) workers.
+# `crossbeam_channel::bounded` is the simplest correct shape: a single
+# shared queue with N producers (stage-1 decoder threads) and M
+# consumers (stage-2 worker pool). Backpressure is enforced by parking
+# stage-1 on a full queue rather than dropping payloads.
+crossbeam-channel = "0.5.13"
+
+# Cache-line padding for the two-stage pipeline's shared atomic
+# counters (`total_decoded`, `total_dropped`, `total_parked`). Stage-1
+# and stage-2 threads both increment these on the hot path; padding
+# isolates each counter to its own cache line so false sharing across
+# CPU sockets does not stall the pipeline under load.
+crossbeam-utils = "0.8.21"
+
 # Optional DataFrame / Arrow extension traits (`frames` module).
 # polars: minimal feature set — just enough to build `DataFrame::new(vec![Series::new(...).into()])`.
 # No lazy, no I/O, no parquet, no SQL, no compute kernels. `default-features = false`

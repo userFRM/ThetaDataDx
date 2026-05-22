@@ -46,17 +46,22 @@
 //! near-zero idle CPU between bursts.
 
 use std::panic::AssertUnwindSafe;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
+use bytes::Bytes;
 use disruptor::{build_multi_producer, MultiProducer, ProcessorSettings, Producer, Sequence};
 use tokio::sync::oneshot;
 
 use crate::error::Error;
 use crate::proto;
 use crate::util::ring::{check_ring_size, RingSizeError};
+
+use super::stage_pipeline::{
+    DecodedPayload, Stage2Job, Stage2Pool, Stage2PoolSender, Stage2SendError,
+};
 
 // ─── Wait strategy ──────────────────────────────────────────────────
 
@@ -183,17 +188,53 @@ pub type DecodeResult = Result<proto::DataTable, Error>;
 
 /// One unit of decode work submitted to the pool.
 ///
-/// The work closure runs entirely on the decoder thread; it owns
-/// every cycle of the zstd decompress + protobuf decode chain and
-/// reads only its captured `compressed`/`max_message_size`
-/// parameters. The `reply` channel signals completion back to the
-/// async caller — if the receiver was dropped (caller cancelled)
-/// the decoder side checks [`oneshot::Sender::is_closed`] before
-/// running the work and elides the decompress entirely so cancelled
-/// RPCs do not waste CPU on results no one will read.
-struct DecodeRequest {
+/// Two shapes coexist so the legacy single-stage pool keeps working
+/// (existing integration tests + the panic-containment test
+/// fixtures publish a boxed work closure directly via
+/// [`DecoderHandle::submit_work`]) while the new two-stage pool
+/// publishes a [`Stage1Request`] whose consumer-side handler runs
+/// zstd decompress on the decoder thread and pushes the resulting
+/// [`DecodedPayload`] onto the shared stage-2 queue.
+///
+/// Cancellation is honoured in both variants: the legacy variant
+/// checks `oneshot::Sender::is_closed` before running the work;
+/// the stage-1 variant checks the same flag before decompressing
+/// and elides the work entirely on caller cancellation.
+enum DecodeRequest {
+    /// Legacy single-stage work closure. Used by
+    /// [`DecoderHandle::submit_work`] and by [`DecoderHandle::submit`]
+    /// on pools built via [`DecoderPool::new`].
+    Legacy(LegacyRequest),
+    /// Two-stage stage-1 request. Boxed so the enum stays small
+    /// even though `Stage1Request` carries a full
+    /// `proto::ResponseData`.
+    Stage1(Box<Stage1Request>),
+}
+
+/// Legacy single-stage request shape.
+struct LegacyRequest {
     work: Box<dyn FnOnce() -> DecodeResult + Send + 'static>,
     reply: oneshot::Sender<DecodeResult>,
+}
+
+/// Two-stage stage-1 request. Stage-1 runs zstd decompress, then
+/// pushes a [`Stage2Job`] onto the stage-2 queue. The reply
+/// `oneshot::Sender` rides through to stage-2; stage-1 only sends
+/// through it on a stage-1 failure (decompress error, stage-2 queue
+/// closed).
+struct Stage1Request {
+    response: proto::ResponseData,
+    max_message_size: usize,
+    channel_id: u64,
+    request_id: u64,
+    /// Wrapped in `Option` so the consumer closure can `take()` it
+    /// out when handing off to stage-2 — the value moves into the
+    /// `Stage2Job`'s `reply` field.
+    reply: Option<oneshot::Sender<DecodeResult>>,
+    /// Wrapped in `Option` for the same reason as `reply`: the
+    /// consumer closure takes it out to push the stage-2 job, and
+    /// the original request struct is then dropped.
+    stage2: Option<Stage2PoolSender>,
 }
 
 /// One slot in the per-decoder ring buffer.
@@ -295,6 +336,23 @@ unsafe impl Sync for RingEvent {}
 pub struct DecoderHandle {
     producer: MultiProducer<RingEvent, disruptor::SingleConsumerBarrier>,
     poisoned: Arc<AtomicBool>,
+    /// Per-decoder identifier exposed through [`DecodedPayload::channel_id`]
+    /// so cross-stage logs can be correlated to a specific stage-1
+    /// thread. `None` when the handle belongs to a legacy single-stage
+    /// pool that never produces [`DecodedPayload`] values.
+    channel_id: u64,
+    /// Per-handle monotonic counter feeding [`DecodedPayload::request_id`].
+    /// Wraps at `u64::MAX` (~hundreds of years of saturated decode
+    /// before the counter overflows on any realistic feed).
+    next_request_id: Arc<AtomicU64>,
+    /// Cloned [`Stage2PoolSender`] when this handle belongs to a
+    /// two-stage pool; the stage-1 consumer closure pushes
+    /// [`Stage2Job`]s onto the shared queue rather than running the
+    /// prost decode inline. `None` in the legacy single-stage path
+    /// (the consumer closure runs the full work locally — preserved
+    /// for backwards compatibility with the existing
+    /// [`DecoderPool::new`] constructor).
+    stage2: Option<Stage2PoolSender>,
 }
 
 impl DecoderHandle {
@@ -320,6 +378,17 @@ impl DecoderHandle {
     /// captured `Bytes` is dropped and no CPU is spent on a result
     /// no one will read.
     ///
+    /// # Two-stage routing
+    ///
+    /// When the pool was built via [`DecoderPool::new_two_stage`],
+    /// stage-1 (this decoder thread) runs only the zstd decompress
+    /// and pushes a [`super::stage_pipeline::DecodedPayload`] onto
+    /// the shared stage-2 queue. Stage-2 workers then run the prost
+    /// decode and reply through the caller's oneshot. The legacy
+    /// [`DecoderPool::new`] constructor runs the full work inline on
+    /// the decoder thread — preserved so existing integration tests
+    /// pass unchanged.
+    ///
     /// # Errors
     ///
     /// Returns [`DecoderSubmitError::Poisoned`] when the pool has
@@ -336,10 +405,65 @@ impl DecoderHandle {
         response: proto::ResponseData,
         max_message_size: usize,
     ) -> Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError> {
+        if let Some(stage2) = self.stage2.clone() {
+            return self.submit_two_stage(response, max_message_size, stage2);
+        }
         let work: Box<dyn FnOnce() -> DecodeResult + Send + 'static> = Box::new(move || {
             crate::mdds::decode::decode_data_table_with_max(&response, max_message_size)
         });
         self.submit_work(work)
+    }
+
+    /// Two-stage path: the stage-1 decoder thread only decompresses
+    /// the payload, then hands the resulting [`DecodedPayload`] off
+    /// to the shared stage-2 worker pool through a bounded MPSC
+    /// queue. The caller's `oneshot::Receiver` is ultimately owned
+    /// by the stage-2 worker that runs the prost decode.
+    fn submit_two_stage(
+        &self,
+        response: proto::ResponseData,
+        max_message_size: usize,
+        stage2: Stage2PoolSender,
+    ) -> Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError> {
+        if self.is_poisoned() || stage2.is_poisoned() {
+            return Err(DecoderSubmitError::Poisoned);
+        }
+        let channel_id = self.channel_id;
+        let request_id = self.next_request_id.fetch_add(1, Ordering::Relaxed);
+        let backoff_mode = BackoffMode::detect();
+        let (tx, rx) = oneshot::channel();
+        let stage1 = Stage1Request {
+            response,
+            max_message_size,
+            channel_id,
+            request_id,
+            reply: Some(tx),
+            stage2: Some(stage2),
+        };
+        let mut pending: Option<DecodeRequest> = Some(DecodeRequest::Stage1(Box::new(stage1)));
+        let mut producer = self.producer.clone();
+        loop {
+            if self.is_poisoned() {
+                return Err(DecoderSubmitError::Poisoned);
+            }
+            let mut taken = pending.take();
+            let outcome = producer.try_publish(|slot| {
+                let request = taken
+                    .take()
+                    .expect("try_publish closure runs exactly once per accepted claim");
+                // SAFETY: the disruptor producer barrier
+                // guarantees the claimed sequence is exclusive to
+                // this publish until we return from the closure.
+                unsafe { slot.write(request) };
+            });
+            match outcome {
+                Ok(_seq) => return Ok(rx),
+                Err(disruptor::RingBufferFull) => {
+                    pending = taken;
+                    backoff_ring_full(backoff_mode, PUBLISH_RETRY_BACKOFF);
+                }
+            }
+        }
     }
 
     /// Publish a pre-boxed `work` closure onto the ring.
@@ -389,7 +513,8 @@ impl DecoderHandle {
         // the loop re-checks the poison flag, dropping the request
         // (and its `oneshot::Sender`) without ever publishing if
         // the consumer has died meanwhile.
-        let mut pending: Option<DecodeRequest> = Some(DecodeRequest { work, reply: tx });
+        let mut pending: Option<DecodeRequest> =
+            Some(DecodeRequest::Legacy(LegacyRequest { work, reply: tx }));
         let mut producer = self.producer.clone();
         loop {
             // Re-check the poison flag on every iteration so a
@@ -532,6 +657,149 @@ struct PoolInner {
     /// clones of these, so all of them go to zero only when the
     /// last `DecoderHandle` is also dropped.
     _producers: Vec<MultiProducer<RingEvent, disruptor::SingleConsumerBarrier>>,
+    /// Stage-2 worker pool when this `DecoderPool` was built via
+    /// [`DecoderPool::new_two_stage`]. Held here so the workers
+    /// stay alive for the lifetime of every pool clone; dropping
+    /// the last clone joins them via [`Stage2Pool::drop`]. The
+    /// stage-1 decoder threads hold their own
+    /// [`Stage2PoolSender`] clones inside each `DecoderHandle`.
+    _stage2: Option<Arc<Stage2Pool>>,
+}
+
+/// Consumer-thread handler. Runs the decompress + prost decode
+/// inline for the legacy variant, or the stage-1 zstd decompress
+/// followed by a stage-2 push for the two-stage variant. The
+/// decoder thread's `catch_unwind` invariant is unchanged: a panic
+/// in either branch flips the pool's poison flag and the consumer
+/// continues draining the ring with the transport-level reply.
+fn handle_decode_request(request: DecodeRequest, poisoned: &Arc<AtomicBool>) {
+    match request {
+        DecodeRequest::Legacy(LegacyRequest { work, reply }) => {
+            if reply.is_closed() {
+                return;
+            }
+            if poisoned.load(Ordering::Acquire) {
+                let _ = reply.send(Err(Error::Transport {
+                    kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                    message: POOL_POISONED_REASON.to_string(),
+                }));
+                return;
+            }
+            let outcome = std::panic::catch_unwind(AssertUnwindSafe(work));
+            let result = match outcome {
+                Ok(decoded) => decoded,
+                Err(_panic_payload) => {
+                    poisoned.store(true, Ordering::Release);
+                    tracing::error!(
+                        target: "thetadatadx::grpc::decoder_pool",
+                        "mdds decoder worker panicked; pool poisoned"
+                    );
+                    Err(Error::Transport {
+                        kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                        message: POOL_POISONED_REASON.to_string(),
+                    })
+                }
+            };
+            let _ = reply.send(result);
+        }
+        DecodeRequest::Stage1(boxed) => {
+            let Stage1Request {
+                response,
+                max_message_size,
+                channel_id,
+                request_id,
+                reply,
+                stage2,
+            } = *boxed;
+            let Some(reply) = reply else {
+                return;
+            };
+            if reply.is_closed() {
+                return;
+            }
+            if poisoned.load(Ordering::Acquire) {
+                let _ = reply.send(Err(Error::Transport {
+                    kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                    message: POOL_POISONED_REASON.to_string(),
+                }));
+                return;
+            }
+            // Stage-1 work: zstd decompress only. The closure is
+            // wrapped in catch_unwind so a degenerate compressed
+            // payload (zstd context assertion) flips the pool's
+            // poison flag rather than killing the decoder thread.
+            let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                crate::mdds::decode::decompress_response_with_max(&response, max_message_size)
+            }));
+            let bytes = match outcome {
+                Ok(Ok(bytes)) => bytes,
+                Ok(Err(err)) => {
+                    // Decompress failed cleanly — surface to caller
+                    // without poisoning the pool; the next request
+                    // on this decoder may still succeed.
+                    let _ = reply.send(Err(err));
+                    return;
+                }
+                Err(_panic_payload) => {
+                    poisoned.store(true, Ordering::Release);
+                    tracing::error!(
+                        target: "thetadatadx::grpc::decoder_pool",
+                        channel_id,
+                        request_id,
+                        "mdds stage-1 decoder panicked during decompress; pool poisoned"
+                    );
+                    let _ = reply.send(Err(Error::Transport {
+                        kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                        message: POOL_POISONED_REASON.to_string(),
+                    }));
+                    return;
+                }
+            };
+            // Hand off to stage-2. `Bytes::from(Vec<u8>)` is
+            // zero-copy so stage-2 can slice / split without
+            // re-allocating the decompressed payload.
+            let Some(stage2) = stage2 else {
+                // Defensive: a stage-1 request was constructed
+                // without a stage-2 sender. This would be a
+                // pool-construction bug; surface as transport
+                // poison so the caller sees a clean failure.
+                let _ = reply.send(Err(Error::Transport {
+                    kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                    message: "stage-1 request missing stage-2 sender".to_string(),
+                }));
+                return;
+            };
+            let payload = DecodedPayload {
+                channel_id,
+                request_id,
+                payload: Bytes::from(bytes),
+            };
+            let job = Stage2Job {
+                payload,
+                reply,
+                max_message_size,
+            };
+            match stage2.send(job) {
+                Ok(()) => {}
+                Err(Stage2SendError::Poisoned { job })
+                | Err(Stage2SendError::PoolClosed { job }) => {
+                    // Stage-2 poisoned or closed while stage-1
+                    // was running. Recover the embedded reply
+                    // oneshot and surface the failure to the
+                    // caller directly so the awaiting RPC sees a
+                    // transport-level error rather than hanging.
+                    // Also flip the stage-1 pool poison so
+                    // subsequent stage-1 submits fail fast rather
+                    // than going through the same handshake.
+                    poisoned.store(true, Ordering::Release);
+                    let _ = job.reply.send(Err(Error::Transport {
+                        kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                        message: POOL_POISONED_REASON.to_string(),
+                    }));
+                }
+            }
+        }
+    }
 }
 
 impl DecoderPool {
@@ -557,7 +825,7 @@ impl DecoderPool {
         let mut producers = Vec::with_capacity(n_decoders);
         let pool_poisoned = Arc::new(AtomicBool::new(false));
 
-        for _idx in 0..n_decoders {
+        for idx in 0..n_decoders {
             // Each decoder thread runs the consumer side of its own
             // ring; the closure passed to `handle_events_with`
             // executes inline on the consumer thread the disruptor
@@ -588,72 +856,18 @@ impl DecoderPool {
                     // (documented at its declaration) is therefore
                     // upheld.
                     let request = unsafe { slot.take() };
-                    let Some(DecodeRequest { work, reply }) = request else {
+                    let Some(request) = request else {
                         return;
                     };
-                    if reply.is_closed() {
-                        // Caller cancelled before we reached this
-                        // slot. Skip the decompress entirely.
-                        return;
-                    }
-                    // Fast-path: already-poisoned pool drains the
-                    // request without running `work()` so the
-                    // caller sees an immediate transport error
-                    // instead of hanging on a never-completed
-                    // oneshot.
-                    if poisoned.load(Ordering::Acquire) {
-                        let _ = reply.send(Err(Error::Transport {
-                            kind: crate::error::TransportErrorKind::DecoderPoisoned,
-                            message: POOL_POISONED_REASON.to_string(),
-                        }));
-                        return;
-                    }
-                    // Run the decode under catch_unwind so a panic
-                    // (zstd assert, prost decode trap, allocator
-                    // failure on a degenerate payload) flips the
-                    // pool's poison flag instead of killing the
-                    // consumer thread mid-loop. The Disruptor
-                    // crate's consumer loop only exits when its
-                    // shutdown signal arrives; catching the panic
-                    // keeps it alive long enough to drain still-
-                    // queued requests with `Err(PoolPoisoned)`.
-                    //
-                    // `AssertUnwindSafe` is sound here because
-                    // `work` is a freshly-constructed FnOnce closure
-                    // we own outright — there is no shared
-                    // interior-mutable state to leave inconsistent
-                    // on a partial unwind.
-                    let outcome = std::panic::catch_unwind(AssertUnwindSafe(work));
-                    let result = match outcome {
-                        Ok(decoded) => decoded,
-                        Err(_panic_payload) => {
-                            // Poison the pool atomically and reply
-                            // to the caller whose work triggered
-                            // the panic with the transport-level
-                            // failure. The drop of `panic_payload`
-                            // releases its boxed `Any`; we do not
-                            // re-raise — surviving panics is the
-                            // whole point of this branch.
-                            poisoned.store(true, Ordering::Release);
-                            tracing::error!(
-                                target: "thetadatadx::grpc::decoder_pool",
-                                "mdds decoder worker panicked; pool poisoned"
-                            );
-                            Err(Error::Transport {
-                                kind: crate::error::TransportErrorKind::DecoderPoisoned,
-                                message: POOL_POISONED_REASON.to_string(),
-                            })
-                        }
-                    };
-                    // Send-failure is benign: receiver may have
-                    // been dropped between the `is_closed` check
-                    // and now (caller cancellation race).
-                    let _ = reply.send(result);
+                    handle_decode_request(request, &poisoned);
                 })
                 .build();
             handles.push(DecoderHandle {
                 producer: producer.clone(),
                 poisoned: Arc::clone(&pool_poisoned),
+                channel_id: idx as u64,
+                next_request_id: Arc::new(AtomicU64::new(0)),
+                stage2: None,
             });
             producers.push(producer);
         }
@@ -662,6 +876,80 @@ impl DecoderPool {
             handles: handles.into(),
             _inner: Arc::new(PoolInner {
                 _producers: producers,
+                _stage2: None,
+            }),
+        })
+    }
+
+    /// Build a two-stage pool. Stage-1 keeps the per-decoder
+    /// thread shape from [`DecoderPool::new`] but each thread now
+    /// runs *only* zstd decompress and pushes the resulting
+    /// [`DecodedPayload`] onto a shared stage-2 worker pool that
+    /// runs the prost decode + `DataTable` construction across
+    /// `stage2_threads` workers.
+    ///
+    /// Stage-1 / stage-2 thread counts scale independently so a
+    /// workload bound by zstd serial cost (many small payloads)
+    /// and one bound by prost decode (large payloads with deep
+    /// schemas) can each be tuned to the right number of cores
+    /// without over-provisioning the other side.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DecoderPoolError`] when `n_decoders` is zero or
+    /// the ring size fails [`check_ring_size`]. `stage2_threads`
+    /// and `queue_depth` are clamped to `1` internally — see
+    /// [`super::stage_pipeline::Stage2Pool::new`].
+    pub fn new_two_stage(
+        n_decoders: usize,
+        ring_size_per_decoder: usize,
+        stage2_threads: usize,
+        queue_depth: usize,
+    ) -> Result<Self, DecoderPoolError> {
+        if n_decoders == 0 {
+            return Err(DecoderPoolError::EmptyPool);
+        }
+        let ring_size = check_ring_size(ring_size_per_decoder)?;
+
+        let stage2 = Arc::new(Stage2Pool::new(stage2_threads, queue_depth));
+
+        let wait_strategy = DecoderWaitStrategy::mdds_default();
+        let mut handles = Vec::with_capacity(n_decoders);
+        let mut producers = Vec::with_capacity(n_decoders);
+        let pool_poisoned = Arc::new(AtomicBool::new(false));
+
+        for idx in 0..n_decoders {
+            let poisoned = Arc::clone(&pool_poisoned);
+            let producer = build_multi_producer(ring_size, RingEvent::default, wait_strategy)
+                .thread_name("mdds-decode-stage1")
+                .handle_events_with(move |slot: &RingEvent, _seq: Sequence, _eob: bool| {
+                    // SAFETY: the disruptor consumer barrier guarantees
+                    // this thread holds exclusive access to the slot
+                    // at this sequence position until the consumer
+                    // barrier advances on closure return — see
+                    // `RingEvent::take`'s safety contract.
+                    let request = unsafe { slot.take() };
+                    let Some(request) = request else {
+                        return;
+                    };
+                    handle_decode_request(request, &poisoned);
+                })
+                .build();
+            handles.push(DecoderHandle {
+                producer: producer.clone(),
+                poisoned: Arc::clone(&pool_poisoned),
+                channel_id: idx as u64,
+                next_request_id: Arc::new(AtomicU64::new(0)),
+                stage2: Some(stage2.sender()),
+            });
+            producers.push(producer);
+        }
+
+        Ok(Self {
+            handles: handles.into(),
+            _inner: Arc::new(PoolInner {
+                _producers: producers,
+                _stage2: Some(stage2),
             }),
         })
     }
@@ -888,7 +1176,7 @@ mod tests {
     ) -> oneshot::Receiver<DecodeResult> {
         let (tx, rx) = oneshot::channel();
         let mut producer = handle.producer.clone();
-        let mut pending = Some(DecodeRequest { work, reply: tx });
+        let mut pending = Some(DecodeRequest::Legacy(LegacyRequest { work, reply: tx }));
         loop {
             let mut taken = pending.take();
             let outcome = producer.try_publish(|slot| {

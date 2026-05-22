@@ -79,6 +79,7 @@ pub mod codec;
 pub mod decoder_pool;
 pub mod endpoints;
 pub mod pool;
+pub mod stage_pipeline;
 pub mod status;
 pub mod stream;
 
@@ -90,5 +91,6 @@ pub use decoder_pool::{
 };
 pub use endpoints::stock_list_symbols;
 pub use pool::{ChannelLease, ChannelPool};
+pub use stage_pipeline::{DecodedPayload, Stage2Counters, Stage2Pool};
 pub use status::{Status, StatusParseError};
 pub use stream::ServerStreaming;
