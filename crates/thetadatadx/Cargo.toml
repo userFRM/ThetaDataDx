@@ -18,7 +18,11 @@ include = ["src/**/*", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.to
 workspace = true
 
 [package.metadata.docs.rs]
-all-features = true
+# Explicit feature list mirroring the CI rustdoc job
+# (`cargo doc --no-deps -p thetadatadx --features arrow,polars,frames,config-file`).
+# Never use `all-features = true` here — it would re-enable any internal
+# bench-only feature flag and surface non-public symbols on docs.rs.
+features = ["arrow", "polars", "frames", "config-file"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
@@ -43,6 +47,17 @@ frames = ["polars", "arrow"]
 # Opt-in gate for tests that hit live MDDS / FPSS endpoints. Default-off
 # so `cargo test` never burns a live call without the user asking for it.
 live-tests = []
+# Private, unstable feature gating a handful of `pub(crate)`-shape
+# constructors that exist solely so integration tests under `tests/`
+# can build a `MddsClient` against a mock REST server without paying
+# for a real Nexus auth handshake. Double-underscore prefix marks it
+# as unsupported: callers outside this repository must not enable it,
+# and the API stability contract does not apply.
+#
+# Activated by `[[test]] required-features = ["__test-helpers"]` and
+# by the `test` job in `.github/workflows/ci.yml`. Never enable from
+# the published `[features]` of a downstream crate.
+__test-helpers = []
 # Optional mimalloc allocator. Library crates do not install a
 # `#[global_allocator]` of their own — that belongs in the consuming
 # binary. Enabling this feature pulls `mimalloc` into the dependency
@@ -51,12 +66,6 @@ live-tests = []
 # integration snippet. Default-off — applications that prefer the
 # system allocator pay no compile or link cost.
 mimalloc-allocator = ["dep:mimalloc"]
-# Internal hook surfaced for the bench harness only. Enables
-# `Stage2Pool::submit_for_bench` so `benches/bench_stage_pipeline.rs`
-# can drive the pipeline without going through `DecoderPool`. Strictly
-# bench-only; production callers must not enable this.
-bench-internals = []
-
 [dependencies]
 tdbe = { version = "0.13.1", path = "../tdbe" }
 
@@ -319,7 +328,14 @@ harness = false
 [[bench]]
 name = "bench_stage_pipeline"
 harness = false
-required-features = ["bench-internals"]
+
+[[test]]
+# Builds `MddsClient` against mock REST + h2c servers. Depends on the
+# private `__test-helpers` feature for the `for_fallback_test`
+# constructor that bypasses the Nexus auth handshake.
+name = "test_with_fallback_end_date"
+path = "tests/test_with_fallback_end_date.rs"
+required-features = ["__test-helpers"]
 
 [[bin]]
 name = "generate_sdk_surfaces"

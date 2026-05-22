@@ -77,19 +77,6 @@ if (jsText.includes(JS_ALIAS_LINE)) {
 // This pass guarantees the `@deprecated` tag survives every build.
 {
   const dtsTextAfter = readFileSync(dtsPath, "utf-8");
-  const ensureDeprecated = (block, replacement) => {
-    const idx = dtsTextAfter.indexOf(block);
-    if (idx === -1) {
-      console.error(
-        `postbuild_alias_contract: could not find expected block to deprecate in ${dtsPath}`
-      );
-      process.exit(1);
-    }
-    if (dtsTextAfter.substring(idx, idx + replacement.length) === replacement) {
-      return null;
-    }
-    return [idx, block.length, replacement];
-  };
   // Setter block (multi-line JSDoc) — keep narrow markers so a doc
   // rewrite upstream still matches.
   const setterMarker = "  setDecoderThreads(n: number): void";

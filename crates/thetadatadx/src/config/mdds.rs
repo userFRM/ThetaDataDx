@@ -72,23 +72,21 @@ pub struct MddsConfig {
 
     /// Number of stage-1 decoder threads in the MDDS pool.
     ///
-    /// Each server-streaming response chunk is zstd-decompressed on
-    /// one of these threads off the tokio reactor. `0` auto-sizes to
-    /// `(available_parallelism / 2).max(1)`, leaving half the logical
-    /// cores for the reactor and the caller's own work.
-    ///
-    /// # Deprecated
-    ///
     /// Deprecated since v10.0.1: use [`Self::decode_threads`].
-    /// `decode_threads` tunes the stage-2 prost-decode + Tick-build
-    /// worker pool — the knob operators reach for under the two-stage
-    /// pipeline model.
     ///
-    /// The `#[deprecated]` attribute is intentionally NOT set on the
-    /// field; workspace lints promote rustc warnings to errors and
-    /// every cross-binding setter still writes the field, so attaching
-    /// the attribute would force `#[allow(deprecated)]` at every
-    /// access site.
+    /// Sizes the legacy stage-1 per-channel zstd-decompress thread
+    /// count. `0` auto-sizes to `(available_parallelism / 2).max(1)`.
+    /// `decode_threads` tunes the stage-2 prost-decode + Tick-build
+    /// pool — the knob operators reach for under the two-stage
+    /// pipeline.
+    //
+    // `#[deprecated]` is intentionally NOT set on the field. Workspace
+    // lints promote rustc warnings to errors, and every cross-binding
+    // setter (Python / TS / C++ / FFI) still writes the field for
+    // back-compat. Attaching the attribute would force
+    // `#[allow(deprecated)]` at every access site — including the
+    // generated binding shims. Revisit when the legacy stage-1 path
+    // is removed (planned for the v11 major).
     pub decoder_threads: usize,
 
     /// Stage-2 worker thread count for the two-stage decode

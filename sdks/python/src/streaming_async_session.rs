@@ -389,10 +389,10 @@ impl StreamingAsyncSession {
         self.iterator.as_ref().map_or(0, |it| it.queue_len())
     }
 
-    /// Alias for [`Self::queue_len`]. Per #563 the operator-facing
-    /// name for the depth getter is `queue_depth` — matches the kdb+
-    /// / Bloomberg BLPAPI vocabulary. The legacy `queue_len()` getter
-    /// (#559) is kept as an alias so existing callers do not break.
+    /// Alias for [`Self::queue_len`]. The operator-facing name for
+    /// the depth getter is `queue_depth` — matches the kdb+ /
+    /// Bloomberg BLPAPI vocabulary. The legacy `queue_len()` getter
+    /// is kept as an alias so existing callers do not break.
     fn queue_depth(&self) -> usize {
         self.queue_len()
     }

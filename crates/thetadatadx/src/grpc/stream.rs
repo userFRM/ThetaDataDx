@@ -250,11 +250,9 @@ where
 /// full frame, `None` when more wire bytes are needed, or an error on
 /// a malformed header.
 ///
-/// Issue #565 Tier 4: replaces the previous per-poll
-/// `this.buf.clone().freeze()` which deep-copied the entire
-/// accumulator on every poll. This helper reads the header bytes
-/// directly off the `BytesMut` slice (no allocation, no clone) and
-/// lets the outer poll loop detach exactly one frame's worth via
+/// Reads the header bytes directly off the `BytesMut` slice (no
+/// allocation, no clone) and lets the outer poll loop detach exactly
+/// one frame's worth via
 /// `BytesMut::split_to` on the success branch — refcount-only.
 ///
 /// Header layout (gRPC spec § 7.1):

@@ -83,7 +83,7 @@ pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &Generated
 /// guidance attached to every parsed historical builder. Composed here
 /// so every `option_history_*` / `stock_history_*` / `index_history_*`
 /// / `interest_rate_history_*` builder advertises the same matrix in
-/// rustdoc; closes issue #576.
+/// rustdoc.
 const AWAIT_VS_STREAM_DOC: &str = "\n\
 # When to use `.await` vs `.stream(handler)`\n\
 \n\
@@ -116,11 +116,11 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
         format!("gRPC stub: `{}`", endpoint.grpc_name)
     )
     .unwrap();
-    // Issue #576: surface the `.await` vs `.stream(handler)` decision
-    // matrix in rustdoc on every historical builder. Same copy on
-    // every endpoint so `cargo doc` readers do not have to hunt for
-    // it — placed AFTER the per-endpoint description so the
-    // endpoint's own prose stays at the top of the rustdoc panel.
+    // Surface the `.await` vs `.stream(handler)` decision matrix in
+    // rustdoc on every historical builder. Same copy on every
+    // endpoint so `cargo doc` readers do not have to hunt for it —
+    // placed AFTER the per-endpoint description so the endpoint's
+    // own prose stays at the top of the rustdoc panel.
     writeln!(out, "    #[doc = {:?}]", AWAIT_VS_STREAM_DOC).unwrap();
     writeln!(
         out,
@@ -172,11 +172,11 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
     )
     .unwrap();
     // Per-tick item type for the `.stream(handler)` method emitted
-    // by `parsed_endpoint!`. Issue #565: the streaming variant lets
-    // callers drain row-by-row instead of materializing the full
-    // `Vec<T>`, eliminating the 6× memory amplification on
-    // tick-interval responses (h2 frames + concatenated proto +
-    // decoded Vec + Vec::push doubling).
+    // by `parsed_endpoint!`. The streaming variant lets callers drain
+    // row-by-row instead of materializing the full `Vec<T>`,
+    // eliminating the 6× memory amplification on tick-interval
+    // responses (h2 frames + concatenated proto + decoded Vec +
+    // Vec::push doubling).
     writeln!(
         out,
         "    item: {};",

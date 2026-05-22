@@ -57,14 +57,15 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_MIN_OCCURRENCES = 3
 
 
-# Files / directories the detector skips. FFI surface comments are
-# exempt: every site there is an `extern "C" fn` whose caller contract
-# lives on the function signature, and the comment frequently is a
-# pointer back to that doc. The detector itself is also exempt — it
-# embeds the regression sample below as a string literal.
+# Files / directories the detector skips. The detector itself is
+# excluded via the `/scripts/` fragment — it embeds the regression
+# sample as a string literal and would otherwise match itself.
 SCAN_GLOBS = ("crates/**/*.rs", "ffi/**/*.rs", "tools/**/*.rs", "sdks/**/*.rs")
 
-FFI_EXEMPT_PREFIXES = ("ffi/src/",)
+# Per-site allowlist file. Substring matches against the normalised
+# SAFETY-comment text exempt the comment from the duplicate count.
+# See the file's own header for the policy on when to add an entry.
+ALLOWLIST_PATH = REPO_ROOT / "scripts" / "safety_comment_allowlist.txt"
 
 EXEMPT_PATH_FRAGMENTS = (
     "/target/",
@@ -98,7 +99,9 @@ INVARIANT_SIGNAL_PATTERNS = (
     re.compile(r"\bdiscriminant\b"),
     re.compile(r"\baligned\b"),
     re.compile(r"\bUTF-?8\b", re.IGNORECASE),
-    re.compile(r"\bNULL\b"),
+    re.compile(r"\bNULL?\b"),
+    re.compile(r"\bnul[- ]terminated\b", re.IGNORECASE),
+    re.compile(r"\bCString::"),
     re.compile(r"\bunique\b", re.IGNORECASE),     # uniqueness / aliasing
     re.compile(r"\bborrow\b", re.IGNORECASE),
     re.compile(r"\bMutex|RwLock|Arc|Box|Rc\b"),
@@ -114,9 +117,24 @@ def _is_exempt(rel_path: pathlib.Path) -> bool:
     return False
 
 
-def _is_ffi_exempt(rel_path: pathlib.Path) -> bool:
-    rel_str = rel_path.as_posix()
-    return any(rel_str.startswith(prefix) for prefix in FFI_EXEMPT_PREFIXES)
+def _load_allowlist(path: pathlib.Path = ALLOWLIST_PATH) -> list[str]:
+    """Read the per-site allowlist substrings. Empty if file missing."""
+    if not path.is_file():
+        return []
+    entries: list[str] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        entries.append(_normalise(stripped).lower())
+    return entries
+
+
+def _is_allowlisted(text: str, allowlist: list[str]) -> bool:
+    if not allowlist:
+        return False
+    haystack = text.lower()
+    return any(entry in haystack for entry in allowlist)
 
 
 def _iter_files(root: pathlib.Path) -> Iterable[pathlib.Path]:
@@ -191,32 +209,38 @@ def _extract_safety_blocks(path: pathlib.Path) -> list[tuple[int, str]]:
 def _scan(
     root: pathlib.Path,
     min_occurrences: int = DEFAULT_MIN_OCCURRENCES,
+    allowlist: list[str] | None = None,
 ) -> list[tuple[str, list[tuple[pathlib.Path, int]]]]:
     """Return a list of (boilerplate_text, occurrences) buckets that trip the gate."""
+    if allowlist is None:
+        allowlist = _load_allowlist()
     buckets: dict[str, list[tuple[pathlib.Path, int]]] = defaultdict(list)
     for path in _iter_files(root):
         rel = path.relative_to(root)
-        ffi_exempt = _is_ffi_exempt(rel)
         for lineno, body in _extract_safety_blocks(path):
             buckets[body].append((rel, lineno))
-            # FFI exemption is per-site, applied at evaluation time below.
-            if ffi_exempt:
-                # Tag the entry as exempt so the evaluator can drop it
-                # from the population count.
-                buckets[body][-1] = (rel, -lineno if lineno > 0 else lineno)
     flagged: list[tuple[str, list[tuple[pathlib.Path, int]]]] = []
     for body, sites in buckets.items():
-        non_ffi_sites = [(p, ln) for (p, ln) in sites if ln > 0]
-        if len(non_ffi_sites) < min_occurrences:
+        if len(sites) < min_occurrences:
             continue
         if _mentions_invariant(body):
             continue
-        flagged.append((body, non_ffi_sites))
+        # Per-site allowlist: a verbatim invariant shared genuinely
+        # across multiple sites (e.g. handle-based FFI fns) is
+        # accepted via a substring entry in
+        # `scripts/safety_comment_allowlist.txt`.
+        if _is_allowlisted(body, allowlist):
+            continue
+        flagged.append((body, sites))
     return flagged
 
 
 def _selftest() -> int:
-    """Build a temporary tree with 3 stamped sites + 1 genuine site, then scan."""
+    """Build a temporary tree with 3 stamped sites + 1 genuine site, then scan.
+
+    Then re-scan with a per-site allowlist substring that whitelists
+    the stamped text, and confirm the detector silences the bucket.
+    """
     import tempfile
 
     sample_boilerplate = (
@@ -255,15 +279,6 @@ fn d() {{
     unsafe {{ }}
 }}
 """,
-        # FFI site repeating the boilerplate — must be exempted from the
-        # population count so the synthetic bucket on its own is still
-        # only 3, not 4.
-        pathlib.Path("ffi/src/lib.rs"): f"""
-fn e() {{
-    // SAFETY: {sample_boilerplate}
-    unsafe {{ }}
-}}
-""",
     }
 
     with tempfile.TemporaryDirectory() as td:
@@ -272,7 +287,8 @@ fn e() {{
             target = root / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
-        flagged = _scan(root)
+        # First scan: empty allowlist — the stamped bucket trips.
+        flagged = _scan(root, allowlist=[])
         if not flagged:
             print("selftest FAILED: stamped boilerplate not detected")
             return 1
@@ -282,71 +298,29 @@ fn e() {{
             )
             return 1
         body, sites = flagged[0]
-        non_ffi = [s for s in sites if not s[0].as_posix().startswith("ffi/")]
-        if len(non_ffi) != 3:
+        if len(sites) != 3:
             print(
-                f"selftest FAILED: expected 3 non-FFI sites, got {len(non_ffi)} "
-                f"({non_ffi!r})"
+                f"selftest FAILED: expected 3 sites, got {len(sites)} "
+                f"({sites!r})"
             )
             return 1
         if "the caller upholds" not in body:
             print(f"selftest FAILED: flagged the wrong bucket ({body!r})")
             return 1
-        # Sanity: the genuine annotation must have been silenced by the
-        # backtick-identifier signal.
         if any("tdx_session_new" in b for (b, _) in flagged):
             print("selftest FAILED: genuine annotation was flagged")
             return 1
-    print("selftest: ok")
-    return _selftest_ffi_exempt()
 
-
-def _selftest_ffi_exempt() -> int:
-    """Negative case: every stamped site lives under `ffi/src/` -> zero findings.
-
-    Pins the FFI-exempt logic against a future refactor that might
-    drop the per-site exemption. If the detector ever loses the
-    `ffi/src/`-rooted skip, this selftest fails before the change
-    lands on main.
-    """
-    import tempfile
-
-    sample_boilerplate = (
-        "the caller upholds the FFI contract on this pointer; "
-        "ownership / lifetime is managed entirely outside Rust"
-    )
-
-    # Five FFI sites with identical boilerplate -- without the
-    # exemption they would trip the gate trivially.
-    ffi_sites = {
-        pathlib.Path(f"ffi/src/endpoint_{i}.rs"): f"""
-fn ep_{i}() {{
-    // SAFETY: {sample_boilerplate}
-    unsafe {{ }}
-}}
-"""
-        for i in range(5)
-    }
-
-    with tempfile.TemporaryDirectory() as td:
-        root = pathlib.Path(td)
-        for rel, content in ffi_sites.items():
-            target = root / rel
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding="utf-8")
-        flagged = _scan(root)
-        if flagged:
+        # Second scan: allowlist the boilerplate substring -- the
+        # bucket is silenced. Verifies the allowlist takes effect.
+        allowlisted = _scan(root, allowlist=["the caller upholds the ffi contract"])
+        if allowlisted:
             print(
-                "ffi-exempt selftest FAILED: detector flagged FFI-only "
-                f"sites ({len(flagged)} bucket(s))"
+                "selftest FAILED: allowlist did not silence the stamped "
+                f"bucket ({len(allowlisted)} bucket(s) still flagged)"
             )
-            for body, sites in flagged:
-                truncated = body if len(body) <= 80 else body[:80] + "..."
-                print(f"  text: {truncated}")
-                for rel, lineno in sites:
-                    print(f"    {rel}:{lineno}")
             return 1
-    print("ffi-exempt selftest: ok")
+    print("selftest: ok")
     return 0
 
 
@@ -362,8 +336,8 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=DEFAULT_MIN_OCCURRENCES,
         help=(
-            f"Minimum identical-text occurrences at non-FFI sites that "
-            f"trip the gate (default {DEFAULT_MIN_OCCURRENCES})."
+            f"Minimum identical-text occurrences that trip the gate "
+            f"(default {DEFAULT_MIN_OCCURRENCES})."
         ),
     )
     args = parser.parse_args(argv)
@@ -377,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     print(
         f"safety-boilerplate: {len(flagged)} stamped-comment bucket(s) "
-        f"with >= {args.min_occurrences} non-FFI sites"
+        f"with >= {args.min_occurrences} sites"
     )
     for body, sites in flagged:
         truncated = body if len(body) <= 200 else body[:200] + "..."

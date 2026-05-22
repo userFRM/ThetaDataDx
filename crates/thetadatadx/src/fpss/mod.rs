@@ -1,104 +1,28 @@
-//! FPSS (Feed Processing Streaming Server) real-time streaming client.
+//! FPSS real-time streaming client.
 //!
-//! Behaviour mirrors the upstream Java terminal. Per-line vendor-class
-//! breadcrumbs are intentionally absent from this module: they leak
-//! vendor-internal class names into the public source surface and rotate
-//! with every upstream binary version.
+//! Synchronous blocking I/O on `std::thread` (no tokio). A TLS reader
+//! publishes events to a single LMAX Disruptor ring; the consumer
+//! thread invokes the user callback inside `std::panic::catch_unwind`
+//! so panics are counted on [`FpssClient::panic_count`] rather than
+//! tearing down the pipeline. See `docs-site/docs/streaming/index.md`
+//! for the architectural overview.
 //!
-//! # Architecture
-//!
-//! The FPSS protocol provides real-time market data over a custom TLS/TCP
-//! binary protocol. The client runs:
-//!
-//! 1. A TLS connection to one of 4 FPSS servers (NJ-A/NJ-B, ports 20000/20001)
-//! 2. An authentication handshake (email + password over the wire)
-//! 3. A heartbeat thread sending PING every 100ms
-//! 4. A reader thread dispatching incoming frames to callbacks
-//! 5. Automatic reconnection on disconnect (except for permanent errors)
-//!
-//! # Fully synchronous -- no tokio in the FPSS path
-//!
-//! This module is 100% blocking I/O on `std::thread`. No tokio, no async, no
-//! `.await` anywhere. The pipeline is:
-//!
-//! ```text
-//! std::thread (blocking TLS read) -> LMAX Disruptor ring -> user's FnMut(&FpssEvent) callback
-//! ```
-//!
-//! # Usage
+//! # Examples
 //!
 //! ```rust,no_run
-//! # use thetadatadx::fpss::{FpssClient, FpssConnectArgs, FpssData, FpssEvent};
+//! # use thetadatadx::fpss::{FpssClient, FpssConnectArgs, FpssEvent};
 //! # use thetadatadx::auth::Credentials;
 //! # fn example() -> Result<(), thetadatadx::error::Error> {
 //! let creds = Credentials::new("user@example.com", "pw");
 //! let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
 //! let args = FpssConnectArgs::new(&creds, &hosts);
-//! let client = FpssClient::connect(args, |event: &FpssEvent| {
-//!     // Runs on the Disruptor consumer thread -- keep it fast.
-//!     // Push to your own queue for heavy processing.
-//!     match event {
-//!         FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
-//!             let _root = &contract.symbol; // symbol / option root
-//!             let _ = (bid, ask); // f64 prices
-//!         }
-//!         FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
-//!             let _root = &contract.symbol;
-//!             let _ = (price, size);
-//!         }
-//!         FpssEvent::Control(_) => { /* lifecycle */ }
-//!         _ => {}
-//!     }
-//! })?;
-//!
-//! // Subscribe (blocking write to TLS stream via internal command channel).
+//! let client = FpssClient::connect(args, |_event: &FpssEvent| {})?;
 //! use thetadatadx::fpss::protocol::Contract;
 //! client.subscribe(Contract::stock("AAPL").quote())?;
-//!
-//! // ... later
 //! client.shutdown();
 //! # Ok(())
 //! # }
 //! ```
-//!
-//! # Internal architecture
-//!
-//! ```text
-//!  +---------------+  cmd channel   +--------------------+  publish()  +------------------+
-//!  | FpssClient    |--------------->| I/O thread         |------------>| Disruptor Ring   |
-//!  |               |                | (std::thread)      |             | (SPSC, lock-     |
-//!  | .subscribe()  |                | blocking TLS read  |             |  free, pre-      |
-//!  | .unsubscribe  |                | + write drain      |             |  allocated)      |
-//!  | .shutdown()   |                +--------------------+             +--------+---------+
-//!  +---------------+                +--------------------+                      | consumer
-//!                                   | Ping thread        |                      v
-//!                                   | (std::thread,      |             +------------------+
-//!                                   |  sleep loop)       |             | User handler(F)  |
-//!                                   +--------------------+             | (catch_unwind,   |
-//!                                                                      |  panic-isolated) |
-//!                                                                      +------------------+
-//! ```
-//!
-//! The I/O thread owns the TLS stream exclusively. Write requests (subscribe,
-//! unsubscribe, ping) arrive via a `std::sync::mpsc` command channel. Between
-//! blocking reads (during read timeouts), the I/O thread drains the command
-//! queue and sends frames. This eliminates all lock contention on the TLS stream.
-//!
-//! There is exactly ONE queue between the TLS reader and the user callback —
-//! the LMAX Disruptor ring. The reader publishes events; the Disruptor's
-//! consumer thread invokes the user callback wrapped in
-//! [`std::panic::catch_unwind`] so a panic from user code (or binding glue
-//! such as PyO3 / napi) is counted on [`FpssClient::panic_count`] and
-//! reported via `tracing::error!` rather than tearing down the consumer.
-//! Ring-buffer overflow (consumer falling behind) is counted on
-//! [`FpssClient::dropped_count`] via `Producer::try_publish` failures.
-//!
-//! # Sub-modules
-//!
-//! - `connection` -- TLS TCP connection establishment (blocking)
-//! - `framing` -- Wire frame reader/writer (sync `Read`/`Write`)
-//! - [`protocol`] -- Message types, contract serialization, subscription payloads
-//! - `ring` -- LMAX Disruptor ring buffer and adaptive wait strategy
 
 mod accumulator;
 pub(crate) mod connection;

@@ -68,11 +68,11 @@ class Config:
     # connect time with a warn. `decoder_ring_size` must be a power
     # of two >= 64; the setter raises ValueError otherwise.
     concurrent_requests: int
-    # Deprecated since v10.0.1: use `decode_threads`. Aliases the
-    # stage-1 (per-channel zstd decompress) worker count; the
-    # stage-2 prost-decode + Tick-build pool is sized by
-    # `decode_threads` under the two-stage decode pipeline.
     decoder_threads: int
+    """Deprecated since v10.0.1: set ``decode_threads`` instead. This
+    field controls only the legacy stage-1 thread count and is
+    preserved for backward compatibility.
+    """
     decoder_ring_size: int
     # MDDS two-stage decode pipeline. `decode_threads` sizes the
     # stage-2 prost-decode + Tick-build worker pool;

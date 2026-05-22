@@ -210,7 +210,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_legacy_six_field_quote_csv() {
+    fn parse_six_field_quote_csv_zero_fills_missing_columns() {
         let body = "\
 ms_of_day,bid_size,bid,ask_size,ask,date
 34200000,50,1.5022,75,1.5041,20220414

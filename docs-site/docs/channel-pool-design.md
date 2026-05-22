@@ -104,3 +104,18 @@ this to `pub(crate)` plus a curated `pub use` allowlist; embedded
 callers that need a public symbol that doesn't survive the narrowing
 should open an issue against the v11 milestone so the allowlist
 captures the call site before the bump lands.
+
+### Gate 14 KPI footnote
+
+A round-3 audit cycle observed Gate 14's distinct SAFETY-comment
+signature count rise from 91 to 105 between releases. The delta is
+structurally correct: every new signature names a real per-site
+invariant (an identifier in backticks, a layout property, a non-null
+contract returned by the matching factory). The gate's intent is
+no-stamp, not no-grow — `scripts/check_safety_comment_boilerplate.py`
+flags verbatim duplicates whose text mentions no invariant, not the
+total distinct-signature count. Invariants that can be hoisted into
+a typed helper (the `error::last_error_message` helper landed in the
+same audit cycle is the recent example) collapse many sites into
+one; invariants that genuinely differ per site stay separate by
+design.

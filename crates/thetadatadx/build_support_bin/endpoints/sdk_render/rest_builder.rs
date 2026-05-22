@@ -102,7 +102,7 @@ pub(super) fn render_rest_endpoints(endpoints: &[GeneratedEndpoint]) -> String {
     out.push_str("// blocks + the matching `RestClient` constructor methods are emitted\n");
     out.push_str("// from a single per-endpoint template; the hand-written hot-path\n");
     out.push_str("// counterparts in `crates/thetadatadx/src/rest/client.rs` were\n");
-    out.push_str("// replaced by this file when issue #580 landed.\n\n");
+    out.push_str("// replaced by this file when REST codegen landed.\n\n");
     // Import lines match `cargo fmt`'s output verbatim so the generator
     // and the checked-in formatted file round-trip without drift.
     out.push_str(

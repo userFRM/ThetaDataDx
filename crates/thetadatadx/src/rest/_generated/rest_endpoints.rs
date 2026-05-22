@@ -3,7 +3,7 @@
 // blocks + the matching `RestClient` constructor methods are emitted
 // from a single per-endpoint template; the hand-written hot-path
 // counterparts in `crates/thetadatadx/src/rest/client.rs` were
-// replaced by this file when issue #580 landed.
+// replaced by this file when REST codegen landed.
 
 use tdbe::types::tick::{GreeksFirstOrderTick, IvTick, QuoteTick, TradeQuoteTick};
 

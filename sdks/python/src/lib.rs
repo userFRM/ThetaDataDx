@@ -360,6 +360,10 @@ impl Config {
         guard.mdds.concurrent_requests
     }
 
+    /// Deprecated since v10.0.1: set ``decode_threads`` instead. This
+    /// field controls only the legacy stage-1 thread count and is
+    /// preserved for backward compatibility.
+    ///
     /// Set the number of dedicated decoder threads in the MDDS pool.
     ///
     /// Each decoder thread runs zstd decompress + protobuf decode on
@@ -379,6 +383,10 @@ impl Config {
         guard.mdds.decoder_threads = n;
     }
 
+    /// Deprecated since v10.0.1: set ``decode_threads`` instead. This
+    /// field controls only the legacy stage-1 thread count and is
+    /// preserved for backward compatibility.
+    ///
     /// Current `decoder_threads` setting (``0`` = auto-detect).
     #[getter]
     fn get_decoder_threads(&self) -> usize {

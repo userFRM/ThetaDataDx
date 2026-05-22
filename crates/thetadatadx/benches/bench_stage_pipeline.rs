@@ -66,23 +66,54 @@
 //! is not yet in the gated set; the TOML carries the local-run
 //! samples so a future opt-in (after a baseline is observed on the
 //! GH-hosted runner) is a copy-paste away.
+//!
+//! # Activation
+//!
+//! The bench reaches into `Stage2Pool::submit_for_bench`, which is
+//! compiled out unless `--cfg bench_internals` is set. The file
+//! therefore guards every item below on the same cfg and falls back
+//! to an empty `main` so `cargo build --benches` does not break for
+//! contributors who never opt in. Run via:
+//!
+//! ```sh
+//! RUSTFLAGS='--cfg bench_internals' cargo bench \
+//!   -p thetadatadx --bench bench_stage_pipeline
+//! ```
 
+#[cfg(not(bench_internals))]
+fn main() {
+    eprintln!(
+        "bench_stage_pipeline is gated on `--cfg bench_internals`; rerun \
+         with RUSTFLAGS='--cfg bench_internals'."
+    );
+}
+
+#[cfg(bench_internals)]
 use std::hint::black_box;
+#[cfg(bench_internals)]
 use std::thread;
+#[cfg(bench_internals)]
 use std::time::Duration;
 
+#[cfg(bench_internals)]
 use bytes::Bytes;
+#[cfg(bench_internals)]
 use criterion::{
     criterion_group, criterion_main, AxisScale, BenchmarkId, Criterion, PlotConfiguration,
     Throughput,
 };
+#[cfg(bench_internals)]
 use prost::Message;
+#[cfg(bench_internals)]
 use tokio::runtime::Builder as RuntimeBuilder;
 
+#[cfg(bench_internals)]
 use thetadatadx::grpc::{DecodedPayload, Stage2Pool};
 
+#[cfg(bench_internals)]
 #[path = "common/quote_fixture.rs"]
 mod fixture;
+#[cfg(bench_internals)]
 use fixture::build_quote_data_table;
 
 // ─── Payload fixture ────────────────────────────────────────────────
@@ -95,12 +126,14 @@ use fixture::build_quote_data_table;
 /// directly, with no zstd step. The bench therefore skips the zstd
 /// encoder that `bench_decoder_pool` runs and feeds raw protobuf
 /// bytes through `DecodedPayload`.
+#[cfg(bench_internals)]
 fn build_payload_bytes(rows: usize) -> Bytes {
     let table = build_quote_data_table(rows);
     Bytes::from(table.encode_to_vec())
 }
 
 /// Build a `DecodedPayload` with the given identity + payload bytes.
+#[cfg(bench_internals)]
 fn make_payload(channel_id: u64, request_id: u64, payload: Bytes) -> DecodedPayload {
     DecodedPayload {
         channel_id,
@@ -115,6 +148,7 @@ fn make_payload(channel_id: u64, request_id: u64, payload: Bytes) -> DecodedPayl
 /// `submit_for_bench`, then await every reply. The bench wraps this
 /// in `Runtime::block_on` so criterion measures wall-clock for one
 /// submit-and-drain pass.
+#[cfg(bench_internals)]
 async fn drive_pipeline(pool: &Stage2Pool, payload: &Bytes, count: usize) {
     let mut rxs = Vec::with_capacity(count);
     for idx in 0..count {
@@ -136,6 +170,7 @@ async fn drive_pipeline(pool: &Stage2Pool, payload: &Bytes, count: usize) {
 /// Scenario 1 — `pipeline_throughput`: sweep worker count at fixed
 /// 1024-row quote payload. Queue depth = `workers * 64` so the
 /// stage-2 pool drains every burst without parking the producer.
+#[cfg(bench_internals)]
 fn bench_pipeline_throughput(c: &mut Criterion) {
     let payload = build_payload_bytes(1024);
 
@@ -174,6 +209,7 @@ fn bench_pipeline_throughput(c: &mut Criterion) {
 /// linear scaling in payload size. Throughput in ticks/sec so the
 /// constant-ticks-per-second invariant is read straight off the
 /// summary plot.
+#[cfg(bench_internals)]
 fn bench_pipeline_alloc_pressure(c: &mut Criterion) {
     let mut group = c.benchmark_group("pipeline_alloc_pressure");
     group.plot_config(PlotConfiguration::default().summary_scale(AxisScale::Logarithmic));
@@ -214,6 +250,7 @@ fn bench_pipeline_alloc_pressure(c: &mut Criterion) {
 /// runtime beyond the baseline. Regression detector — there is no
 /// "correct" absolute number, only "did it slow down vs the
 /// last-blessed sample".
+#[cfg(bench_internals)]
 fn bench_pipeline_false_sharing(c: &mut Criterion) {
     let payload = build_payload_bytes(256);
 
@@ -249,6 +286,7 @@ fn bench_pipeline_false_sharing(c: &mut Criterion) {
 /// the assertion fails the bench fast rather than reporting a fake
 /// "improvement". Pins the baseline park-rate observable so future
 /// regressions in stage-1's park-on-full path trip CI.
+#[cfg(bench_internals)]
 fn bench_pipeline_backpressure(c: &mut Criterion) {
     let payload = build_payload_bytes(1024);
 
@@ -295,6 +333,7 @@ fn bench_pipeline_backpressure(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(bench_internals)]
 criterion_group!(
     stage_pipeline_benches,
     bench_pipeline_throughput,
@@ -302,4 +341,5 @@ criterion_group!(
     bench_pipeline_false_sharing,
     bench_pipeline_backpressure,
 );
+#[cfg(bench_internals)]
 criterion_main!(stage_pipeline_benches);

@@ -209,7 +209,7 @@ fn read_header<R: Read>(
 /// bytes were valid frames that arrived 50-76 ms after the first
 /// `WouldBlock`; aggressive escalation caused a reconnect storm
 /// whose downstream effects accounted for the spurious "unknown
-/// message code" reports (#192, #369).
+/// message code" reports.
 fn read_header_with_timeout<R: Read>(
     reader: &mut R,
     state: &mut FrameReadState,

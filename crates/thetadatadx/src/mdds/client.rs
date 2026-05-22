@@ -270,23 +270,23 @@ impl MddsClient {
         self.interest_rate_tier
     }
 
-    /// Construct an `MddsClient` whose channel pool, semaphore, and
-    /// fallback config are caller-supplied.
+    /// Test-only constructor that bypasses the Nexus auth handshake.
     ///
-    /// Exists for the `_with_fallback` regression tests in
-    /// `crates/thetadatadx/tests/test_with_fallback_*.rs` — those need
-    /// to drive the shims against a mock REST server without paying
-    /// for a real Nexus auth handshake. Hidden from docs.rs via
-    /// `#[doc(hidden)]`; not part of the supported public surface.
+    /// Gated behind the private `__test-helpers` feature flag so the
+    /// symbol never enters the published rlib for downstream
+    /// consumers. The integration test at
+    /// `tests/test_with_fallback_end_date.rs` activates the feature
+    /// via its `[[test]] required-features` row in `Cargo.toml`.
     ///
     /// `channels` must be non-empty (panics otherwise via
     /// `ChannelPool::from_channels`). Callers exercising only the REST
     /// arm should still supply a usable mock-backed channel so the
     /// pool's `Drop` order does not trip an unconnected-channel
     /// assertion.
+    #[cfg(any(test, feature = "__test-helpers"))]
     #[doc(hidden)]
     #[must_use]
-    pub fn __for_fallback_test(
+    pub fn for_fallback_test(
         config: DirectConfig,
         channels: ChannelPool,
         request_semaphore: Arc<tokio::sync::Semaphore>,
