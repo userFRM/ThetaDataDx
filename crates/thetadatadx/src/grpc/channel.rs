@@ -18,7 +18,7 @@
 //! [`super::ChannelPool`] slot that holds the channel. Reconnect is
 //! single-flight per channel (an `AtomicBool` claim + a
 //! [`tokio::sync::Notify`] so concurrent observers wait on the same
-//! attempt) and uses bounded exponential backoff. The [`ConnectTarget`]
+//! attempt) and uses bounded exponential backoff. The connect target
 //! captured at construction (host, port, optional TLS config, scheme,
 //! max-message-size) is the single source of truth the reconnect path
 //! consults — every reconnect lands a connection that is wire-equivalent

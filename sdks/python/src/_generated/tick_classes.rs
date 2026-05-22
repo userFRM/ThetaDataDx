@@ -577,7 +577,7 @@ impl PriceTick {
 }
 
 /// Quote tick. NBBO quote data.
-///
+/// 
 /// Wire layout: the full shape is 11 columns (`ms_of_day`,
 /// `bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`,
 /// `ask_exchange`, `ask`, `ask_condition`, `price_type`, `date`).

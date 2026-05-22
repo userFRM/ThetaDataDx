@@ -175,24 +175,24 @@ export declare class EventIterator {
  */
 export declare class FallbackPolicy {
   /**
-   * REST routing disabled. Every historical-quote endpoint goes over gRPC.
-   * Default state.
+   * REST routing disabled. Every historical-quote endpoint goes
+   * over gRPC. Default state.
    */
   static disabled(): FallbackPolicy
   /**
-   * Always route the four historical-quote endpoints over REST regardless
-   * of the requested date range.
+   * Always route the four historical-quote endpoints over REST
+   * regardless of the requested date range.
    */
   static restAlways(baseUrl: string): FallbackPolicy
   /**
-   * Human-readable variant name: `"Disabled"` or `"RestAlways"`. The
-   * Rust enum is `#[non_exhaustive]`, so a future variant returns
-   * `"Unknown"` here until the binding is updated.
+   * Human-readable variant name: `"Disabled"` or `"RestAlways"`.
+   * The Rust enum is `#[non_exhaustive]`, so a future variant
+   * returns `"Unknown"` here until the binding is updated.
    */
   get variant(): string
   /**
-   * Return the REST base URL the policy would target, or `null` for
-   * `disabled()`.
+   * Return the REST base URL the policy would target, or `null`
+   * for `disabled()`.
    */
   get baseUrl(): string | null
 }
@@ -1287,7 +1287,7 @@ export interface ContractAssigned {
  * Default base URL for the local Terminal's REST surface. Mirrors
  * [`thetadatadx::config::DEFAULT_REST_BASE_URL`]. Exposed as a module-
  * level constant so callers can write
- * `FallbackPolicy.restAlwaysForDateRange(DEFAULT_REST_BASE_URL, 20230101)`
+ * `FallbackPolicy.restAlways(DEFAULT_REST_BASE_URL)`
  * instead of repeating the URL literal.
  */
 export const DEFAULT_REST_BASE_URL: string
