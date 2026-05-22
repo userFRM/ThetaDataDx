@@ -42,6 +42,8 @@ the absent `bid_exchange` / `bid_condition` / `ask_exchange` /
 
 ### Usage
 
+#### Rust
+
 ```rust
 use thetadatadx::{
     Credentials, DirectConfig, FallbackPolicy, ThetaDataDxClient,
@@ -63,7 +65,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 
     // Pre-2023 -- routes over REST automatically. No h2 cascade.
     let ticks = tdx.option_history_quote_with_fallback(
-        "QQQ", "20220414", "20220414",
+        "QQQ", "20220414", "20220414", /* end_date */ None,
         /* strike */ Some("330"),
         /* right  */ Some("call"),
         /* interval */ Some("1m"),
@@ -71,13 +73,56 @@ async fn main() -> Result<(), thetadatadx::Error> {
 
     // 2024+ -- flows through gRPC as normal.
     let ticks = tdx.option_history_quote_with_fallback(
-        "QQQ", "20240605", "20240604",
+        "QQQ", "20240605", "20240604", None,
         Some("440"), Some("call"), Some("1m"),
     ).await?;
 
     Ok(())
 }
 ```
+
+#### Python
+
+```python
+import thetadatadx as m
+
+creds = m.Credentials.from_file("creds.txt")
+cfg = m.Config.production()
+cfg.with_rest_fallback(
+    m.FallbackPolicy.rest_always_for_date_range(
+        m.DEFAULT_REST_BASE_URL, before=20230101
+    )
+)
+tdx = m.ThetaDataDxClient(creds, cfg)
+
+# Pre-2023 -- routes over REST.
+ticks = tdx.option_history_quote_with_fallback(
+    symbol="QQQ",
+    expiration="20220415",
+    start_date="20220414",
+    strike="330",
+    right="call",
+    interval="1m",
+)
+
+# 2024+ -- flows through gRPC as normal. Same call signature.
+ticks = tdx.option_history_quote_with_fallback(
+    symbol="QQQ",
+    expiration="20240620",
+    start_date="20240605",
+    strike="440",
+    right="call",
+    interval="1m",
+)
+```
+
+#### TypeScript / C++
+
+The `FallbackPolicy` class + `_with_fallback` methods are wired on the
+Rust core + Python binding in v10.x. TypeScript and C++ ports are
+tracked as a follow-up; until then, TypeScript and C++ consumers
+should call the standalone `RestClient` directly when targeting
+pre-2023 dates (the underlying HTTP path is the same).
 
 ### Policy variants
 

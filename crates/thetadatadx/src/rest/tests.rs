@@ -156,3 +156,24 @@ fn decode_quote_csv_tolerates_crlf_and_trailing_blank_lines() {
     assert_eq!(t.ms_of_day, 34_200_000);
     assert_eq!(t.date, 20_220_414);
 }
+
+/// `with_max_response_bytes` plumbs the cap through to the public
+/// accessor (and overrides the default 256-MiB ceiling). The cap
+/// itself is exercised end-to-end against a running Terminal in the
+/// live integration test; here we pin the builder contract.
+#[test]
+fn rest_client_max_response_bytes_builder_round_trips() {
+    use super::client::{RestClient, DEFAULT_MAX_RESPONSE_BYTES};
+
+    let c = RestClient::new("http://127.0.0.1:25503").unwrap();
+    assert_eq!(c.max_response_bytes(), DEFAULT_MAX_RESPONSE_BYTES);
+
+    let c2 = c.with_max_response_bytes(64 * 1024);
+    assert_eq!(c2.max_response_bytes(), 64 * 1024);
+
+    // Disable-cap idiom -- u64::MAX is the documented "no limit" value.
+    let c3 = RestClient::new("http://127.0.0.1:25503")
+        .unwrap()
+        .with_max_response_bytes(u64::MAX);
+    assert_eq!(c3.max_response_bytes(), u64::MAX);
+}

@@ -13,8 +13,11 @@
 //! cascade strikes.
 
 /// Default base URL for [`FallbackPolicy::RestAlways`] and friends.
-/// Matches [`crate::rest::client::DEFAULT_TERMINAL_BASE_URL`].
-pub const DEFAULT_REST_BASE_URL: &str = "http://127.0.0.1:25503";
+///
+/// Re-export of [`crate::rest::client::DEFAULT_TERMINAL_BASE_URL`] so
+/// both transports share a single source of truth — bumping the
+/// Terminal default in one place propagates everywhere it's used.
+pub const DEFAULT_REST_BASE_URL: &str = crate::rest::client::DEFAULT_TERMINAL_BASE_URL;
 
 /// Policy controlling REST fallback for h2-cascading endpoints.
 ///
