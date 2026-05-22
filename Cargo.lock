@@ -3590,6 +3590,7 @@ dependencies = [
  "tokio-stream",
  "toml",
  "tracing",
+ "tracing-subscriber",
  "uuid",
  "webpki-roots",
  "x509-parser",

@@ -181,6 +181,13 @@ mimalloc = { version = "0.1", default-features = false, optional = true }
 prost-build = { version = "=0.14.3", optional = true }
 
 [dev-dependencies]
+# `tracing_subscriber::Layer` lets the warn-on-buffered-response unit
+# tests (`mdds::macros::warn_buffered_tests`) capture emitted events
+# without a global `init()` race against parallel tests. `registry`
+# feature only — the bridge is a `Layer` impl that buffers into a
+# `Mutex<Vec<...>>`, not a stderr `fmt` subscriber. Same version pin
+# as `sdks/python` so the workspace lockfile stays clean.
+tracing-subscriber = { version = "0.3.20", default-features = false, features = ["registry"] }
 criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
 # `futures::future::join_all` for the concurrent-burst bench. Pulls in
 # the umbrella `futures` crate (we already depend on `futures-core`

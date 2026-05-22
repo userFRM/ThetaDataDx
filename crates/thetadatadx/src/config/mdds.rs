@@ -75,6 +75,30 @@ pub struct MddsConfig {
     /// burst across 4 channels to land on the same decoder thread
     /// without queue-full back-pressure.
     pub decoder_ring_size: usize,
+
+    /// Estimated-bytes threshold above which the buffered `.await`
+    /// path on a `parsed_endpoint!` builder emits a single
+    /// `tracing::warn!` event suggesting `.stream(handler)` for the
+    /// workload.
+    ///
+    /// The buffered path materializes the full response as
+    /// `Vec<Tick>` before returning; the streaming path drops each
+    /// chunk after the user callback consumes it (see issue #565 +
+    /// #576). When `row_count * size_of::<Tick>() > threshold`, the
+    /// SDK logs an `endpoint = ..., row_count = ..., bytes_est = ...`
+    /// warn once at the end of the buffered collect — enough signal
+    /// for an operator running `RUST_LOG=warn` to notice that this
+    /// workload is on the wrong API, with zero impact on the value
+    /// returned to the caller.
+    ///
+    /// Default `100 * 1024 * 1024` (100 MiB) — catches bulk pulls
+    /// (multi-million-row option chains, multi-day backfills) while
+    /// staying silent on ad-hoc single-day queries.
+    ///
+    /// Set to `0` to disable the warn entirely. `usize::MAX`
+    /// effectively disables it too (no realistic response reaches
+    /// that size).
+    pub warn_on_buffered_threshold_bytes: usize,
 }
 
 impl MddsConfig {
@@ -94,6 +118,13 @@ impl MddsConfig {
             connect_timeout_secs: 10,
             decoder_threads: 0,
             decoder_ring_size: 256,
+            // 100 MiB — empirically catches bulk pulls (multi-million
+            // row option-chain or multi-day backfill responses) while
+            // staying silent on ad-hoc single-day quote / OHLC pulls
+            // that fit in a single h2 frame. Issue #576 sets the
+            // operator-visible "you are on the wrong API for this
+            // workload" signal at this boundary.
+            warn_on_buffered_threshold_bytes: 100 * 1024 * 1024,
         }
     }
 }
