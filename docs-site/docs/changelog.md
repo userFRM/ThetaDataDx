@@ -144,6 +144,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- REST endpoint builders are now codegen-driven from
+  `endpoint_surface.toml` (#580). The four hand-written
+  `option_history_*` builder structs + their `RestClient` constructor
+  methods + their `execute()` bodies — previously ~290 LoC of
+  per-endpoint boilerplate in `crates/thetadatadx/src/rest/client.rs`
+  — now live in `crates/thetadatadx/src/rest/_generated/rest_endpoints.rs`,
+  emitted byte-identical by the new
+  `build_support_bin/endpoints/sdk_render/rest_builder.rs` renderer.
+  The endpoint model gains a `Transport` enum (`Grpc` / `Rest` /
+  `Both`); flipping a TOML row to `transport = "both"` is now the
+  only edit needed to add a fifth REST endpoint. Public API
+  (`RestClient::option_history_*` + the four `*RestBuilder` types) is
+  unchanged.
+
 - Every `parsed_endpoint!` historical builder now ships a "When to
   use `.await` vs `.stream(handler)`" decision matrix in rustdoc
   (#576). Single source of truth lives in
