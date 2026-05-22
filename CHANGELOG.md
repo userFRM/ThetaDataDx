@@ -9,6 +9,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `FallbackPolicy` pyclass + `Config.with_rest_fallback` + four
+  `option_history_*_with_fallback` methods on the Python
+  `ThetaDataDxClient` (S1). Python callers can now reach the REST
+  fallback surface that was previously Rust-only; mirrors the Rust
+  shape verbatim with `FallbackPolicy.disabled()` /
+  `.rest_on_h2_disconnect(base_url)` /
+  `.rest_always_for_date_range(base_url, before)` / `.rest_always(base_url)`
+  named constructors, the `Config.fallback_variant` getter, and the
+  `thetadatadx.DEFAULT_REST_BASE_URL` module constant. The four
+  `_with_fallback` methods accept `(start_date, end_date=None,
+  strike=None, right=None, interval=None)` kwargs; malformed
+  `start_date` / `end_date` raises `ValueError` at the Python
+  boundary rather than bubbling out of Rust. Stubs landed in
+  `python/thetadatadx/__init__.pyi`. The FFI (C ABI) + TypeScript
+  + C++ binding work is tracked in a follow-up issue.
+
+- `_with_fallback` shims now accept `(start_date, end_date)` instead
+  of a single `date` (M6). All four affected endpoints
+  (`option_history_quote`, `option_history_trade_quote`,
+  `option_history_greeks_implied_volatility`,
+  `option_history_greeks_first_order`) carry the new pair on both
+  the Rust client and the Python bindings; the `RestAlwaysForDateRange`
+  policy keys on `start_date`. Adds the two missing shims promised
+  by the policy docstring (greeks IV + greeks first-order).
+
+- Per-base-url `RestClient` cache (M3). The four `_with_fallback`
+  shims share an `Arc<RestClient>` per distinct base URL via a
+  lazily-initialized `OnceLock<RwLock<HashMap<String, Arc<RestClient>>>>`
+  on `ThetaDataDxClient`, eliminating the per-call `reqwest::Client`
+  construction (TLS + connection-pool init) the previous shape paid.
+
+- `RestClient::with_max_response_bytes` cap with default 256 MiB
+  (`DEFAULT_MAX_RESPONSE_BYTES`) (N2). `fetch_csv` now rejects
+  oversized responses via `Content-Length` pre-flight and streamed
+  chunk-count check; surfaces `RestError::ResponseTooLarge { size,
+  limit }`. Protects against runaway-response OOM on multi-month
+  date ranges.
+
+- Live patched-Terminal integration test skeleton at
+  `crates/thetadatadx/tests/test_rest_live.rs` (N1). Two
+  `#[ignore]`d scenarios gated on `THETADX_LIVE_PATCHED_TERMINAL=1`:
+  a 2022-era `option_history_quote` legacy-row smoke + a
+  `ResponseTooLarge` cap-surface check.
+
+- Negative `--selftest` arm on `scripts/check_safety_comment_boilerplate.py`
+  (I1). Builds an FFI-only fixture and asserts the detector returns
+  zero findings, pinning the FFI-exempt logic against future refactor.
+
+- `local-terminal-patcher`: SHA-256 pinning of known-broken
+  `QuoteTick.class` releases (M1) via the new
+  `BROKEN_QUOTE_TICK_SHA256` table, fast-path accept on hash match
+  with the existing bytecode-signature check as fallback. Adds 10
+  unit tests covering `contains_subsequence`, `newest_jar_in`, and
+  `swap_classes_in_jar` (S3).
+
+### Changed
+
+- `RestError::CsvDecode` / `RestError::MissingColumn` now lift into
+  `Error::Transport { kind: Codec, .. }` instead of
+  `Error::Config { internal, .. }` (S2). Matches the gRPC-side
+  `ChannelError::Codec` mapping and lets retry classifiers dispatch
+  uniformly across both transports.
+
+- `parse_yyyymmdd` returns `Result<i32, Error>` with
+  `Error::Config { kind: InvalidValue }` on parse failure (M8). The
+  previous implementation defaulted unparseable date strings to `0`,
+  silently coercing typos into the most-permissive
+  `RestAlwaysForDateRange` route. Propagates through both Rust and
+  Python `_with_fallback` shims.
+
+- `rest::csv::cell_i32_or_zero` / `cell_f64_or_zero` distinguish
+  three input cases (M4): column absent → `0` (legacy fill), empty
+  cell → `0` (Terminal null), malformed non-empty cell → structured
+  `CsvDecode` error. `cell_f64_or_zero` additionally rejects `NaN`
+  and `±Inf` (Rust's `f64::from_str` parses both) to prevent silent
+  poisoning of downstream comparisons.
+
+- `config::fallback::DEFAULT_REST_BASE_URL` now re-exports
+  `rest::client::DEFAULT_TERMINAL_BASE_URL` rather than inlining the
+  literal (M7). Single source of truth for the Terminal default URL.
+
+- `decode_greeks_first_order_csv` hoists all 13 `column_index` calls
+  above the row loop (M2). Bench harness at
+  `benches/bench_rest_decode.rs` is the baseline for the delta.
+
+- `decode_*_csv` helpers validate required columns (`ms_of_day`,
+  `date`) BEFORE allocating the `Vec::with_capacity(rows.len())`
+  output buffer (N3). Surfaces a `MissingColumn` error before
+  potentially-large allocations on malformed bodies.
+
+- `local-terminal-patcher`: comment on `swap_classes_in_jar` now
+  matches the implementation (M5) — every output entry is Deflated
+  regardless of source method, called out explicitly in the
+  docstring.
+
 - REST transport + `FallbackPolicy` for h2-cascading endpoints
   (#571). The upstream Terminal's Java `QuoteTick` /
   `TradeQuoteTick` constructors length-check incoming rows against
