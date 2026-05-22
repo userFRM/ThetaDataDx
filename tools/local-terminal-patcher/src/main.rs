@@ -47,6 +47,24 @@ const PATCH_OHLC_TICK_SRC: &str = include_str!("../patches/OhlcTick.java");
 /// doesn't silently get re-broken.
 const BROKEN_BYTECODE_SIGNATURE: &[u8] = &[0x10, 0x0B];
 
+/// Known SHA-256 fingerprints of the unpatched `QuoteTick.class` file
+/// across the Terminal jar versions that ship the issue #571 bug.
+///
+/// Populated by hashing the inner `lib/<latest>.jar` from each
+/// confirmed-broken Terminal release; new entries land here as users
+/// report builds that reproduce the cascade. A match is the fast-path
+/// accept: we know exactly what file we're looking at and can skip the
+/// bytecode-signature heuristic. The signature check stays as the
+/// fallback for builds that have not yet been hashed.
+///
+/// The empty initial table means every patch run currently relies on
+/// the bytecode signature; adding entries here over time turns the
+/// signature check into a paranoia layer rather than the load-bearing
+/// gate.
+const BROKEN_QUOTE_TICK_SHA256: &[&str] = &[
+    // Populate via `sha256sum` on the inner jar's QuoteTick.class.
+];
+
 #[derive(Parser, Debug)]
 #[command(version, about = "Patch the local ThetaTerminal jar (issue #571)")]
 struct Args {
@@ -228,9 +246,20 @@ fn newest_jar_in(dir: &Path) -> std::io::Result<Option<PathBuf>> {
 }
 
 /// Verify the inner jar's `QuoteTick.class` is the known-broken
-/// build. Hashes the class file for forensic logging and asserts the
-/// `bipush 11` byte sequence is present in the constructor body.
-/// Returns an error if neither check confirms the broken signature.
+/// build. Two-layer check:
+///
+/// 1. SHA-256 fast-path: if the file's hash matches an entry in
+///    [`BROKEN_QUOTE_TICK_SHA256`], accept immediately. Hashes are
+///    pinned from confirmed-broken Terminal releases.
+///
+/// 2. Bytecode-signature fallback: if no hash matches, scan for the
+///    `bipush 11` byte sequence that marks the
+///    `if (fields.length != 11) throw new IllegalArgumentException(...)`
+///    constructor body. Lets the patcher handle Terminal builds whose
+///    SHA hasn't been catalogued yet, while still rejecting an
+///    already-patched or future-fixed jar.
+///
+/// Returns `Err` when neither check confirms the broken signature.
 fn verify_broken_quote_tick(jar: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let mut archive = ZipArchive::new(File::open(jar)?)?;
     let class_bytes = {
@@ -247,17 +276,33 @@ fn verify_broken_quote_tick(jar: &Path) -> Result<(), Box<dyn std::error::Error>
         "local-terminal-patcher: existing QuoteTick.class sha256 = {hash_hex} ({} bytes)",
         class_bytes.len(),
     );
+
+    // Fast-path: known-broken SHA hit.
+    if BROKEN_QUOTE_TICK_SHA256
+        .iter()
+        .any(|pinned| pinned.eq_ignore_ascii_case(&hash_hex))
+    {
+        eprintln!(
+            "local-terminal-patcher: SHA-256 matches a known-broken Terminal release; \
+             proceeding without the bytecode-signature check"
+        );
+        return Ok(());
+    }
+
+    // Fallback: bytecode-signature heuristic.
     if !contains_subsequence(&class_bytes, BROKEN_BYTECODE_SIGNATURE) {
         return Err(format!(
             "QuoteTick.class does NOT carry the known broken bytecode signature \
-             ({} -- bipush 11). The jar may already be patched, or may be a future \
+             ({} -- bipush 11) and its SHA-256 ({}) is not on the pinned \
+             known-broken list. The jar may already be patched, or may be a future \
              build that fixed the bug upstream. Run with --skip-verify if you want to \
              patch anyway.",
             BROKEN_BYTECODE_SIGNATURE
                 .iter()
                 .map(|b| format!("{b:02x}"))
                 .collect::<Vec<_>>()
-                .join(" ")
+                .join(" "),
+            hash_hex,
         )
         .into());
     }
@@ -274,9 +319,17 @@ fn contains_subsequence(haystack: &[u8], needle: &[u8]) -> bool {
 }
 
 /// Stream `src_jar` into `dst_jar`, replacing the two patched
-/// classes verbatim. Every other entry passes through unchanged,
-/// preserving compression flags so the Terminal's bootstrap classloader
-/// reads the output identically to the input.
+/// classes verbatim. Every other entry passes through unchanged.
+///
+/// Compression: every output entry uses
+/// [`zip::CompressionMethod::Deflated`] regardless of the source
+/// entry's compression method. The Terminal's bootstrap classloader
+/// reads either method transparently, so re-deflating store-only
+/// entries (typically `META-INF/services/...`, `MANIFEST.MF`) is
+/// safe. Preserving the source method per-entry would require
+/// enabling the `zip` crate's `store` feature and threading
+/// `entry.compression()` through, which is overkill for this tool's
+/// scope.
 fn swap_classes_in_jar(
     src_jar: &Path,
     dst_jar: &Path,
@@ -314,4 +367,158 @@ fn swap_classes_in_jar(
     }
     dst.finish()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    // -- contains_subsequence --------------------------------------------
+
+    #[test]
+    fn contains_subsequence_empty_needle_is_false() {
+        // An empty needle has no meaningful match; the implementation
+        // chooses `false` so callers cannot accidentally treat
+        // "verify against nothing" as a pass.
+        assert!(!contains_subsequence(b"anything", b""));
+        assert!(!contains_subsequence(b"", b""));
+    }
+
+    #[test]
+    fn contains_subsequence_needle_longer_than_haystack_is_false() {
+        assert!(!contains_subsequence(b"abc", b"abcdef"));
+    }
+
+    #[test]
+    fn contains_subsequence_at_start() {
+        assert!(contains_subsequence(
+            b"\x10\x0Brest",
+            BROKEN_BYTECODE_SIGNATURE
+        ));
+    }
+
+    #[test]
+    fn contains_subsequence_at_middle() {
+        assert!(contains_subsequence(
+            b"prefix\x10\x0Bsuffix",
+            BROKEN_BYTECODE_SIGNATURE
+        ));
+    }
+
+    #[test]
+    fn contains_subsequence_at_end() {
+        assert!(contains_subsequence(
+            b"prefix\x10\x0B",
+            BROKEN_BYTECODE_SIGNATURE
+        ));
+    }
+
+    #[test]
+    fn contains_subsequence_absent() {
+        assert!(!contains_subsequence(
+            b"nothing matching here",
+            BROKEN_BYTECODE_SIGNATURE
+        ));
+    }
+
+    #[test]
+    fn contains_subsequence_handles_repeated_pattern() {
+        // A near-miss must not cause a partial-match misfire; the second
+        // occurrence is the only true hit.
+        let haystack = b"\x10\x11\x10\x0B";
+        assert!(contains_subsequence(haystack, BROKEN_BYTECODE_SIGNATURE));
+    }
+
+    // -- newest_jar_in ----------------------------------------------------
+
+    #[test]
+    fn newest_jar_in_empty_dir_returns_none() {
+        let td = tempfile::tempdir().unwrap();
+        assert!(newest_jar_in(td.path()).unwrap().is_none());
+    }
+
+    #[test]
+    fn newest_jar_in_picks_most_recent_mtime() {
+        use filetime::{set_file_mtime, FileTime};
+        let td = tempfile::tempdir().unwrap();
+        let older = td.path().join("0.1.0.jar");
+        let newer = td.path().join("0.2.0.jar");
+        let other = td.path().join("notes.txt"); // Non-jar -- must be skipped.
+        fs::write(&older, b"old").unwrap();
+        fs::write(&newer, b"new").unwrap();
+        fs::write(&other, b"unrelated").unwrap();
+
+        // Pin mtimes so the test is robust against the filesystem's
+        // mtime granularity (some FUSE mounts round to the second).
+        set_file_mtime(&older, FileTime::from_unix_time(1_000_000, 0)).unwrap();
+        set_file_mtime(&newer, FileTime::from_unix_time(2_000_000, 0)).unwrap();
+
+        let chosen = newest_jar_in(td.path()).unwrap().unwrap();
+        assert_eq!(chosen, newer);
+    }
+
+    // -- swap_classes_in_jar ---------------------------------------------
+
+    /// Build a small fixture jar with three entries: the two paths
+    /// `swap_classes_in_jar` rewrites + one unrelated payload that
+    /// must pass through byte-identical.
+    fn build_fixture_jar(path: &Path) {
+        let f = File::create(path).unwrap();
+        let mut zw = ZipWriter::new(f);
+        let opts =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        zw.start_file("net/thetadata/types/tick/QuoteTick.class", opts)
+            .unwrap();
+        zw.write_all(b"ORIGINAL_QUOTE_BYTES").unwrap();
+        zw.start_file("net/thetadata/types/tick/OhlcTick.class", opts)
+            .unwrap();
+        zw.write_all(b"ORIGINAL_OHLC_BYTES").unwrap();
+        zw.start_file("net/thetadata/Other.class", opts).unwrap();
+        zw.write_all(b"UNRELATED_PAYLOAD_KEEP_AS_IS").unwrap();
+        zw.finish().unwrap();
+    }
+
+    /// Read every entry of `jar` into a `(name -> bytes)` map. Used by
+    /// the round-trip test to assert byte-exact pass-through of
+    /// unrelated entries.
+    fn read_jar_entries(jar: &Path) -> std::collections::BTreeMap<String, Vec<u8>> {
+        let mut out = std::collections::BTreeMap::new();
+        let mut z = ZipArchive::new(File::open(jar).unwrap()).unwrap();
+        for i in 0..z.len() {
+            let mut entry = z.by_index(i).unwrap();
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf).unwrap();
+            out.insert(entry.name().to_string(), buf);
+        }
+        out
+    }
+
+    #[test]
+    fn swap_classes_in_jar_replaces_targets_and_preserves_others() {
+        let td = tempfile::tempdir().unwrap();
+        let src = td.path().join("src.jar");
+        let dst = td.path().join("dst.jar");
+        build_fixture_jar(&src);
+
+        let new_quote = b"PATCHED_QUOTE";
+        let new_ohlc = b"PATCHED_OHLC";
+        swap_classes_in_jar(&src, &dst, new_quote, new_ohlc).unwrap();
+
+        let entries = read_jar_entries(&dst);
+        assert_eq!(entries.len(), 3, "entry count must be preserved");
+        assert_eq!(
+            entries["net/thetadata/types/tick/QuoteTick.class"].as_slice(),
+            new_quote
+        );
+        assert_eq!(
+            entries["net/thetadata/types/tick/OhlcTick.class"].as_slice(),
+            new_ohlc
+        );
+        // Every other entry passes through byte-identical.
+        assert_eq!(
+            entries["net/thetadata/Other.class"].as_slice(),
+            b"UNRELATED_PAYLOAD_KEEP_AS_IS"
+        );
+    }
 }
