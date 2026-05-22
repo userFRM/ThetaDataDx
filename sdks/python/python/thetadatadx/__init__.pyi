@@ -71,6 +71,45 @@ class Config:
     reconnect_stable_window_secs: int
     # FPSS tunables.
     derive_ohlcvc: bool
+    # REST-fallback variant (issue #571). Read-only -- write via
+    # `with_rest_fallback`.
+    fallback_variant: str
+
+    def with_rest_fallback(self, policy: "FallbackPolicy") -> None: ...
+    def __repr__(self) -> str: ...
+
+
+# ─────────────────────────────────────────────────────────────────────
+# FallbackPolicy (issue #571 REST-fallback wiring)
+# ─────────────────────────────────────────────────────────────────────
+
+
+# Default Terminal REST base URL. Mirrors
+# `thetadatadx::config::DEFAULT_REST_BASE_URL`.
+DEFAULT_REST_BASE_URL: str = ...
+
+
+@final
+class FallbackPolicy:
+    """REST-fallback policy for the four h2-cascading endpoints (issue #571).
+
+    Construct via one of the four static factories. The Rust enum is
+    `#[non_exhaustive]`; future variants land here behind new factories.
+    """
+
+    @staticmethod
+    def disabled() -> "FallbackPolicy": ...
+    @staticmethod
+    def rest_on_h2_disconnect(base_url: str) -> "FallbackPolicy": ...
+    @staticmethod
+    def rest_always_for_date_range(
+        base_url: str, before: int
+    ) -> "FallbackPolicy": ...
+    @staticmethod
+    def rest_always(base_url: str) -> "FallbackPolicy": ...
+
+    base_url: str | None
+    variant: str
 
     def __repr__(self) -> str: ...
 
@@ -505,6 +544,49 @@ class ThetaDataDxClient:
 
     # Metrics.
     def dropped_event_count(self) -> int: ...
+
+    # REST-fallback surface (issue #571). Returns the typed tick-list
+    # wrappers; chain `.to_polars()` / `.to_pandas()` / `.to_arrow()`
+    # for columnar consumers.
+    def option_history_quote_with_fallback(
+        self,
+        symbol: str,
+        expiration: str,
+        start_date: str,
+        end_date: Optional[str] = None,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        interval: Optional[str] = None,
+    ) -> Any: ...
+    def option_history_trade_quote_with_fallback(
+        self,
+        symbol: str,
+        expiration: str,
+        start_date: str,
+        end_date: Optional[str] = None,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+    ) -> Any: ...
+    def option_history_greeks_implied_volatility_with_fallback(
+        self,
+        symbol: str,
+        expiration: str,
+        start_date: str,
+        end_date: Optional[str] = None,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        interval: Optional[str] = None,
+    ) -> Any: ...
+    def option_history_greeks_first_order_with_fallback(
+        self,
+        symbol: str,
+        expiration: str,
+        start_date: str,
+        end_date: Optional[str] = None,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        interval: Optional[str] = None,
+    ) -> Any: ...
 
     # Context managers.
     def streaming(self, callback: EventCallback) -> StreamingSession: ...

@@ -14,6 +14,7 @@ mod async_runtime;
 mod chunking;
 mod coerce;
 mod errors;
+mod fallback;
 mod flatfile_methods;
 mod fluent;
 mod fpss_client;
@@ -329,6 +330,33 @@ impl Config {
         guard.mdds.port
     }
 
+    /// Install a REST-fallback policy for the four h2-cascading
+    /// endpoints (issue #571).
+    ///
+    /// Accepts a [`FallbackPolicy`] built via one of the four named
+    /// static constructors. Defaults to
+    /// [`FallbackPolicy.disabled()`] -- requests always flow over
+    /// gRPC. Mirrors the Rust core
+    /// [`thetadatadx::config::DirectConfig::with_rest_fallback`].
+    ///
+    /// The setter consumes the `FallbackPolicy` (the underlying
+    /// `thetadatadx::config::FallbackPolicy` enum is cloned into the
+    /// `DirectConfig` so subsequent Python-side reuse is independent).
+    fn with_rest_fallback(&self, policy: &fallback::FallbackPolicy) -> PyResult<()> {
+        let p = fallback::validate_policy_argument(policy)?;
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fallback = p;
+        Ok(())
+    }
+
+    /// Current fallback policy variant as a string. See
+    /// [`FallbackPolicy.variant`] for the four return values.
+    #[getter]
+    fn get_fallback_variant(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        fallback::variant_label(&guard.fallback)
+    }
+
     fn __repr__(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         format!(
@@ -493,6 +521,216 @@ impl ThetaDataDxClient {
     /// non-zero delta within a single streaming session.
     fn dropped_event_count(&self) -> u64 {
         self.tdx.dropped_event_count()
+    }
+
+    // ── REST-fallback surface for h2-cascading endpoints (issue #571) ──
+    //
+    // Four shims, one per affected endpoint. Each consults the
+    // `FallbackPolicy` configured on the underlying `DirectConfig`
+    // (via `Config.with_rest_fallback`) and dispatches to gRPC or REST
+    // accordingly. The semantics are identical to the Rust core's
+    // `_with_fallback` methods; this is a thin Python-arg-shape
+    // translation.
+
+    /// Fetch option NBBO history with REST fallback per the configured
+    /// [`FallbackPolicy`] (issue #571).
+    ///
+    /// Mirrors the Rust core's
+    /// [`thetadatadx::ThetaDataDxClient::option_history_quote_with_fallback`].
+    /// Returns a typed `QuoteTickList`; chain `.to_polars()` /
+    /// `.to_pandas()` / `.to_arrow()` for columnar consumers.
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (
+        symbol,
+        expiration,
+        start_date,
+        end_date = None,
+        strike = None,
+        right = None,
+        interval = None,
+    ))]
+    fn option_history_quote_with_fallback(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        start_date: &str,
+        end_date: Option<&str>,
+        strike: Option<&str>,
+        right: Option<&str>,
+        interval: Option<&str>,
+    ) -> PyResult<Py<QuoteTickList>> {
+        fallback::validate_yyyymmdd("start_date", start_date)?;
+        if let Some(e) = end_date {
+            fallback::validate_yyyymmdd("end_date", e)?;
+        }
+        let tdx = self.tdx.clone();
+        let symbol = symbol.to_string();
+        let expiration = expiration.to_string();
+        let start_date = start_date.to_string();
+        let end_date = end_date.map(str::to_owned);
+        let strike = strike.map(str::to_owned);
+        let right = right.map(str::to_owned);
+        let interval = interval.map(str::to_owned);
+        let ticks = run_blocking(py, async move {
+            tdx.option_history_quote_with_fallback(
+                &symbol,
+                &expiration,
+                &start_date,
+                end_date.as_deref(),
+                strike.as_deref(),
+                right.as_deref(),
+                interval.as_deref(),
+            )
+            .await
+        })?;
+        quote_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch combined trade+quote history with REST fallback per the
+    /// configured [`FallbackPolicy`].
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (
+        symbol,
+        expiration,
+        start_date,
+        end_date = None,
+        strike = None,
+        right = None,
+    ))]
+    fn option_history_trade_quote_with_fallback(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        start_date: &str,
+        end_date: Option<&str>,
+        strike: Option<&str>,
+        right: Option<&str>,
+    ) -> PyResult<Py<TradeQuoteTickList>> {
+        fallback::validate_yyyymmdd("start_date", start_date)?;
+        if let Some(e) = end_date {
+            fallback::validate_yyyymmdd("end_date", e)?;
+        }
+        let tdx = self.tdx.clone();
+        let symbol = symbol.to_string();
+        let expiration = expiration.to_string();
+        let start_date = start_date.to_string();
+        let end_date = end_date.map(str::to_owned);
+        let strike = strike.map(str::to_owned);
+        let right = right.map(str::to_owned);
+        let ticks = run_blocking(py, async move {
+            tdx.option_history_trade_quote_with_fallback(
+                &symbol,
+                &expiration,
+                &start_date,
+                end_date.as_deref(),
+                strike.as_deref(),
+                right.as_deref(),
+            )
+            .await
+        })?;
+        trade_quote_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch implied-volatility history with REST fallback per the
+    /// configured [`FallbackPolicy`].
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (
+        symbol,
+        expiration,
+        start_date,
+        end_date = None,
+        strike = None,
+        right = None,
+        interval = None,
+    ))]
+    fn option_history_greeks_implied_volatility_with_fallback(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        start_date: &str,
+        end_date: Option<&str>,
+        strike: Option<&str>,
+        right: Option<&str>,
+        interval: Option<&str>,
+    ) -> PyResult<Py<IvTickList>> {
+        fallback::validate_yyyymmdd("start_date", start_date)?;
+        if let Some(e) = end_date {
+            fallback::validate_yyyymmdd("end_date", e)?;
+        }
+        let tdx = self.tdx.clone();
+        let symbol = symbol.to_string();
+        let expiration = expiration.to_string();
+        let start_date = start_date.to_string();
+        let end_date = end_date.map(str::to_owned);
+        let strike = strike.map(str::to_owned);
+        let right = right.map(str::to_owned);
+        let interval = interval.map(str::to_owned);
+        let ticks = run_blocking(py, async move {
+            tdx.option_history_greeks_implied_volatility_with_fallback(
+                &symbol,
+                &expiration,
+                &start_date,
+                end_date.as_deref(),
+                strike.as_deref(),
+                right.as_deref(),
+                interval.as_deref(),
+            )
+            .await
+        })?;
+        iv_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch first-order Greeks history with REST fallback per the
+    /// configured [`FallbackPolicy`].
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (
+        symbol,
+        expiration,
+        start_date,
+        end_date = None,
+        strike = None,
+        right = None,
+        interval = None,
+    ))]
+    fn option_history_greeks_first_order_with_fallback(
+        &self,
+        py: Python<'_>,
+        symbol: &str,
+        expiration: &str,
+        start_date: &str,
+        end_date: Option<&str>,
+        strike: Option<&str>,
+        right: Option<&str>,
+        interval: Option<&str>,
+    ) -> PyResult<Py<GreeksFirstOrderTickList>> {
+        fallback::validate_yyyymmdd("start_date", start_date)?;
+        if let Some(e) = end_date {
+            fallback::validate_yyyymmdd("end_date", e)?;
+        }
+        let tdx = self.tdx.clone();
+        let symbol = symbol.to_string();
+        let expiration = expiration.to_string();
+        let start_date = start_date.to_string();
+        let end_date = end_date.map(str::to_owned);
+        let strike = strike.map(str::to_owned);
+        let right = right.map(str::to_owned);
+        let interval = interval.map(str::to_owned);
+        let ticks = run_blocking(py, async move {
+            tdx.option_history_greeks_first_order_with_fallback(
+                &symbol,
+                &expiration,
+                &start_date,
+                end_date.as_deref(),
+                strike.as_deref(),
+                right.as_deref(),
+                interval.as_deref(),
+            )
+            .await
+        })?;
+        greeks_first_order_ticks_to_pyclass_list(py, ticks)
     }
 }
 
@@ -945,6 +1183,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<Credentials>()?;
     m.add_class::<Config>()?;
+    fallback::register(m)?;
     m.add_class::<ThetaDataDxClient>()?;
     m.add_class::<AsyncThetaDataDxClient>()?;
     m.add_class::<fpss_client::FpssClient>()?;
