@@ -21,14 +21,14 @@ cpp = true
 [[class]]
 name = "Config"
 python = true
-typescript = false  # JS takes config as a plain object literal, not a class
+typescript = true   # exposed as `Config` napi class with `production() / dev() / stage()` factories + `withRestFallback(policy)` setter
 cpp = true
 
 [[class]]
 name = "FallbackPolicy"
 python = true
-typescript = false  # Python-first; TS / C++ follow once the live patched-Terminal coverage extends past Python (issue #571 follow-up)
-cpp = false         # Python-first; TS / C++ follow once the live patched-Terminal coverage extends past Python (issue #571 follow-up)
+typescript = true   # exposed with the four named factories + `variant` / `baseUrl` getters
+cpp = true          # exposed as `tdx::FallbackPolicy` move-only RAII class with the four named factories
 
 [[class]]
 name = "ThetaDataDxClient"
