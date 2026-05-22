@@ -318,6 +318,92 @@ pub unsafe extern "C" fn tdx_config_set_decoder_ring_size(config: *mut TdxConfig
     })
 }
 
+// ── MDDS two-stage decode pipeline (Phase 3 / PR #587 #588) ────────
+//
+// Mirror of `MddsConfig::decode_threads` and `decode_queue_depth`
+// (both `Option<usize>`) onto the C ABI. C callers encode the
+// `None` (auto-size) sentinel with `n = 0`; any `n > 0` is the
+// explicit `Some(n)` override. The Rust core's pool-construction
+// path clamps `Some(0)` to `1` internally, so encoding "explicit 1"
+// with `n = 1` and "auto-size" with `n = 0` gives clean semantics
+// on the C side without leaking the `Option<usize>` shape into the
+// header.
+//
+// Each setter returns `0` on success, `-1` on null-handle (the
+// diagnostic is also written to TLS via `set_error`). This follows
+// the cross-binding contract spelled out in the task brief for
+// Phase 3 -- the existing pool-sizing FFI family (`u32`-arg, `void`
+// return, null-handle no-op) keeps its shape unchanged for ABI
+// stability; the new setters carry an explicit return code so C
+// callers can branch on validation failure without polling
+// `tdx_last_error()` every call.
+
+/// Set the stage-2 worker thread count for the two-stage MDDS
+/// decode pipeline.
+///
+/// Stage-2 runs prost decode + Tick build off a bounded MPSC queue
+/// fed by the stage-1 (per-channel zstd decompress) threads.
+///
+/// * `n = 0` (default) auto-sizes to
+///   `std::thread::available_parallelism()` at connect time.
+///   Mirrors `MddsConfig::decode_threads = None` on the Rust side.
+/// * `n > 0` pins the stage-2 worker count to `n`. The pool clamps
+///   internally to a minimum of `1`, so `n = 1` and the auto-size
+///   default produce identical runtime pool shapes only when the
+///   detected `available_parallelism` happens to be `1`; on any
+///   multi-core host they diverge.
+///
+/// Returns `0` on success, `-1` if `config` is null (also writes the
+/// diagnostic to thread-local storage retrievable via
+/// `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_decode_threads(config: *mut TdxConfig, n: usize) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null pointer returned by
+        // tdx_config_production / tdx_config_dev / tdx_config_stage
+        // and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.mdds.decode_threads = if n == 0 { None } else { Some(n) };
+        0
+    })
+}
+
+/// Set the bounded queue depth between stage-1 and stage-2 of the
+/// two-stage MDDS decode pipeline.
+///
+/// When stage-2 cannot keep up, stage-1 parks rather than drops -
+/// silent drops on a market-data feed are unacceptable.
+///
+/// * `n = 0` (default) auto-sizes to `concurrent_requests * 64`
+///   (floor of `64`) at connect time. Mirrors
+///   `MddsConfig::decode_queue_depth = None` on the Rust side.
+/// * `n > 0` pins the queue depth to `n`. The queue clamps
+///   internally to a minimum of `1`.
+///
+/// Returns `0` on success, `-1` if `config` is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_decode_queue_depth(
+    config: *mut TdxConfig,
+    n: usize,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null pointer returned by
+        // tdx_config_production / tdx_config_dev / tdx_config_stage
+        // and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.mdds.decode_queue_depth = if n == 0 { None } else { Some(n) };
+        0
+    })
+}
+
 // ── Client ──
 
 /// Connect to `ThetaData` servers (authenticates via Nexus API).
@@ -489,6 +575,147 @@ mod pool_sizing_tests {
             super::tdx_config_set_concurrent_requests(std::ptr::null_mut(), 4);
             super::tdx_config_set_decoder_threads(std::ptr::null_mut(), 4);
             super::tdx_config_set_decoder_ring_size(std::ptr::null_mut(), 256);
+        }
+    }
+}
+
+#[cfg(test)]
+mod decode_pipeline_tests {
+    //! Offline tests for the two-stage decode pipeline setters
+    //! (Phase 3, follow-up to PR #587 / #588).
+    //!
+    //! Each test allocates a fresh `TdxConfig` via `tdx_config_production`,
+    //! calls the setter under test, then reads the underlying Rust
+    //! `MddsConfig::decode_threads` / `decode_queue_depth` field
+    //! (both `Option<usize>`) to confirm the value round-tripped:
+    //!
+    //!   * `n = 0` on the C side encodes the `None` (auto-size)
+    //!     sentinel on the Rust side.
+    //!   * `n > 0` encodes `Some(n)` verbatim.
+    //!   * Null-handle calls return `-1` and surface the diagnostic
+    //!     via `tdx_last_error()`.
+
+    use crate::error::tdx_last_error;
+    use std::ffi::CStr;
+
+    /// Snapshot the current TLS error string for assertions below.
+    fn last_error_text() -> String {
+        // SAFETY: `tdx_last_error` always returns a valid C string
+        // pointer (potentially the empty-string sentinel).
+        unsafe {
+            let p = tdx_last_error();
+            if p.is_null() {
+                return String::new();
+            }
+            CStr::from_ptr(p).to_string_lossy().into_owned()
+        }
+    }
+
+    #[test]
+    fn decode_threads_zero_maps_to_none_sentinel() {
+        let cfg = super::tdx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            // Production default is already `None`; pin the explicit
+            // round-trip from `Some(x) -> None` to confirm the setter
+            // can return the config to the auto-size sentinel after
+            // an explicit override.
+            (*cfg).inner.mdds.decode_threads = Some(8);
+            let rc = super::tdx_config_set_decode_threads(cfg, 0);
+            assert_eq!(rc, 0);
+            assert_eq!((*cfg).inner.mdds.decode_threads, None);
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn decode_threads_explicit_round_trips_as_some() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            for n in [1usize, 2, 4, 8, 16, 32, 64, 4096] {
+                let rc = super::tdx_config_set_decode_threads(cfg, n);
+                assert_eq!(rc, 0);
+                assert_eq!((*cfg).inner.mdds.decode_threads, Some(n));
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn decode_threads_null_handle_returns_minus_one() {
+        // SAFETY: passing null is the contract — must not crash, must
+        // return -1, must surface a diagnostic via tdx_last_error().
+        unsafe {
+            let rc = super::tdx_config_set_decode_threads(std::ptr::null_mut(), 4);
+            assert_eq!(rc, -1);
+        }
+        let msg = last_error_text();
+        assert!(
+            msg.contains("null"),
+            "null-handle diagnostic must mention the failure mode, got {msg:?}"
+        );
+    }
+
+    #[test]
+    fn decode_queue_depth_zero_maps_to_none_sentinel() {
+        let cfg = super::tdx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            (*cfg).inner.mdds.decode_queue_depth = Some(1024);
+            let rc = super::tdx_config_set_decode_queue_depth(cfg, 0);
+            assert_eq!(rc, 0);
+            assert_eq!((*cfg).inner.mdds.decode_queue_depth, None);
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn decode_queue_depth_explicit_round_trips_as_some() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            for n in [1usize, 64, 128, 512, 2048, 8192, 65536] {
+                let rc = super::tdx_config_set_decode_queue_depth(cfg, n);
+                assert_eq!(rc, 0);
+                assert_eq!((*cfg).inner.mdds.decode_queue_depth, Some(n));
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn decode_queue_depth_null_handle_returns_minus_one() {
+        // SAFETY: passing null is the contract.
+        unsafe {
+            let rc = super::tdx_config_set_decode_queue_depth(std::ptr::null_mut(), 1024);
+            assert_eq!(rc, -1);
+        }
+        let msg = last_error_text();
+        assert!(
+            msg.contains("null"),
+            "null-handle diagnostic must mention the failure mode, got {msg:?}"
+        );
+    }
+
+    #[test]
+    fn decode_pipeline_setters_compose_with_legacy_pool_sizing() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_concurrent_requests(cfg, 8);
+            super::tdx_config_set_decoder_threads(cfg, 4);
+            super::tdx_config_set_decoder_ring_size(cfg, 1024);
+            assert_eq!(super::tdx_config_set_decode_threads(cfg, 16), 0);
+            assert_eq!(super::tdx_config_set_decode_queue_depth(cfg, 4096), 0);
+            assert_eq!((*cfg).inner.mdds.concurrent_requests, 8);
+            assert_eq!((*cfg).inner.mdds.decoder_threads, 4);
+            assert_eq!((*cfg).inner.mdds.decoder_ring_size, 1024);
+            assert_eq!((*cfg).inner.mdds.decode_threads, Some(16));
+            assert_eq!((*cfg).inner.mdds.decode_queue_depth, Some(4096));
+            super::tdx_config_free(cfg);
         }
     }
 }

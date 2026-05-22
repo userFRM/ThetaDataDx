@@ -72,6 +72,17 @@ class Config:
     concurrent_requests: int
     decoder_threads: int
     decoder_ring_size: int
+    # MDDS two-stage decode pipeline (Phase 3 / PRs #587 #588 #this).
+    # `decode_threads` controls the stage-2 prost-decode + Tick-build
+    # worker pool size; `decode_queue_depth` controls the bounded MPSC
+    # queue between stage-1 (per-channel zstd decompress) and stage-2.
+    # Both default to `None` (auto-size at connect time): stage-2 sizes
+    # to `os.process_cpu_count()`, queue depth sizes to
+    # `concurrent_requests * 64`. Explicit `int` values override; the
+    # underlying pool clamps `0` to `1` internally so a zero-worker
+    # pool cannot deadlock stage-1. Negative values raise ValueError.
+    decode_threads: Optional[int]
+    decode_queue_depth: Optional[int]
     # Reconnect tunables.
     reconnect_policy: str
     reconnect_max_attempts: int

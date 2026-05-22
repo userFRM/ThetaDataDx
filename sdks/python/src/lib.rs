@@ -420,6 +420,101 @@ impl Config {
         guard.mdds.decoder_ring_size
     }
 
+    // ── MDDS two-stage decode pipeline knobs — Phase 3 of 3 ────────
+    //
+    // Mirror of the Rust core's `MddsConfig::decode_threads` and
+    // `decode_queue_depth` fields, both `Option<usize>`. The Python
+    // surface accepts `None` for the auto-sized default and `int`
+    // for an explicit override. Setting `0` is legal — the core
+    // clamps `Some(0)` to `1` at pool-construction time so a
+    // zero-worker pool cannot deadlock stage-1 on the first push.
+    // Negatives are rejected at the setter rather than being
+    // silently coerced.
+
+    /// Set the stage-2 worker thread count for the two-stage MDDS
+    /// decode pipeline.
+    ///
+    /// Stage-2 runs `prost::Message::decode` and the downstream Tick
+    /// build off a bounded MPSC queue fed by the stage-1 (per-channel
+    /// zstd decompress) threads. Stage-2 is parser-bound rather than
+    /// IO-bound, so it scales independently of the channel pool size.
+    ///
+    /// ``None`` (the default) auto-sizes to
+    /// :py:func:`os.process_cpu_count` (the same number
+    /// :py:func:`std::thread::available_parallelism` reads on the
+    /// Rust side), matching how Bloomberg / LSEG feed handlers fan
+    /// parsing across every logical core. ``0`` is a legal explicit
+    /// value — the underlying pool clamps it to ``1`` internally so
+    /// stage-1 never deadlocks pushing into a zero-worker pool.
+    /// Explicit values are otherwise retained verbatim.
+    ///
+    /// Raises ``ValueError`` if ``n`` is negative.
+    #[setter]
+    fn set_decode_threads(&self, n: Option<isize>) -> PyResult<()> {
+        let resolved = match n {
+            Some(v) if v < 0 => {
+                return Err(PyValueError::new_err(format!(
+                    "decode_threads must be non-negative; got {v}"
+                )));
+            }
+            Some(v) => Some(v as usize),
+            None => None,
+        };
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.decode_threads = resolved;
+        Ok(())
+    }
+
+    /// Current `decode_threads` setting. ``None`` means auto-size at
+    /// connect time; an ``int`` is the explicit override.
+    #[getter]
+    fn get_decode_threads(&self) -> Option<usize> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.decode_threads
+    }
+
+    /// Set the bounded queue depth between stage-1 and stage-2 of
+    /// the two-stage MDDS decode pipeline.
+    ///
+    /// Stage-1 pushes `DecodedPayload`s into the queue; stage-2
+    /// workers pull them out. When stage-2 cannot keep up, stage-1
+    /// parks rather than drops — silent drops on a market-data feed
+    /// are unacceptable, so the queue prefers backpressure.
+    ///
+    /// ``None`` (the default) sizes the queue to
+    /// ``concurrent_requests * 64`` (with a floor of ``64``), picked
+    /// so a 64-way burst on every configured channel pool has a
+    /// chunk-worth of headroom without leaving stage-2 starved.
+    /// ``0`` is a legal explicit value — the underlying queue clamps
+    /// to ``1`` (a zero-slot rendezvous would degenerate but stays
+    /// backpressure-preserving). Explicit values are otherwise
+    /// retained verbatim.
+    ///
+    /// Raises ``ValueError`` if ``n`` is negative.
+    #[setter]
+    fn set_decode_queue_depth(&self, n: Option<isize>) -> PyResult<()> {
+        let resolved = match n {
+            Some(v) if v < 0 => {
+                return Err(PyValueError::new_err(format!(
+                    "decode_queue_depth must be non-negative; got {v}"
+                )));
+            }
+            Some(v) => Some(v as usize),
+            None => None,
+        };
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.decode_queue_depth = resolved;
+        Ok(())
+    }
+
+    /// Current `decode_queue_depth` setting. ``None`` means
+    /// auto-size at connect time; an ``int`` is the explicit override.
+    #[getter]
+    fn get_decode_queue_depth(&self) -> Option<usize> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.decode_queue_depth
+    }
+
     /// Install a REST-fallback policy for the four h2-cascading
     /// endpoints (issue #571).
     ///

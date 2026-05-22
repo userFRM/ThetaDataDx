@@ -253,6 +253,83 @@ impl Config {
         Ok(u32::try_from(guard.mdds.decoder_ring_size).unwrap_or(u32::MAX))
     }
 
+    // ── MDDS two-stage decode pipeline knobs — Phase 3 of 3 ────────
+    //
+    // Mirror of the Rust core's `MddsConfig::decode_threads` and
+    // `decode_queue_depth` fields, both `Option<usize>`. The JS
+    // surface accepts `null` / `undefined` (mapped to `None` on the
+    // napi side) for the auto-sized default and a `number` for an
+    // explicit override. `0` is a legal explicit input — the core
+    // clamps `Some(0)` to `1` at pool construction time so a
+    // zero-worker pool cannot deadlock stage-1 on the first push.
+
+    /// Set the stage-2 worker thread count for the two-stage MDDS
+    /// decode pipeline.
+    ///
+    /// Stage-2 runs `prost::Message::decode` and the downstream Tick
+    /// build off a bounded MPSC queue fed by the stage-1 (per-channel
+    /// zstd decompress) threads. Pass `null` or `undefined` for the
+    /// auto-sized default (`std::thread::available_parallelism()` on
+    /// the Rust side); pass a `number` for an explicit override.
+    /// `0` is a legal explicit value — the pool clamps it to `1`
+    /// internally.
+    #[napi(js_name = "setDecodeThreads")]
+    pub fn set_decode_threads(&self, n: Option<u32>) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.mdds.decode_threads = n.map(|v| v as usize);
+        Ok(())
+    }
+
+    /// Current `decode_threads` setting. `null` means auto-size at
+    /// connect time; a `number` is the explicit override.
+    #[napi(getter, js_name = "decodeThreads")]
+    pub fn decode_threads(&self) -> napi::Result<Option<u32>> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard
+            .mdds
+            .decode_threads
+            .map(|n| u32::try_from(n).unwrap_or(u32::MAX)))
+    }
+
+    /// Set the bounded queue depth between stage-1 and stage-2 of
+    /// the two-stage MDDS decode pipeline.
+    ///
+    /// Stage-1 pushes `DecodedPayload`s into the queue; stage-2
+    /// workers pull them out. When stage-2 cannot keep up, stage-1
+    /// parks rather than drops. Pass `null` or `undefined` for the
+    /// auto-sized default (`concurrent_requests * 64` with a floor
+    /// of `64`); pass a `number` for an explicit override. `0` is a
+    /// legal explicit value — the queue clamps it to `1` internally.
+    #[napi(js_name = "setDecodeQueueDepth")]
+    pub fn set_decode_queue_depth(&self, n: Option<u32>) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.mdds.decode_queue_depth = n.map(|v| v as usize);
+        Ok(())
+    }
+
+    /// Current `decode_queue_depth` setting. `null` means auto-size
+    /// at connect time; a `number` is the explicit override.
+    #[napi(getter, js_name = "decodeQueueDepth")]
+    pub fn decode_queue_depth(&self) -> napi::Result<Option<u32>> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard
+            .mdds
+            .decode_queue_depth
+            .map(|n| u32::try_from(n).unwrap_or(u32::MAX)))
+    }
+
     /// Take a snapshot of the underlying [`thetadatadx::DirectConfig`]
     /// for use by `ThetaDataDxClient.connectWithConfig`. Returns a
     /// fresh `DirectConfig` clone -- the napi `Config` remains usable
