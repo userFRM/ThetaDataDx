@@ -128,6 +128,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Criterion benches and per-binding mirrors (Python / TS / C++ /
     FFI) follow in stacked PRs.
 
+- `bench_stage_pipeline` (criterion) — four scenarios exercising the
+  shared stage-2 worker pool: `pipeline_throughput` (sweep workers
+  ∈ {1, 2, 4, 8} at fixed 1024-row payload, queue=workers*64),
+  `pipeline_alloc_pressure` (sweep payload rows ∈ {256, 1024, 4096,
+  16384} at workers=4 / queue=256, ticks/sec throughput),
+  `pipeline_false_sharing` (saturate workers=8 / queue=512 with
+  256-row payloads as a `CachePadded<AtomicU64>` regression
+  detector), and `pipeline_backpressure` (feed workers=2 / queue=4
+  at 16× the drain rate; in-bench assertion confirms `total_parked`
+  advances every iteration). Phase 2 of the two-stage decode pipeline
+  rollout — per-binding mirrors (Python / TS / C++ / FFI) follow in
+  Phase 3.
+
 - `MddsConfig::warn_on_buffered_threshold_bytes` (#576). Buffered
   `.await` historical responses whose estimated size exceeds the
   threshold (default 100 MiB) now emit a single `tracing::warn!`

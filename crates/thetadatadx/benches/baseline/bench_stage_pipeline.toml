@@ -1,0 +1,70 @@
+# bench_stage_pipeline baseline (Phase 2 of two-stage decode pipeline, #584)
+#
+# These p50 nanosecond medians are captured from a local
+# `cargo bench -p thetadatadx --bench bench_stage_pipeline -- --quick`
+# run. They are INFORMATIONAL and do NOT feed
+# `scripts/check_bench_regression.py` — the gated baseline lives in
+# `benches/baseline/criterion.json`, and `bench_stage_pipeline` is not
+# opted into that gate yet. The TOML carries the local samples so a
+# future opt-in (after the bench has been observed on the GH-hosted
+# runner) is a copy-paste away.
+#
+# WHY NOT GATED YET: stage-2 worker count + thread-pool contention is
+# extremely sensitive to runner CPU topology. GH-hosted runners are
+# 2-vCPU virtual machines; the `pipeline_throughput/8` scenario alone
+# can swing ±100% versus a developer box's 8-core silicon. Tightening
+# a gate around that without a first observed CI sample would create
+# noise-driven failures.
+#
+# TOLERANCE NOTE: if these entries are ever promoted to
+# `criterion.json`, use the campaign-wide 25% gate threshold
+# (PR #566 calibration) plus a runner-specific extra cushion of at
+# least 50% on the throughput-sweep entries — the false-sharing and
+# backpressure scenarios are tighter (cache-line invariant + park
+# counter assertion respectively) and can keep the 25% gate.
+
+[pipeline_throughput.workers_1]
+p50_ns = 81591678.0
+criterion_path = "pipeline_throughput/1"
+note = "single-worker baseline; everything else should beat this"
+
+[pipeline_throughput.workers_2]
+p50_ns = 37704264.0
+criterion_path = "pipeline_throughput/2"
+note = "should be ~50% of workers=1 within a factor of 2"
+
+[pipeline_throughput.workers_4]
+p50_ns = 22843284.0
+criterion_path = "pipeline_throughput/4"
+note = "near-linear scaling expected on a >=4 core host"
+
+[pipeline_throughput.workers_8]
+p50_ns = 18182977.0
+criterion_path = "pipeline_throughput/8"
+note = "tapers on 2-vCPU GH runners — high variance expected on CI"
+
+[pipeline_alloc_pressure.rows_256]
+p50_ns = 9799706.0
+criterion_path = "pipeline_alloc_pressure/256"
+
+[pipeline_alloc_pressure.rows_1024]
+p50_ns = 11105311.0
+criterion_path = "pipeline_alloc_pressure/1024"
+
+[pipeline_alloc_pressure.rows_4096]
+p50_ns = 10289714.0
+criterion_path = "pipeline_alloc_pressure/4096"
+
+[pipeline_alloc_pressure.rows_16384]
+p50_ns = 11102546.0
+criterion_path = "pipeline_alloc_pressure/16384"
+
+[pipeline_false_sharing.tiny_payloads]
+p50_ns = 17078462.0
+criterion_path = "pipeline_false_sharing/tiny_payloads"
+note = "regression detector for CachePadded on Stage2Counters — a drop in padding inflates this number through false-sharing on the three counter cache lines"
+
+[pipeline_backpressure.parked_send]
+p50_ns = 15826714.0
+criterion_path = "pipeline_backpressure/parked_send"
+note = "in-bench assertion guarantees total_parked advances; a silent drop-on-full regression fails the assertion before the timing matters"
