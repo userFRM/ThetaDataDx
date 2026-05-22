@@ -140,14 +140,24 @@ call while keeping the gRPC fast path for current-shape rows.
 
 ### REST endpoint coverage in v10.x
 
-The four endpoints from issue #571's failure matrix:
+The four endpoints from issue #571's failure matrix, each exposed on
+`ThetaDataDxClient` as a `*_with_fallback` shim that consults the
+[`FallbackPolicy`](#policy-variants) before dispatching:
 
-| gRPC endpoint | REST builder |
-|---|---|
-| `option_history_quote` | `RestClient::option_history_quote` |
-| `option_history_trade_quote` | `RestClient::option_history_trade_quote` |
-| `option_history_greeks_implied_volatility` | `RestClient::option_history_greeks_implied_volatility` |
-| `option_history_greeks_first_order` | `RestClient::option_history_greeks_first_order` |
+| gRPC endpoint | High-level shim | REST builder |
+|---|---|---|
+| `option_history_quote` | `option_history_quote_with_fallback` | `RestClient::option_history_quote` |
+| `option_history_trade_quote` | `option_history_trade_quote_with_fallback` | `RestClient::option_history_trade_quote` |
+| `option_history_greeks_implied_volatility` | `option_history_greeks_implied_volatility_with_fallback` | `RestClient::option_history_greeks_implied_volatility` |
+| `option_history_greeks_first_order` | `option_history_greeks_first_order_with_fallback` | `RestClient::option_history_greeks_first_order` |
+
+The greeks shims (added in #577) follow the same dispatch semantics
+as the quote pair: pre-route to REST when `pre_routes_to_rest`
+fires, otherwise try gRPC and on `ConnectionClosed` re-issue over
+REST. The greeks endpoints reach back to NBBO storage rows for the
+underlying snapshot at each interval, so the same #571 cascade
+applies; the shim removes the manual `RestClient::...` call users
+otherwise had to write.
 
 Other historical endpoints can be added with the same shape; open
 an issue if you need one extended.
@@ -227,6 +237,41 @@ let path = tdx.flatfile_option_quote("20220414", "/tmp/").await?;
 ```
 
 See [Flat files](flatfiles/index.md) for the full API.
+
+## Channel-layer recovery (issue #577)
+
+When the upstream cascade fires on a streaming RPC, the SDK observes
+`Error::Transport { kind: ConnectionClosed, .. }` mid-response. Two
+behaviours land in v10.x to recover automatically:
+
+1. **Per-channel death tracking.** Each pooled `Channel` carries an
+   `AtomicBool` death flag. The flag flips as soon as a poll on any
+   `ServerStreaming` adapter surfaces `ChannelError::ConnectionClosed`
+   (or any open-phase `ready()` / `send_request()` / `send_data()`
+   call fails with the same classification). The pool's `next()`
+   picker treats dead channels as last-resort: it scans for the
+   least-loaded LIVE channel and only routes to a dead member when
+   every channel in the pool is dead. The picker never blocks.
+
+2. **Classifier-level retry.** The streaming and unary retry loops
+   in `mdds::macros` now treat `Error::Transport { kind:
+   ConnectionClosed, .. }` as `Transient`. Each retry iteration
+   reissues the RPC by calling `self.channel()` afresh -- which
+   under the dead-channel routing picks a live member. The retry
+   policy's `max_attempts` budget bounds the recovery loop; if every
+   channel in the pool dies the cascade surfaces after the budget is
+   exhausted, matching previous user-visible behaviour for the worst
+   case while fixing the common case.
+
+The two combined mean a single 6-field-row cascade no longer pinballs
+the same dead h2 channel on every subsequent dispatch. A pool of 4
+channels with one dead member behaves like a pool of 3.
+
+The `FallbackPolicy` integration in
+`*_with_fallback` is still the recommended top-level recovery for
+known legacy date ranges -- it skips the failed gRPC round-trip on
+every pre-cutoff call. Channel-layer recovery is the safety net for
+calls that *do* reach gRPC and observe the cascade mid-response.
 
 ## Decoder behaviour (gRPC path)
 

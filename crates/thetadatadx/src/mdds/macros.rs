@@ -354,10 +354,24 @@ where
 /// `From<tonic::Status>` folds the tonic enum into
 /// `Error::Grpc { kind: GrpcStatusKind::*, .. }`. We dispatch on the
 /// typed `kind` so the retry classifier no longer parses status
-/// strings. Other `Error` variants are terminal — a `Decode` or
+/// strings. Other `Error` variants are terminal -- a `Decode` or
 /// `Decompress` failure won't fix itself on retry.
+///
+/// `Error::Transport { kind: ConnectionClosed, .. }` is the issue
+/// #577 h2-cascade signature -- an upstream tick-shape exception
+/// aborted the h2 stream mid-response. The source channel's
+/// death-flag is flipped by the streaming-poll classifier so the
+/// pool picker routes around it; classifying the error as transient
+/// here lets the retry shell re-attempt the RPC on a fresh channel
+/// pick instead of surfacing the cascade to the user. If every
+/// channel in the pool is dead the next pick still returns a
+/// (dead) channel and the second attempt fails identically -- the
+/// cascade surfaces after the retry budget is exhausted, which
+/// matches the previous user-visible behaviour without the
+/// dead-channel routing benefit. With at least one live channel
+/// remaining, the retry succeeds.
 fn classify_error(err: &crate::error::Error) -> StatusClass {
-    use crate::error::GrpcStatusKind;
+    use crate::error::{GrpcStatusKind, TransportErrorKind};
     match err {
         crate::error::Error::Grpc { kind, .. } => match kind {
             GrpcStatusKind::Unavailable
@@ -366,6 +380,10 @@ fn classify_error(err: &crate::error::Error) -> StatusClass {
             GrpcStatusKind::Unauthenticated => StatusClass::NeedsRefresh,
             _ => StatusClass::Terminal,
         },
+        crate::error::Error::Transport {
+            kind: TransportErrorKind::ConnectionClosed,
+            ..
+        } => StatusClass::Transient,
         _ => StatusClass::Terminal,
     }
 }
@@ -869,6 +887,58 @@ mod classify_error_tests {
             classify_error(&Error::decode_codec("parse fail")),
             StatusClass::Terminal
         );
+    }
+
+    /// Issue #577 #3 regression: the h2-cascade signature
+    /// (`Error::Transport { kind: ConnectionClosed, .. }`) must
+    /// classify as Transient so the retry shell re-attempts the RPC.
+    /// Combined with the pool's dead-channel routing, the retry
+    /// picks a live channel and the call succeeds. If this test
+    /// flips back to Terminal a future contributor has re-broken
+    /// the cascade recovery -- the cascade resurfaces to the user
+    /// as before #577 was closed.
+    #[test]
+    fn connection_closed_transport_error_maps_to_transient() {
+        use crate::error::TransportErrorKind;
+        let err = Error::Transport {
+            kind: TransportErrorKind::ConnectionClosed,
+            message: "h2 connection closed: upstream tick exception".to_string(),
+        };
+        assert_eq!(classify_error(&err), StatusClass::Transient);
+    }
+
+    /// Companion: other transport errors stay terminal. A genuine
+    /// TLS / DNS / Codec failure won't fix itself on retry, so the
+    /// retry shell must propagate. Pin every variant explicitly so
+    /// a future `TransportErrorKind` addition cannot accidentally
+    /// inherit the `Transient` classification.
+    #[test]
+    fn other_transport_error_kinds_stay_terminal() {
+        use crate::error::TransportErrorKind;
+        let kinds = [
+            TransportErrorKind::Tcp,
+            TransportErrorKind::Tls,
+            TransportErrorKind::InvalidServerName,
+            TransportErrorKind::H2Handshake,
+            TransportErrorKind::H2Stream,
+            TransportErrorKind::InvalidPath,
+            TransportErrorKind::Codec,
+            TransportErrorKind::EmptyResponse,
+            TransportErrorKind::UnexpectedHttpStatus,
+            TransportErrorKind::DecoderPoisoned,
+            TransportErrorKind::DecoderReplyDropped,
+        ];
+        for kind in kinds {
+            let err = Error::Transport {
+                kind,
+                message: String::new(),
+            };
+            assert_eq!(
+                classify_error(&err),
+                StatusClass::Terminal,
+                "TransportErrorKind::{kind:?} must stay terminal"
+            );
+        }
     }
 }
 

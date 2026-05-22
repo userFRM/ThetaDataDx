@@ -14,7 +14,7 @@
 //! serializes outbound streams internally — so a single [`Channel`]
 //! safely multiplexes concurrent RPCs from many tasks.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -189,6 +189,27 @@ pub struct Channel {
     /// sequential consistency is not required for load-balancing
     /// hints.
     in_flight: Arc<AtomicUsize>,
+    /// Health flag — `true` once an upstream `ConnectionClosed` (h2
+    /// `GOAWAY` / IO failure / vendor cascade) is observed on any
+    /// RPC dispatched through this channel. The pool's
+    /// [`super::ChannelPool::next`] picker treats dead channels as
+    /// last-resort: they are skipped while at least one live channel
+    /// remains in the pool, so subsequent RPCs route around the
+    /// known-bad connection instead of repeatedly handing it out and
+    /// observing the same terminal error (issue #577 #3). The flag
+    /// is set by [`Self::mark_dead`] from the classifier hook in
+    /// `crate::mdds::macros`; once set it stays set for the
+    /// `Channel`'s lifetime — recycling is handled by reconstructing
+    /// the pool slot, not by resurrecting a dead channel in place.
+    ///
+    /// `Arc` so the flag survives both the channel (read by the
+    /// picker) and any `ServerStreaming` adapter that holds a clone
+    /// (set by the classifier when a stream observes the cascade).
+    /// `AtomicBool` with `Relaxed` reads / `Release` writes — the
+    /// picker tolerates a slightly stale read (a live channel
+    /// observed as live for one extra pick is fine; a dead channel
+    /// observed as dead one pick later is fine too).
+    dead: Arc<AtomicBool>,
     /// Decoder ring this channel routes zstd + protobuf decode work
     /// to. `None` means decode runs inline on the tokio reactor
     /// (legacy behaviour, retained for the unit-test paths that
@@ -323,6 +344,26 @@ impl Channel {
     ///
     /// `scheme` is the `:scheme` pseudo-header value to use on every
     /// request — `https` for TLS transports, `http` for plaintext h2c.
+    ///
+    /// Exposed `pub(crate)` under `#[cfg(test)]` so the
+    /// [`super::pool::ChannelPool`] dead-channel tests can build real
+    /// `Channel` values over `tokio::io::duplex` pairs without going
+    /// through the network. Production callers use
+    /// [`Self::connect_h2c`] / [`Self::connect_tls`].
+    #[cfg(test)]
+    pub(crate) async fn handshake_for_test<IO>(
+        io: IO,
+        host: &str,
+        port: u16,
+        max_message_size: usize,
+        scheme: Scheme,
+    ) -> Result<Self, ChannelError>
+    where
+        IO: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+    {
+        Self::handshake(io, host, port, max_message_size, scheme).await
+    }
+
     async fn handshake<IO>(
         io: IO,
         host: &str,
@@ -377,6 +418,7 @@ impl Channel {
             max_message_size,
             scheme,
             in_flight: Arc::new(AtomicUsize::new(0)),
+            dead: Arc::new(AtomicBool::new(false)),
             decoder: None,
             connection_task: Some(connection_task),
         })
@@ -402,6 +444,45 @@ impl Channel {
     #[must_use]
     pub fn in_flight_count(&self) -> usize {
         self.in_flight.load(Ordering::Relaxed)
+    }
+
+    /// Whether this channel has been marked dead.
+    ///
+    /// A channel becomes dead when any RPC dispatched on it observes
+    /// [`ChannelError::ConnectionClosed`] (h2 `GOAWAY` / IO failure /
+    /// upstream cascade). The pool's
+    /// [`super::ChannelPool::next`] picker treats dead channels as
+    /// last-resort -- they are skipped while at least one live
+    /// channel remains so subsequent RPCs route around the
+    /// known-bad connection instead of repeatedly handing it out
+    /// and observing the same terminal error (issue #577 #3).
+    /// Relaxed load -- the picker tolerates a slightly stale read.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn is_dead(&self) -> bool {
+        self.dead.load(Ordering::Relaxed)
+    }
+
+    /// Mark this channel dead so future picker passes route around
+    /// it. Idempotent -- a second call after the flag has already
+    /// flipped is a no-op. The flag is `Release`-stored so the
+    /// picker observes it as soon as it next reads the channel.
+    ///
+    /// Wired from the classifier hook in `crate::mdds::macros` --
+    /// every `Error::Transport { kind: ConnectionClosed, .. }` on a
+    /// streaming or unary attempt marks the source channel dead
+    /// before the retry loop spins.
+    pub(crate) fn mark_dead(&self) {
+        self.dead.store(true, Ordering::Release);
+    }
+
+    /// Clone the death-flag handle so an outbound `ServerStreaming`
+    /// adapter can mark the channel dead from its own classifier
+    /// without holding a `&Channel` borrow. Crate-private --
+    /// callers outside the gRPC layer use [`Self::mark_dead`] on the
+    /// borrow they already hold via the `ChannelLease`.
+    pub(crate) fn dead_handle(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.dead)
     }
 
     /// Per-frame decode ceiling honoured by every RPC dispatched on
@@ -622,7 +703,18 @@ impl Channel {
         // arriving during the open phase routes through
         // [`ChannelError::ConnectionClosed`] — letting the pool
         // recycle the connection rather than treating a dead transport
-        // as a stream-level fault.
+        // as a stream-level fault. The local helper also flips this
+        // channel's death-flag on `ConnectionClosed` so the pool
+        // picker routes subsequent RPCs around the dead channel
+        // (issue #577 #3) without waiting for a streaming-phase
+        // observation.
+        let mark_on_close = |e: h2::Error| -> ChannelError {
+            let classified = classify_h2_error(e);
+            if matches!(classified, ChannelError::ConnectionClosed(_)) {
+                self.mark_dead();
+            }
+            classified
+        };
         let ready_fut = self.send_request.clone().ready();
         let mut sender = match deadline {
             Some(d) => match tokio::time::timeout(d, ready_fut).await {
@@ -631,20 +723,17 @@ impl Channel {
             },
             None => ready_fut.await,
         }
-        .map_err(classify_h2_error)?;
+        .map_err(mark_on_close)?;
 
         // `end_of_stream = false`: we'll send the data frame next.
-        let (response_fut, mut send_body) = sender
-            .send_request(request, false)
-            .map_err(classify_h2_error)?;
+        let (response_fut, mut send_body) =
+            sender.send_request(request, false).map_err(mark_on_close)?;
 
         // Single DATA frame carries the framed request payload, with
         // end_of_stream = true so the server can begin its response
         // immediately. Server-streaming RPCs send exactly one request
         // message.
-        send_body
-            .send_data(frame, true)
-            .map_err(classify_h2_error)?;
+        send_body.send_data(frame, true).map_err(mark_on_close)?;
 
         let response = match deadline {
             Some(d) => {
@@ -660,7 +749,7 @@ impl Channel {
             }
             None => response_fut.await,
         }
-        .map_err(classify_h2_error)?;
+        .map_err(mark_on_close)?;
 
         if response.status() != http::StatusCode::OK {
             return Err(ChannelError::UnexpectedHttpStatus(
@@ -708,7 +797,11 @@ impl Channel {
         // Drop decrements the channel counter exactly when the
         // stream ends. If the channel has a decoder handle attached,
         // clone it onto the stream so per-chunk heavy decode work
-        // routes to the dedicated thread pool.
+        // routes to the dedicated thread pool. Also attach the
+        // channel's death-flag handle (issue #577 #3) so a poll
+        // that surfaces `ConnectionClosed` flips the flag and the
+        // pool picker routes subsequent `next()`s to a live
+        // channel.
         let stream = match deadline {
             Some(d) => {
                 let remaining = d.saturating_sub(start.elapsed());
@@ -717,10 +810,11 @@ impl Channel {
                 }
                 ServerStreaming::<Resp>::with_deadline_and_codec(recv_body, remaining, codec)
                     .with_in_flight_token(token)
+                    .with_channel_dead_handle(self.dead_handle())
             }
-            None => {
-                ServerStreaming::<Resp>::with_codec(recv_body, codec).with_in_flight_token(token)
-            }
+            None => ServerStreaming::<Resp>::with_codec(recv_body, codec)
+                .with_in_flight_token(token)
+                .with_channel_dead_handle(self.dead_handle()),
         };
         Ok(if let Some(decoder) = self.decoder.as_ref() {
             stream.with_decoder(decoder.clone())
