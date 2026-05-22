@@ -79,6 +79,35 @@ pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &Generated
     out.push_str("}\n\n");
 }
 
+/// Single source of truth for the `.await` vs `.stream(handler)`
+/// guidance attached to every parsed historical builder. Composed here
+/// so every `option_history_*` / `stock_history_*` / `index_history_*`
+/// / `interest_rate_history_*` builder advertises the same matrix in
+/// rustdoc; closes issue #576.
+const AWAIT_VS_STREAM_DOC: &str = "\n\
+# When to use `.await` vs `.stream(handler)`\n\
+\n\
+| Workload | Use |\n\
+|---|---|\n\
+| Single day / one-shot ad-hoc query | `.await` |\n\
+| Single day, deterministic small response | `.await` |\n\
+| Bulk / multi-day backfill | `.stream(handler)` |\n\
+| Tick-interval responses | `.stream(handler)` |\n\
+| Greeks responses across a long horizon | `.stream(handler)` |\n\
+\n\
+Buffered (`.await`) collects the full response into `Vec<Tick>`. On a\n\
+2.4 M-tick day this consumes ~5 GiB before any caller code runs.\n\
+Streaming yields chunks via `handler(&[Tick])`, capping per-request\n\
+RSS at ~150 MiB regardless of response size.\n\
+\n\
+When the buffered path returns a response whose estimated size\n\
+exceeds [`crate::config::MddsConfig::warn_on_buffered_threshold_bytes`]\n\
+(default 100 MiB), a single `tracing::warn!` event fires with\n\
+`endpoint`, `row_count`, and `bytes_est` fields.\n\
+\n\
+See [`docs-site/docs/legacy-quote-handling.md`](https://github.com/userFRM/ThetaDataDx/blob/main/docs-site/docs/legacy-quote-handling.md)\n\
+for the full migration rationale.\n";
+
 pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     writeln!(out, "parsed_endpoint! {{").unwrap();
     writeln!(out, "    #[doc = {:?}]", compose_endpoint_doc(endpoint)).unwrap();
@@ -88,6 +117,12 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
         format!("gRPC stub: `{}`", endpoint.grpc_name)
     )
     .unwrap();
+    // Issue #576: surface the `.await` vs `.stream(handler)` decision
+    // matrix in rustdoc on every historical builder. Same copy on
+    // every endpoint so `cargo doc` readers do not have to hunt for
+    // it — placed AFTER the per-endpoint description so the
+    // endpoint's own prose stays at the top of the rustdoc panel.
+    writeln!(out, "    #[doc = {:?}]", AWAIT_VS_STREAM_DOC).unwrap();
     writeln!(
         out,
         "    builder {}Builder;",
