@@ -64,6 +64,14 @@ class Config:
     # known-refused endpoint.
     mdds_host: str
     mdds_port: int
+    # MDDS pool sizing (issue #584). `concurrent_requests = 0` and
+    # `decoder_threads = 0` are auto-detect sentinels; explicit values
+    # above the tier cap are clamped at connect time with a warn.
+    # `decoder_ring_size` must be a power of two >= 64; the setter
+    # raises ValueError otherwise.
+    concurrent_requests: int
+    decoder_threads: int
+    decoder_ring_size: int
     # Reconnect tunables.
     reconnect_policy: str
     reconnect_max_attempts: int

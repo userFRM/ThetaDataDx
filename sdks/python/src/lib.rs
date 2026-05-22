@@ -330,6 +330,96 @@ impl Config {
         guard.mdds.port
     }
 
+    // ── MDDS pool sizing — issue #584 ──────────────────────────────
+
+    /// Set the number of concurrent in-flight gRPC requests.
+    ///
+    /// ``0`` (default) auto-detects from the Nexus subscription tier:
+    /// FREE=1 / VALUE=2 / STANDARD=4 / PRO=8. Explicit values above
+    /// the tier cap are clamped to the cap at connect time with a
+    /// ``tracing::warn!`` — set ``override_tier_clamp = True`` to
+    /// bypass (tests only).
+    ///
+    /// Examples
+    /// --------
+    /// Multi-day backfill on a PRO subscription::
+    ///
+    ///     cfg = Config.production()
+    ///     cfg.concurrent_requests = 8
+    ///     client = ThetaDataDxClient(creds, cfg)
+    #[setter]
+    fn set_concurrent_requests(&self, n: usize) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.concurrent_requests = n;
+    }
+
+    /// Current `concurrent_requests` setting (``0`` = auto-detect).
+    #[getter]
+    fn get_concurrent_requests(&self) -> usize {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.concurrent_requests
+    }
+
+    /// Set the number of dedicated decoder threads in the MDDS pool.
+    ///
+    /// Each decoder thread runs zstd decompress + protobuf decode on
+    /// dedicated OS threads, keeping CPU-bound work off the tokio
+    /// reactor. ``0`` (default) auto-sizes to
+    /// ``max(available_parallelism / 2, 1)``, leaving half the
+    /// logical cores for the reactor and the application's own work.
+    /// Override on shared hosts where the auto-sizing reads the wrong
+    /// number from `/proc`, or to widen the decode pipeline on
+    /// historical backfills with wide ``strike_range``.
+    ///
+    /// See the "Throughput tuning" section in the documentation for
+    /// the full sizing table.
+    #[setter]
+    fn set_decoder_threads(&self, n: usize) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.decoder_threads = n;
+    }
+
+    /// Current `decoder_threads` setting (``0`` = auto-detect).
+    #[getter]
+    fn get_decoder_threads(&self) -> usize {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.decoder_threads
+    }
+
+    /// Set the per-thread decoder ring size.
+    ///
+    /// Must be a power of two, ``>= 64``. Larger rings absorb burstier
+    /// IO without back-pressuring the h2 receive task; smaller rings
+    /// reduce memory footprint. Default is ``256`` — enough headroom
+    /// for a 64-way burst across 4 channels to land on the same
+    /// decoder thread without queue-full back-pressure.
+    ///
+    /// Raises ``ValueError`` if ``n`` is not a power of two or is
+    /// below the 64-slot minimum.
+    #[setter]
+    fn set_decoder_ring_size(&self, n: usize) -> PyResult<()> {
+        if n == 0 || !n.is_power_of_two() {
+            return Err(PyValueError::new_err(format!(
+                "decoder_ring_size must be a power of two >= 64; got {n}"
+            )));
+        }
+        if n < 64 {
+            return Err(PyValueError::new_err(format!(
+                "decoder_ring_size must be >= 64; got {n}"
+            )));
+        }
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.decoder_ring_size = n;
+        Ok(())
+    }
+
+    /// Current `decoder_ring_size` setting.
+    #[getter]
+    fn get_decoder_ring_size(&self) -> usize {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.decoder_ring_size
+    }
+
     /// Install a REST-fallback policy for the four h2-cascading
     /// endpoints (issue #571).
     ///
