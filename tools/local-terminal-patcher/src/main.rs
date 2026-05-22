@@ -173,16 +173,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!();
     eprintln!("       use thetadatadx::{{DirectConfig, FallbackPolicy, DEFAULT_REST_BASE_URL}};");
     eprintln!("       let cfg = DirectConfig::production().with_rest_fallback(");
-    eprintln!("           FallbackPolicy::RestAlwaysForDateRange {{");
+    eprintln!("           FallbackPolicy::RestAlways {{");
     eprintln!("               base_url: DEFAULT_REST_BASE_URL.to_string(),");
-    eprintln!("               before: 20_230_101,");
     eprintln!("           }},");
     eprintln!("       );");
     eprintln!();
     eprintln!("  Then call `tdx.option_history_quote_with_fallback(...)` instead of");
-    eprintln!("  the plain `tdx.option_history_quote(...)`; pre-2023 dates route over");
-    eprintln!("  REST (immune to the issue #571 h2 cascade), 2023+ dates flow through");
-    eprintln!("  the regular gRPC fast path.");
+    eprintln!("  the plain `tdx.option_history_quote(...)`; every historical-quote");
+    eprintln!("  call routes through the local Terminal's REST surface.");
 
     Ok(())
 }

@@ -124,10 +124,11 @@ pub struct DirectConfig {
     pub metrics: MetricsConfig,
     /// Async runtime tuning.
     pub runtime: RuntimeConfig,
-    /// REST-fallback policy for h2-cascading endpoints (issue #571).
+    /// REST-routing policy for the historical-quote endpoints.
     /// Default is [`FallbackPolicy::Disabled`] -- every request goes
-    /// over gRPC. Set via [`Self::with_rest_fallback`] when querying
-    /// 2022-era options data through a local Terminal.
+    /// over gRPC. Set via [`Self::with_rest_fallback`] when the caller
+    /// wants every historical-quote call routed over a locally-running
+    /// Terminal's REST surface.
     pub fallback: FallbackPolicy,
 }
 
@@ -361,24 +362,21 @@ impl DirectConfig {
         self
     }
 
-    /// Configure REST fallback for h2-cascading endpoints (issue #571).
+    /// Configure REST routing for the historical-quote endpoints.
     ///
     /// Default is [`FallbackPolicy::Disabled`]; requests always flow
-    /// through gRPC. Set to one of the REST variants when querying
-    /// 2022-era options data through a local Terminal -- the four
-    /// affected endpoints (`option_history_quote`,
-    /// `option_history_trade_quote`,
-    /// `option_history_greeks_implied_volatility`,
-    /// `option_history_greeks_first_order`) check this policy on every
-    /// call and route to [`crate::rest::RestClient`] when the variant
-    /// would apply.
+    /// through gRPC. Set to [`FallbackPolicy::RestAlways`] when the
+    /// caller wants every historical-quote call routed over a
+    /// locally-running Terminal's REST surface (e.g. when network
+    /// policy disallows direct MDDS access or the local Terminal
+    /// exposes column extensions the upstream gRPC service does
+    /// not yet expose).
     ///
     /// ```rust,no_run
     /// use thetadatadx::config::{DirectConfig, FallbackPolicy, DEFAULT_REST_BASE_URL};
     /// let cfg = DirectConfig::production().with_rest_fallback(
-    ///     FallbackPolicy::RestAlwaysForDateRange {
+    ///     FallbackPolicy::RestAlways {
     ///         base_url: DEFAULT_REST_BASE_URL.to_string(),
-    ///         before: 20_230_101,
     ///     },
     /// );
     /// ```

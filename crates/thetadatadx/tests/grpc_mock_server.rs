@@ -950,7 +950,7 @@ async fn channel_pool_routes_around_saturated_channel() {
     // Fire a slow RPC directly against pool member 0. We deliberately
     // detach the task and let it stay open for the test duration —
     // the mock holds the response for 30s.
-    let member_zero_ptr: *const Channel = pool.member_for_test(0);
+    let member_zero_ptr: *const Channel = std::sync::Arc::as_ptr(pool.member_for_test(0));
     let pool_arc = pool.clone();
     let slow_handle = tokio::spawn(async move {
         let chan = pool_arc.member_for_test(0);
@@ -998,7 +998,7 @@ async fn channel_pool_routes_around_saturated_channel() {
     let mut saw_non_zero = 0_usize;
     for _ in 0..16 {
         let lease = pool.next();
-        let pick: *const Channel = lease.channel();
+        let pick: *const Channel = std::sync::Arc::as_ptr(lease.channel());
         if pick == member_zero_ptr {
             saw_zero += 1;
         } else {
@@ -1296,7 +1296,7 @@ async fn channel_pool_burst_dispatch_spreads_across_members() {
 
     // Capture channel pointers so picks can be attributed to members.
     let member_ptrs: Vec<*const Channel> = (0..4)
-        .map(|i| pool.member_for_test(i) as *const Channel)
+        .map(|i| std::sync::Arc::as_ptr(pool.member_for_test(i)))
         .collect();
 
     // ── The exact burst-contention shape ───────────────────────────
@@ -1309,7 +1309,7 @@ async fn channel_pool_burst_dispatch_spreads_across_members() {
     let leases: Vec<_> = (0..16).map(|_| pool.next()).collect();
     let picks: Vec<*const Channel> = leases
         .iter()
-        .map(|lease| lease.channel() as *const Channel)
+        .map(|lease| std::sync::Arc::as_ptr(lease.channel()))
         .collect();
 
     let mut per_member = [0usize; 4];
@@ -1383,7 +1383,7 @@ async fn channel_pool_concurrent_dispatch_spreads_across_members() {
     // its address-as-usize so the per-task lookup works across
     // `tokio::spawn` boundaries.
     let member_addrs: Vec<usize> = (0..4)
-        .map(|i| pool.member_for_test(i) as *const Channel as usize)
+        .map(|i| std::sync::Arc::as_ptr(pool.member_for_test(i)) as usize)
         .collect();
 
     // Synchronize N tasks to call `pool.next()` at the same instant
@@ -1417,7 +1417,7 @@ async fn channel_pool_concurrent_dispatch_spreads_across_members() {
             // Compute the picked-member index synchronously, before
             // the next await — addresses are recovered as `usize`
             // so the value crosses the spawn boundary cleanly.
-            let chan_addr = lease.channel() as *const Channel as usize;
+            let chan_addr = std::sync::Arc::as_ptr(lease.channel()) as usize;
             let idx = member_addrs
                 .iter()
                 .position(|p| *p == chan_addr)
@@ -1509,7 +1509,7 @@ async fn channel_pool_distributes_across_members() {
     let leases: Vec<_> = (0..8).map(|_| pool.next()).collect();
     let picks: Vec<*const Channel> = leases
         .iter()
-        .map(|lease| lease.channel() as *const Channel)
+        .map(|lease| std::sync::Arc::as_ptr(lease.channel()))
         .collect();
     assert_eq!(picks[0], picks[4]);
     assert_eq!(picks[1], picks[5]);
@@ -1667,7 +1667,7 @@ async fn channel_pool_routes_around_saturated_member() {
     // Saturate the slow channel: open one RPC that holds the only
     // slot on that channel for 500ms.
     let saturation = pool.next();
-    let saturating_channel = saturation.channel() as *const Channel;
+    let saturating_channel = std::sync::Arc::as_ptr(saturation.channel());
     let saturation_stream = saturation
         .channel()
         .server_streaming::<DataValueList, ResponseData>(
@@ -1679,7 +1679,7 @@ async fn channel_pool_routes_around_saturated_member() {
     // pre-dispatch reservation on the saturated one must steer
     // `next()` to the only other member with capacity.
     let routed = pool.next();
-    let routed_channel = routed.channel() as *const Channel;
+    let routed_channel = std::sync::Arc::as_ptr(routed.channel());
     assert_ne!(
         saturating_channel, routed_channel,
         "pool.next() must route around the saturated channel"

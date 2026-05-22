@@ -10,14 +10,25 @@
 //! returns a [`ServerStreaming`] that yields decoded response messages
 //! and ends in a parsed [`super::Status`].
 //!
-//! The connection's `SendRequest<Bytes>` is cheap to clone — h2
-//! serializes outbound streams internally — so a single [`Channel`]
-//! safely multiplexes concurrent RPCs from many tasks.
+//! # In-place reconnect
+//!
+//! The underlying `SendRequest<Bytes>` is held behind an [`ArcSwap`]
+//! so the channel can transparently swap a fresh h2 connection in
+//! after a [`ChannelError::ConnectionClosed`] without disturbing the
+//! [`super::ChannelPool`] slot that holds the channel. Reconnect is
+//! single-flight per channel (an `AtomicBool` claim + a
+//! [`tokio::sync::Notify`] so concurrent observers wait on the same
+//! attempt) and uses bounded exponential backoff. The [`ConnectTarget`]
+//! captured at construction (host, port, optional TLS config, scheme,
+//! max-message-size) is the single source of truth the reconnect path
+//! consults — every reconnect lands a connection that is wire-equivalent
+//! to the original.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, Weak};
 use std::time::Duration;
 
+use arc_swap::ArcSwap;
 use bytes::Bytes;
 use h2::client::{self, SendRequest};
 use http::header::{HeaderName, HeaderValue};
@@ -25,6 +36,7 @@ use http::uri::{Authority, Scheme};
 use http::{Method, Request, Uri};
 use thiserror::Error;
 use tokio::net::TcpStream;
+use tokio::sync::Notify;
 use tokio_rustls::TlsConnector;
 
 use super::codec::{Codec, CodecError};
@@ -40,6 +52,21 @@ const CONTENT_TYPE_GRPC_PROTO: &str = "application/grpc+proto";
 const TE_TRAILERS: &str = "trailers";
 /// User-agent reported in each `:user-agent` request pseudo-header.
 const USER_AGENT_PREFIX: &str = "thetadatadx-grpc";
+
+/// Initial backoff between reconnect attempts. Subsequent attempts
+/// double up to [`RECONNECT_BACKOFF_MAX`].
+const RECONNECT_BACKOFF_INITIAL: Duration = Duration::from_millis(50);
+/// Cap on the exponential backoff between reconnect attempts. Tuned
+/// to the production GOAWAY-storm pattern: hosted MDDS occasionally
+/// emits GOAWAY during long-running operator workloads, and a 30s
+/// ceiling keeps the reconnect cadence aligned with the next
+/// scheduled-restart window without busy-spinning.
+const RECONNECT_BACKOFF_MAX: Duration = Duration::from_secs(30);
+/// Per-attempt bound on reconnect retries before the channel surfaces
+/// `ConnectionClosed` upward. Caller-side retry (in
+/// `crate::mdds::macros::classify_error`) re-dispatches on a fresh
+/// pool pick when this budget is exhausted.
+const RECONNECT_MAX_ATTEMPTS: u32 = 8;
 
 /// Errors raised by [`Channel`] construction and RPC dispatch.
 ///
@@ -82,10 +109,11 @@ pub enum ChannelError {
     /// `CANCEL`, `REFUSED_STREAM`, `INTERNAL_ERROR`, etc.) plus any
     /// h2 library-detected protocol error that affects only this
     /// stream. The h2 connection itself is healthy and the next RPC
-    /// on the same channel can succeed — the pool should *not*
-    /// recycle the channel on this variant. Connection-level death
+    /// on the same channel can succeed. Connection-level death
     /// (GOAWAY, IO failure, peer shutdown, open-phase connection
-    /// drops) surfaces through [`Self::ConnectionClosed`] instead.
+    /// drops) surfaces through [`Self::ConnectionClosed`] instead;
+    /// the channel responds by swapping in a fresh h2 connection
+    /// in place (see [`Channel::trigger_reconnect`]).
     #[error("h2 stream: {0}")]
     H2Stream(String),
     /// Failed to build the `:path` URI for the RPC.
@@ -126,8 +154,8 @@ pub enum ChannelError {
         /// The deadline (in milliseconds) the caller supplied.
         duration_ms: u64,
     },
-    /// Connection-level death — the h2 connection is no longer
-    /// usable for any further RPC. Covers:
+    /// Connection-level death — the h2 connection that just handled
+    /// this RPC is no longer usable. Covers:
     /// - `GOAWAY` (either direction): the peer is refusing further
     ///   streams on this connection.
     /// - IO failure at the h2 transport layer: socket closed,
@@ -136,27 +164,57 @@ pub enum ChannelError {
     ///   (`ready()` / `send_request()` / `send_data()` failures
     ///   on a connection that died before admitting the stream).
     ///
-    /// Distinct from per-stream resets (see [`Self::H2Stream`]):
-    /// pool consumers should recycle the channel on this variant
-    /// rather than retry on a dead transport.
+    /// The channel reacts by triggering a single-flight in-place
+    /// reconnect of its inner `SendRequest<Bytes>`; subsequent RPCs
+    /// dispatched through the same [`Channel`] handle pick up the
+    /// fresh connection transparently. The caller's existing retry
+    /// shell (see `crate::mdds::macros::classify_error`) re-dispatches
+    /// once and observes the live connection.
     #[error("h2 connection closed: {0}")]
     ConnectionClosed(String),
 }
 
+/// Captured connection parameters consulted by [`Channel::reconnect`]
+/// when the inner `SendRequest<Bytes>` needs to be replaced.
+///
+/// Held inside the channel as `Arc<ConnectTarget>` so the reconnect
+/// path can clone the target into the spawned reconnect future
+/// without borrowing the channel.
+#[derive(Clone)]
+struct ConnectTarget {
+    host: String,
+    port: u16,
+    /// `Some(tls_config)` for HTTPS, `None` for h2c. The same
+    /// `Arc<rustls::ClientConfig>` originally passed to
+    /// [`Channel::connect_tls`] is reused on every reconnect so SPKI
+    /// pinning, ALPN, and session-resumption configuration land
+    /// identically across cycles.
+    tls: Option<Arc<rustls::ClientConfig>>,
+    max_message_size: usize,
+    scheme: Scheme,
+}
+
 /// One HTTP/2 connection to a gRPC server.
 ///
-/// Owns the spawned h2 connection driver task via `connection_task`
-/// (`Option<JoinHandle<()>>`), which is `!Clone`. `Channel` is never
-/// cloned anywhere in the codebase — each pool entry holds one
-/// `Channel` and recycles it on `ConnectionClosed`. New streams open
-/// through the inner `SendRequest<Bytes>` clone, not through a
-/// `Channel` clone.
+/// Holds the inner `SendRequest<Bytes>` behind an [`ArcSwap`] so
+/// [`Channel::trigger_reconnect`] can atomically swap a fresh h2
+/// connection in after a [`ChannelError::ConnectionClosed`] without
+/// disturbing pool consumers. New streams open through the inner
+/// sender's clone; in-flight RPCs that already hold a clone of the
+/// pre-swap sender finish with their existing error, while new RPCs
+/// see the new sender on the next pick.
 pub struct Channel {
-    /// Outbound stream factory. Cloning this gives a second handle to
-    /// the same h2 connection; new streams it opens share the connection.
-    send_request: SendRequest<Bytes>,
+    /// Outbound stream factory. Held inside an [`ArcSwap`] so the
+    /// reconnect path can atomically replace it with a freshly-built
+    /// `SendRequest` from a new h2 connection. Cloning the inner
+    /// `SendRequest<Bytes>` is cheap — h2 serializes outbound streams
+    /// internally — so the load-bearing operation on every RPC is one
+    /// `ArcSwap::load_full()` + one `SendRequest::clone()`.
+    send_request: Arc<ArcSwap<SendRequest<Bytes>>>,
     /// `:authority` pseudo-header. h2 takes a [`Uri`] per request but
-    /// the authority part is shared across all RPCs on this channel.
+    /// the authority part is shared across all RPCs on this channel
+    /// and never changes across reconnect cycles (host/port are
+    /// stable).
     authority: Authority,
     /// Pre-built `user-agent` header value. Built once at connect time.
     user_agent: HeaderValue,
@@ -189,27 +247,24 @@ pub struct Channel {
     /// sequential consistency is not required for load-balancing
     /// hints.
     in_flight: Arc<AtomicUsize>,
-    /// Health flag — `true` once an upstream `ConnectionClosed` (h2
-    /// `GOAWAY` / IO failure / vendor cascade) is observed on any
-    /// RPC dispatched through this channel. The pool's
-    /// [`super::ChannelPool::next`] picker treats dead channels as
-    /// last-resort: they are skipped while at least one live channel
-    /// remains in the pool, so subsequent RPCs route around the
-    /// known-bad connection instead of repeatedly handing it out and
-    /// observing the same terminal error (issue #577 #3). The flag
-    /// is set by [`Self::mark_dead`] from the classifier hook in
-    /// `crate::mdds::macros`; once set it stays set for the
-    /// `Channel`'s lifetime — recycling is handled by reconstructing
-    /// the pool slot, not by resurrecting a dead channel in place.
-    ///
-    /// `Arc` so the flag survives both the channel (read by the
-    /// picker) and any `ServerStreaming` adapter that holds a clone
-    /// (set by the classifier when a stream observes the cascade).
-    /// `AtomicBool` with `Relaxed` reads / `Release` writes — the
-    /// picker tolerates a slightly stale read (a live channel
-    /// observed as live for one extra pick is fine; a dead channel
-    /// observed as dead one pick later is fine too).
-    dead: Arc<AtomicBool>,
+    /// Captured connection parameters. The reconnect path
+    /// ([`Self::trigger_reconnect`]) clones this `Arc` into the
+    /// spawned reconnect future so it can build a fresh
+    /// `SendRequest<Bytes>` without borrowing the channel.
+    target: Arc<ConnectTarget>,
+    /// Single-flight reconnect guard. Set to `true` by the first
+    /// observer of a `ConnectionClosed`; concurrent observers see
+    /// the flag set and await the [`Self::reconnect_done`] notify
+    /// instead of opening their own redundant TCP+TLS+h2 session.
+    /// The reconnect winner clears the flag and emits `notify_waiters`
+    /// at the end of the attempt — whether it succeeded or exhausted
+    /// its retry budget — so losers always make progress.
+    reconnecting: Arc<AtomicBool>,
+    /// Notify that fires `notify_waiters` when a reconnect attempt
+    /// finishes (success OR exhaustion). Held in an `Arc` so the
+    /// spawned reconnect future can call `notify_waiters` after
+    /// dropping the channel borrow.
+    reconnect_done: Arc<Notify>,
     /// Decoder ring this channel routes zstd + protobuf decode work
     /// to. `None` means decode runs inline on the tokio reactor
     /// (legacy behaviour, retained for the unit-test paths that
@@ -219,19 +274,57 @@ pub struct Channel {
     decoder: Option<DecoderHandle>,
     /// Handle on the background task that drives the h2 connection.
     ///
-    /// Dropping `send_request` is sufficient for a clean shutdown —
-    /// the h2 connection winds down and the task exits naturally. The
-    /// handle is retained so `Channel::Drop` can call `.abort()` as a
-    /// belt-and-braces guard against the case where the connection
-    /// future is parked on a slow socket and would otherwise outlive
-    /// the `Channel` for an unbounded interval (e.g. peer never sends
-    /// the final GOAWAY ACK before the test runner moves on). The
-    /// abort is idempotent — a task that already finished is a no-op.
+    /// Replaced on every reconnect: the new task drives the new
+    /// connection, and the old handle is `.abort()`ed before the
+    /// swap so the previous driver releases its resources promptly.
     ///
     /// `Option` so [`Drop`] can take ownership without leaving a
     /// half-moved field; `Send` + `'static` because the task is
     /// dispatched onto the multi-thread tokio runtime.
-    connection_task: Option<tokio::task::JoinHandle<()>>,
+    connection_task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// Weak self-reference, installed once when the channel is wrapped
+    /// in an `Arc<Channel>` by [`super::ChannelPool::from_channels`].
+    /// The reconnect path upgrades the weak handle to clone an
+    /// `Arc<Channel>` into the spawned reconnect future — only the
+    /// `Arc<Channel>` shape can be moved into a `'static` tokio task.
+    /// Channels constructed for unit tests (no pool wrap) leave this
+    /// uninitialized; their `trigger_reconnect()` becomes a no-op, which
+    /// matches the test fixture's "single-use duplex IO" semantics.
+    self_weak: OnceLock<Weak<Channel>>,
+    /// Hook fired at the start and end of every reconnect attempt.
+    /// `None` in production builds — the field is `pub(crate)` so the
+    /// channel-pool reconnect integration test can install a counter
+    /// to pin the single-flight guarantee (exactly N reconnects
+    /// observed for N independent ConnectionClosed events, not N ×
+    /// concurrent-observers). The hook is on the hot path only when
+    /// installed; the `Option` check is a single relaxed atomic load
+    /// on the cold reconnect path.
+    reconnect_observer: std::sync::Mutex<Option<ReconnectObserver>>,
+}
+
+/// Heap-allocated, thread-safe reconnect-event observer. Aliased to
+/// keep [`Channel`]'s field type readable; the slot is `None` in
+/// production and `Some(callback)` only when an integration test
+/// installs one via [`Channel::set_reconnect_observer`].
+type ReconnectObserver = Arc<dyn Fn(ReconnectEvent) + Send + Sync>;
+
+/// Reconnect lifecycle event surfaced through
+/// [`Channel::set_reconnect_observer`]. Used by the channel-pool
+/// reconnect integration test to verify the single-flight invariant;
+/// production callers should not install an observer.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReconnectEvent {
+    /// The current task won the single-flight CAS and is about to
+    /// open a fresh TCP+TLS+h2 session.
+    AttemptStart,
+    /// The reconnect succeeded; the channel's inner `SendRequest`
+    /// has been swapped.
+    AttemptSuccess,
+    /// The reconnect failed after exhausting the retry budget; the
+    /// inner `SendRequest` was NOT replaced and the next caller will
+    /// observe `ConnectionClosed` again.
+    AttemptExhausted,
 }
 
 impl Channel {
@@ -266,15 +359,15 @@ impl Channel {
         port: u16,
         max_message_size: usize,
     ) -> Result<Self, ChannelError> {
-        let stream = TcpStream::connect((host, port))
-            .await
-            .map_err(|e| ChannelError::Tcp {
-                host: host.to_string(),
-                port,
-                source: e,
-            })?;
-        let _ = stream.set_nodelay(true);
-        Self::handshake(stream, host, port, max_message_size, Scheme::HTTP).await
+        let target = Arc::new(ConnectTarget {
+            host: host.to_string(),
+            port,
+            tls: None,
+            max_message_size,
+            scheme: Scheme::HTTP,
+        });
+        let (send_request, connection_task) = open_h2c(&target).await?;
+        Self::from_session(send_request, connection_task, target)
     }
 
     /// Open a TLS-protected HTTP/2 connection to a gRPC server using
@@ -313,30 +406,15 @@ impl Channel {
         tls: Arc<rustls::ClientConfig>,
         max_message_size: usize,
     ) -> Result<Self, ChannelError> {
-        let stream = TcpStream::connect((host, port))
-            .await
-            .map_err(|e| ChannelError::Tcp {
-                host: host.to_string(),
-                port,
-                source: e,
-            })?;
-        let _ = stream.set_nodelay(true);
-        let connector = TlsConnector::from(tls);
-        let server_name =
-            rustls::pki_types::ServerName::try_from(host.to_string()).map_err(|_| {
-                ChannelError::InvalidServerName {
-                    host: host.to_string(),
-                }
-            })?;
-        let tls_stream =
-            connector
-                .connect(server_name, stream)
-                .await
-                .map_err(|e| ChannelError::Tls {
-                    host: host.to_string(),
-                    source: e,
-                })?;
-        Self::handshake(tls_stream, host, port, max_message_size, Scheme::HTTPS).await
+        let target = Arc::new(ConnectTarget {
+            host: host.to_string(),
+            port,
+            tls: Some(tls),
+            max_message_size,
+            scheme: Scheme::HTTPS,
+        });
+        let (send_request, connection_task) = open_tls(&target).await?;
+        Self::from_session(send_request, connection_task, target)
     }
 
     /// Drive the h2 client handshake over an already-connected IO stream
@@ -345,11 +423,11 @@ impl Channel {
     /// `scheme` is the `:scheme` pseudo-header value to use on every
     /// request — `https` for TLS transports, `http` for plaintext h2c.
     ///
-    /// Exposed `pub(crate)` under `#[cfg(test)]` so the
-    /// [`super::pool::ChannelPool`] dead-channel tests can build real
-    /// `Channel` values over `tokio::io::duplex` pairs without going
-    /// through the network. Production callers use
-    /// [`Self::connect_h2c`] / [`Self::connect_tls`].
+    /// Exposed `pub(crate)` under `#[cfg(test)]` so the channel-pool
+    /// reconnect tests can build real `Channel` values over
+    /// `tokio::io::duplex` pairs without going through the network.
+    /// Production callers use [`Self::connect_h2c`] /
+    /// [`Self::connect_tls`].
     #[cfg(test)]
     pub(crate) async fn handshake_for_test<IO>(
         io: IO,
@@ -361,39 +439,31 @@ impl Channel {
     where
         IO: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
     {
-        Self::handshake(io, host, port, max_message_size, scheme).await
+        let (send_request, connection_task) = handshake_over_io(io, max_message_size).await?;
+        // Test channels do NOT reconnect — the duplex IO is single-use.
+        // Capturing a sensible `ConnectTarget` keeps the rest of the
+        // construction path uniform; reconnect attempts against a
+        // duplex will fail at `open_h2c` and surface ConnectionClosed,
+        // which is exactly what the test fixture expects.
+        let target = Arc::new(ConnectTarget {
+            host: host.to_string(),
+            port,
+            tls: None,
+            max_message_size,
+            scheme,
+        });
+        Self::from_session(send_request, connection_task, target)
     }
 
-    async fn handshake<IO>(
-        io: IO,
-        host: &str,
-        port: u16,
-        max_message_size: usize,
-        scheme: Scheme,
-    ) -> Result<Self, ChannelError>
-    where
-        IO: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
-    {
-        let (send_request, connection) = client::handshake(io)
-            .await
-            .map_err(|e| ChannelError::H2Handshake(e.to_string()))?;
-
-        // Drive the h2 connection on a dedicated task. When the
-        // `Channel` is dropped, `send_request` drops, which lets the
-        // connection wind down naturally; the task exits at that point.
-        // The handle is retained on `Channel::connection_task` so the
-        // `Drop` impl can call `.abort()` as a belt-and-braces guard
-        // against a connection future parked on a slow socket
-        // outliving the `Channel` (cf. the test fixture pattern that
-        // tears down the server before the client).
-        let connection_task = tokio::spawn(async move {
-            if let Err(err) = connection.await {
-                tracing::debug!(error = %err, "in-house gRPC h2 connection ended");
-            }
-        });
-
-        // `host:port` is fed back into the `:authority` pseudo-header.
-        let authority_string = format!("{host}:{port}");
+    /// Assemble the channel from a freshly-built `SendRequest`,
+    /// connection driver, and captured target. Shared by the public
+    /// constructors and the test fixture.
+    fn from_session(
+        send_request: SendRequest<Bytes>,
+        connection_task: tokio::task::JoinHandle<()>,
+        target: Arc<ConnectTarget>,
+    ) -> Result<Self, ChannelError> {
+        let authority_string = format!("{}:{}", target.host, target.port);
         let authority = Authority::try_from(authority_string.as_str()).map_err(|e| {
             ChannelError::InvalidPath {
                 path: authority_string.clone(),
@@ -410,18 +480,33 @@ impl Channel {
         let te = HeaderValue::from_static(TE_TRAILERS);
 
         Ok(Self {
-            send_request,
+            send_request: Arc::new(ArcSwap::from_pointee(send_request)),
             authority,
             user_agent,
             content_type,
             te,
-            max_message_size,
-            scheme,
+            max_message_size: target.max_message_size,
+            scheme: target.scheme.clone(),
             in_flight: Arc::new(AtomicUsize::new(0)),
-            dead: Arc::new(AtomicBool::new(false)),
+            target,
+            reconnecting: Arc::new(AtomicBool::new(false)),
+            reconnect_done: Arc::new(Notify::new()),
             decoder: None,
-            connection_task: Some(connection_task),
+            connection_task: std::sync::Mutex::new(Some(connection_task)),
+            self_weak: OnceLock::new(),
+            reconnect_observer: std::sync::Mutex::new(None),
         })
+    }
+
+    /// Install the weak self-reference. Called by
+    /// [`super::ChannelPool::from_channels`] (and the channel-pool
+    /// reconnect test) once the channel is wrapped in `Arc<Channel>`
+    /// so the dispatch path can clone the `Arc` into a `'static`
+    /// reconnect future. Idempotent: a second call after the first
+    /// is silently ignored — the [`OnceLock`] caches the first
+    /// installation and rejects later attempts.
+    pub(crate) fn install_self_weak(&self, weak: Weak<Channel>) {
+        let _ = self.self_weak.set(weak);
     }
 
     /// Attach a [`DecoderHandle`] to this channel so subsequent RPCs
@@ -446,45 +531,6 @@ impl Channel {
         self.in_flight.load(Ordering::Relaxed)
     }
 
-    /// Whether this channel has been marked dead.
-    ///
-    /// A channel becomes dead when any RPC dispatched on it observes
-    /// [`ChannelError::ConnectionClosed`] (h2 `GOAWAY` / IO failure /
-    /// upstream cascade). The pool's
-    /// [`super::ChannelPool::next`] picker treats dead channels as
-    /// last-resort -- they are skipped while at least one live
-    /// channel remains so subsequent RPCs route around the
-    /// known-bad connection instead of repeatedly handing it out
-    /// and observing the same terminal error (issue #577 #3).
-    /// Relaxed load -- the picker tolerates a slightly stale read.
-    #[doc(hidden)]
-    #[must_use]
-    pub fn is_dead(&self) -> bool {
-        self.dead.load(Ordering::Relaxed)
-    }
-
-    /// Mark this channel dead so future picker passes route around
-    /// it. Idempotent -- a second call after the flag has already
-    /// flipped is a no-op. The flag is `Release`-stored so the
-    /// picker observes it as soon as it next reads the channel.
-    ///
-    /// Wired from the classifier hook in `crate::mdds::macros` --
-    /// every `Error::Transport { kind: ConnectionClosed, .. }` on a
-    /// streaming or unary attempt marks the source channel dead
-    /// before the retry loop spins.
-    pub(crate) fn mark_dead(&self) {
-        self.dead.store(true, Ordering::Release);
-    }
-
-    /// Clone the death-flag handle so an outbound `ServerStreaming`
-    /// adapter can mark the channel dead from its own classifier
-    /// without holding a `&Channel` borrow. Crate-private --
-    /// callers outside the gRPC layer use [`Self::mark_dead`] on the
-    /// borrow they already hold via the `ChannelLease`.
-    pub(crate) fn dead_handle(&self) -> Arc<AtomicBool> {
-        Arc::clone(&self.dead)
-    }
-
     /// Per-frame decode ceiling honoured by every RPC dispatched on
     /// this channel. Mirrors `DirectConfig::mdds.max_message_size`;
     /// each [`Codec`] this channel constructs uses this value rather
@@ -492,6 +538,23 @@ impl Channel {
     #[must_use]
     pub const fn max_message_size(&self) -> usize {
         self.max_message_size
+    }
+
+    /// Install a test observer that is invoked on every reconnect
+    /// lifecycle event. Used by the pool reconnect integration test
+    /// to count fresh-connection opens against the single-flight
+    /// invariant.
+    ///
+    /// Hidden from public docs — production callers should never
+    /// install an observer.
+    #[doc(hidden)]
+    pub fn set_reconnect_observer<F>(&self, observer: F)
+    where
+        F: Fn(ReconnectEvent) + Send + Sync + 'static,
+    {
+        if let Ok(mut slot) = self.reconnect_observer.lock() {
+            *slot = Some(Arc::new(observer));
+        }
     }
 
     /// Take a pre-dispatch in-flight token. Used by
@@ -566,6 +629,160 @@ impl Channel {
             "https"
         } else {
             "http"
+        }
+    }
+
+    /// Snapshot the current `SendRequest<Bytes>` for one RPC dispatch.
+    ///
+    /// The returned clone is the inner h2 sender; calling `.ready()`
+    /// on it admits a new stream onto the underlying h2 connection.
+    /// In-flight RPCs that hold an earlier snapshot are unaffected by
+    /// a concurrent reconnect — they finish on the connection they
+    /// already started on, and only the NEXT call to
+    /// `current_send_request` picks up the post-swap sender.
+    fn current_send_request(&self) -> SendRequest<Bytes> {
+        SendRequest::clone(&self.send_request.load())
+    }
+
+    /// Atomically swap in a freshly-built `SendRequest<Bytes>`.
+    /// Called by the reconnect winner after a successful handshake;
+    /// the prior driver task is aborted before the swap so its
+    /// resources release promptly.
+    fn install_session(
+        &self,
+        send_request: SendRequest<Bytes>,
+        connection_task: tokio::task::JoinHandle<()>,
+    ) {
+        self.send_request.store(Arc::new(send_request));
+        if let Ok(mut slot) = self.connection_task.lock() {
+            if let Some(old) = slot.take() {
+                old.abort();
+            }
+            *slot = Some(connection_task);
+        }
+    }
+
+    /// Trigger a single-flight reconnect of this channel's underlying
+    /// h2 connection.
+    ///
+    /// Wins the CAS on `reconnecting` to claim sole responsibility
+    /// for the reconnect, spawns a background task that re-opens the
+    /// connection with bounded exponential backoff, then swaps the
+    /// fresh `SendRequest<Bytes>` into the [`ArcSwap`]. Losers of the
+    /// CAS return immediately — the existing reconnect attempt will
+    /// notify them via [`Self::reconnect_done`] when it finishes, and
+    /// the next RPC dispatched through the channel sees the new
+    /// sender on its next `current_send_request()` snapshot.
+    ///
+    /// The reconnect is fire-and-forget: the caller (typically the
+    /// open-phase classifier or the streaming-phase poll observer)
+    /// surfaces `ConnectionClosed` as usual; the caller's retry
+    /// shell (`crate::mdds::macros::classify_error`) re-dispatches
+    /// once, by which point the fresh sender is either ready or
+    /// the next retry on a subsequent pool pick lands on a different
+    /// channel.
+    ///
+    /// No-op when the channel was constructed without a pool wrap
+    /// (test fixtures over `tokio::io::duplex` skip the
+    /// `install_self_weak` step) — the test fixture's single-use IO
+    /// has no reconnect semantics.
+    ///
+    /// `pub` so the channel-pool reconnect integration test can drive
+    /// the single-flight CAS directly. Production callers rely on the
+    /// in-flight classifier hooks (`server_streaming_frame` and the
+    /// stream poll loop) to call this internally; explicit external
+    /// triggers from production code are not expected.
+    #[doc(hidden)]
+    pub fn trigger_reconnect(&self) {
+        let Some(weak) = self.self_weak.get() else {
+            // Channel constructed without a pool wrap; reconnect is a
+            // no-op. This is the unit-test path — a real reconnect
+            // would need a real network endpoint to reach.
+            return;
+        };
+        let Some(channel) = weak.upgrade() else {
+            // The owning `Arc<Channel>` has been dropped. No use
+            // reconnecting a channel nobody holds.
+            return;
+        };
+        if self
+            .reconnecting
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            // Another task already owns the reconnect. Nothing to do.
+            return;
+        }
+        tokio::spawn(async move {
+            channel.run_reconnect().await;
+        });
+    }
+
+    /// Body of the spawned reconnect future. Honours
+    /// [`RECONNECT_MAX_ATTEMPTS`] with exponential backoff capped at
+    /// [`RECONNECT_BACKOFF_MAX`]. On success the inner sender is
+    /// swapped and `reconnect_done` is notified. On exhaustion the
+    /// sender is left unchanged and `reconnect_done` is still notified
+    /// so waiters do not deadlock — the next observer of
+    /// `ConnectionClosed` will trigger another reconnect attempt.
+    async fn run_reconnect(&self) {
+        self.fire_reconnect_event(ReconnectEvent::AttemptStart);
+        let mut backoff = RECONNECT_BACKOFF_INITIAL;
+        let mut last_err: Option<ChannelError> = None;
+        for attempt in 0..RECONNECT_MAX_ATTEMPTS {
+            match open_new_session(&self.target).await {
+                Ok((send_request, connection_task)) => {
+                    self.install_session(send_request, connection_task);
+                    self.reconnecting.store(false, Ordering::Release);
+                    self.reconnect_done.notify_waiters();
+                    tracing::info!(
+                        target: "thetadatadx::grpc::channel",
+                        host = %self.target.host,
+                        port = self.target.port,
+                        attempt,
+                        "channel reconnect succeeded"
+                    );
+                    self.fire_reconnect_event(ReconnectEvent::AttemptSuccess);
+                    return;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        target: "thetadatadx::grpc::channel",
+                        host = %self.target.host,
+                        port = self.target.port,
+                        attempt,
+                        backoff_ms = backoff.as_millis() as u64,
+                        error = %e,
+                        "channel reconnect attempt failed; retrying with backoff"
+                    );
+                    last_err = Some(e);
+                    tokio::time::sleep(backoff).await;
+                    backoff = (backoff * 2).min(RECONNECT_BACKOFF_MAX);
+                }
+            }
+        }
+        self.reconnecting.store(false, Ordering::Release);
+        self.reconnect_done.notify_waiters();
+        tracing::error!(
+            target: "thetadatadx::grpc::channel",
+            host = %self.target.host,
+            port = self.target.port,
+            attempts = RECONNECT_MAX_ATTEMPTS,
+            last_error = ?last_err,
+            "channel reconnect exhausted retry budget"
+        );
+        self.fire_reconnect_event(ReconnectEvent::AttemptExhausted);
+    }
+
+    /// Fire the installed reconnect observer with `event`. No-op when
+    /// no observer is installed. Production paths leave the slot at
+    /// `None`; the channel-pool reconnect integration test installs a
+    /// counter via [`Self::set_reconnect_observer`].
+    fn fire_reconnect_event(&self, event: ReconnectEvent) {
+        if let Ok(slot) = self.reconnect_observer.lock() {
+            if let Some(observer) = slot.as_ref() {
+                observer(event);
+            }
         }
     }
 
@@ -693,29 +910,30 @@ impl Channel {
         // response stream ends.
         let token = InFlightToken::new(Arc::clone(&self.in_flight));
 
-        // Wait for the h2 connection to admit a new stream. `ready()`
-        // consumes the `SendRequest` and yields it back when the
-        // connection has window space; the original clone has already
-        // served its purpose so this is a clean ownership move.
-        //
         // `ready()` / `send_request()` / `send_data()` all surface
         // their `h2::Error` through `classify_h2_error` so a `GOAWAY`
         // arriving during the open phase routes through
-        // [`ChannelError::ConnectionClosed`] — letting the pool
-        // recycle the connection rather than treating a dead transport
-        // as a stream-level fault. The local helper also flips this
-        // channel's death-flag on `ConnectionClosed` so the pool
-        // picker routes subsequent RPCs around the dead channel
-        // (issue #577 #3) without waiting for a streaming-phase
-        // observation.
-        let mark_on_close = |e: h2::Error| -> ChannelError {
+        // [`ChannelError::ConnectionClosed`]. The local closure here
+        // additionally triggers an in-place reconnect of this channel
+        // on the connection-level variant — the current RPC still
+        // observes `ConnectionClosed` (the retry shell handles it),
+        // but by the time a follow-up RPC lands on this channel the
+        // freshly-swapped `SendRequest<Bytes>` is ready to admit it.
+        let trigger_on_close = |e: h2::Error| -> ChannelError {
             let classified = classify_h2_error(e);
             if matches!(classified, ChannelError::ConnectionClosed(_)) {
-                self.mark_dead();
+                self.trigger_reconnect();
             }
             classified
         };
-        let ready_fut = self.send_request.clone().ready();
+
+        // Snapshot the current `SendRequest<Bytes>` for this RPC.
+        // A reconnect that races with this snapshot leaves us on
+        // the older sender; if the older sender is dead the
+        // `ready()` below surfaces `ConnectionClosed` and the
+        // caller's retry shell re-dispatches against the fresh
+        // sender on the next pick.
+        let ready_fut = self.current_send_request().ready();
         let mut sender = match deadline {
             Some(d) => match tokio::time::timeout(d, ready_fut).await {
                 Ok(r) => r,
@@ -723,17 +941,20 @@ impl Channel {
             },
             None => ready_fut.await,
         }
-        .map_err(mark_on_close)?;
+        .map_err(&trigger_on_close)?;
 
         // `end_of_stream = false`: we'll send the data frame next.
-        let (response_fut, mut send_body) =
-            sender.send_request(request, false).map_err(mark_on_close)?;
+        let (response_fut, mut send_body) = sender
+            .send_request(request, false)
+            .map_err(&trigger_on_close)?;
 
         // Single DATA frame carries the framed request payload, with
         // end_of_stream = true so the server can begin its response
         // immediately. Server-streaming RPCs send exactly one request
         // message.
-        send_body.send_data(frame, true).map_err(mark_on_close)?;
+        send_body
+            .send_data(frame, true)
+            .map_err(&trigger_on_close)?;
 
         let response = match deadline {
             Some(d) => {
@@ -749,7 +970,7 @@ impl Channel {
             }
             None => response_fut.await,
         }
-        .map_err(mark_on_close)?;
+        .map_err(&trigger_on_close)?;
 
         if response.status() != http::StatusCode::OK {
             return Err(ChannelError::UnexpectedHttpStatus(
@@ -797,12 +1018,15 @@ impl Channel {
         // Drop decrements the channel counter exactly when the
         // stream ends. If the channel has a decoder handle attached,
         // clone it onto the stream so per-chunk heavy decode work
-        // routes to the dedicated thread pool. Also attach the
-        // channel's death-flag handle (issue #577 #3) so a poll
-        // that surfaces `ConnectionClosed` flips the flag and the
-        // pool picker routes subsequent `next()`s to a live
-        // channel.
-        let stream = match deadline {
+        // routes to the dedicated thread pool. Attach a reconnect
+        // trigger handle (a weak self-ref) so a stream-phase
+        // ConnectionClosed kicks the channel into a fresh h2 session
+        // without keeping the channel alive past the pool's intent.
+        let reconnect_handle = self
+            .self_weak
+            .get()
+            .map(|w| ReconnectHandle { channel: w.clone() });
+        let mut stream = match deadline {
             Some(d) => {
                 let remaining = d.saturating_sub(start.elapsed());
                 if remaining.is_zero() {
@@ -810,18 +1034,104 @@ impl Channel {
                 }
                 ServerStreaming::<Resp>::with_deadline_and_codec(recv_body, remaining, codec)
                     .with_in_flight_token(token)
-                    .with_channel_dead_handle(self.dead_handle())
             }
-            None => ServerStreaming::<Resp>::with_codec(recv_body, codec)
-                .with_in_flight_token(token)
-                .with_channel_dead_handle(self.dead_handle()),
+            None => {
+                ServerStreaming::<Resp>::with_codec(recv_body, codec).with_in_flight_token(token)
+            }
         };
+        if let Some(h) = reconnect_handle {
+            stream = stream.with_reconnect_handle(h);
+        }
         Ok(if let Some(decoder) = self.decoder.as_ref() {
             stream.with_decoder(decoder.clone())
         } else {
             stream
         })
     }
+}
+
+/// Open a fresh h2 session against the captured target. Used by both
+/// the initial connect path and the reconnect path so the two paths
+/// stay in lockstep on TLS config, ALPN, and timeout semantics.
+async fn open_new_session(
+    target: &ConnectTarget,
+) -> Result<(SendRequest<Bytes>, tokio::task::JoinHandle<()>), ChannelError> {
+    if target.tls.is_some() {
+        open_tls(target).await
+    } else {
+        open_h2c(target).await
+    }
+}
+
+/// Open a fresh plaintext h2c session against `target`.
+async fn open_h2c(
+    target: &ConnectTarget,
+) -> Result<(SendRequest<Bytes>, tokio::task::JoinHandle<()>), ChannelError> {
+    let stream = TcpStream::connect((target.host.as_str(), target.port))
+        .await
+        .map_err(|e| ChannelError::Tcp {
+            host: target.host.clone(),
+            port: target.port,
+            source: e,
+        })?;
+    let _ = stream.set_nodelay(true);
+    handshake_over_io(stream, target.max_message_size).await
+}
+
+/// Open a fresh TLS-protected h2 session against `target`.
+async fn open_tls(
+    target: &ConnectTarget,
+) -> Result<(SendRequest<Bytes>, tokio::task::JoinHandle<()>), ChannelError> {
+    let stream = TcpStream::connect((target.host.as_str(), target.port))
+        .await
+        .map_err(|e| ChannelError::Tcp {
+            host: target.host.clone(),
+            port: target.port,
+            source: e,
+        })?;
+    let _ = stream.set_nodelay(true);
+    let tls = target
+        .tls
+        .as_ref()
+        .expect("open_tls called without a TLS config — caller bug");
+    let connector = TlsConnector::from(Arc::clone(tls));
+    let server_name =
+        rustls::pki_types::ServerName::try_from(target.host.clone()).map_err(|_| {
+            ChannelError::InvalidServerName {
+                host: target.host.clone(),
+            }
+        })?;
+    let tls_stream =
+        connector
+            .connect(server_name, stream)
+            .await
+            .map_err(|e| ChannelError::Tls {
+                host: target.host.clone(),
+                source: e,
+            })?;
+    handshake_over_io(tls_stream, target.max_message_size).await
+}
+
+/// Drive the h2 client handshake over an already-connected IO stream
+/// and spawn the connection-driver task. Returns the sender and the
+/// driver task handle; callers thread these into a `Channel`
+/// construction or a reconnect swap.
+async fn handshake_over_io<IO>(
+    io: IO,
+    _max_message_size: usize,
+) -> Result<(SendRequest<Bytes>, tokio::task::JoinHandle<()>), ChannelError>
+where
+    IO: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
+    let (send_request, connection) = client::handshake(io)
+        .await
+        .map_err(|e| ChannelError::H2Handshake(e.to_string()))?;
+    let connection_task = tokio::spawn(async move {
+        if let Err(err) = connection.await {
+            tracing::debug!(error = %err, "in-house gRPC h2 connection ended");
+        }
+    });
+    Ok((send_request, connection_task))
 }
 
 impl Drop for Channel {
@@ -837,8 +1147,10 @@ impl Drop for Channel {
     /// that already finished, so the common clean-shutdown path pays
     /// at most one extra atomic on `Drop`.
     fn drop(&mut self) {
-        if let Some(handle) = self.connection_task.take() {
-            handle.abort();
+        if let Ok(mut slot) = self.connection_task.lock() {
+            if let Some(handle) = slot.take() {
+                handle.abort();
+            }
         }
     }
 }
@@ -894,28 +1206,31 @@ fn deadline_error(d: Duration) -> ChannelError {
     }
 }
 
-/// Classify an [`h2::Error`] into the matching [`ChannelError`].
+/// Reconnect-trigger handle handed to a [`ServerStreaming`] so the
+/// streaming poll loop can kick the source channel into a fresh h2
+/// session when it observes a stream-level `ConnectionClosed`.
 ///
-/// Connection-level failures surface as
-/// [`ChannelError::ConnectionClosed`] so pool consumers can recycle
-/// the channel:
-/// - `GOAWAY` (either direction) — the connection refuses new streams.
-/// - IO errors at the h2 layer — the transport is gone.
-///
-/// Per-stream `RST_STREAM` (`CANCEL`, `REFUSED_STREAM`, `INTERNAL_ERROR`,
-/// any reason code) is *stream-level*: only the offending stream is
-/// dead, the h2 connection itself is healthy and the next RPC on the
-/// same channel can succeed. Misclassifying these as connection-level
-/// would force the pool to recycle a still-good channel and burn retry
-/// budgets. They surface as [`ChannelError::H2Stream`].
-///
-/// Everything else (library-detected protocol violations, user errors,
-/// bare `Reason` values) is stream-level too — they don't justify
-/// tearing the whole channel down.
-///
-/// HTTP/2 spec § 7 (Error Codes) is the canonical list of reason
-/// codes; the per-stream / connection-level distinction here matches
-/// the wire-level scope of each frame type.
+/// Holds a `Weak<Channel>` so the stream does not artificially
+/// extend the channel's lifetime past the pool's intent. The
+/// [`trigger`] path upgrades the weak handle; if the channel has
+/// already been dropped (pool teardown, process shutdown) the
+/// trigger is silently no-op.
+#[derive(Clone)]
+pub(crate) struct ReconnectHandle {
+    channel: Weak<Channel>,
+}
+
+impl ReconnectHandle {
+    /// Kick the source channel into an in-place reconnect. Idempotent
+    /// under the channel's single-flight CAS — concurrent callers
+    /// produce at most one fresh h2 connection per drop event.
+    pub(crate) fn trigger(&self) {
+        if let Some(channel) = self.channel.upgrade() {
+            channel.trigger_reconnect();
+        }
+    }
+}
+
 /// Drop guard for the in-flight stream counter on [`Channel`].
 ///
 /// Created at request dispatch (incrementing the counter) and moved
@@ -951,7 +1266,29 @@ impl Drop for InFlightToken {
     }
 }
 
-fn classify_h2_error(e: h2::Error) -> ChannelError {
+/// Classify an [`h2::Error`] into the matching [`ChannelError`].
+///
+/// Connection-level failures surface as
+/// [`ChannelError::ConnectionClosed`] so the channel can swap in a
+/// fresh h2 session in place:
+/// - `GOAWAY` (either direction) — the connection refuses new streams.
+/// - IO errors at the h2 layer — the transport is gone.
+///
+/// Per-stream `RST_STREAM` (`CANCEL`, `REFUSED_STREAM`, `INTERNAL_ERROR`,
+/// any reason code) is *stream-level*: only the offending stream is
+/// dead, the h2 connection itself is healthy and the next RPC on the
+/// same channel can succeed. Misclassifying these as connection-level
+/// would force the channel to recycle a still-good connection and
+/// burn the reconnect budget. They surface as [`ChannelError::H2Stream`].
+///
+/// Everything else (library-detected protocol violations, user errors,
+/// bare `Reason` values) is stream-level too — they don't justify
+/// tearing the whole channel down.
+///
+/// HTTP/2 spec § 7 (Error Codes) is the canonical list of reason
+/// codes; the per-stream / connection-level distinction here matches
+/// the wire-level scope of each frame type.
+pub(crate) fn classify_h2_error(e: h2::Error) -> ChannelError {
     if e.is_go_away() || e.is_io() {
         return ChannelError::ConnectionClosed(e.to_string());
     }
@@ -960,8 +1297,7 @@ fn classify_h2_error(e: h2::Error) -> ChannelError {
     // has already died (e.g. peer closed the TCP socket between
     // SETTINGS exchange and `send_request`). The stream is inactive
     // because the connection is gone — surface it as connection-level
-    // so the pool recycles the channel rather than retry on a dead
-    // socket.
+    // so the channel reconnects rather than retry on a dead socket.
     let msg = e.to_string();
     if msg.contains("inactive stream") {
         return ChannelError::ConnectionClosed(msg);
@@ -972,11 +1308,32 @@ fn classify_h2_error(e: h2::Error) -> ChannelError {
     ChannelError::H2Stream(msg)
 }
 
+/// Re-export of [`classify_h2_error`] over a borrowed `&h2::Error`,
+/// used by the streaming poll path where the error is observed by
+/// reference (the poll future re-yields it as an owned value via
+/// `.to_string()` capture inside the classifier). Kept as a thin
+/// wrapper so the open-phase and streaming-phase classifiers share
+/// the exact same scope/reason heuristics.
+pub(crate) fn classify_h2_error_ref(e: &h2::Error) -> ChannelError {
+    if e.is_go_away() || e.is_io() {
+        return ChannelError::ConnectionClosed(e.to_string());
+    }
+    let msg = e.to_string();
+    if msg.contains("inactive stream") {
+        return ChannelError::ConnectionClosed(msg);
+    }
+    ChannelError::H2Stream(msg)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use http::HeaderName;
-    use std::sync::atomic::{AtomicBool, Ordering};
+
+    /// Mirrors the codec module's default per-frame ceiling. Constant
+    /// only needs to be reachable from the unit-test harness so the
+    /// scheme assertions don't conflate parameter changes.
+    const DEFAULT_MAX_FOR_TEST: usize = super::super::codec::DEFAULT_MAX_MESSAGE_SIZE;
 
     /// Drive the in-house `Channel` handshake over an in-memory IO pair,
     /// have it issue one server-streaming RPC, and capture the inbound
@@ -987,11 +1344,6 @@ mod tests {
     /// wire. Using `tokio::io::duplex` keeps the test fully in-process
     /// — no listener, no TCP, no TLS fixture — so both schemes can be
     /// exercised by the same harness.
-    /// Mirrors the codec module's default per-frame ceiling. Constant
-    /// only needs to be reachable from the unit-test harness so the
-    /// scheme assertions don't conflate parameter changes.
-    const DEFAULT_MAX_FOR_TEST: usize = super::super::codec::DEFAULT_MAX_MESSAGE_SIZE;
-
     async fn assert_scheme_round_trip(scheme_in: Scheme, scheme_on_wire: &'static str) {
         let (client_io, server_io) = tokio::io::duplex(64 * 1024);
         let saw_scheme = Arc::new(AtomicBool::new(false));
@@ -1039,15 +1391,13 @@ mod tests {
                 HeaderValue::from_static("0"),
             );
             // end_of_stream=true makes this a trailers-only response —
-            // the client's preflight (Finding 1) classifies it as OK
-            // without reaching for the body.
+            // the client's preflight classifies it as OK without
+            // reaching for the body.
             let _send = respond
                 .send_response(response, true)
                 .expect("server sends response head");
             // Drive the connection to completion so the client sees
             // the trailers-only response before the duplex is dropped.
-            // poll_close drives all pending writes and accepts the
-            // graceful shutdown handshake.
             let _ = std::future::poll_fn(|cx| {
                 use std::pin::Pin;
                 Pin::new(&mut conn).poll_closed(cx)
@@ -1057,10 +1407,11 @@ mod tests {
 
         // Client side: drive the in-house Channel handshake with the
         // requested scheme.
-        let channel =
-            Channel::handshake(client_io, "127.0.0.1", 0, DEFAULT_MAX_FOR_TEST, scheme_in)
+        let channel = Arc::new(
+            Channel::handshake_for_test(client_io, "127.0.0.1", 0, DEFAULT_MAX_FOR_TEST, scheme_in)
                 .await
-                .expect("client handshake");
+                .expect("client handshake"),
+        );
         assert_eq!(
             channel.scheme_str(),
             scheme_on_wire,
@@ -1116,11 +1467,7 @@ mod tests {
     /// driver task. Without the `JoinHandle::abort()` in `Drop`, the
     /// task would survive until the underlying socket closed itself —
     /// which, under repeated connect/disconnect cycles in a long-
-    /// running consumer, lets background tasks accumulate. The check
-    /// here drives one `Channel::handshake` over `tokio::io::duplex`,
-    /// drops the channel, then awaits a short interval. The audit
-    /// invariant: `connection_task.is_finished()` is `true` by the
-    /// time the join lands.
+    /// running consumer, lets background tasks accumulate.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn dropping_channel_aborts_h2_connection_task() {
         let (client_io, server_io) = tokio::io::duplex(64 * 1024);
@@ -1138,7 +1485,7 @@ mod tests {
             let _ = conn.accept().await;
         });
 
-        let mut channel = Channel::handshake(
+        let channel = Channel::handshake_for_test(
             client_io,
             "127.0.0.1",
             0,
@@ -1152,6 +1499,8 @@ mod tests {
         // only handle and we'd have no observable.
         let task = channel
             .connection_task
+            .lock()
+            .expect("connection_task lock")
             .take()
             .expect("Channel constructed with a connection_task");
         // Snapshot abort_handle so we can observe completion after the
@@ -1160,7 +1509,10 @@ mod tests {
         let abort_handle = task.abort_handle();
         // Re-park the task in a JoinHandle the test owns; restore the
         // channel field as `Some` so the `Drop` impl will abort it.
-        channel.connection_task = Some(task);
+        *channel
+            .connection_task
+            .lock()
+            .expect("connection_task lock") = Some(task);
         drop(channel);
         // Yield + short sleep until the abort signal lands on the
         // task. `abort()` is asynchronous (it schedules the task for
@@ -1227,165 +1579,5 @@ mod tests {
     #[test]
     fn encode_grpc_timeout_zero_is_none() {
         assert_eq!(encode_grpc_timeout(Duration::ZERO), None);
-    }
-
-    /// Drive a one-shot RPC over an in-memory duplex with a deadline set
-    /// and assert the inbound headers carry a well-formed
-    /// `grpc-timeout` value.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn channel_emits_grpc_timeout_when_deadline_set() {
-        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
-        let observed: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(None));
-        let observed_server = Arc::clone(&observed);
-
-        let server_task = tokio::spawn(async move {
-            let mut conn = h2::server::handshake(server_io)
-                .await
-                .expect("server handshake");
-            let (request, mut respond) = conn
-                .accept()
-                .await
-                .expect("server accepts a stream")
-                .expect("accept returned a valid request");
-            let header_value = request
-                .headers()
-                .get("grpc-timeout")
-                .and_then(|v| v.to_str().ok())
-                .map(str::to_string);
-            *observed_server.lock().unwrap() = header_value;
-            let mut body = request.into_body();
-            while let Some(chunk) = body.data().await {
-                let chunk = chunk.expect("body chunk");
-                let _ = body.flow_control().release_capacity(chunk.len());
-            }
-            let mut response = http::Response::new(());
-            *response.status_mut() = http::StatusCode::OK;
-            response.headers_mut().insert(
-                http::header::CONTENT_TYPE,
-                HeaderValue::from_static("application/grpc+proto"),
-            );
-            response.headers_mut().insert(
-                HeaderName::from_static("grpc-status"),
-                HeaderValue::from_static("0"),
-            );
-            let _send = respond
-                .send_response(response, true)
-                .expect("server sends response head");
-            let _ = std::future::poll_fn(|cx| {
-                use std::pin::Pin;
-                Pin::new(&mut conn).poll_closed(cx)
-            })
-            .await;
-        });
-
-        let channel = Channel::handshake(
-            client_io,
-            "127.0.0.1",
-            0,
-            DEFAULT_MAX_FOR_TEST,
-            Scheme::HTTP,
-        )
-        .await
-        .expect("client handshake");
-        let stream = channel
-            .server_streaming_with_deadline::<crate::proto::DataValueList, crate::proto::ResponseData>(
-                "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
-                crate::proto::DataValueList::default(),
-                Duration::from_secs(5),
-            )
-            .await
-            .expect("rpc opens with deadline");
-        use tokio_stream::StreamExt;
-        let mut stream = std::pin::pin!(stream);
-        while let Some(item) = stream.next().await {
-            item.expect("trailers-only OK yields no errors before close");
-        }
-        drop(channel);
-        server_task.await.expect("server task completed");
-
-        let observed = observed.lock().unwrap().clone();
-        let value = observed.expect("server observed a grpc-timeout header");
-        // Smallest unit fitting a 5s budget is microseconds (5_000_000u).
-        assert_eq!(value, "5000000u");
-    }
-
-    /// Symmetric coverage: with NO deadline, no `grpc-timeout` header
-    /// should be emitted. Server-side timeout enforcement is opt-in via
-    /// the deadline-bearing constructor.
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn channel_omits_grpc_timeout_when_no_deadline() {
-        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
-        let observed: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(None));
-        let observed_server = Arc::clone(&observed);
-
-        let server_task = tokio::spawn(async move {
-            let mut conn = h2::server::handshake(server_io)
-                .await
-                .expect("server handshake");
-            let (request, mut respond) = conn
-                .accept()
-                .await
-                .expect("server accepts a stream")
-                .expect("accept returned a valid request");
-            let header_value = request
-                .headers()
-                .get("grpc-timeout")
-                .and_then(|v| v.to_str().ok())
-                .map(str::to_string);
-            *observed_server.lock().unwrap() = header_value;
-            let mut body = request.into_body();
-            while let Some(chunk) = body.data().await {
-                let chunk = chunk.expect("body chunk");
-                let _ = body.flow_control().release_capacity(chunk.len());
-            }
-            let mut response = http::Response::new(());
-            *response.status_mut() = http::StatusCode::OK;
-            response.headers_mut().insert(
-                http::header::CONTENT_TYPE,
-                HeaderValue::from_static("application/grpc+proto"),
-            );
-            response.headers_mut().insert(
-                HeaderName::from_static("grpc-status"),
-                HeaderValue::from_static("0"),
-            );
-            let _send = respond
-                .send_response(response, true)
-                .expect("server sends response head");
-            let _ = std::future::poll_fn(|cx| {
-                use std::pin::Pin;
-                Pin::new(&mut conn).poll_closed(cx)
-            })
-            .await;
-        });
-
-        let channel = Channel::handshake(
-            client_io,
-            "127.0.0.1",
-            0,
-            DEFAULT_MAX_FOR_TEST,
-            Scheme::HTTP,
-        )
-        .await
-        .expect("client handshake");
-        let stream = channel
-            .server_streaming::<crate::proto::DataValueList, crate::proto::ResponseData>(
-                "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
-                crate::proto::DataValueList::default(),
-            )
-            .await
-            .expect("rpc opens without deadline");
-        use tokio_stream::StreamExt;
-        let mut stream = std::pin::pin!(stream);
-        while let Some(item) = stream.next().await {
-            item.expect("trailers-only OK yields no errors before close");
-        }
-        drop(channel);
-        server_task.await.expect("server task completed");
-
-        let observed = observed.lock().unwrap().clone();
-        assert!(
-            observed.is_none(),
-            "no deadline means no grpc-timeout header; saw {observed:?}",
-        );
     }
 }

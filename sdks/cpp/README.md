@@ -6,7 +6,7 @@ Every call crosses the C ABI boundary into compiled Rust: gRPC communication, pr
 
 > **Surface coverage:** the C++ binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `unified.flat_files().*()` with `.to_arrow_ipc()` terminals plus a `flat_files().to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
 >
-> **REST fallback (issue #571 mitigation):** `tdx::FallbackPolicy` + `Config::withRestFallback` + four `Client::optionHistory*WithFallback` methods route 2022-era options' h2-cascading quote endpoints over the local Terminal's REST surface. See [legacy quote handling](../../docs-site/docs/legacy-quote-handling.md) for the four policy variants and per-binding examples.
+> **REST routing escape hatch:** `tdx::FallbackPolicy::restAlways` + `Config::withRestFallback` + four `Client::optionHistory*WithFallback` methods route the historical-quote endpoints over a locally-running Terminal's REST surface when the caller wants a single transport for every quote-bearing call. See [channel pool design](../../docs-site/docs/channel-pool-design.md) for the connection-recovery story.
 
 ## Prerequisites
 

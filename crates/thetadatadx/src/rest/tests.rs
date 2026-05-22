@@ -2,17 +2,18 @@
 //!
 //! The decoders are pure functions over a CSV body, so a real
 //! HTTP server is not required for the contract under test. The
-//! integration test that drives the live patched Terminal lives in
+//! integration test that drives a live local Terminal lives in
 //! `tests/test_rest_live.rs` behind `#[ignore]` + the
-//! `THETADX_LIVE_PATCHED_TERMINAL` env gate.
+//! `THETADX_LIVE_LOCAL_TERMINAL` env gate.
 
 use super::client::{
     decode_greeks_first_order_csv, decode_iv_csv, decode_quote_csv, decode_trade_quote_csv,
 };
 
-/// The patched Terminal serves legacy 2022-era NBBO rows in the
-/// 6-field CSV layout. `decode_quote_csv` must accept it and
-/// zero-fill the absent exchange / condition columns.
+/// Defense-in-depth: `decode_quote_csv` must accept a 6-field NBBO
+/// subset layout and zero-fill the absent exchange / condition
+/// columns, matching the gRPC decoder's
+/// `opt_number(row, None) -> 0` contract.
 #[test]
 fn decode_quote_csv_handles_legacy_six_field_layout() {
     let body = "\

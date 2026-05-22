@@ -198,14 +198,15 @@ pub(crate) async fn fetch_csv(
 //
 // Each decoder mirrors the gRPC `parse_<tick>_ticks` function: resolve
 // every column index up front, then iterate rows. Absent columns
-// zero-fill via `cell_i32_or_zero` / `cell_f64_or_zero` -- this is
-// the contract that makes the REST path immune to issue #571.
+// zero-fill via `cell_i32_or_zero` / `cell_f64_or_zero` for
+// defense-in-depth against subset NBBO layouts the upstream may
+// emit for older storage tiers.
 
 /// Decode the `option_history_quote` CSV body into `Vec<QuoteTick>`.
 ///
-/// Accepts both 11-field and legacy 6-field header layouts; absent
-/// columns default to 0 per the patched-Terminal `normalizeData()`
-/// upcast contract.
+/// Accepts both the full 11-field and the 6-field subset header
+/// layouts; absent columns default to 0, mirroring the gRPC
+/// decoder's `opt_number(row, None) -> 0` contract.
 ///
 /// # Errors
 ///

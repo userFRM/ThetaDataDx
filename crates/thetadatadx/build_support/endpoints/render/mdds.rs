@@ -105,8 +105,7 @@ exceeds [`crate::config::MddsConfig::warn_on_buffered_threshold_bytes`]\n\
 (default 100 MiB), a single `tracing::warn!` event fires with\n\
 `endpoint`, `row_count`, and `bytes_est` fields.\n\
 \n\
-See [`docs-site/docs/legacy-quote-handling.md`](https://github.com/userFRM/ThetaDataDx/blob/main/docs-site/docs/legacy-quote-handling.md)\n\
-for the full migration rationale.\n";
+";
 
 pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     writeln!(out, "parsed_endpoint! {{").unwrap();

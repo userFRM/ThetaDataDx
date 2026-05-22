@@ -1,5 +1,4 @@
-//! REST fallback policy + the four `_with_fallback` C ABI shims for
-//! issue #571 mitigation.
+//! REST-routing policy + `_with_fallback` C ABI shims.
 //!
 //! Mirrors the Python `FallbackPolicy` pyclass + `option_history_*_with_fallback`
 //! methods one-for-one, exposing the same surface to any C/C++/Go/etc.
@@ -8,8 +7,8 @@
 //! # Memory model
 //!
 //! - [`TdxFallbackPolicy`] is an opaque heap-allocated handle. The
-//!   factories (`tdx_fallback_policy_disabled`, ...) return ownership
-//!   to the caller; the caller MUST eventually call
+//!   factories (`tdx_fallback_policy_disabled`, `_rest_always`) return
+//!   ownership to the caller; the caller MUST eventually call
 //!   `tdx_fallback_policy_free`.
 //! - `tdx_config_with_rest_fallback` borrows the policy (reads its
 //!   inner enum + clones it onto the `TdxConfig`); the caller still
@@ -34,8 +33,7 @@ use crate::types::{
 /// Opaque REST-fallback policy handle.
 ///
 /// Wraps [`thetadatadx::config::FallbackPolicy`]. Construct via one of
-/// the four factory functions (`tdx_fallback_policy_disabled`,
-/// `_rest_on_h2_disconnect`, `_rest_always_for_date_range`,
+/// the two factory functions (`tdx_fallback_policy_disabled`,
 /// `_rest_always`), install on a `TdxConfig` via
 /// `tdx_config_with_rest_fallback`, and free with
 /// `tdx_fallback_policy_free`.
@@ -46,9 +44,9 @@ pub struct TdxFallbackPolicy {
 // ── Factories ────────────────────────────────────────────────────────
 
 /// Construct a [`config::FallbackPolicy::Disabled`] policy. REST
-/// fallback is off -- every affected endpoint goes over gRPC
-/// regardless of failure mode. Default state; identical to constructing
-/// a `TdxConfig` without calling `tdx_config_with_rest_fallback`.
+/// routing is off — every historical-quote endpoint goes over gRPC.
+/// Default state; identical to constructing a `TdxConfig` without
+/// calling `tdx_config_with_rest_fallback`.
 #[no_mangle]
 pub extern "C" fn tdx_fallback_policy_disabled() -> *mut TdxFallbackPolicy {
     ffi_boundary!(ptr::null_mut(), {
@@ -58,77 +56,10 @@ pub extern "C" fn tdx_fallback_policy_disabled() -> *mut TdxFallbackPolicy {
     })
 }
 
-/// Construct a [`config::FallbackPolicy::RestOnH2Disconnect`] policy.
-/// Falls back to REST only after gRPC returns the
-/// `TransportErrorKind::ConnectionClosed` signature (the issue #571 h2
-/// cascade). Cheaper than the always-REST variants for workloads where
-/// the gRPC path is the fast common case; pays one failed gRPC round
-/// trip per affected request.
-///
-/// `base_url` must be a NUL-terminated C string (e.g.
-/// `"http://127.0.0.1:25503"`). Returns null on invalid UTF-8.
-#[no_mangle]
-pub unsafe extern "C" fn tdx_fallback_policy_rest_on_h2_disconnect(
-    base_url: *const c_char,
-) -> *mut TdxFallbackPolicy {
-    ffi_boundary!(ptr::null_mut(), {
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let base_url = match unsafe { cstr_to_str(base_url) } {
-            Ok(Some(s)) => s.to_string(),
-            Ok(None) => {
-                set_error("base_url is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("base_url is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
-        Box::into_raw(Box::new(TdxFallbackPolicy {
-            inner: config::FallbackPolicy::RestOnH2Disconnect { base_url },
-        }))
-    })
-}
-
-/// Construct a [`config::FallbackPolicy::RestAlwaysForDateRange`]
-/// policy. Routes every request whose `start_date` is strictly before
-/// `before` (`YYYYMMDD` integer) directly to REST without trying gRPC
-/// first; requests on or after `before` flow through gRPC.
-///
-/// Use when the caller knows the symbol / date range is squarely
-/// inside the 2022-era legacy-row window -- saves the failed round-trip
-/// cost on every call.
-#[no_mangle]
-pub unsafe extern "C" fn tdx_fallback_policy_rest_always_for_date_range(
-    base_url: *const c_char,
-    before_yyyymmdd: i32,
-) -> *mut TdxFallbackPolicy {
-    ffi_boundary!(ptr::null_mut(), {
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let base_url = match unsafe { cstr_to_str(base_url) } {
-            Ok(Some(s)) => s.to_string(),
-            Ok(None) => {
-                set_error("base_url is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("base_url is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
-        Box::into_raw(Box::new(TdxFallbackPolicy {
-            inner: config::FallbackPolicy::RestAlwaysForDateRange {
-                base_url,
-                before: before_yyyymmdd,
-            },
-        }))
-    })
-}
-
 /// Construct a [`config::FallbackPolicy::RestAlways`] policy. Always
-/// routes the four affected endpoints over REST regardless of the
-/// requested date range. Use when the caller wants a single transport
-/// for every quote-bearing call.
+/// routes the four historical-quote endpoints over REST regardless of
+/// the requested date range. Use when the caller wants a single
+/// transport for every quote-bearing call.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_fallback_policy_rest_always(
     base_url: *const c_char,
@@ -166,7 +97,7 @@ pub unsafe extern "C" fn tdx_fallback_policy_free(policy: *mut TdxFallbackPolicy
 
 // ── Config integration ───────────────────────────────────────────────
 
-/// Install a REST-fallback policy on a [`TdxConfig`].
+/// Install a REST-routing policy on a [`TdxConfig`].
 ///
 /// Subsequent calls to `tdx_option_history_*_with_fallback` against any
 /// client built from this config will consult the policy.
@@ -202,11 +133,10 @@ pub unsafe extern "C" fn tdx_config_with_rest_fallback(
 
 // ── _with_fallback historical endpoint shims ─────────────────────────
 //
-// One per affected endpoint. The signature shape mirrors the Rust core
-// method (`option_history_*_with_fallback`) with each `Option<&str>`
-// represented as a nullable `*const c_char` -- pass `NULL` to omit the
-// arg. Date strings are required (non-null) because the policy needs
-// `start_date` to make the pre-route decision.
+// One per historical-quote endpoint. The signature shape mirrors the
+// Rust core method (`option_history_*_with_fallback`) with each
+// `Option<&str>` represented as a nullable `*const c_char` -- pass
+// `NULL` to omit the arg.
 
 /// Validate a required `*const c_char` arg, set `tdx_last_error` on
 /// null / invalid UTF-8, and short-circuit the enclosing fn with the
@@ -245,7 +175,7 @@ macro_rules! optional_str {
     }};
 }
 
-/// Fetch option NBBO history with REST fallback per the configured
+/// Fetch option NBBO history per the configured
 /// [`config::FallbackPolicy`] on the client's `TdxConfig`. See
 /// [`thetadatadx::mdds::MddsClient::option_history_quote_with_fallback`]
 /// for the dispatch semantics.
@@ -319,8 +249,8 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_fallback(
     )
 }
 
-/// Fetch combined trade+quote history with REST fallback per the
-/// configured [`config::FallbackPolicy`]. See
+/// Fetch combined trade+quote history per the configured
+/// [`config::FallbackPolicy`]. See
 /// [`thetadatadx::mdds::MddsClient::option_history_trade_quote_with_fallback`].
 ///
 /// `symbol`, `expiration`, `start_date` are required. `end_date`,
@@ -389,8 +319,8 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_fallback(
     )
 }
 
-/// Fetch implied-volatility history with REST fallback per the
-/// configured [`config::FallbackPolicy`]. See
+/// Fetch implied-volatility history per the configured
+/// [`config::FallbackPolicy`]. See
 /// [`thetadatadx::mdds::MddsClient::option_history_greeks_implied_volatility_with_fallback`].
 ///
 /// `symbol`, `expiration`, `start_date` are required. `end_date`,
@@ -462,8 +392,8 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_fallb
     )
 }
 
-/// Fetch first-order Greeks history with REST fallback per the
-/// configured [`config::FallbackPolicy`]. See
+/// Fetch first-order Greeks history per the configured
+/// [`config::FallbackPolicy`]. See
 /// [`thetadatadx::mdds::MddsClient::option_history_greeks_first_order_with_fallback`].
 ///
 /// `symbol`, `expiration`, `start_date` are required. `end_date`,
@@ -547,44 +477,6 @@ mod tests {
         // SAFETY: policy was just allocated above.
         let inner = unsafe { &(*policy).inner };
         assert!(matches!(inner, config::FallbackPolicy::Disabled));
-        // SAFETY: policy was just allocated above.
-        unsafe { tdx_fallback_policy_free(policy) };
-    }
-
-    #[test]
-    fn rest_on_h2_disconnect_carries_base_url() {
-        let url = CString::new("http://127.0.0.1:25503").unwrap();
-        // SAFETY: url is a valid NUL-terminated C string.
-        let policy = unsafe { tdx_fallback_policy_rest_on_h2_disconnect(url.as_ptr()) };
-        assert!(!policy.is_null());
-        // SAFETY: policy was just allocated above.
-        let inner = unsafe { &(*policy).inner };
-        match inner {
-            config::FallbackPolicy::RestOnH2Disconnect { base_url } => {
-                assert_eq!(base_url, "http://127.0.0.1:25503");
-            }
-            other => panic!("expected RestOnH2Disconnect, got {other:?}"),
-        }
-        // SAFETY: policy was just allocated above.
-        unsafe { tdx_fallback_policy_free(policy) };
-    }
-
-    #[test]
-    fn rest_always_for_date_range_carries_before_cutoff() {
-        let url = CString::new("http://127.0.0.1:25503").unwrap();
-        // SAFETY: url is a valid NUL-terminated C string.
-        let policy =
-            unsafe { tdx_fallback_policy_rest_always_for_date_range(url.as_ptr(), 20_230_101) };
-        assert!(!policy.is_null());
-        // SAFETY: policy was just allocated above.
-        let inner = unsafe { &(*policy).inner };
-        match inner {
-            config::FallbackPolicy::RestAlwaysForDateRange { base_url, before } => {
-                assert_eq!(base_url, "http://127.0.0.1:25503");
-                assert_eq!(*before, 20_230_101);
-            }
-            other => panic!("expected RestAlwaysForDateRange, got {other:?}"),
-        }
         // SAFETY: policy was just allocated above.
         unsafe { tdx_fallback_policy_free(policy) };
     }

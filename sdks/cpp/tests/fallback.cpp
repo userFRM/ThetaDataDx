@@ -1,10 +1,9 @@
-// REST-fallback policy + Config integration tests.
+// REST-routing policy + Config integration tests.
 //
-// Offline tests pin the four factory functions, the move-only semantics,
+// Offline tests pin the two factory functions, the move-only semantics,
 // and the Config::withRestFallback wiring. The live half drives an
-// end-to-end call against the patched local Terminal; gated on
-// `THETADX_LIVE_CREDS` pointing at a creds.txt file -- mirrors the
-// gate used by the Python `test_rest_fallback.py::*_live` cases.
+// end-to-end call against a locally-running Terminal; gated on
+// `THETADX_LIVE_CREDS` pointing at a creds.txt file.
 
 #include <cstdlib>
 #include <string>
@@ -25,17 +24,6 @@ std::string env_or_empty(const char* key) {
 
 TEST_CASE("FallbackPolicy::disabled constructs a valid handle", "[fallback][offline]") {
     auto policy = tdx::FallbackPolicy::disabled();
-    REQUIRE(policy.get() != nullptr);
-}
-
-TEST_CASE("FallbackPolicy::restOnH2Disconnect round-trips the base URL", "[fallback][offline]") {
-    auto policy = tdx::FallbackPolicy::restOnH2Disconnect("http://127.0.0.1:25503");
-    REQUIRE(policy.get() != nullptr);
-}
-
-TEST_CASE("FallbackPolicy::restAlwaysForDateRange round-trips both args", "[fallback][offline]") {
-    auto policy = tdx::FallbackPolicy::restAlwaysForDateRange(
-        "http://127.0.0.1:25503", 20230101);
     REQUIRE(policy.get() != nullptr);
 }
 
@@ -65,10 +53,6 @@ TEST_CASE("Config::withRestFallback accepts each variant", "[fallback][offline]"
 
     REQUIRE_NOTHROW(config.withRestFallback(tdx::FallbackPolicy::disabled()));
     REQUIRE_NOTHROW(config.withRestFallback(
-        tdx::FallbackPolicy::restOnH2Disconnect("http://127.0.0.1:25503")));
-    REQUIRE_NOTHROW(config.withRestFallback(
-        tdx::FallbackPolicy::restAlwaysForDateRange("http://127.0.0.1:25503", 20230101)));
-    REQUIRE_NOTHROW(config.withRestFallback(
         tdx::FallbackPolicy::restAlways("http://127.0.0.1:25503")));
 }
 
@@ -84,26 +68,25 @@ TEST_CASE("Config::withRestFallback survives policy destruction (snapshot semant
     REQUIRE_NOTHROW(config.withRestFallback(tdx::FallbackPolicy::disabled()));
 }
 
-TEST_CASE("Client::optionHistoryQuoteWithFallback round-trips against patched Terminal",
+TEST_CASE("Client::optionHistoryQuoteWithFallback routes RestAlways through REST",
           "[fallback][live]") {
     const auto creds_path = env_or_empty("THETADX_LIVE_CREDS");
     if (creds_path.empty()) {
         SKIP("THETADX_LIVE_CREDS not set");
     }
-    if (env_or_empty("THETADX_LIVE_PATCHED_TERMINAL").empty()) {
-        SKIP("THETADX_LIVE_PATCHED_TERMINAL not set");
+    if (env_or_empty("THETADX_LIVE_LOCAL_TERMINAL").empty()) {
+        SKIP("THETADX_LIVE_LOCAL_TERMINAL not set");
     }
     auto creds = tdx::Credentials::from_file(creds_path);
     auto config = tdx::Config::production();
     config.withRestFallback(tdx::FallbackPolicy::restAlways("http://127.0.0.1:25503"));
     auto client = tdx::Client::connect(creds, config);
 
-    // 2022-era QQQ row -- the issue #571 cascade window. With
-    // RestAlways the call should round-trip via REST regardless.
+    // RestAlways unconditionally routes through the local Terminal's REST
+    // surface. An empty result is a legal "no ticks" outcome for the
+    // chosen contract -- the test only asserts the call doesn't throw.
     auto ticks = client.optionHistoryQuoteWithFallback(
-        "QQQ", "20220422", "20220414", /*end_date=*/{}, /*strike=*/"305",
-        /*right=*/"P", /*interval=*/"60000");
-    // Empty result is a legal "no ticks" outcome -- the patch just
-    // ensures the call doesn't throw on the affected rows.
+        "QQQ", "20240605", "20240604", /*end_date=*/{}, /*strike=*/"440",
+        /*right=*/"C", /*interval=*/"60000");
     (void)ticks;
 }

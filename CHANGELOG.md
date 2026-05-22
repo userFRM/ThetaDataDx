@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `crate::grpc::pool::ChannelPool` now reconnects channels on
+  `ConnectionClosed` in-place rather than marking them permanently
+  dead. Long-running clients no longer cascade after sustained load:
+  every transport-level fault (`GOAWAY`, IO failure, peer shutdown,
+  open-phase drop) triggers a single-flight reconnect of the
+  channel's inner `SendRequest<Bytes>` with bounded exponential
+  backoff (50 ms initial, 30 s cap, 8 attempts). The caller's retry
+  shell re-dispatches once and observes the fresh sender on the
+  next pool pick. Fixes the real root cause behind #571 / #577 /
+  #589 — the prior investigation pin
+  (`docs-site/docs/legacy-quote-577-investigation.md`)
+  misattributed the cascade to a server-side schema variant; the
+  actual cause was the SDK's own dead-channel mechanism introduced
+  in #578 with no recycling counterpart.
+
+### Removed
+
+- `Channel::is_dead`, `Channel::mark_dead`, `Channel::dead_handle`,
+  `ChannelPool::all_dead`, `ChannelPool::dead_count` — replaced by
+  in-place reconnect (see Changed above). The `ChannelLease`
+  picker no longer scans for "live" channels separately; every
+  channel in the pool stays a valid pick because the channel
+  itself swaps its inner h2 session on observed faults.
+- `ChannelError::UpstreamCascade` — folded into the existing
+  `ChannelError::ConnectionClosed` variant. The mid-stream
+  classifier (`classify_h2_error_mid_stream`) is gone; the
+  open-phase classifier (`classify_h2_error`) covers both phases
+  via the new `classify_h2_error_ref` thin wrapper.
+- `FallbackPolicy::RestOnH2Disconnect` and
+  `FallbackPolicy::RestAlwaysForDateRange` — both variants were
+  built around a misdiagnosed cascade and never actually helped.
+  `FallbackPolicy::RestAlways` is retained as the user-facing
+  escape hatch for callers who want every historical-quote call
+  routed over a locally-running Terminal's REST surface.
+- `_with_fallback` per-endpoint shims (Python / TypeScript /
+  C++ / FFI) tied to the deleted variants. The four remaining
+  `option_history_*_with_fallback` methods dispatch on
+  `FallbackPolicy::RestAlways` vs `Disabled` only.
+- `docs-site/docs/legacy-quote-577-investigation.md`,
+  `docs-site/docs/legacy-quote-handling.md` — both documented the
+  wrong root cause. Replaced by
+  `docs-site/docs/channel-pool-design.md`, which honestly
+  describes the in-place reconnect contract and pins the
+  correction so the next contributor doesn't repeat the search.
+- `crates/thetadatadx/tests/test_577_2020_onward.rs` — built on
+  the wrong premise. Replaced by
+  `crates/thetadatadx/tests/test_pool_reconnect.rs`, which pins
+  the single-flight CAS, the lifecycle observer events, and the
+  classifier-triggered reconnect spawn.
+
+### Retained
+
+- The lenient 6-/11-/12-field NBBO decoder added in #573 is
+  **kept** as defense-in-depth. `find_header` + `opt_number(row, None) -> 0`
+  is good API design regardless of cause; a subset NBBO layout
+  could surface from any upstream storage tier in the future. The
+  doc-comment attribution to "issue #571" / "patched terminal
+  `normalizeData()`" is stripped — the test name
+  `quote_tick_decodes_legacy_six_field_shape_with_zero_fill`
+  remains as a regression pin.
+- The REST transport (`crate::rest`) is **kept** as the
+  user-facing alternative transport reachable via
+  `FallbackPolicy::RestAlways`.
+
 ### Added
 
 - MDDS pool-sizing surface on every binding (closes #584). Three

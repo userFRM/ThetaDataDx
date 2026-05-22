@@ -3,14 +3,27 @@
 //! A single h2 connection multiplexes many concurrent streams, but
 //! `MAX_CONCURRENT_STREAMS` is finite (the default upstream cap is
 //! `~100`). [`ChannelPool`] keeps `N` parallel channels and hands them
-//! out round-robin via [`ChannelPool::next`], so a workload that
-//! exceeds the per-connection limit fans out across distinct h2
-//! connections rather than blocking on stream availability.
+//! out via [`ChannelPool::next`], picking the channel with the fewest
+//! in-flight streams so a workload that exceeds the per-connection
+//! limit fans out across distinct h2 connections rather than blocking
+//! on stream availability.
 //!
 //! The pool is `Arc`-clone-cheap and `Send + Sync`; callers can clone
 //! it freely across tasks. Each [`ChannelPool::next`] returns a
 //! reference into the pool — the underlying [`Channel`] is owned by
-//! the pool and lives as long as the pool does.
+//! the pool as an `Arc<Channel>` and lives as long as the pool does.
+//!
+//! # Reconnect, in place
+//!
+//! When an RPC dispatched through a pool channel observes
+//! [`super::ChannelError::ConnectionClosed`], the channel itself
+//! triggers a single-flight in-place reconnect (see
+//! [`super::Channel::trigger_reconnect`]). The pool slot does NOT
+//! get marked dead, replaced, or skipped — the same `Arc<Channel>`
+//! handle the picker returned remains valid; only the inner
+//! `SendRequest<Bytes>` swaps to a fresh h2 session in the background.
+//! The next RPC dispatched through the channel picks up the new
+//! sender transparently.
 
 use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -30,7 +43,7 @@ pub struct ChannelPool {
 }
 
 struct PoolInner {
-    channels: Vec<Channel>,
+    channels: Vec<Arc<Channel>>,
     /// Round-robin cursor. Wraps at `usize::MAX` — the modulo by
     /// `channels.len()` makes the wraparound transparent to callers.
     cursor: AtomicUsize,
@@ -67,6 +80,17 @@ impl ChannelPool {
             !channels.is_empty(),
             "ChannelPool must hold at least one Channel"
         );
+        let channels: Vec<Arc<Channel>> = channels
+            .into_iter()
+            .map(|c| {
+                let arc = Arc::new(c);
+                // Install the weak self-reference so the channel's
+                // reconnect path can upgrade to an `Arc<Channel>` and
+                // spawn a `'static` reconnect future.
+                arc.install_self_weak(Arc::downgrade(&arc));
+                arc
+            })
+            .collect();
         Self {
             inner: Arc::new(PoolInner {
                 channels,
@@ -97,10 +121,14 @@ impl ChannelPool {
             !channels.is_empty(),
             "ChannelPool must hold at least one Channel"
         );
-        let channels = channels
+        let channels: Vec<Arc<Channel>> = channels
             .into_iter()
             .enumerate()
-            .map(|(idx, ch)| ch.with_decoder(decoder_pool.handle(idx).clone()))
+            .map(|(idx, ch)| {
+                let arc = Arc::new(ch.with_decoder(decoder_pool.handle(idx).clone()));
+                arc.install_self_weak(Arc::downgrade(&arc));
+                arc
+            })
             .collect();
         Self {
             inner: Arc::new(PoolInner {
@@ -130,7 +158,7 @@ impl ChannelPool {
     /// around it).
     #[doc(hidden)]
     #[must_use]
-    pub fn member_for_test(&self, idx: usize) -> &Channel {
+    pub fn member_for_test(&self, idx: usize) -> &Arc<Channel> {
         &self.inner.channels[idx]
     }
 
@@ -144,9 +172,8 @@ impl ChannelPool {
     /// of-line blocking that occurs when a `join_all` batch of
     /// `pool.next()` calls all evaluate before any of the
     /// returned channels' async dispatch increments land. The
-    /// lease derefs to `&Channel` so the existing dispatch shape
-    /// (`pool.next().server_streaming(...).await`) keeps working
-    /// unchanged.
+    /// lease derefs to `&Arc<Channel>` so existing dispatch shapes
+    /// keep working unchanged.
     ///
     /// Picks the channel with the fewest in-flight streams,
     /// breaking ties via the round-robin cursor. This avoids the
@@ -180,64 +207,39 @@ impl ChannelPool {
         // channel is the only choice regardless of saturation.
         if len == 1 {
             let channel = &self.inner.channels[0];
+            let token = channel.reserve_in_flight();
             return ChannelLease {
                 channel,
-                _token: channel.reserve_in_flight(),
+                _token: token,
             };
         }
 
-        // CAS-retry pick: scan for the least-loaded LIVE channel,
-        // then commit the reservation only if the channel is still
-        // at the observed count. Under true concurrency two tasks
-        // may both scan and both pick the same least-loaded
-        // channel; the commit guard ensures the loser rolls back
-        // its speculative increment and re-scans rather than
-        // pinning to a now-saturated channel.
-        //
-        // Dead-channel routing (issue #577 #3): channels that have
-        // observed `ChannelError::ConnectionClosed` are skipped
-        // during the live scan. If ALL channels are dead the picker
-        // falls through to the dead pool so the RPC can still
-        // surface its terminal error -- the alternative (block on
-        // pool death) would mask the underlying problem.
+        // CAS-retry pick: scan for the least-loaded channel, then
+        // commit the reservation only if the channel is still at the
+        // observed count. Under true concurrency two tasks may both
+        // scan and both pick the same least-loaded channel; the
+        // commit guard ensures the loser rolls back its speculative
+        // increment and re-scans rather than pinning to a now-
+        // saturated channel.
         //
         // Bounded retries: PICK_RETRY caps live-lock under heavy
         // contention. On exhaustion we fall back to a round-robin
-        // pick that always commits -- the load-balancing hint is
+        // pick that always commits — the load-balancing hint is
         // degraded but the dispatch is never lost.
         const PICK_RETRY: usize = 4;
         for _ in 0..PICK_RETRY {
-            // First pass: scan only LIVE channels for the
-            // least-loaded one.
-            let mut best_idx: Option<usize> = None;
-            let mut best_count: usize = usize::MAX;
-            for offset in 0..len {
+            let mut best_idx: usize = cursor % len;
+            let mut best_count: usize = self.inner.channels[best_idx].in_flight_count();
+            for offset in 1..len {
                 let idx = (cursor.wrapping_add(offset)) % len;
-                let ch = &self.inner.channels[idx];
-                if ch.is_dead() {
-                    continue;
-                }
-                let count = ch.in_flight_count();
-                if best_idx.is_none() || count < best_count {
-                    best_idx = Some(idx);
+                let count = self.inner.channels[idx].in_flight_count();
+                if count < best_count {
+                    best_idx = idx;
                     best_count = count;
                 }
             }
-            // No live channel left -- last-resort: route to a dead
-            // channel so the caller observes the terminal error
-            // and can recycle the pool. The alternative (block)
-            // would hide the root cause behind a hang.
-            let pick_idx = best_idx.unwrap_or(cursor % len);
-            let channel = &self.inner.channels[pick_idx];
-            // `best_count` is `usize::MAX` when we degraded to
-            // dead-channel routing -- ignore the load barrier in
-            // that case so the CAS commit cannot bounce.
-            let load_barrier = if best_idx.is_some() {
-                best_count
-            } else {
-                usize::MAX
-            };
-            match channel.try_reserve_in_flight(load_barrier) {
+            let channel = &self.inner.channels[best_idx];
+            match channel.try_reserve_in_flight(best_count) {
                 Ok(token) => {
                     return ChannelLease {
                         channel,
@@ -245,7 +247,7 @@ impl ChannelPool {
                     };
                 }
                 Err(_actual_prior) => {
-                    // Lost the race -- another task committed a
+                    // Lost the race — another task committed a
                     // reservation between our scan and our commit.
                     // Loop body re-scans with a fresh snapshot.
                     continue;
@@ -263,29 +265,6 @@ impl ChannelPool {
             _token: channel.reserve_in_flight(),
         }
     }
-
-    /// Whether every channel in the pool has been marked dead. Used
-    /// by the channel-recycling path on `MddsClient` to decide
-    /// whether to rebuild the pool atomically -- a partial pool
-    /// (one or two dead channels in a pool of four) is left to the
-    /// picker, which routes around the dead members. A fully-dead
-    /// pool needs explicit reconstruction.
-    #[must_use]
-    pub fn all_dead(&self) -> bool {
-        self.inner
-            .channels
-            .iter()
-            .all(crate::grpc::Channel::is_dead)
-    }
-
-    /// Number of channels currently marked dead in the pool. Exposed
-    /// so the diagnostic surface on `MddsClient` can report the
-    /// current health without scanning each member individually.
-    #[doc(hidden)]
-    #[must_use]
-    pub fn dead_count(&self) -> usize {
-        self.inner.channels.iter().filter(|c| c.is_dead()).count()
-    }
 }
 
 /// Pre-dispatch reservation on a pooled [`Channel`].
@@ -296,7 +275,7 @@ impl ChannelPool {
 /// returned dispatch futures will only run later — still sees the
 /// prior reservations and routes around the loaded channels.
 ///
-/// Derefs to `&Channel` so the existing
+/// Derefs to `&Arc<Channel>` so the existing
 /// `pool.next().server_streaming(...).await` shape continues to
 /// compile unchanged. Hold the lease at least as long as the
 /// dispatch future you build from it — the lease's drop is what
@@ -306,12 +285,12 @@ impl ChannelPool {
 /// the RPC lifetime, so dropping the lease after that point is the
 /// correct shape.
 pub struct ChannelLease<'a> {
-    channel: &'a Channel,
+    channel: &'a Arc<Channel>,
     _token: InFlightToken,
 }
 
 impl<'a> Deref for ChannelLease<'a> {
-    type Target = Channel;
+    type Target = Arc<Channel>;
 
     fn deref(&self) -> &Self::Target {
         self.channel
@@ -319,12 +298,12 @@ impl<'a> Deref for ChannelLease<'a> {
 }
 
 impl<'a> ChannelLease<'a> {
-    /// Borrow the underlying channel reference. The lease will hold
+    /// Borrow the underlying channel handle. The lease will hold
     /// the reservation alive for the rest of the temporary scope;
-    /// callers that need to thread `&Channel` into a longer-lived
+    /// callers that need to thread `&Arc<Channel>` into a longer-lived
     /// future should keep the lease bound to a local `let`.
     #[must_use]
-    pub fn channel(&self) -> &Channel {
+    pub fn channel(&self) -> &Arc<Channel> {
         self.channel
     }
 }
@@ -457,128 +436,5 @@ mod tests {
     #[should_panic(expected = "ChannelPool must hold at least one Channel")]
     fn empty_pool_panics() {
         let _ = ChannelPool::from_channels(Vec::new());
-    }
-
-    // ── Dead-channel routing (issue #577 #3) ──────────────────────────
-    //
-    // Drive a 3-channel pool with one or more members marked dead and
-    // assert `next()` skips them while at least one live member
-    // remains. Real `Channel`s are built over `tokio::io::duplex`
-    // pairs so the pool sees real `Channel` values without needing a
-    // network. The server-side of each duplex is parked on
-    // `accept()` — we never actually open a stream, so the test only
-    // exercises the picker logic.
-
-    use crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE;
-    use crate::grpc::Channel;
-    use http::uri::Scheme;
-
-    /// Build a pool of `n` channels over `tokio::io::duplex` pairs.
-    /// Server tasks are returned so the test can keep them alive
-    /// (dropping them would tear down the duplex and the channel
-    /// would immediately observe `ConnectionClosed`, defeating the
-    /// dead-channel test). Each `Channel`'s `dead` flag starts
-    /// `false`; callers flip it via `mark_dead()` to simulate the
-    /// cascade.
-    async fn build_pool_with_duplex_channels(
-        n: usize,
-    ) -> (ChannelPool, Vec<tokio::task::JoinHandle<()>>) {
-        let mut channels = Vec::with_capacity(n);
-        let mut server_tasks = Vec::with_capacity(n);
-        for _ in 0..n {
-            let (client_io, server_io) = tokio::io::duplex(64 * 1024);
-            let server_task = tokio::spawn(async move {
-                let mut conn = h2::server::handshake(server_io)
-                    .await
-                    .expect("server handshake");
-                // Park forever -- the test does not open streams.
-                let _ = conn.accept().await;
-            });
-            let channel = Channel::handshake_for_test(
-                client_io,
-                "127.0.0.1",
-                0,
-                DEFAULT_MAX_MESSAGE_SIZE,
-                Scheme::HTTP,
-            )
-            .await
-            .expect("client handshake");
-            channels.push(channel);
-            server_tasks.push(server_task);
-        }
-        (ChannelPool::from_channels(channels), server_tasks)
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn next_skips_dead_channels_while_live_members_remain() {
-        let (pool, _server_tasks) = build_pool_with_duplex_channels(3).await;
-        // Mark channel 0 dead -- the picker must route every
-        // subsequent `next()` to channels 1 or 2.
-        pool.inner.channels[0].mark_dead();
-
-        let mut dead_pick_count = 0;
-        let mut live_pick_count = 0;
-        for _ in 0..30 {
-            let lease = pool.next();
-            // Identity test: compare pointers, not field values --
-            // each `Channel` is its own allocation in the
-            // `Vec<Channel>`, so address comparison is sound.
-            if std::ptr::eq(lease.channel(), &pool.inner.channels[0]) {
-                dead_pick_count += 1;
-            } else {
-                live_pick_count += 1;
-            }
-            // Drop the lease so the next pick sees a fresh
-            // in-flight snapshot.
-            drop(lease);
-        }
-        assert_eq!(
-            dead_pick_count, 0,
-            "dead channel must be skipped while live members remain"
-        );
-        assert_eq!(live_pick_count, 30, "all 30 picks should hit a live member");
-        assert_eq!(pool.dead_count(), 1);
-        assert!(!pool.all_dead());
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn next_falls_through_to_dead_channels_when_pool_is_fully_dead() {
-        // Last-resort routing: when EVERY member is dead, the
-        // picker still returns a (dead) channel rather than blocking.
-        // The caller's RPC then observes the terminal error and the
-        // retry shell can surface it -- the alternative (block on
-        // dead pool) would mask the root cause behind a hang.
-        let (pool, _server_tasks) = build_pool_with_duplex_channels(3).await;
-        for ch in pool.inner.channels.iter() {
-            ch.mark_dead();
-        }
-        // Every member is dead -- `next()` returns a dead channel
-        // without panicking or hanging. The test would hang
-        // indefinitely if the picker blocked.
-        for _ in 0..10 {
-            let lease = pool.next();
-            assert!(
-                lease.channel().is_dead(),
-                "fully-dead pool routes to dead channel as last resort"
-            );
-            drop(lease);
-        }
-        assert_eq!(pool.dead_count(), 3);
-        assert!(pool.all_dead());
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn single_member_pool_returns_dead_channel_even_if_marked_dead() {
-        // The single-member fast path in `next()` skips the
-        // load-balancing scan and returns the only channel
-        // unconditionally. Pin that behaviour -- the alternative
-        // (return None / block) would force every caller to handle
-        // an Option even in the common case where the pool has one
-        // live channel.
-        let (pool, _server_tasks) = build_pool_with_duplex_channels(1).await;
-        pool.inner.channels[0].mark_dead();
-        let lease = pool.next();
-        assert!(lease.channel().is_dead());
-        assert_eq!(pool.len(), 1);
     }
 }

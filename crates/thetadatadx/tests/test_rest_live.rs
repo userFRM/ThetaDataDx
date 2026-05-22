@@ -1,4 +1,4 @@
-//! Live integration tests against a patched ThetaTerminal.
+//! Live integration tests against a locally-running ThetaTerminal.
 //!
 //! These tests issue real REST requests at the local Terminal (default
 //! `http://127.0.0.1:25503`) and validate the response shape. They are
@@ -6,16 +6,16 @@
 //! Terminal running stays green; opt in with:
 //!
 //! ```bash
-//! THETADX_LIVE_PATCHED_TERMINAL=1 \
+//! THETADX_LIVE_LOCAL_TERMINAL=1 \
 //!   cargo test --test test_rest_live -- --ignored
 //! ```
 //!
 //! The corresponding unit tests in `crates/thetadatadx/src/rest/tests.rs`
-//! cover the decoder contract (legacy 6-field NBBO + current 11-field
+//! cover the decoder contract (6-field NBBO subset + 11-field full
 //! layouts, malformed-cell error surface, NaN reject) against synthetic
-//! bodies; this module pins the wire-format expectations against the
-//! actual patched Terminal so a Terminal-side regression doesn't slip
-//! past CI silently.
+//! bodies; this module pins the wire-format expectations against an
+//! actual Terminal so a Terminal-side regression doesn't slip past CI
+//! silently.
 
 use std::env;
 
@@ -23,7 +23,7 @@ use thetadatadx::rest::RestClient;
 
 /// Env-gate name the runner checks before opting into live tests. Set
 /// to any non-empty value to enable.
-const LIVE_GATE: &str = "THETADX_LIVE_PATCHED_TERMINAL";
+const LIVE_GATE: &str = "THETADX_LIVE_LOCAL_TERMINAL";
 
 fn live_gate_enabled() -> bool {
     env::var(LIVE_GATE)
@@ -37,11 +37,10 @@ fn live_base_url() -> String {
 
 /// Smoke test: issue an `option_history_quote` against a known
 /// historical date and confirm the response decodes to at least one
-/// `QuoteTick` row. Pinned date is intentionally 2022-era so the legacy
-/// 6-field NBBO layout is exercised (issue #571 reproduction).
+/// `QuoteTick` row.
 #[tokio::test]
-#[ignore = "live patched Terminal required; set THETADX_LIVE_PATCHED_TERMINAL=1"]
-async fn quote_history_decodes_legacy_2022_nbbo_row() {
+#[ignore = "live local Terminal required; set THETADX_LIVE_LOCAL_TERMINAL=1"]
+async fn quote_history_decodes_known_historical_row() {
     if !live_gate_enabled() {
         return;
     }
@@ -63,7 +62,7 @@ async fn quote_history_decodes_legacy_2022_nbbo_row() {
 /// caller sets it too low. Pinning the contract that
 /// `RestClient::with_max_response_bytes` is enforced server-side path.
 #[tokio::test]
-#[ignore = "live patched Terminal required; set THETADX_LIVE_PATCHED_TERMINAL=1"]
+#[ignore = "live local Terminal required; set THETADX_LIVE_LOCAL_TERMINAL=1"]
 async fn quote_history_surfaces_response_too_large_under_tight_cap() {
     if !live_gate_enabled() {
         return;
