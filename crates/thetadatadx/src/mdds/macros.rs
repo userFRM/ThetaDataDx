@@ -888,6 +888,58 @@ mod classify_error_tests {
             StatusClass::Terminal
         );
     }
+
+    /// Issue #577 #3 regression: the h2-cascade signature
+    /// (`Error::Transport { kind: ConnectionClosed, .. }`) must
+    /// classify as Transient so the retry shell re-attempts the RPC.
+    /// Combined with the pool's dead-channel routing, the retry
+    /// picks a live channel and the call succeeds. If this test
+    /// flips back to Terminal a future contributor has re-broken
+    /// the cascade recovery -- the cascade resurfaces to the user
+    /// as before #577 was closed.
+    #[test]
+    fn connection_closed_transport_error_maps_to_transient() {
+        use crate::error::TransportErrorKind;
+        let err = Error::Transport {
+            kind: TransportErrorKind::ConnectionClosed,
+            message: "h2 connection closed: upstream tick exception".to_string(),
+        };
+        assert_eq!(classify_error(&err), StatusClass::Transient);
+    }
+
+    /// Companion: other transport errors stay terminal. A genuine
+    /// TLS / DNS / Codec failure won't fix itself on retry, so the
+    /// retry shell must propagate. Pin every variant explicitly so
+    /// a future `TransportErrorKind` addition cannot accidentally
+    /// inherit the `Transient` classification.
+    #[test]
+    fn other_transport_error_kinds_stay_terminal() {
+        use crate::error::TransportErrorKind;
+        let kinds = [
+            TransportErrorKind::Tcp,
+            TransportErrorKind::Tls,
+            TransportErrorKind::InvalidServerName,
+            TransportErrorKind::H2Handshake,
+            TransportErrorKind::H2Stream,
+            TransportErrorKind::InvalidPath,
+            TransportErrorKind::Codec,
+            TransportErrorKind::EmptyResponse,
+            TransportErrorKind::UnexpectedHttpStatus,
+            TransportErrorKind::DecoderPoisoned,
+            TransportErrorKind::DecoderReplyDropped,
+        ];
+        for kind in kinds {
+            let err = Error::Transport {
+                kind,
+                message: String::new(),
+            };
+            assert_eq!(
+                classify_error(&err),
+                StatusClass::Terminal,
+                "TransportErrorKind::{kind:?} must stay terminal"
+            );
+        }
+    }
 }
 
 #[cfg(test)]

@@ -459,4 +459,127 @@ mod tests {
     fn empty_pool_panics() {
         let _ = ChannelPool::from_channels(Vec::new());
     }
+
+    // ── Dead-channel routing (issue #577 #3) ──────────────────────────
+    //
+    // Drive a 3-channel pool with one or more members marked dead and
+    // assert `next()` skips them while at least one live member
+    // remains. Real `Channel`s are built over `tokio::io::duplex`
+    // pairs so the pool sees real `Channel` values without needing a
+    // network. The server-side of each duplex is parked on
+    // `accept()` — we never actually open a stream, so the test only
+    // exercises the picker logic.
+
+    use crate::grpc::Channel;
+    use crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE;
+    use http::uri::Scheme;
+
+    /// Build a pool of `n` channels over `tokio::io::duplex` pairs.
+    /// Server tasks are returned so the test can keep them alive
+    /// (dropping them would tear down the duplex and the channel
+    /// would immediately observe `ConnectionClosed`, defeating the
+    /// dead-channel test). Each `Channel`'s `dead` flag starts
+    /// `false`; callers flip it via `mark_dead()` to simulate the
+    /// cascade.
+    async fn build_pool_with_duplex_channels(
+        n: usize,
+    ) -> (ChannelPool, Vec<tokio::task::JoinHandle<()>>) {
+        let mut channels = Vec::with_capacity(n);
+        let mut server_tasks = Vec::with_capacity(n);
+        for _ in 0..n {
+            let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+            let server_task = tokio::spawn(async move {
+                let mut conn = h2::server::handshake(server_io)
+                    .await
+                    .expect("server handshake");
+                // Park forever -- the test does not open streams.
+                let _ = conn.accept().await;
+            });
+            let channel = Channel::handshake_for_test(
+                client_io,
+                "127.0.0.1",
+                0,
+                DEFAULT_MAX_MESSAGE_SIZE,
+                Scheme::HTTP,
+            )
+            .await
+            .expect("client handshake");
+            channels.push(channel);
+            server_tasks.push(server_task);
+        }
+        (ChannelPool::from_channels(channels), server_tasks)
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn next_skips_dead_channels_while_live_members_remain() {
+        let (pool, _server_tasks) = build_pool_with_duplex_channels(3).await;
+        // Mark channel 0 dead -- the picker must route every
+        // subsequent `next()` to channels 1 or 2.
+        pool.inner.channels[0].mark_dead();
+
+        let mut dead_pick_count = 0;
+        let mut live_pick_count = 0;
+        for _ in 0..30 {
+            let lease = pool.next();
+            // Identity test: compare pointers, not field values --
+            // each `Channel` is its own allocation in the
+            // `Vec<Channel>`, so address comparison is sound.
+            if std::ptr::eq(lease.channel(), &pool.inner.channels[0]) {
+                dead_pick_count += 1;
+            } else {
+                live_pick_count += 1;
+            }
+            // Drop the lease so the next pick sees a fresh
+            // in-flight snapshot.
+            drop(lease);
+        }
+        assert_eq!(
+            dead_pick_count, 0,
+            "dead channel must be skipped while live members remain"
+        );
+        assert_eq!(live_pick_count, 30, "all 30 picks should hit a live member");
+        assert_eq!(pool.dead_count(), 1);
+        assert!(!pool.all_dead());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn next_falls_through_to_dead_channels_when_pool_is_fully_dead() {
+        // Last-resort routing: when EVERY member is dead, the
+        // picker still returns a (dead) channel rather than blocking.
+        // The caller's RPC then observes the terminal error and the
+        // retry shell can surface it -- the alternative (block on
+        // dead pool) would mask the root cause behind a hang.
+        let (pool, _server_tasks) = build_pool_with_duplex_channels(3).await;
+        for ch in pool.inner.channels.iter() {
+            ch.mark_dead();
+        }
+        // Every member is dead -- `next()` returns a dead channel
+        // without panicking or hanging. The test would hang
+        // indefinitely if the picker blocked.
+        for _ in 0..10 {
+            let lease = pool.next();
+            assert!(
+                lease.channel().is_dead(),
+                "fully-dead pool routes to dead channel as last resort"
+            );
+            drop(lease);
+        }
+        assert_eq!(pool.dead_count(), 3);
+        assert!(pool.all_dead());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn single_member_pool_returns_dead_channel_even_if_marked_dead() {
+        // The single-member fast path in `next()` skips the
+        // load-balancing scan and returns the only channel
+        // unconditionally. Pin that behaviour -- the alternative
+        // (return None / block) would force every caller to handle
+        // an Option even in the common case where the pool has one
+        // live channel.
+        let (pool, _server_tasks) = build_pool_with_duplex_channels(1).await;
+        pool.inner.channels[0].mark_dead();
+        let lease = pool.next();
+        assert!(lease.channel().is_dead());
+        assert_eq!(pool.len(), 1);
+    }
 }

@@ -344,6 +344,26 @@ impl Channel {
     ///
     /// `scheme` is the `:scheme` pseudo-header value to use on every
     /// request — `https` for TLS transports, `http` for plaintext h2c.
+    ///
+    /// Exposed `pub(crate)` under `#[cfg(test)]` so the
+    /// [`super::pool::ChannelPool`] dead-channel tests can build real
+    /// `Channel` values over `tokio::io::duplex` pairs without going
+    /// through the network. Production callers use
+    /// [`Self::connect_h2c`] / [`Self::connect_tls`].
+    #[cfg(test)]
+    pub(crate) async fn handshake_for_test<IO>(
+        io: IO,
+        host: &str,
+        port: u16,
+        max_message_size: usize,
+        scheme: Scheme,
+    ) -> Result<Self, ChannelError>
+    where
+        IO: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+    {
+        Self::handshake(io, host, port, max_message_size, scheme).await
+    }
+
     async fn handshake<IO>(
         io: IO,
         host: &str,
