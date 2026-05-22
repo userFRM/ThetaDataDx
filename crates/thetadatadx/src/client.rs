@@ -32,8 +32,9 @@
 //! }
 //! ```
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
 use arc_swap::ArcSwap;
@@ -105,6 +106,44 @@ fn parse_yyyymmdd(field: &'static str, date: &str) -> Result<i32, Error> {
             format!("expected YYYYMMDD, got {date:?}"),
         )),
     }
+}
+
+/// Generic per-base-URL `RestClient`-style cache helper. Factored out
+/// of [`ThetaDataDxClient::rest_client_for`] so the cache mechanics
+/// (read-fast-path / upgrade-to-write / build-once double-check) can be
+/// unit-tested without spinning up an authenticated client.
+///
+/// On a cache hit, returns the existing `Arc<T>` cloned. On a miss,
+/// upgrades to a write lock, rechecks (a concurrent caller may have
+/// raced ahead), then builds via `build` and inserts.
+fn get_or_init_rest_client<T, F>(
+    cell: &OnceLock<RwLock<HashMap<String, Arc<T>>>>,
+    base_url: &str,
+    build: F,
+) -> Result<Arc<T>, Error>
+where
+    F: FnOnce() -> Result<T, Error>,
+{
+    let map = cell.get_or_init(|| RwLock::new(HashMap::new()));
+
+    if let Some(client) = map
+        .read()
+        .map_err(|_| Error::config_internal("rest_clients RwLock poisoned"))?
+        .get(base_url)
+        .cloned()
+    {
+        return Ok(client);
+    }
+
+    let mut guard = map
+        .write()
+        .map_err(|_| Error::config_internal("rest_clients RwLock poisoned"))?;
+    if let Some(client) = guard.get(base_url).cloned() {
+        return Ok(client);
+    }
+    let built = Arc::new(build()?);
+    guard.insert(base_url.to_owned(), Arc::clone(&built));
+    Ok(built)
 }
 
 /// True iff `err` matches the issue #571 h2-cascade signature. Distinct
@@ -208,6 +247,15 @@ pub struct ThetaDataDxClient {
     /// the install is rejected. Closes the `Stopped → Live` resurrection
     /// race where an in-flight start could come up AFTER stop returned.
     stop_generation: AtomicU64,
+    /// Lazily-built [`crate::rest::RestClient`] cache keyed by
+    /// `base_url`. The REST fallback shims (`option_history_*_with_fallback`)
+    /// previously built a fresh `RestClient` per call, dragging the
+    /// per-call cost up by a `reqwest::Client` construction (TLS
+    /// context + connection pool init) on every fallback dispatch.
+    /// One handle per distinct base URL is shared for the lifetime
+    /// of the `ThetaDataDxClient` -- reuses the underlying HTTP/2
+    /// connection pool across calls.
+    rest_clients: OnceLock<RwLock<HashMap<String, Arc<crate::rest::RestClient>>>>,
 }
 
 impl ThetaDataDxClient {
@@ -233,6 +281,7 @@ impl ThetaDataDxClient {
             state: ArcSwap::from_pointee(StreamingSlot::Idle),
             prev_drained: Mutex::new(Vec::new()),
             stop_generation: AtomicU64::new(0),
+            rest_clients: OnceLock::new(),
         })
     }
 
@@ -1069,6 +1118,18 @@ impl ThetaDataDxClient {
     // `self.historical` (e.g. `tdx.option_history_quote(...)`).
     // ---------------------------------------------------------------------
 
+    /// Return a shared [`Arc<crate::rest::RestClient>`] for `base_url`,
+    /// building (and caching) one on first use.
+    ///
+    /// The fallback shims all funnel through this entry point so a
+    /// `reqwest::Client` (TLS context + connection pool) is constructed
+    /// at most once per distinct base URL, not once per request.
+    fn rest_client_for(&self, base_url: &str) -> Result<Arc<crate::rest::RestClient>, Error> {
+        get_or_init_rest_client(&self.rest_clients, base_url, || {
+            crate::rest::RestClient::new(base_url).map_err(Error::from)
+        })
+    }
+
     /// Fetch option NBBO history via gRPC, falling back to REST per
     /// [`crate::config::FallbackPolicy`] (issue #571).
     ///
@@ -1102,34 +1163,45 @@ impl ThetaDataDxClient {
     /// `From<RestError>` (carrying the structured
     /// [`crate::error::TransportErrorKind::UnexpectedHttpStatus`] /
     /// `ConnectionClosed` discriminator).
+    #[allow(clippy::too_many_arguments)]
     pub async fn option_history_quote_with_fallback(
         &self,
         symbol: &str,
         expiration: &str,
-        date: &str,
+        start_date: &str,
+        end_date: Option<&str>,
         strike: Option<&str>,
         right: Option<&str>,
         interval: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::QuoteTick>, Error> {
         let policy = &self.config().fallback;
-        let start_date = parse_yyyymmdd("date", date)?;
+        let start_int = parse_yyyymmdd("start_date", start_date)?;
+        if let Some(end) = end_date {
+            parse_yyyymmdd("end_date", end)?;
+        }
 
-        if policy.pre_routes_to_rest(start_date) {
+        if policy.pre_routes_to_rest(start_int) {
             if let Some(base_url) = policy.base_url() {
                 tracing::info!(
                     target: "thetadatadx::client::fallback",
                     endpoint = "option_history_quote",
-                    date,
+                    start_date,
+                    end_date,
                     "pre-routing to REST per FallbackPolicy"
                 );
                 return self
-                    .rest_quote(base_url, symbol, expiration, date, strike, right, interval)
+                    .rest_quote(
+                        base_url, symbol, expiration, start_date, end_date, strike, right, interval,
+                    )
                     .await;
             }
         }
 
         // gRPC path. Build via Deref into MddsClient.
-        let mut builder = self.option_history_quote(symbol, expiration, date);
+        let mut builder = self.option_history_quote(symbol, expiration, start_date);
+        if let Some(e) = end_date {
+            builder = builder.end_date(e);
+        }
         if let Some(s) = strike {
             builder = builder.strike(s);
         }
@@ -1151,7 +1223,10 @@ impl ThetaDataDxClient {
                             "h2 disconnect on gRPC, falling back to REST"
                         );
                         return self
-                            .rest_quote(base_url, symbol, expiration, date, strike, right, interval)
+                            .rest_quote(
+                                base_url, symbol, expiration, start_date, end_date, strike, right,
+                                interval,
+                            )
                             .await;
                     }
                 }
@@ -1165,18 +1240,23 @@ impl ThetaDataDxClient {
     /// affected endpoint -- callers do not need to know the REST
     /// transport exists unless they reach for [`crate::rest::RestClient`]
     /// directly.
+    #[allow(clippy::too_many_arguments)]
     async fn rest_quote(
         &self,
         base_url: &str,
         symbol: &str,
         expiration: &str,
-        date: &str,
+        start_date: &str,
+        end_date: Option<&str>,
         strike: Option<&str>,
         right: Option<&str>,
         interval: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::QuoteTick>, Error> {
-        let rest = crate::rest::RestClient::new(base_url).map_err(Error::from)?;
-        let mut builder = rest.option_history_quote(symbol, expiration, date);
+        let rest = self.rest_client_for(base_url)?;
+        let mut builder = rest.option_history_quote(symbol, expiration, start_date);
+        if let Some(e) = end_date {
+            builder = builder.end_date(e);
+        }
         if let Some(s) = strike {
             builder = builder.strike(s);
         }
@@ -1273,7 +1353,7 @@ impl ThetaDataDxClient {
         strike: Option<&str>,
         right: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::TradeQuoteTick>, Error> {
-        let rest = crate::rest::RestClient::new(base_url).map_err(Error::from)?;
+        let rest = self.rest_client_for(base_url)?;
         let mut builder = rest.option_history_trade_quote(symbol, expiration, start_date);
         if let Some(e) = end_date {
             builder = builder.end_date(e);
@@ -1380,7 +1460,7 @@ impl ThetaDataDxClient {
         right: Option<&str>,
         interval: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::IvTick>, Error> {
-        let rest = crate::rest::RestClient::new(base_url).map_err(Error::from)?;
+        let rest = self.rest_client_for(base_url)?;
         let mut builder =
             rest.option_history_greeks_implied_volatility(symbol, expiration, start_date);
         if let Some(e) = end_date {
@@ -1489,7 +1569,7 @@ impl ThetaDataDxClient {
         right: Option<&str>,
         interval: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::GreeksFirstOrderTick>, Error> {
-        let rest = crate::rest::RestClient::new(base_url).map_err(Error::from)?;
+        let rest = self.rest_client_for(base_url)?;
         let mut builder = rest.option_history_greeks_first_order(symbol, expiration, start_date);
         if let Some(e) = end_date {
             builder = builder.end_date(e);
@@ -2435,5 +2515,74 @@ mod tests {
                 "expected error for out-of-band {bad:?}"
             );
         }
+    }
+
+    // -- REST-client cache (M3) ---------------------------------------
+    //
+    // The cache machinery is factored into the standalone
+    // `get_or_init_rest_client` so we can unit-test the read/write/
+    // race-recheck path without spinning up an authenticated
+    // `ThetaDataDxClient`. A `String` stand-in plays the role of the
+    // `RestClient` -- the cache contract is type-agnostic.
+
+    #[test]
+    fn get_or_init_rest_client_returns_same_arc_on_hit() {
+        let cell: OnceLock<RwLock<HashMap<String, Arc<String>>>> = OnceLock::new();
+        let build_calls = AtomicU64::new(0);
+
+        let first = get_or_init_rest_client(&cell, "http://127.0.0.1:25503", || {
+            build_calls.fetch_add(1, Ordering::SeqCst);
+            Ok("client-25503".to_string())
+        })
+        .unwrap();
+        assert_eq!(build_calls.load(Ordering::SeqCst), 1);
+
+        // Second call against the same URL -- cache hit. `build`
+        // closure must NOT fire, and the returned Arc must point to the
+        // same allocation.
+        let second = get_or_init_rest_client(&cell, "http://127.0.0.1:25503", || {
+            build_calls.fetch_add(1, Ordering::SeqCst);
+            Ok("DIFFERENT-client".to_string())
+        })
+        .unwrap();
+        assert_eq!(
+            build_calls.load(Ordering::SeqCst),
+            1,
+            "second call must hit"
+        );
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(*second, "client-25503");
+    }
+
+    #[test]
+    fn get_or_init_rest_client_distinct_urls_get_distinct_clients() {
+        let cell: OnceLock<RwLock<HashMap<String, Arc<String>>>> = OnceLock::new();
+
+        let a =
+            get_or_init_rest_client(&cell, "http://a:1", || Ok("client-a".to_string())).unwrap();
+        let b =
+            get_or_init_rest_client(&cell, "http://b:2", || Ok("client-b".to_string())).unwrap();
+        assert!(!Arc::ptr_eq(&a, &b));
+        assert_eq!(*a, "client-a");
+        assert_eq!(*b, "client-b");
+
+        // Subsequent calls return the original entries -- two distinct
+        // cache slots, no cross-pollination.
+        let a2 = get_or_init_rest_client(&cell, "http://a:1", || Ok("WRONG".to_string())).unwrap();
+        assert!(Arc::ptr_eq(&a, &a2));
+    }
+
+    #[test]
+    fn get_or_init_rest_client_propagates_build_error() {
+        let cell: OnceLock<RwLock<HashMap<String, Arc<String>>>> = OnceLock::new();
+        let res: Result<Arc<String>, Error> = get_or_init_rest_client(&cell, "http://x:1", || {
+            Err(Error::config_invalid("x", "bad"))
+        });
+        assert!(res.is_err(), "build failure must propagate");
+
+        // The failed slot must NOT be cached -- a follow-up successful
+        // build should populate it cleanly.
+        let res2 = get_or_init_rest_client(&cell, "http://x:1", || Ok("ok".to_string())).unwrap();
+        assert_eq!(*res2, "ok");
     }
 }
