@@ -96,12 +96,76 @@ impl From<RestError> for Error {
                     body.lines().next().unwrap_or("")
                 ),
             },
-            RestError::CsvDecode { reason, row } => {
-                Self::config_internal(format!("REST CSV decode at row {row}: {reason}"))
+            RestError::CsvDecode { reason, row } => Self::Transport {
+                kind: TransportErrorKind::Codec,
+                message: format!("REST CSV decode at row {row}: {reason}"),
+            },
+            RestError::MissingColumn { column, available } => Self::Transport {
+                kind: TransportErrorKind::Codec,
+                message: format!(
+                    "REST CSV header missing column {column:?} (available: {available})"
+                ),
+            },
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn csv_decode_lifts_into_transport_codec() {
+        let lifted: Error = RestError::CsvDecode {
+            reason: "bad i32 at col 1 row 7: 'xyz'".to_owned(),
+            row: 7,
+        }
+        .into();
+        match lifted {
+            Error::Transport { kind, message } => {
+                assert_eq!(kind, TransportErrorKind::Codec);
+                assert!(message.contains("REST CSV decode"), "message: {message}");
+                assert!(message.contains("row 7"), "message: {message}");
             }
-            RestError::MissingColumn { column, available } => Self::config_internal(format!(
-                "REST CSV header missing column {column:?} (available: {available})"
-            )),
+            other => panic!("expected Transport::Codec, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn missing_column_lifts_into_transport_codec() {
+        let lifted: Error = RestError::MissingColumn {
+            column: "ms_of_day",
+            available: "bid,ask,date".to_owned(),
+        }
+        .into();
+        match lifted {
+            Error::Transport { kind, message } => {
+                assert_eq!(kind, TransportErrorKind::Codec);
+                assert!(
+                    message.contains("ms_of_day"),
+                    "message did not name missing column: {message}"
+                );
+                assert!(
+                    message.contains("bid,ask,date"),
+                    "message did not list available columns: {message}"
+                );
+            }
+            other => panic!("expected Transport::Codec, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn http_status_still_lifts_into_unexpected_http_status() {
+        let lifted: Error = RestError::HttpStatus {
+            status: 503,
+            body: "service unavailable\nretry later".to_owned(),
+        }
+        .into();
+        match lifted {
+            Error::Transport { kind, .. } => {
+                assert_eq!(kind, TransportErrorKind::UnexpectedHttpStatus);
+            }
+            other => panic!("expected Transport::UnexpectedHttpStatus, got {other:?}"),
         }
     }
 }
