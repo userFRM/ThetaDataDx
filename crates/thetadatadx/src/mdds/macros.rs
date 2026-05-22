@@ -354,10 +354,24 @@ where
 /// `From<tonic::Status>` folds the tonic enum into
 /// `Error::Grpc { kind: GrpcStatusKind::*, .. }`. We dispatch on the
 /// typed `kind` so the retry classifier no longer parses status
-/// strings. Other `Error` variants are terminal — a `Decode` or
+/// strings. Other `Error` variants are terminal -- a `Decode` or
 /// `Decompress` failure won't fix itself on retry.
+///
+/// `Error::Transport { kind: ConnectionClosed, .. }` is the issue
+/// #577 h2-cascade signature -- an upstream tick-shape exception
+/// aborted the h2 stream mid-response. The source channel's
+/// death-flag is flipped by the streaming-poll classifier so the
+/// pool picker routes around it; classifying the error as transient
+/// here lets the retry shell re-attempt the RPC on a fresh channel
+/// pick instead of surfacing the cascade to the user. If every
+/// channel in the pool is dead the next pick still returns a
+/// (dead) channel and the second attempt fails identically -- the
+/// cascade surfaces after the retry budget is exhausted, which
+/// matches the previous user-visible behaviour without the
+/// dead-channel routing benefit. With at least one live channel
+/// remaining, the retry succeeds.
 fn classify_error(err: &crate::error::Error) -> StatusClass {
-    use crate::error::GrpcStatusKind;
+    use crate::error::{GrpcStatusKind, TransportErrorKind};
     match err {
         crate::error::Error::Grpc { kind, .. } => match kind {
             GrpcStatusKind::Unavailable
@@ -366,6 +380,10 @@ fn classify_error(err: &crate::error::Error) -> StatusClass {
             GrpcStatusKind::Unauthenticated => StatusClass::NeedsRefresh,
             _ => StatusClass::Terminal,
         },
+        crate::error::Error::Transport {
+            kind: TransportErrorKind::ConnectionClosed,
+            ..
+        } => StatusClass::Transient,
         _ => StatusClass::Terminal,
     }
 }

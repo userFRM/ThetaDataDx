@@ -186,32 +186,58 @@ impl ChannelPool {
             };
         }
 
-        // CAS-retry pick: scan for the least-loaded channel, then
-        // commit the reservation only if the channel is still at the
-        // observed count. Under true concurrency two tasks may both
-        // scan and both pick the same least-loaded channel; the
-        // commit guard ensures the loser rolls back its speculative
-        // increment and re-scans rather than pinning to a now-
-        // saturated channel.
+        // CAS-retry pick: scan for the least-loaded LIVE channel,
+        // then commit the reservation only if the channel is still
+        // at the observed count. Under true concurrency two tasks
+        // may both scan and both pick the same least-loaded
+        // channel; the commit guard ensures the loser rolls back
+        // its speculative increment and re-scans rather than
+        // pinning to a now-saturated channel.
+        //
+        // Dead-channel routing (issue #577 #3): channels that have
+        // observed `ChannelError::ConnectionClosed` are skipped
+        // during the live scan. If ALL channels are dead the picker
+        // falls through to the dead pool so the RPC can still
+        // surface its terminal error -- the alternative (block on
+        // pool death) would mask the underlying problem.
         //
         // Bounded retries: PICK_RETRY caps live-lock under heavy
         // contention. On exhaustion we fall back to a round-robin
-        // pick that always commits — the load-balancing hint is
+        // pick that always commits -- the load-balancing hint is
         // degraded but the dispatch is never lost.
         const PICK_RETRY: usize = 4;
         for _ in 0..PICK_RETRY {
-            let mut best_idx = cursor % len;
-            let mut best_count = self.inner.channels[best_idx].in_flight_count();
-            for offset in 1..len {
+            // First pass: scan only LIVE channels for the
+            // least-loaded one.
+            let mut best_idx: Option<usize> = None;
+            let mut best_count: usize = usize::MAX;
+            for offset in 0..len {
                 let idx = (cursor.wrapping_add(offset)) % len;
-                let count = self.inner.channels[idx].in_flight_count();
-                if count < best_count {
-                    best_idx = idx;
+                let ch = &self.inner.channels[idx];
+                if ch.is_dead() {
+                    continue;
+                }
+                let count = ch.in_flight_count();
+                if best_idx.is_none() || count < best_count {
+                    best_idx = Some(idx);
                     best_count = count;
                 }
             }
-            let channel = &self.inner.channels[best_idx];
-            match channel.try_reserve_in_flight(best_count) {
+            // No live channel left -- last-resort: route to a dead
+            // channel so the caller observes the terminal error
+            // and can recycle the pool. The alternative (block)
+            // would hide the root cause behind a hang.
+            let pick_idx = best_idx.unwrap_or(cursor % len);
+            let channel = &self.inner.channels[pick_idx];
+            // `best_count` is `usize::MAX` when we degraded to
+            // dead-channel routing -- ignore the load barrier in
+            // that case so the CAS commit cannot bounce.
+            let load_barrier = if best_idx.is_some() {
+                best_count
+            } else {
+                usize::MAX
+            };
+            match channel.try_reserve_in_flight(load_barrier) {
                 Ok(token) => {
                     return ChannelLease {
                         channel,
@@ -219,7 +245,7 @@ impl ChannelPool {
                     };
                 }
                 Err(_actual_prior) => {
-                    // Lost the race — another task committed a
+                    // Lost the race -- another task committed a
                     // reservation between our scan and our commit.
                     // Loop body re-scans with a fresh snapshot.
                     continue;
@@ -236,6 +262,30 @@ impl ChannelPool {
             channel,
             _token: channel.reserve_in_flight(),
         }
+    }
+
+    /// Whether every channel in the pool has been marked dead. Used
+    /// by the channel-recycling path on `MddsClient` to decide
+    /// whether to rebuild the pool atomically -- a partial pool
+    /// (one or two dead channels in a pool of four) is left to the
+    /// picker, which routes around the dead members. A fully-dead
+    /// pool needs explicit reconstruction.
+    #[must_use]
+    pub fn all_dead(&self) -> bool {
+        self.inner.channels.iter().all(crate::grpc::Channel::is_dead)
+    }
+
+    /// Number of channels currently marked dead in the pool. Exposed
+    /// so the diagnostic surface on `MddsClient` can report the
+    /// current health without scanning each member individually.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn dead_count(&self) -> usize {
+        self.inner
+            .channels
+            .iter()
+            .filter(|c| c.is_dead())
+            .count()
     }
 }
 
