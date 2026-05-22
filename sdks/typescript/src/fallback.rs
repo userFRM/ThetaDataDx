@@ -194,6 +194,94 @@ impl Config {
         })
     }
 
+    // ── MDDS pool sizing — issue #584 ──────────────────────────────
+
+    /// Set the number of concurrent in-flight gRPC requests.
+    ///
+    /// `0` (default) auto-detects from the Nexus subscription tier
+    /// (Free=1 / Value=2 / Standard=4 / Pro=8). Explicit values above
+    /// the tier cap are clamped at connect time with a warn.
+    #[napi(js_name = "setConcurrentRequests")]
+    pub fn set_concurrent_requests(&self, n: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.mdds.concurrent_requests = n as usize;
+        Ok(())
+    }
+
+    /// Current `concurrent_requests` setting (`0` = auto-detect).
+    #[napi(getter, js_name = "concurrentRequests")]
+    pub fn concurrent_requests(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(u32::try_from(guard.mdds.concurrent_requests).unwrap_or(u32::MAX))
+    }
+
+    /// Set the number of dedicated decoder threads in the MDDS pool.
+    ///
+    /// `0` (default) auto-sizes to `max(available_parallelism / 2, 1)`,
+    /// leaving half the logical cores for the tokio reactor and the
+    /// application's own work. Override on shared hosts or to widen
+    /// the decode pipeline on heavy historical backfills.
+    #[napi(js_name = "setDecoderThreads")]
+    pub fn set_decoder_threads(&self, n: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.mdds.decoder_threads = n as usize;
+        Ok(())
+    }
+
+    /// Current `decoder_threads` setting (`0` = auto-detect).
+    #[napi(getter, js_name = "decoderThreads")]
+    pub fn decoder_threads(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(u32::try_from(guard.mdds.decoder_threads).unwrap_or(u32::MAX))
+    }
+
+    /// Set the per-thread decoder ring size.
+    ///
+    /// Must be a power of two, `>= 64`. The setter rejects invalid
+    /// values immediately rather than waiting for the connect-time
+    /// `validate()` to fail. Default is `256`.
+    #[napi(js_name = "setDecoderRingSize")]
+    pub fn set_decoder_ring_size(&self, n: u32) -> napi::Result<()> {
+        if n == 0 || !n.is_power_of_two() {
+            return Err(napi::Error::from_reason(format!(
+                "decoder_ring_size must be a power of two >= 64; got {n}"
+            )));
+        }
+        if n < 64 {
+            return Err(napi::Error::from_reason(format!(
+                "decoder_ring_size must be >= 64; got {n}"
+            )));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.mdds.decoder_ring_size = n as usize;
+        Ok(())
+    }
+
+    /// Current `decoder_ring_size` setting.
+    #[napi(getter, js_name = "decoderRingSize")]
+    pub fn decoder_ring_size(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(u32::try_from(guard.mdds.decoder_ring_size).unwrap_or(u32::MAX))
+    }
+
     /// Take a snapshot of the underlying [`thetadatadx::DirectConfig`]
     /// for use by `ThetaDataDxClient.connectWithConfig`. Returns a
     /// fresh `DirectConfig` clone -- the napi `Config` remains usable
