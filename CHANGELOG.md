@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Channel-layer h2-cascade recovery (#577). The pool's `next()`
+  picker now tracks a per-channel `AtomicBool` death flag and
+  routes around channels that have observed
+  `ChannelError::ConnectionClosed`. A poll that surfaces the
+  cascade flips the flag without holding a `&Channel` borrow;
+  subsequent picks see only the live members until every channel
+  dies, at which point the picker falls through to a dead channel
+  as last resort (the alternative -- blocking on a fully-dead
+  pool -- would mask the root cause behind a hang). The streaming
+  and unary retry classifiers in `mdds::macros` now treat
+  `Error::Transport { kind: ConnectionClosed, .. }` as `Transient`
+  so the retry loop reattempts on the next picker `next()`, which
+  under the dead-channel routing picks a live member. The
+  combination means a single upstream cascade is no longer
+  terminal for the call as long as one live channel remains in the
+  pool. New diagnostic surface: `ChannelPool::all_dead()` /
+  `dead_count()` + `Channel::is_dead()`. Pinned by three new pool
+  tests (`next_skips_dead_channels_while_live_members_remain`,
+  `next_falls_through_to_dead_channels_when_pool_is_fully_dead`,
+  `single_member_pool_returns_dead_channel_even_if_marked_dead`)
+  and two retry-classifier regression tests
+  (`connection_closed_transport_error_maps_to_transient`,
+  `other_transport_error_kinds_stay_terminal`).
+
+- Wire-level investigation pin at
+  `docs-site/docs/legacy-quote-577-investigation.md` (#577).
+  Documents every strict-length check on the Java tick types
+  (QuoteTick=11, TradeQuoteTick=25, MarketValueTick=11-via-super,
+  TradeTick=16, SnapshotTradeTick=7, OhlcTick=9, EodTick=18,
+  OpenInterestTick=3), confirms the patched-terminal source
+  carries exactly one structural patch (QuoteTick 6 -> 11
+  upcast) plus one cosmetic typo fix, and explains why the
+  post-Feb-2020 cascade is a vendor-side storage-cutover date
+  rather than a second schema variant. Saves the next
+  contributor from re-running the same source-reverse-engineering
+  pass.
+
 - `FallbackPolicy` pyclass + `Config.with_rest_fallback` + four
   `option_history_*_with_fallback` methods on the Python
   `ThetaDataDxClient` (S1). Python callers can now reach the REST
@@ -352,6 +389,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the next major release.
 
 ### Fixed
+
+- Post-Feb-2020 daily-expiry quote backfill no longer h2-cascades
+  on the streaming path (#577). PR #573's lenient decoder + REST
+  fallback unblocked the 2019-05 to 2020-02-24 range; this
+  follow-up handles the remaining post-Feb-2020 cascade -- not via
+  a second wire variant (none exists; see the new investigation
+  doc) but via channel-layer recovery (dead-channel routing in
+  `ChannelPool::next` + classifier retry on `ConnectionClosed`).
+  A 7-year QQQ daily-expiry quote backfill now completes
+  end-to-end via `option_history_quote_with_fallback` against a
+  patched local Terminal; the per-call cascade no longer leaves
+  the pool's h2 channels pinned to a dead connection. Closes
+  #577.
 
 - `option_history_quote` / `option_history_trade_quote` /
   `option_history_greeks_implied_volatility` /

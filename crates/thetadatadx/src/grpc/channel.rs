@@ -726,17 +726,14 @@ impl Channel {
         .map_err(mark_on_close)?;
 
         // `end_of_stream = false`: we'll send the data frame next.
-        let (response_fut, mut send_body) = sender
-            .send_request(request, false)
-            .map_err(mark_on_close)?;
+        let (response_fut, mut send_body) =
+            sender.send_request(request, false).map_err(mark_on_close)?;
 
         // Single DATA frame carries the framed request payload, with
         // end_of_stream = true so the server can begin its response
         // immediately. Server-streaming RPCs send exactly one request
         // message.
-        send_body
-            .send_data(frame, true)
-            .map_err(mark_on_close)?;
+        send_body.send_data(frame, true).map_err(mark_on_close)?;
 
         let response = match deadline {
             Some(d) => {

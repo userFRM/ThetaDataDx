@@ -272,7 +272,10 @@ impl ChannelPool {
     /// pool needs explicit reconstruction.
     #[must_use]
     pub fn all_dead(&self) -> bool {
-        self.inner.channels.iter().all(crate::grpc::Channel::is_dead)
+        self.inner
+            .channels
+            .iter()
+            .all(crate::grpc::Channel::is_dead)
     }
 
     /// Number of channels currently marked dead in the pool. Exposed
@@ -281,11 +284,7 @@ impl ChannelPool {
     #[doc(hidden)]
     #[must_use]
     pub fn dead_count(&self) -> usize {
-        self.inner
-            .channels
-            .iter()
-            .filter(|c| c.is_dead())
-            .count()
+        self.inner.channels.iter().filter(|c| c.is_dead()).count()
     }
 }
 
@@ -470,8 +469,8 @@ mod tests {
     // `accept()` — we never actually open a stream, so the test only
     // exercises the picker logic.
 
-    use crate::grpc::Channel;
     use crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE;
+    use crate::grpc::Channel;
     use http::uri::Scheme;
 
     /// Build a pool of `n` channels over `tokio::io::duplex` pairs.
