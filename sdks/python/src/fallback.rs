@@ -20,12 +20,12 @@ use thetadatadx::config;
 
 /// Python-side mirror of [`thetadatadx::config::FallbackPolicy`].
 ///
-/// `#[pyclass(frozen)]` so a constructed policy is observably
+/// Pyclass is `frozen` so a constructed policy is observably
 /// immutable from Python -- callers either build a new instance via
 /// the static constructors or rely on `Config.with_rest_fallback(...)`
 /// to swap policies on a `Config`. Mirrors the Rust enum's
-/// `#[non_exhaustive]` shape: callers cannot construct the underlying
-/// enum from the outside, only through the named factories.
+/// non-exhaustive shape: callers cannot construct the underlying
+/// variant from the outside, only through the named factories.
 ///
 /// # Examples
 ///
