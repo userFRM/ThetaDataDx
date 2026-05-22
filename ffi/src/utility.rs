@@ -162,7 +162,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
                 return -1;
             }
         };
-        // SAFETY: see FFI boundary doc on the enclosing fn — raw pointers satisfy the documented caller contract.
+        // SAFETY: out_iv/out_error null-checked above; caller pins the storage they point at for the call duration.
         unsafe {
             *out_iv = iv;
             *out_error = err;

@@ -155,10 +155,7 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
         array_type
     )
     .unwrap();
-    out.push_str("        if client.is_null() {\n");
-    out.push_str("            set_error(\"client handle is null\");\n");
-    out.push_str("            return empty;\n");
-    out.push_str("        }\n\n");
+    out.push_str("        let client = require_client!(client, empty);\n\n");
     out.push_str("        let mut args = thetadatadx::EndpointArgs::new();\n");
 
     for param in &method_params {
@@ -180,9 +177,6 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("            set_error(&message);\n");
     out.push_str("            return empty;\n");
     out.push_str("        }\n\n");
-    out.push_str("        // SAFETY: client is a non-null pointer returned by tdx_client_new\n");
-    out.push_str("        // and not yet freed by the matching tdx_client_free.\n");
-    out.push_str("        let client = unsafe { &*client };\n");
     out.push_str("        match runtime().block_on(async {\n");
     writeln!(
         out,

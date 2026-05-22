@@ -129,9 +129,8 @@ impl RestClient {
 /// clean URL.
 ///
 /// `pub(crate)` so the generated REST builder module in
-/// `super::_generated` can call it (see issue #580 — the per-endpoint
-/// `execute()` method is codegen-driven and routes through this single
-/// helper).
+/// `super::_generated` can route every endpoint's `execute()` method
+/// through this single transport helper.
 pub(crate) async fn fetch_csv(
     client: &RestClient,
     path: &str,
@@ -180,10 +179,13 @@ pub(crate) async fn fetch_csv(
     // Seed the accumulator with the advertised content-length when the
     // server provided one and it fits the cap — saves the
     // double-and-copy growth pattern on the typical historical-quote
-    // response (multi-MB bodies, single-shot consumption).
+    // response (multi-MB bodies, single-shot consumption). On the
+    // chunked path (`Content-Length` absent) seed with a 64 KiB floor
+    // so the first DATA frame doesn't trip a per-chunk realloc.
+    const CHUNKED_INITIAL_CAPACITY: usize = 64 * 1024;
     let mut buf: Vec<u8> = match advertised_len {
         Some(cl) if cl <= limit => Vec::with_capacity(usize::try_from(cl).unwrap_or(0)),
-        _ => Vec::new(),
+        _ => Vec::with_capacity(CHUNKED_INITIAL_CAPACITY),
     };
     let mut stream = resp;
     while let Some(chunk) = stream.chunk().await? {

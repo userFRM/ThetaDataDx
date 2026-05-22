@@ -68,3 +68,83 @@ if (jsText.includes(JS_ALIAS_LINE)) {
   writeFileSync(jsPath, out, "utf-8");
   console.log(`postbuild_alias_contract: injected js alias into ${jsPath}`);
 }
+
+// ─── @deprecated propagation for setDecoderThreads / decoderThreads ───
+//
+// Mirrors the Rust rustdoc + Python pyi + C++ Doxygen deprecation on
+// the legacy decoder_threads alias. napi-rs forwards `///` doc-text
+// into JSDoc but a future napi-rs version could reformat tags away.
+// This pass guarantees the `@deprecated` tag survives every build.
+{
+  const dtsTextAfter = readFileSync(dtsPath, "utf-8");
+  const ensureDeprecated = (block, replacement) => {
+    const idx = dtsTextAfter.indexOf(block);
+    if (idx === -1) {
+      console.error(
+        `postbuild_alias_contract: could not find expected block to deprecate in ${dtsPath}`
+      );
+      process.exit(1);
+    }
+    if (dtsTextAfter.substring(idx, idx + replacement.length) === replacement) {
+      return null;
+    }
+    return [idx, block.length, replacement];
+  };
+  // Setter block (multi-line JSDoc) — keep narrow markers so a doc
+  // rewrite upstream still matches.
+  const setterMarker = "  setDecoderThreads(n: number): void";
+  const setterIdx = dtsTextAfter.indexOf(setterMarker);
+  // Getter block — single-line JSDoc.
+  const getterMarker = "  get decoderThreads(): number";
+  const getterIdx = dtsTextAfter.indexOf(getterMarker);
+  if (setterIdx === -1 || getterIdx === -1) {
+    console.error(
+      `postbuild_alias_contract: setDecoderThreads / decoderThreads markers not found in ${dtsPath}`
+    );
+    process.exit(1);
+  }
+  // Walk backwards from each marker to find the opening `/**` of its
+  // JSDoc block, then ensure `@deprecated` is inside that block.
+  let modified = dtsTextAfter;
+  const injectDeprecated = (text, markerIdx, tag) => {
+    const blockEnd = text.lastIndexOf("*/", markerIdx);
+    const blockStart = text.lastIndexOf("/**", blockEnd);
+    if (blockStart === -1 || blockEnd === -1) {
+      // No JSDoc block (napi may emit single-line `/** ... */`). Insert
+      // a fresh block immediately above the marker.
+      const lineStart = text.lastIndexOf("\n", markerIdx) + 1;
+      const indent = text.substring(lineStart, markerIdx).match(/^\s*/)[0];
+      const insertion = `${indent}/** @deprecated ${tag} */\n`;
+      return text.slice(0, lineStart) + insertion + text.slice(lineStart);
+    }
+    const blockText = text.substring(blockStart, blockEnd);
+    if (blockText.includes("@deprecated")) {
+      return text;
+    }
+    // Append `* @deprecated ...` immediately before the closing `*/`.
+    const indentMatch = blockText.match(/\n(\s*)\*/);
+    const indent = indentMatch ? indentMatch[1] : "  ";
+    const insertion = `${indent}*\n${indent}* @deprecated ${tag}\n${indent}`;
+    return text.slice(0, blockEnd) + insertion + text.slice(blockEnd);
+  };
+  modified = injectDeprecated(
+    modified,
+    modified.indexOf(setterMarker),
+    "since v10.0.1, use setDecodeThreads()."
+  );
+  modified = injectDeprecated(
+    modified,
+    modified.indexOf(getterMarker),
+    "since v10.0.1, use decodeThreads."
+  );
+  if (modified !== dtsTextAfter) {
+    writeFileSync(dtsPath, modified, "utf-8");
+    console.log(
+      `postbuild_alias_contract: ensured @deprecated on decoderThreads in ${dtsPath}`
+    );
+  } else {
+    console.log(
+      `postbuild_alias_contract: @deprecated on decoderThreads already present in ${dtsPath}`
+    );
+  }
+}

@@ -410,7 +410,8 @@ impl DecoderHandle {
             return self.submit_two_stage(response, max_message_size, stage2);
         }
         let work: Box<dyn FnOnce() -> DecodeResult + Send + 'static> = Box::new(move || {
-            crate::mdds::decode::decode_data_table_with_max(&response, max_message_size)
+            let mut response = response;
+            crate::mdds::decode::decode_data_table_with_max(&mut response, max_message_size)
         });
         self.submit_work(work)
     }
@@ -604,46 +605,38 @@ impl BackoffMode {
     }
 }
 
-/// Brief back-off invoked when the Disruptor ring is full.
-///
-/// The caller is expected to have resolved [`BackoffMode`] *outside*
-/// the retry loop and pass it in here, so a saturated ring does not
-/// re-query [`tokio::runtime::Handle::try_current`] on every spin —
-/// the resolution is invariant for the lifetime of one publish
-/// attempt and the caller-side hoist keeps the cost to one
-/// detection per submit rather than O(retries).
-///
-/// `TokioMultiThread` parks the calling worker under
-/// `block_in_place` so the runtime can steal work. `SyncSleep`
-/// (current-thread runtimes; non-async callers) cannot sleep without
-/// blocking every other task on the same thread, so it spin-yields
-/// instead — `duration` is the spin budget approximated via
-/// `spin_loop` hints, not a real sleep.
+/// Async-runtime variant of the ring-full back-off. Wraps a real
+/// `thread::sleep` in `tokio::task::block_in_place` so the multi-
+/// thread runtime can steal queued work onto a sibling worker while
+/// this thread parks.
+fn backoff_ring_full_async(duration: Duration) {
+    tokio::task::block_in_place(|| {
+        thread::yield_now();
+        thread::sleep(duration);
+    });
+}
+
+/// Sync / current-thread variant of the ring-full back-off. A
+/// current-thread tokio runtime parks every other task while one
+/// `thread::sleep`s, so the publish hot path spin-yields with
+/// `spin_loop` hints instead. The spin count is fixed at 256
+/// iterations — enough to let the consumer drain a backlog at
+/// roughly the cadence the async variant produces, while keeping a
+/// pathological full-ring path bounded.
+fn backoff_ring_full_sync() {
+    thread::yield_now();
+    for _ in 0..256 {
+        std::hint::spin_loop();
+    }
+}
+
+/// Dispatcher invoked by the publish loop — picks the variant from
+/// the pre-resolved `BackoffMode` so the caller does not re-query
+/// the tokio runtime flavor on every retry.
 fn backoff_ring_full(mode: BackoffMode, duration: Duration) {
     match mode {
-        BackoffMode::TokioMultiThread => tokio::task::block_in_place(|| {
-            thread::yield_now();
-            thread::sleep(duration);
-        }),
-        BackoffMode::SyncSleep => {
-            // Spin instead of sleep — a current-thread tokio runtime
-            // parks every other task while this thread sleeps, which
-            // is unacceptable on the publish hot path. The
-            // `spin_loop` hint lets the CPU drop to a lower power
-            // state without yielding the runtime; pair with a yield
-            // so a fairer scheduler still gets a chance.
-            thread::yield_now();
-            // Bound the spin count so a pathological full-ring path
-            // returns to the caller in a finite number of cycles even
-            // if the consumer never drains. The constant approximates
-            // the previous `Duration` argument's wall-clock budget at
-            // ~1 ns/iter on x86_64; tune in lockstep with the publish
-            // retry budget in `submit_*`.
-            let _ = duration;
-            for _ in 0..256 {
-                std::hint::spin_loop();
-            }
-        }
+        BackoffMode::TokioMultiThread => backoff_ring_full_async(duration),
+        BackoffMode::SyncSleep => backoff_ring_full_sync(),
     }
 }
 
@@ -753,8 +746,12 @@ fn handle_decode_request(request: DecodeRequest, poisoned: &Arc<AtomicBool>) {
             // wrapped in catch_unwind so a degenerate compressed
             // payload (zstd context assertion) flips the pool's
             // poison flag rather than killing the decoder thread.
-            let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
-                crate::mdds::decode::decompress_response_with_max(&response, max_message_size)
+            // The `response` is moved by value into the catch_unwind
+            // closure so the identity-compression path can consume
+            // `compressed_data` via `mem::take` without a clone.
+            let outcome = std::panic::catch_unwind(AssertUnwindSafe(move || {
+                let mut response = response;
+                crate::mdds::decode::decompress_response_with_max(&mut response, max_message_size)
             }));
             let bytes = match outcome {
                 Ok(Ok(bytes)) => bytes,

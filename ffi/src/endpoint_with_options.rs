@@ -10,10 +10,7 @@ pub unsafe extern "C" fn tdx_stock_list_symbols_with_options(
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
         let empty = TdxStringArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
 
@@ -22,9 +19,6 @@ pub unsafe extern "C" fn tdx_stock_list_symbols_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_symbols", &args).await
         }) {
@@ -61,10 +55,7 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
         let empty = TdxStringArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let request_type = require_cstr!(request_type, empty);
@@ -83,9 +74,6 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_dates", &args).await
         }) {
@@ -120,19 +108,10 @@ pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
 ) -> TdxOhlcTickArray {
     ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
-        // C string pointers kept valid for the call duration; parse_symbol_array
-        // validates non-null + UTF-8 per element.
-        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-            Some(values) => values,
-            None => return empty,
-        };
+        let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
@@ -143,9 +122,6 @@ pub unsafe extern "C" fn tdx_stock_snapshot_ohlc_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_ohlc", &args).await
         }) {
@@ -180,19 +156,10 @@ pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
 ) -> TdxTradeTickArray {
     ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
-        // C string pointers kept valid for the call duration; parse_symbol_array
-        // validates non-null + UTF-8 per element.
-        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-            Some(values) => values,
-            None => return empty,
-        };
+        let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
@@ -203,9 +170,6 @@ pub unsafe extern "C" fn tdx_stock_snapshot_trade_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_trade", &args).await
         }) {
@@ -240,19 +204,10 @@ pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
 ) -> TdxQuoteTickArray {
     ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
-        // C string pointers kept valid for the call duration; parse_symbol_array
-        // validates non-null + UTF-8 per element.
-        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-            Some(values) => values,
-            None => return empty,
-        };
+        let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
@@ -263,9 +218,6 @@ pub unsafe extern "C" fn tdx_stock_snapshot_quote_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_quote", &args).await
         }) {
@@ -300,19 +252,10 @@ pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
 ) -> TdxMarketValueTickArray {
     ffi_boundary!(TdxMarketValueTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
-        // C string pointers kept valid for the call duration; parse_symbol_array
-        // validates non-null + UTF-8 per element.
-        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-            Some(values) => values,
-            None => return empty,
-        };
+        let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
@@ -323,9 +266,6 @@ pub unsafe extern "C" fn tdx_stock_snapshot_market_value_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_market_value", &args).await
         }) {
@@ -364,10 +304,7 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
 ) -> TdxEodTickArray {
     ffi_boundary!(TdxEodTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -391,9 +328,6 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_eod", &args).await
         }) {
@@ -430,10 +364,7 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
 ) -> TdxOhlcTickArray {
     ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -452,9 +383,6 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc", &args).await
         }) {
@@ -491,10 +419,7 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
 ) -> TdxTradeTickArray {
     ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -513,9 +438,6 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade", &args).await
         }) {
@@ -552,10 +474,7 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
 ) -> TdxQuoteTickArray {
     ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -574,9 +493,6 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_quote", &args).await
         }) {
@@ -613,10 +529,7 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
 ) -> TdxTradeQuoteTickArray {
     ffi_boundary!(TdxTradeQuoteTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxTradeQuoteTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -635,9 +548,6 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade_quote", &args).await
         }) {
@@ -678,10 +588,7 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
 ) -> TdxTradeTickArray {
     ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -710,9 +617,6 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_trade", &args).await
         }) {
@@ -753,10 +657,7 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
 ) -> TdxQuoteTickArray {
     ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -785,9 +686,6 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_quote", &args).await
         }) {
@@ -820,10 +718,7 @@ pub unsafe extern "C" fn tdx_option_list_symbols_with_options(
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
         let empty = TdxStringArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
 
@@ -832,9 +727,6 @@ pub unsafe extern "C" fn tdx_option_list_symbols_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_symbols", &args).await
         }) {
@@ -873,10 +765,7 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
         let empty = TdxStringArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let request_type = require_cstr!(request_type, empty);
@@ -900,9 +789,6 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_dates", &args).await
         }) {
@@ -937,10 +823,7 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
         let empty = TdxStringArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -954,9 +837,6 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_expirations", &args).await
         }) {
@@ -993,10 +873,7 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
         let empty = TdxStringArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1015,9 +892,6 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_strikes", &args).await
         }) {
@@ -1056,10 +930,7 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
 ) -> TdxOptionContractArray {
     ffi_boundary!(TdxOptionContractArray { data: ptr::null(), len: 0 }, {
         let empty = TdxOptionContractArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let request_type = require_cstr!(request_type, empty);
@@ -1083,9 +954,6 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_contracts", &args).await
         }) {
@@ -1122,10 +990,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
 ) -> TdxOhlcTickArray {
     ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1144,9 +1009,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_ohlc", &args).await
         }) {
@@ -1183,10 +1045,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
 ) -> TdxTradeTickArray {
     ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1205,9 +1064,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_trade", &args).await
         }) {
@@ -1244,10 +1100,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
 ) -> TdxQuoteTickArray {
     ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1266,9 +1119,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_quote", &args).await
         }) {
@@ -1305,10 +1155,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
 ) -> TdxOpenInterestTickArray {
     ffi_boundary!(TdxOpenInterestTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxOpenInterestTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1327,9 +1174,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_open_interest", &args).await
         }) {
@@ -1366,10 +1210,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
 ) -> TdxMarketValueTickArray {
     ffi_boundary!(TdxMarketValueTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1388,9 +1229,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_market_value", &args).await
         }) {
@@ -1427,10 +1265,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
 ) -> TdxIvTickArray {
     ffi_boundary!(TdxIvTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1449,9 +1284,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_implied_volatility", &args).await
         }) {
@@ -1488,10 +1320,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
 ) -> TdxGreeksAllTickArray {
     ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1510,9 +1339,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_all", &args).await
         }) {
@@ -1549,10 +1375,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
 ) -> TdxGreeksFirstOrderTickArray {
     ffi_boundary!(TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1571,9 +1394,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_first_order", &args).await
         }) {
@@ -1610,10 +1430,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
 ) -> TdxGreeksSecondOrderTickArray {
     ffi_boundary!(TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1632,9 +1449,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_second_order", &args).await
         }) {
@@ -1671,10 +1485,7 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
 ) -> TdxGreeksThirdOrderTickArray {
     ffi_boundary!(TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1693,9 +1504,6 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_third_order", &args).await
         }) {
@@ -1736,10 +1544,7 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
 ) -> TdxEodTickArray {
     ffi_boundary!(TdxEodTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1768,9 +1573,6 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_eod", &args).await
         }) {
@@ -1809,10 +1611,7 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
 ) -> TdxOhlcTickArray {
     ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1836,9 +1635,6 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_ohlc", &args).await
         }) {
@@ -1877,10 +1673,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
 ) -> TdxTradeTickArray {
     ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1904,9 +1697,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade", &args).await
         }) {
@@ -1945,10 +1735,7 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
 ) -> TdxQuoteTickArray {
     ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -1972,9 +1759,6 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_quote", &args).await
         }) {
@@ -2013,10 +1797,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
 ) -> TdxTradeQuoteTickArray {
     ffi_boundary!(TdxTradeQuoteTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxTradeQuoteTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2040,9 +1821,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_quote", &args).await
         }) {
@@ -2081,10 +1859,7 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
 ) -> TdxOpenInterestTickArray {
     ffi_boundary!(TdxOpenInterestTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxOpenInterestTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2108,9 +1883,6 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_open_interest", &args).await
         }) {
@@ -2151,10 +1923,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
 ) -> TdxGreeksAllTickArray {
     ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2183,9 +1952,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
         }) {
@@ -2224,10 +1990,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
 ) -> TdxGreeksAllTickArray {
     ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2251,9 +2014,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_all", &args).await
         }) {
@@ -2292,10 +2052,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
 ) -> TdxGreeksAllTickArray {
     ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2319,9 +2076,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
         }) {
@@ -2360,10 +2114,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
 ) -> TdxGreeksFirstOrderTickArray {
     ffi_boundary!(TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2387,9 +2138,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_first_order", &args).await
         }) {
@@ -2428,10 +2176,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
 ) -> TdxGreeksFirstOrderTickArray {
     ffi_boundary!(TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2455,9 +2200,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
         }) {
@@ -2496,10 +2238,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
 ) -> TdxGreeksSecondOrderTickArray {
     ffi_boundary!(TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2523,9 +2262,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_second_order", &args).await
         }) {
@@ -2564,10 +2300,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
 ) -> TdxGreeksSecondOrderTickArray {
     ffi_boundary!(TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2591,9 +2324,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
         }) {
@@ -2632,10 +2362,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
 ) -> TdxGreeksThirdOrderTickArray {
     ffi_boundary!(TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2659,9 +2386,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_third_order", &args).await
         }) {
@@ -2700,10 +2424,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
 ) -> TdxGreeksThirdOrderTickArray {
     ffi_boundary!(TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2727,9 +2448,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
         }) {
@@ -2768,10 +2486,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
 ) -> TdxIvTickArray {
     ffi_boundary!(TdxIvTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2795,9 +2510,6 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_implied_volatility", &args).await
         }) {
@@ -2836,10 +2548,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
 ) -> TdxIvTickArray {
     ffi_boundary!(TdxIvTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2863,9 +2572,6 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_implied_volatility", &args).await
         }) {
@@ -2908,10 +2614,7 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
 ) -> TdxTradeTickArray {
     ffi_boundary!(TdxTradeTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxTradeTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -2945,9 +2648,6 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_trade", &args).await
         }) {
@@ -2990,10 +2690,7 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
 ) -> TdxQuoteTickArray {
     ffi_boundary!(TdxQuoteTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxQuoteTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -3027,9 +2724,6 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_quote", &args).await
         }) {
@@ -3062,10 +2756,7 @@ pub unsafe extern "C" fn tdx_index_list_symbols_with_options(
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
         let empty = TdxStringArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
 
@@ -3074,9 +2765,6 @@ pub unsafe extern "C" fn tdx_index_list_symbols_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_symbols", &args).await
         }) {
@@ -3111,10 +2799,7 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
 ) -> TdxStringArray {
     ffi_boundary!(TdxStringArray { data: ptr::null(), len: 0 }, {
         let empty = TdxStringArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -3128,9 +2813,6 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_dates", &args).await
         }) {
@@ -3165,19 +2847,10 @@ pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
 ) -> TdxOhlcTickArray {
     ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
-        // C string pointers kept valid for the call duration; parse_symbol_array
-        // validates non-null + UTF-8 per element.
-        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-            Some(values) => values,
-            None => return empty,
-        };
+        let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
@@ -3188,9 +2861,6 @@ pub unsafe extern "C" fn tdx_index_snapshot_ohlc_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_ohlc", &args).await
         }) {
@@ -3225,19 +2895,10 @@ pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
 ) -> TdxPriceTickArray {
     ffi_boundary!(TdxPriceTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
-        // C string pointers kept valid for the call duration; parse_symbol_array
-        // validates non-null + UTF-8 per element.
-        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-            Some(values) => values,
-            None => return empty,
-        };
+        let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
@@ -3248,9 +2909,6 @@ pub unsafe extern "C" fn tdx_index_snapshot_price_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_price", &args).await
         }) {
@@ -3285,19 +2943,10 @@ pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
 ) -> TdxMarketValueTickArray {
     ffi_boundary!(TdxMarketValueTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxMarketValueTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a contiguous array of `symbols_len` non-null
-        // C string pointers kept valid for the call duration; parse_symbol_array
-        // validates non-null + UTF-8 per element.
-        let symbols = match unsafe { parse_symbol_array(symbols, symbols_len) } {
-            Some(values) => values,
-            None => return empty,
-        };
+        let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
@@ -3308,9 +2957,6 @@ pub unsafe extern "C" fn tdx_index_snapshot_market_value_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_market_value", &args).await
         }) {
@@ -3349,10 +2995,7 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
 ) -> TdxEodTickArray {
     ffi_boundary!(TdxEodTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxEodTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -3376,9 +3019,6 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_eod", &args).await
         }) {
@@ -3417,10 +3057,7 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
 ) -> TdxOhlcTickArray {
     ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -3444,9 +3081,6 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_ohlc", &args).await
         }) {
@@ -3483,10 +3117,7 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
 ) -> TdxPriceTickArray {
     ffi_boundary!(TdxPriceTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -3505,9 +3136,6 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_price", &args).await
         }) {
@@ -3548,10 +3176,7 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
 ) -> TdxPriceTickArray {
     ffi_boundary!(TdxPriceTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -3580,9 +3205,6 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_at_time_price", &args).await
         }) {
@@ -3615,10 +3237,7 @@ pub unsafe extern "C" fn tdx_calendar_open_today_with_options(
 ) -> TdxCalendarDayArray {
     ffi_boundary!(TdxCalendarDayArray { data: ptr::null(), len: 0 }, {
         let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
 
@@ -3627,9 +3246,6 @@ pub unsafe extern "C" fn tdx_calendar_open_today_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_open_today", &args).await
         }) {
@@ -3664,10 +3280,7 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
 ) -> TdxCalendarDayArray {
     ffi_boundary!(TdxCalendarDayArray { data: ptr::null(), len: 0 }, {
         let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let date = require_cstr!(date, empty);
@@ -3681,9 +3294,6 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_on_date", &args).await
         }) {
@@ -3718,10 +3328,7 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
 ) -> TdxCalendarDayArray {
     ffi_boundary!(TdxCalendarDayArray { data: ptr::null(), len: 0 }, {
         let empty = TdxCalendarDayArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let year = require_cstr!(year, empty);
@@ -3735,9 +3342,6 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_year", &args).await
         }) {
@@ -3776,10 +3380,7 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
 ) -> TdxInterestRateTickArray {
     ffi_boundary!(TdxInterestRateTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxInterestRateTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -3803,9 +3404,6 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "interest_rate_history_eod", &args).await
         }) {
@@ -3844,10 +3442,7 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
 ) -> TdxOhlcTickArray {
     ffi_boundary!(TdxOhlcTickArray { data: ptr::null(), len: 0 }, {
         let empty = TdxOhlcTickArray { data: ptr::null(), len: 0 };
-        if client.is_null() {
-            set_error("client handle is null");
-            return empty;
-        }
+        let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
         let symbol = require_cstr!(symbol, empty);
@@ -3871,9 +3466,6 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
             return empty;
         }
 
-        // SAFETY: client is a non-null pointer returned by tdx_client_new
-        // and not yet freed by the matching tdx_client_free.
-        let client = unsafe { &*client };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc_range", &args).await
         }) {

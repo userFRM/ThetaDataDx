@@ -65,18 +65,7 @@ pub unsafe extern "C" fn tdx_fallback_policy_rest_always(
     base_url: *const c_char,
 ) -> *mut TdxFallbackPolicy {
     ffi_boundary!(ptr::null_mut(), {
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let base_url = match unsafe { cstr_to_str(base_url) } {
-            Ok(Some(s)) => s.to_string(),
-            Ok(None) => {
-                set_error("base_url is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("base_url is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
+        let base_url = require_cstr!(base_url, ptr::null_mut()).to_string();
         Box::into_raw(Box::new(TdxFallbackPolicy {
             inner: config::FallbackPolicy::RestAlways { base_url },
         }))

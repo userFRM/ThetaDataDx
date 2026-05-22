@@ -269,6 +269,51 @@ impl MddsClient {
     pub fn interest_rate_tier(&self) -> Option<SubscriptionTier> {
         self.interest_rate_tier
     }
+
+    /// Construct an `MddsClient` whose channel pool, semaphore, and
+    /// fallback config are caller-supplied.
+    ///
+    /// Exists for the `_with_fallback` regression tests in
+    /// `crates/thetadatadx/tests/test_with_fallback_*.rs` — those need
+    /// to drive the shims against a mock REST server without paying
+    /// for a real Nexus auth handshake. Hidden from docs.rs via
+    /// `#[doc(hidden)]`; not part of the supported public surface.
+    ///
+    /// `channels` must be non-empty (panics otherwise via
+    /// `ChannelPool::from_channels`). Callers exercising only the REST
+    /// arm should still supply a usable mock-backed channel so the
+    /// pool's `Drop` order does not trip an unconnected-channel
+    /// assertion.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn __for_fallback_test(
+        config: DirectConfig,
+        channels: ChannelPool,
+        request_semaphore: Arc<tokio::sync::Semaphore>,
+    ) -> Self {
+        let creds = Credentials::new("test", "test");
+        let session = SessionToken::new(
+            "00000000-0000-0000-0000-000000000000".to_string(),
+            config.auth.nexus_url.clone(),
+            creds,
+        );
+        let mut query_parameters = HashMap::new();
+        query_parameters.insert("client".to_string(), "terminal".to_string());
+        let client_type = config.auth.client_type.clone();
+        Self {
+            session,
+            channels,
+            config,
+            query_parameters,
+            client_type,
+            request_semaphore,
+            stock_tier: None,
+            options_tier: None,
+            indices_tier: None,
+            interest_rate_tier: None,
+            rest_clients: OnceLock::new(),
+        }
+    }
 }
 
 /// Pool sizing — `concurrent_requests` from `DirectConfig` is the
