@@ -581,6 +581,82 @@ void tdx_client_free(TdxClient* client);
 /** Free a string returned by any tdx_* function. */
 void tdx_string_free(char* s);
 
+/* ═══════════════════════════════════════════════════════════════════════ */
+/*  REST fallback policy (issue #571 mitigation)                          */
+/*                                                                        */
+/*  Routes the four h2-cascading endpoints (option_history_quote,         */
+/*  option_history_trade_quote, option_history_greeks_implied_volatility, */
+/*  option_history_greeks_first_order) over the local Terminal's REST     */
+/*  API when the upstream gRPC stream cascades on 2022-era legacy rows.   */
+/*  See sdks/cpp/include/thetadx.h doc-comments and                       */
+/*  docs-site/docs/legacy-quote-handling.md for the four variants.        */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/** Opaque fallback-policy handle. Construct via one of the four factories,
+ *  install on a config via tdx_config_with_rest_fallback, free with
+ *  tdx_fallback_policy_free. */
+typedef struct TdxFallbackPolicy TdxFallbackPolicy;
+
+/** Disabled -- no REST fallback. Identical to never calling
+ *  tdx_config_with_rest_fallback. */
+TdxFallbackPolicy* tdx_fallback_policy_disabled(void);
+
+/** Fall back to REST only on the h2-disconnect signature (issue #571).
+ *  base_url must be a NUL-terminated C string. Returns NULL on invalid
+ *  UTF-8; check tdx_last_error(). */
+TdxFallbackPolicy* tdx_fallback_policy_rest_on_h2_disconnect(const char* base_url);
+
+/** Pre-route every request whose start_date < before_yyyymmdd directly to
+ *  REST without trying gRPC first. before_yyyymmdd is the YYYYMMDD cutoff
+ *  (half-open: dates ON the boundary still flow through gRPC). */
+TdxFallbackPolicy* tdx_fallback_policy_rest_always_for_date_range(const char* base_url,
+                                                                  int32_t before_yyyymmdd);
+
+/** Always route the affected endpoints over REST regardless of date. */
+TdxFallbackPolicy* tdx_fallback_policy_rest_always(const char* base_url);
+
+/** Free a fallback policy handle. */
+void tdx_fallback_policy_free(TdxFallbackPolicy* policy);
+
+/** Install the given fallback policy on a config. Borrows policy (clones
+ *  the inner enum); the caller retains ownership and must still free policy
+ *  via tdx_fallback_policy_free. Returns 0 on success, -1 on null-pointer
+ *  error (check tdx_last_error()). */
+int tdx_config_with_rest_fallback(TdxConfig* config, const TdxFallbackPolicy* policy);
+
+/* ── Historical _with_fallback shims ── */
+
+/** Fetch option NBBO history with REST fallback per the configured policy.
+ *  symbol, expiration, start_date are required; end_date, strike, right,
+ *  interval may be NULL to omit. Returns empty array on error; check
+ *  tdx_last_error(). Caller must free via tdx_quote_tick_array_free. */
+TdxQuoteTickArray tdx_option_history_quote_with_fallback(
+    const TdxClient* client,
+    const char* symbol, const char* expiration, const char* start_date,
+    const char* end_date, const char* strike, const char* right, const char* interval);
+
+/** Fetch combined trade+quote history with REST fallback. Same signature
+ *  contract as tdx_option_history_quote_with_fallback (minus `interval`).
+ *  Caller must free via tdx_trade_quote_tick_array_free. */
+TdxTradeQuoteTickArray tdx_option_history_trade_quote_with_fallback(
+    const TdxClient* client,
+    const char* symbol, const char* expiration, const char* start_date,
+    const char* end_date, const char* strike, const char* right);
+
+/** Fetch implied-volatility history with REST fallback. Caller must free
+ *  via tdx_iv_tick_array_free. */
+TdxIvTickArray tdx_option_history_greeks_implied_volatility_with_fallback(
+    const TdxClient* client,
+    const char* symbol, const char* expiration, const char* start_date,
+    const char* end_date, const char* strike, const char* right, const char* interval);
+
+/** Fetch first-order Greeks history with REST fallback. Caller must free
+ *  via tdx_greeks_first_order_tick_array_free. */
+TdxGreeksFirstOrderTickArray tdx_option_history_greeks_first_order_with_fallback(
+    const TdxClient* client,
+    const char* symbol, const char* expiration, const char* start_date,
+    const char* end_date, const char* strike, const char* right, const char* interval);
+
 /* Generated option-aware endpoint declarations. */
 #include "endpoint_with_options.h.inc"
 

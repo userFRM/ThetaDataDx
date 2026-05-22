@@ -13,7 +13,7 @@
 //! generated endpoint method bodies in [`super::endpoints`].
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Duration;
 
 use crate::auth::{self, Credentials, SessionToken};
@@ -81,6 +81,15 @@ pub struct MddsClient {
     options_tier: Option<SubscriptionTier>,
     indices_tier: Option<SubscriptionTier>,
     interest_rate_tier: Option<SubscriptionTier>,
+    /// Lazily-built [`crate::rest::RestClient`] cache keyed by
+    /// `base_url`. The REST fallback shims (`option_history_*_with_fallback`,
+    /// defined in [`super::fallback`]) previously built a fresh
+    /// `RestClient` per call, dragging the per-call cost up by a
+    /// `reqwest::Client` construction (TLS context + connection pool
+    /// init) on every fallback dispatch. One handle per distinct base
+    /// URL is shared for the lifetime of the [`MddsClient`] -- reuses
+    /// the underlying HTTP/2 connection pool across calls.
+    pub(crate) rest_clients: OnceLock<RwLock<HashMap<String, Arc<crate::rest::RestClient>>>>,
 }
 
 // ── Infrastructure (not generated — these are session/transport methods, not ThetaData endpoints) ──
@@ -181,6 +190,7 @@ impl MddsClient {
             options_tier,
             indices_tier,
             interest_rate_tier,
+            rest_clients: OnceLock::new(),
         })
     }
 
