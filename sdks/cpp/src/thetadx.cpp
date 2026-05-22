@@ -84,4 +84,10 @@ FpssClient::~FpssClient() {
 
 #include "utilities.cpp.inc"
 
+// ═══════════════════════════════════════════════════════════════
+//  REST fallback policy + _with_fallback shims (issue #571)
+// ═══════════════════════════════════════════════════════════════
+
+#include "fallback.cpp.inc"
+
 } // namespace tdx

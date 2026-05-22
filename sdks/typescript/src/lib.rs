@@ -280,6 +280,10 @@ impl ThetaDataDxClient {
 // Hand-written FLATFILES bindings — dynamic schema, see module docs.
 mod flatfile_methods;
 
+// REST-fallback policy + Config napi classes + `_with_fallback` shims.
+mod fallback;
+pub use fallback::{Config, FallbackPolicy, DEFAULT_REST_BASE_URL};
+
 // Fluent contract-first API. Adds `ContractRef`,
 // `Subscription`, `SecType` napi classes and the polymorphic
 // `subscribe(sub)` / `subscribeMany([sub, ...])` methods on the
@@ -296,6 +300,201 @@ pub use fluent::{ContractRef, SecType, Subscription};
 // tables under camelCase JS method names.
 mod util_helpers;
 pub use util_helpers::Util;
+
+// ── REST-fallback surface ────────────────────────────────────────────
+//
+// `connectWithConfig` / `connectFromFileWithConfig` build a client with
+// a caller-supplied `Config`, allowing the
+// `Config.withRestFallback(policy)` setting to land on the live client.
+// The four `optionHistory*WithFallback` methods then dispatch through
+// the configured policy per `MddsClient::option_history_*_with_fallback`.
+
+#[napi]
+impl ThetaDataDxClient {
+    /// Connect to ThetaData with a caller-supplied [`Config`]. Lets
+    /// the caller install a [`FallbackPolicy`] (via
+    /// `Config.withRestFallback`) before connecting so the four
+    /// `optionHistory*WithFallback` shims pick it up. Otherwise
+    /// identical to [`connect`](Self::connect).
+    #[napi(factory, js_name = "connectWithConfig")]
+    pub fn connect_with_config(
+        email: String,
+        password: String,
+        config: &fallback::Config,
+    ) -> napi::Result<ThetaDataDxClient> {
+        let creds = auth::Credentials::new(email, password);
+        let direct_config = config.snapshot()?;
+        let tdx = runtime()
+            .block_on(thetadatadx::ThetaDataDxClient::connect(
+                &creds,
+                direct_config,
+            ))
+            .map_err(to_napi_err)?;
+        Ok(ThetaDataDxClient {
+            tdx: Arc::new(tdx),
+            callback: Mutex::new(None),
+        })
+    }
+
+    /// Connect with credentials file + caller-supplied [`Config`].
+    #[napi(factory, js_name = "connectFromFileWithConfig")]
+    pub fn connect_from_file_with_config(
+        path: String,
+        config: &fallback::Config,
+    ) -> napi::Result<ThetaDataDxClient> {
+        let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
+        let direct_config = config.snapshot()?;
+        let tdx = runtime()
+            .block_on(thetadatadx::ThetaDataDxClient::connect(
+                &creds,
+                direct_config,
+            ))
+            .map_err(to_napi_err)?;
+        Ok(ThetaDataDxClient {
+            tdx: Arc::new(tdx),
+            callback: Mutex::new(None),
+        })
+    }
+
+    /// Fetch option NBBO history with REST fallback per the
+    /// `FallbackPolicy` on the config the client was built with. See
+    /// [`thetadatadx::mdds::MddsClient::option_history_quote_with_fallback`].
+    #[napi(js_name = "optionHistoryQuoteWithFallback")]
+    #[allow(clippy::too_many_arguments)]
+    pub async fn option_history_quote_with_fallback(
+        &self,
+        symbol: String,
+        expiration: String,
+        start_date: String,
+        end_date: Option<String>,
+        strike: Option<String>,
+        right: Option<String>,
+        interval: Option<String>,
+    ) -> napi::Result<Vec<QuoteTick>> {
+        let tdx = self.tdx.clone();
+        let ticks = tokio::task::spawn_blocking(move || {
+            runtime().block_on(async move {
+                tdx.option_history_quote_with_fallback(
+                    &symbol,
+                    &expiration,
+                    &start_date,
+                    end_date.as_deref(),
+                    strike.as_deref(),
+                    right.as_deref(),
+                    interval.as_deref(),
+                )
+                .await
+            })
+        })
+        .await
+        .map_err(|e| napi::Error::from_reason(format!("spawn_blocking join error: {e}")))?
+        .map_err(fallback::err_from_thetadatadx)?;
+        Ok(quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Fetch combined trade+quote history with REST fallback per the
+    /// `FallbackPolicy` on the config the client was built with. See
+    /// [`thetadatadx::mdds::MddsClient::option_history_trade_quote_with_fallback`].
+    #[napi(js_name = "optionHistoryTradeQuoteWithFallback")]
+    pub async fn option_history_trade_quote_with_fallback(
+        &self,
+        symbol: String,
+        expiration: String,
+        start_date: String,
+        end_date: Option<String>,
+        strike: Option<String>,
+        right: Option<String>,
+    ) -> napi::Result<Vec<TradeQuoteTick>> {
+        let tdx = self.tdx.clone();
+        let ticks = tokio::task::spawn_blocking(move || {
+            runtime().block_on(async move {
+                tdx.option_history_trade_quote_with_fallback(
+                    &symbol,
+                    &expiration,
+                    &start_date,
+                    end_date.as_deref(),
+                    strike.as_deref(),
+                    right.as_deref(),
+                )
+                .await
+            })
+        })
+        .await
+        .map_err(|e| napi::Error::from_reason(format!("spawn_blocking join error: {e}")))?
+        .map_err(fallback::err_from_thetadatadx)?;
+        Ok(trade_quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Fetch implied-volatility history with REST fallback. See
+    /// [`thetadatadx::mdds::MddsClient::option_history_greeks_implied_volatility_with_fallback`].
+    #[napi(js_name = "optionHistoryGreeksImpliedVolatilityWithFallback")]
+    #[allow(clippy::too_many_arguments)]
+    pub async fn option_history_greeks_implied_volatility_with_fallback(
+        &self,
+        symbol: String,
+        expiration: String,
+        start_date: String,
+        end_date: Option<String>,
+        strike: Option<String>,
+        right: Option<String>,
+        interval: Option<String>,
+    ) -> napi::Result<Vec<IvTick>> {
+        let tdx = self.tdx.clone();
+        let ticks = tokio::task::spawn_blocking(move || {
+            runtime().block_on(async move {
+                tdx.option_history_greeks_implied_volatility_with_fallback(
+                    &symbol,
+                    &expiration,
+                    &start_date,
+                    end_date.as_deref(),
+                    strike.as_deref(),
+                    right.as_deref(),
+                    interval.as_deref(),
+                )
+                .await
+            })
+        })
+        .await
+        .map_err(|e| napi::Error::from_reason(format!("spawn_blocking join error: {e}")))?
+        .map_err(fallback::err_from_thetadatadx)?;
+        Ok(iv_ticks_to_class_vec(&ticks))
+    }
+
+    /// Fetch first-order Greeks history with REST fallback. See
+    /// [`thetadatadx::mdds::MddsClient::option_history_greeks_first_order_with_fallback`].
+    #[napi(js_name = "optionHistoryGreeksFirstOrderWithFallback")]
+    #[allow(clippy::too_many_arguments)]
+    pub async fn option_history_greeks_first_order_with_fallback(
+        &self,
+        symbol: String,
+        expiration: String,
+        start_date: String,
+        end_date: Option<String>,
+        strike: Option<String>,
+        right: Option<String>,
+        interval: Option<String>,
+    ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
+        let tdx = self.tdx.clone();
+        let ticks = tokio::task::spawn_blocking(move || {
+            runtime().block_on(async move {
+                tdx.option_history_greeks_first_order_with_fallback(
+                    &symbol,
+                    &expiration,
+                    &start_date,
+                    end_date.as_deref(),
+                    strike.as_deref(),
+                    right.as_deref(),
+                    interval.as_deref(),
+                )
+                .await
+            })
+        })
+        .await
+        .map_err(|e| napi::Error::from_reason(format!("spawn_blocking join error: {e}")))?
+        .map_err(fallback::err_from_thetadatadx)?;
+        Ok(greeks_first_order_ticks_to_class_vec(&ticks))
+    }
+}
 
 #[napi]
 impl ThetaDataDxClient {

@@ -576,18 +576,21 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.Config = nativeBinding.Config
 module.exports.ContractRef = nativeBinding.ContractRef
 // U7 closure: alias the documented public name `Contract` to the
 // napi-emitted `ContractRef` constructor. Without this, `require
 // ('thetadatadx').Contract.stock(...)` is undefined at runtime.
 module.exports.Contract = nativeBinding.ContractRef;
 module.exports.EventIterator = nativeBinding.EventIterator
+module.exports.FallbackPolicy = nativeBinding.FallbackPolicy
 module.exports.FlatFileRowList = nativeBinding.FlatFileRowList
 module.exports.FlatFilesNamespace = nativeBinding.FlatFilesNamespace
 module.exports.SecType = nativeBinding.SecType
 module.exports.Subscription = nativeBinding.Subscription
 module.exports.ThetaDataDxClient = nativeBinding.ThetaDataDxClient
 module.exports.Util = nativeBinding.Util
+module.exports.DEFAULT_REST_BASE_URL = nativeBinding.DEFAULT_REST_BASE_URL
 module.exports.Interval = nativeBinding.Interval
 module.exports.RateType = nativeBinding.RateType
 module.exports.RequestType = nativeBinding.RequestType

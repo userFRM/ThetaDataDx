@@ -116,13 +116,89 @@ ticks = tdx.option_history_quote_with_fallback(
 )
 ```
 
-#### TypeScript / C++
+#### TypeScript
 
-The `FallbackPolicy` class + `_with_fallback` methods are wired on the
-Rust core + Python binding in v10.x. TypeScript and C++ ports are
-tracked as a follow-up; until then, TypeScript and C++ consumers
-should call the standalone `RestClient` directly when targeting
-pre-2023 dates (the underlying HTTP path is the same).
+```js
+const {
+    Config,
+    FallbackPolicy,
+    ThetaDataDxClient,
+    DEFAULT_REST_BASE_URL,
+} = require('@userfrm/thetadatadx');
+
+const cfg = Config.production();
+cfg.withRestFallback(
+    FallbackPolicy.restAlwaysForDateRange(DEFAULT_REST_BASE_URL, 20230101),
+);
+const tdx = ThetaDataDxClient.connectWithConfig(
+    process.env.THETADATA_EMAIL,
+    process.env.THETADATA_PASSWORD,
+    cfg,
+);
+
+// Pre-2023 -- routes over REST automatically.
+const legacy = await tdx.optionHistoryQuoteWithFallback(
+    'QQQ', '20220415', '20220414',
+    /* endDate */ undefined,
+    /* strike  */ '330',
+    /* right   */ 'call',
+    /* interval */ '1m',
+);
+
+// 2024+ -- flows through gRPC as normal. Same call signature.
+const current = await tdx.optionHistoryQuoteWithFallback(
+    'QQQ', '20240620', '20240605',
+    undefined, '440', 'call', '1m',
+);
+```
+
+#### C++
+
+```cpp
+#include "thetadx.hpp"
+
+auto cfg = tdx::Config::production();
+cfg.withRestFallback(
+    tdx::FallbackPolicy::restAlwaysForDateRange(
+        "http://127.0.0.1:25503", 20230101));
+auto creds = tdx::Credentials::from_file("creds.txt");
+auto tdx_client = tdx::Client::connect(creds, cfg);
+
+// Pre-2023 -- routes over REST automatically.
+auto legacy = tdx_client.optionHistoryQuoteWithFallback(
+    "QQQ", "20220415", "20220414",
+    /* end_date */ {}, /* strike */ "330",
+    /* right    */ "call", /* interval */ "1m");
+
+// 2024+ -- flows through gRPC as normal. Same call shape.
+auto current = tdx_client.optionHistoryQuoteWithFallback(
+    "QQQ", "20240620", "20240605", {}, "440", "call", "1m");
+```
+
+#### C ABI (FFI)
+
+```c
+#include "thetadx.h"
+
+TdxConfig* cfg = tdx_config_production();
+TdxFallbackPolicy* policy = tdx_fallback_policy_rest_always_for_date_range(
+    "http://127.0.0.1:25503", 20230101);
+tdx_config_with_rest_fallback(cfg, policy);
+
+TdxCredentials* creds = tdx_credentials_from_file("creds.txt");
+TdxClient* client = tdx_client_connect(creds, cfg);
+
+TdxQuoteTickArray arr = tdx_option_history_quote_with_fallback(
+    client, "QQQ", "20220415", "20220414",
+    NULL, "330", "call", "1m");
+/* ... consume arr.data[0..arr.len] ... */
+tdx_quote_tick_array_free(arr);
+
+tdx_client_free(client);
+tdx_credentials_free(creds);
+tdx_fallback_policy_free(policy);
+tdx_config_free(cfg);
+```
 
 ### Policy variants
 
