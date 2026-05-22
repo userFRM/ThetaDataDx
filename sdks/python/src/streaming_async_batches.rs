@@ -1055,8 +1055,7 @@ impl crate::ThetaDataDxClient {
     /// per-tick [`crate::streaming_async_session::StreamingAsyncSession`]
     /// pays one full pyclass instance allocation per event, which on
     /// dense streams (≥ 5 k events/sec QQQ quotes, ≥ 100 k events/sec
-    /// full-stream OPRA option quotes) dominates wall time. Closes
-    /// #562.
+    /// full-stream OPRA option quotes) dominates wall time.
     ///
     /// # Backpressure
     ///

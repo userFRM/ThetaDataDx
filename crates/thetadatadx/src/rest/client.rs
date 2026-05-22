@@ -184,7 +184,15 @@ pub(crate) async fn fetch_csv(
     // so the first DATA frame doesn't trip a per-chunk realloc.
     const CHUNKED_INITIAL_CAPACITY: usize = 64 * 1024;
     let mut buf: Vec<u8> = match advertised_len {
-        Some(cl) if cl <= limit => Vec::with_capacity(usize::try_from(cl).unwrap_or(0)),
+        Some(cl) if cl <= limit => {
+            // Floor the seed at the chunked initial capacity so a
+            // `Content-Length: 0` head paired with a chunked body
+            // (e.g. a misconfigured proxy that forwards both
+            // framings) does not trip the same per-chunk realloc the
+            // pure-chunked path avoids.
+            let advertised = usize::try_from(cl).unwrap_or(CHUNKED_INITIAL_CAPACITY);
+            Vec::with_capacity(std::cmp::max(advertised, CHUNKED_INITIAL_CAPACITY))
+        }
         _ => Vec::with_capacity(CHUNKED_INITIAL_CAPACITY),
     };
     let mut stream = resp;

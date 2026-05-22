@@ -600,17 +600,13 @@ macro_rules! parsed_endpoint {
             /// Stream the response chunk-by-chunk via `handler`, never
             /// materializing the full `Vec<T>`.
             ///
-            /// Issue #565 OOM fix: the buffered `.await -> Vec<T>` path
-            /// holds three live copies (h2 frames + concatenated proto
-            /// payload + decoded `Vec<T>`) plus a `Vec::push` doubling
-            /// transient, yielding the 6× memory amplification the
-            /// production user reproduced on `option_history_quote`
-            /// with `interval=tick`, `strike_range=5`, 1DTE, 32-permit
-            /// concurrency (~23 GiB RSS). The `.stream()` variant
-            /// decodes one chunk at a time, hands the slice to
-            /// `handler`, then drops the chunk before the next is
-            /// fetched — bounded peak memory regardless of response
-            /// size.
+            /// The buffered `.await -> Vec<T>` path holds three live
+            /// copies (h2 frames + concatenated proto payload +
+            /// decoded `Vec<T>`) plus a `Vec::push` doubling
+            /// transient. The `.stream()` variant decodes one chunk
+            /// at a time, hands the slice to `handler`, then drops
+            /// the chunk before the next is fetched — bounded peak
+            /// memory regardless of response size.
             ///
             /// # Retry / refresh semantics
             ///

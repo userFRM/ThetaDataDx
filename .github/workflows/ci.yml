@@ -153,7 +153,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-rust-deps
-      - run: cargo test --workspace --locked
+      # The `__test-helpers` feature is private (double-underscore
+      # prefix) — see `crates/thetadatadx/Cargo.toml`. It exposes a
+      # single test-only constructor (`MddsClient::for_fallback_test`)
+      # gated behind `cfg(feature = "__test-helpers")` so the symbol
+      # never enters the published rlib. The integration test
+      # `test_with_fallback_end_date` has `required-features` matching;
+      # without the flag here the test silently skips and the
+      # `_with_fallback` shims lose their regression coverage.
+      - run: cargo test --workspace --locked --features thetadatadx/__test-helpers
       # Gate 3 (#546) - Rust side: doctests run as part of `cargo test
       # --workspace` above, but invoking `--doc` explicitly verifies
       # the FFI crate's `extern "C"` doc examples compile + run on

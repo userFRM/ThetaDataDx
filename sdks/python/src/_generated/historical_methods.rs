@@ -585,7 +585,7 @@ impl StockHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_eod` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -844,7 +844,7 @@ impl StockHistoryOhlcBuilder {
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_ohlc` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1132,7 +1132,7 @@ impl StockHistoryTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_trade` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1430,7 +1430,7 @@ impl StockHistoryQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1734,7 +1734,7 @@ impl StockHistoryTradeQuoteBuilder {
         }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_trade_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -1983,7 +1983,7 @@ impl StockAtTimeTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -2196,7 +2196,7 @@ impl StockAtTimeQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -2680,7 +2680,7 @@ impl OptionListContractsBuilder {
         }, |py, ticks| option_contracts_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_list_contracts` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_list_contracts` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let request_type = self.request_type.clone();
@@ -4867,7 +4867,7 @@ impl OptionHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_eod` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -5200,7 +5200,7 @@ impl OptionHistoryOhlcBuilder {
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_ohlc` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -5563,7 +5563,7 @@ impl OptionHistoryTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -5941,7 +5941,7 @@ impl OptionHistoryQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -6328,7 +6328,7 @@ impl OptionHistoryTradeQuoteBuilder {
         }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -6666,7 +6666,7 @@ impl OptionHistoryOpenInterestBuilder {
         }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_open_interest` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_open_interest` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -7037,7 +7037,7 @@ impl OptionHistoryGreeksEodBuilder {
         }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_eod` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -7473,7 +7473,7 @@ impl OptionHistoryGreeksAllBuilder {
         }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_all` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -7930,7 +7930,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_all` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -8388,7 +8388,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_first_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -8845,7 +8845,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_first_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -9303,7 +9303,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_second_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -9760,7 +9760,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_second_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -10218,7 +10218,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_third_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -10675,7 +10675,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_third_order` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -11132,7 +11132,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_implied_volatility` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -11588,7 +11588,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_implied_volatility` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -11939,7 +11939,7 @@ impl OptionAtTimeTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -12228,7 +12228,7 @@ impl OptionAtTimeQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -12783,7 +12783,7 @@ impl IndexHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_history_eod` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `index_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -13005,7 +13005,7 @@ impl IndexHistoryOhlcBuilder {
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_history_ohlc` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `index_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -13273,7 +13273,7 @@ impl IndexHistoryPriceBuilder {
         }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_history_price` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `index_history_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -13491,7 +13491,7 @@ impl IndexAtTimePriceBuilder {
         }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -13836,7 +13836,7 @@ impl InterestRateHistoryEodBuilder {
         }, |py, ticks| interest_rate_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `interest_rate_history_eod` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `interest_rate_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
@@ -14070,7 +14070,7 @@ impl StockHistoryOhlcRangeBuilder {
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_ohlc_range` rows into `handler` without materialising the full response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_ohlc_range` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();

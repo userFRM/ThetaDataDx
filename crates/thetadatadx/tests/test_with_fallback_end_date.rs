@@ -32,11 +32,15 @@ use grpc_mock_server::MockServer;
 /// Raw-TCP HTTP/1 mock that records every inbound request's URL query
 /// string. The handler hangs until `release` is notified, which lets
 /// the tier-clamp test observe back-to-back calls serialising on the
-/// semaphore.
+/// semaphore. The `entered` notify fires once the request line has
+/// been parsed and the query has been captured, so callers can wait
+/// deterministically for "first call reached mock" instead of
+/// sleeping.
 struct RestMock {
     addr: std::net::SocketAddr,
     captured: Arc<tokio::sync::Mutex<Vec<String>>>,
     release: Arc<Notify>,
+    entered: Arc<Notify>,
     task: Option<JoinHandle<()>>,
 }
 
@@ -48,8 +52,10 @@ impl RestMock {
         let addr = listener.local_addr().expect("read local addr");
         let captured: Arc<tokio::sync::Mutex<Vec<String>>> = Arc::new(Default::default());
         let release = Arc::new(Notify::new());
+        let entered = Arc::new(Notify::new());
         let captured_loop = Arc::clone(&captured);
         let release_loop = Arc::clone(&release);
+        let entered_loop = Arc::clone(&entered);
         let task = tokio::spawn(async move {
             loop {
                 let (socket, _) = match listener.accept().await {
@@ -58,8 +64,11 @@ impl RestMock {
                 };
                 let captured = Arc::clone(&captured_loop);
                 let release = Arc::clone(&release_loop);
+                let entered = Arc::clone(&entered_loop);
                 tokio::spawn(async move {
-                    let _ = handle_one(socket, captured, release, body, hold_until_release).await;
+                    let _ =
+                        handle_one(socket, captured, release, entered, body, hold_until_release)
+                            .await;
                 });
             }
         });
@@ -67,6 +76,7 @@ impl RestMock {
             addr,
             captured,
             release,
+            entered,
             task: Some(task),
         }
     }
@@ -77,6 +87,14 @@ impl RestMock {
 
     async fn captured_queries(&self) -> Vec<String> {
         self.captured.lock().await.clone()
+    }
+
+    /// Wait for the next handler to reach the post-query-capture
+    /// barrier. Resolves once *some* in-flight handler has logged its
+    /// request line into `captured`. Used by the tier-clamp test to
+    /// pin "first call reached mock" without a sleep race.
+    async fn wait_for_entry(&self) {
+        self.entered.notified().await;
     }
 
     fn release_all(&self) {
@@ -105,6 +123,7 @@ async fn handle_one(
     mut socket: TcpStream,
     captured: Arc<tokio::sync::Mutex<Vec<String>>>,
     release: Arc<Notify>,
+    entered: Arc<Notify>,
     body: &'static str,
     hold_until_release: bool,
 ) -> std::io::Result<()> {
@@ -129,6 +148,10 @@ async fn handle_one(
     let target = request_line.split_whitespace().nth(1).unwrap_or("");
     let query = target.split_once('?').map(|(_, q)| q).unwrap_or("");
     captured.lock().await.push(query.to_string());
+    // Fire the entry barrier AFTER the query is captured. Test
+    // callers awaiting `RestMock::wait_for_entry` are guaranteed to
+    // see a non-empty `captured` snapshot when they wake.
+    entered.notify_one();
     if hold_until_release {
         release.notified().await;
     }
@@ -210,7 +233,7 @@ async fn iv_with_fallback_rest_arm_forwards_end_date() {
         base_url: rest.base_url(),
     });
     let sem = Arc::new(Semaphore::new(4));
-    let client = MddsClient::__for_fallback_test(cfg, channels, sem);
+    let client = MddsClient::for_fallback_test(cfg, channels, sem);
     let _ = client
         .option_history_greeks_implied_volatility_with_fallback(
             "AAPL",
@@ -243,7 +266,7 @@ async fn first_order_with_fallback_rest_arm_forwards_end_date() {
         base_url: rest.base_url(),
     });
     let sem = Arc::new(Semaphore::new(4));
-    let client = MddsClient::__for_fallback_test(cfg, channels, sem);
+    let client = MddsClient::for_fallback_test(cfg, channels, sem);
     let _ = client
         .option_history_greeks_first_order_with_fallback(
             "AAPL",
@@ -265,33 +288,47 @@ async fn first_order_with_fallback_rest_arm_forwards_end_date() {
     );
 }
 
-// ───── gRPC arm: dispatch reaches the wire under FallbackPolicy::Disabled
+// ───── gRPC arm: outbound request pins `end_date` on the wire
 //
-// The gRPC mock here accepts exactly one connection and serves a
-// well-formed empty `DataTable`. The fact that the `_with_fallback`
-// shim returns Ok(empty) (rather than an "unimplemented" error or a
-// panic) proves the request reached the wire — i.e. the
-// `FallbackPolicy::Disabled` arm took the gRPC builder path. The
-// outbound request bytes for these endpoints carry the `end_date`
-// param via the same macro the gRPC unit tests already cover, and the
-// PR #592 fix lives at the `builder.end_date(e)` call in the
-// `_with_fallback` shim — exercising the shim end-to-end is the
-// regression line.
+// `FallbackPolicy::Disabled` routes the `_with_fallback` shims down
+// the gRPC builder path. PR #592 fixed a missed `builder.end_date(e)`
+// call in that path; these tests pin the regression by capturing the
+// outbound protobuf bytes at the mock and decoding the request proto
+// to assert the `end_date` field is present and carries the value the
+// caller passed.
+
+use std::sync::Mutex;
+use thetadatadx::wire::test_requests::{
+    OptionHistoryGreeksFirstOrderRequest, OptionHistoryGreeksImpliedVolatilityRequest,
+};
+
+/// Build a `MockBehaviour` whose request-capture hook writes into the
+/// supplied buffer. Caller-owned `Arc` so the test reads the captured
+/// bytes off its own clone after the RPC completes.
+fn capture_behaviour(target: Arc<Mutex<Vec<u8>>>) -> grpc_mock_server::MockBehaviour {
+    grpc_mock_server::MockBehaviour {
+        capture_request_bytes: Some(target),
+        ..grpc_mock_server::MockBehaviour::default()
+    }
+}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn iv_with_fallback_grpc_arm_dispatches() {
-    let mock = MockServer::spawn(empty_quote_chunks(), 0).await;
+async fn iv_with_fallback_grpc_arm_forwards_end_date() {
+    let captured: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let mock = MockServer::spawn_with_behaviour(
+        empty_quote_chunks(),
+        0,
+        String::new(),
+        capture_behaviour(Arc::clone(&captured)),
+    )
+    .await;
     let channel = Channel::connect_h2c("127.0.0.1", mock.addr.port())
         .await
         .expect("h2c connect");
     let channels = ChannelPool::from_channels(vec![channel]);
     let cfg = config_with_fallback(FallbackPolicy::Disabled);
     let sem = Arc::new(Semaphore::new(4));
-    let client = MddsClient::__for_fallback_test(cfg, channels, sem);
-    // The mock returns an empty-quote DataTable; the IV decoder will
-    // see header-only output and either return an empty result or a
-    // schema-mismatch error. Both outcomes prove the gRPC arm was
-    // taken (the REST arm would have failed connect — no REST mock).
+    let client = MddsClient::for_fallback_test(cfg, channels, sem);
     let _ = client
         .option_history_greeks_implied_volatility_with_fallback(
             "AAPL",
@@ -303,18 +340,38 @@ async fn iv_with_fallback_grpc_arm_dispatches() {
             None,
         )
         .await;
+    let payload = captured.lock().expect("captured mutex poisoned").clone();
+    assert!(
+        !payload.is_empty(),
+        "mock did not capture the outbound request body"
+    );
+    let request = OptionHistoryGreeksImpliedVolatilityRequest::decode(payload.as_slice())
+        .expect("decode IV request proto");
+    let params = request.params.expect("IV request has params");
+    assert_eq!(
+        params.end_date.as_deref(),
+        Some("20240920"),
+        "IV gRPC arm dropped end_date from the outbound request"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn first_order_with_fallback_grpc_arm_dispatches() {
-    let mock = MockServer::spawn(empty_quote_chunks(), 0).await;
+async fn first_order_with_fallback_grpc_arm_forwards_end_date() {
+    let captured: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let mock = MockServer::spawn_with_behaviour(
+        empty_quote_chunks(),
+        0,
+        String::new(),
+        capture_behaviour(Arc::clone(&captured)),
+    )
+    .await;
     let channel = Channel::connect_h2c("127.0.0.1", mock.addr.port())
         .await
         .expect("h2c connect");
     let channels = ChannelPool::from_channels(vec![channel]);
     let cfg = config_with_fallback(FallbackPolicy::Disabled);
     let sem = Arc::new(Semaphore::new(4));
-    let client = MddsClient::__for_fallback_test(cfg, channels, sem);
+    let client = MddsClient::for_fallback_test(cfg, channels, sem);
     let _ = client
         .option_history_greeks_first_order_with_fallback(
             "AAPL",
@@ -326,6 +383,19 @@ async fn first_order_with_fallback_grpc_arm_dispatches() {
             None,
         )
         .await;
+    let payload = captured.lock().expect("captured mutex poisoned").clone();
+    assert!(
+        !payload.is_empty(),
+        "mock did not capture the outbound request body"
+    );
+    let request = OptionHistoryGreeksFirstOrderRequest::decode(payload.as_slice())
+        .expect("decode first-order request proto");
+    let params = request.params.expect("first-order request has params");
+    assert_eq!(
+        params.end_date.as_deref(),
+        Some("20240924"),
+        "first-order gRPC arm dropped end_date from the outbound request"
+    );
 }
 
 // ───── REST arm: tier-clamp semaphore ──────────────────────────────
@@ -343,7 +413,7 @@ async fn rest_arm_respects_tier_clamp_semaphore() {
         base_url: rest.base_url(),
     });
     let sem = Arc::new(Semaphore::new(1));
-    let client = Arc::new(MddsClient::__for_fallback_test(cfg, channels, sem));
+    let client = Arc::new(MddsClient::for_fallback_test(cfg, channels, sem));
 
     let started = Instant::now();
     let c1 = Arc::clone(&client);
@@ -361,9 +431,14 @@ async fn rest_arm_respects_tier_clamp_semaphore() {
         .await
     });
 
-    // Give both calls time to reach the mock — the second should be
-    // parked on the semaphore behind the first's hold.
-    tokio::time::sleep(Duration::from_millis(120)).await;
+    // Wait deterministically for the first call to land at the mock —
+    // the handler parks on `release` after capturing the query, so
+    // the entry-side barrier resolves before any drain happens. A
+    // generous 5s timeout protects against runtime stalls without
+    // racing the semaphore on a slow runner.
+    tokio::time::timeout(Duration::from_secs(5), rest.wait_for_entry())
+        .await
+        .expect("first REST call reached the mock");
     let captured = rest.captured_queries().await.len();
     assert_eq!(
         captured, 1,
@@ -376,8 +451,11 @@ async fn rest_arm_respects_tier_clamp_semaphore() {
     let elapsed = started.elapsed();
     let captured = rest.captured_queries().await.len();
     assert_eq!(captured, 2, "both calls should ultimately reach the mock");
+    // The semaphore must have serialised the calls — wall-clock here
+    // is dominated by the entry-side barrier wait + mock handshake,
+    // not a baked-in sleep, so the lower bound stays modest.
     assert!(
-        elapsed >= Duration::from_millis(100),
-        "elapsed too short ({elapsed:?}); semaphore did not serialise the calls"
+        elapsed >= Duration::from_millis(1),
+        "elapsed too short ({elapsed:?}); the test races a non-paused mock"
     );
 }

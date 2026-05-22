@@ -111,6 +111,33 @@ export declare class Config {
    * at connect time; a `number` is the explicit override.
    */
   get decodeQueueDepth(): number | null
+  /**
+   * Set the FPSS reconnect policy.
+   *
+   * - `"auto"` (default): auto-reconnect with the per-class attempt
+   *   budgets supplied by [`Config::setReconnectMaxAttempts`] and
+   *   [`Config::setReconnectMaxRateLimitedAttempts`].
+   * - `"manual"`: no auto-reconnect; callers reconnect explicitly.
+   */
+  setReconnectPolicy(policy: string): void
+  /**
+   * Set the per-class transient-failure attempt budget for the
+   * auto-reconnect path. Default `3`. No effect when the reconnect
+   * policy is `"manual"`.
+   */
+  setReconnectMaxAttempts(maxAttempts: number): void
+  /**
+   * Set the per-class rate-limited (`TooManyRequests`) attempt
+   * budget for the auto-reconnect path. Default `100`. No effect
+   * when the reconnect policy is `"manual"`.
+   */
+  setReconnectMaxRateLimitedAttempts(maxRateLimitedAttempts: number): void
+  /**
+   * Set the continuous successful-data-flow window (in seconds)
+   * after which the auto-reconnect attempt counters reset. Default
+   * `60`. No effect when the reconnect policy is `"manual"`.
+   */
+  setReconnectStableWindowSecs(secs: number): void
 }
 
 /**

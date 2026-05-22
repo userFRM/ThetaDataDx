@@ -382,6 +382,31 @@ mod tests {
     // value is returned, and the success path does not perturb the
     // slot.
 
+    /// Read the current value of the thread-local `LAST_ERROR` slot
+    /// through the C ABI surface (`tdx_last_error()`) and return the
+    /// owned UTF-8 string, or `None` if the slot is empty.
+    ///
+    /// SAFETY: `tdx_last_error()` returns a pointer into the thread-
+    /// local `LAST_ERROR` slot's `CString`. The slot lives until the
+    /// next `set_error` / `tdx_clear_error` call on this thread, and
+    /// the test scope above clears the slot before each call to keep
+    /// this lifetime invariant true at every call site. `CStr::from_ptr`
+    /// also requires NUL-termination — guaranteed by `CString`'s
+    /// representation. The function only runs in test threads that do
+    /// not race the FFI surface, so no concurrent mutator invalidates
+    /// the pointer between read and copy.
+    fn last_error_message() -> Option<String> {
+        let p = tdx_last_error();
+        if p.is_null() {
+            return None;
+        }
+        // SAFETY: see the function-level SAFETY block — the pointer is
+        // non-null per the guard above and refers to the thread-local
+        // slot's NUL-terminated `CString`.
+        let cstr = unsafe { std::ffi::CStr::from_ptr(p) };
+        Some(cstr.to_str().expect("LAST_ERROR slot is UTF-8").to_owned())
+    }
+
     use std::ffi::{c_char, CString};
     use std::ptr;
 
@@ -402,10 +427,7 @@ mod tests {
         let result = run_require_cstr(ptr::null(), "fallback");
         assert_eq!(result, "fallback");
         assert_eq!(tdx_last_error_code(), TDX_ERR_OTHER);
-        // SAFETY: `tdx_last_error()` returns a `*const c_char` pointing to the thread-local `LAST_ERROR` slot's `CString`; non-null per the assertion just above (or the surrounding test confirmed the slot was populated), and the slot lives until the next `set_error` / `tdx_clear_error` call on this thread.
-        let msg = unsafe { std::ffi::CStr::from_ptr(tdx_last_error()) }
-            .to_str()
-            .unwrap();
+        let msg = last_error_message().expect("error slot populated");
         assert!(msg.contains("is null"), "expected null mention, got {msg}");
         tdx_clear_error();
     }
@@ -431,10 +453,7 @@ mod tests {
         let result = run_require_cstr(p, "fallback");
         assert_eq!(result, "fallback");
         assert_eq!(tdx_last_error_code(), TDX_ERR_OTHER);
-        // SAFETY: `tdx_last_error()` returns a `*const c_char` pointing to the thread-local `LAST_ERROR` slot's `CString`; non-null per the assertion just above (or the surrounding test confirmed the slot was populated), and the slot lives until the next `set_error` / `tdx_clear_error` call on this thread.
-        let msg = unsafe { std::ffi::CStr::from_ptr(tdx_last_error()) }
-            .to_str()
-            .unwrap();
+        let msg = last_error_message().expect("error slot populated");
         assert!(msg.contains("UTF-8"), "expected UTF-8 mention, got {msg}");
         tdx_clear_error();
     }
@@ -469,10 +488,7 @@ mod tests {
         let result = run_require_client::<u32>(ptr::null(), -1);
         assert_eq!(result, -1);
         assert_eq!(tdx_last_error_code(), TDX_ERR_OTHER);
-        // SAFETY: `tdx_last_error()` returns a `*const c_char` pointing to the thread-local `LAST_ERROR` slot's `CString`; non-null per the assertion just above (or the surrounding test confirmed the slot was populated), and the slot lives until the next `set_error` / `tdx_clear_error` call on this thread.
-        let msg = unsafe { std::ffi::CStr::from_ptr(tdx_last_error()) }
-            .to_str()
-            .unwrap();
+        let msg = last_error_message().expect("error slot populated");
         assert!(
             msg.contains("handle is null"),
             "expected handle-is-null mention, got {msg}"
@@ -515,10 +531,7 @@ mod tests {
         tdx_clear_error();
         let result = run_require_symbol_array(ptr::null(), 3);
         assert!(result.is_err());
-        // SAFETY: `tdx_last_error()` returns a `*const c_char` pointing to the thread-local `LAST_ERROR` slot's `CString`; non-null per the assertion just above (or the surrounding test confirmed the slot was populated), and the slot lives until the next `set_error` / `tdx_clear_error` call on this thread.
-        let msg = unsafe { std::ffi::CStr::from_ptr(tdx_last_error()) }
-            .to_str()
-            .unwrap();
+        let msg = last_error_message().expect("error slot populated");
         assert!(
             msg.contains("symbols array pointer is null"),
             "expected null-array mention, got {msg}"

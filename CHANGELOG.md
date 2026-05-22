@@ -9,6 +9,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `bench-internals` feature removed in favour of an out-of-Cargo
+  `--cfg bench_internals` flag. `Stage2Pool::submit_for_bench`
+  remains gated, but downstream consumers can no longer enable it
+  from the published `[features]` graph. The bench at
+  `benches/bench_stage_pipeline.rs` activates via
+  `RUSTFLAGS='--cfg bench_internals' cargo bench
+  --bench bench_stage_pipeline`.
+- `[package.metadata.docs.rs]` switched from `all-features = true`
+  to an explicit feature list (`arrow`, `polars`, `frames`,
+  `config-file`) so the rendered docs.rs page no longer surfaces
+  bench-only or test-only symbols.
+- `__test-helpers` private feature gates the test-only
+  `MddsClient::for_fallback_test` constructor. The symbol no longer
+  enters the published rlib unless the (double-underscore-prefixed,
+  doc-hidden) feature is explicitly enabled.
+- ReconnectConfig setter parity on the TypeScript binding.
+  `Config.setReconnectPolicy`, `setReconnectMaxAttempts`,
+  `setReconnectMaxRateLimitedAttempts`, and
+  `setReconnectStableWindowSecs` mirror the Python / C++ / FFI
+  surface; `sdks/parity.toml` records the field-level cross-binding
+  state.
+- Gate 14 (`scripts/check_safety_comment_boilerplate.py`) drops the
+  wholesale `ffi/src/` exemption and replaces it with a per-site
+  allowlist file (`scripts/safety_comment_allowlist.txt`) listing
+  the genuinely-shared invariants (handle round-trip, symbol-array
+  contract, test-only factory pointer). Every other duplicate trips
+  the gate regardless of location. Extended the invariant-signal
+  patterns to recognise `NUL-terminated`, `CString::`, and `NUL`
+  references so legitimate FFI annotations are not flagged.
+- FFI `error::tests` module hoists the four duplicate stamped
+  `// SAFETY: tdx_last_error() ...` blocks into a single
+  `last_error_message()` helper with one comprehensive SAFETY
+  comment naming the thread-local-slot lifetime invariant.
+- Gate 2 (`scripts/check_binding_parity.py`) gains a
+  dotted-name carve-out so per-field parity rows
+  (`FlatFilesConfig.max_attempts`, `ReconnectConfig.policy`, etc.)
+  participate in the SSOT without forcing the class-existence check
+  to match field-level setters. Tracked for per-field granularity
+  refactor in issue #595.
+- Legacy single-stage MDDS decode path replaces the per-chunk
+  `Box<dyn FnOnce>` allocation with a typed
+  `DecodeRequest::SingleStage { response, max_message_size, reply }`
+  variant. The decoder thread runs `decode_data_table_with_max`
+  directly on the typed payload; no closure boxing on the hot
+  path.
+- Python `Config.decoder_threads` getter and setter prepend a
+  `Deprecated since v10.0.1: set decode_threads instead.`
+  deprecation line. Visible via `help(type(c).decoder_threads)`.
+- `.pyi` stub converts the leading `#`-comment over
+  `decoder_threads` to a triple-quoted attribute docstring so the
+  deprecation surfaces in tooling that consumes attribute
+  docstrings.
+- Tier-clamp regression test
+  (`rest_arm_respects_tier_clamp_semaphore`) replaces the
+  120 ms sleep with an `Arc<Notify>` entry-side barrier
+  (`RestMock::wait_for_entry`) so the test waits deterministically
+  for "first call reached mock" instead of racing the sleep.
+- Greeks gRPC arm `end_date` tests pin the outgoing wire bytes via
+  a new `MockBehaviour::capture_request_bytes` hook: the test
+  captures the inbound request proto, decodes it with
+  `OptionHistory*Request::decode`, and asserts the `end_date` field
+  carries the expected value. Renamed
+  `*_grpc_arm_dispatches` → `*_grpc_arm_forwards_end_date` to match
+  the contract.
+- Module headers across `fpss::{mod, pinning, wake}`,
+  `flatfiles::{mod, index}`, `rest::mod`, `frames::mod`,
+  `grpc::decoder_pool` compressed to one paragraph each — the
+  multi-paragraph architectural narratives now live in the docs
+  site (`docs-site/docs/streaming/index.md`,
+  `docs-site/docs/flatfiles/protocol.md`,
+  `docs-site/docs/streaming/latency.md`).
+- Issue / PR references stripped from `///` user-facing rustdoc
+  across the public surface (`client.rs`, `grpc/stream.rs`,
+  `fpss/framing.rs`, `mdds/macros.rs`,
+  `streaming_async_batches.rs`, `streaming_async_session.rs`).
+  References remain on `//` internal comments and `#[test]` doc
+  blocks per the audit protocol.
+- Python codegen template stripped the hardcoded `(issue #565)`
+  attribution from 33 `.stream()` doc-blocks in
+  `historical_methods.rs`; the comparable references in the Rust
+  endpoint render, the Python streaming-terminal renderer, the
+  REST builder header, and the `mdds/macros.rs` streaming
+  variant macro doc-block were all rewritten to describe the
+  behaviour without the issue number.
+- `MddsConfig::decoder_threads` rustdoc compressed to the
+  deprecation message + redirect. The "why no `#[deprecated]`"
+  rationale moved to an internal `//` comment above the field.
+- REST `Vec::with_capacity` seed floor for the `Content-Length`-
+  advertised path: when the server emits a small `Content-Length`
+  (including `0`) but follows up with chunked DATA, the
+  accumulator now starts at the same 64 KiB floor the pure-chunked
+  path uses, instead of the advertised value.
+- `parse_legacy_six_field_quote_csv` test renamed to
+  `parse_six_field_quote_csv_zero_fills_missing_columns` so the
+  test name describes the invariant being pinned.
 - `decoder_threads` deprecation parity across every binding.
   Rust rustdoc, Python `.pyi`, C++ Doxygen, and TypeScript JSDoc all
   carry an identical `since v10.0.1, use decode_threads` note +

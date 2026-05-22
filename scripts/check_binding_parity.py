@@ -211,6 +211,20 @@ def main() -> int:
     mismatches: list[tuple[str, str, bool, bool]] = []
     for row in rows:
         name = row["name"]
+        # Dotted-name rows declare per-field cross-binding tracking
+        # (e.g. `FlatFilesConfig.max_attempts`, `ReconnectConfig.*`).
+        # The class-name regex sweep can't see field-level setters,
+        # so dotted rows opt out of the class-existence check. They
+        # remain in the file as a checklist for future migrations
+        # and as the SSOT documentation of which fields are bound on
+        # which binding.
+        #
+        # TODO(#595): tighten this gate to per-field / per-setter
+        # granularity by parsing the binding sources for setter names
+        # matching the dotted field. The class-level check here is
+        # intentionally lenient pending that refactor.
+        if "." in name:
+            continue
         for lang, declared in (("python", row["python"]), ("typescript", row["typescript"]), ("cpp", row["cpp"])):
             if lang == "python":
                 actual = name in py

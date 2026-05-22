@@ -49,11 +49,9 @@ use tdbe::types::enums::SecType;
 /// Snapshot of the streaming side of the unified client.
 ///
 /// One [`ArcSwap`] cell so every read path collapses to a single
-/// atomic load. The previous design carried a separate
-/// `Mutex<Option<StreamingDispatcher>>` alongside the [`FpssClient`];
-/// after the post-#513 single-queue rewrite the user callback runs
-/// directly on the Disruptor consumer thread inside [`FpssClient`],
-/// so the slot only needs to track the live client.
+/// atomic load. The user callback runs directly on the Disruptor
+/// consumer thread inside [`FpssClient`], so the slot only needs to
+/// track the live client.
 ///
 /// Lifecycle: `Idle` (constructed) → `Live` (`start_streaming`
 /// succeeded) → `Stopped` (`stop_streaming` returned). A subsequent
@@ -239,7 +237,7 @@ impl ThetaDataDxClient {
     /// and starts the FPSS reader thread plus the LMAX Disruptor
     /// consumer thread.
     ///
-    /// # Pipeline (single-queue SSOT, post-#513)
+    /// # Pipeline
     ///
     /// `TLS reader thread -> Disruptor ring (try_publish, non-blocking)
     /// -> Disruptor consumer thread -> catch_unwind(user callback)`.

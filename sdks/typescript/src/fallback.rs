@@ -334,6 +334,81 @@ impl Config {
             .map(|n| u32::try_from(n).unwrap_or(u32::MAX)))
     }
 
+    // ── FPSS reconnect knobs — parity with Python / C++ / FFI ──────
+
+    /// Set the FPSS reconnect policy.
+    ///
+    /// - `"auto"` (default): auto-reconnect with the per-class attempt
+    ///   budgets supplied by [`Config::setReconnectMaxAttempts`] and
+    ///   [`Config::setReconnectMaxRateLimitedAttempts`].
+    /// - `"manual"`: no auto-reconnect; callers reconnect explicitly.
+    #[napi(js_name = "setReconnectPolicy")]
+    pub fn set_reconnect_policy(&self, policy: String) -> napi::Result<()> {
+        let parsed = match policy.to_lowercase().as_str() {
+            "manual" => config::ReconnectPolicy::Manual,
+            "auto" => config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default()),
+            other => {
+                return Err(napi::Error::from_reason(format!(
+                    "unknown reconnect_policy: {other:?} (expected \"auto\" or \"manual\")"
+                )));
+            }
+        };
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.reconnect.policy = parsed;
+        Ok(())
+    }
+
+    /// Set the per-class transient-failure attempt budget for the
+    /// auto-reconnect path. Default `3`. No effect when the reconnect
+    /// policy is `"manual"`.
+    #[napi(js_name = "setReconnectMaxAttempts")]
+    pub fn set_reconnect_max_attempts(&self, max_attempts: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.max_attempts = max_attempts;
+        }
+        Ok(())
+    }
+
+    /// Set the per-class rate-limited (`TooManyRequests`) attempt
+    /// budget for the auto-reconnect path. Default `100`. No effect
+    /// when the reconnect policy is `"manual"`.
+    #[napi(js_name = "setReconnectMaxRateLimitedAttempts")]
+    pub fn set_reconnect_max_rate_limited_attempts(
+        &self,
+        max_rate_limited_attempts: u32,
+    ) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.max_rate_limited_attempts = max_rate_limited_attempts;
+        }
+        Ok(())
+    }
+
+    /// Set the continuous successful-data-flow window (in seconds)
+    /// after which the auto-reconnect attempt counters reset. Default
+    /// `60`. No effect when the reconnect policy is `"manual"`.
+    #[napi(js_name = "setReconnectStableWindowSecs")]
+    pub fn set_reconnect_stable_window_secs(&self, secs: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
+            limits.stable_window = std::time::Duration::from_secs(u64::from(secs));
+        }
+        Ok(())
+    }
+
     /// Take a snapshot of the underlying [`thetadatadx::DirectConfig`]
     /// for use by `ThetaDataDxClient.connectWithConfig`. Returns a
     /// fresh `DirectConfig` clone -- the napi `Config` remains usable

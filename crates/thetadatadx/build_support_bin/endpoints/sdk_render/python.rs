@@ -944,7 +944,7 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
     );
     out.push_str("    }\n\n");
 
-    // Streaming terminal — issue #565. Skip for snapshot endpoints (≤10
+    // Streaming terminal. Skip for snapshot endpoints (≤10
     // rows, streaming is pointless) and for the explicit `_stream`
     // builders (they already use `for_each_chunk` for their `.list()`
     // path; layering another stream on top would re-buffer). Every
@@ -986,10 +986,10 @@ fn write_sync_stream_terminal(
     let pylist_converter = python_vec_to_pylist_converter(&endpoint.return_type);
     let doc = format!(
         "Stream chunks of `{}` rows into `handler` without materialising the full \
-         response in memory (issue #565). `handler(chunk: list[Tick]) -> None` is \
-         called once per gRPC chunk; the chunk is freed before the next is fetched. \
-         A `RuntimeError` raised by `handler` aborts the stream and propagates as the \
-         method's return value.",
+         response in memory. `handler(chunk: list[Tick]) -> None` is called once per \
+         gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` \
+         raised by `handler` aborts the stream and propagates as the method's return \
+         value.",
         endpoint.name
     );
     out.push_str(&render_rust_doc_block("    ", &doc));

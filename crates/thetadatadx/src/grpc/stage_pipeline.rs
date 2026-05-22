@@ -339,20 +339,18 @@ impl Stage2Pool {
     }
 
     /// Bench-only entry point: push a `DecodedPayload` directly onto
-    /// the stage-2 queue and return the reply receiver. Wraps the
-    /// `pub(crate)` [`Stage2PoolSender::send`] path so external bench
-    /// crates can exercise the pipeline without re-implementing the
-    /// `Stage2Job` construction.
+    /// the stage-2 queue and return the reply receiver.
     ///
-    /// Compiled only under `cfg(any(test, feature = "bench-internals"))`
-    /// so the helper does not leak onto the production public surface;
-    /// the criterion harness at `benches/bench_stage_pipeline.rs`
-    /// enables the feature via its own `[features]` toggle.
+    /// Compiled only under `cfg(any(test, bench_internals))` so the
+    /// helper never enters the published symbol surface. The
+    /// criterion harness at `benches/bench_stage_pipeline.rs`
+    /// activates it via `RUSTFLAGS='--cfg bench_internals' cargo bench
+    /// --bench bench_stage_pipeline`; production builds cannot
+    /// enable it from the Cargo CLI.
     ///
     /// Returns `Err` with the rejected payload if the pool is
-    /// poisoned or fully torn down. Otherwise the returned receiver
-    /// resolves to the `DecodeResult` produced by a stage-2 worker.
-    #[cfg(any(test, feature = "bench-internals"))]
+    /// poisoned or fully torn down.
+    #[cfg(any(test, bench_internals))]
     pub fn submit_for_bench(
         &self,
         payload: DecodedPayload,

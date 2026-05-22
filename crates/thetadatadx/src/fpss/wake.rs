@@ -1,49 +1,12 @@
-//! Async wake-up signal for the pull-iter delivery path.
+//! Self-pipe wake-up FD for the pull-iter delivery path.
 //!
-//! Bridges the Disruptor consumer thread (Rust-side, holds no event-loop
-//! reference) to an asyncio / select-loop reader (Python / external code,
-//! waiting on a file descriptor). The bridge is one-directional: every
-//! time the consumer pushes an event into the iterator queue and the
-//! caller has registered a wake FD, a single byte is written so the
-//! reader's `epoll` / `kqueue` / `select` wake fires.
-//!
-//! # Design
-//!
-//! Built on a self-pipe (POSIX `pipe2(O_CLOEXEC | O_NONBLOCK)`) so it
-//! works under every POSIX event loop today — Python asyncio
-//! `loop.add_reader(fd)`, C `poll`, Tcl, etc. Linux `eventfd` is a tighter
-//! fit (single 8-byte counter, no buffer pressure) but adds a Linux-only
-//! code path. The self-pipe approach is portable across macOS, Linux, and
-//! BSD without losing the "single wake per non-empty transition" semantic
-//! we actually care about.
-//!
-//! # Coalescing
-//!
-//! A naïve "write one byte per push" would flood a small pipe (default
-//! 64 KiB on Linux) under load and back-pressure the consumer thread on
-//! `write`. To avoid that, every [`WakeFd`] carries a `signaled`
-//! `AtomicBool`: the producer only writes when it observes the bool was
-//! `false`, after which it sets the bool to `true`. The reader is
-//! responsible for clearing the bool **before** it drains the pipe so the
-//! next producer push re-arms the wake — see [`WakeFd::rearm`].
-//!
-//! Ordering: the producer sets `signaled` to `true` and then writes the
-//! byte. The reader clears `signaled` to `false` and then drains the
-//! pipe. The two orderings together guarantee that any push observed
-//! AFTER the reader cleared `signaled` will write a fresh byte the reader
-//! will see on its next `epoll` wait. The race in which the reader
-//! clears the bool while a push is mid-write is benign — the byte the
-//! producer wrote is still in the pipe, and the reader's drain will
-//! consume it.
-//!
-//! # Disposal
-//!
-//! The owning [`super::EventIterator`] holds an `Arc<WakeFd>` and the
-//! consumer closure (via the pull-iter `Delivery::Queue` variant)
-//! holds another `Arc<WakeFd>` clone. The write-end FD is closed inside
-//! [`WakeFd::drop`] when the refcount hits zero — i.e., after both the
-//! iterator and the consumer closure have been dropped. The read-end
-//! FD is the caller's responsibility; the SDK never owns it.
+//! Bridges the Disruptor consumer to a POSIX event-loop reader
+//! (asyncio / `epoll` / `kqueue`): one byte per non-empty
+//! transition, coalesced by a `signaled` `AtomicBool`. The reader
+//! clears the bool before draining the pipe via [`WakeFd::rearm`].
+//! Write-end FD is closed by [`WakeFd::drop`] when both the iterator
+//! and the consumer closure have been released; read-end is owned
+//! by the caller.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 

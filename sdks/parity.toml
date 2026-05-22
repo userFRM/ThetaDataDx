@@ -30,6 +30,7 @@ python = true
 typescript = true   # exposed with the four named factories + `variant` / `baseUrl` getters
 cpp = true          # exposed as `tdx::FallbackPolicy` move-only RAII class with the four named factories
 
+
 [[class]]
 name = "ThetaDataDxClient"
 python = true
@@ -207,10 +208,10 @@ cpp = true
 # Cross-binding parity gaps that are deliberately not yet bound on
 # Python / TS / C++. The retry-tuning knobs on `FlatFilesConfig`
 # (`max_attempts`, `initial_backoff`, `max_backoff`) are Rust-only
-# today; binding them requires a cross-binding setter sweep beyond
-# the scope of the audit-closure PR. Tracked at the time of this row's
-# landing (see CHANGELOG entry); to be flipped to `true` once the
-# follow-up binding PR lands.
+# today; binding them requires a cross-binding setter sweep tracked
+# in issue #594 (`feat(bindings): bind FlatFilesConfig retry knobs on
+# Python/TS/C++`). Flip the three rows below to `true` when that PR
+# lands.
 
 [[class]]
 name = "FlatFilesConfig.max_attempts"
@@ -229,3 +230,38 @@ name = "FlatFilesConfig.max_backoff_secs"
 python = false
 typescript = false
 cpp = false
+
+# ─── ReconnectConfig cross-binding setters ─────────────────────────────
+#
+# FPSS reconnect policy + per-class attempt budgets + stable-window
+# timer. Bound on every binding: Python via `Config.reconnect_*`
+# setters, TypeScript via `Config.setReconnect*`, C++ via
+# `tdx::Config::set_reconnect_*` (which forwards to the FFI
+# `tdx_config_set_reconnect_*` symbols). Dotted-name rows track
+# field-level parity; the parity script's class-existence check skips
+# dotted rows pending the per-field granularity tightening (issue
+# referenced in `scripts/check_binding_parity.py`).
+
+[[class]]
+name = "ReconnectConfig.policy"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.max_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.max_rate_limited_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.stable_window_secs"
+python = true
+typescript = true
+cpp = true

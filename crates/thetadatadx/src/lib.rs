@@ -145,6 +145,21 @@ pub mod wire {
         data_value, CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList,
         Price, ResponseData,
     };
+
+    /// Request proto types re-exported behind the `__test-helpers`
+    /// feature so integration tests can decode captured outbound
+    /// wire bytes and assert field-level content (e.g.
+    /// `option_history_*` requests carry the right `end_date`
+    /// param). Symbol stays `pub(crate)` in shipped builds — the
+    /// re-export only enters the rlib when the private test feature
+    /// is enabled.
+    #[cfg(feature = "__test-helpers")]
+    #[doc(hidden)]
+    pub mod test_requests {
+        pub use crate::proto::{
+            OptionHistoryGreeksFirstOrderRequest, OptionHistoryGreeksImpliedVolatilityRequest,
+        };
+    }
 }
 
 pub use auth::Credentials;

@@ -15,7 +15,7 @@
 //! by the test owning it — sufficient for per-test isolation.
 
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use bytes::{BufMut, Bytes, BytesMut};
@@ -136,6 +136,15 @@ pub struct MockBehaviour {
     /// indirect — after the keep-alive window elapses the connection
     /// must still serve a fresh RPC successfully.
     pub inject_ping: Option<Duration>,
+    /// When `Some(buf)`, the mock copies the inbound gRPC frame
+    /// payload (after stripping the 5-byte header) into the supplied
+    /// `Arc<Mutex<Vec<u8>>>`. Tests construct the buffer themselves,
+    /// pass an `Arc::clone` here, and read the captured bytes back
+    /// off their own handle after the RPC completes. Independent of
+    /// `assert_request_bytes` — the assert variant compares to a
+    /// pre-baked vector, this hook lets the test decode after the
+    /// fact.
+    pub capture_request_bytes: Option<Arc<Mutex<Vec<u8>>>>,
     /// When `Some`, the mock clamps the per-stream `INITIAL_WINDOW_SIZE`
     /// to this value via SETTINGS. A small window forces the client to
     /// emit WINDOW_UPDATE frames as it consumes the response body —
@@ -183,7 +192,13 @@ impl MockServer {
         let task = tokio::spawn(async move {
             tokio::select! {
                 _ = rx => {},
-                accept = run(listener, chunks, status_code, status_message, behaviour) => {
+                accept = run(
+                    listener,
+                    chunks,
+                    status_code,
+                    status_message,
+                    behaviour,
+                ) => {
                     if let Err(e) = accept {
                         eprintln!("grpc_mock_server: accept loop ended: {e}");
                     }
@@ -339,11 +354,23 @@ async fn handle_request(
     // correctly without re-parsing in the test body.
     let mut body = request.into_body();
     let mut request_buf: Vec<u8> = Vec::new();
+    let need_buffer = behaviour.assert_request_bytes || behaviour.capture_request_bytes.is_some();
     while let Some(chunk) = body.data().await {
         let chunk = chunk?;
         let _ = body.flow_control().release_capacity(chunk.len());
-        if behaviour.assert_request_bytes {
+        if need_buffer {
             request_buf.extend_from_slice(&chunk);
+        }
+    }
+    if let Some(target) = behaviour.capture_request_bytes.as_ref() {
+        if request_buf.len() >= 5 {
+            // gRPC frame layout: 1 compressed flag + 4 big-endian
+            // length + payload. Strip the header so tests get clean
+            // protobuf bytes ready for `prost::Message::decode`.
+            if let Ok(mut guard) = target.lock() {
+                guard.clear();
+                guard.extend_from_slice(&request_buf[5..]);
+            }
         }
     }
     if behaviour.assert_request_bytes {

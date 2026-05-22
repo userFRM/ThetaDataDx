@@ -1,49 +1,11 @@
 //! Dedicated decoder pool for MDDS server-streaming responses.
 //!
-//! # Architecture
-//!
-//! ```text
-//!   +-------------------+   LMAX ring   +-------------------+
-//!   | h2 receive task   |-------------->| Decoder thread    |
-//!   | (tokio worker)    |  work+reply   | (std::thread,     |
-//!   +-------------------+               |  TLS zstd ctx +   |
-//!                                       |  scratch buffer)  |
-//!                                       +---------+---------+
-//!                                                 |
-//!                                                 | DataTable
-//!                                                 v
-//!                                       +-------------------+
-//!                                       | oneshot::Sender   |
-//!                                       | -> async caller   |
-//!                                       +-------------------+
-//! ```
-//!
-//! Decompresses zstd payloads and decodes the inner protobuf message
-//! on dedicated `std::thread`s, keeping CPU-bound work off the tokio
-//! reactor. Each decoder owns a thread-local zstd context and a
-//! reusable scratch buffer (see [`crate::mdds::decode::transport`]);
-//! communication with the tokio IO side runs through one LMAX
-//! Disruptor ring per decoder (lock-free, pre-allocated slots).
-//!
-//! # Why off-reactor
-//!
-//! Bloomberg / LSEG / Refinitiv feed handlers all separate IO from
-//! decode for the same reason: a single multi-millisecond decode
-//! call (1 MB zstd-compressed `DataTable` payload, ~5–50 ms wall
-//! time) blocks the tokio worker thread it lands on, stalling every
-//! other RPC that worker is multiplexing. Moving the decode to
-//! dedicated threads lets the tokio reactor keep draining h2 DATA
-//! frames while N CPU cores chew through the backlog in parallel.
-//!
-//! # Wait strategy
-//!
-//! MDDS decode cadence is bursty — 64 concurrent RPCs each yielding
-//! one or many chunks, separated by tens to hundreds of microseconds
-//! of network IO. Pure spin burns whole cores during idle gaps so
-//! the strategy ([`DecoderWaitStrategy`]) is tuned shorter than the
-//! FPSS analogue: a few spin iterations, a brief yield window, then
-//! a `spin_loop` hint. This trades ~50 ns of wake-up latency for
-//! near-zero idle CPU between bursts.
+//! Off-reactor zstd-decompress + prost-decode running on
+//! `std::thread`s with thread-local zstd contexts and reusable
+//! scratch buffers. Wake-up uses a short spin / yield / spin-hint
+//! ladder ([`DecoderWaitStrategy`]) tuned for the bursty 64-RPC
+//! cadence — see `docs-site/docs/streaming/latency.md` for the
+//! pipeline overview.
 
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -201,19 +163,42 @@ pub type DecodeResult = Result<proto::DataTable, Error>;
 /// the stage-1 variant checks the same flag before decompressing
 /// and elides the work entirely on caller cancellation.
 enum DecodeRequest {
-    /// Legacy single-stage work closure. Used by
-    /// [`DecoderHandle::submit_work`] and by [`DecoderHandle::submit`]
-    /// on pools built via [`DecoderPool::new`].
+    /// Legacy work-closure request — bench / fixture only. Used by
+    /// [`DecoderHandle::submit_work`]; production
+    /// [`DecoderHandle::submit`] now uses
+    /// [`DecodeRequest::SingleStage`] which avoids the per-chunk
+    /// closure allocation.
+    #[cfg(test)]
     Legacy(LegacyRequest),
+    /// Single-stage typed request. Replaces the per-chunk
+    /// `Box<dyn FnOnce>` allocation on the legacy
+    /// [`DecoderHandle::submit`] path — the typed enum hands the
+    /// `proto::ResponseData` and max-message-size knob through the
+    /// queue and the decoder thread runs the same
+    /// `decode_data_table_with_max` call directly.
+    SingleStage(Box<SingleStageRequest>),
     /// Two-stage stage-1 request. Boxed so the enum stays small
     /// even though `Stage1Request` carries a full
     /// `proto::ResponseData`.
     Stage1(Box<Stage1Request>),
 }
 
-/// Legacy single-stage request shape.
+/// Legacy work-closure request shape — used by the bench / fixture
+/// surface via [`DecoderHandle::submit_work`]. Production
+/// `DecoderHandle::submit` calls use [`SingleStageRequest`] instead
+/// to avoid the per-chunk `Box<dyn FnOnce>` allocation.
+#[cfg(test)]
 struct LegacyRequest {
     work: Box<dyn FnOnce() -> DecodeResult + Send + 'static>,
+    reply: oneshot::Sender<DecodeResult>,
+}
+
+/// Typed single-stage request — the production legacy path. Carries
+/// the response and the size clamp through the queue without
+/// allocating a closure per chunk.
+struct SingleStageRequest {
+    response: proto::ResponseData,
+    max_message_size: usize,
     reply: oneshot::Sender<DecodeResult>,
 }
 
@@ -409,11 +394,33 @@ impl DecoderHandle {
         if let Some(stage2) = self.stage2.clone() {
             return self.submit_two_stage(response, max_message_size, stage2);
         }
-        let work: Box<dyn FnOnce() -> DecodeResult + Send + 'static> = Box::new(move || {
-            let mut response = response;
-            crate::mdds::decode::decode_data_table_with_max(&mut response, max_message_size)
-        });
-        self.submit_work(work)
+        self.submit_single_stage(response, max_message_size)
+    }
+
+    /// Legacy single-stage submission path. Wraps the request in
+    /// [`DecodeRequest::SingleStage`] and publishes via the same
+    /// LMAX ring as the two-stage path. No per-chunk closure
+    /// allocation — the decoder thread runs
+    /// `decode_data_table_with_max` directly on the typed payload.
+    fn submit_single_stage(
+        &self,
+        response: proto::ResponseData,
+        max_message_size: usize,
+    ) -> Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError> {
+        if self.is_poisoned() {
+            return Err(DecoderSubmitError::Poisoned);
+        }
+        let backoff_mode = BackoffMode::detect();
+        let (tx, rx) = oneshot::channel();
+        let request = SingleStageRequest {
+            response,
+            max_message_size,
+            reply: tx,
+        };
+        let mut pending: Option<DecodeRequest> =
+            Some(DecodeRequest::SingleStage(Box::new(request)));
+        self.publish_request(&mut pending, &backoff_mode)?;
+        Ok(rx)
     }
 
     /// Two-stage path: the stage-1 decoder thread only decompresses
@@ -443,29 +450,8 @@ impl DecoderHandle {
             stage2: Some(stage2),
         };
         let mut pending: Option<DecodeRequest> = Some(DecodeRequest::Stage1(Box::new(stage1)));
-        let mut producer = self.producer.clone();
-        loop {
-            if self.is_poisoned() {
-                return Err(DecoderSubmitError::Poisoned);
-            }
-            let mut taken = pending.take();
-            let outcome = producer.try_publish(|slot| {
-                let request = taken
-                    .take()
-                    .expect("try_publish closure runs exactly once per accepted claim");
-                // SAFETY: the disruptor producer barrier
-                // guarantees the claimed sequence is exclusive to
-                // this publish until we return from the closure.
-                unsafe { slot.write(request) };
-            });
-            match outcome {
-                Ok(_seq) => return Ok(rx),
-                Err(disruptor::RingBufferFull) => {
-                    pending = taken;
-                    backoff_ring_full(backoff_mode, PUBLISH_RETRY_BACKOFF);
-                }
-            }
-        }
+        self.publish_request(&mut pending, &backoff_mode)?;
+        Ok(rx)
     }
 
     /// Publish a pre-boxed `work` closure onto the ring.
@@ -488,78 +474,59 @@ impl DecoderHandle {
     /// to submit. The work closure is dropped along with the unsent
     /// `oneshot::Sender`, releasing every resource the request
     /// captured.
+    #[cfg(test)]
     pub(crate) fn submit_work(
         &self,
         work: Box<dyn FnOnce() -> DecodeResult + Send + 'static>,
     ) -> Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError> {
-        // Fast-path poison check: refuse to publish into a ring
-        // whose consumer thread has poisoned. The slow-path
-        // re-check below covers the case where the flag flips
-        // *during* a ring-full stall.
         if self.is_poisoned() {
             return Err(DecoderSubmitError::Poisoned);
         }
-        // Detect the runtime flavor once per submit and pass the
-        // resolved value into the retry loop. `Handle::try_current`
-        // is thread-local but still ~10 ns per call; under sustained
-        // ring saturation the loop would otherwise re-detect on
-        // every iteration even though the result is invariant for
-        // the lifetime of this call.
         let backoff_mode = BackoffMode::detect();
         let (tx, rx) = oneshot::channel();
-        // Both the work closure and the reply sender ride together
-        // in a single `Option` so the bounded retry loop can take
-        // them back out on the publish-success path without
-        // disturbing the move-into-FnOnce machinery used by the
-        // failure branches. On every retry that hits a full ring
-        // the loop re-checks the poison flag, dropping the request
-        // (and its `oneshot::Sender`) without ever publishing if
-        // the consumer has died meanwhile.
         let mut pending: Option<DecodeRequest> =
             Some(DecodeRequest::Legacy(LegacyRequest { work, reply: tx }));
+        self.publish_request(&mut pending, &backoff_mode)?;
+        Ok(rx)
+    }
+
+    /// Shared publish loop for every request shape (legacy work
+    /// closure, typed single-stage, two-stage stage-1). Re-checks the
+    /// poison flag on every retry so a mid-publish consumer-thread
+    /// panic surfaces as
+    /// [`DecoderSubmitError::Poisoned`] without ever publishing.
+    fn publish_request(
+        &self,
+        pending: &mut Option<DecodeRequest>,
+        backoff_mode: &BackoffMode,
+    ) -> Result<(), DecoderSubmitError> {
         let mut producer = self.producer.clone();
         loop {
-            // Re-check the poison flag on every iteration so a
-            // mid-publish flip (consumer dies while we are parked
-            // on a full ring) bails out promptly. The
-            // `Ordering::Acquire` here pairs with the consumer's
-            // `Ordering::Release` store on the panic path.
             if self.is_poisoned() {
                 return Err(DecoderSubmitError::Poisoned);
             }
-            // `try_publish` returns the unconsumed closure to us
-            // via the `RingBufferFull` error. We don't want to
-            // re-construct the request on every iteration (each
-            // construction allocates a fresh oneshot), so the
-            // closure passed to `try_publish` reaches into our
-            // `Option<DecodeRequest>` and takes it only when the
-            // sequence claim succeeded.
             let mut taken = pending.take();
             let outcome = producer.try_publish(|slot| {
                 let request = taken
                     .take()
                     .expect("try_publish closure runs exactly once per accepted claim");
-                // SAFETY: the disruptor producer barrier
-                // guarantees the claimed sequence is exclusive to
-                // this publish until we return from the closure —
-                // no consumer can read it yet and no other
-                // producer can claim the same sequence.
+                // SAFETY: the disruptor producer barrier guarantees
+                // the claimed sequence is exclusive to this publish
+                // until the closure returns. No consumer can read
+                // the slot yet and no other producer can claim the
+                // same sequence — exclusive write access is the
+                // disruptor's documented contract for `try_publish`.
                 unsafe { slot.write(request) };
             });
             match outcome {
-                Ok(_seq) => return Ok(rx),
+                Ok(_seq) => return Ok(()),
                 Err(disruptor::RingBufferFull) => {
-                    // The closure did not run — `taken` still holds
-                    // the request. Restore it for the next attempt.
-                    pending = taken;
-                    // Brief back-off to avoid pinning the producer at
-                    // 100% CPU when the ring stays full for several
-                    // cycles. When called from a multi-thread tokio
-                    // worker, wrap the wait in `block_in_place` so the
-                    // runtime can migrate queued tasks to a sibling
-                    // worker for the duration of the sleep — without
-                    // it the calling task would stall its worker.
-                    backoff_ring_full(backoff_mode, PUBLISH_RETRY_BACKOFF);
+                    *pending = taken;
+                    // Brief back-off — `block_in_place` on tokio
+                    // worker threads, plain sleep elsewhere. Without
+                    // it the calling task would burn its worker on
+                    // sustained ring saturation.
+                    backoff_ring_full(*backoff_mode, PUBLISH_RETRY_BACKOFF);
                 }
             }
         }
@@ -692,6 +659,7 @@ struct PoolInner {
 /// continues draining the ring with the transport-level reply.
 fn handle_decode_request(request: DecodeRequest, poisoned: &Arc<AtomicBool>) {
     match request {
+        #[cfg(test)]
         DecodeRequest::Legacy(LegacyRequest { work, reply }) => {
             if reply.is_closed() {
                 return;
@@ -704,6 +672,41 @@ fn handle_decode_request(request: DecodeRequest, poisoned: &Arc<AtomicBool>) {
                 return;
             }
             let outcome = std::panic::catch_unwind(AssertUnwindSafe(work));
+            let result = match outcome {
+                Ok(decoded) => decoded,
+                Err(_panic_payload) => {
+                    poisoned.store(true, Ordering::Release);
+                    tracing::error!(
+                        target: "thetadatadx::grpc::decoder_pool",
+                        "mdds decoder worker panicked; pool poisoned"
+                    );
+                    Err(Error::Transport {
+                        kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                        message: POOL_POISONED_REASON.to_string(),
+                    })
+                }
+            };
+            let _ = reply.send(result);
+        }
+        DecodeRequest::SingleStage(boxed) => {
+            let SingleStageRequest {
+                mut response,
+                max_message_size,
+                reply,
+            } = *boxed;
+            if reply.is_closed() {
+                return;
+            }
+            if poisoned.load(Ordering::Acquire) {
+                let _ = reply.send(Err(Error::Transport {
+                    kind: crate::error::TransportErrorKind::DecoderPoisoned,
+                    message: POOL_POISONED_REASON.to_string(),
+                }));
+                return;
+            }
+            let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                crate::mdds::decode::decode_data_table_with_max(&mut response, max_message_size)
+            }));
             let result = match outcome {
                 Ok(decoded) => decoded,
                 Err(_panic_payload) => {

@@ -31,10 +31,9 @@ set(THETADX_CPP_TEST_SOURCES
     unified_client.cpp
     streaming_iter.cpp
     error_taxonomy.cpp
-    # REST-fallback policy + Config::withRestFallback wiring tests
-    # (issue #571 mitigation, cross-binding parity with Python/TS/FFI).
+    # REST-fallback policy + Config::withRestFallback wiring tests.
     fallback.cpp
-    # MDDS pool-sizing setters on tdx::Config (issue #584).
+    # MDDS pool-sizing setters on tdx::Config.
     config_pool_sizing.cpp
     # MDDS two-stage decode pipeline setters on tdx::Config
     # (Phase 3 of 3, follow-up to PR #587 / #588).
