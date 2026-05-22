@@ -437,6 +437,70 @@ struct FpssHandleDeleter {
     void operator()(TdxFpssHandle* p) const { if (p) tdx_fpss_free(p); }
 };
 
+struct FallbackPolicyDeleter {
+    void operator()(TdxFallbackPolicy* p) const { if (p) tdx_fallback_policy_free(p); }
+};
+
+// ── REST fallback policy (issue #571 mitigation) ──
+
+/**
+ * REST-fallback policy for the four h2-cascading historical endpoints.
+ *
+ * Mirrors `thetadatadx::config::FallbackPolicy`. Construct via one of
+ * the four named factories, install on a `Config` via
+ * `Config::withRestFallback`, and pass that `Config` to
+ * `Client::connect`. Subsequent calls to the four
+ * `Client::optionHistory*WithFallback` methods consult the policy.
+ *
+ * @code{.cpp}
+ * auto policy = tdx::FallbackPolicy::restAlwaysForDateRange(
+ *     "http://127.0.0.1:25503", 20230101);
+ * auto config = tdx::Config::production();
+ * config.withRestFallback(policy);
+ * auto client = tdx::Client::connect(creds, config);
+ * auto ticks = client.optionHistoryQuoteWithFallback(
+ *     "AAPL", "20240105", "20220414");
+ * @endcode
+ *
+ * Move-only: the underlying handle is heap-owned through a
+ * `std::unique_ptr` so copy semantics are deleted. Calls to
+ * `Config::withRestFallback` borrow the inner enum without consuming
+ * the policy.
+ */
+class FallbackPolicy {
+public:
+    /** REST fallback disabled. Every affected endpoint goes over gRPC. */
+    static FallbackPolicy disabled();
+
+    /** Fall back to REST only on the h2-disconnect signature (issue #571). */
+    static FallbackPolicy restOnH2Disconnect(const std::string& base_url);
+
+    /**
+     * Pre-route every request whose start_date < before_yyyymmdd (YYYYMMDD)
+     * directly to REST without trying gRPC first. Requests on or after the
+     * boundary flow through gRPC.
+     */
+    static FallbackPolicy restAlwaysForDateRange(const std::string& base_url,
+                                                 int32_t before_yyyymmdd);
+
+    /** Always route the affected endpoints over REST regardless of date. */
+    static FallbackPolicy restAlways(const std::string& base_url);
+
+    /** Move-only. */
+    FallbackPolicy(FallbackPolicy&&) noexcept = default;
+    FallbackPolicy& operator=(FallbackPolicy&&) noexcept = default;
+    FallbackPolicy(const FallbackPolicy&) = delete;
+    FallbackPolicy& operator=(const FallbackPolicy&) = delete;
+    ~FallbackPolicy() = default;
+
+    /** Raw handle (for Config::withRestFallback). */
+    const TdxFallbackPolicy* get() const { return handle_.get(); }
+
+private:
+    explicit FallbackPolicy(TdxFallbackPolicy* h) : handle_(h) {}
+    std::unique_ptr<TdxFallbackPolicy, FallbackPolicyDeleter> handle_;
+};
+
 // ── Credentials ──
 
 class Credentials {
@@ -494,6 +558,17 @@ public:
     /** Set whether to derive OHLCVC bars locally from trades. */
     void set_derive_ohlcvc(bool enabled) { tdx_config_set_derive_ohlcvc(handle_.get(), enabled ? 1 : 0); }
 
+    /**
+     * Install a REST-fallback policy on this config (issue #571
+     * mitigation). The policy is borrowed -- the caller retains
+     * ownership of the @p policy `FallbackPolicy`. Subsequent
+     * `Client::optionHistory*WithFallback` calls on any client built
+     * from this config will consult the policy.
+     *
+     * Throws on null-handle / FFI error.
+     */
+    void withRestFallback(const FallbackPolicy& policy);
+
     /** Get the raw handle. */
     TdxConfig* get() const { return handle_.get(); }
 
@@ -510,6 +585,48 @@ public:
     static Client connect(const Credentials& creds, const Config& config);
 
     #include "historical.hpp.inc"
+
+    // ── REST-fallback shims (issue #571 mitigation) ──
+    //
+    // Dispatch through the `FallbackPolicy` installed on the
+    // `Config` the client was built with. Defaults to gRPC-only
+    // behaviour identical to the non-`WithFallback` siblings when
+    // no policy is installed.
+
+    /**
+     * Fetch option NBBO history with REST fallback per the configured
+     * policy. `symbol`, `expiration`, `start_date` are required;
+     * `end_date`, `strike`, `right`, `interval` accept the empty
+     * `std::string{}` sentinel to omit.
+     *
+     * Throws on transport / parse / REST decode failure.
+     */
+    std::vector<QuoteTick> optionHistoryQuoteWithFallback(
+        const std::string& symbol, const std::string& expiration,
+        const std::string& start_date, const std::string& end_date = {},
+        const std::string& strike = {}, const std::string& right = {},
+        const std::string& interval = {}) const;
+
+    /** Fetch combined trade+quote history with REST fallback. */
+    std::vector<TradeQuoteTick> optionHistoryTradeQuoteWithFallback(
+        const std::string& symbol, const std::string& expiration,
+        const std::string& start_date, const std::string& end_date = {},
+        const std::string& strike = {}, const std::string& right = {}) const;
+
+    /** Fetch implied-volatility history with REST fallback. */
+    std::vector<IvTick> optionHistoryGreeksImpliedVolatilityWithFallback(
+        const std::string& symbol, const std::string& expiration,
+        const std::string& start_date, const std::string& end_date = {},
+        const std::string& strike = {}, const std::string& right = {},
+        const std::string& interval = {}) const;
+
+    /** Fetch first-order Greeks history with REST fallback. */
+    std::vector<GreeksFirstOrderTick> optionHistoryGreeksFirstOrderWithFallback(
+        const std::string& symbol, const std::string& expiration,
+        const std::string& start_date, const std::string& end_date = {},
+        const std::string& strike = {}, const std::string& right = {},
+        const std::string& interval = {}) const;
+
 private:
     explicit Client(TdxClient* h) : handle_(h) {}
     std::unique_ptr<TdxClient, ClientDeleter> handle_;

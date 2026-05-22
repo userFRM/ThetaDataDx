@@ -31,6 +31,9 @@ set(THETADX_CPP_TEST_SOURCES
     unified_client.cpp
     streaming_iter.cpp
     error_taxonomy.cpp
+    # REST-fallback policy + Config::withRestFallback wiring tests
+    # (issue #571 mitigation, cross-binding parity with Python/TS/FFI).
+    fallback.cpp
     # Gate 3 (issue #546) - C++ doctest harness. Compiles + runs
     # `// @example` blocks extracted from the public headers.
     doctest_examples.cpp
