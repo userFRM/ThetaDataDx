@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `MddsConfig::warn_on_buffered_threshold_bytes` (#576). Buffered
+  `.await` historical responses whose estimated size exceeds the
+  threshold (default 100 MiB) now emit a single `tracing::warn!`
+  event with `endpoint`, `row_count`, `bytes_est`, and
+  `threshold_bytes` fields suggesting `.stream(handler)` for the
+  workload. Fires once per request after the `Vec<Tick>` materializes
+  — no per-chunk torrent. Set to `0` to disable the warn entirely.
+  Helper lives in `crate::mdds::macros::warn_buffered_response_size`
+  with pure-decision `should_warn_buffered_size` for cheap testing.
+  Five unit tests pin the threshold semantics (zero / equal /
+  off-by-one / overflow / end-to-end event capture).
+
 - `FallbackPolicy` + `_with_fallback` shims now reach every binding —
   FFI (C ABI), TypeScript (napi-rs), and C++ (`thetadx.hpp`) — closing
   the cross-binding parity gap that PR #579 left as a Python-only
@@ -131,6 +143,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `swap_classes_in_jar` (S3).
 
 ### Changed
+
+- Every `parsed_endpoint!` historical builder now ships a "When to
+  use `.await` vs `.stream(handler)`" decision matrix in rustdoc
+  (#576). Single source of truth lives in
+  `build_support/endpoints/render/mdds.rs::AWAIT_VS_STREAM_DOC` and
+  the codegen attaches it after the per-endpoint description, so
+  every `option_history_*` / `stock_history_*` / `index_history_*` /
+  `interest_rate_history_*` builder advertises the same guidance in
+  `cargo doc` without per-endpoint drift. The matrix calls out
+  tick-interval / Greeks / multi-day workloads as `.stream(handler)`
+  cases and points at `docs-site/docs/legacy-quote-handling.md` for
+  the full migration recipe.
 
 - `RestError::CsvDecode` / `RestError::MissingColumn` now lift into
   `Error::Transport { kind: Codec, .. }` instead of
@@ -418,6 +442,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the next major release.
 
 ### Fixed
+
+- Documentation did not flag which historical builder terminal to
+  use for which workload, so users reached for the buffered `.await`
+  even on bulk pulls and only discovered the wrong-API mode after
+  RSS climbed into double-digit GB (#576). Fixed by attaching a
+  `.await` vs `.stream(handler)` decision matrix to every parsed
+  historical builder in rustdoc, adding the same matrix to the root
+  + Python READMEs, expanding
+  `docs-site/docs/legacy-quote-handling.md` with a "Buffered vs
+  streaming" section, and emitting a single `tracing::warn!` event
+  when the buffered path returns a response above
+  `MddsConfig::warn_on_buffered_threshold_bytes` (default 100 MiB,
+  set to `0` to disable). Closes #576.
 
 - Post-Feb-2020 daily-expiry quote backfill no longer h2-cascades
   on the streaming path (#577). PR #573's lenient decoder + REST

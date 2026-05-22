@@ -480,6 +480,15 @@ decode_factor: 3.0 buffered  /  1.0 streamed
 
 For tick-interval requests across multi-day ranges or wide strike ranges, **always use `.stream()`** — the buffered path's `decode_factor=3.0` reflects the simultaneous residency of h2 frames + decompressed proto + decoded `Vec<T>` plus the `Vec::push` doubling transient.
 
+**Buffered-size warning (issue #576).** When the buffered `.list()` /
+`.await` path returns a response whose estimated size exceeds the
+configured threshold (default 100 MiB), the SDK emits a single
+`tracing::warn!` event with `endpoint`, `row_count`, and `bytes_est`
+fields suggesting `.stream(handler)` for the workload. Tune via
+`MddsConfig::warn_on_buffered_threshold_bytes` (set to `0` to disable).
+See [`docs-site/docs/legacy-quote-handling.md`](../../docs-site/docs/legacy-quote-handling.md)
+for the streaming-vs-buffered recipe.
+
 ### Chained DataFrame terminals
 
 Every historical endpoint returns a typed list wrapper (`EodTickList`,

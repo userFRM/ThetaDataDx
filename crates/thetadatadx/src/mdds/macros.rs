@@ -349,6 +349,77 @@ where
     }
 }
 
+/// Decide whether the buffered `.await` path on a parsed builder
+/// crossed the operator-visible warning threshold for response size.
+///
+/// Pure function — no side effects, no allocation, no I/O. Lets the
+/// `parsed_endpoint!` macro keep the size check at the seam where
+/// `row_count` and `size_of::<Item>` are both already in scope and
+/// keeps the decision testable without a `tracing-subscriber` dep.
+///
+/// `row_size` is `size_of::<Tick>` at the call site — a lower bound
+/// on the resident-memory cost since each tick may carry inline
+/// `String`s + `Vec`s that allocate separately. The estimate is
+/// intentionally conservative (under-counts heap-side allocations)
+/// so the warn fires on the row-count axis we actually control;
+/// callers tuning the threshold should think in "row count × wire
+/// row size" terms rather than RSS.
+///
+/// Returns `Some(bytes_est)` when `bytes_est > threshold_bytes` and
+/// `threshold_bytes > 0`. Returns `None` when the warn is disabled
+/// (`threshold_bytes == 0`) or the response stayed under the
+/// configured ceiling. The threshold check is strict `>` so the
+/// caller can pin "exactly N bytes" silent in tests.
+pub(crate) fn should_warn_buffered_size(
+    row_count: usize,
+    row_size: usize,
+    threshold_bytes: usize,
+) -> Option<usize> {
+    // `0` is the documented "warn disabled" sentinel. Returning early
+    // also keeps `saturating_mul` out of the hot path on the common
+    // configuration.
+    if threshold_bytes == 0 {
+        return None;
+    }
+    // `saturating_mul` guards the (theoretical) overflow on a 32-bit
+    // target — at 64-bit no realistic `row_count * row_size` reaches
+    // `usize::MAX`, but the saturating path matches the rest of the
+    // crate's arithmetic and costs one extra cmov.
+    let bytes_est = row_count.saturating_mul(row_size);
+    if bytes_est > threshold_bytes {
+        Some(bytes_est)
+    } else {
+        None
+    }
+}
+
+/// Emit a single `tracing::warn!` event when the buffered `.await`
+/// path on a `parsed_endpoint!` builder crosses
+/// `mdds.warn_on_buffered_threshold_bytes` (issue #576).
+///
+/// Fires AT MOST ONCE per call — the macro invokes this helper
+/// immediately after the `Vec<Tick>` materializes, before returning
+/// to the caller, so a long-running operator workload sees exactly
+/// one log line per offending request rather than a per-chunk
+/// torrent. Threshold of `0` disables the warn entirely (see
+/// [`crate::config::MddsConfig::warn_on_buffered_threshold_bytes`]).
+pub(crate) fn warn_buffered_response_size(
+    endpoint: &'static str,
+    row_count: usize,
+    row_size: usize,
+    threshold_bytes: usize,
+) {
+    if let Some(bytes_est) = should_warn_buffered_size(row_count, row_size, threshold_bytes) {
+        tracing::warn!(
+            endpoint,
+            row_count,
+            bytes_est,
+            threshold_bytes,
+            "buffered .await returned a large response — consider .stream(handler) for this workload (see docs-site/docs/legacy-quote-handling.md)"
+        );
+    }
+}
+
 /// Classify an [`Error`] for retry / refresh routing.
 ///
 /// `From<tonic::Status>` folds the tonic enum into
@@ -727,7 +798,28 @@ macro_rules! parsed_endpoint {
                             .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
                         // Strict decode: type mismatch in any cell propagates
                         // as Error::Decode via `From<DecodeError>`.
-                        $parser(&table).map_err(Error::from)
+                        let parsed = $parser(&table).map_err(Error::from)?;
+                        // Issue #576: surface the wrong-API-for-this-workload
+                        // signal exactly once per request, after the buffered
+                        // `Vec` materialized — before this point we don't yet
+                        // know the row count, after this point the caller has
+                        // already paid the buffered cost. `row_count` is the
+                        // length the caller is about to receive; `row_size`
+                        // is the wire-shape lower bound (`size_of::<Item>`).
+                        // Configurable via
+                        // `DirectConfig::mdds.warn_on_buffered_threshold_bytes`;
+                        // set to 0 to disable.
+                        let threshold = client
+                            .config()
+                            .mdds
+                            .warn_on_buffered_threshold_bytes;
+                        $crate::mdds::macros::warn_buffered_response_size(
+                            stringify!($name),
+                            parsed.len(),
+                            std::mem::size_of::<$item>(),
+                            threshold,
+                        );
+                        Ok(parsed)
                     };
                     $crate::mdds::macros::run_with_optional_deadline(deadline, inner).await
                 })
@@ -1418,5 +1510,218 @@ mod refresh_retry_disabled_tests {
         .await;
         assert_eq!(result.expect("must succeed"), "payload");
         assert_eq!(attempts, 2);
+    }
+}
+
+#[cfg(test)]
+mod warn_buffered_tests {
+    //! Coverage for the issue #576 large-buffered-response warn helper.
+    //!
+    //! Two layers of tests:
+    //!
+    //! 1. `should_warn_buffered_size`: pure decision function, hit with
+    //!    the boundary cases (zero threshold, exact-equal, off-by-one
+    //!    above + below, overflow). No tracing wiring needed.
+    //! 2. `warn_buffered_response_size`: end-to-end check that the
+    //!    helper actually emits a `tracing::warn!` event when the
+    //!    decision returns `Some` and stays silent when it returns
+    //!    `None`. Uses a custom `tracing_subscriber::Layer` that
+    //!    captures events into a `Mutex<Vec<_>>` so the test stays
+    //!    self-contained (no global `init()`, no race against parallel
+    //!    tests). Scoped via `tracing::subscriber::with_default`.
+    use super::{should_warn_buffered_size, warn_buffered_response_size};
+    use std::sync::{Arc, Mutex};
+    use tracing::{
+        field::{Field, Visit},
+        subscriber::with_default,
+        Event, Level, Subscriber,
+    };
+    use tracing_subscriber::{layer::Context, prelude::*, registry::Registry, Layer};
+
+    /// Captured snapshot of a single emitted event. Only the fields
+    /// we assert on are extracted — message + the three structured
+    /// fields the warn helper sets.
+    #[derive(Default, Debug)]
+    struct CapturedEvent {
+        level: Option<Level>,
+        message: Option<String>,
+        endpoint: Option<String>,
+        row_count: Option<u64>,
+        bytes_est: Option<u64>,
+        threshold_bytes: Option<u64>,
+    }
+
+    /// `Visit` impl that pulls our four structured fields + the
+    /// `message` literal off the event.
+    impl Visit for CapturedEvent {
+        fn record_u64(&mut self, field: &Field, value: u64) {
+            match field.name() {
+                "row_count" => self.row_count = Some(value),
+                "bytes_est" => self.bytes_est = Some(value),
+                "threshold_bytes" => self.threshold_bytes = Some(value),
+                _ => {}
+            }
+        }
+
+        fn record_i64(&mut self, field: &Field, value: i64) {
+            // `tracing` may surface usize literals as i64 on some
+            // builds — accept that path too so the test isn't
+            // fragile across versions.
+            if value >= 0 {
+                self.record_u64(field, value as u64);
+            }
+        }
+
+        fn record_str(&mut self, field: &Field, value: &str) {
+            if field.name() == "endpoint" {
+                self.endpoint = Some(value.to_string());
+            }
+            if field.name() == "message" {
+                self.message = Some(value.to_string());
+            }
+        }
+
+        fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+            // `tracing::warn!(..., "literal")` records the literal
+            // message via the implicit `message` field with the
+            // `Debug` recorder. Strip the surrounding quotes so the
+            // captured string matches the source literal.
+            if field.name() == "message" {
+                self.message = Some(format!("{value:?}").trim_matches('"').to_string());
+            } else if field.name() == "endpoint" && self.endpoint.is_none() {
+                self.endpoint = Some(format!("{value:?}").trim_matches('"').to_string());
+            }
+        }
+    }
+
+    /// Custom `Layer` that appends every event it sees to a shared
+    /// `Mutex<Vec<CapturedEvent>>`. The collector is cloned into the
+    /// layer; the test holds the original `Arc` so it can read the
+    /// captured events after `with_default` returns.
+    struct CaptureLayer {
+        sink: Arc<Mutex<Vec<CapturedEvent>>>,
+    }
+
+    impl<S: Subscriber> Layer<S> for CaptureLayer {
+        fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+            let mut captured = CapturedEvent {
+                level: Some(*event.metadata().level()),
+                ..Default::default()
+            };
+            event.record(&mut captured);
+            if let Ok(mut sink) = self.sink.lock() {
+                sink.push(captured);
+            }
+        }
+    }
+
+    /// Run `body` with a fresh capturing subscriber active for the
+    /// duration of the closure. Returns whatever events `body`
+    /// emitted via `tracing`.
+    fn capture_warns(body: impl FnOnce()) -> Vec<CapturedEvent> {
+        let sink: Arc<Mutex<Vec<CapturedEvent>>> = Arc::default();
+        let layer = CaptureLayer {
+            sink: Arc::clone(&sink),
+        };
+        let subscriber = Registry::default().with(layer);
+        with_default(subscriber, body);
+        Arc::try_unwrap(sink)
+            .expect("sink should be uniquely owned after with_default returns")
+            .into_inner()
+            .expect("captured-events mutex must not be poisoned")
+    }
+
+    #[test]
+    fn should_warn_returns_none_when_threshold_is_zero() {
+        // Threshold = 0 is the documented "warn disabled" sentinel.
+        // Even a humongous response must NOT trigger a warn under
+        // this configuration — the operator opted out explicitly.
+        assert_eq!(should_warn_buffered_size(10_000_000, 256, 0), None);
+    }
+
+    #[test]
+    fn should_warn_returns_none_when_size_at_or_below_threshold() {
+        // Strict `>` keeps the documented "no warn at exactly N
+        // bytes" behaviour — callers can pin a threshold equal to
+        // the expected payload size and stay silent.
+        assert_eq!(should_warn_buffered_size(100, 256, 25_600), None);
+        // Off-by-one under: still silent.
+        assert_eq!(should_warn_buffered_size(100, 256, 25_601), None);
+    }
+
+    #[test]
+    fn should_warn_returns_some_above_threshold() {
+        // 101 * 256 = 25_856 bytes > 25_600 → warn fires.
+        let bytes = should_warn_buffered_size(101, 256, 25_600)
+            .expect("response over threshold must trigger warn");
+        assert_eq!(bytes, 25_856);
+    }
+
+    #[test]
+    fn should_warn_saturates_on_arithmetic_overflow() {
+        // On a 32-bit target `usize::MAX * 2` would overflow; the
+        // helper saturates instead so the warn still fires (the
+        // overflowed product is, by definition, above any
+        // realistic threshold).
+        let bytes =
+            should_warn_buffered_size(usize::MAX, 2, 1).expect("saturated product must warn");
+        assert_eq!(bytes, usize::MAX);
+    }
+
+    #[test]
+    fn warn_helper_emits_tracing_event_above_threshold() {
+        // End-to-end seam: 200 rows * 1 KiB = 200 KiB > 100 KiB
+        // threshold. The helper must emit exactly one `WARN` event
+        // carrying the three structured fields the operator reads
+        // from `RUST_LOG=warn`.
+        let events = capture_warns(|| {
+            warn_buffered_response_size("option_history_quote", 200, 1024, 100 * 1024);
+        });
+        assert_eq!(
+            events.len(),
+            1,
+            "exactly one warn event must fire per offending request"
+        );
+        let evt = &events[0];
+        assert_eq!(evt.level, Some(Level::WARN));
+        assert_eq!(evt.endpoint.as_deref(), Some("option_history_quote"));
+        assert_eq!(evt.row_count, Some(200));
+        assert_eq!(evt.bytes_est, Some(200 * 1024));
+        assert_eq!(evt.threshold_bytes, Some(100 * 1024));
+        // Spot-check the prose hint so a future refactor cannot
+        // silently strip the `.stream(handler)` recommendation
+        // that the issue brief explicitly asks for.
+        let msg = evt.message.as_deref().unwrap_or_default();
+        assert!(
+            msg.contains(".stream(handler)"),
+            "warn message must point operators at .stream(handler); got {msg:?}"
+        );
+    }
+
+    #[test]
+    fn warn_helper_stays_silent_below_threshold() {
+        // 200 rows * 1 KiB = 200 KiB, threshold 1 MiB → no warn.
+        let events = capture_warns(|| {
+            warn_buffered_response_size("option_history_quote", 200, 1024, 1024 * 1024);
+        });
+        assert!(
+            events.is_empty(),
+            "below-threshold response must not emit a warn; got {events:?}"
+        );
+    }
+
+    #[test]
+    fn warn_helper_stays_silent_when_threshold_is_zero() {
+        // Threshold = 0 is the documented "warn disabled" sentinel
+        // (see `MddsConfig::warn_on_buffered_threshold_bytes`). Even
+        // a deliberately huge response must NOT emit a warn — the
+        // operator explicitly opted out.
+        let events = capture_warns(|| {
+            warn_buffered_response_size("option_history_quote", 10_000_000, 1024, 0);
+        });
+        assert!(
+            events.is_empty(),
+            "threshold=0 must disable the warn entirely; got {events:?}"
+        );
     }
 }
