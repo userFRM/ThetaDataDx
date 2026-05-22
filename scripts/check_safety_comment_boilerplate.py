@@ -298,6 +298,55 @@ fn e() {{
             print("selftest FAILED: genuine annotation was flagged")
             return 1
     print("selftest: ok")
+    return _selftest_ffi_exempt()
+
+
+def _selftest_ffi_exempt() -> int:
+    """Negative case: every stamped site lives under `ffi/src/` -> zero findings.
+
+    Pins the FFI-exempt logic against a future refactor that might
+    drop the per-site exemption. If the detector ever loses the
+    `ffi/src/`-rooted skip, this selftest fails before the change
+    lands on main.
+    """
+    import tempfile
+
+    sample_boilerplate = (
+        "the caller upholds the FFI contract on this pointer; "
+        "ownership / lifetime is managed entirely outside Rust"
+    )
+
+    # Five FFI sites with identical boilerplate -- without the
+    # exemption they would trip the gate trivially.
+    ffi_sites = {
+        pathlib.Path(f"ffi/src/endpoint_{i}.rs"): f"""
+fn ep_{i}() {{
+    // SAFETY: {sample_boilerplate}
+    unsafe {{ }}
+}}
+"""
+        for i in range(5)
+    }
+
+    with tempfile.TemporaryDirectory() as td:
+        root = pathlib.Path(td)
+        for rel, content in ffi_sites.items():
+            target = root / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+        flagged = _scan(root)
+        if flagged:
+            print(
+                "ffi-exempt selftest FAILED: detector flagged FFI-only "
+                f"sites ({len(flagged)} bucket(s))"
+            )
+            for body, sites in flagged:
+                truncated = body if len(body) <= 80 else body[:80] + "..."
+                print(f"  text: {truncated}")
+                for rel, lineno in sites:
+                    print(f"    {rel}:{lineno}")
+            return 1
+    print("ffi-exempt selftest: ok")
     return 0
 
 
