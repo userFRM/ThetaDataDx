@@ -93,20 +93,43 @@ impl<'a> Table<'a> {
         None
     }
 
-    /// Decode a column as `i32`, defaulting to 0 when the cell is
-    /// empty or the column is absent. Used for optional / legacy-fill
-    /// columns (`bid_exchange`, `bid_condition`, ...) where the
-    /// patched-Terminal `normalizeData()` upcast contract zero-fills
-    /// absent fields.
-    pub(crate) fn cell_i32_or_zero(&self, row_idx: usize, col_idx: Option<usize>) -> i32 {
+    /// Decode a column as `i32` with the following three-way contract:
+    ///
+    /// * `None` column index -> `Ok(0)`. The header lacks the column
+    ///   entirely (legacy 6-field NBBO row missing the four exchange /
+    ///   condition columns); the patched-Terminal `normalizeData()`
+    ///   contract upcasts those absent fields to zero.
+    /// * `Some` index but `""` cell -> `Ok(0)`. The Terminal serializes
+    ///   a deliberately-null cell as an empty string; absence semantics
+    ///   apply, same as a missing column.
+    /// * `Some` index, non-empty cell that fails to parse -> structured
+    ///   [`RestError::CsvDecode`] with the row index, column number,
+    ///   and offending cell value. Previously the parse failure was
+    ///   silently coerced to `0`, hiding decoder bugs and upstream
+    ///   wire-format drift.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RestError::CsvDecode`] when a non-empty cell does not
+    /// parse as `i32`.
+    pub(crate) fn cell_i32_or_zero(
+        &self,
+        row_idx: usize,
+        col_idx: Option<usize>,
+    ) -> Result<i32, RestError> {
         let Some(col) = col_idx else {
-            return 0;
+            return Ok(0);
         };
-        self.rows
-            .get(row_idx)
-            .and_then(|r| r.get(col))
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(0)
+        let Some(cell) = self.rows.get(row_idx).and_then(|r| r.get(col)) else {
+            return Ok(0);
+        };
+        if cell.is_empty() {
+            return Ok(0);
+        }
+        cell.parse::<i32>().map_err(|e| RestError::CsvDecode {
+            reason: format!("bad i32 at row {row_idx} col {col}: {cell:?}: {e}"),
+            row: row_idx,
+        })
     }
 
     /// Decode a column as `i32`, surfacing a structured error on a
@@ -138,20 +161,46 @@ impl<'a> Table<'a> {
         })
     }
 
-    /// Decode a column as `f64`, defaulting to 0.0 when the cell is
-    /// empty or the column is absent. Used by `bid` / `ask` / Greek
-    /// columns where the REST wire payload is the already-scaled
-    /// floating-point quote (the Terminal applies the
-    /// `value * 10^(price_type - 10)` scaling before serializing CSV).
-    pub(crate) fn cell_f64_or_zero(&self, row_idx: usize, col_idx: Option<usize>) -> f64 {
+    /// Decode a column as `f64` with the same three-way absent /
+    /// empty / malformed contract as [`Self::cell_i32_or_zero`].
+    /// Additionally rejects `NaN` and `±Inf`: Rust's `f64::from_str`
+    /// happily parses the literal string `"NaN"` as a number, but
+    /// `NaN` propagating into a `QuoteTick` field is observably wrong
+    /// (every downstream `==`, `<`, `>` comparison silently returns
+    /// `false`) and indicates upstream wire-format corruption, not a
+    /// legitimate zero.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RestError::CsvDecode`] when a non-empty cell does not
+    /// parse as a finite `f64`.
+    pub(crate) fn cell_f64_or_zero(
+        &self,
+        row_idx: usize,
+        col_idx: Option<usize>,
+    ) -> Result<f64, RestError> {
         let Some(col) = col_idx else {
-            return 0.0;
+            return Ok(0.0);
         };
-        self.rows
-            .get(row_idx)
-            .and_then(|r| r.get(col))
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.0)
+        let Some(cell) = self.rows.get(row_idx).and_then(|r| r.get(col)) else {
+            return Ok(0.0);
+        };
+        if cell.is_empty() {
+            return Ok(0.0);
+        }
+        let parsed = cell.parse::<f64>().map_err(|e| RestError::CsvDecode {
+            reason: format!("bad f64 at row {row_idx} col {col}: {cell:?}: {e}"),
+            row: row_idx,
+        })?;
+        if !parsed.is_finite() {
+            return Err(RestError::CsvDecode {
+                reason: format!(
+                    "non-finite f64 at row {row_idx} col {col}: {cell:?} parsed as {parsed}"
+                ),
+                row: row_idx,
+            });
+        }
+        Ok(parsed)
     }
 }
 
@@ -183,9 +232,9 @@ ms_of_day,bid_size,bid,ask_size,ask,date
         // Row 0 decodes bit-exact for present columns; absent columns
         // zero-fill via cell_i32_or_zero.
         let bid_exg_idx = t.column_index("bid_exchange");
-        assert_eq!(t.cell_i32_or_zero(0, bid_exg_idx), 0);
+        assert_eq!(t.cell_i32_or_zero(0, bid_exg_idx).unwrap(), 0);
         let bid_size_idx = t.column_index("bid_size");
-        assert_eq!(t.cell_i32_or_zero(0, bid_size_idx), 50);
+        assert_eq!(t.cell_i32_or_zero(0, bid_size_idx).unwrap(), 50);
     }
 
     #[test]
@@ -199,7 +248,7 @@ ms_of_day,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_
         assert_eq!(t.column_index("ask_condition"), Some(8));
 
         let bid_exg_idx = t.column_index("bid_exchange");
-        assert_eq!(t.cell_i32_or_zero(0, bid_exg_idx), 7);
+        assert_eq!(t.cell_i32_or_zero(0, bid_exg_idx).unwrap(), 7);
     }
 
     #[test]
@@ -224,5 +273,91 @@ ms_of_day,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_
                 ..
             })
         ));
+    }
+
+    // -- cell_i32_or_zero three-arm contract -----------------------
+
+    /// Empty cell on a present column zero-fills (Terminal-null
+    /// contract); does NOT surface as a parse error.
+    #[test]
+    fn cell_i32_or_zero_empty_cell_returns_zero() {
+        let body = "ms_of_day,bid_size,date\n100,,20240605\n";
+        let t = Table::parse(body).unwrap();
+        let bid_size_idx = t.column_index("bid_size");
+        assert_eq!(t.cell_i32_or_zero(0, bid_size_idx).unwrap(), 0);
+    }
+
+    /// Non-empty cell that does not parse as i32 must surface a
+    /// structured `CsvDecode` carrying the offending cell + row +
+    /// column. The pre-M4 implementation silently returned 0.
+    #[test]
+    fn cell_i32_or_zero_malformed_cell_errors() {
+        let body = "ms_of_day,bid_size,date\n100,abc,20240605\n";
+        let t = Table::parse(body).unwrap();
+        let bid_size_idx = t.column_index("bid_size");
+        let err = t.cell_i32_or_zero(0, bid_size_idx).unwrap_err();
+        match err {
+            RestError::CsvDecode { reason, row } => {
+                assert_eq!(row, 0);
+                assert!(reason.contains("\"abc\""), "reason: {reason}");
+                assert!(reason.contains("i32"), "reason: {reason}");
+            }
+            other => panic!("expected CsvDecode, got {other:?}"),
+        }
+    }
+
+    // -- cell_f64_or_zero three-arm contract + NaN reject ----------
+
+    /// Same empty-cell contract as i32.
+    #[test]
+    fn cell_f64_or_zero_empty_cell_returns_zero() {
+        let body = "ms_of_day,bid,date\n100,,20240605\n";
+        let t = Table::parse(body).unwrap();
+        let bid_idx = t.column_index("bid");
+        assert!(t.cell_f64_or_zero(0, bid_idx).unwrap().abs() < 1e-12);
+    }
+
+    /// Malformed f64 cell errors with row + column in the message.
+    #[test]
+    fn cell_f64_or_zero_malformed_cell_errors() {
+        let body = "ms_of_day,bid,date\n100,nope,20240605\n";
+        let t = Table::parse(body).unwrap();
+        let bid_idx = t.column_index("bid");
+        let err = t.cell_f64_or_zero(0, bid_idx).unwrap_err();
+        assert!(matches!(err, RestError::CsvDecode { row: 0, .. }));
+    }
+
+    /// The literal string `NaN` parses successfully as `f64::NAN` on
+    /// Rust's `f64::from_str`. Letting it through would propagate a
+    /// silently-broken value into every downstream comparison; the
+    /// decoder must reject it as wire-format corruption.
+    #[test]
+    fn cell_f64_or_zero_rejects_nan_literal() {
+        for bad in ["NaN", "nan", "NAN", "+nan", "-nan"] {
+            let body = format!("ms_of_day,bid,date\n100,{bad},20240605\n");
+            let t = Table::parse(&body).unwrap();
+            let bid_idx = t.column_index("bid");
+            let err = t.cell_f64_or_zero(0, bid_idx).expect_err(bad);
+            assert!(
+                matches!(err, RestError::CsvDecode { .. }),
+                "{bad} should yield CsvDecode, got {err:?}"
+            );
+        }
+    }
+
+    /// `inf` / `-inf` / `Inf` likewise parse but are non-finite;
+    /// rejected for the same reason as `NaN`.
+    #[test]
+    fn cell_f64_or_zero_rejects_infinities() {
+        for bad in ["inf", "-inf", "Inf", "+infinity", "infinity"] {
+            let body = format!("ms_of_day,bid,date\n100,{bad},20240605\n");
+            let t = Table::parse(&body).unwrap();
+            let bid_idx = t.column_index("bid");
+            let err = t.cell_f64_or_zero(0, bid_idx).expect_err(bad);
+            assert!(
+                matches!(err, RestError::CsvDecode { .. }),
+                "{bad} should yield CsvDecode, got {err:?}"
+            );
+        }
     }
 }

@@ -488,8 +488,8 @@ pub fn decode_quote_csv(body: &str) -> Result<Vec<QuoteTick>, RestError> {
     for (row_idx, _) in table.rows.iter().enumerate() {
         let ms_of_day = table.cell_i32_required(row_idx, ms_idx, "ms_of_day")?;
         let date = table.cell_i32_required(row_idx, date_idx, "date")?;
-        let bid = table.cell_f64_or_zero(row_idx, bid_idx);
-        let ask = table.cell_f64_or_zero(row_idx, ask_idx);
+        let bid = table.cell_f64_or_zero(row_idx, bid_idx)?;
+        let ask = table.cell_f64_or_zero(row_idx, ask_idx)?;
         let midpoint = (bid + ask) / 2.0;
         // QuoteTick has contract-id fields (expiration / strike /
         // right). The REST path doesn't currently carry them in the
@@ -499,14 +499,14 @@ pub fn decode_quote_csv(body: &str) -> Result<Vec<QuoteTick>, RestError> {
         // request layer.
         out.push(QuoteTick {
             ms_of_day,
-            bid_size: table.cell_i32_or_zero(row_idx, bid_size_idx),
-            bid_exchange: table.cell_i32_or_zero(row_idx, bid_exg_idx),
+            bid_size: table.cell_i32_or_zero(row_idx, bid_size_idx)?,
+            bid_exchange: table.cell_i32_or_zero(row_idx, bid_exg_idx)?,
             bid,
-            bid_condition: table.cell_i32_or_zero(row_idx, bid_cond_idx),
-            ask_size: table.cell_i32_or_zero(row_idx, ask_size_idx),
-            ask_exchange: table.cell_i32_or_zero(row_idx, ask_exg_idx),
+            bid_condition: table.cell_i32_or_zero(row_idx, bid_cond_idx)?,
+            ask_size: table.cell_i32_or_zero(row_idx, ask_size_idx)?,
+            ask_exchange: table.cell_i32_or_zero(row_idx, ask_exg_idx)?,
             ask,
-            ask_condition: table.cell_i32_or_zero(row_idx, ask_cond_idx),
+            ask_condition: table.cell_i32_or_zero(row_idx, ask_cond_idx)?,
             date,
             midpoint,
             expiration: 0,
@@ -550,9 +550,9 @@ pub fn decode_trade_quote_csv(body: &str) -> Result<Vec<TradeQuoteTick>, RestErr
     for row_idx in 0..table.rows.len() {
         let ms_of_day = table.cell_i32_required(row_idx, ms_idx, "ms_of_day")?;
         let date = table.cell_i32_required(row_idx, date_idx, "date")?;
-        let price = table.cell_f64_or_zero(row_idx, price_idx);
-        let bid = table.cell_f64_or_zero(row_idx, bid_idx);
-        let ask = table.cell_f64_or_zero(row_idx, ask_idx);
+        let price = table.cell_f64_or_zero(row_idx, price_idx)?;
+        let bid = table.cell_f64_or_zero(row_idx, bid_idx)?;
+        let ask = table.cell_f64_or_zero(row_idx, ask_idx)?;
         out.push(TradeQuoteTick {
             ms_of_day,
             sequence: 0,
@@ -561,22 +561,22 @@ pub fn decode_trade_quote_csv(body: &str) -> Result<Vec<TradeQuoteTick>, RestErr
             ext_condition3: 0,
             ext_condition4: 0,
             condition: 0,
-            size: table.cell_i32_or_zero(row_idx, size_idx),
-            exchange: table.cell_i32_or_zero(row_idx, exchange_idx),
+            size: table.cell_i32_or_zero(row_idx, size_idx)?,
+            exchange: table.cell_i32_or_zero(row_idx, exchange_idx)?,
             price,
             condition_flags: 0,
             price_flags: 0,
             volume_type: 0,
             records_back: 0,
             quote_ms_of_day: ms_of_day,
-            bid_size: table.cell_i32_or_zero(row_idx, bid_size_idx),
-            bid_exchange: table.cell_i32_or_zero(row_idx, bid_exg_idx),
+            bid_size: table.cell_i32_or_zero(row_idx, bid_size_idx)?,
+            bid_exchange: table.cell_i32_or_zero(row_idx, bid_exg_idx)?,
             bid,
-            bid_condition: table.cell_i32_or_zero(row_idx, bid_cond_idx),
-            ask_size: table.cell_i32_or_zero(row_idx, ask_size_idx),
-            ask_exchange: table.cell_i32_or_zero(row_idx, ask_exg_idx),
+            bid_condition: table.cell_i32_or_zero(row_idx, bid_cond_idx)?,
+            ask_size: table.cell_i32_or_zero(row_idx, ask_size_idx)?,
+            ask_exchange: table.cell_i32_or_zero(row_idx, ask_exg_idx)?,
             ask,
-            ask_condition: table.cell_i32_or_zero(row_idx, ask_cond_idx),
+            ask_condition: table.cell_i32_or_zero(row_idx, ask_cond_idx)?,
             date,
             expiration: 0,
             strike: 0.0,
@@ -608,8 +608,8 @@ pub fn decode_iv_csv(body: &str) -> Result<Vec<IvTick>, RestError> {
         let date = table.cell_i32_required(row_idx, date_idx, "date")?;
         out.push(IvTick {
             ms_of_day,
-            implied_volatility: table.cell_f64_or_zero(row_idx, iv_idx),
-            iv_error: table.cell_f64_or_zero(row_idx, iv_err_idx),
+            implied_volatility: table.cell_f64_or_zero(row_idx, iv_idx)?,
+            iv_error: table.cell_f64_or_zero(row_idx, iv_err_idx)?,
             date,
             expiration: 0,
             strike: 0.0,
@@ -655,18 +655,18 @@ pub fn decode_greeks_first_order_csv(body: &str) -> Result<Vec<GreeksFirstOrderT
         let date = table.cell_i32_required(row_idx, date_idx, "date")?;
         out.push(GreeksFirstOrderTick {
             ms_of_day,
-            bid: table.cell_f64_or_zero(row_idx, bid_idx),
-            ask: table.cell_f64_or_zero(row_idx, ask_idx),
-            delta: table.cell_f64_or_zero(row_idx, delta_idx),
-            theta: table.cell_f64_or_zero(row_idx, theta_idx),
-            vega: table.cell_f64_or_zero(row_idx, vega_idx),
-            rho: table.cell_f64_or_zero(row_idx, rho_idx),
-            epsilon: table.cell_f64_or_zero(row_idx, epsilon_idx),
-            lambda: table.cell_f64_or_zero(row_idx, lambda_idx),
-            implied_volatility: table.cell_f64_or_zero(row_idx, iv_idx),
-            iv_error: table.cell_f64_or_zero(row_idx, iv_err_idx),
-            underlying_ms_of_day: table.cell_i32_or_zero(row_idx, und_ms_idx),
-            underlying_price: table.cell_f64_or_zero(row_idx, und_price_idx),
+            bid: table.cell_f64_or_zero(row_idx, bid_idx)?,
+            ask: table.cell_f64_or_zero(row_idx, ask_idx)?,
+            delta: table.cell_f64_or_zero(row_idx, delta_idx)?,
+            theta: table.cell_f64_or_zero(row_idx, theta_idx)?,
+            vega: table.cell_f64_or_zero(row_idx, vega_idx)?,
+            rho: table.cell_f64_or_zero(row_idx, rho_idx)?,
+            epsilon: table.cell_f64_or_zero(row_idx, epsilon_idx)?,
+            lambda: table.cell_f64_or_zero(row_idx, lambda_idx)?,
+            implied_volatility: table.cell_f64_or_zero(row_idx, iv_idx)?,
+            iv_error: table.cell_f64_or_zero(row_idx, iv_err_idx)?,
+            underlying_ms_of_day: table.cell_i32_or_zero(row_idx, und_ms_idx)?,
+            underlying_price: table.cell_f64_or_zero(row_idx, und_price_idx)?,
             date,
             expiration: 0,
             strike: 0.0,
