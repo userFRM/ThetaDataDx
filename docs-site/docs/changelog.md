@@ -9,6 +9,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- MDDS pool-sizing surface on every binding (closes #584). Three
+  knobs on `MddsConfig` are now exposed through the Python, TypeScript,
+  C++, and FFI surfaces — they previously existed in the Rust core
+  but had no cross-binding equivalent:
+  - `concurrent_requests` — pool-wide concurrency cap. `0` (default)
+    auto-detects from the Nexus subscription tier (Free=1 / Value=2
+    / Standard=4 / Pro=8). Explicit values above the tier cap are
+    now **clamped at connect time** with a `tracing::warn!` rather
+    than producing confusing per-RPC `ResourceExhausted` rejections
+    on the (cap + 1)-th channel.
+  - `decoder_threads` — dedicated decoder-pool thread count. `0`
+    (default) auto-sizes to `max(available_parallelism / 2, 1)`,
+    independent of channel count (the previous formula capped at
+    `channels`, which throttled CPU-bound decode on under-channeled
+    tiers).
+  - `decoder_ring_size` — per-thread Disruptor ring depth. Setters
+    on every binding reject invalid sizes (zero, non-power-of-two,
+    below 64) at the call site rather than at connect-time validate.
+  - **Python**: `cfg.concurrent_requests = N` / `cfg.decoder_threads = N`
+    / `cfg.decoder_ring_size = N` with full `.pyi` stubs.
+  - **TypeScript**: `cfg.setConcurrentRequests(N)` / `setDecoderThreads`
+    / `setDecoderRingSize` with regenerated `index.d.ts`.
+  - **C++**: `cfg.set_concurrent_requests(n)` / `set_decoder_threads`
+    / `set_decoder_ring_size` on `tdx::Config`.
+  - **FFI**: `tdx_config_set_concurrent_requests` /
+    `tdx_config_set_decoder_threads` /
+    `tdx_config_set_decoder_ring_size`, all C-ABI clean.
+  - 7 new Rust unit tests (`pool_size_tests`), 10 new Python tests,
+    8 new TypeScript tests, 6 new C++ Catch2 tests, 7 new FFI tests.
+- `bench_decoder_pool` (criterion) — sweeps decoder thread count
+  (1/2/4/8 at fixed ring=256) and ring depth (64/256/1024/4096 at
+  fixed threads=4) through the public `DecoderPool` surface. Reports
+  ticks/sec at 1024-row quote payloads. Baseline finding: thread
+  count scales near-linearly through 4 threads; ring depth at 64–4096
+  lands within ~5% across the range at this workload.
+- `bench_protobuf_decode` (criterion) — prost decode throughput at
+  quote-chunk (256/1024/4096/8192 rows) and trade-chunk
+  (256/1024/4096 rows) payload sizes. Baseline scaffolding for the
+  SIMD / zero-copy decode follow-up to compare against; the follow-up
+  must clear ≥ 1.5× this baseline before the swap is worth a new
+  dependency in the decode path.
+- `docs-site/docs/configuration.md` — new "Throughput Tuning" section
+  with the per-workload sizing table, per-binding code samples, and
+  the architectural caveat documenting why `decoder_threads >
+  concurrent_requests` is currently wasted memory (two-stage pipeline
+  rewrite is the architectural follow-up).
+
+- Tier-aware `concurrent_requests` clamp (refs #584). Explicit
+  `MddsConfig::concurrent_requests` values above the resolved
+  subscription tier cap (Free=1 / Value=2 / Standard=4 / Pro=8) are
+  now clamped at connect time with a `tracing::warn!` rather than
+  honoured unconditionally. Previously, `concurrent_requests = 32`
+  on a PRO tier opened 32 channels and the (cap + 1)-th RPC failed
+  with confusing `ResourceExhausted` rejections that the SDK retried
+  on a different channel. The clamp surfaces the misconfiguration
+  locally. `MddsConfig::override_tier_clamp` (doc-hidden) bypasses
+  the clamp for tests that need to reproduce the over-provisioning
+  failure mode against a stubbed auth response. The per-request
+  semaphore is now sized off the resolved channel pool size so the
+  two stay strictly coupled. `DecoderHandle::submit` is now `pub`
+  (was `pub(crate)`) — the function takes wire-public types and
+  lets external bench / integrator code drive the pool without
+  going through the full gRPC stack.
+
+- `default_decoder_thread_count(channels)` no longer caps the
+  returned value at `channels` (refs #584). The argument is retained
+  on the signature for backwards compatibility but no longer
+  participates in the resolution. Channels = server-throttled gRPC
+  streams (capped by subscription tier); decoder threads = CPU work
+  on bytes already arrived. The previous cap conflated the two and
+  throttled CPU-bound decode on under-channeled tiers.
+
 - `MddsConfig::warn_on_buffered_threshold_bytes` (#576). Buffered
   `.await` historical responses whose estimated size exceeds the
   threshold (default 100 MiB) now emit a single `tracing::warn!`
