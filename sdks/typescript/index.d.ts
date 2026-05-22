@@ -70,6 +70,41 @@ export declare class Config {
   setDecoderRingSize(n: number): void
   /** Current `decoder_ring_size` setting. */
   get decoderRingSize(): number
+  /**
+   * Set the stage-2 worker thread count for the two-stage MDDS
+   * decode pipeline.
+   *
+   * Stage-2 runs `prost::Message::decode` and the downstream Tick
+   * build off a bounded MPSC queue fed by the stage-1 (per-channel
+   * zstd decompress) threads. Pass `null` or `undefined` for the
+   * auto-sized default (`std::thread::available_parallelism()` on
+   * the Rust side); pass a `number` for an explicit override.
+   * `0` is a legal explicit value — the pool clamps it to `1`
+   * internally.
+   */
+  setDecodeThreads(n?: number | undefined | null): void
+  /**
+   * Current `decode_threads` setting. `null` means auto-size at
+   * connect time; a `number` is the explicit override.
+   */
+  get decodeThreads(): number | null
+  /**
+   * Set the bounded queue depth between stage-1 and stage-2 of
+   * the two-stage MDDS decode pipeline.
+   *
+   * Stage-1 pushes `DecodedPayload`s into the queue; stage-2
+   * workers pull them out. When stage-2 cannot keep up, stage-1
+   * parks rather than drops. Pass `null` or `undefined` for the
+   * auto-sized default (`concurrent_requests * 64` with a floor
+   * of `64`); pass a `number` for an explicit override. `0` is a
+   * legal explicit value — the queue clamps it to `1` internally.
+   */
+  setDecodeQueueDepth(n?: number | undefined | null): void
+  /**
+   * Current `decode_queue_depth` setting. `null` means auto-size
+   * at connect time; a `number` is the explicit override.
+   */
+  get decodeQueueDepth(): number | null
 }
 
 /**

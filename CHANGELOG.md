@@ -75,6 +75,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Cross-binding parity for the two-stage MDDS decode pipeline knobs
+  (Phase 3 of 3). The `MddsConfig::decode_threads` and
+  `decode_queue_depth` fields landed in #587 (core scaffold) and #588
+  (criterion benches); PR #586 mirrored the legacy single-stage knobs
+  to every binding. This entry closes the parity gap so Python /
+  TypeScript / C++ / FFI callers can size the stage-2 prost-decode +
+  Tick-build worker pool and the bounded MPSC queue independently of
+  channel count, matching the Rust surface bit-for-bit.
+  - **Python**: `cfg.decode_threads = N` and
+    `cfg.decode_queue_depth = N` (with `None` for the auto-size
+    sentinel) and full `.pyi` stubs. Negatives raise `ValueError`
+    at the setter; explicit `0` is a legal value that the pool
+    clamps to `1` at construction.
+  - **TypeScript**: `cfg.setDecodeThreads(N)` /
+    `cfg.setDecodeQueueDepth(N)` accepting `number | null | undefined`,
+    with regenerated `index.d.ts`. The mirror property getters return
+    `number | null` for the current value.
+  - **C++**: `cfg.set_decode_threads(std::optional<size_t>)` /
+    `cfg.set_decode_queue_depth(std::optional<size_t>)` on
+    `tdx::Config`. `std::nullopt` encodes the auto-size sentinel.
+    The wrappers throw `std::runtime_error` on null-handle FFI
+    failure (unreachable through the RAII contract).
+  - **FFI**: `tdx_config_set_decode_threads(*TdxConfig, size_t) -> int32_t`
+    and `tdx_config_set_decode_queue_depth(*TdxConfig, size_t) -> int32_t`,
+    both C-ABI clean. `n = 0` encodes the auto-size sentinel; any
+    `n > 0` is the explicit `Some(n)` override. Returns `0` on
+    success, `-1` on null-handle (diagnostic via `tdx_last_error()`).
+  - 13 new Python tests, 13 new TypeScript tests, 7 new C++ Catch2
+    tests, 7 new FFI Rust tests.
+
 - MDDS pool-sizing surface on every binding (closes #584). Three
   knobs on `MddsConfig` are now exposed through the Python, TypeScript,
   C++, and FFI surfaces — they previously existed in the Rust core
