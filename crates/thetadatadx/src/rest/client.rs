@@ -630,8 +630,24 @@ pub fn decode_greeks_first_order_csv(body: &str) -> Result<Vec<GreeksFirstOrderT
     if table.rows.is_empty() {
         return Ok(vec![]);
     }
+    // Resolve every column index up front, mirroring `decode_quote_csv`.
+    // The pre-M2 implementation called `column_index(...)` inline on each
+    // row; for the 13-column Greeks layout that was 13 * `rows.len()`
+    // header-scan lookups per response.
     let ms_idx = table.column_index("ms_of_day");
     let date_idx = table.column_index("date");
+    let bid_idx = table.column_index("bid");
+    let ask_idx = table.column_index("ask");
+    let delta_idx = table.column_index("delta");
+    let theta_idx = table.column_index("theta");
+    let vega_idx = table.column_index("vega");
+    let rho_idx = table.column_index("rho");
+    let epsilon_idx = table.column_index("epsilon");
+    let lambda_idx = table.column_index("lambda");
+    let iv_idx = table.column_index("implied_volatility");
+    let iv_err_idx = table.column_index("iv_error");
+    let und_ms_idx = table.column_index("underlying_ms_of_day");
+    let und_price_idx = table.column_index("underlying_price");
 
     let mut out: Vec<GreeksFirstOrderTick> = Vec::with_capacity(table.rows.len());
     for row_idx in 0..table.rows.len() {
@@ -639,21 +655,18 @@ pub fn decode_greeks_first_order_csv(body: &str) -> Result<Vec<GreeksFirstOrderT
         let date = table.cell_i32_required(row_idx, date_idx, "date")?;
         out.push(GreeksFirstOrderTick {
             ms_of_day,
-            bid: table.cell_f64_or_zero(row_idx, table.column_index("bid")),
-            ask: table.cell_f64_or_zero(row_idx, table.column_index("ask")),
-            delta: table.cell_f64_or_zero(row_idx, table.column_index("delta")),
-            theta: table.cell_f64_or_zero(row_idx, table.column_index("theta")),
-            vega: table.cell_f64_or_zero(row_idx, table.column_index("vega")),
-            rho: table.cell_f64_or_zero(row_idx, table.column_index("rho")),
-            epsilon: table.cell_f64_or_zero(row_idx, table.column_index("epsilon")),
-            lambda: table.cell_f64_or_zero(row_idx, table.column_index("lambda")),
-            implied_volatility: table
-                .cell_f64_or_zero(row_idx, table.column_index("implied_volatility")),
-            iv_error: table.cell_f64_or_zero(row_idx, table.column_index("iv_error")),
-            underlying_ms_of_day: table
-                .cell_i32_or_zero(row_idx, table.column_index("underlying_ms_of_day")),
-            underlying_price: table
-                .cell_f64_or_zero(row_idx, table.column_index("underlying_price")),
+            bid: table.cell_f64_or_zero(row_idx, bid_idx),
+            ask: table.cell_f64_or_zero(row_idx, ask_idx),
+            delta: table.cell_f64_or_zero(row_idx, delta_idx),
+            theta: table.cell_f64_or_zero(row_idx, theta_idx),
+            vega: table.cell_f64_or_zero(row_idx, vega_idx),
+            rho: table.cell_f64_or_zero(row_idx, rho_idx),
+            epsilon: table.cell_f64_or_zero(row_idx, epsilon_idx),
+            lambda: table.cell_f64_or_zero(row_idx, lambda_idx),
+            implied_volatility: table.cell_f64_or_zero(row_idx, iv_idx),
+            iv_error: table.cell_f64_or_zero(row_idx, iv_err_idx),
+            underlying_ms_of_day: table.cell_i32_or_zero(row_idx, und_ms_idx),
+            underlying_price: table.cell_f64_or_zero(row_idx, und_price_idx),
             date,
             expiration: 0,
             strike: 0.0,
