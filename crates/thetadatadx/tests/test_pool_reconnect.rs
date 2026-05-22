@@ -10,22 +10,109 @@
 //! 2. 100 concurrent observers of the same `ConnectionClosed` event
 //!    produce exactly one fresh-connection open (single-flight CAS).
 //!
-//! These are the load-bearing contracts the campaign-closing PR
-//! introduced. Future contributors investigating long-running-pool
-//! cascades should ensure these tests still pass before reaching for
-//! any of the removed "cascade detection" code paths.
+//! These are the load-bearing contracts the in-place reconnect path
+//! relies on. Future contributors investigating long-running-pool
+//! ConnectionClosed regressions should ensure these tests still pass.
 
 mod grpc_mock_server;
 
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+
+use tokio::net::TcpListener;
+use tokio::sync::{oneshot, Notify};
+use tokio::task::JoinHandle;
 
 use thetadatadx::grpc::channel::ReconnectEvent;
 use thetadatadx::grpc::{Channel, ChannelError, ChannelPool};
 use thetadatadx::wire::{data_value, DataValue, DataValueList, ResponseData};
 
-use grpc_mock_server::{MockBehaviour, MockServer};
+use grpc_mock_server::{serve_one_connection, MockBehaviour, MockServer};
+
+/// Inline multi-accept mock used by the reconnect-success lifecycle
+/// test. Accepts up to `max_connections` TCP connections in sequence;
+/// each accepted connection serves one h2 RPC then closes. The
+/// listener stays open across reconnects so the second TCP connect
+/// (from the spawned reconnect task) lands on a live socket and
+/// `AttemptSuccess` fires.
+struct MultiAcceptMock {
+    addr: SocketAddr,
+    shutdown: Option<oneshot::Sender<()>>,
+    task: Option<JoinHandle<()>>,
+}
+
+impl MultiAcceptMock {
+    async fn spawn(
+        chunks: Vec<ResponseData>,
+        status_code: u32,
+        max_connections: usize,
+        behaviour: MockBehaviour,
+    ) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind to ephemeral port");
+        let addr = listener.local_addr().expect("read local addr");
+        let (tx, rx) = oneshot::channel();
+
+        let task = tokio::spawn(async move {
+            tokio::select! {
+                _ = rx => {},
+                _ = async {
+                    for _ in 0..max_connections {
+                        let (socket, _peer) = match listener.accept().await {
+                            Ok(sp) => sp,
+                            Err(_) => return,
+                        };
+                        let _ = socket.set_nodelay(true);
+                        let _ = serve_one_connection(
+                            socket,
+                            chunks.clone(),
+                            status_code,
+                            String::new(),
+                            behaviour.clone(),
+                        )
+                        .await;
+                    }
+                } => {}
+            }
+        });
+
+        Self {
+            addr,
+            shutdown: Some(tx),
+            task: Some(task),
+        }
+    }
+}
+
+impl Drop for MultiAcceptMock {
+    fn drop(&mut self) {
+        if let Some(tx) = self.shutdown.take() {
+            let _ = tx.send(());
+        }
+        if let Some(task) = self.task.take() {
+            task.abort();
+        }
+    }
+}
+
+/// Hard upper bound on observer-driven waits. The observer fires from
+/// a spawned reconnect task; `Notify::notified` returns the moment the
+/// task lands its first event, so this bound is "fail fast if the
+/// reconnect future never spawned" rather than "wait long enough."
+const OBSERVER_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Wait for the next observer event (any variant) up to
+/// `OBSERVER_TIMEOUT`. Returns `true` if a notification arrived,
+/// `false` on timeout — the caller asserts on the recorded counters
+/// either way.
+async fn wait_for_event(notify: &Notify) -> bool {
+    tokio::time::timeout(OBSERVER_TIMEOUT, notify.notified())
+        .await
+        .is_ok()
+}
 
 fn empty_request() -> DataValueList {
     DataValueList {
@@ -105,15 +192,19 @@ async fn reconnect_fires_on_connection_closed() {
     // Install the observer on the pool member BEFORE the RPC fires
     // — the in-place reconnect path spawns its own task on the
     // tokio multi-thread runtime, so the observer must be ready
-    // when that task lands.
+    // when that task lands. The Notify wakes us the moment the
+    // reconnect spawn fires its first event.
     let attempt_starts = Arc::new(AtomicUsize::new(0));
+    let notify = Arc::new(Notify::new());
     {
         let attempt_starts = Arc::clone(&attempt_starts);
+        let notify = Arc::clone(&notify);
         pool.member_for_test(0)
             .set_reconnect_observer(move |event| {
                 if matches!(event, ReconnectEvent::AttemptStart) {
                     attempt_starts.fetch_add(1, Ordering::SeqCst);
                 }
+                notify.notify_one();
             });
     }
 
@@ -133,26 +224,28 @@ async fn reconnect_fires_on_connection_closed() {
     );
     drop(mock);
 
-    // Give the spawned reconnect future a moment to land on the
-    // observer hook. The reconnect itself will fail (mock dropped),
-    // but the observer still records the `AttemptStart` that we
-    // pin here.
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    let count = attempt_starts.load(Ordering::SeqCst);
     if matches!(err, ChannelError::ConnectionClosed(_)) {
+        // Wait for the spawned reconnect to fire its first event;
+        // single-flight CAS guarantees exactly one AttemptStart for
+        // the cycle.
         assert!(
-            count >= 1,
-            "ConnectionClosed must trigger at least one reconnect AttemptStart; observed {count}"
+            wait_for_event(&notify).await,
+            "reconnect observer never fired within {OBSERVER_TIMEOUT:?}",
+        );
+        let count = attempt_starts.load(Ordering::SeqCst);
+        assert_eq!(
+            count, 1,
+            "single-flight CAS must collapse the ConnectionClosed to exactly one AttemptStart; observed {count}",
         );
     } else {
-        // The error classified as H2Stream — the GOAWAY arrived
-        // after the stream-level reset surfaced first. No reconnect
-        // is expected for stream-level errors; the test asserts the
-        // negative invariant.
+        // Stream-level H2Stream — no reconnect is expected. Give the
+        // runtime a single yield in case a stray spawn is in flight;
+        // assert the negative invariant.
+        tokio::task::yield_now().await;
+        let count = attempt_starts.load(Ordering::SeqCst);
         assert_eq!(
             count, 0,
-            "stream-level H2Stream must NOT trigger reconnect; observed {count} AttemptStart"
+            "stream-level H2Stream must NOT trigger reconnect; observed {count} AttemptStart",
         );
     }
 }
@@ -188,15 +281,19 @@ async fn reconnect_is_single_flight() {
     // installed (the trigger_reconnect path no-ops without it).
     let pool = ChannelPool::from_channels(vec![channel]);
 
-    // Install the observer on the pool member.
+    // Install the observer on the pool member. Notify wakes us the
+    // moment the spawned reconnect lands its first event.
     let attempt_count = Arc::new(AtomicUsize::new(0));
+    let notify = Arc::new(Notify::new());
     {
         let attempt_count = Arc::clone(&attempt_count);
+        let notify = Arc::clone(&notify);
         pool.member_for_test(0)
             .set_reconnect_observer(move |event| {
                 if matches!(event, ReconnectEvent::AttemptStart) {
                     attempt_count.fetch_add(1, Ordering::SeqCst);
                 }
+                notify.notify_one();
             });
     }
 
@@ -214,9 +311,11 @@ async fn reconnect_is_single_flight() {
         member.trigger_reconnect();
     }
 
-    // Give the spawned reconnect future a moment to land its
-    // `AttemptStart` event on the observer.
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    // Wait for the spawned reconnect to land its `AttemptStart`.
+    assert!(
+        wait_for_event(&notify).await,
+        "reconnect observer never fired within {OBSERVER_TIMEOUT:?}",
+    );
 
     let count = attempt_count.load(Ordering::SeqCst);
     assert_eq!(
@@ -229,23 +328,19 @@ async fn reconnect_is_single_flight() {
 /// Pin: a successful reconnect surfaces `AttemptSuccess` on the
 /// observer, leaving the channel ready to serve subsequent RPCs.
 ///
-/// Drives the reconnect against a live mock (not a dead one), so
-/// the reconnect's TCP connect succeeds and the observer fires
-/// `AttemptStart` followed by `AttemptSuccess`. The test confirms
-/// the `Channel` swapped its inner sender by checking that a
-/// follow-up RPC against the new mock completes cleanly.
-///
-/// Mock spawns a single mock that serves one RPC then closes — so
-/// the second RPC (post-reconnect against the SAME mock) does
-/// observe a fresh accept on the listener. We test that the
-/// reconnect spawn fired `AttemptSuccess`; the second-RPC verifies
-/// the sender swap took effect.
+/// Drives the reconnect against a multi-accept mock so the reconnect's
+/// TCP connect lands on a live listener; the observer fires
+/// `AttemptStart` followed by `AttemptSuccess` (NOT `AttemptExhausted`)
+/// — this test pins the success path exactly.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn reconnect_observer_fires_on_lifecycle_events() {
-    let mock = MockServer::spawn_with_behaviour(
+    // Multi-accept mock keeps the listener open across reconnects so
+    // the second TCP connect (from the spawned reconnect task) lands
+    // on a live socket and `AttemptSuccess` fires.
+    let mock = MultiAcceptMock::spawn(
         vec![make_response_data(&["AAPL"])],
         0,
-        String::new(),
+        4,
         MockBehaviour::default(),
     )
     .await;
@@ -257,43 +352,44 @@ async fn reconnect_observer_fires_on_lifecycle_events() {
 
     let events: Arc<std::sync::Mutex<Vec<ReconnectEvent>>> =
         Arc::new(std::sync::Mutex::new(Vec::new()));
+    let success_notify = Arc::new(Notify::new());
     {
         let events = Arc::clone(&events);
+        let success_notify = Arc::clone(&success_notify);
         pool.member_for_test(0)
             .set_reconnect_observer(move |event| {
                 if let Ok(mut v) = events.lock() {
                     v.push(event);
                 }
+                if matches!(event, ReconnectEvent::AttemptSuccess) {
+                    success_notify.notify_one();
+                }
             });
     }
 
     pool.member_for_test(0).trigger_reconnect();
-    // Give the reconnect future enough time to either complete or
-    // exhaust its retry budget. The mock will refuse the second
-    // accept (it serviced one) so the reconnect's TCP connect
-    // succeeds (handshake follows), and the observer fires
-    // AttemptSuccess.
-    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    // Wait for AttemptSuccess specifically — the multi-accept mock
+    // guarantees the reconnect's TCP connect lands cleanly, so this
+    // is the load-bearing path.
+    assert!(
+        wait_for_event(&success_notify).await,
+        "AttemptSuccess never fired within {OBSERVER_TIMEOUT:?}; events so far: {:?}",
+        events.lock().unwrap(),
+    );
 
     let observed = events.lock().unwrap().clone();
     assert!(
         observed.contains(&ReconnectEvent::AttemptStart),
-        "expected AttemptStart in {observed:?}"
+        "expected AttemptStart in {observed:?}",
     );
-    // Either AttemptSuccess or AttemptExhausted should land — the
-    // reconnect future always notifies one of the two terminal
-    // events before returning. Asserting the inclusion-or is the
-    // load-bearing invariant; which one fires depends on whether
-    // the mock accepted the second connection.
-    let terminal_seen = observed.iter().any(|e| {
-        matches!(
-            e,
-            ReconnectEvent::AttemptSuccess | ReconnectEvent::AttemptExhausted
-        )
-    });
     assert!(
-        terminal_seen,
-        "expected AttemptSuccess or AttemptExhausted in {observed:?}"
+        observed.contains(&ReconnectEvent::AttemptSuccess),
+        "expected AttemptSuccess in {observed:?}",
+    );
+    assert!(
+        !observed.contains(&ReconnectEvent::AttemptExhausted),
+        "AttemptExhausted must NOT fire against a live multi-accept mock; observed {observed:?}",
     );
     drop(mock);
 }

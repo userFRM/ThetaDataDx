@@ -1,54 +1,12 @@
-//! Two-stage decode pipeline: zstd decompress (stage 1) handed off
-//! through a bounded MPSC queue to a worker pool that runs the
-//! `prost::Message::decode` + Tick-build step (stage 2).
+//! Two-stage decode pipeline: stage-1 decompresses payloads on each
+//! per-channel decoder thread and hands them through a bounded
+//! crossbeam queue to a shared stage-2 worker pool that runs prost
+//! decode + Tick build.
 //!
-//! # Why two stages
-//!
-//! The single-stage [`super::decoder_pool::DecoderPool`] runs the full
-//! `zstd decompress -> prost decode -> Vec<Tick> build` chain on each
-//! decoder thread. Under heavy load that couples three very different
-//! cost profiles onto the same N-way pool: zstd is bound by the
-//! decompressor's serial dictionary state per chunk (one core, no
-//! parallelism gain past N=cores), but `prost::Message::decode` and
-//! `Tick` materialization scale linearly with available cores. A
-//! single-stage pool sized for zstd starves prost; sized for prost
-//! over-provisions zstd contexts.
-//!
-//! Splitting the work lets each stage scale independently:
-//!
-//! ```text
-//!   per-channel decoder threads         shared stage-2 pool
-//!     +----------------+                  +----------------+
-//!     | h2 receive --> |    DecodedPayload | prost::decode |
-//!     | zstd decompress|  ------queue----> |   + Tick build|
-//!     |                |                  |               |
-//!     +----------------+                  +----------------+
-//!                                            (M workers)
-//! ```
-//!
-//! Stage-1 keeps the existing per-channel thread (one decoder per
-//! channel keeps the thread-local zstd context warm for that
-//! channel's payload-size distribution). Stage-2 fans the prost +
-//! Tick-build work out across M workers so a single slow channel
-//! cannot saturate decode capacity for the whole pool.
-//!
-//! # Backpressure
-//!
-//! The cross-stage queue is bounded
-//! ([`crossbeam_channel::bounded`]). When stage-2 cannot keep up,
-//! stage-1's `send()` *parks* the decoder thread rather than dropping
-//! the payload — silent drops on a market-data feed are the worst
-//! possible failure mode. The decoder thread records the park
-//! duration through `tracing::debug!` so operators running with
-//! `RUST_LOG=debug` see backpressure events.
-//!
-//! # Counters
-//!
-//! `total_decoded` / `total_dropped` / `total_parked` are wrapped in
-//! [`crossbeam_utils::CachePadded`] so the stage-1 and stage-2
-//! threads, which both increment these counters, do not stall each
-//! other through false-sharing on a single cache line. Each counter
-//! gets its own 64-byte (or 128-byte on aarch64) line.
+//! Design rationale, ASCII pipeline diagram, scaling tradeoffs, and
+//! the backpressure / counter contracts live in
+//! `docs-site/docs/channel-pool-design.md` (forward-looking design)
+//! and in the PR #587 / #588 commit bodies (historical context).
 
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -97,14 +55,8 @@ pub struct DecodedPayload {
 
 // ─── Cache-padded counters ──────────────────────────────────────────
 
-/// Stage-pipeline counters. Each field is wrapped in
-/// [`CachePadded`] so concurrent increments from stage-1 and stage-2
-/// threads do not stall each other through cache-line false sharing.
-///
-/// On x86_64 the cache line is 64 bytes, on aarch64 typically 128;
-/// the `CachePadded` wrapper sizes to the target's worst case so the
-/// padding is portable. Tests pin the resulting struct size so a
-/// regression that drops the padding fails CI immediately.
+/// Stage-pipeline counters. Each field is `CachePadded` to prevent
+/// false-sharing between the stage-1 and stage-2 threads.
 #[derive(Debug)]
 pub struct Stage2Counters {
     /// Total payloads that stage-2 successfully decoded into a
@@ -174,57 +126,23 @@ pub(crate) struct Stage2Job {
 
 // ─── Stage-2 pool ───────────────────────────────────────────────────
 
-/// Shared stage-2 worker pool. Holds the bounded MPSC queue plus M
-/// worker threads that pull from it, decode the carried payload via
-/// `prost::Message::decode`, and reply through the per-job
-/// `oneshot::Sender`.
-///
-/// Construction spawns M worker threads tagged `mdds-decode-stage2`
-/// so `top -H` / pprof / perf group them together. Threads exit
-/// cleanly when the queue's sender side closes (every crate-internal
-/// sender clone dropped) — the pool's `Drop` impl waits for the
-/// joins before returning so worker panics never escape.
+/// Shared stage-2 worker pool: bounded MPSC queue plus M worker
+/// threads that pull, decode via `prost::Message::decode`, and reply
+/// on the per-job oneshot. Workers tagged `mdds-decode-stage2`.
 pub struct Stage2Pool {
-    /// Cloneable sender handed to every stage-1 decoder thread.
-    /// `Option` so the pool's `Drop` impl can take the inner
-    /// `Sender` out before joining workers — closing the channel
-    /// from the pool side signals every worker to exit its
-    /// `recv` loop once stage-1 producers also drop their clones.
     sender: Option<Stage2PoolSender>,
-    /// Worker threads, joined on drop.
     workers: Vec<JoinHandle<()>>,
-    /// Shared counters, observable from outside the pool for
-    /// monitoring.
     counters: Arc<Stage2Counters>,
-    /// Number of workers spawned. Cached because `workers` is taken
-    /// during `Drop` and the field would otherwise be unreadable
-    /// during shutdown.
     worker_count: usize,
-    /// Configured queue depth — exposed for monitoring / tests.
     queue_depth: usize,
 }
 
-/// Cloneable handle to push [`Stage2Job`]s onto the shared bounded
-/// queue. Holds an [`Arc`] to the same [`Stage2Counters`] the pool
-/// publishes so stage-1 threads can record `total_parked` increments
-/// from the producer side.
-///
-/// The inner `Sender` is wrapped in an `Option` so the pool's
-/// `Drop` impl can take it out before joining workers — closing the
-/// channel from the pool side signals every worker to exit its
-/// `recv` loop. Stage-1 producers still hold their own
-/// [`Sender`] clones; the channel only closes when every clone
-/// drops.
+/// Cloneable handle for stage-1 to push [`Stage2Job`]s onto the
+/// bounded queue. Shares the pool's [`Stage2Counters`] and poison flag.
 #[derive(Clone)]
 pub(crate) struct Stage2PoolSender {
-    /// `crossbeam_channel::Sender` is internally `Arc<...>` so cloning
-    /// is cheap — every stage-1 decoder thread holds its own clone.
     sender: Sender<Stage2Job>,
     counters: Arc<Stage2Counters>,
-    /// Shared poison flag — flipped when a stage-2 worker catches a
-    /// panic. Stage-1 threads check this between pushes so they
-    /// surface the poison fast rather than parking on a queue whose
-    /// consumers are gone.
     poisoned: Arc<AtomicBool>,
 }
 
@@ -237,38 +155,28 @@ impl Stage2PoolSender {
         self.poisoned.load(Ordering::Acquire)
     }
 
-    /// Push a stage-2 job onto the bounded queue.
+    /// Push a stage-2 job onto the bounded queue, blocking if full
+    /// (backpressure parks stage-1 rather than dropping).
     ///
-    /// Blocks if the queue is full so backpressure parks stage-1
-    /// rather than dropping the payload — silent drops on a market
-    /// data feed are unacceptable. The park duration is accumulated
-    /// into `total_parked` (nanoseconds) and `tracing::debug!`-logged
-    /// so operators see backpressure events without scraping
-    /// histograms.
+    /// # Errors
     ///
-    /// Returns `Err(Stage2SendError::Poisoned { job })` when the
-    /// stage-2 pool has been poisoned by a worker panic; the
-    /// rejected job is handed back to the caller so the caller can
-    /// reply through its embedded oneshot with the transport-level
-    /// failure. Returns `Err(Stage2SendError::PoolClosed { job })`
-    /// when every worker has already exited (only happens during
-    /// shutdown).
+    /// Returns [`Stage2SendError::Poisoned`] if a stage-2 worker has
+    /// panicked, or [`Stage2SendError::PoolClosed`] if every worker
+    /// has already exited. The rejected job is handed back so the
+    /// caller can surface the failure through its oneshot.
     pub(crate) fn send(&self, job: Stage2Job) -> Result<(), Stage2SendError> {
         if self.is_poisoned() {
             return Err(Stage2SendError::Poisoned { job });
         }
-        // Try once non-blocking so the common case (queue not full)
-        // avoids the `Instant::now()` call entirely.
         match self.sender.try_send(job) {
             Ok(()) => Ok(()),
             Err(TrySendError::Disconnected(job)) => Err(Stage2SendError::PoolClosed { job }),
             Err(TrySendError::Full(job)) => {
-                // Slow path: queue full. Park on the sender and
-                // record how long we waited for downstream operators.
                 let start = Instant::now();
                 let outcome = self.sender.send(job);
-                let elapsed = start.elapsed();
-                let nanos = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX);
+                // `as_nanos` returns `u128`; saturate to `u64::MAX`
+                // for the unreachable >584-year park case.
+                let nanos = u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX);
                 self.counters
                     .total_parked
                     .fetch_add(nanos, Ordering::Relaxed);
@@ -396,10 +304,10 @@ impl Stage2Pool {
     /// unreachable in practice.
     #[must_use]
     pub(crate) fn sender(&self) -> Stage2PoolSender {
-        self.sender
-            .as_ref()
-            .expect("Stage2Pool::sender called after Drop")
-            .clone()
+        let Some(sender) = self.sender.as_ref() else {
+            unreachable!("Stage2Pool::sender called after Drop took the sender slot");
+        };
+        sender.clone()
     }
 
     /// Snapshot of the pipeline counters. Cheap — just clones an
@@ -645,22 +553,8 @@ mod tests {
         drop(pool);
     }
 
-    /// Backpressure invariant: when the queue is full, `send()`
-    /// parks the producer rather than dropping the payload. The
-    /// test forces a guaranteed-stuck consumer by pinning the
-    /// worker on `recv()` while the producer fills the bounded
-    /// channel directly — once the channel is at capacity the
-    /// next `send` MUST park. We exercise the
-    /// [`Stage2PoolSender::send`] path that records `total_parked`
-    /// nanoseconds and assert that counter advances.
-    ///
-    /// Building this on a synthetic stuck-channel is the only way
-    /// to make the test deterministic on fast hardware: a real
-    /// `Stage2Pool` worker decodes a small payload in
-    /// microseconds, so on a fast box the producer could push
-    /// many payloads before observing a full queue. The
-    /// stuck-channel shape pins the queue at capacity from t=0 so
-    /// the very next push parks unconditionally.
+    /// Pin: when the queue is full, `send()` parks the producer
+    /// (records `total_parked`) rather than dropping the payload.
     #[test]
     fn backpressure_parks_producer() {
         const QUEUE_DEPTH: usize = 2;
@@ -724,18 +618,10 @@ mod tests {
     /// with the transport-level failure reply.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn poison_containment_keeps_workers_alive() {
-        // Two workers so one can panic while the other keeps
-        // pulling jobs. The panic-flip is global across all
-        // workers in the pool (single shared `poisoned` flag), so
-        // the surviving worker drains subsequent jobs with the
-        // poisoned-reply branch rather than the decode branch —
-        // both branches keep the worker alive past the panic.
         let pool = Stage2Pool::new(2, 8);
         let sender = pool.sender();
 
-        // Job 1: malformed payload that prost rejects — a clean
-        // error, no panic. Used to baseline that the worker is
-        // happy to keep going across normal errors.
+        // Job 1: malformed payload — clean prost error baseline.
         let (tx_clean, rx_clean) = oneshot::channel();
         let bad_payload = Bytes::from_static(&[0xFF, 0xFF, 0xFF, 0xFF]);
         sender
@@ -819,19 +705,46 @@ mod tests {
             "CachePadded<AtomicU64> must align to at least 64 bytes \
              (false-sharing prevention); got {align}"
         );
-        // The struct holds three cache-padded counters; its size
-        // must be at least 3 * align.
         assert!(
             size >= 3 * align,
             "Stage2Counters must occupy at least 3 cache lines \
              (got size={size}, align={align}, expected >= {})",
             3 * align
         );
-        // Padding stride: each AtomicU64 inside its own CachePadded.
         let padded_size = std::mem::size_of::<CachePadded<AtomicU64>>();
         assert_eq!(
             padded_size, align,
             "CachePadded<AtomicU64> rounds size up to one cache line"
+        );
+
+        // Each counter must land on its own cache line. We verify by
+        // checking that each field's address modulo `align` is zero
+        // and that consecutive field addresses differ by at least
+        // `align` bytes — that's the false-sharing-prevention
+        // invariant in machine terms.
+        let counters = Stage2Counters::default();
+        let base = std::ptr::addr_of!(counters) as usize;
+        let off_decoded = std::ptr::addr_of!(counters.total_decoded) as usize - base;
+        let off_dropped = std::ptr::addr_of!(counters.total_dropped) as usize - base;
+        let off_parked = std::ptr::addr_of!(counters.total_parked) as usize - base;
+        assert_eq!(
+            off_decoded % align,
+            0,
+            "total_decoded must be cache-aligned"
+        );
+        assert_eq!(
+            off_dropped % align,
+            0,
+            "total_dropped must be cache-aligned"
+        );
+        assert_eq!(off_parked % align, 0, "total_parked must be cache-aligned");
+        assert!(
+            off_dropped >= off_decoded + align,
+            "total_dropped must sit on a different cache line than total_decoded",
+        );
+        assert!(
+            off_parked >= off_dropped + align,
+            "total_parked must sit on a different cache line than total_dropped",
         );
     }
 

@@ -15,8 +15,8 @@ use std::hint::black_box;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use thetadatadx::rest::client::{decode_greeks_first_order_csv, decode_quote_csv};
 
-/// Build a 6-column QuoteTick CSV with `n` rows. Mirrors the legacy
-/// 2022-era NBBO row layout that motivates issue #571.
+/// Build a 6-column QuoteTick CSV with `n` rows. Exercises the
+/// subset NBBO row layout that the lenient REST decoder accepts.
 fn build_quote_csv(n: usize) -> String {
     let mut s = String::with_capacity(64 + n * 48);
     s.push_str("ms_of_day,bid_size,bid,ask_size,ask,date\n");

@@ -145,10 +145,13 @@ impl ChannelPool {
         self.inner.channels.len()
     }
 
-    /// Always `false` — the pool is non-empty by construction.
+    /// `true` if the pool holds no channels. The constructor's
+    /// `assert!` rules this out in practice; the method exists so
+    /// callers using the `len() + is_empty()` clippy-friendly idiom
+    /// don't have to special-case the pool.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        false
+        self.inner.channels.is_empty()
     }
 
     /// Look up a pool member by index. Hidden from the public docs —
@@ -214,18 +217,7 @@ impl ChannelPool {
             };
         }
 
-        // CAS-retry pick: scan for the least-loaded channel, then
-        // commit the reservation only if the channel is still at the
-        // observed count. Under true concurrency two tasks may both
-        // scan and both pick the same least-loaded channel; the
-        // commit guard ensures the loser rolls back its speculative
-        // increment and re-scans rather than pinning to a now-
-        // saturated channel.
-        //
-        // Bounded retries: PICK_RETRY caps live-lock under heavy
-        // contention. On exhaustion we fall back to a round-robin
-        // pick that always commits — the load-balancing hint is
-        // degraded but the dispatch is never lost.
+        // Bounded CAS-retry; on exhaustion, degrade to round-robin commit.
         const PICK_RETRY: usize = 4;
         for _ in 0..PICK_RETRY {
             let mut best_idx: usize = cursor % len;
@@ -311,126 +303,14 @@ impl<'a> ChannelLease<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
 
-    /// Counts how many times each pool index is picked.
-    #[derive(Default)]
-    struct PickCounter {
-        per_index: Vec<AtomicUsize>,
-    }
-
-    impl PickCounter {
-        fn new(n: usize) -> Self {
-            Self {
-                per_index: (0..n).map(|_| AtomicUsize::new(0)).collect(),
-            }
-        }
-
-        fn increment(&self, idx: usize) {
-            self.per_index[idx].fetch_add(1, Ordering::Relaxed);
-        }
-
-        fn snapshot(&self) -> Vec<usize> {
-            self.per_index
-                .iter()
-                .map(|c| c.load(Ordering::Relaxed))
-                .collect()
-        }
-    }
-
-    // ── Pool semantics without real h2 channels ──────────────────────
-    //
-    // The pool's correctness is mechanical (atomic cursor + indexed
-    // access). Testing it via real `Channel::connect_h2c` calls adds
-    // network noise to a logic test, so the property tests below use
-    // an `IndexedPool` shim that exposes the same round-robin
-    // semantics over `usize` indices. `ChannelPool::next` is then
-    // covered end-to-end by the bench, which builds a real
-    // 4-connection pool against the mock h2 server.
-
-    struct IndexedPool {
-        cursor: AtomicUsize,
-        size: usize,
-    }
-
-    impl IndexedPool {
-        fn new(size: usize) -> Self {
-            assert!(size > 0);
-            Self {
-                cursor: AtomicUsize::new(0),
-                size,
-            }
-        }
-
-        fn next(&self) -> usize {
-            self.cursor.fetch_add(1, Ordering::Relaxed) % self.size
-        }
-    }
-
-    #[test]
-    fn round_robin_distributes_evenly_over_full_cycles() {
-        let pool = IndexedPool::new(4);
-        let counter = PickCounter::new(4);
-        for _ in 0..4_000 {
-            counter.increment(pool.next());
-        }
-        let counts = counter.snapshot();
-        // 4000 picks across 4 indices — each index gets exactly 1000.
-        for (i, c) in counts.iter().enumerate() {
-            assert_eq!(*c, 1000, "index {i} got {c} picks, expected 1000");
-        }
-    }
-
-    #[test]
-    fn round_robin_distributes_within_one_under_partial_cycle() {
-        let pool = IndexedPool::new(4);
-        let counter = PickCounter::new(4);
-        for _ in 0..7 {
-            counter.increment(pool.next());
-        }
-        let counts = counter.snapshot();
-        // 7 picks across 4 indices — three indices get 2 picks, one
-        // gets 1. No index can be > max+1 above any other.
-        let min = *counts.iter().min().unwrap();
-        let max = *counts.iter().max().unwrap();
-        assert!(
-            max - min <= 1,
-            "imbalance > 1: counts={counts:?} min={min} max={max}"
-        );
-    }
-
-    #[test]
-    fn round_robin_is_thread_safe() {
-        let pool = Arc::new(IndexedPool::new(8));
-        let counter = Arc::new(PickCounter::new(8));
-        let handles: Vec<_> = (0..16)
-            .map(|_| {
-                let pool = Arc::clone(&pool);
-                let counter = Arc::clone(&counter);
-                std::thread::spawn(move || {
-                    for _ in 0..1_000 {
-                        counter.increment(pool.next());
-                    }
-                })
-            })
-            .collect();
-        for h in handles {
-            h.join().expect("worker thread joined");
-        }
-        let counts = counter.snapshot();
-        let total: usize = counts.iter().sum();
-        assert_eq!(total, 16_000, "every pick was counted exactly once");
-        // 16000 picks across 8 indices = 2000 each on average; with
-        // `Relaxed` atomics under contention some imbalance is normal
-        // but should stay within a small fraction.
-        let min = *counts.iter().min().unwrap();
-        let max = *counts.iter().max().unwrap();
-        assert!(
-            max - min <= 8,
-            "imbalance > 8: counts={counts:?} min={min} max={max}"
-        );
-    }
+    // Round-robin distribution semantics are covered end-to-end by
+    // the `channel_pool_concurrent_dispatch_spreads_across_members`
+    // test in `tests/grpc_mock_server.rs`, which drives the real
+    // `ChannelPool::next` against a 4-channel pool wired to mock h2
+    // listeners. The standalone unit tests previously here drove an
+    // `IndexedPool` shim that re-implemented the modulo cursor —
+    // asserting that two copies of the same algorithm agree.
 
     #[test]
     #[should_panic(expected = "ChannelPool must hold at least one Channel")]

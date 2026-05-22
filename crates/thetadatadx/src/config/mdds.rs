@@ -104,14 +104,23 @@ pub struct MddsConfig {
     ///
     /// # Deprecated alias
     ///
-    /// In the two-stage decode pipeline shipped under
-    /// [`Self::decode_threads`] / [`Self::decode_queue_depth`], this
-    /// field controls the **stage-1** decoder thread count
-    /// (per-channel zstd decompress) and aliases the same auto-sizing
-    /// logic as before. Set [`Self::decode_threads`] instead to
-    /// tune the **stage-2** prost decode + Tick build worker pool
-    /// — the new knob is the one operators reach for under the
-    /// updated mental model.
+    /// Deprecated since v10.0.1: in the two-stage decode pipeline
+    /// shipped under [`Self::decode_threads`] /
+    /// [`Self::decode_queue_depth`], this field controls the
+    /// **stage-1** decoder thread count (per-channel decompress) and
+    /// aliases the same auto-sizing logic as before. Set
+    /// [`Self::decode_threads`] instead to tune the **stage-2** prost
+    /// decode + Tick build worker pool — the new knob is the one
+    /// operators reach for under the updated mental model.
+    ///
+    /// The `#[deprecated]` attribute is intentionally NOT set on the
+    /// field; the workspace lints promote rustc warnings to errors
+    /// (`warnings = "deny"`), and the field is still read from
+    /// every cross-binding `Config` setter, so attaching the attribute
+    /// would force `#[allow(deprecated)]` at every internal access
+    /// site. The rustdoc deprecation note above is the source of
+    /// truth for downstream consumers — `cargo doc` surfaces it on
+    /// the field's docs page.
     pub decoder_threads: usize,
 
     /// Stage-2 worker thread count for the two-stage decode

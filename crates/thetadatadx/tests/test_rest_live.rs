@@ -11,10 +11,10 @@
 //! ```
 //!
 //! The corresponding unit tests in `crates/thetadatadx/src/rest/tests.rs`
-//! cover the decoder contract (6-field NBBO subset + 11-field full
-//! layouts, malformed-cell error surface, NaN reject) against synthetic
-//! bodies; this module pins the wire-format expectations against an
-//! actual Terminal so a Terminal-side regression doesn't slip past CI
+//! cover the decoder contract (subset + full-column NBBO layouts,
+//! malformed-cell error surface, NaN reject) against synthetic bodies;
+//! this module pins the wire-format expectations against an actual
+//! Terminal so a Terminal-side regression doesn't slip past CI
 //! silently.
 
 use std::env;
@@ -25,10 +25,18 @@ use thetadatadx::rest::RestClient;
 /// to any non-empty value to enable.
 const LIVE_GATE: &str = "THETADX_LIVE_LOCAL_TERMINAL";
 
-fn live_gate_enabled() -> bool {
-    env::var(LIVE_GATE)
-        .ok()
-        .is_some_and(|v| !v.trim().is_empty())
+/// Fail-loud check: if the test is reached via `--ignored` without the
+/// env gate set, panic instead of silently passing. Running with
+/// `--ignored` is an explicit opt-in to live testing; a silent return
+/// turns a missing-env-var into a green test that proved nothing.
+fn require_live_gate() {
+    let raw = env::var(LIVE_GATE).ok();
+    let enabled = raw.as_deref().is_some_and(|v| !v.trim().is_empty());
+    assert!(
+        enabled,
+        "{LIVE_GATE}=1 required when running this test via --ignored; \
+         got {raw:?}",
+    );
 }
 
 fn live_base_url() -> String {
@@ -41,9 +49,7 @@ fn live_base_url() -> String {
 #[tokio::test]
 #[ignore = "live local Terminal required; set THETADX_LIVE_LOCAL_TERMINAL=1"]
 async fn quote_history_decodes_known_historical_row() {
-    if !live_gate_enabled() {
-        return;
-    }
+    require_live_gate();
     let rest = RestClient::new(live_base_url()).expect("RestClient::new");
     let ticks = rest
         .option_history_quote("QQQ", "20220415", "20220414")
@@ -64,9 +70,7 @@ async fn quote_history_decodes_known_historical_row() {
 #[tokio::test]
 #[ignore = "live local Terminal required; set THETADX_LIVE_LOCAL_TERMINAL=1"]
 async fn quote_history_surfaces_response_too_large_under_tight_cap() {
-    if !live_gate_enabled() {
-        return;
-    }
+    require_live_gate();
     let rest = RestClient::new(live_base_url())
         .expect("RestClient::new")
         .with_max_response_bytes(1); // 1-byte cap forces the surface.

@@ -67,36 +67,12 @@ pub unsafe extern "C" fn tdx_stock_list_dates_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let request_type = match unsafe { cstr_to_str(request_type) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("request_type is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("request_type is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let request_type = require_cstr!(request_type, empty);
         args.insert(
             "request_type".to_string(),
             thetadatadx::EndpointArgValue::Str(request_type.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
@@ -394,53 +370,17 @@ pub unsafe extern "C" fn tdx_stock_history_eod_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
@@ -496,36 +436,12 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -581,36 +497,12 @@ pub unsafe extern "C" fn tdx_stock_history_trade_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -666,36 +558,12 @@ pub unsafe extern "C" fn tdx_stock_history_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -751,36 +619,12 @@ pub unsafe extern "C" fn tdx_stock_history_trade_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -840,70 +684,22 @@ pub unsafe extern "C" fn tdx_stock_at_time_trade_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("time_of_day is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("time_of_day is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let time_of_day = require_cstr!(time_of_day, empty);
         args.insert(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
@@ -963,70 +759,22 @@ pub unsafe extern "C" fn tdx_stock_at_time_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("time_of_day is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("time_of_day is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let time_of_day = require_cstr!(time_of_day, empty);
         args.insert(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
@@ -1131,53 +879,17 @@ pub unsafe extern "C" fn tdx_option_list_dates_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let request_type = match unsafe { cstr_to_str(request_type) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("request_type is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("request_type is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let request_type = require_cstr!(request_type, empty);
         args.insert(
             "request_type".to_string(),
             thetadatadx::EndpointArgValue::Str(request_type.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -1231,19 +943,7 @@ pub unsafe extern "C" fn tdx_option_list_expirations_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
@@ -1299,36 +999,12 @@ pub unsafe extern "C" fn tdx_option_list_strikes_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -1386,53 +1062,17 @@ pub unsafe extern "C" fn tdx_option_list_contracts_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let request_type = match unsafe { cstr_to_str(request_type) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("request_type is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("request_type is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let request_type = require_cstr!(request_type, empty);
         args.insert(
             "request_type".to_string(),
             thetadatadx::EndpointArgValue::Str(request_type.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -1488,36 +1128,12 @@ pub unsafe extern "C" fn tdx_option_snapshot_ohlc_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -1573,36 +1189,12 @@ pub unsafe extern "C" fn tdx_option_snapshot_trade_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -1658,36 +1250,12 @@ pub unsafe extern "C" fn tdx_option_snapshot_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -1743,36 +1311,12 @@ pub unsafe extern "C" fn tdx_option_snapshot_open_interest_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -1828,36 +1372,12 @@ pub unsafe extern "C" fn tdx_option_snapshot_market_value_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -1913,36 +1433,12 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_implied_volatility_with_opti
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -1998,36 +1494,12 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_all_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -2083,36 +1555,12 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_first_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -2168,36 +1616,12 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_second_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -2253,36 +1677,12 @@ pub unsafe extern "C" fn tdx_option_snapshot_greeks_third_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
@@ -2342,70 +1742,22 @@ pub unsafe extern "C" fn tdx_option_history_eod_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
@@ -2463,53 +1815,17 @@ pub unsafe extern "C" fn tdx_option_history_ohlc_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -2567,53 +1883,17 @@ pub unsafe extern "C" fn tdx_option_history_trade_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -2671,53 +1951,17 @@ pub unsafe extern "C" fn tdx_option_history_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -2775,53 +2019,17 @@ pub unsafe extern "C" fn tdx_option_history_trade_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -2879,53 +2087,17 @@ pub unsafe extern "C" fn tdx_option_history_open_interest_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -2985,70 +2157,22 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
@@ -3106,53 +2230,17 @@ pub unsafe extern "C" fn tdx_option_history_greeks_all_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -3210,53 +2298,17 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -3314,53 +2366,17 @@ pub unsafe extern "C" fn tdx_option_history_greeks_first_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -3418,53 +2434,17 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -3522,53 +2502,17 @@ pub unsafe extern "C" fn tdx_option_history_greeks_second_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -3626,53 +2570,17 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -3730,53 +2638,17 @@ pub unsafe extern "C" fn tdx_option_history_greeks_third_order_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -3834,53 +2706,17 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -3938,53 +2774,17 @@ pub unsafe extern "C" fn tdx_option_history_greeks_implied_volatility_with_optio
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -4042,53 +2842,17 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -4150,87 +2914,27 @@ pub unsafe extern "C" fn tdx_option_at_time_trade_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("time_of_day is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("time_of_day is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let time_of_day = require_cstr!(time_of_day, empty);
         args.insert(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
@@ -4292,87 +2996,27 @@ pub unsafe extern "C" fn tdx_option_at_time_quote_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let expiration = match unsafe { cstr_to_str(expiration) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("expiration is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("expiration is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let expiration = require_cstr!(expiration, empty);
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("time_of_day is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("time_of_day is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let time_of_day = require_cstr!(time_of_day, empty);
         args.insert(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
@@ -4473,19 +3117,7 @@ pub unsafe extern "C" fn tdx_index_list_dates_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
@@ -4723,53 +3355,17 @@ pub unsafe extern "C" fn tdx_index_history_eod_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
@@ -4827,53 +3423,17 @@ pub unsafe extern "C" fn tdx_index_history_ohlc_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
@@ -4929,36 +3489,12 @@ pub unsafe extern "C" fn tdx_index_history_price_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -5018,70 +3554,22 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let time_of_day = match unsafe { cstr_to_str(time_of_day) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("time_of_day is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("time_of_day is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let time_of_day = require_cstr!(time_of_day, empty);
         args.insert(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
@@ -5182,19 +3670,7 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let date = match unsafe { cstr_to_str(date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
@@ -5248,19 +3724,7 @@ pub unsafe extern "C" fn tdx_calendar_year_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let year = match unsafe { cstr_to_str(year) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("year is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("year is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let year = require_cstr!(year, empty);
         args.insert(
             "year".to_string(),
             thetadatadx::EndpointArgValue::Str(year.to_string()),
@@ -5318,53 +3782,17 @@ pub unsafe extern "C" fn tdx_interest_rate_history_eod_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
@@ -5422,53 +3850,17 @@ pub unsafe extern "C" fn tdx_stock_history_ohlc_range_with_options(
         }
 
         let mut args = thetadatadx::EndpointArgs::new();
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let symbol = match unsafe { cstr_to_str(symbol) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("symbol is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("symbol is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let start_date = match unsafe { cstr_to_str(start_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("start_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("start_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let start_date = require_cstr!(start_date, empty);
         args.insert(
             "start_date".to_string(),
             thetadatadx::EndpointArgValue::Str(start_date.to_string()),
         );
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-        // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-        let end_date = match unsafe { cstr_to_str(end_date) } {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                set_error("end_date is null");
-                return empty;
-            }
-            Err(e) => {
-                set_error(&format!("end_date is not valid UTF-8: {e}"));
-                return empty;
-            }
-        };
+        let end_date = require_cstr!(end_date, empty);
         args.insert(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),

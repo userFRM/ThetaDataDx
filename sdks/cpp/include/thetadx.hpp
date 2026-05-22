@@ -581,19 +581,20 @@ public:
         tdx_config_set_decoder_ring_size(handle_.get(), n);
     }
 
-    // ── MDDS two-stage decode pipeline (Phase 3 / PR #587 #588) ──
+    // ── MDDS two-stage decode pipeline ──
 
     /**
      * Set the stage-2 worker thread count for the two-stage MDDS
      * decode pipeline.
      *
      * Stage-2 runs prost decode + Tick build off a bounded MPSC queue
-     * fed by the stage-1 (per-channel zstd decompress) threads. Pass
+     * fed by the stage-1 per-channel decompress threads. Pass
      * @c std::nullopt for the auto-sized default
      * (@c available_parallelism() on the Rust side); pass an explicit
      * @c std::size_t for a pinned worker count. The pool clamps
-     * internally to a minimum of 1, so @c std::optional{0} and
-     * @c std::optional{1} produce the same runtime pool shape.
+     * internally to a minimum of 1; @c std::optional{0} clamps to 1
+     * but is preserved on the config (round-trips as @c Some(0)),
+     * matching the Python / TS binding contract.
      *
      * Throws @c std::runtime_error if the underlying FFI handle is
      * null (the caller should not be able to reach this with a
@@ -601,9 +602,10 @@ public:
      * a use-after-move bug at the call site).
      */
     void set_decode_threads(std::optional<std::size_t> n) {
+        const bool has_value = n.has_value();
         const std::size_t arg = n.value_or(0);
         const std::int32_t rc =
-            tdx_config_set_decode_threads(handle_.get(), arg);
+            tdx_config_set_decode_threads_explicit(handle_.get(), has_value, arg);
         if (rc != 0) {
             const char* err = tdx_last_error();
             throw std::runtime_error(
@@ -625,9 +627,10 @@ public:
      * Throws @c std::runtime_error on null-handle FFI failure.
      */
     void set_decode_queue_depth(std::optional<std::size_t> n) {
+        const bool has_value = n.has_value();
         const std::size_t arg = n.value_or(0);
         const std::int32_t rc =
-            tdx_config_set_decode_queue_depth(handle_.get(), arg);
+            tdx_config_set_decode_queue_depth_explicit(handle_.get(), has_value, arg);
         if (rc != 0) {
             const char* err = tdx_last_error();
             throw std::runtime_error(
@@ -637,11 +640,52 @@ public:
     }
 
     /**
-     * Install a REST-fallback policy on this config (issue #571
-     * mitigation). The policy is borrowed -- the caller retains
-     * ownership of the @p policy `FallbackPolicy`. Subsequent
-     * `Client::optionHistory*WithFallback` calls on any client built
-     * from this config will consult the policy.
+     * Read the current decode_threads setting. Returns @c std::nullopt
+     * for the auto-size sentinel (`None` on the Rust side); returns
+     * the wrapped @c std::size_t when the setter pinned an explicit
+     * value.
+     *
+     * Throws @c std::runtime_error on null-handle FFI failure.
+     */
+    std::optional<std::size_t> get_decode_threads() const {
+        bool has_value = false;
+        std::size_t n = 0;
+        const std::int32_t rc =
+            tdx_config_get_decode_threads(handle_.get(), &has_value, &n);
+        if (rc != 0) {
+            const char* err = tdx_last_error();
+            throw std::runtime_error(
+                std::string("tdx_config_get_decode_threads failed: ") +
+                (err == nullptr ? "(null config handle)" : err));
+        }
+        return has_value ? std::optional<std::size_t>{n} : std::nullopt;
+    }
+
+    /**
+     * Read the current decode_queue_depth setting. Same semantics as
+     * @c get_decode_threads.
+     */
+    std::optional<std::size_t> get_decode_queue_depth() const {
+        bool has_value = false;
+        std::size_t n = 0;
+        const std::int32_t rc =
+            tdx_config_get_decode_queue_depth(handle_.get(), &has_value, &n);
+        if (rc != 0) {
+            const char* err = tdx_last_error();
+            throw std::runtime_error(
+                std::string("tdx_config_get_decode_queue_depth failed: ") +
+                (err == nullptr ? "(null config handle)" : err));
+        }
+        return has_value ? std::optional<std::size_t>{n} : std::nullopt;
+    }
+
+    /**
+     * Install a REST-routing policy on this config. The policy is
+     * borrowed -- the caller retains ownership of the @p policy
+     * `FallbackPolicy`. Subsequent `Client::optionHistory*WithFallback`
+     * calls on any client built from this config will consult the
+     * policy when routing the four historical-quote endpoints over
+     * REST instead of gRPC.
      *
      * Throws on null-handle / FFI error.
      */
@@ -664,7 +708,7 @@ public:
 
     #include "historical.hpp.inc"
 
-    // ── REST-fallback shims (issue #571 mitigation) ──
+    // ── REST-routing shims for the four historical-quote endpoints ──
     //
     // Dispatch through the `FallbackPolicy` installed on the
     // `Config` the client was built with. Defaults to gRPC-only

@@ -20,9 +20,8 @@
 //! [`tokio::sync::Notify`] so concurrent observers wait on the same
 //! attempt) and uses bounded exponential backoff. The connect target
 //! captured at construction (host, port, optional TLS config, scheme,
-//! max-message-size) is the single source of truth the reconnect path
-//! consults — every reconnect lands a connection that is wire-equivalent
-//! to the original.
+//! max-message-size) is propagated into the reconnect path so every
+//! reconnect lands a connection wire-equivalent to the original.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock, Weak};
@@ -282,6 +281,12 @@ pub struct Channel {
     /// half-moved field; `Send` + `'static` because the task is
     /// dispatched onto the multi-thread tokio runtime.
     connection_task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    /// Most recent reconnect-driver task, swapped in on each
+    /// `trigger_reconnect`. Single-flight CAS guarantees at most one
+    /// such task is in flight; this slot exists so `Drop` can abort
+    /// it deterministically alongside `connection_task` without
+    /// waiting for the spawned future to complete on its own.
+    reconnect_task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Weak self-reference, installed once when the channel is wrapped
     /// in an `Arc<Channel>` by [`super::ChannelPool::from_channels`].
     /// The reconnect path upgrades the weak handle to clone an
@@ -493,6 +498,7 @@ impl Channel {
             reconnect_done: Arc::new(Notify::new()),
             decoder: None,
             connection_task: std::sync::Mutex::new(Some(connection_task)),
+            reconnect_task: std::sync::Mutex::new(None),
             self_weak: OnceLock::new(),
             reconnect_observer: std::sync::Mutex::new(None),
         })
@@ -713,9 +719,17 @@ impl Channel {
             // Another task already owns the reconnect. Nothing to do.
             return;
         }
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             channel.run_reconnect().await;
         });
+        // Stash the JoinHandle so `Drop` can abort an in-flight
+        // reconnect deterministically. A previous handle in this slot
+        // belongs to an already-completed reconnect cycle (single-
+        // flight CAS guarantees serialisation), so we drop it
+        // without abort — a completed JoinHandle is a no-op to drop.
+        if let Ok(mut slot) = self.reconnect_task.lock() {
+            *slot = Some(handle);
+        }
     }
 
     /// Body of the spawned reconnect future. Honours
@@ -1135,7 +1149,8 @@ where
 }
 
 impl Drop for Channel {
-    /// Cancel the background h2 connection-driver task on drop.
+    /// Cancel the background h2 connection-driver task and any
+    /// in-flight reconnect-driver task on drop.
     ///
     /// Dropping `send_request` (one of the `Channel`'s other fields)
     /// is sufficient for a clean shutdown of a healthy connection —
@@ -1148,6 +1163,11 @@ impl Drop for Channel {
     /// at most one extra atomic on `Drop`.
     fn drop(&mut self) {
         if let Ok(mut slot) = self.connection_task.lock() {
+            if let Some(handle) = slot.take() {
+                handle.abort();
+            }
+        }
+        if let Ok(mut slot) = self.reconnect_task.lock() {
             if let Some(handle) = slot.take() {
                 handle.abort();
             }
@@ -1183,15 +1203,15 @@ fn encode_grpc_timeout(d: Duration) -> Option<String> {
     if millis <= MAX_VALUE {
         return Some(format!("{millis}m"));
     }
-    let secs = d.as_secs() as u128;
+    let secs = u128::from(d.as_secs());
     if secs <= MAX_VALUE {
         return Some(format!("{secs}S"));
     }
-    let minutes = secs / 60;
+    let minutes = secs.checked_div(60).unwrap_or(0);
     if minutes <= MAX_VALUE {
         return Some(format!("{minutes}M"));
     }
-    let hours = secs / 3_600;
+    let hours = secs.checked_div(3_600).unwrap_or(0);
     // Hours saturate at the 8-digit ceiling; the spec accepts at most
     // 8 digits in any unit so anything larger than ~11_415 years just
     // pegs at the cap.

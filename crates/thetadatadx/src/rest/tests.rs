@@ -10,12 +10,12 @@ use super::client::{
     decode_greeks_first_order_csv, decode_iv_csv, decode_quote_csv, decode_trade_quote_csv,
 };
 
-/// Defense-in-depth: `decode_quote_csv` must accept a 6-field NBBO
-/// subset layout and zero-fill the absent exchange / condition
-/// columns, matching the gRPC decoder's
+/// Defense-in-depth: `decode_quote_csv` must accept a subset NBBO
+/// column layout (6 columns of the canonical 11) and zero-fill the
+/// absent exchange / condition columns, matching the gRPC decoder's
 /// `opt_number(row, None) -> 0` contract.
 #[test]
-fn decode_quote_csv_handles_legacy_six_field_layout() {
+fn decode_quote_csv_handles_six_column_subset_layout() {
     let body = "\
 ms_of_day,bid_size,bid,ask_size,ask,date
 34200000,50,1.5022,75,1.5041,20220414
@@ -40,9 +40,10 @@ ms_of_day,bid_size,bid,ask_size,ask,date
     assert!((t0.midpoint - 1.50315).abs() < 1e-9);
 }
 
-/// Current 11-field layout still decodes every column bit-exact.
+/// Full-column NBBO layout (all 11 columns) still decodes every
+/// column bit-exact.
 #[test]
-fn decode_quote_csv_handles_current_eleven_field_layout() {
+fn decode_quote_csv_handles_full_column_nbbo_layout() {
     let body = "\
 ms_of_day,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date
 34200000,50,7,1.5022,1,75,8,1.5041,2,20240605

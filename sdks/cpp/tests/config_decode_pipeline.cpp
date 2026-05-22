@@ -1,23 +1,17 @@
-// MDDS two-stage decode pipeline setters on tdx::Config
-// (Phase 3 of 3, follow-up to PR #587 / #588).
+// MDDS two-stage decode pipeline setters on tdx::Config.
 //
-// Offline tests pin the contract that the two new setters exposed by
-// the `tdx::Config` C++ wrapper -- `set_decode_threads` and
+// Offline tests pin the contract that the two setters exposed by the
+// `tdx::Config` C++ wrapper -- `set_decode_threads` and
 // `set_decode_queue_depth` -- accept both `std::nullopt` (auto-size
 // sentinel) and an explicit `std::size_t` (pinned worker count /
-// queue depth) without throwing.
+// queue depth), and that the explicit values round-trip through the
+// matching `get_decode_threads` / `get_decode_queue_depth` getters.
 //
-// The round-trip is observable through the FFI handle's underlying
-// `MddsConfig` field, which the offline C++ test cannot reach
-// directly. The Rust-side `ffi::auth::decode_pipeline_tests` exercises
-// the actual round-trip; the C++ test here pins only that:
-//
-//   * Both setters accept `std::nullopt`, `std::optional{0}`,
-//     `std::optional{1}`, large explicit values without throwing.
-//   * The setters do NOT touch `tdx_last_error()` on success (so a
-//     subsequent error-classifier call observes the cleared state).
-//   * The setters compose with the legacy pool-sizing knobs on the
-//     same `Config` instance.
+// The round-trip getter pins the behaviour the FFI's
+// `tdx_config_set_decode_threads_explicit` widens: an explicit
+// `std::optional{0}` survives the C boundary as `Some(0)` (the
+// pool clamps to 1 at construction but the config preserves the
+// caller's intent) — matches the Python / TS bindings.
 
 #include <cstddef>
 #include <cstdint>
@@ -47,9 +41,10 @@ TEST_CASE("Config::set_decode_threads accepts nullopt (auto-size sentinel)",
     tdx_clear_error();
     REQUIRE_NOTHROW(cfg.set_decode_threads(std::nullopt));
     REQUIRE(last_error_text().empty());
+    REQUIRE(cfg.get_decode_threads() == std::nullopt);
 }
 
-TEST_CASE("Config::set_decode_threads accepts explicit values",
+TEST_CASE("Config::set_decode_threads round-trips explicit values",
           "[config][decode_pipeline][offline]") {
     auto cfg = tdx::Config::production();
     tdx_clear_error();
@@ -58,6 +53,10 @@ TEST_CASE("Config::set_decode_threads accepts explicit values",
                           std::size_t{32}, std::size_t{4096}}) {
         REQUIRE_NOTHROW(cfg.set_decode_threads(std::optional<std::size_t>{n}));
         REQUIRE(last_error_text().empty());
+        // Explicit `Some(n)` round-trips verbatim, including n=0 —
+        // the pool clamps at construction but the config preserves
+        // the caller-supplied value.
+        REQUIRE(cfg.get_decode_threads() == std::optional<std::size_t>{n});
     }
 }
 
@@ -66,8 +65,11 @@ TEST_CASE("Config::set_decode_threads round-trips nullopt after explicit",
     auto cfg = tdx::Config::production();
     tdx_clear_error();
     REQUIRE_NOTHROW(cfg.set_decode_threads(std::optional<std::size_t>{8}));
+    REQUIRE(cfg.get_decode_threads() == std::optional<std::size_t>{8});
     REQUIRE_NOTHROW(cfg.set_decode_threads(std::nullopt));
+    REQUIRE(cfg.get_decode_threads() == std::nullopt);
     REQUIRE_NOTHROW(cfg.set_decode_threads(std::optional<std::size_t>{16}));
+    REQUIRE(cfg.get_decode_threads() == std::optional<std::size_t>{16});
     REQUIRE(last_error_text().empty());
 }
 
@@ -77,9 +79,10 @@ TEST_CASE("Config::set_decode_queue_depth accepts nullopt (auto-size sentinel)",
     tdx_clear_error();
     REQUIRE_NOTHROW(cfg.set_decode_queue_depth(std::nullopt));
     REQUIRE(last_error_text().empty());
+    REQUIRE(cfg.get_decode_queue_depth() == std::nullopt);
 }
 
-TEST_CASE("Config::set_decode_queue_depth accepts explicit values",
+TEST_CASE("Config::set_decode_queue_depth round-trips explicit values",
           "[config][decode_pipeline][offline]") {
     auto cfg = tdx::Config::production();
     tdx_clear_error();
@@ -89,6 +92,7 @@ TEST_CASE("Config::set_decode_queue_depth accepts explicit values",
         REQUIRE_NOTHROW(
             cfg.set_decode_queue_depth(std::optional<std::size_t>{n}));
         REQUIRE(last_error_text().empty());
+        REQUIRE(cfg.get_decode_queue_depth() == std::optional<std::size_t>{n});
     }
 }
 
@@ -98,9 +102,12 @@ TEST_CASE("Config::set_decode_queue_depth round-trips nullopt after explicit",
     tdx_clear_error();
     REQUIRE_NOTHROW(
         cfg.set_decode_queue_depth(std::optional<std::size_t>{1024}));
+    REQUIRE(cfg.get_decode_queue_depth() == std::optional<std::size_t>{1024});
     REQUIRE_NOTHROW(cfg.set_decode_queue_depth(std::nullopt));
+    REQUIRE(cfg.get_decode_queue_depth() == std::nullopt);
     REQUIRE_NOTHROW(
         cfg.set_decode_queue_depth(std::optional<std::size_t>{4096}));
+    REQUIRE(cfg.get_decode_queue_depth() == std::optional<std::size_t>{4096});
     REQUIRE(last_error_text().empty());
 }
 
@@ -114,5 +121,7 @@ TEST_CASE("Config two-stage pipeline setters compose with legacy pool-sizing",
     REQUIRE_NOTHROW(cfg.set_decode_threads(std::optional<std::size_t>{16}));
     REQUIRE_NOTHROW(
         cfg.set_decode_queue_depth(std::optional<std::size_t>{4096}));
+    REQUIRE(cfg.get_decode_threads() == std::optional<std::size_t>{16});
+    REQUIRE(cfg.get_decode_queue_depth() == std::optional<std::size_t>{4096});
     REQUIRE(last_error_text().empty());
 }

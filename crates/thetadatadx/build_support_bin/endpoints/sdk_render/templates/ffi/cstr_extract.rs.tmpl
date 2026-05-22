@@ -1,16 +1,4 @@
-    // SAFETY: caller supplies a NUL-terminated C string allocated by the host
-    // runtime; cstr_to_str validates non-null + UTF-8 before returning.
-    let __NAME__ = match unsafe { cstr_to_str(__NAME__) } {
-        Ok(Some(value)) => value,
-        Ok(None) => {
-            set_error("__NAME__ is null");
-            return empty;
-        }
-        Err(e) => {
-            set_error(&format!("__NAME__ is not valid UTF-8: {e}"));
-            return empty;
-        }
-    };
+    let __NAME__ = require_cstr!(__NAME__, empty);
     args.insert(
         "__NAME__".to_string(),
         thetadatadx::EndpointArgValue::Str(__NAME__.to_string()),

@@ -277,6 +277,7 @@ export default withMermaid(defineConfig({
         collapsed: true,
         items: [
           { text: 'API Reference', link: '/api-reference' },
+          { text: 'Channel Pool Design', link: '/channel-pool-design' },
         ],
       },
       {

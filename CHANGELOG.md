@@ -58,6 +58,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `crates/thetadatadx/tests/test_pool_reconnect.rs`, which pins
   the single-flight CAS, the lifecycle observer events, and the
   classifier-triggered reconnect spawn.
+- `tools/local-terminal-patcher/` — patched a code path
+  (`QuoteTick(Tick t)` constructor strict-length throw) that
+  bytecode analysis of the upstream terminal jar shows is never
+  invoked on the `option_history_quote` gRPC response path.
+  Decompilation confirms the constructor's sole caller is
+  `MarketValueTick`. The patcher fixed a fictional problem; the
+  workspace member, its `clap` / `zip` / `sha2` dependencies, and
+  its patch sources are removed.
 
 ### Retained
 
@@ -279,7 +287,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     tests in `ffi/src/fallback.rs`. Each binding ships a live-gated
     end-to-end test behind `THETADX_LIVE_PATCHED_TERMINAL`.
 
-- Channel-layer h2-cascade recovery (#577). The pool's `next()`
+- Channel-layer h2-cascade recovery (#577).
+  > **Superseded** — see Unreleased > Removed for the obliteration.
+  > Root cause was the SDK's pool, not an upstream cascade.
+
+  The pool's `next()`
   picker now tracks a per-channel `AtomicBool` death flag and
   routes around channels that have observed
   `ChannelError::ConnectionClosed`. A poll that surfaces the
@@ -699,7 +711,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   set to `0` to disable). Closes #576.
 
 - Post-Feb-2020 daily-expiry quote backfill no longer h2-cascades
-  on the streaming path (#577). PR #573's lenient decoder + REST
+  on the streaming path (#577).
+  > **Superseded** — see Unreleased > Removed for the obliteration.
+  > Root cause was the SDK's pool, not an upstream cascade.
+
+  PR #573's lenient decoder + REST
   fallback unblocked the 2019-05 to 2020-02-24 range; this
   follow-up handles the remaining post-Feb-2020 cascade -- not via
   a second wire variant (none exists; see the new investigation

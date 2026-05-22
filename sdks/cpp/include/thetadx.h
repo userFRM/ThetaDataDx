@@ -600,26 +600,25 @@ void tdx_config_set_decoder_threads(TdxConfig* config, uint32_t n);
  */
 void tdx_config_set_decoder_ring_size(TdxConfig* config, uint32_t n);
 
-/* ── MDDS two-stage decode pipeline (Phase 3 / PR #587 #588) ── */
+/* ── MDDS two-stage decode pipeline ── */
 
 /**
  * Set the stage-2 worker thread count for the two-stage MDDS decode
  * pipeline.
  *
  * Stage-2 runs prost decode + Tick build off a bounded MPSC queue
- * fed by the stage-1 (per-channel zstd decompress) threads.
+ * fed by the stage-1 per-channel decompress threads.
  *
- *   n=0 (default): auto-size to available_parallelism() at connect
- *     time. Mirrors `MddsConfig::decode_threads = None` on the Rust
- *     side.
- *   n>0: explicit stage-2 worker count. The pool clamps internally
- *     to a minimum of 1, so 1 and 0 produce the same runtime pool
- *     shape; encode "explicit 1" with n=1 and "auto-size" with n=0.
+ *   has_value=false: encodes the auto-size sentinel (`None`); `n`
+ *     is ignored. Pool sizes from available_parallelism() at
+ *     connect time.
+ *   has_value=true: encodes `Some(n)`. The pool clamps internally
+ *     to a minimum of 1; explicit 0 clamps but is preserved as
+ *     `Some(0)` so Python / TS / C++ bindings agree on the shape.
  *
- * Returns 0 on success, -1 if `config` is NULL (tdx_last_error()
- * carries the diagnostic).
+ * Returns 0 on success, -1 if `config` is NULL.
  */
-int32_t tdx_config_set_decode_threads(TdxConfig* config, size_t n);
+int32_t tdx_config_set_decode_threads_explicit(TdxConfig* config, bool has_value, size_t n);
 
 /**
  * Set the bounded queue depth between stage-1 and stage-2 of the
@@ -628,13 +627,43 @@ int32_t tdx_config_set_decode_threads(TdxConfig* config, size_t n);
  * When stage-2 cannot keep up, stage-1 parks rather than drops --
  * silent drops on a market-data feed are unacceptable.
  *
- *   n=0 (default): auto-size to `concurrent_requests * 64` (floor
- *     of 64) at connect time. Mirrors `MddsConfig::decode_queue_depth
- *     = None` on the Rust side.
- *   n>0: explicit queue depth. The queue clamps internally to a
- *     minimum of 1, so 1 and 0 produce the same runtime queue shape.
+ *   has_value=false: encodes the auto-size sentinel (`None`); `n`
+ *     is ignored. Queue sizes to `concurrent_requests * 64` (floor
+ *     of 64) at connect time.
+ *   has_value=true: encodes `Some(n)`. The queue clamps internally
+ *     to a minimum of 1.
  *
  * Returns 0 on success, -1 if `config` is NULL.
+ */
+int32_t tdx_config_set_decode_queue_depth_explicit(TdxConfig* config, bool has_value, size_t n);
+
+/**
+ * Read the current decode_threads setting.
+ *
+ * On return:
+ *   *out_has_value=0: config holds None (auto-size); *out_n=0.
+ *   *out_has_value=1: config holds Some(*out_n).
+ *
+ * Returns 0 on success, -1 if any pointer is NULL.
+ */
+int32_t tdx_config_get_decode_threads(const TdxConfig* config, bool* out_has_value, size_t* out_n);
+
+/**
+ * Read the current decode_queue_depth setting. Same semantics as
+ * tdx_config_get_decode_threads.
+ */
+int32_t tdx_config_get_decode_queue_depth(const TdxConfig* config, bool* out_has_value, size_t* out_n);
+
+/**
+ * Legacy n-only setter for decode_threads (n=0 maps to None, n>0
+ * maps to Some(n)). Prefer `tdx_config_set_decode_threads_explicit`
+ * for new code.
+ */
+int32_t tdx_config_set_decode_threads(TdxConfig* config, size_t n);
+
+/**
+ * Legacy n-only setter for decode_queue_depth. Prefer
+ * `tdx_config_set_decode_queue_depth_explicit` for new code.
  */
 int32_t tdx_config_set_decode_queue_depth(TdxConfig* config, size_t n);
 

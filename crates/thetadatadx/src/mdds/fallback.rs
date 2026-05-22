@@ -6,7 +6,7 @@
 //! `option_history_greeks_first_order`) with policy-aware shims
 //! ([`MddsClient::option_history_*_with_fallback`]) that consult
 //! [`crate::config::FallbackPolicy`] and route to the REST
-//! transport ([`crate::rest`]) when [`FallbackPolicy::RestAlways`]
+//! transport ([`crate::rest`]) when [`crate::config::FallbackPolicy::RestAlways`]
 //! is set. Call sites that want gRPC-only behaviour keep using the
 //! existing generated methods on [`MddsClient`].
 //!
@@ -19,7 +19,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
-use crate::config::FallbackPolicy;
 use crate::error::Error;
 use crate::mdds::MddsClient;
 
@@ -61,13 +60,6 @@ where
     Ok(built)
 }
 
-/// Resolve the base URL for the active `FallbackPolicy`. Returns
-/// `None` when the policy is [`FallbackPolicy::Disabled`] (the shim
-/// then dispatches over gRPC).
-fn rest_base_url(policy: &FallbackPolicy) -> Option<&str> {
-    policy.base_url()
-}
-
 impl MddsClient {
     /// Return a shared [`Arc<crate::rest::RestClient>`] for `base_url`,
     /// building (and caching) one on first use.
@@ -82,7 +74,7 @@ impl MddsClient {
     }
 
     /// Fetch option NBBO history. Routes over REST when
-    /// [`FallbackPolicy::RestAlways`] is set; otherwise dispatches
+    /// [`crate::config::FallbackPolicy::RestAlways`] is set; otherwise dispatches
     /// through the standard gRPC builder.
     ///
     /// # Errors
@@ -104,7 +96,18 @@ impl MddsClient {
         interval: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::QuoteTick>, Error> {
         let policy = &self.config().fallback;
-        if let Some(base_url) = rest_base_url(policy) {
+        if let Some(base_url) = policy.base_url() {
+            // Honour the resolved-tier concurrency ceiling uniformly
+            // across gRPC and REST transports. Without this acquire a
+            // free-tier client alternating gRPC and `_with_fallback`
+            // could exceed `mdds.concurrent_requests` because the
+            // gRPC-only builders acquire their own permit but the
+            // REST arm previously dispatched permit-free.
+            let _permit = self
+                .request_semaphore
+                .acquire()
+                .await
+                .map_err(|_| Error::config_internal("request semaphore closed"))?;
             tracing::debug!(
                 target: "thetadatadx::mdds::fallback",
                 endpoint = "option_history_quote",
@@ -162,7 +165,12 @@ impl MddsClient {
         right: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::TradeQuoteTick>, Error> {
         let policy = &self.config().fallback;
-        if let Some(base_url) = rest_base_url(policy) {
+        if let Some(base_url) = policy.base_url() {
+            let _permit = self
+                .request_semaphore
+                .acquire()
+                .await
+                .map_err(|_| Error::config_internal("request semaphore closed"))?;
             tracing::debug!(
                 target: "thetadatadx::mdds::fallback",
                 endpoint = "option_history_trade_quote",
@@ -215,7 +223,12 @@ impl MddsClient {
         interval: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::IvTick>, Error> {
         let policy = &self.config().fallback;
-        if let Some(base_url) = rest_base_url(policy) {
+        if let Some(base_url) = policy.base_url() {
+            let _permit = self
+                .request_semaphore
+                .acquire()
+                .await
+                .map_err(|_| Error::config_internal("request semaphore closed"))?;
             tracing::debug!(
                 target: "thetadatadx::mdds::fallback",
                 endpoint = "option_history_greeks_implied_volatility",
@@ -243,6 +256,9 @@ impl MddsClient {
 
         let mut builder =
             self.option_history_greeks_implied_volatility(symbol, expiration, start_date);
+        if let Some(e) = end_date {
+            builder = builder.end_date(e);
+        }
         if let Some(s) = strike {
             builder = builder.strike(s);
         }
@@ -273,7 +289,12 @@ impl MddsClient {
         interval: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::GreeksFirstOrderTick>, Error> {
         let policy = &self.config().fallback;
-        if let Some(base_url) = rest_base_url(policy) {
+        if let Some(base_url) = policy.base_url() {
+            let _permit = self
+                .request_semaphore
+                .acquire()
+                .await
+                .map_err(|_| Error::config_internal("request semaphore closed"))?;
             tracing::debug!(
                 target: "thetadatadx::mdds::fallback",
                 endpoint = "option_history_greeks_first_order",
@@ -300,6 +321,9 @@ impl MddsClient {
         }
 
         let mut builder = self.option_history_greeks_first_order(symbol, expiration, start_date);
+        if let Some(e) = end_date {
+            builder = builder.end_date(e);
+        }
         if let Some(s) = strike {
             builder = builder.strike(s);
         }
@@ -384,18 +408,5 @@ mod tests {
         // build should populate it cleanly.
         let res2 = get_or_init_rest_client(&cell, "http://x:1", || Ok("ok".to_string())).unwrap();
         assert_eq!(*res2, "ok");
-    }
-
-    #[test]
-    fn rest_base_url_disabled_returns_none() {
-        assert!(rest_base_url(&FallbackPolicy::Disabled).is_none());
-    }
-
-    #[test]
-    fn rest_base_url_rest_always_returns_url() {
-        let p = FallbackPolicy::RestAlways {
-            base_url: "http://127.0.0.1:25503".to_string(),
-        };
-        assert_eq!(rest_base_url(&p), Some("http://127.0.0.1:25503"));
     }
 }

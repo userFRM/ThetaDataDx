@@ -515,8 +515,8 @@ impl Config {
         guard.mdds.decode_queue_depth
     }
 
-    /// Install a REST-fallback policy for the four h2-cascading
-    /// endpoints (issue #571).
+    /// Install a REST-routing policy for the four historical-quote
+    /// endpoints.
     ///
     /// Accepts a [`FallbackPolicy`] built via one of the four named
     /// static constructors. Defaults to
@@ -708,7 +708,7 @@ impl ThetaDataDxClient {
         self.tdx.dropped_event_count()
     }
 
-    // ── REST-fallback surface for h2-cascading endpoints (issue #571) ──
+    // ── REST-routing surface for the four historical-quote endpoints ──
     //
     // Four shims, one per affected endpoint. Each consults the
     // `FallbackPolicy` configured on the underlying `DirectConfig`
@@ -718,7 +718,7 @@ impl ThetaDataDxClient {
     // translation.
 
     /// Fetch option NBBO history with REST fallback per the configured
-    /// [`FallbackPolicy`] (issue #571).
+    /// [`FallbackPolicy`].
     ///
     /// Mirrors the Rust core's
     /// [`thetadatadx::ThetaDataDxClient::option_history_quote_with_fallback`].
