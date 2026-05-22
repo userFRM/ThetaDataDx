@@ -686,19 +686,49 @@ impl DecoderPool {
     }
 }
 
-/// Default decoder thread count. Uses
-/// [`std::thread::available_parallelism`] divided by two so the pool
-/// leaves headroom for the tokio reactor and the application's own
-/// CPU work. Falls back to `2` when `available_parallelism` fails
-/// (containers without `/proc/cpuinfo`, etc.). Capped to `channels`
-/// because more decoders than concurrent channels is pure overhead.
+/// Default decoder thread count.
+///
+/// Returns `max(available_parallelism() / 2, 1)`, leaving half the
+/// logical cores for the tokio reactor and the application's own CPU
+/// work. Falls back to `2` when `available_parallelism` fails
+/// (containers without `/proc/cpuinfo`, etc.).
+///
+/// # Why no channel-count cap
+///
+/// Channels = server-throttled gRPC streams, capped by the
+/// subscription tier (Free=1 / Value=2 / Standard=4 / Pro=8).
+/// Decoder threads = CPU work on bytes that have already arrived —
+/// strictly independent of channel count. The previous formula
+/// capped the decoder pool at `channels`, which artificially
+/// throttled CPU-bound decode work on under-channeled tiers when the
+/// host had more cores available.
+///
+/// The `channels` parameter is preserved on the signature for
+/// backwards compatibility but no longer participates in the
+/// resolution.
+///
+/// # Current architectural limit (forward reference)
+///
+/// Today's MDDS pool pins each `Channel` to one decoder ring via
+/// round-robin (`pool::ChannelPool::from_channels_with_decoders`).
+/// Decoder threads beyond `concurrent_requests` therefore sit idle —
+/// no producer feeds them. The two-stage pipeline rewrite (separate
+/// PR) decouples the IO and decode sides through a shared dispatch
+/// queue so extra decoder threads become useful; this helper change
+/// is the smaller half of that work, landing the bench plumbing and
+/// the configuration surface so the architectural follow-up lands on
+/// a code path that already exposes the knob.
 #[must_use]
 pub fn default_decoder_thread_count(channels: usize) -> usize {
+    // Intentional discard: `channels` is retained on the signature
+    // for backwards-compatibility with the previous `min(_, channels)`
+    // formula but no longer caps the result. See the rustdoc above
+    // for the architectural caveat (two-stage pipeline rewrite).
+    let _ = channels;
     let logical = thread::available_parallelism()
         .map(std::num::NonZero::get)
         .unwrap_or(2);
-    let half = (logical / 2).max(1);
-    half.min(channels.max(1))
+    (logical / 2).max(1)
 }
 
 #[cfg(test)]
@@ -761,22 +791,26 @@ mod tests {
     }
 
     #[test]
-    fn default_decoder_count_caps_to_channels() {
-        // Pathological channel = 0: lower-bound to exactly 1.
-        // Deterministic regardless of available_parallelism.
-        assert_eq!(default_decoder_thread_count(0), 1);
-
-        // Channel cap: when (logical_cores / 2) >= channels, the
-        // returned count is the channel count. Hoist the
-        // available_parallelism computation so the assertion lands
-        // on a concrete value instead of an `<=` range.
+    fn default_decoder_count_independent_of_channels() {
+        // The helper used to cap the returned count at `channels`,
+        // throttling decoder CPU on under-channeled tiers. The
+        // current formula returns `max(logical/2, 1)` regardless of
+        // the `channels` argument — the argument is preserved on the
+        // signature only for backwards compatibility.
         let logical = thread::available_parallelism()
             .map(std::num::NonZero::get)
             .unwrap_or(2);
-        let half = (logical / 2).max(1);
-        let channels = 4_usize;
-        let expected = half.min(channels);
-        assert_eq!(default_decoder_thread_count(channels), expected);
+        let expected = (logical / 2).max(1);
+
+        // Every channel count (including the pathological zero)
+        // must produce the same independent-of-channels value.
+        for channels in [0usize, 1, 2, 4, 8, 16, 32] {
+            assert_eq!(
+                default_decoder_thread_count(channels),
+                expected,
+                "channels = {channels} should not affect default thread count",
+            );
+        }
     }
 
     #[tokio::test]
