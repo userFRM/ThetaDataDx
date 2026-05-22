@@ -89,23 +89,21 @@ fn tier_label(tier: Option<crate::mdds::SubscriptionTier>) -> String {
     }
 }
 
-/// Parse a `YYYYMMDD` date string into an `i32`. Returns `0` on
-/// malformed input -- the only call site
-/// (`option_history_*_with_fallback`) treats `0` as the most-permissive
-/// "always pre-route" boundary, which is the safe default when the
-/// caller passed in something we can't classify. The malformed-input
-/// path also surfaces a `tracing::warn!`.
-fn parse_yyyymmdd(date: &str) -> i32 {
+/// Parse a `YYYYMMDD` date string into an `i32`. Returns
+/// [`Error::config_invalid`] on malformed input — callers must
+/// surface the parse failure to the user rather than silently
+/// defaulting to `0`, which would coerce a typo into the most
+/// permissive routing decision.
+///
+/// Valid range: `[10_000_000, 100_000_000)` (an `i32` `YYYYMMDD`,
+/// which is "every plausible calendar date the SDK supports").
+fn parse_yyyymmdd(field: &'static str, date: &str) -> Result<i32, Error> {
     match date.parse::<i32>() {
-        Ok(d) if (10_000_000..100_000_000).contains(&d) => d,
-        _ => {
-            tracing::warn!(
-                target: "thetadatadx::client::fallback",
-                date,
-                "could not parse YYYYMMDD date; defaulting to 0 (pre-route to REST if policy permits)"
-            );
-            0
-        }
+        Ok(d) if (10_000_000..100_000_000).contains(&d) => Ok(d),
+        _ => Err(Error::config_invalid(
+            field,
+            format!("expected YYYYMMDD, got {date:?}"),
+        )),
     }
 }
 
@@ -1114,7 +1112,7 @@ impl ThetaDataDxClient {
         interval: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::QuoteTick>, Error> {
         let policy = &self.config().fallback;
-        let start_date = parse_yyyymmdd(date);
+        let start_date = parse_yyyymmdd("date", date)?;
 
         if policy.pre_routes_to_rest(start_date) {
             if let Some(base_url) = policy.base_url() {
@@ -1208,7 +1206,7 @@ impl ThetaDataDxClient {
         right: Option<&str>,
     ) -> Result<Vec<tdbe::types::tick::TradeQuoteTick>, Error> {
         let policy = &self.config().fallback;
-        let start_date = parse_yyyymmdd(date);
+        let start_date = parse_yyyymmdd("date", date)?;
 
         if policy.pre_routes_to_rest(start_date) {
             if let Some(base_url) = policy.base_url() {
@@ -2145,5 +2143,61 @@ mod tests {
         assert_eq!(info.options, "Unknown");
         assert_eq!(info.indices, "Unknown");
         assert_eq!(info.interest_rate, "Unknown");
+    }
+
+    /// Well-formed YYYYMMDD passes through bit-exact.
+    #[test]
+    fn parse_yyyymmdd_accepts_valid_dates() {
+        assert_eq!(parse_yyyymmdd("date", "20220414").unwrap(), 20_220_414);
+        assert_eq!(parse_yyyymmdd("date", "20240605").unwrap(), 20_240_605);
+        // Boundary: smallest plausible date (year 1000) accepted.
+        assert_eq!(parse_yyyymmdd("date", "10000101").unwrap(), 10_000_101);
+    }
+
+    /// Malformed input must surface `Error::Config { InvalidValue }`
+    /// carrying the field name — never the silent `0` fall-through
+    /// that previously coerced typos into the most-permissive REST
+    /// pre-route branch.
+    #[test]
+    fn parse_yyyymmdd_rejects_malformed_input() {
+        for bad in ["", "bad", "2024", "abcd0605", "20240605xx"] {
+            let err = parse_yyyymmdd("start_date", bad).expect_err(bad);
+            match err {
+                Error::Config { kind, message } => {
+                    assert!(
+                        matches!(
+                            kind,
+                            crate::error::ConfigErrorKind::InvalidValue {
+                                ref field,
+                                ..
+                            }
+                            if field == "start_date"
+                        ),
+                        "expected InvalidValue(start_date), got kind={kind:?}"
+                    );
+                    assert!(
+                        message.contains("YYYYMMDD"),
+                        "message missing format hint: {message}"
+                    );
+                }
+                other => panic!("expected Config::InvalidValue, got {other:?}"),
+            }
+        }
+    }
+
+    /// Out-of-range integers (parses to i32 but not in the YYYYMMDD
+    /// band) are rejected too — guards against "0" or future
+    /// year-10000 wraparounds.
+    #[test]
+    fn parse_yyyymmdd_rejects_out_of_band_integers() {
+        // Below the i32 band (`< 10_000_000`) or at-or-above the upper
+        // sentinel (`>= 100_000_000`) — both rejected so a "0" or a
+        // year-10000+ encoding cannot slip through as a valid date.
+        for bad in ["0", "1", "9999999", "100000000", "-20240605"] {
+            assert!(
+                parse_yyyymmdd("date", bad).is_err(),
+                "expected error for out-of-band {bad:?}"
+            );
+        }
     }
 }
