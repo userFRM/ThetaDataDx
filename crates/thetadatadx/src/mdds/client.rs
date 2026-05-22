@@ -136,21 +136,16 @@ impl MddsClient {
         // QueryInfo always includes `"client": "terminal"`.
         query_parameters.insert("client".to_string(), "terminal".to_string());
 
-        // Auto-detect concurrency from subscription tier when config is 0.
-        // Bound is 2^subscription_tier (FREE=1, VALUE=2, STANDARD=4, PRO=8).
-        let concurrent = if config.mdds.concurrent_requests == 0 {
-            auth_resp
-                .user
-                .as_ref()
-                .map_or(2, crate::auth::nexus::AuthUser::max_concurrent_requests)
-        } else {
-            config.mdds.concurrent_requests
-        };
-
-        let request_semaphore = Arc::new(tokio::sync::Semaphore::new(concurrent));
+        // The request semaphore must match the resolved channel pool
+        // size so the (N+1)-th in-flight RPC can never claim a permit
+        // before there's a channel free to carry it. `pool_size`
+        // already reflects the tier-clamped, auto-detected resolution
+        // from `effective_pool_size`; reusing it keeps the semaphore
+        // and the channel count strictly coupled.
+        let request_semaphore = Arc::new(tokio::sync::Semaphore::new(pool_size));
 
         tracing::debug!(
-            mdds_concurrent_requests = concurrent,
+            mdds_concurrent_requests = pool_size,
             auto_detected = config.mdds.concurrent_requests == 0,
             "request semaphore initialized"
         );
@@ -278,31 +273,61 @@ impl MddsClient {
 }
 
 /// Pool sizing — `concurrent_requests` from `DirectConfig` is the
-/// explicit caller intent and wins outright when set (non-zero).
-/// Subscription tier is a *default* the caller falls back to when
-/// `concurrent_requests = 0`; tier never overrides an explicit
-/// configured value.
+/// explicit caller intent, **clamped to the subscription tier cap**.
+/// Subscription tier supplies the default when `concurrent_requests = 0`
+/// and the upper bound when it's set explicitly.
 ///
-/// The previous formula used `max(from_config, from_tier)`, which
-/// silently inflated `concurrent_requests = 1` (one in-flight RPC)
-/// to a Pro tier's 8-channel pool — that hid the caller's explicit
-/// intent behind a tier-based floor. The fix: configured value wins
-/// when non-zero, tier supplies the default only when configured
-/// value is zero, hardcoded `4` is the last-resort default.
+/// # Why clamp explicit caller intent
+///
+/// ThetaData enforces a hard server-side cap on concurrent in-flight
+/// gRPC requests per tier (Free=1 / Value=2 / Standard=4 / Pro=8).
+/// A caller asking for `concurrent_requests = 32` on a Pro tier
+/// previously got 32 channels opened; the (Pro_cap + 1)-th RPC then
+/// failed with an upstream `ResourceExhausted` per-stream rejection,
+/// which the SDK retried on a different channel, producing a confusing
+/// "everything fails intermittently" symptom. Clamping locally
+/// surfaces the misconfiguration as a `tracing::warn!` on connect and
+/// keeps the live pool inside the tier's headroom.
+///
+/// The `override_tier_clamp` escape hatch on `MddsConfig` bypasses
+/// the clamp — test-only, used to reproduce the over-provisioning
+/// failure mode against a stubbed auth response.
+///
+/// # Resolution ladder
+///
+/// 1. `concurrent_requests > 0` ∧ `from_tier > 0` ∧ `!override` →
+///    `min(from_config, from_tier)` (clamp + warn if `from_config > from_tier`)
+/// 2. `concurrent_requests > 0` ∧ (`from_tier = 0` ∨ `override`) →
+///    `from_config` (no tier reference available, or operator bypass)
+/// 3. `concurrent_requests = 0` ∧ `from_tier > 0` → `from_tier` (auto-detect)
+/// 4. `concurrent_requests = 0` ∧ `from_tier = 0` → `DEFAULT_POOL_SIZE`
 fn effective_pool_size(
     config: &DirectConfig,
     auth_resp: &crate::auth::nexus::AuthResponse,
 ) -> usize {
     const DEFAULT_POOL_SIZE: usize = 4;
     let from_config = config.mdds.concurrent_requests;
-    if from_config > 0 {
-        // Explicit caller intent — honour it exactly. No tier floor.
-        return from_config.max(1);
-    }
     let from_tier = auth_resp
         .user
         .as_ref()
         .map_or(0, crate::auth::nexus::AuthUser::max_concurrent_requests);
+    if from_config > 0 {
+        // Explicit caller intent — clamp to tier cap so a configured
+        // value above the server-side ceiling does not produce
+        // confusing per-RPC `ResourceExhausted` rejections downstream.
+        // The escape hatch (`override_tier_clamp`) bypasses the clamp
+        // for tests that need to reproduce the misconfiguration.
+        if from_tier > 0 && !config.mdds.override_tier_clamp && from_config > from_tier {
+            tracing::warn!(
+                configured = from_config,
+                tier_cap = from_tier,
+                "mdds.concurrent_requests exceeds subscription tier cap — clamping to tier cap; \
+                 set MddsConfig.override_tier_clamp = true to bypass (tests only)"
+            );
+            return from_tier;
+        }
+        return from_config.max(1);
+    }
     if from_tier > 0 {
         from_tier
     } else {
@@ -463,21 +488,11 @@ mod pool_size_tests {
     }
 
     #[test]
-    fn explicit_concurrent_requests_overrides_tier() {
+    fn explicit_below_tier_cap_honoured() {
         // Caller asks for exactly 1 channel; auth response carries a
         // Pro tier (subscription byte 3 -> 2^3 = 8 concurrent). The
-        // explicit caller intent must win — the previous behaviour
-        // inflated this to 8 silently.
-        let mut config = DirectConfig::production_defaults();
-        config.mdds.concurrent_requests = 1;
-        let auth = auth_with_tier(Some(3));
-        assert_eq!(effective_pool_size(&config, &auth), 1);
-    }
-
-    #[test]
-    fn explicit_concurrent_requests_capped_to_one() {
-        // Edge case — concurrent_requests = 1 stays at 1. No tier
-        // floor reaches in.
+        // explicit caller intent is below the tier cap, so honour it
+        // exactly without inflating.
         let mut config = DirectConfig::production_defaults();
         config.mdds.concurrent_requests = 1;
         let auth = auth_with_tier(Some(3));
@@ -510,12 +525,54 @@ mod pool_size_tests {
     }
 
     #[test]
-    fn explicit_eight_channels_with_low_tier_stays_at_eight() {
-        // Caller explicitly asks for 8 channels; tier byte 0 would
-        // map to 1 concurrent. The explicit intent wins.
+    fn explicit_above_tier_cap_clamped() {
+        // Caller asks for 32 channels but tier is Free (byte 0 -> 1
+        // concurrent). The clamp folds the configured value to the
+        // tier cap so the per-RPC `ResourceExhausted` rejections
+        // never surface — the local warn is the SDK's friendly
+        // boundary against the server-side cap.
         let mut config = DirectConfig::production_defaults();
-        config.mdds.concurrent_requests = 8;
+        config.mdds.concurrent_requests = 32;
         let auth = auth_with_tier(Some(0));
+        assert_eq!(effective_pool_size(&config, &auth), 1);
+    }
+
+    #[test]
+    fn explicit_above_pro_cap_clamped_to_pro() {
+        // Pro tier permits 8. Caller asks for 16. Clamp to 8.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.concurrent_requests = 16;
+        let auth = auth_with_tier(Some(3));
         assert_eq!(effective_pool_size(&config, &auth), 8);
+    }
+
+    #[test]
+    fn override_tier_clamp_bypasses_clamp() {
+        // The internal escape hatch lets tests reproduce the
+        // over-provisioning failure mode against a stubbed Free-tier
+        // auth response. With the override on, the configured value
+        // passes through unmodified — useful for asserting downstream
+        // behaviour against an explicitly mis-sized pool.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.concurrent_requests = 16;
+        config.mdds.override_tier_clamp = true;
+        let auth = auth_with_tier(Some(0));
+        assert_eq!(effective_pool_size(&config, &auth), 16);
+    }
+
+    #[test]
+    fn no_tier_response_does_not_clamp() {
+        // Auth response carries no tier (anonymous channel, dev
+        // harness, etc.). The clamp arm is skipped entirely — the
+        // configured value passes through. The default-pool fallback
+        // only triggers for `concurrent_requests = 0`.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.concurrent_requests = 16;
+        let auth = AuthResponse {
+            session_id: "session".to_string(),
+            user: None,
+            session_created: None,
+        };
+        assert_eq!(effective_pool_size(&config, &auth), 16);
     }
 }

@@ -1139,6 +1139,10 @@ mod tests {
         assert_eq!(mdds.decoder_threads, 0);
         assert_eq!(mdds.decoder_ring_size, 256);
         assert!(mdds.decoder_ring_size.is_power_of_two());
+        // Tier clamp on by default — the override is an internal
+        // escape hatch only enabled by tests that need to reproduce
+        // the over-provisioning failure mode.
+        assert!(!mdds.override_tier_clamp);
     }
 
     // ── RetryPolicy / env var tests ──────────────────────────────────

@@ -99,6 +99,25 @@ pub struct MddsConfig {
     /// effectively disables it too (no realistic response reaches
     /// that size).
     pub warn_on_buffered_threshold_bytes: usize,
+
+    /// Bypass the subscription-tier clamp on `concurrent_requests`.
+    ///
+    /// **Test-only escape hatch.** ThetaData enforces a server-side
+    /// cap on concurrent in-flight gRPC requests per subscription
+    /// tier (Free=1 / Value=2 / Standard=4 / Pro=8). The SDK normally
+    /// clamps `concurrent_requests` to this cap at connect time so
+    /// the user gets a clear `tracing::warn!` rather than opaque
+    /// upstream rejections on the (N+1)-th channel. Setting this to
+    /// `true` skips the clamp — only useful for tests that need to
+    /// reproduce the over-provisioning failure mode against a stubbed
+    /// auth response.
+    ///
+    /// **Do not enable in production.** The server will reject
+    /// channels above the tier cap; the SDK's clamp is the friendly
+    /// boundary that surfaces the problem locally instead of letting
+    /// it leak into per-RPC retry storms.
+    #[doc(hidden)]
+    pub override_tier_clamp: bool,
 }
 
 impl MddsConfig {
@@ -125,6 +144,7 @@ impl MddsConfig {
             // operator-visible "you are on the wrong API for this
             // workload" signal at this boundary.
             warn_on_buffered_threshold_bytes: 100 * 1024 * 1024,
+            override_tier_clamp: false,
         }
     }
 }
