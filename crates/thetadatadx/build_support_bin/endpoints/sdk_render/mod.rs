@@ -12,6 +12,7 @@ mod enums;
 mod ffi;
 mod python;
 mod python_validate;
+mod rest_builder;
 mod sdk_files;
 mod typescript;
 
