@@ -303,6 +303,14 @@ harness = false
 name = "bench_rest_decode"
 harness = false
 
+[[bench]]
+name = "bench_decoder_pool"
+harness = false
+
+[[bench]]
+name = "bench_protobuf_decode"
+harness = false
+
 [[bin]]
 name = "generate_sdk_surfaces"
 path = "src/bin/generate_sdk_surfaces.rs"

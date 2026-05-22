@@ -558,6 +558,41 @@ public:
     /** Set whether to derive OHLCVC bars locally from trades. */
     void set_derive_ohlcvc(bool enabled) { tdx_config_set_derive_ohlcvc(handle_.get(), enabled ? 1 : 0); }
 
+    // ── MDDS pool sizing (issue #584) ──
+
+    /**
+     * Set the number of concurrent in-flight gRPC requests.
+     *
+     * @p n = 0 (default) auto-detects from the Nexus subscription tier
+     * (Free=1 / Value=2 / Standard=4 / Pro=8). Explicit values above
+     * the tier cap are clamped at connect time with a warn.
+     */
+    void set_concurrent_requests(std::uint32_t n) {
+        tdx_config_set_concurrent_requests(handle_.get(), n);
+    }
+
+    /**
+     * Set the number of dedicated decoder threads in the MDDS pool.
+     *
+     * @p n = 0 (default) auto-sizes to
+     * `max(available_parallelism / 2, 1)`. Override on shared hosts
+     * or to widen the decode pipeline on historical backfills.
+     */
+    void set_decoder_threads(std::uint32_t n) {
+        tdx_config_set_decoder_threads(handle_.get(), n);
+    }
+
+    /**
+     * Set the per-thread decoder ring size.
+     *
+     * Must be a power of two, >= 64. Invalid values are rejected at
+     * the setter; check `tdx_last_error()` if the value seems to
+     * have been ignored. Default is 256.
+     */
+    void set_decoder_ring_size(std::uint32_t n) {
+        tdx_config_set_decoder_ring_size(handle_.get(), n);
+    }
+
     /**
      * Install a REST-fallback policy on this config (issue #571
      * mitigation). The policy is borrowed -- the caller retains

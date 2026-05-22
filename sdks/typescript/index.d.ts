@@ -39,6 +39,37 @@ export declare class Config {
    * fallback policy has been installed.
    */
   get fallbackVariant(): string
+  /**
+   * Set the number of concurrent in-flight gRPC requests.
+   *
+   * `0` (default) auto-detects from the Nexus subscription tier
+   * (Free=1 / Value=2 / Standard=4 / Pro=8). Explicit values above
+   * the tier cap are clamped at connect time with a warn.
+   */
+  setConcurrentRequests(n: number): void
+  /** Current `concurrent_requests` setting (`0` = auto-detect). */
+  get concurrentRequests(): number
+  /**
+   * Set the number of dedicated decoder threads in the MDDS pool.
+   *
+   * `0` (default) auto-sizes to `max(available_parallelism / 2, 1)`,
+   * leaving half the logical cores for the tokio reactor and the
+   * application's own work. Override on shared hosts or to widen
+   * the decode pipeline on heavy historical backfills.
+   */
+  setDecoderThreads(n: number): void
+  /** Current `decoder_threads` setting (`0` = auto-detect). */
+  get decoderThreads(): number
+  /**
+   * Set the per-thread decoder ring size.
+   *
+   * Must be a power of two, `>= 64`. The setter rejects invalid
+   * values immediately rather than waiting for the connect-time
+   * `validate()` to fail. Default is `256`.
+   */
+  setDecoderRingSize(n: number): void
+  /** Current `decoder_ring_size` setting. */
+  get decoderRingSize(): number
 }
 
 /**

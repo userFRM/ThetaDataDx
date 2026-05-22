@@ -119,10 +119,99 @@ The `mdds_concurrent_requests` field controls the maximum number of in-flight gR
 | Setting | Behavior |
 |---------|----------|
 | `0` / not set (default) | Auto-detected from subscription tier: `2^tier` |
-| Explicit value | Fixed at `n` concurrent requests |
+| Explicit value | Fixed at `n`, **clamped to the tier cap** at connect time |
 
-::: tip
-Higher concurrency lets you fetch more data in parallel, but exceeding your tier's limit will trigger rate-limiting (error code 12) with a 130-second backoff.
+### Subscription-tier cap
+
+ThetaData enforces a hard server-side cap on concurrent in-flight gRPC requests per tier. The SDK clamps explicit configured values to this cap at connect time and emits a single `tracing::warn!` so the local boundary surfaces the misconfiguration before any RPC fires:
+
+| Tier | Server cap on `concurrent_requests` |
+|---|---:|
+| FREE | 1 |
+| VALUE | 2 |
+| STANDARD | 4 |
+| PRO | 8 |
+
+Setting `mdds.concurrent_requests = 32` on a PRO tier opens 8 channels (not 32) and logs:
+
+```
+mdds.concurrent_requests exceeds subscription tier cap — clamping to tier cap
+  configured = 32, tier_cap = 8
+```
+
+The previous behaviour honoured the configured value unconditionally, which produced confusing `ResourceExhausted` rejections on the (cap + 1)-th channel that the SDK then retried on a different channel — making bulk-pull failures look like "everything fails intermittently". The local clamp surfaces the misconfiguration immediately. (Bypass requires `MddsConfig::override_tier_clamp = true`, intended for tests only.)
+
+## Throughput Tuning (issue #584)
+
+For large historical pulls (multi-day backfills, wide `strike_range`, `interval = 1s` / `tick`), three knobs on `MddsConfig` control the SDK-side throughput. Each is independently tunable:
+
+| Workload | `concurrent_requests` | `decoder_threads` | `decoder_ring_size` |
+|---|---|---|---|
+| One-shot single-day single-strike query | `1` | auto | default (256) |
+| Multi-day backfill, narrow strike scope (sr < 10) | `4` (PRO) | auto | default (256) |
+| Wide `strike_range` or `1s` / `tick` interval bulk | `8` (PRO max) | `8` | default (256) |
+| Reference: server-side tier caps | FREE=1 / VALUE=2 / STANDARD=4 / PRO=8 | | |
+
+### `decoder_threads`
+
+Each decoder thread runs zstd decompress + protobuf decode on a dedicated `std::thread`, keeping CPU-bound work off the tokio reactor. The default (`0`) auto-sizes to `max(available_parallelism / 2, 1)`, leaving half the logical cores for the reactor and the application's own work.
+
+**Override** on shared hosts where the auto-sizing reads the wrong number from `/proc`, or to widen the decode pipeline on historical backfills with wide `strike_range`.
+
+::: tip Architectural caveat
+Today's MDDS pool pins each gRPC channel to one decoder ring via round-robin distribution. **Decoder threads beyond `concurrent_requests` therefore sit idle** — no producer feeds them. The two-stage pipeline rewrite (separate PR) decouples the IO and decode sides so extra decoder threads become useful; until then, setting `decoder_threads > concurrent_requests` is wasted memory (each idle thread keeps a 256-slot ring allocated).
+:::
+
+### `decoder_ring_size`
+
+Per-thread Disruptor ring depth, the buffer between the h2 receive task and each decoder thread. Must be a power of two, `>= 64`. Default `256` is enough headroom for a 64-way burst across 4 channels.
+
+Larger rings absorb burstier IO without back-pressuring `try_publish`; smaller rings reduce memory footprint. Benchmark results (`bench_decoder_pool/ring`) show **ring depth is not the bottleneck at the default workload** — 64/256/1024/4096 land within ~5% of each other at 1024-row quote payloads. Tune this only if profiling shows producer-side `try_publish` retries in your specific workload.
+
+### Concrete example — PRO tier, 16-core box, wide strike range backfill
+
+```rust
+use thetadatadx::DirectConfig;
+
+let mut config = DirectConfig::production();
+config.mdds.concurrent_requests = 8;        // hit PRO tier cap
+config.mdds.decoder_threads = 8;            // match channel count exactly
+config.mdds.decoder_ring_size = 256;        // default — bench-confirmed adequate
+```
+
+```python
+import thetadatadx as m
+
+cfg = m.Config.production()
+cfg.concurrent_requests = 8
+cfg.decoder_threads = 8
+cfg.decoder_ring_size = 256
+client = m.ThetaDataDxClient(creds, cfg)
+```
+
+```typescript
+import { Config, ThetaDataDxClient } from 'thetadatadx';
+
+const cfg = Config.production();
+cfg.setConcurrentRequests(8);
+cfg.setDecoderThreads(8);
+cfg.setDecoderRingSize(256);
+const client = await ThetaDataDxClient.connectWithConfig(email, password, cfg);
+```
+
+```cpp
+#include "thetadx.hpp"
+
+auto cfg = tdx::Config::production();
+cfg.set_concurrent_requests(8);
+cfg.set_decoder_threads(8);
+cfg.set_decoder_ring_size(256);
+auto creds = tdx::Credentials::from_email(email, password);
+auto client = tdx::Client::connect(creds, cfg);
+```
+
+::: warning Rate limiting
+Even with the SDK-side clamp, hitting `concurrent_requests = 8` on a PRO tier means every RPC dispatch holds a permit. Bursty traffic that exceeds tier capacity surfaces as gRPC `ResourceExhausted` (code 8) with a 130-second backoff. The clamp is the SDK's friendly boundary, not server-side throttling.
 :::
 
 ## Timeouts

@@ -249,6 +249,75 @@ pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, en
     })
 }
 
+// ── MDDS pool sizing — issue #584 ──────────────────────────────────
+
+/// Set the number of concurrent in-flight gRPC requests on a config
+/// handle.
+///
+/// `n = 0` (default) auto-detects from the Nexus subscription tier
+/// (Free=1 / Value=2 / Standard=4 / Pro=8). Explicit values above
+/// the tier cap are clamped at connect time with a `tracing::warn!`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_concurrent_requests(config: *mut TdxConfig, n: u32) {
+    ffi_boundary!((), {
+        if config.is_null() {
+            return;
+        }
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.mdds.concurrent_requests = n as usize;
+    })
+}
+
+/// Set the number of dedicated decoder threads in the MDDS pool.
+///
+/// `n = 0` (default) auto-sizes to
+/// `max(available_parallelism / 2, 1)`. Override on shared hosts or
+/// to widen the decode pipeline on historical backfills with wide
+/// `strike_range`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_decoder_threads(config: *mut TdxConfig, n: u32) {
+    ffi_boundary!((), {
+        if config.is_null() {
+            return;
+        }
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.mdds.decoder_threads = n as usize;
+    })
+}
+
+/// Set the per-thread decoder ring size.
+///
+/// Must be a power of two, `>= 64`. Invalid values are rejected at
+/// the setter boundary: the config is left unchanged and the failure
+/// reason is written to thread-local storage retrievable via
+/// `tdx_last_error()`. Default is `256`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_decoder_ring_size(config: *mut TdxConfig, n: u32) {
+    ffi_boundary!((), {
+        if config.is_null() {
+            return;
+        }
+        // Same validation as the Rust core's `check_ring_size` plus
+        // the disruptor minimum — surface the rejection here so the
+        // FFI caller sees it at the setter rather than at connect.
+        if n == 0 || !n.is_power_of_two() {
+            set_error(&format!(
+                "decoder_ring_size must be a power of two >= 64; got {n}"
+            ));
+            return;
+        }
+        if n < 64 {
+            set_error(&format!("decoder_ring_size must be >= 64; got {n}"));
+            return;
+        }
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.mdds.decoder_ring_size = n as usize;
+    })
+}
+
 // ── Client ──
 
 /// Connect to `ThetaData` servers (authenticates via Nexus API).
@@ -294,4 +363,132 @@ pub unsafe extern "C" fn tdx_client_free(client: *mut TdxClient) {
             drop(unsafe { Box::from_raw(client) });
         }
     })
+}
+
+#[cfg(test)]
+mod pool_sizing_tests {
+    //! Offline tests for the MDDS pool-sizing setters (issue #584).
+    //!
+    //! Each test allocates a fresh `TdxConfig` via `tdx_config_production`,
+    //! calls the setter under test, then reads the underlying Rust
+    //! `MddsConfig` to confirm the value round-tripped (or, in the
+    //! rejection cases, that the value is unchanged and the error string
+    //! reached `tdx_last_error`).
+
+    use crate::error::tdx_last_error;
+    use std::ffi::CStr;
+
+    /// Sentinel marker used by `tdx_last_error` when no thread-local
+    /// error has been set since the last call. Matches the behaviour
+    /// of [`crate::error::tdx_last_error`] returning a `"\0"` placeholder.
+    fn no_error_set() -> bool {
+        // SAFETY: `tdx_last_error` always returns a valid C string pointer.
+        unsafe {
+            let p = tdx_last_error();
+            if p.is_null() {
+                return true;
+            }
+            CStr::from_ptr(p).to_bytes().is_empty()
+        }
+    }
+
+    #[test]
+    fn concurrent_requests_round_trips() {
+        let cfg = super::tdx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_concurrent_requests(cfg, 8);
+            assert_eq!((*cfg).inner.mdds.concurrent_requests, 8);
+            super::tdx_config_set_concurrent_requests(cfg, 0);
+            assert_eq!((*cfg).inner.mdds.concurrent_requests, 0);
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn decoder_threads_round_trips() {
+        let cfg = super::tdx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_decoder_threads(cfg, 16);
+            assert_eq!((*cfg).inner.mdds.decoder_threads, 16);
+            super::tdx_config_set_decoder_threads(cfg, 0);
+            assert_eq!((*cfg).inner.mdds.decoder_threads, 0);
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn decoder_ring_size_accepts_valid_power_of_two() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            for n in [64u32, 128, 256, 512, 1024, 2048, 4096] {
+                super::tdx_config_set_decoder_ring_size(cfg, n);
+                assert_eq!((*cfg).inner.mdds.decoder_ring_size, n as usize);
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn decoder_ring_size_rejects_below_minimum() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production above.
+        let baseline = unsafe { (*cfg).inner.mdds.decoder_ring_size };
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_decoder_ring_size(cfg, 32);
+            // Config left unchanged on rejection.
+            assert_eq!((*cfg).inner.mdds.decoder_ring_size, baseline);
+            // Error message landed in TLS.
+            assert!(!no_error_set(), "rejection must surface via tdx_last_error");
+            let p = tdx_last_error();
+            let msg = CStr::from_ptr(p).to_string_lossy();
+            assert!(
+                msg.contains("decoder_ring_size"),
+                "error must mention the offending field, got {msg:?}",
+            );
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn decoder_ring_size_rejects_non_power_of_two() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production above.
+        let baseline = unsafe { (*cfg).inner.mdds.decoder_ring_size };
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_decoder_ring_size(cfg, 100);
+            assert_eq!((*cfg).inner.mdds.decoder_ring_size, baseline);
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn decoder_ring_size_rejects_zero() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production above.
+        let baseline = unsafe { (*cfg).inner.mdds.decoder_ring_size };
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_decoder_ring_size(cfg, 0);
+            assert_eq!((*cfg).inner.mdds.decoder_ring_size, baseline);
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn null_handle_is_safe() {
+        // SAFETY: passing null is the contract — the setters must
+        // return without crashing.
+        unsafe {
+            super::tdx_config_set_concurrent_requests(std::ptr::null_mut(), 4);
+            super::tdx_config_set_decoder_threads(std::ptr::null_mut(), 4);
+            super::tdx_config_set_decoder_ring_size(std::ptr::null_mut(), 256);
+        }
+    }
 }

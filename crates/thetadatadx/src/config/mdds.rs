@@ -1,6 +1,42 @@
 //! MDDS (gRPC) sub-configuration.
 //!
 //! Defaults match what the v3 terminal sends in production.
+//!
+//! # Throughput tuning (issue #584)
+//!
+//! For large historical pulls (multi-day backfills, wide
+//! `strike_range`, `interval = 1s` / `tick`), three knobs control the
+//! SDK-side throughput. Each is independently tunable:
+//!
+//! | Workload                                        | `concurrent_requests` | `decoder_threads` | `decoder_ring_size` |
+//! |-------------------------------------------------|-----------------------|-------------------|---------------------|
+//! | One-shot single-day single-strike query         | `1`                   | auto              | default (256)       |
+//! | Multi-day backfill, narrow strike scope (sr<10) | `4` (PRO)             | auto              | default (256)       |
+//! | Wide `strike_range` or `1s`/`tick` interval bulk| `8` (PRO max)         | `8`               | default (256)       |
+//! | Reference: server-side tier caps                | FREE=1 / VALUE=2 / STANDARD=4 / PRO=8 |   |                     |
+//!
+//! ## Subscription-tier clamp
+//!
+//! `concurrent_requests` is **clamped to the resolved subscription
+//! tier cap** at connect time. Setting `concurrent_requests = 32` on
+//! a PRO tier opens 8 channels (not 32) and emits a
+//! `tracing::warn!`. The clamp surfaces the misconfiguration locally
+//! instead of producing the confusing per-RPC `ResourceExhausted`
+//! rejections the previous (unclamped) behaviour exhibited.
+//!
+//! ## Architectural caveat for `decoder_threads`
+//!
+//! Today's MDDS pool pins each gRPC channel to one decoder ring via
+//! round-robin distribution. Decoder threads beyond
+//! `concurrent_requests` therefore sit idle — no producer feeds
+//! them. The two-stage pipeline rewrite (separate PR) decouples the
+//! IO and decode sides so extra decoder threads become useful;
+//! until then, setting `decoder_threads > concurrent_requests` is
+//! wasted memory (each idle thread keeps a `decoder_ring_size`-slot
+//! ring allocated).
+//!
+//! See the `docs-site/docs/configuration.md` "Throughput Tuning"
+//! section for the full guidance with per-binding code samples.
 
 /// MDDS gRPC client tuning.
 #[derive(Debug, Clone)]
@@ -141,6 +177,25 @@ pub struct MddsConfig {
     /// effectively disables it too (no realistic response reaches
     /// that size).
     pub warn_on_buffered_threshold_bytes: usize,
+
+    /// Bypass the subscription-tier clamp on `concurrent_requests`.
+    ///
+    /// **Test-only escape hatch.** ThetaData enforces a server-side
+    /// cap on concurrent in-flight gRPC requests per subscription
+    /// tier (Free=1 / Value=2 / Standard=4 / Pro=8). The SDK normally
+    /// clamps `concurrent_requests` to this cap at connect time so
+    /// the user gets a clear `tracing::warn!` rather than opaque
+    /// upstream rejections on the (N+1)-th channel. Setting this to
+    /// `true` skips the clamp — only useful for tests that need to
+    /// reproduce the over-provisioning failure mode against a stubbed
+    /// auth response.
+    ///
+    /// **Do not enable in production.** The server will reject
+    /// channels above the tier cap; the SDK's clamp is the friendly
+    /// boundary that surfaces the problem locally instead of letting
+    /// it leak into per-RPC retry storms.
+    #[doc(hidden)]
+    pub override_tier_clamp: bool,
 }
 
 impl MddsConfig {
@@ -169,6 +224,7 @@ impl MddsConfig {
             // operator-visible "you are on the wrong API for this
             // workload" signal at this boundary.
             warn_on_buffered_threshold_bytes: 100 * 1024 * 1024,
+            override_tier_clamp: false,
         }
     }
 }

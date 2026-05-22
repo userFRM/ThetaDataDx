@@ -34,6 +34,8 @@ set(THETADX_CPP_TEST_SOURCES
     # REST-fallback policy + Config::withRestFallback wiring tests
     # (issue #571 mitigation, cross-binding parity with Python/TS/FFI).
     fallback.cpp
+    # MDDS pool-sizing setters on tdx::Config (issue #584).
+    config_pool_sizing.cpp
     # Gate 3 (issue #546) - C++ doctest harness. Compiles + runs
     # `// @example` blocks extracted from the public headers.
     doctest_examples.cpp
