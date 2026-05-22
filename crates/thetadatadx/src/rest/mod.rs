@@ -61,10 +61,21 @@ pub mod client;
 pub mod csv;
 pub mod error;
 
-pub use client::{
+// Generated builder structs + their `RestClient` constructor methods.
+// Emitted by `build_support_bin/endpoints/sdk_render/rest_builder.rs`
+// from `endpoint_surface.toml`; see issue #580. The module is wired in
+// here (not at file scope from `client.rs`) so the `impl RestClient`
+// block inside it sits in the same crate-public namespace as the
+// hand-written `impl RestClient` in `client.rs`.
+mod _generated {
+    pub mod rest_endpoints;
+}
+
+pub use _generated::rest_endpoints::{
     OptionHistoryGreeksFirstOrderRestBuilder, OptionHistoryGreeksIvRestBuilder,
-    OptionHistoryQuoteRestBuilder, OptionHistoryTradeQuoteRestBuilder, RestClient,
+    OptionHistoryQuoteRestBuilder, OptionHistoryTradeQuoteRestBuilder,
 };
+pub use client::RestClient;
 pub use error::RestError;
 
 #[cfg(test)]

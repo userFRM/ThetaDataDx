@@ -274,6 +274,12 @@ fn resolve_surface_endpoint(
             .vendor_docstring
             .clone()
             .or(template.vendor_docstring),
+        // Endpoint overrides template; absent on both sides defaults to
+        // `Grpc` (the surface-wide default — REST opt-in is explicit).
+        transport: endpoint
+            .transport
+            .or(template.transport)
+            .unwrap_or_default(),
         params,
     })
 }
@@ -347,6 +353,9 @@ fn resolve_surface_template(
     }
     if let Some(value) = &template.vendor_docstring {
         resolved.vendor_docstring = Some(value.clone());
+    }
+    if let Some(value) = template.transport {
+        resolved.transport = Some(value);
     }
     resolved.params.extend(resolve_param_entries(
         &template.params,
@@ -678,6 +687,7 @@ fn merge_surface_and_wire(
         kind: surface.kind,
         list_column: surface.list_column,
         vendor_docstring: surface.vendor_docstring,
+        _transport: surface.transport,
     }
 }
 

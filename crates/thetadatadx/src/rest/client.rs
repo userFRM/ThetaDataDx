@@ -12,6 +12,12 @@ use tdbe::types::tick::{GreeksFirstOrderTick, IvTick, QuoteTick, TradeQuoteTick}
 use super::csv::Table;
 use super::error::RestError;
 
+// The tick re-imports above (`GreeksFirstOrderTick` / `IvTick` /
+// `QuoteTick` / `TradeQuoteTick`) feed the `decode_*_csv` decoders that
+// live at the bottom of this file; the generated builder module in
+// `super::_generated` consumes the decoders via `pub` re-export and
+// re-imports the tick types from `tdbe` directly.
+
 /// Default Terminal base URL (`http://127.0.0.1:25503`).
 pub const DEFAULT_TERMINAL_BASE_URL: &str = "http://127.0.0.1:25503";
 
@@ -106,352 +112,27 @@ impl RestClient {
     pub fn max_response_bytes(&self) -> u64 {
         self.max_response_bytes
     }
-
-    /// Build a builder for `option_history_quote` (REST path
-    /// `/v3/option/history/quote`). The builder mirrors the gRPC
-    /// builder's setter surface (`strike`, `right`, `interval`, ...)
-    /// and decodes to `Vec<QuoteTick>` on `.await`.
-    #[must_use]
-    pub fn option_history_quote(
-        &self,
-        symbol: &str,
-        expiration: &str,
-        date: &str,
-    ) -> OptionHistoryQuoteRestBuilder<'_> {
-        OptionHistoryQuoteRestBuilder {
-            client: self,
-            symbol: symbol.to_string(),
-            expiration: expiration.to_string(),
-            start_date: date.to_string(),
-            end_date: date.to_string(),
-            strike: None,
-            right: None,
-            interval: None,
-        }
-    }
-
-    /// Build a builder for `option_history_trade_quote` (REST path
-    /// `/v3/option/history/trade_quote`).
-    #[must_use]
-    pub fn option_history_trade_quote(
-        &self,
-        symbol: &str,
-        expiration: &str,
-        date: &str,
-    ) -> OptionHistoryTradeQuoteRestBuilder<'_> {
-        OptionHistoryTradeQuoteRestBuilder {
-            client: self,
-            symbol: symbol.to_string(),
-            expiration: expiration.to_string(),
-            start_date: date.to_string(),
-            end_date: date.to_string(),
-            strike: None,
-            right: None,
-        }
-    }
-
-    /// Build a builder for `option_history_greeks_implied_volatility`
-    /// (REST path `/v3/option/history/greeks/implied_volatility`).
-    /// Listed in BUG_REPORT.md as a sibling endpoint to the
-    /// `_first_order` Greeks one that surfaces the same 6-field NBBO
-    /// row through its underlying-quote join.
-    #[must_use]
-    pub fn option_history_greeks_implied_volatility(
-        &self,
-        symbol: &str,
-        expiration: &str,
-        date: &str,
-    ) -> OptionHistoryGreeksIvRestBuilder<'_> {
-        OptionHistoryGreeksIvRestBuilder {
-            client: self,
-            symbol: symbol.to_string(),
-            expiration: expiration.to_string(),
-            start_date: date.to_string(),
-            end_date: date.to_string(),
-            strike: None,
-            right: None,
-            interval: None,
-        }
-    }
-
-    /// Build a builder for `option_history_greeks_first_order`
-    /// (REST path `/v3/option/history/greeks/first_order`).
-    #[must_use]
-    pub fn option_history_greeks_first_order(
-        &self,
-        symbol: &str,
-        expiration: &str,
-        date: &str,
-    ) -> OptionHistoryGreeksFirstOrderRestBuilder<'_> {
-        OptionHistoryGreeksFirstOrderRestBuilder {
-            client: self,
-            symbol: symbol.to_string(),
-            expiration: expiration.to_string(),
-            start_date: date.to_string(),
-            end_date: date.to_string(),
-            strike: None,
-            right: None,
-            interval: None,
-        }
-    }
 }
 
-/// Builder for [`RestClient::option_history_quote`].
-#[derive(Debug)]
-pub struct OptionHistoryQuoteRestBuilder<'a> {
-    client: &'a RestClient,
-    symbol: String,
-    expiration: String,
-    start_date: String,
-    end_date: String,
-    strike: Option<String>,
-    right: Option<String>,
-    interval: Option<String>,
-}
-
-impl<'a> OptionHistoryQuoteRestBuilder<'a> {
-    /// Set the option strike price (e.g. `"440"` for $440, `"17.5"`
-    /// for $17.50). `None` is equivalent to the wildcard query.
-    #[must_use]
-    pub fn strike(mut self, strike: impl Into<String>) -> Self {
-        self.strike = Some(strike.into());
-        self
-    }
-
-    /// Set the option right (`"call"`, `"put"`, or `"both"`).
-    #[must_use]
-    pub fn right(mut self, right: impl Into<String>) -> Self {
-        self.right = Some(right.into());
-        self
-    }
-
-    /// Set the sampling interval (`"tick"`, `"1s"`, `"1m"`, `"5m"`,
-    /// `"1h"`, ...).
-    #[must_use]
-    pub fn interval(mut self, interval: impl Into<String>) -> Self {
-        self.interval = Some(interval.into());
-        self
-    }
-
-    /// Override the end date (defaults to the same value as the
-    /// `date` parameter passed to `RestClient::option_history_quote`).
-    /// Use for multi-day requests.
-    #[must_use]
-    pub fn end_date(mut self, end_date: impl Into<String>) -> Self {
-        self.end_date = end_date.into();
-        self
-    }
-
-    /// Execute the REST request, decode the CSV body, and return the
-    /// resulting `Vec<QuoteTick>`. Decoder accepts both the current
-    /// 11-field and legacy 6-field NBBO header layouts; absent
-    /// columns zero-fill (issue #571).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`RestError`] on HTTP transport failure, non-2xx
-    /// status, or CSV decode failure.
-    pub async fn execute(self) -> Result<Vec<QuoteTick>, RestError> {
-        let body = fetch_csv(
-            self.client,
-            "/v3/option/history/quote",
-            &[
-                ("symbol", self.symbol.as_str()),
-                ("expiration", self.expiration.as_str()),
-                ("start_date", self.start_date.as_str()),
-                ("end_date", self.end_date.as_str()),
-                ("strike", self.strike.as_deref().unwrap_or("")),
-                ("right", self.right.as_deref().unwrap_or("")),
-                ("interval", self.interval.as_deref().unwrap_or("")),
-                ("format", "csv"),
-            ],
-        )
-        .await?;
-        decode_quote_csv(&body)
-    }
-}
-
-/// Builder for [`RestClient::option_history_trade_quote`].
-#[derive(Debug)]
-pub struct OptionHistoryTradeQuoteRestBuilder<'a> {
-    client: &'a RestClient,
-    symbol: String,
-    expiration: String,
-    start_date: String,
-    end_date: String,
-    strike: Option<String>,
-    right: Option<String>,
-}
-
-impl<'a> OptionHistoryTradeQuoteRestBuilder<'a> {
-    #[must_use]
-    pub fn strike(mut self, strike: impl Into<String>) -> Self {
-        self.strike = Some(strike.into());
-        self
-    }
-
-    #[must_use]
-    pub fn right(mut self, right: impl Into<String>) -> Self {
-        self.right = Some(right.into());
-        self
-    }
-
-    #[must_use]
-    pub fn end_date(mut self, end_date: impl Into<String>) -> Self {
-        self.end_date = end_date.into();
-        self
-    }
-
-    /// # Errors
-    ///
-    /// See [`OptionHistoryQuoteRestBuilder::execute`].
-    pub async fn execute(self) -> Result<Vec<TradeQuoteTick>, RestError> {
-        let body = fetch_csv(
-            self.client,
-            "/v3/option/history/trade_quote",
-            &[
-                ("symbol", self.symbol.as_str()),
-                ("expiration", self.expiration.as_str()),
-                ("start_date", self.start_date.as_str()),
-                ("end_date", self.end_date.as_str()),
-                ("strike", self.strike.as_deref().unwrap_or("")),
-                ("right", self.right.as_deref().unwrap_or("")),
-                ("format", "csv"),
-            ],
-        )
-        .await?;
-        decode_trade_quote_csv(&body)
-    }
-}
-
-/// Builder for [`RestClient::option_history_greeks_implied_volatility`].
-#[derive(Debug)]
-pub struct OptionHistoryGreeksIvRestBuilder<'a> {
-    client: &'a RestClient,
-    symbol: String,
-    expiration: String,
-    start_date: String,
-    end_date: String,
-    strike: Option<String>,
-    right: Option<String>,
-    interval: Option<String>,
-}
-
-impl<'a> OptionHistoryGreeksIvRestBuilder<'a> {
-    #[must_use]
-    pub fn strike(mut self, strike: impl Into<String>) -> Self {
-        self.strike = Some(strike.into());
-        self
-    }
-
-    #[must_use]
-    pub fn right(mut self, right: impl Into<String>) -> Self {
-        self.right = Some(right.into());
-        self
-    }
-
-    #[must_use]
-    pub fn interval(mut self, interval: impl Into<String>) -> Self {
-        self.interval = Some(interval.into());
-        self
-    }
-
-    #[must_use]
-    pub fn end_date(mut self, end_date: impl Into<String>) -> Self {
-        self.end_date = end_date.into();
-        self
-    }
-
-    /// # Errors
-    ///
-    /// See [`OptionHistoryQuoteRestBuilder::execute`].
-    pub async fn execute(self) -> Result<Vec<IvTick>, RestError> {
-        let body = fetch_csv(
-            self.client,
-            "/v3/option/history/greeks/implied_volatility",
-            &[
-                ("symbol", self.symbol.as_str()),
-                ("expiration", self.expiration.as_str()),
-                ("start_date", self.start_date.as_str()),
-                ("end_date", self.end_date.as_str()),
-                ("strike", self.strike.as_deref().unwrap_or("")),
-                ("right", self.right.as_deref().unwrap_or("")),
-                ("interval", self.interval.as_deref().unwrap_or("")),
-                ("format", "csv"),
-            ],
-        )
-        .await?;
-        decode_iv_csv(&body)
-    }
-}
-
-/// Builder for [`RestClient::option_history_greeks_first_order`].
-#[derive(Debug)]
-pub struct OptionHistoryGreeksFirstOrderRestBuilder<'a> {
-    client: &'a RestClient,
-    symbol: String,
-    expiration: String,
-    start_date: String,
-    end_date: String,
-    strike: Option<String>,
-    right: Option<String>,
-    interval: Option<String>,
-}
-
-impl<'a> OptionHistoryGreeksFirstOrderRestBuilder<'a> {
-    #[must_use]
-    pub fn strike(mut self, strike: impl Into<String>) -> Self {
-        self.strike = Some(strike.into());
-        self
-    }
-
-    #[must_use]
-    pub fn right(mut self, right: impl Into<String>) -> Self {
-        self.right = Some(right.into());
-        self
-    }
-
-    #[must_use]
-    pub fn interval(mut self, interval: impl Into<String>) -> Self {
-        self.interval = Some(interval.into());
-        self
-    }
-
-    #[must_use]
-    pub fn end_date(mut self, end_date: impl Into<String>) -> Self {
-        self.end_date = end_date.into();
-        self
-    }
-
-    /// # Errors
-    ///
-    /// See [`OptionHistoryQuoteRestBuilder::execute`].
-    pub async fn execute(self) -> Result<Vec<GreeksFirstOrderTick>, RestError> {
-        let body = fetch_csv(
-            self.client,
-            "/v3/option/history/greeks/first_order",
-            &[
-                ("symbol", self.symbol.as_str()),
-                ("expiration", self.expiration.as_str()),
-                ("start_date", self.start_date.as_str()),
-                ("end_date", self.end_date.as_str()),
-                ("strike", self.strike.as_deref().unwrap_or("")),
-                ("right", self.right.as_deref().unwrap_or("")),
-                ("interval", self.interval.as_deref().unwrap_or("")),
-                ("format", "csv"),
-            ],
-        )
-        .await?;
-        decode_greeks_first_order_csv(&body)
-    }
-}
+// The four `option_history_*` builder constructors + builder structs +
+// `impl` blocks (`OptionHistoryQuoteRestBuilder`,
+// `OptionHistoryTradeQuoteRestBuilder`, `OptionHistoryGreeksIvRestBuilder`,
+// `OptionHistoryGreeksFirstOrderRestBuilder`) are emitted by
+// `build_support_bin/endpoints/sdk_render/rest_builder.rs` from
+// `endpoint_surface.toml` and live in `super::_generated::rest_endpoints`.
+// See issue #580 — adding a new REST endpoint is now one TOML row.
 
 // ─── Transport helper ────────────────────────────────────────────────
 
 /// Issue the GET request and return the body as `String`. Empty
 /// string-valued query params are dropped so the Terminal sees a
 /// clean URL.
-async fn fetch_csv(
+///
+/// `pub(crate)` so the generated REST builder module in
+/// `super::_generated` can call it (see issue #580 — the per-endpoint
+/// `execute()` method is codegen-driven and routes through this single
+/// helper).
+pub(crate) async fn fetch_csv(
     client: &RestClient,
     path: &str,
     params: &[(&str, &str)],

@@ -111,6 +111,11 @@ pub(super) fn load_proto_endpoints() -> Result<WireEndpoints, Box<dyn std::error
             // surface spec (endpoint_surface.toml) is the SSOT; this field
             // is merged in during `parser::merge_surface_and_wire`.
             vendor_docstring: None,
+            // Proto-derived entries default to gRPC transport. The surface
+            // spec (endpoint_surface.toml) overrides via the `transport`
+            // field during `parser::merge_surface_and_wire`; defaulting
+            // here keeps the synthetic / fallback path on gRPC alone.
+            _transport: super::model::Transport::Grpc,
         });
     }
 
