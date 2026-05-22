@@ -5,6 +5,8 @@ C++ SDK for ThetaData market data. Header-only RAII wrappers over the `thetadata
 Every call crosses the C ABI boundary into compiled Rust: gRPC communication, protobuf parsing, zstd decompression, and TCP streaming run inside the `thetadatadx` crate.
 
 > **Surface coverage:** the C++ binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `unified.flat_files().*()` with `.to_arrow_ipc()` terminals plus a `flat_files().to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
+>
+> **REST fallback (issue #571 mitigation):** `tdx::FallbackPolicy` + `Config::withRestFallback` + four `Client::optionHistory*WithFallback` methods route 2022-era options' h2-cascading quote endpoints over the local Terminal's REST surface. See [legacy quote handling](../../docs-site/docs/legacy-quote-handling.md) for the four policy variants and per-binding examples.
 
 ## Prerequisites
 

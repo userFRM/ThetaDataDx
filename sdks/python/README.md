@@ -3,6 +3,8 @@
 Python bindings over the Rust core. Every call crosses the PyO3 boundary into Rust: gRPC communication, protobuf parsing, zstd decompression, FIT tick decoding, and TCP streaming run inside the `thetadatadx` crate.
 
 > **Surface coverage:** the Python binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `tdx.flat_files.*()` with `.to_arrow()`, `.to_polars()`, `.to_pandas()`, and `.to_list()` terminals plus a `flatfile_to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
+>
+> **REST fallback (issue #571 mitigation):** `FallbackPolicy` + `Config.with_rest_fallback` + four `option_history_*_with_fallback` methods route 2022-era options' h2-cascading quote endpoints over the local Terminal's REST surface. See [legacy quote handling](../../docs-site/docs/legacy-quote-handling.md) for the four policy variants and per-binding examples.
 
 ## Installation
 

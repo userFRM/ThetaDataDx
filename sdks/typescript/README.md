@@ -5,6 +5,8 @@ Node.js SDK for ThetaData market data. napi-rs bindings over the `thetadatadx` R
 Every call crosses the napi boundary into compiled Rust: gRPC, protobuf, zstd, FIT decoding, and TCP streaming run inside the `thetadatadx` crate.
 
 > **Surface coverage:** the TypeScript binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `tdx.flatFiles.*()` with `.toArrowIpc()` and `.toJson()` terminals plus a `tdx.flatFileToPath(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
+>
+> **REST fallback (issue #571 mitigation):** `FallbackPolicy` + `Config.withRestFallback` + four `optionHistory*WithFallback` async methods on `ThetaDataDxClient` route 2022-era options' h2-cascading quote endpoints over the local Terminal's REST surface. See [legacy quote handling](../../docs-site/docs/legacy-quote-handling.md) for the four policy variants and per-binding examples.
 
 ## Install
 

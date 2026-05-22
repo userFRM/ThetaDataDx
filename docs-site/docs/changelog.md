@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `FallbackPolicy` + `_with_fallback` shims now reach every binding —
+  FFI (C ABI), TypeScript (napi-rs), and C++ (`thetadx.hpp`) — closing
+  the cross-binding parity gap that PR #579 left as a Python-only
+  surface. The Rust core's four `option_history_*_with_fallback`
+  methods now live on `MddsClient` (`ThetaDataDxClient` derefs to
+  `MddsClient`, so existing Rust callers are unchanged); the
+  `rest_clients` `Arc<RestClient>` cache moved with them.
+  - **FFI**: `TdxFallbackPolicy` opaque handle + four factories
+    (`tdx_fallback_policy_disabled` /
+    `tdx_fallback_policy_rest_on_h2_disconnect` /
+    `tdx_fallback_policy_rest_always_for_date_range` /
+    `tdx_fallback_policy_rest_always`), `tdx_config_with_rest_fallback`,
+    and four `tdx_option_history_*_with_fallback` endpoint shims, all
+    declared in `sdks/cpp/include/thetadx.h`.
+  - **TypeScript**: `FallbackPolicy` + `Config` napi classes,
+    `Config.withRestFallback(policy)`, `ThetaDataDxClient
+    .connectWithConfig(email, password, config)` /
+    `.connectFromFileWithConfig(path, config)` factories, four
+    `optionHistory*WithFallback(...)` async methods, and the
+    `DEFAULT_REST_BASE_URL` module constant. `index.d.ts` regenerated
+    via `napi build`.
+  - **C++**: `tdx::FallbackPolicy` move-only RAII class with the four
+    named factories, `Config::withRestFallback`, and four
+    `Client::optionHistory*WithFallback(...)` methods.
+  - 8 new offline Catch2 tests in `sdks/cpp/tests/fallback.cpp`,
+    8 new offline Node tests in
+    `sdks/typescript/__tests__/fallback.test.mjs`, 7 new Rust unit
+    tests in `ffi/src/fallback.rs`. Each binding ships a live-gated
+    end-to-end test behind `THETADX_LIVE_PATCHED_TERMINAL`.
+
 - Channel-layer h2-cascade recovery (#577). The pool's `next()`
   picker now tracks a per-channel `AtomicBool` death flag and
   routes around channels that have observed
@@ -59,8 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   strike=None, right=None, interval=None)` kwargs; malformed
   `start_date` / `end_date` raises `ValueError` at the Python
   boundary rather than bubbling out of Rust. Stubs landed in
-  `python/thetadatadx/__init__.pyi`. The FFI (C ABI) + TypeScript
-  + C++ binding work is tracked in a follow-up issue.
+  `python/thetadatadx/__init__.pyi`.
 
 - `_with_fallback` shims now accept `(start_date, end_date)` instead
   of a single `date` (M6). All four affected endpoints
