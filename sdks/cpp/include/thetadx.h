@@ -568,6 +568,38 @@ void tdx_config_set_flush_mode(TdxConfig* config, int mode);
  */
 void tdx_config_set_derive_ohlcvc(TdxConfig* config, int enabled);
 
+/* ── MDDS pool sizing (issue #584) ── */
+
+/**
+ * Set the number of concurrent in-flight gRPC requests.
+ *
+ *   n=0 (default): auto-detect from the Nexus subscription tier
+ *     (Free=1 / Value=2 / Standard=4 / Pro=8).
+ *   n>0: explicit cap, clamped to the tier cap at connect time
+ *     with a `tracing::warn!` if exceeded.
+ */
+void tdx_config_set_concurrent_requests(TdxConfig* config, uint32_t n);
+
+/**
+ * Set the number of dedicated decoder threads in the MDDS pool.
+ *
+ *   n=0 (default): auto-size to max(available_parallelism / 2, 1).
+ *   n>0: explicit thread count. Override on shared hosts or to widen
+ *     the decode pipeline on historical backfills with wide
+ *     strike_range.
+ */
+void tdx_config_set_decoder_threads(TdxConfig* config, uint32_t n);
+
+/**
+ * Set the per-thread decoder ring size.
+ *
+ * Must be a power of two, >= 64. Invalid values are rejected at the
+ * setter: the config is left unchanged and the failure reason is
+ * written to thread-local storage retrievable via tdx_last_error().
+ * Default is 256.
+ */
+void tdx_config_set_decoder_ring_size(TdxConfig* config, uint32_t n);
+
 /* ── Client ── */
 
 /** Connect to ThetaData servers. Returns NULL on connection/auth failure. */
