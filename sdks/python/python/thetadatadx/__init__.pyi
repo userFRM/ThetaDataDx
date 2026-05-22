@@ -99,20 +99,14 @@ DEFAULT_REST_BASE_URL: str = ...
 
 @final
 class FallbackPolicy:
-    """REST-fallback policy for the four h2-cascading endpoints (issue #571).
+    """REST-fallback policy for the four historical-quote endpoints.
 
-    Construct via one of the four static factories. The Rust enum is
+    Construct via one of the two static factories. The Rust enum is
     `#[non_exhaustive]`; future variants land here behind new factories.
     """
 
     @staticmethod
     def disabled() -> "FallbackPolicy": ...
-    @staticmethod
-    def rest_on_h2_disconnect(base_url: str) -> "FallbackPolicy": ...
-    @staticmethod
-    def rest_always_for_date_range(
-        base_url: str, before: int
-    ) -> "FallbackPolicy": ...
     @staticmethod
     def rest_always(base_url: str) -> "FallbackPolicy": ...
 
