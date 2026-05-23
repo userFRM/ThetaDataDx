@@ -726,7 +726,7 @@ fn serialize_calendar_days(days: &[tdbe::types::tick::CalendarDay]) -> Value {
 fn serialize_interest_rate_ticks(ticks: &[tdbe::types::tick::InterestRateTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
-        .map(|t| json!({"date": t.date, "ms_of_day": t.ms_of_day, "rate": t.rate}))
+        .map(|t| json!({"date": t.date, "rate": t.rate}))
         .collect();
     json!({ "ticks": rows, "count": rows.len() })
 }

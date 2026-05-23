@@ -156,9 +156,8 @@ mod layout_asserts {
     fn interest_rate_tick_layout() {
         assert_eq!(size_of::<InterestRateTick>(), 64);
         assert_eq!(align_of::<InterestRateTick>(), 64);
-        assert_eq!(offset_of!(InterestRateTick, ms_of_day), 0);
+        assert_eq!(offset_of!(InterestRateTick, date), 0);
         assert_eq!(offset_of!(InterestRateTick, rate), 8);
-        assert_eq!(offset_of!(InterestRateTick, date), 16);
     }
 
     #[test]

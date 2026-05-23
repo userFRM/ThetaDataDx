@@ -357,28 +357,39 @@ impl GreeksThirdOrderTick {
     }
 }
 
-/// Interest rate tick. End-of-day interest rate.
+/// Interest rate tick. End-of-day interest rate (percent).
+/// 
+/// Wire layout per `docs.thetadata.us/operations/interest_rate_history_eod.html`
+/// and verified-live against terminal jar build `202605221`:
+/// 
+/// | Schema field | Wire header | Wire type        | Mapping                    |
+/// |--------------|-------------|------------------|----------------------------|
+/// | `date`       | `created`   | Text (ISO date)  | `"2025-04-28"` -> 20250428 |
+/// | `rate`       | `rate`      | Number (percent) | `4.3600` -> 4.36           |
+/// 
+/// The `date` decode flows through `thetadatadx::decode::row_date`, which
+/// accepts `Number`, `Timestamp`, and `Text` cells uniformly — so this tick
+/// decodes either the documented Text-ISO shape or any future
+/// Number/Timestamp narrowing without a per-parser branch.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct InterestRateTick {
-    #[pyo3(get)] pub ms_of_day: i32,
-    #[pyo3(get)] pub rate: f64,
     #[pyo3(get)] pub date: i32,
+    #[pyo3(get)] pub rate: f64,
 }
 #[pymethods]
 impl InterestRateTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, rate = 0.0f64, date = 0i32))]
-    fn new(ms_of_day: i32, rate: f64, date: i32) -> Self {
+    #[pyo3(signature = (*, date = 0i32, rate = 0.0f64))]
+    fn new(date: i32, rate: f64) -> Self {
         Self {
-            ms_of_day,
-            rate,
             date,
+            rate,
         }
     }
     fn __repr__(&self) -> String {
-        format!("InterestRateTick(ms_of_day={}, rate={}, date={})", self.ms_of_day, self.rate, self.date)
+        format!("InterestRateTick(date={}, rate={})", self.date, self.rate)
     }
 }
 
@@ -2006,9 +2017,8 @@ impl InterestRateTickList {
         let mut inner = Vec::with_capacity(ticks.len());
         for t in &ticks {
             inner.push(            tick::InterestRateTick {
-                ms_of_day: t.ms_of_day,
-                rate: t.rate,
                 date: t.date,
+                rate: t.rate,
             }
             );
         }
@@ -2037,9 +2047,8 @@ impl InterestRateTickList {
         }
         let t = &self.inner[resolved as usize];
         Ok(            InterestRateTick {
-                ms_of_day: t.ms_of_day,
-                rate: t.rate,
                 date: t.date,
+                rate: t.rate,
             }
         )
     }
@@ -2055,9 +2064,8 @@ impl InterestRateTickList {
         let list = pyo3::types::PyList::empty(py);
         for t in &self.inner {
             let obj =                 InterestRateTick {
-                    ms_of_day: t.ms_of_day,
-                    rate: t.rate,
                     date: t.date,
+                    rate: t.rate,
                 }
             ;
             list.append(Py::new(py, obj)?)?;
@@ -2119,9 +2127,8 @@ impl InterestRateTickListIter {
         let t = &self.inner[self.cursor];
         self.cursor += 1;
         Some(            InterestRateTick {
-                ms_of_day: t.ms_of_day,
-                rate: t.rate,
                 date: t.date,
+                rate: t.rate,
             }
         )
     }
@@ -3991,9 +3998,8 @@ pub(crate) fn interest_rate_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick:
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             InterestRateTick {
-                ms_of_day: t.ms_of_day,
-                rate: t.rate,
                 date: t.date,
+                rate: t.rate,
             }
         ;
         list.append(Py::new(py, obj)?)?;

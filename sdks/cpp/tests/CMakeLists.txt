@@ -41,6 +41,9 @@ set(THETADX_CPP_TEST_SOURCES
     # MDDS two-stage decode pipeline setters on tdx::Config
     # (Phase 3 of 3, follow-up to PR #587 / #588).
     config_decode_pipeline.cpp
+    # v11 InterestRateTick schema fix — 2-field shape
+    # (date/rate, was 3 fields with a fictitious ms_of_day).
+    interest_rate.cpp
     # Gate 3 - C++ doctest harness. Compiles + runs
     # `// @example` blocks extracted from the public headers.
     doctest_examples.cpp

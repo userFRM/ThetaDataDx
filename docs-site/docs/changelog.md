@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> **Release line note**: this train accumulates 6 major + 1 minor breaking changes
+> **Release line note**: this train accumulates 7 major + 1 minor breaking changes
 > versus v10.0.0. The next release tag MUST be v11.0.0, not a v10.0.x patch.
 > Owner-greenlight gated on this audit returning zero actionable findings.
 
@@ -407,6 +407,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `interest_rate_history_eod` rustdoc now lists the 12 valid `symbol`
+  values from upstream `RateType` (`SOFR`, `TREASURY_M1`,
+  `TREASURY_M3`, `TREASURY_M6`, `TREASURY_Y1`, `TREASURY_Y2`,
+  `TREASURY_Y3`, `TREASURY_Y5`, `TREASURY_Y7`, `TREASURY_Y10`,
+  `TREASURY_Y20`, `TREASURY_Y30`). The wire signature stays a flexible
+  `&str` (no enum constraint) so a future server-side maturity
+  addition does not break SDK callers; the docstring is the
+  authoritative surface for the documented today-set.
+- `crate::decode::row_date` now accepts `Text` cells in addition to
+  `Number` and `Timestamp`, routing them through `parse_iso_date`.
+  Every existing call site is strictly more permissive — Number /
+  Timestamp callers see no behaviour change — and the new arm is what
+  unblocks `InterestRateTick` decoding of the ISO `created` column
+  documented at
+  `docs.thetadata.us/operations/interest_rate_history_eod.html`.
+  `DecodeError::TypeMismatch` now widens its `expected` legend from
+  `"Number|Timestamp"` to `"Number|Timestamp|Text"` on this path.
 - C++ ReconnectConfig setter test names corrected from
   `round-trips representative budgets` to
   `accepts representative budgets without throwing`. The C ABI exposes
@@ -950,6 +967,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `InterestRateTick.ms_of_day` field (fictitious — the server never
+  emits a `ms_of_day` column on `interest_rate/history/eod`). Counts
+  as v11 breaking change #7 (after `SubscriptionInfo` non_exhaustive,
+  `GrpcStatusKind` repr, `Error::Transport` shape,
+  `ReconnectPolicy::Auto` shape, 3 `Error::*_other` deprecations).
+  Verified against the wire dump at the top of the matching `Fixed`
+  entry below. The struct shrinks from 3 fields to 2; the C ABI
+  `TdxInterestRateTick` re-pads from `{i32, pad, f64, i32, pad[40]}`
+  to `{i32, pad, f64, pad[48]}`; the Python pyclass
+  `InterestRateTick.__init__` keyword-only constructor drops the
+  `ms_of_day` parameter; the TypeScript `InterestRateTick` interface
+  drops `msOfDay`; the C++ wrapper `tdx::InterestRateTick` alias
+  follows the C ABI struct.
 - `Channel::is_dead`, `Channel::mark_dead`, `Channel::dead_handle`,
   `ChannelPool::all_dead`, `ChannelPool::dead_count` — replaced by
   in-place reconnect (see Changed above). The `ChannelLease`
@@ -994,6 +1024,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `InterestRateTick` schema was guessed at definition time as 3 fields
+  (`ms_of_day`, `rate`, `date`); the upstream v3 server actually
+  returns 2 columns (`created` as ISO-date Text, `rate` as a percent
+  Number). The decoder errored
+  `column 0: expected Number|Timestamp, got Text` on every
+  `interest_rate_history_eod` call until this fix. Verified against
+  terminal jar build `202605221` (queried 2026-05-22 against
+  `mdds-01.thetadata.us:443` for `SOFR` 2025-04-28..2025-05-02) and
+  `docs.thetadata.us/operations/interest_rate_history_eod.html`. Wire
+  reference:
+
+  ```text
+  created,rate
+  "2025-04-28",4.3600
+  "2025-04-29",4.3600
+  "2025-04-30",4.4100
+  "2025-05-01",4.3900
+  "2025-05-02",4.3600
+  ```
+
+  Same failure class as the `MarketValueTick` bug closed earlier:
+  field set guessed from the endpoint name without cross-checking
+  the documented wire shape. Cross-binding regression coverage in
+  `crates/thetadatadx/tests/test_interest_rate_schema.rs`,
+  `sdks/python/tests/test_interest_rate.py`,
+  `sdks/typescript/__tests__/interest_rate.test.mjs`, and
+  `sdks/cpp/tests/interest_rate.cpp` each pin the reference row
+  (`date=20250428`, `rate=4.36`) so a future schema drift fails loud
+  before any wheel ships.
 - Greeks `_with_fallback` regression coverage. Four new integration
   tests pin `end_date` forwarding on both the REST and gRPC arms of
   `option_history_greeks_implied_volatility_with_fallback` and

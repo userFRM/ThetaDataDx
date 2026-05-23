@@ -123,9 +123,8 @@ pub(crate) const GREEKS_THIRD_ORDER_TICK_RAW_HEADERS: &[&str] = &[
 ];
 
 pub(crate) const INTEREST_RATE_TICK_RAW_HEADERS: &[&str] = &[
-    "ms_of_day",
-    "rate",
     "date",
+    "rate",
 ];
 
 pub(crate) const IV_TICK_RAW_HEADERS: &[&str] = &[

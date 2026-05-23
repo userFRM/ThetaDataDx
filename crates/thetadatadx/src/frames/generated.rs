@@ -912,23 +912,19 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::GreeksThirdOrderTick]
 impl crate::frames::TicksArrowExt for [tdbe::types::tick::InterestRateTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
-        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
-        let mut col_rate: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_rate: Vec<f64> = Vec::with_capacity(n);
         for t in self {
-            col_ms_of_day.push(t.ms_of_day);
-            col_rate.push(t.rate);
             col_date.push(t.date);
+            col_rate.push(t.rate);
         }
         let schema = Arc::new(ArrowSchema::new(vec![
-            Field::new("ms_of_day", DataType::Int32, false),
-            Field::new("rate", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("rate", DataType::Float64, false),
         ]));
         let columns: Vec<ArrayRef> = vec![
-            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
-            Arc::new(Float64Array::from(col_rate)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Float64Array::from(col_rate)) as ArrayRef,
         ];
         RecordBatch::try_new(schema, columns)
     }
@@ -939,18 +935,15 @@ impl crate::frames::TicksArrowExt for [tdbe::types::tick::InterestRateTick] {
 impl crate::frames::TicksPolarsExt for [tdbe::types::tick::InterestRateTick] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
-        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
-        let mut col_rate: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_rate: Vec<f64> = Vec::with_capacity(n);
         for t in self {
-            col_ms_of_day.push(t.ms_of_day);
-            col_rate.push(t.rate);
             col_date.push(t.date);
+            col_rate.push(t.rate);
         }
         DataFrame::new(n, vec![
-            Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
-            Series::new(PlSmallStr::from_static("rate"), col_rate).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("rate"), col_rate).into(),
         ])
     }
 }

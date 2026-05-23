@@ -664,15 +664,27 @@ ts_class_vec = "calendar_days_to_class_vec"
 pyclass = "CalendarDay"
 
 [types.InterestRateTick]
-doc = "Interest rate tick -- 3 fields. End-of-day interest rate."
+doc = """Interest rate tick -- 2 fields. End-of-day interest rate (percent).
+
+Wire layout per `docs.thetadata.us/operations/interest_rate_history_eod.html`
+and verified-live against terminal jar build `202605221`:
+
+| Schema field | Wire header | Wire type        | Mapping                    |
+|--------------|-------------|------------------|----------------------------|
+| `date`       | `created`   | Text (ISO date)  | `\"2025-04-28\"` -> 20250428 |
+| `rate`       | `rate`      | Number (percent) | `4.3600` -> 4.36           |
+
+The `date` decode flows through `thetadatadx::decode::row_date`, which
+accepts `Number`, `Timestamp`, and `Text` cells uniformly — so this tick
+decodes either the documented Text-ISO shape or any future
+Number/Timestamp narrowing without a per-parser branch."""
 copy = true
 align = 64
 parser = "parse_interest_rate_ticks"
-required = ["ms_of_day"]
+required = ["created"]
 columns = [
-    { name = "ms_of_day", field = "ms_of_day", type = "i32" },
-    { name = "rate",      field = "rate",      type = "f64" },
-    { name = "date",      field = "date",      type = "i32" },
+    { name = "created", field = "date", type = "i32" },
+    { name = "rate",    field = "rate", type = "f64" },
 ]
 
 [types.InterestRateTick.render]

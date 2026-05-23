@@ -22,20 +22,27 @@ use tdbe::types::tick::{
     OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
 };
 
-/// Extract a date (YYYYMMDD) from a `Number` or `Timestamp` cell, strictly.
+/// Extract a date (YYYYMMDD) from a `Number`, `Timestamp`, or `Text` cell,
+/// strictly.
 ///
-/// Used by generated parsers when the `date` field maps to a `timestamp` column.
-/// `Number` carries the date already in YYYYMMDD form; `Timestamp` is converted
-/// to an Eastern-Time YYYYMMDD integer. `NullValue` yields `Ok(None)`; any
+/// Used by generated parsers when the schema declares a `date` field. The
+/// v3 MDDS server is consistent about Number/Timestamp for most date columns
+/// but the `interest_rate/history/eod` endpoint emits an ISO `"YYYY-MM-DD"`
+/// string under the header `created`; accepting `Text` here keeps every
+/// `date`-typed parser tolerant of either wire shape with no per-parser
+/// branching. `Number` carries the date already in YYYYMMDD form;
+/// `Timestamp` is converted to an Eastern-Time YYYYMMDD integer; `Text`
+/// flows through [`parse_iso_date`]. `NullValue` yields `Ok(None)`; any
 /// other type yields `Err(TypeMismatch)`.
 ///
 /// # Errors
 ///
 /// Returns [`DecodeError::TypeMismatch`] if the cell is neither a `Number`,
-/// `Timestamp`, nor `NullValue` — including the case where the `DataValue`
-/// arrived with its `data_type` oneof unset (`observed: "Unset"`), which is a
-/// wire-protocol anomaly we fail loud on. Returns [`DecodeError::MissingCell`]
-/// only when the row has fewer cells than `idx` (index out of bounds).
+/// `Timestamp`, `Text`, nor `NullValue` — including the case where the
+/// `DataValue` arrived with its `data_type` oneof unset (`observed:
+/// "Unset"`), which is a wire-protocol anomaly we fail loud on. Returns
+/// [`DecodeError::MissingCell`] only when the row has fewer cells than `idx`
+/// (index out of bounds).
 // Reason: number values from protobuf fit in i32 for date/integer fields.
 #[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<i32>, DecodeError> {
@@ -47,10 +54,11 @@ pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<
         Some(proto::data_value::DataType::Timestamp(ts)) => {
             Ok(Some(tdbe::time::timestamp_to_date(ts.epoch_ms)))
         }
+        Some(proto::data_value::DataType::Text(s)) => Ok(Some(parse_iso_date(s))),
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
             column: idx,
-            expected: "Number|Timestamp",
+            expected: "Number|Timestamp|Text",
             observed: observed_name(other),
         }),
     }
