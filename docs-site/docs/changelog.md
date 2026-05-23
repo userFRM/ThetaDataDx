@@ -7,8 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+> **Release line note**: this train accumulates 6 major + 1 minor breaking changes
+> versus v10.0.0. The next release tag MUST be v11.0.0, not a v10.0.x patch.
+> Owner-greenlight gated on this audit returning zero actionable findings.
+
 ### Changed
 
+- TypeScript `Config.setReconnectStableWindowSecs` accepts `bigint`
+  (was `number`) for true `u64` parity with the Python / C++ / FFI
+  surface. Callers passing `Number` should wrap:
+  `cfg.setReconnectStableWindowSecs(BigInt(60))`. Negative or
+  >`u64::MAX` BigInt inputs are rejected at the boundary with a
+  descriptive error rather than silently truncating.
+- TypeScript reconnect setter JSDoc adds the `"custom"` policy
+  qualifier so the cross-binding docstring parity with Python's
+  `Deprecated since v10.0.1...` style is restored. The setters are
+  silent no-ops under `"manual"` and `"custom"` policies; only the
+  `Auto(limits)` variant consumes the values.
+- Stage-1 → stage-2 backpressure send no longer parks indefinitely
+  on a `crossbeam_channel::Sender::send` if every stage-2 worker
+  panics *while* stage-1 is already blocked on a full queue.
+  `Stage2PoolSender::send` now parks in
+  `POISON_CHECK_INTERVAL` (50 ms) slices via `send_timeout` and
+  re-reads the pool's poison flag between slices, so a worker
+  panic mid-park surfaces as `Stage2SendError::Poisoned` within
+  one slice instead of wedging stage-1 forever. Regression test
+  (`poisoned_pool_releases_parked_producer_within_one_second`)
+  pins the bounded wakeup under one-second deadline.
+- FLATFILES wire-format reference docs restored at the
+  `crate::flatfiles::index` module rustdoc (on-disk header layout,
+  INDEX entry shape, contract-key encoding per `SecType`,
+  strike-in-tenths-of-cent convention). Module docs are the right
+  home for reference spec; the stale link to
+  `docs-site/docs/flatfiles/protocol.md` (file never existed) is
+  gone from `flatfiles::{mod,index}` and from the changelog.
+- TypeScript `npm test` script delegates to
+  `scripts/run_tests.mjs`, which walks `__tests__/` and hands every
+  `*.test.mjs` file to `node --test` as explicit argv. Replaces the
+  prior explicit-file list (which silently skipped the
+  `config_reconnect.test.mjs` reconnect-parity coverage that landed
+  in round 3). A shell-glob form (`node --test __tests__/*.test.mjs`)
+  also fails because Windows PowerShell does not expand it and
+  Node's own `--test` glob support is 22+; the explicit-argv runner
+  works on every supported shell and on every Node version
+  satisfying `engines.node >= 20`. The runner exits non-zero when
+  no test files are found, so a future regression that empties
+  the directory cannot silently pass CI.
 - `bench-internals` feature removed in favour of an out-of-Cargo
   `--cfg bench_internals` flag. `Stage2Pool::submit_for_bench`
   remains gated, but downstream consumers can no longer enable it
@@ -49,11 +93,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to match field-level setters. Tracked for per-field granularity
   refactor in issue #595.
 - Legacy single-stage MDDS decode path replaces the per-chunk
-  `Box<dyn FnOnce>` allocation with a typed
+  `Box<dyn FnOnce>` closure with a typed
   `DecodeRequest::SingleStage { response, max_message_size, reply }`
   variant. The decoder thread runs `decode_data_table_with_max`
-  directly on the typed payload; no closure boxing on the hot
-  path.
+  directly on the typed payload, avoiding the per-chunk
+  dynamic-dispatch vtable indirection the boxed `FnOnce` carried
+  (the per-chunk allocation count is unchanged — the box is now
+  for the typed struct instead of the closure).
 - Python `Config.decoder_threads` getter and setter prepend a
   `Deprecated since v10.0.1: set decode_threads instead.`
   deprecation line. Visible via `help(type(c).decoder_threads)`.
@@ -74,12 +120,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `*_grpc_arm_dispatches` → `*_grpc_arm_forwards_end_date` to match
   the contract.
 - Module headers across `fpss::{mod, pinning, wake}`,
-  `flatfiles::{mod, index}`, `rest::mod`, `frames::mod`,
-  `grpc::decoder_pool` compressed to one paragraph each — the
-  multi-paragraph architectural narratives now live in the docs
-  site (`docs-site/docs/streaming/index.md`,
-  `docs-site/docs/flatfiles/protocol.md`,
-  `docs-site/docs/streaming/latency.md`).
+  `rest::mod`, `frames::mod`, `grpc::decoder_pool` compressed to
+  one paragraph each — the multi-paragraph architectural narratives
+  now live in the docs site (`docs-site/docs/streaming/index.md`,
+  `docs-site/docs/streaming/latency.md`). FLATFILES on-disk wire
+  layout remains at the `crate::flatfiles::index` module level as
+  the reference spec.
 - Issue / PR references stripped from `///` user-facing rustdoc
   across the public surface (`client.rs`, `grpc/stream.rs`,
   `fpss/framing.rs`, `mdds/macros.rs`,
@@ -137,12 +183,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   enclosing fn …` line in `ffi/src/{flatfiles,streaming,utility,types}.rs`
   rewritten to name the specific invariant the local `unsafe`
   consumes (pointer provenance, layout, lifetime, ordering).
-- `Stage2Pool::submit_for_bench` feature-gated behind
-  `cfg(any(test, feature = "bench-internals"))` so the bench-only
-  entry point does not appear on the production public surface.
-  `crates/thetadatadx/benches/bench_stage_pipeline.rs` declares
-  `required-features = ["bench-internals"]` in the
-  `[[bench]]` entry so `cargo bench` enables it automatically.
 - `crate::grpc::decoder_pool::backoff_ring_full` split into
   `backoff_ring_full_async(duration)` (tokio multi-thread; honours
   the duration via `block_in_place + thread::sleep`) and
@@ -197,9 +237,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without a clean GitHub-hosted runner pass
   (`decoder_pool/threads/4`, `protobuf_decode/quote_chunk/1024`,
   `stage_pipeline/throughput/workers=4`).
-- `bench-internals` cargo feature on `thetadatadx`, opt-in surface
-  for the bench harness only (see `Changed` for the gating
-  rationale).
 
 ### Removed
 

@@ -197,8 +197,8 @@ fn category_symbol<'a>(fixtures: &'a TestFixtures, category: &str) -> &'a str {
 ///
 /// Resolution order:
 ///   1. `test_fixtures.concrete_overrides[param.name]` — per-name overrides
-///      (e.g. compressed `end_date` keeping bulk cells under the 60s
-///      per-cell timeout; see issue #290).
+///      (e.g. compressed `end_date` keeping bulk cells under the 60 s
+///      per-cell timeout the in-CI integration matrix enforces).
 ///   2. `test_fixtures.category_symbol[endpoint.category]` — for
 ///      `Symbol`/`Symbols` params.
 ///   3. `test_fixtures.concrete_by_type[param.param_type]` — default

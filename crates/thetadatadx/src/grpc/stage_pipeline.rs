@@ -12,7 +12,7 @@ use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
@@ -23,6 +23,14 @@ use crate::error::{Error, TransportErrorKind};
 use crate::proto;
 
 use super::decoder_pool::{DecodeResult, POOL_POISONED_REASON};
+
+/// How long stage-1 parks inside a single `send_timeout` slice before
+/// re-checking the pool's poison flag. Bounded so a worker panic that
+/// happens while stage-1 is already blocked on a full queue cannot
+/// wedge stage-1 indefinitely; the producer wakes at this cadence,
+/// observes the flipped flag, and surfaces `Stage2SendError::Poisoned`
+/// instead of parking forever.
+const POISON_CHECK_INTERVAL: Duration = Duration::from_millis(50);
 
 // ─── Public value type ──────────────────────────────────────────────
 
@@ -158,6 +166,14 @@ impl Stage2PoolSender {
     /// Push a stage-2 job onto the bounded queue, blocking if full
     /// (backpressure parks stage-1 rather than dropping).
     ///
+    /// On a full queue the producer parks in `POISON_CHECK_INTERVAL`
+    /// slices via `send_timeout` rather than calling the unbounded
+    /// `send` directly. Between slices the producer re-reads the
+    /// pool's poison flag so a worker panic that occurs *while*
+    /// stage-1 is already parked surfaces as
+    /// [`Stage2SendError::Poisoned`] within `POISON_CHECK_INTERVAL`
+    /// instead of wedging stage-1 indefinitely.
+    ///
     /// # Errors
     ///
     /// Returns [`Stage2SendError::Poisoned`] if a stage-2 worker has
@@ -168,31 +184,44 @@ impl Stage2PoolSender {
         if self.is_poisoned() {
             return Err(Stage2SendError::Poisoned { job });
         }
-        match self.sender.try_send(job) {
-            Ok(()) => Ok(()),
-            Err(TrySendError::Disconnected(job)) => Err(Stage2SendError::PoolClosed { job }),
-            Err(TrySendError::Full(job)) => {
-                let start = Instant::now();
-                let outcome = self.sender.send(job);
-                // `as_nanos` returns `u128`; saturate to `u64::MAX`
-                // for the unreachable >584-year park case.
-                let nanos = u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX);
-                self.counters
-                    .total_parked
-                    .fetch_add(nanos, Ordering::Relaxed);
-                tracing::debug!(
-                    target: "thetadatadx::grpc::stage_pipeline",
-                    park_nanos = nanos,
-                    "stage-1 parked on full stage-2 queue (backpressure)"
-                );
-                match outcome {
-                    Ok(()) => Ok(()),
-                    Err(crossbeam_channel::SendError(job)) => {
-                        Err(Stage2SendError::PoolClosed { job })
-                    }
+        let mut job = match self.sender.try_send(job) {
+            Ok(()) => return Ok(()),
+            Err(TrySendError::Disconnected(job)) => {
+                return Err(Stage2SendError::PoolClosed { job });
+            }
+            Err(TrySendError::Full(job)) => job,
+        };
+        // Queue is full — park in bounded slices so a poison flip
+        // mid-park wakes the producer instead of leaving it parked
+        // on a queue no one will drain.
+        let start = Instant::now();
+        let result = loop {
+            if self.is_poisoned() {
+                break Err(Stage2SendError::Poisoned { job });
+            }
+            match self.sender.send_timeout(job, POISON_CHECK_INTERVAL) {
+                Ok(()) => break Ok(()),
+                Err(crossbeam_channel::SendTimeoutError::Timeout(returned)) => {
+                    job = returned;
+                    // Loop continues — re-check poison and try again.
+                }
+                Err(crossbeam_channel::SendTimeoutError::Disconnected(returned)) => {
+                    break Err(Stage2SendError::PoolClosed { job: returned });
                 }
             }
-        }
+        };
+        // `as_nanos` returns `u128`; saturate to `u64::MAX` for the
+        // unreachable >584-year park case.
+        let nanos = u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        self.counters
+            .total_parked
+            .fetch_add(nanos, Ordering::Relaxed);
+        tracing::debug!(
+            target: "thetadatadx::grpc::stage_pipeline",
+            park_nanos = nanos,
+            "stage-1 parked on full stage-2 queue (backpressure)"
+        );
+        result
     }
 }
 
@@ -489,7 +518,6 @@ fn run_stage2_worker(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     /// Construct a stage-2 job carrying a manually-encoded
     /// `DataTable`. Used by the round-trip + backpressure tests.
@@ -681,6 +709,85 @@ mod tests {
         drop(rx);
         drop(sender);
         drop(pool);
+    }
+
+    /// Stage-1 must not wedge indefinitely if every stage-2 worker
+    /// panics *while* stage-1 is already parked on a full queue.
+    ///
+    /// Reproduction:
+    ///
+    /// 1. Construct a pool with `queue_depth = 1` and no workers
+    ///    consuming (we hold the receiver directly so workers cannot
+    ///    drain).
+    /// 2. Saturate the queue (one job sitting in the slot).
+    /// 3. Spawn a producer that calls `send()` — it parks in the
+    ///    bounded `send_timeout` slice.
+    /// 4. Flip the pool's poison flag from the test thread.
+    /// 5. Assert the producer's `send()` returns
+    ///    `Stage2SendError::Poisoned` within `Duration::from_secs(1)`
+    ///    — not infinite wait.
+    #[test]
+    fn poisoned_pool_releases_parked_producer_within_one_second() {
+        const QUEUE_DEPTH: usize = 1;
+        let counters = Arc::new(Stage2Counters::default());
+        let poisoned = Arc::new(AtomicBool::new(false));
+        let (sender_inner, receiver) = bounded::<Stage2Job>(QUEUE_DEPTH);
+        let sender = Stage2PoolSender {
+            sender: sender_inner,
+            counters: Arc::clone(&counters),
+            poisoned: Arc::clone(&poisoned),
+        };
+
+        // Saturate the one-slot queue. We hold the receiver in the
+        // test thread; no worker pulls.
+        let (job_filler, _rx_filler) = make_job(1);
+        sender
+            .sender
+            .try_send(job_filler)
+            .expect("queue absorbs the saturating job");
+
+        // Producer parks on `send()` — queue is full and no consumer
+        // will drain it. Records the elapsed wall-time on return so
+        // we can assert the bounded wakeup.
+        let sender_for_producer = sender.clone();
+        let (outcome_tx, outcome_rx) = std::sync::mpsc::channel();
+        let producer = thread::spawn(move || {
+            let (job, _rx) = make_job(1);
+            let start = Instant::now();
+            let result = sender_for_producer.send(job);
+            let _ = outcome_tx.send((start.elapsed(), result));
+        });
+
+        // Let the producer enter the park branch.
+        thread::sleep(Duration::from_millis(100));
+
+        // Force-poison — equivalent to every worker catching a panic
+        // while stage-1 was already parked on the full queue.
+        poisoned.store(true, Ordering::Release);
+
+        // Producer must wake within `Duration::from_secs(1)` — i.e.
+        // within a handful of `POISON_CHECK_INTERVAL` slices — and
+        // surface `Stage2SendError::Poisoned`. Without the poison
+        // check between slices the producer would park forever on
+        // the underlying `crossbeam_channel::Sender::send`.
+        let (elapsed, result) = outcome_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("parked producer wakes within 1 s of poison flip");
+        producer.join().expect("producer joins cleanly");
+
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "parked producer must observe poison within 1 s (took {elapsed:?})"
+        );
+        match result {
+            Err(Stage2SendError::Poisoned { .. }) => {}
+            other => panic!("expected Stage2SendError::Poisoned, got {other:?}"),
+        }
+
+        // Drain the held job to release any resources.
+        while receiver.try_recv().is_ok() {}
+        drop(receiver);
+        drop(sender);
     }
 
     /// `Stage2Counters` carries three [`CachePadded<AtomicU64>`]

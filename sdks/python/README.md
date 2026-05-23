@@ -445,7 +445,7 @@ the blocking `get()`.
 | `reconnect()` | Reconnect streaming and re-register the previously installed callback; restores all subscriptions. |
 | `shutdown()` | Graceful shutdown — drops the registered callback. |
 
-### Streaming — `.stream(handler)` for large responses (issue #565)
+### Streaming — `.stream(handler)` for large responses
 
 Every historical builder exposes `.stream(handler)` and `.stream_async(handler)` alongside the buffered `.list()` / `.list_async()` terminals. The streaming variants drain the response chunk-by-chunk; the previous chunk is freed before the next is fetched. Peak resident memory stays at ~one chunk (≈64 KiB) regardless of total response size — eliminates the OOM mode reported on `option_history_quote(QQQ, 1DTE, interval=tick, strike_range=5)` at 32-permit concurrency (23 GiB RSS buffered → ~2 MiB streaming).
 
@@ -480,7 +480,7 @@ decode_factor: 3.0 buffered  /  1.0 streamed
 
 For tick-interval requests across multi-day ranges or wide strike ranges, **always use `.stream()`** — the buffered path's `decode_factor=3.0` reflects the simultaneous residency of h2 frames + decompressed proto + decoded `Vec<T>` plus the `Vec::push` doubling transient.
 
-**Buffered-size warning (issue #576).** When the buffered `.list()` /
+**Buffered-size warning.** When the buffered `.list()` /
 `.await` path returns a response whose estimated size exceeds the
 configured threshold (default 100 MiB), the SDK emits a single
 `tracing::warn!` event with `endpoint`, `row_count`, and `bytes_est`

@@ -77,9 +77,19 @@ describe('Config.setReconnectStableWindowSecs', () => {
   it('accepts non-zero window durations without throwing', () => {
     const cfg = Config.production();
     cfg.setReconnectPolicy('auto');
-    for (const secs of [1, 30, 60, 300, 3600]) {
+    for (const secs of [1n, 30n, 60n, 300n, 3600n]) {
       cfg.setReconnectStableWindowSecs(secs);
     }
+  });
+
+  it('rejects negative BigInt', () => {
+    const cfg = Config.production();
+    cfg.setReconnectPolicy('auto');
+    assert.throws(
+      () => cfg.setReconnectStableWindowSecs(-1n),
+      /setReconnectStableWindowSecs/,
+      'negative window seconds must be rejected at the boundary',
+    );
   });
 });
 
@@ -89,7 +99,7 @@ describe('Reconnect setters are independent', () => {
     cfg.setReconnectPolicy('auto');
     cfg.setReconnectMaxAttempts(7);
     cfg.setReconnectMaxRateLimitedAttempts(77);
-    cfg.setReconnectStableWindowSecs(120);
+    cfg.setReconnectStableWindowSecs(120n);
     cfg.setConcurrentRequests(4);
     cfg.setDecoderRingSize(512);
     assert.equal(cfg.concurrentRequests, 4);

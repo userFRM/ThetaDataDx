@@ -363,7 +363,7 @@ impl Config {
 
     /// Set the per-class transient-failure attempt budget for the
     /// auto-reconnect path. Default `3`. No effect when the reconnect
-    /// policy is `"manual"`.
+    /// policy is `"manual"` or `"custom"`.
     #[napi(js_name = "setReconnectMaxAttempts")]
     pub fn set_reconnect_max_attempts(&self, max_attempts: u32) -> napi::Result<()> {
         let mut guard = self
@@ -378,7 +378,7 @@ impl Config {
 
     /// Set the per-class rate-limited (`TooManyRequests`) attempt
     /// budget for the auto-reconnect path. Default `100`. No effect
-    /// when the reconnect policy is `"manual"`.
+    /// when the reconnect policy is `"manual"` or `"custom"`.
     #[napi(js_name = "setReconnectMaxRateLimitedAttempts")]
     pub fn set_reconnect_max_rate_limited_attempts(
         &self,
@@ -396,15 +396,39 @@ impl Config {
 
     /// Set the continuous successful-data-flow window (in seconds)
     /// after which the auto-reconnect attempt counters reset. Default
-    /// `60`. No effect when the reconnect policy is `"manual"`.
+    /// `60`. No effect when the reconnect policy is `"manual"` or
+    /// `"custom"`.
+    ///
+    /// Accepts a `bigint` for parity with the Python / C++ / FFI
+    /// surface (`u64`). JavaScript `Number` callers should wrap their
+    /// value: `setReconnectStableWindowSecs(BigInt(60))`.
     #[napi(js_name = "setReconnectStableWindowSecs")]
-    pub fn set_reconnect_stable_window_secs(&self, secs: u32) -> napi::Result<()> {
+    pub fn set_reconnect_stable_window_secs(
+        &self,
+        secs: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        // BigInt → u64. napi's `BigInt` represents value as
+        // `sign_bit + words[Vec<u64>]`; the magnitude is the
+        // first word when the value fits in 64 bits, with all
+        // subsequent words required to be zero.
+        if secs.sign_bit && !secs.words.iter().all(|w| *w == 0) {
+            return Err(napi::Error::from_reason(
+                "setReconnectStableWindowSecs: negative BigInt rejected; \
+                 stable_window seconds must be non-negative",
+            ));
+        }
+        if secs.words.len() > 1 {
+            return Err(napi::Error::from_reason(
+                "setReconnectStableWindowSecs: BigInt magnitude above u64::MAX",
+            ));
+        }
+        let value = secs.words.first().copied().unwrap_or(0);
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.stable_window = std::time::Duration::from_secs(u64::from(secs));
+            limits.stable_window = std::time::Duration::from_secs(value);
         }
         Ok(())
     }

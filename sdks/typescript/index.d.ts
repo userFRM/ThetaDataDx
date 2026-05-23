@@ -123,21 +123,26 @@ export declare class Config {
   /**
    * Set the per-class transient-failure attempt budget for the
    * auto-reconnect path. Default `3`. No effect when the reconnect
-   * policy is `"manual"`.
+   * policy is `"manual"` or `"custom"`.
    */
   setReconnectMaxAttempts(maxAttempts: number): void
   /**
    * Set the per-class rate-limited (`TooManyRequests`) attempt
    * budget for the auto-reconnect path. Default `100`. No effect
-   * when the reconnect policy is `"manual"`.
+   * when the reconnect policy is `"manual"` or `"custom"`.
    */
   setReconnectMaxRateLimitedAttempts(maxRateLimitedAttempts: number): void
   /**
    * Set the continuous successful-data-flow window (in seconds)
    * after which the auto-reconnect attempt counters reset. Default
-   * `60`. No effect when the reconnect policy is `"manual"`.
+   * `60`. No effect when the reconnect policy is `"manual"` or
+   * `"custom"`.
+   *
+   * Accepts a `bigint` for parity with the Python / C++ / FFI
+   * surface (`u64`). JavaScript `Number` callers should wrap their
+   * value: `setReconnectStableWindowSecs(BigInt(60))`.
    */
-  setReconnectStableWindowSecs(secs: number): void
+  setReconnectStableWindowSecs(secs: bigint): void
 }
 
 /**
