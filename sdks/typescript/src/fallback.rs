@@ -165,7 +165,7 @@ impl Config {
         })
     }
 
-    // ── MDDS pool sizing — issue #584 ──────────────────────────────
+    // ── MDDS pool sizing ───────────────────────────────────────────
 
     /// Set the number of concurrent in-flight gRPC requests.
     ///
@@ -362,8 +362,8 @@ impl Config {
     }
 
     /// Set the per-class transient-failure attempt budget for the
-    /// auto-reconnect path. Default `3`. No effect when the reconnect
-    /// policy is `"manual"` or `"custom"`.
+    /// auto-reconnect path. Default `3`. No effect unless the
+    /// reconnect policy is `Auto`.
     #[napi(js_name = "setReconnectMaxAttempts")]
     pub fn set_reconnect_max_attempts(&self, max_attempts: u32) -> napi::Result<()> {
         let mut guard = self
@@ -378,7 +378,7 @@ impl Config {
 
     /// Set the per-class rate-limited (`TooManyRequests`) attempt
     /// budget for the auto-reconnect path. Default `100`. No effect
-    /// when the reconnect policy is `"manual"` or `"custom"`.
+    /// unless the reconnect policy is `Auto`.
     #[napi(js_name = "setReconnectMaxRateLimitedAttempts")]
     pub fn set_reconnect_max_rate_limited_attempts(
         &self,
@@ -396,8 +396,7 @@ impl Config {
 
     /// Set the continuous successful-data-flow window (in seconds)
     /// after which the auto-reconnect attempt counters reset. Default
-    /// `60`. No effect when the reconnect policy is `"manual"` or
-    /// `"custom"`.
+    /// `60`. No effect unless the reconnect policy is `Auto`.
     ///
     /// Accepts a `bigint` for parity with the Python / C++ / FFI
     /// surface (`u64`). JavaScript `Number` callers should wrap their

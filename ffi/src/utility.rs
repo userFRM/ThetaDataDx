@@ -174,7 +174,7 @@ pub unsafe extern "C" fn tdx_implied_volatility(
 // ═══════════════════════════════════════════════════════════════════════
 //  Condition / exchange / sequence helper accessors
 //
-//  Cross-language utility parity (issue #424). The lookup tables live in
+//  Cross-language utility parity. The lookup tables live in
 //  `tdbe::{conditions, exchange, sequences}`. The C ABI wraps them as
 //  string-returning entry points (returning `'static` UTF-8 NUL-terminated
 //  C strings — the underlying tables are `&'static str`, so the caller

@@ -295,9 +295,9 @@ pub use fallback::{Config, FallbackPolicy, DEFAULT_REST_BASE_URL};
 mod fluent;
 pub use fluent::{ContractRef, SecType, Subscription};
 
-// Cross-language utility helpers (issue #424). Adds the `Util` napi
-// class re-exporting `tdbe::{conditions, exchange, sequences}` lookup
-// tables under camelCase JS method names.
+// Cross-language utility helpers. Adds the `Util` napi class
+// re-exporting `tdbe::{conditions, exchange, sequences}` lookup tables
+// under camelCase JS method names.
 mod util_helpers;
 pub use util_helpers::Util;
 

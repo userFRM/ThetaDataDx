@@ -35,6 +35,9 @@ set(THETADX_CPP_TEST_SOURCES
     fallback.cpp
     # MDDS pool-sizing setters on tdx::Config.
     config_pool_sizing.cpp
+    # ReconnectConfig setters on tdx::Config — cross-binding parity
+    # with Python / TypeScript / FFI.
+    config_reconnect.cpp
     # MDDS two-stage decode pipeline setters on tdx::Config
     # (Phase 3 of 3, follow-up to PR #587 / #588).
     config_decode_pipeline.cpp

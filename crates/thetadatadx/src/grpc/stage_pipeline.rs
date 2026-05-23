@@ -152,6 +152,15 @@ pub(crate) struct Stage2PoolSender {
     sender: Sender<Stage2Job>,
     counters: Arc<Stage2Counters>,
     poisoned: Arc<AtomicBool>,
+    /// Test-only barrier counter incremented once per
+    /// `send_timeout` slice entry inside the blocking-send loop.
+    /// Lets the poison-race regression test (see
+    /// `poisoned_pool_releases_parked_producer_within_one_second`)
+    /// observe deterministically that the producer reached the
+    /// slice loop before flipping the poison flag — replacing the
+    /// prior `thread::sleep(100ms)` barrier that races under load.
+    #[cfg(test)]
+    parked_in_slice_loop: Arc<AtomicU64>,
 }
 
 impl Stage2PoolSender {
@@ -199,6 +208,8 @@ impl Stage2PoolSender {
             if self.is_poisoned() {
                 break Err(Stage2SendError::Poisoned { job });
             }
+            #[cfg(test)]
+            self.parked_in_slice_loop.fetch_add(1, Ordering::Release);
             match self.sender.send_timeout(job, POISON_CHECK_INTERVAL) {
                 Ok(()) => break Ok(()),
                 Err(crossbeam_channel::SendTimeoutError::Timeout(returned)) => {
@@ -312,6 +323,8 @@ impl Stage2Pool {
                 sender,
                 counters: Arc::clone(&counters),
                 poisoned,
+                #[cfg(test)]
+                parked_in_slice_loop: Arc::new(AtomicU64::new(0)),
             }),
             workers,
             counters,
@@ -580,16 +593,26 @@ mod tests {
 
     /// Pin: when the queue is full, `send()` parks the producer
     /// (records `total_parked`) rather than dropping the payload.
+    ///
+    /// Uses the `parked_in_slice_loop` test-only barrier counter on
+    /// `Stage2PoolSender` (incremented once per `send_timeout` slice
+    /// entry inside the blocking-send arm) to wait deterministically
+    /// for the producer to reach the park branch before draining a
+    /// slot. The prior `thread::sleep(50ms)` barrier races on busy
+    /// runners: under contention the producer may not have entered
+    /// the slice loop within 50 ms, masking the actual park path.
     #[test]
     fn backpressure_parks_producer() {
         const QUEUE_DEPTH: usize = 2;
         let counters = Arc::new(Stage2Counters::default());
         let poisoned = Arc::new(AtomicBool::new(false));
+        let parked_in_slice_loop = Arc::new(AtomicU64::new(0));
         let (sender_inner, receiver) = bounded::<Stage2Job>(QUEUE_DEPTH);
         let sender = Stage2PoolSender {
             sender: sender_inner,
             counters: Arc::clone(&counters),
             poisoned: Arc::clone(&poisoned),
+            parked_in_slice_loop: Arc::clone(&parked_in_slice_loop),
         };
 
         // Fill the queue to capacity with synthetic jobs (no
@@ -613,10 +636,18 @@ mod tests {
                 .expect("eventually accepted after consumer pulls one")
         });
 
-        // Give the producer time to enter the park branch — the
-        // `try_send` fails fast, then the producer falls into the
-        // blocking-send arm and starts the `Instant::now()` timer.
-        thread::sleep(Duration::from_millis(50));
+        // Wait deterministically for the producer to enter the
+        // slice loop. The barrier counter is incremented exactly
+        // once per `send_timeout` slice entry; spin (with a 5 s
+        // overall deadline) until we observe >= 1.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while parked_in_slice_loop.load(Ordering::Acquire) == 0 {
+            assert!(
+                Instant::now() < deadline,
+                "producer did not enter slice loop within 5 s"
+            );
+            thread::yield_now();
+        }
 
         // Drain ONE slot so the parked producer unblocks. We
         // pull a job, then immediately drop it (replies are
@@ -630,6 +661,10 @@ mod tests {
         assert!(
             parked > 0,
             "stage-1 must park on a full queue (total_parked = {parked})"
+        );
+        assert!(
+            parked_in_slice_loop.load(Ordering::Acquire) >= 1,
+            "producer must have entered the slice loop at least once"
         );
 
         // Drain remaining jobs to release any held resources.
@@ -731,11 +766,13 @@ mod tests {
         const QUEUE_DEPTH: usize = 1;
         let counters = Arc::new(Stage2Counters::default());
         let poisoned = Arc::new(AtomicBool::new(false));
+        let parked_in_slice_loop = Arc::new(AtomicU64::new(0));
         let (sender_inner, receiver) = bounded::<Stage2Job>(QUEUE_DEPTH);
         let sender = Stage2PoolSender {
             sender: sender_inner,
             counters: Arc::clone(&counters),
             poisoned: Arc::clone(&poisoned),
+            parked_in_slice_loop: Arc::clone(&parked_in_slice_loop),
         };
 
         // Saturate the one-slot queue. We hold the receiver in the
@@ -758,8 +795,20 @@ mod tests {
             let _ = outcome_tx.send((start.elapsed(), result));
         });
 
-        // Let the producer enter the park branch.
-        thread::sleep(Duration::from_millis(100));
+        // Wait deterministically for the producer to enter the
+        // slice loop before flipping the poison flag. Using the
+        // barrier counter rather than a fixed `thread::sleep` pins
+        // the contract under test (poison-while-parked) instead of
+        // racing the producer's fast-path `is_poisoned()` check
+        // against an arbitrary wall-clock window.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while parked_in_slice_loop.load(Ordering::Acquire) == 0 {
+            assert!(
+                Instant::now() < deadline,
+                "producer did not enter slice loop within 5 s"
+            );
+            thread::yield_now();
+        }
 
         // Force-poison — equivalent to every worker catching a panic
         // while stage-1 was already parked on the full queue.
@@ -778,6 +827,10 @@ mod tests {
         assert!(
             elapsed < Duration::from_secs(1),
             "parked producer must observe poison within 1 s (took {elapsed:?})"
+        );
+        assert!(
+            parked_in_slice_loop.load(Ordering::Acquire) >= 1,
+            "producer must have entered the slice loop at least once"
         );
         match result {
             Err(Stage2SendError::Poisoned { .. }) => {}
