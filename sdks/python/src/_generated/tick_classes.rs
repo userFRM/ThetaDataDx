@@ -367,10 +367,10 @@ impl GreeksThirdOrderTick {
 /// | `date`       | `created`   | Text (ISO date)  | `"2025-04-28"` -> 20250428 |
 /// | `rate`       | `rate`      | Number (percent) | `4.3600` -> 4.36           |
 /// 
-/// The `date` decode flows through [`crate::decode::row_date`], which accepts
-/// `Number`, `Timestamp`, and `Text` cells uniformly — so this tick decodes
-/// either the documented Text-ISO shape or any future Number/Timestamp
-/// narrowing without a per-parser branch.
+/// The `date` decode flows through `thetadatadx::decode::row_date`, which
+/// accepts `Number`, `Timestamp`, and `Text` cells uniformly — so this tick
+/// decodes either the documented Text-ISO shape or any future
+/// Number/Timestamp narrowing without a per-parser branch.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
