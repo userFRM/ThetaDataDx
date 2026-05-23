@@ -174,8 +174,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_policy(config: *mut TdxConfig,
 }
 
 /// Set the per-class transient-failure attempt budget for the
-/// auto-reconnect path. Default `3`. Has no effect when the reconnect
-/// policy is not `Auto`.
+/// auto-reconnect path. Default `3`. No effect unless the reconnect
+/// policy is `Auto`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_reconnect_max_attempts(
     config: *mut TdxConfig,
@@ -194,8 +194,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_attempts(
 }
 
 /// Set the per-class rate-limited (`TooManyRequests`) attempt budget
-/// for the auto-reconnect path. Default `100`. Has no effect when the
-/// reconnect policy is not `Auto`.
+/// for the auto-reconnect path. Default `100`. No effect unless the
+/// reconnect policy is `Auto`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_reconnect_max_rate_limited_attempts(
     config: *mut TdxConfig,
@@ -214,8 +214,8 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_rate_limited_attempts(
 }
 
 /// Set the continuous successful-data-flow window (in seconds) after
-/// which the auto-reconnect attempt counters reset. Default `60`. Has
-/// no effect when the reconnect policy is not `Auto`.
+/// which the auto-reconnect attempt counters reset. Default `60`. No
+/// effect unless the reconnect policy is `Auto`.
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_reconnect_stable_window_secs(
     config: *mut TdxConfig,
@@ -249,7 +249,7 @@ pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, en
     })
 }
 
-// ── MDDS pool sizing — issue #584 ──────────────────────────────────
+// ── MDDS pool sizing ───────────────────────────────────────────────
 
 /// Set the number of concurrent in-flight gRPC requests on a config
 /// handle.
@@ -540,7 +540,7 @@ pub unsafe extern "C" fn tdx_client_free(client: *mut TdxClient) {
 
 #[cfg(test)]
 mod pool_sizing_tests {
-    //! Offline tests for the MDDS pool-sizing setters (issue #584).
+    //! Offline tests for the MDDS pool-sizing setters.
     //!
     //! Each test allocates a fresh `TdxConfig` via `tdx_config_production`,
     //! calls the setter under test, then reads the underlying Rust
@@ -662,6 +662,150 @@ mod pool_sizing_tests {
             super::tdx_config_set_concurrent_requests(std::ptr::null_mut(), 4);
             super::tdx_config_set_decoder_threads(std::ptr::null_mut(), 4);
             super::tdx_config_set_decoder_ring_size(std::ptr::null_mut(), 256);
+        }
+    }
+}
+
+#[cfg(test)]
+mod reconnect_setter_tests {
+    //! Offline tests for the FPSS ReconnectConfig setters on the FFI
+    //! surface — cross-binding parity with Python / TypeScript / C++.
+    //!
+    //! Each test allocates a fresh `TdxConfig` via
+    //! `tdx_config_production`, calls the setter under test, then reads
+    //! the underlying `ReconnectConfig` to confirm the value
+    //! round-tripped (or that the silent-no-op contract is honoured
+    //! under non-Auto policies).
+    //!
+    //! Failure-class semantics (per-class budget enforcement and the
+    //! stable-window timer reset) are exercised by the Rust unit tests
+    //! under `fpss::session::tests` and
+    //! `fpss::protocol::reconnect_delays_match_policy`; this module
+    //! pins only the C-ABI forwarding contract.
+
+    #[test]
+    fn reconnect_policy_round_trips_auto_and_manual() {
+        let cfg = super::tdx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_reconnect_policy(cfg, 1);
+            assert!(matches!(
+                (*cfg).inner.reconnect.policy,
+                thetadatadx::ReconnectPolicy::Manual
+            ));
+            super::tdx_config_set_reconnect_policy(cfg, 0);
+            assert!(matches!(
+                (*cfg).inner.reconnect.policy,
+                thetadatadx::ReconnectPolicy::Auto(_)
+            ));
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn reconnect_policy_unknown_selector_falls_through_to_auto() {
+        // The C ABI accepts an int selector; values other than 0/1
+        // resolve to the documented default (`Auto`). Pin the
+        // behaviour so the FFI cannot drift away from the documented
+        // contract without trapping the test.
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_reconnect_policy(cfg, 1);
+            super::tdx_config_set_reconnect_policy(cfg, 7);
+            assert!(matches!(
+                (*cfg).inner.reconnect.policy,
+                thetadatadx::ReconnectPolicy::Auto(_)
+            ));
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn reconnect_max_attempts_round_trips_on_auto_policy() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_reconnect_policy(cfg, 0);
+            for n in [0u32, 1, 3, 10, 100, 1000] {
+                super::tdx_config_set_reconnect_max_attempts(cfg, n);
+                let thetadatadx::ReconnectPolicy::Auto(limits) = &(*cfg).inner.reconnect.policy
+                else {
+                    panic!("policy must remain Auto across setter calls");
+                };
+                assert_eq!(limits.max_attempts, n);
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn reconnect_max_rate_limited_attempts_round_trips_on_auto_policy() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_reconnect_policy(cfg, 0);
+            for n in [0u32, 1, 10, 100, 1000] {
+                super::tdx_config_set_reconnect_max_rate_limited_attempts(cfg, n);
+                let thetadatadx::ReconnectPolicy::Auto(limits) = &(*cfg).inner.reconnect.policy
+                else {
+                    panic!("policy must remain Auto across setter calls");
+                };
+                assert_eq!(limits.max_rate_limited_attempts, n);
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn reconnect_stable_window_secs_round_trips_on_auto_policy() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_reconnect_policy(cfg, 0);
+            for secs in [0u64, 1, 60, 3600, 86_400] {
+                super::tdx_config_set_reconnect_stable_window_secs(cfg, secs);
+                let thetadatadx::ReconnectPolicy::Auto(limits) = &(*cfg).inner.reconnect.policy
+                else {
+                    panic!("policy must remain Auto across setter calls");
+                };
+                assert_eq!(limits.stable_window, std::time::Duration::from_secs(secs));
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn per_class_budget_setters_are_silent_noop_on_manual_policy() {
+        // Matches the cross-binding contract: per-class budget setters
+        // only mutate `ReconnectAttemptLimits` when the policy variant
+        // is `Auto`. Under `Manual` the calls are silently absorbed;
+        // the underlying policy variant must not transition.
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_reconnect_policy(cfg, 1);
+            super::tdx_config_set_reconnect_max_attempts(cfg, 5);
+            super::tdx_config_set_reconnect_max_rate_limited_attempts(cfg, 50);
+            super::tdx_config_set_reconnect_stable_window_secs(cfg, 120);
+            assert!(matches!(
+                (*cfg).inner.reconnect.policy,
+                thetadatadx::ReconnectPolicy::Manual
+            ));
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn null_handle_is_safe() {
+        // SAFETY: passing null is the contract — the setters must
+        // return without crashing.
+        unsafe {
+            super::tdx_config_set_reconnect_policy(std::ptr::null_mut(), 0);
+            super::tdx_config_set_reconnect_max_attempts(std::ptr::null_mut(), 3);
+            super::tdx_config_set_reconnect_max_rate_limited_attempts(std::ptr::null_mut(), 100);
+            super::tdx_config_set_reconnect_stable_window_secs(std::ptr::null_mut(), 60);
         }
     }
 }

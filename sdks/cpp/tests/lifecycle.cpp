@@ -30,6 +30,9 @@ TEST_CASE("Config::production builds without network access", "[lifecycle][offli
 TEST_CASE("Config setters do not throw on a fresh config handle", "[lifecycle][offline]") {
     auto config = tdx::Config::production();
     REQUIRE_NOTHROW(config.set_reconnect_policy(0));
+    REQUIRE_NOTHROW(config.set_reconnect_max_attempts(5));
+    REQUIRE_NOTHROW(config.set_reconnect_max_rate_limited_attempts(50));
+    REQUIRE_NOTHROW(config.set_reconnect_stable_window_secs(120));
     REQUIRE_NOTHROW(config.set_flush_mode(0));
     REQUIRE_NOTHROW(config.set_derive_ohlcvc(true));
 }

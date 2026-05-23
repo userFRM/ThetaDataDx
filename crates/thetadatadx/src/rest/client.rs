@@ -120,7 +120,7 @@ impl RestClient {
 // `OptionHistoryGreeksFirstOrderRestBuilder`) are emitted by
 // `build_support_bin/endpoints/sdk_render/rest_builder.rs` from
 // `endpoint_surface.toml` and live in `super::_generated::rest_endpoints`.
-// See issue #580 — adding a new REST endpoint is now one TOML row.
+// Adding a new REST endpoint is now one TOML row.
 
 // ─── Transport helper ────────────────────────────────────────────────
 

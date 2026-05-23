@@ -8,9 +8,10 @@
 // the Rust core consumes at connect time. Failure-class semantics
 // (transient vs rate-limited budget split, stable-window timer reset)
 // are exercised in the Rust unit tests under
-// `streaming::reconnect::reconnect_tests`; this file pins only that
-// the JS surface forwards the inputs without dropping them and
-// rejects invalid policy strings at the boundary.
+// `fpss::session::tests` and
+// `fpss::protocol::reconnect_delays_match_policy`; this file pins
+// only that the JS surface forwards the inputs without dropping them
+// and rejects invalid policy strings at the boundary.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -91,10 +92,27 @@ describe('Config.setReconnectStableWindowSecs', () => {
       'negative window seconds must be rejected at the boundary',
     );
   });
+
+  it('rejects BigInt magnitudes above u64::MAX', () => {
+    // A BigInt that does not fit in 64 bits must be rejected at
+    // the boundary rather than silently truncating to the low
+    // 64 bits of the magnitude.
+    const cfg = Config.production();
+    cfg.setReconnectPolicy('auto');
+    assert.throws(
+      () => cfg.setReconnectStableWindowSecs(1n << 65n),
+      /setReconnectStableWindowSecs/,
+      'magnitude above u64::MAX must be rejected at the boundary',
+    );
+  });
 });
 
-describe('Reconnect setters are independent', () => {
-  it('do not interfere with each other or with pool-sizing setters', () => {
+describe('Pool-sizing setter state survives interleaved reconnect setter calls', () => {
+  it('reconnect setters do not interfere with pool-sizing getters', () => {
+    // The reconnect setters expose no getters, so the contract
+    // we can verify is: after interleaving reconnect setter
+    // calls with pool-sizing setter calls, the pool-sizing
+    // getters still observe the values that were last written.
     const cfg = Config.production();
     cfg.setReconnectPolicy('auto');
     cfg.setReconnectMaxAttempts(7);

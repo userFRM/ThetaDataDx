@@ -532,24 +532,24 @@ void tdx_config_set_reconnect_policy(TdxConfig* config, int policy);
 
 /**
  * Set the per-class transient-failure attempt budget for the
- * auto-reconnect path. Default 3. Has no effect when the reconnect
- * policy is not Auto.
+ * auto-reconnect path. Default 3. No effect unless the reconnect
+ * policy is Auto.
  */
 void tdx_config_set_reconnect_max_attempts(TdxConfig* config,
                                            uint32_t max_attempts);
 
 /**
  * Set the per-class rate-limited (`TooManyRequests`) attempt budget for
- * the auto-reconnect path. Default 100. Has no effect when the
- * reconnect policy is not Auto.
+ * the auto-reconnect path. Default 100. No effect unless the reconnect
+ * policy is Auto.
  */
 void tdx_config_set_reconnect_max_rate_limited_attempts(
     TdxConfig* config, uint32_t max_rate_limited_attempts);
 
 /**
  * Set the continuous successful-data-flow window (in seconds) after
- * which the auto-reconnect attempt counters reset. Default 60. Has no
- * effect when the reconnect policy is not Auto.
+ * which the auto-reconnect attempt counters reset. Default 60. No
+ * effect unless the reconnect policy is Auto.
  */
 void tdx_config_set_reconnect_stable_window_secs(TdxConfig* config,
                                                  uint64_t secs);
@@ -568,7 +568,7 @@ void tdx_config_set_flush_mode(TdxConfig* config, int mode);
  */
 void tdx_config_set_derive_ohlcvc(TdxConfig* config, int enabled);
 
-/* ── MDDS pool sizing (issue #584) ── */
+/* ── MDDS pool sizing ── */
 
 /**
  * Set the number of concurrent in-flight gRPC requests.

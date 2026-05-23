@@ -242,8 +242,8 @@ impl Config {
     }
 
     /// Set the per-class transient-failure attempt budget for the
-    /// auto-reconnect path. Default `3`. Has no effect when the
-    /// reconnect policy is `"manual"` or `"custom"`.
+    /// auto-reconnect path. Default `3`. No effect unless the
+    /// reconnect policy is `Auto`.
     #[setter]
     fn set_reconnect_max_attempts(&self, max_attempts: u32) -> PyResult<()> {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -254,8 +254,8 @@ impl Config {
     }
 
     /// Set the per-class rate-limited (`TooManyRequests`) attempt budget
-    /// for the auto-reconnect path. Default `100`. Has no effect when
-    /// the reconnect policy is `"manual"` or `"custom"`.
+    /// for the auto-reconnect path. Default `100`. No effect unless the
+    /// reconnect policy is `Auto`.
     #[setter]
     fn set_reconnect_max_rate_limited_attempts(
         &self,
@@ -270,8 +270,7 @@ impl Config {
 
     /// Set the continuous successful-data-flow window (in seconds)
     /// after which the auto-reconnect attempt counters reset. Default
-    /// `60`. Has no effect when the reconnect policy is `"manual"` or
-    /// `"custom"`.
+    /// `60`. No effect unless the reconnect policy is `Auto`.
     #[setter]
     fn set_reconnect_stable_window_secs(&self, secs: u64) -> PyResult<()> {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -330,7 +329,7 @@ impl Config {
         guard.mdds.port
     }
 
-    // ── MDDS pool sizing — issue #584 ──────────────────────────────
+    // ── MDDS pool sizing ───────────────────────────────────────────
 
     /// Set the number of concurrent in-flight gRPC requests.
     ///

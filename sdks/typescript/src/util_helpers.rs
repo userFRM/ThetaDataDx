@@ -1,4 +1,4 @@
-//! Cross-language utility helpers — TypeScript / napi-rs bindings (issue #424).
+//! Cross-language utility helpers — TypeScript / napi-rs bindings.
 //!
 //! Wraps `tdbe::{conditions, exchange, sequences}` lookup tables and
 //! exposes them under a `Util` JS namespace:

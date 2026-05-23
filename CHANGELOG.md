@@ -11,215 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > versus v10.0.0. The next release tag MUST be v11.0.0, not a v10.0.x patch.
 > Owner-greenlight gated on this audit returning zero actionable findings.
 
-### Changed
-
-- TypeScript `Config.setReconnectStableWindowSecs` accepts `bigint`
-  (was `number`) for true `u64` parity with the Python / C++ / FFI
-  surface. Callers passing `Number` should wrap:
-  `cfg.setReconnectStableWindowSecs(BigInt(60))`. Negative or
-  >`u64::MAX` BigInt inputs are rejected at the boundary with a
-  descriptive error rather than silently truncating.
-- TypeScript reconnect setter JSDoc adds the `"custom"` policy
-  qualifier so the cross-binding docstring parity with Python's
-  `Deprecated since v10.0.1...` style is restored. The setters are
-  silent no-ops under `"manual"` and `"custom"` policies; only the
-  `Auto(limits)` variant consumes the values.
-- Stage-1 → stage-2 backpressure send no longer parks indefinitely
-  on a `crossbeam_channel::Sender::send` if every stage-2 worker
-  panics *while* stage-1 is already blocked on a full queue.
-  `Stage2PoolSender::send` now parks in
-  `POISON_CHECK_INTERVAL` (50 ms) slices via `send_timeout` and
-  re-reads the pool's poison flag between slices, so a worker
-  panic mid-park surfaces as `Stage2SendError::Poisoned` within
-  one slice instead of wedging stage-1 forever. Regression test
-  (`poisoned_pool_releases_parked_producer_within_one_second`)
-  pins the bounded wakeup under one-second deadline.
-- FLATFILES wire-format reference docs restored at the
-  `crate::flatfiles::index` module rustdoc (on-disk header layout,
-  INDEX entry shape, contract-key encoding per `SecType`,
-  strike-in-tenths-of-cent convention). Module docs are the right
-  home for reference spec; the stale link to
-  `docs-site/docs/flatfiles/protocol.md` (file never existed) is
-  gone from `flatfiles::{mod,index}` and from the changelog.
-- TypeScript `npm test` script delegates to
-  `scripts/run_tests.mjs`, which walks `__tests__/` and hands every
-  `*.test.mjs` file to `node --test` as explicit argv. Replaces the
-  prior explicit-file list (which silently skipped the
-  `config_reconnect.test.mjs` reconnect-parity coverage that landed
-  in round 3). A shell-glob form (`node --test __tests__/*.test.mjs`)
-  also fails because Windows PowerShell does not expand it and
-  Node's own `--test` glob support is 22+; the explicit-argv runner
-  works on every supported shell and on every Node version
-  satisfying `engines.node >= 20`. The runner exits non-zero when
-  no test files are found, so a future regression that empties
-  the directory cannot silently pass CI.
-- `bench-internals` feature removed in favour of an out-of-Cargo
-  `--cfg bench_internals` flag. `Stage2Pool::submit_for_bench`
-  remains gated, but downstream consumers can no longer enable it
-  from the published `[features]` graph. The bench at
-  `benches/bench_stage_pipeline.rs` activates via
-  `RUSTFLAGS='--cfg bench_internals' cargo bench
-  --bench bench_stage_pipeline`.
-- `[package.metadata.docs.rs]` switched from `all-features = true`
-  to an explicit feature list (`arrow`, `polars`, `frames`,
-  `config-file`) so the rendered docs.rs page no longer surfaces
-  bench-only or test-only symbols.
-- `__test-helpers` private feature gates the test-only
-  `MddsClient::for_fallback_test` constructor. The symbol no longer
-  enters the published rlib unless the (double-underscore-prefixed,
-  doc-hidden) feature is explicitly enabled.
-- ReconnectConfig setter parity on the TypeScript binding.
-  `Config.setReconnectPolicy`, `setReconnectMaxAttempts`,
-  `setReconnectMaxRateLimitedAttempts`, and
-  `setReconnectStableWindowSecs` mirror the Python / C++ / FFI
-  surface; `sdks/parity.toml` records the field-level cross-binding
-  state.
-- Gate 14 (`scripts/check_safety_comment_boilerplate.py`) drops the
-  wholesale `ffi/src/` exemption and replaces it with a per-site
-  allowlist file (`scripts/safety_comment_allowlist.txt`) listing
-  the genuinely-shared invariants (handle round-trip, symbol-array
-  contract, test-only factory pointer). Every other duplicate trips
-  the gate regardless of location. Extended the invariant-signal
-  patterns to recognise `NUL-terminated`, `CString::`, and `NUL`
-  references so legitimate FFI annotations are not flagged.
-- FFI `error::tests` module hoists the four duplicate stamped
-  `// SAFETY: tdx_last_error() ...` blocks into a single
-  `last_error_message()` helper with one comprehensive SAFETY
-  comment naming the thread-local-slot lifetime invariant.
-- Gate 2 (`scripts/check_binding_parity.py`) gains a
-  dotted-name carve-out so per-field parity rows
-  (`FlatFilesConfig.max_attempts`, `ReconnectConfig.policy`, etc.)
-  participate in the SSOT without forcing the class-existence check
-  to match field-level setters. Tracked for per-field granularity
-  refactor in issue #595.
-- Legacy single-stage MDDS decode path replaces the per-chunk
-  `Box<dyn FnOnce>` closure with a typed
-  `DecodeRequest::SingleStage { response, max_message_size, reply }`
-  variant. The decoder thread runs `decode_data_table_with_max`
-  directly on the typed payload, avoiding the per-chunk
-  dynamic-dispatch vtable indirection the boxed `FnOnce` carried
-  (the per-chunk allocation count is unchanged — the box is now
-  for the typed struct instead of the closure).
-- Python `Config.decoder_threads` getter and setter prepend a
-  `Deprecated since v10.0.1: set decode_threads instead.`
-  deprecation line. Visible via `help(type(c).decoder_threads)`.
-- `.pyi` stub converts the leading `#`-comment over
-  `decoder_threads` to a triple-quoted attribute docstring so the
-  deprecation surfaces in tooling that consumes attribute
-  docstrings.
-- Tier-clamp regression test
-  (`rest_arm_respects_tier_clamp_semaphore`) replaces the
-  120 ms sleep with an `Arc<Notify>` entry-side barrier
-  (`RestMock::wait_for_entry`) so the test waits deterministically
-  for "first call reached mock" instead of racing the sleep.
-- Greeks gRPC arm `end_date` tests pin the outgoing wire bytes via
-  a new `MockBehaviour::capture_request_bytes` hook: the test
-  captures the inbound request proto, decodes it with
-  `OptionHistory*Request::decode`, and asserts the `end_date` field
-  carries the expected value. Renamed
-  `*_grpc_arm_dispatches` → `*_grpc_arm_forwards_end_date` to match
-  the contract.
-- Module headers across `fpss::{mod, pinning, wake}`,
-  `rest::mod`, `frames::mod`, `grpc::decoder_pool` compressed to
-  one paragraph each — the multi-paragraph architectural narratives
-  now live in the docs site (`docs-site/docs/streaming/index.md`,
-  `docs-site/docs/streaming/latency.md`). FLATFILES on-disk wire
-  layout remains at the `crate::flatfiles::index` module level as
-  the reference spec.
-- Issue / PR references stripped from `///` user-facing rustdoc
-  across the public surface (`client.rs`, `grpc/stream.rs`,
-  `fpss/framing.rs`, `mdds/macros.rs`,
-  `streaming_async_batches.rs`, `streaming_async_session.rs`).
-  References remain on `//` internal comments and `#[test]` doc
-  blocks per the audit protocol.
-- Python codegen template stripped the hardcoded `(issue #565)`
-  attribution from 33 `.stream()` doc-blocks in
-  `historical_methods.rs`; the comparable references in the Rust
-  endpoint render, the Python streaming-terminal renderer, the
-  REST builder header, and the `mdds/macros.rs` streaming
-  variant macro doc-block were all rewritten to describe the
-  behaviour without the issue number.
-- `MddsConfig::decoder_threads` rustdoc compressed to the
-  deprecation message + redirect. The "why no `#[deprecated]`"
-  rationale moved to an internal `//` comment above the field.
-- REST `Vec::with_capacity` seed floor for the `Content-Length`-
-  advertised path: when the server emits a small `Content-Length`
-  (including `0`) but follows up with chunked DATA, the
-  accumulator now starts at the same 64 KiB floor the pure-chunked
-  path uses, instead of the advertised value.
-- `parse_legacy_six_field_quote_csv` test renamed to
-  `parse_six_field_quote_csv_zero_fills_missing_columns` so the
-  test name describes the invariant being pinned.
-- `decoder_threads` deprecation parity across every binding.
-  Rust rustdoc, Python `.pyi`, C++ Doxygen, and TypeScript JSDoc all
-  carry an identical `since v10.0.1, use decode_threads` note +
-  attribute (`[[deprecated]]` on C++, `@deprecated` JSDoc tag
-  propagated via napi-rs doc-comment forwarding).
-- `MddsConfig::decoder_threads` auto-sizing rustdoc + bench
-  + migration-doc rewrites match the post-v10.0.0 formula
-  (`(available_parallelism / 2).max(1)`, no channel cap).
-- `crate::mdds::decode::{decompress_response, decompress_response_with_max,
-  decode_data_table, decode_data_table_with_max}` take `&mut
-  ResponseData` so the identity-compression path can move
-  `compressed_data` out via `std::mem::take` instead of cloning.
-  Behaviour preserved on every existing call site; the move is
-  observable only when callers retain the `ResponseData` past the
-  decode (no in-tree consumer does so).
-- `crates/thetadatadx/src/rest/client.rs` seeds the chunked-transfer
-  body accumulator with a 64 KiB floor so the first DATA frame on a
-  chunked REST response does not trigger a per-chunk realloc.
-- `MddsClient` REST-fallback shims downgrade per-call `start_date` /
-  `end_date` logging from `tracing::debug!` to `tracing::trace!` so
-  routine operator-visible logs no longer echo request date ranges.
-- FFI codegen template emits `require_client!` + `require_symbol_array!`
-  macro calls in place of the 61 inline `// SAFETY: client is a
-  non-null pointer ...` blocks and the 7 inline
-  `// SAFETY: caller supplies a contiguous array ...` blocks the
-  prior endpoint shims carried. Regenerated
-  `ffi/src/endpoint_with_options.rs` keeps a single per-macro
-  invariant-naming SAFETY comment instead of stamping the same
-  boilerplate at every call site.
-- Every hand-written `// SAFETY: see FFI boundary doc on the
-  enclosing fn …` line in `ffi/src/{flatfiles,streaming,utility,types}.rs`
-  rewritten to name the specific invariant the local `unsafe`
-  consumes (pointer provenance, layout, lifetime, ordering).
-- `crate::grpc::decoder_pool::backoff_ring_full` split into
-  `backoff_ring_full_async(duration)` (tokio multi-thread; honours
-  the duration via `block_in_place + thread::sleep`) and
-  `backoff_ring_full_sync()` (current-thread / non-async; fixed
-  256-iter spin) so the sync arm does not silently discard a
-  parameter the async arm uses.
-
-- `crate::grpc::pool::ChannelPool` now reconnects channels on
-  `ConnectionClosed` in-place rather than marking them permanently
-  dead. Long-running clients no longer cascade after sustained load:
-  every transport-level fault (`GOAWAY`, IO failure, peer shutdown,
-  open-phase drop) triggers a single-flight reconnect of the
-  channel's inner `SendRequest<Bytes>` with bounded exponential
-  backoff (50 ms initial, 30 s cap, 8 attempts). The caller's retry
-  shell re-dispatches once and observes the fresh sender on the
-  next pool pick. Fixes the real root cause behind #571 / #577 /
-  #589 — the prior investigation pin
-  (`docs-site/docs/legacy-quote-577-investigation.md`)
-  misattributed the cascade to a server-side schema variant; the
-  actual cause was the SDK's own dead-channel mechanism introduced
-  in #578 with no recycling counterpart.
-
-### Fixed
-
-- Greeks `_with_fallback` regression coverage. Four new integration
-  tests pin `end_date` forwarding on both the REST and gRPC arms of
-  `option_history_greeks_implied_volatility_with_fallback` and
-  `option_history_greeks_first_order_with_fallback`, locking the
-  prior-round fix against silent regression.
-- Tier-clamp regression coverage. A new integration test runs two
-  concurrent `option_history_quote_with_fallback` calls against an
-  in-process REST mock with `concurrent_requests = 1`; the assertion
-  observes the second call parking on the semaphore until the first
-  completes.
-
 ### Added
 
+- Cross-binding ReconnectConfig setter test parity. The TypeScript
+  `__tests__/config_reconnect.test.mjs` coverage that landed in
+  round 3 now has matching siblings on every binding:
+  `sdks/python/tests/test_config_reconnect.py` (10 tests covering
+  policy round-trip, per-class budget round-trip, stable-window
+  acceptance + negative rejection, interleaved-setter independence),
+  `sdks/cpp/tests/config_reconnect.cpp` (6 Catch2 cases mirroring
+  the Python contract on the C++ wrapper), and a new
+  `reconnect_setter_tests` module in `ffi/src/auth.rs` (7 Rust
+  tests against the underlying `tdx_config_set_reconnect_*` C ABI).
+  The existing `lifecycle.cpp` smoke also expanded to call all four
+  reconnect setters with valid values.
+- TypeScript `setReconnectStableWindowSecs` BigInt boundary
+  coverage. Adds a magnitude-above-u64 rejection case
+  (`setReconnectStableWindowSecs(1n << 65n)`) alongside the
+  existing negative-BigInt rejection so the two boundary failures
+  are pinned independently.
 - `require_client!` and `require_symbol_array!` macros (with full
   unit-test coverage: null-pointer / valid / invalid-UTF-8 / Go-empty
   branches) alongside the existing `require_cstr!` macro. `require_cstr!`
@@ -237,65 +47,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without a clean GitHub-hosted runner pass
   (`decoder_pool/threads/4`, `protobuf_decode/quote_chunk/1024`,
   `stage_pipeline/throughput/workers=4`).
-
-### Removed
-
-- `Channel::is_dead`, `Channel::mark_dead`, `Channel::dead_handle`,
-  `ChannelPool::all_dead`, `ChannelPool::dead_count` — replaced by
-  in-place reconnect (see Changed above). The `ChannelLease`
-  picker no longer scans for "live" channels separately; every
-  channel in the pool stays a valid pick because the channel
-  itself swaps its inner h2 session on observed faults.
-- `ChannelError::UpstreamCascade` — folded into the existing
-  `ChannelError::ConnectionClosed` variant. The mid-stream
-  classifier (`classify_h2_error_mid_stream`) is gone; the
-  open-phase classifier (`classify_h2_error`) covers both phases
-  via the new `classify_h2_error_ref` thin wrapper.
-- `FallbackPolicy::RestOnH2Disconnect` and
-  `FallbackPolicy::RestAlwaysForDateRange` — both variants were
-  built around a misdiagnosed cascade and never actually helped.
-  `FallbackPolicy::RestAlways` is retained as the user-facing
-  escape hatch for callers who want every historical-quote call
-  routed over a locally-running Terminal's REST surface.
-- `_with_fallback` per-endpoint shims (Python / TypeScript /
-  C++ / FFI) tied to the deleted variants. The four remaining
-  `option_history_*_with_fallback` methods dispatch on
-  `FallbackPolicy::RestAlways` vs `Disabled` only.
-- `docs-site/docs/legacy-quote-577-investigation.md`,
-  `docs-site/docs/legacy-quote-handling.md` — both documented the
-  wrong root cause. Replaced by
-  `docs-site/docs/channel-pool-design.md`, which honestly
-  describes the in-place reconnect contract and pins the
-  correction so the next contributor doesn't repeat the search.
-- `crates/thetadatadx/tests/test_577_2020_onward.rs` — built on
-  the wrong premise. Replaced by
-  `crates/thetadatadx/tests/test_pool_reconnect.rs`, which pins
-  the single-flight CAS, the lifecycle observer events, and the
-  classifier-triggered reconnect spawn.
-- `tools/local-terminal-patcher/` — patched a code path
-  (`QuoteTick(Tick t)` constructor strict-length throw) that
-  bytecode analysis of the upstream terminal jar shows is never
-  invoked on the `option_history_quote` gRPC response path.
-  Decompilation confirms the constructor's sole caller is
-  `MarketValueTick`. The patcher fixed a fictional problem; the
-  workspace member, its `clap` / `zip` / `sha2` dependencies, and
-  its patch sources are removed.
-
-### Retained
-
-- The lenient 6-/11-/12-field NBBO decoder added in #573 is
-  **kept** as defense-in-depth. `find_header` + `opt_number(row, None) -> 0`
-  is good API design regardless of cause; a subset NBBO layout
-  could surface from any upstream storage tier in the future. The
-  doc-comment attribution to "issue #571" / "patched terminal
-  `normalizeData()`" is stripped — the test name
-  `quote_tick_decodes_legacy_six_field_shape_with_zero_fill`
-  remains as a regression pin.
-- The REST transport (`crate::rest`) is **kept** as the
-  user-facing alternative transport reachable via
-  `FallbackPolicy::RestAlways`.
-
-### Added
 
 - Cross-binding parity for the two-stage MDDS decode pipeline knobs
   (Phase 3 of 3). The `MddsConfig::decode_threads` and
@@ -596,7 +347,281 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unit tests covering `contains_subsequence`, `newest_jar_in`, and
   `swap_classes_in_jar` (S3).
 
+- Standalone `FpssClient` and `MddsClient` pyclasses on the Python
+  binding. `FpssClient(creds, config)` opens ONLY the FPSS TLS
+  transport (no MDDS gRPC channel, no Nexus HTTP auth); `MddsClient(creds,
+  config)` opens ONLY the MDDS gRPC channel plus the Nexus
+  authentication and surfaces the historical / FLATFILES API while
+  raising `AttributeError` on every FPSS-touching method. The bundled
+  `ThetaDataDxClient` keeps its current behaviour — the new classes
+  are purely additive and align the Python surface with the
+  standalone clients already exposed by the C ABI (`tdx_fpss_*` /
+  `tdx_client_*`) and the C++ wrapper (`tdx::FpssClient` /
+  `tdx::Client`).
+- gRPC `grpc-timeout` header is now emitted on every
+  deadline-bearing RPC (`server_streaming_with_deadline`,
+  `mdds_client.with_deadline(...)`). The header carries the
+  smallest unit that fits the budget per the gRPC HTTP/2 spec
+  (`n` / `u` / `m` / `S` / `M` / `H`), so the server can
+  short-circuit on deadline elapse instead of completing work the
+  client will discard.
+- `TransportErrorKind` is exported from `thetadatadx::error` for
+  binding consumers and retry classifiers.
+- `tdbe::types::price::Price::with_value_and_type` constructor
+  rejects out-of-range `price_type` values with a typed
+  `PriceError` instead of clamping. `Price::value()` and
+  `Price::price_type()` accessors join the public API so future
+  field visibility changes do not break call sites.
+  `Price::is_unset()` and `Price::is_zero_value()` split the
+  previous `is_zero()` conflation into the two distinct signals
+  (sentinel vs real zero).
+- `Price` POW10 indexing paths carry `debug_assert!` invariant
+  guards so a hand-constructed `Price { value, price_type }`
+  outside `0..=MAX_PRICE_TYPE` traps in debug builds rather than
+  reading past the end of the lookup tables.
+- `AuthUser::max_concurrent_requests` now routes the
+  subscription-tier shift through `SubscriptionTier::from_wire`.
+  Hostile wire bytes (negative, `> 3`, `i32::MAX`) fold to
+  `Free=1` and emit a `warn` instead of panicking on the old
+  `1usize << tier` path.
+
 ### Changed
+
+- ReconnectConfig setter docstrings unified across every binding. The
+  per-class budget setters (`set_reconnect_max_attempts`,
+  `set_reconnect_max_rate_limited_attempts`,
+  `set_reconnect_stable_window_secs`) now carry the same
+  `"No effect unless the reconnect policy is Auto"` qualifier on the
+  Python, TypeScript, FFI, and C++ Doxygen surfaces. Replaces the
+  three previous phrasings (`"manual" or "custom"` on Python/TS,
+  `"not Auto"` on FFI/C++).
+- Stage-1 → stage-2 backpressure regression tests now block on a
+  deterministic `parked_in_slice_loop` barrier counter instead of a
+  fixed `thread::sleep`. Both `backpressure_parks_producer` and
+  `poisoned_pool_releases_parked_producer_within_one_second` wait for
+  the producer to enter the bounded `send_timeout` slice loop before
+  draining the queue or flipping the poison flag, so the test pins
+  the contract under test rather than racing the wall clock.
+- Issue-number attributions stripped from `//`/`//!` block comments
+  in the Python / TypeScript / FFI binding crates and from the two
+  remaining `crates/thetadatadx/src/rest` module comments. The
+  `(issue #N)` shape rendered in tooling that consumed module
+  docstrings; the cleanup tracks the same standard already applied
+  to `///` rustdoc on the public surface. Sites covered:
+  `sdks/python/src/util_helpers.rs`, `sdks/typescript/src/util_helpers.rs`,
+  `sdks/typescript/src/{lib,fallback}.rs`, `sdks/python/src/lib.rs`,
+  `ffi/src/{auth,utility}.rs`, `sdks/cpp/include/thetadx.h`,
+  `crates/thetadatadx/src/rest/{mod,client}.rs`.
+- CHANGELOG `[Unreleased]` section consolidated into the five canonical
+  Keep-a-Changelog buckets (`Added`, `Changed`, `Deprecated`, `Removed`,
+  `Fixed`). Successive PR appends had grown three duplicate `Changed`
+  buckets, three duplicate `Added` buckets, and two duplicate `Fixed`
+  buckets; non-canonical `Retained` and `CI` headings folded into
+  `Changed` per the changelog format policy. Every individual entry
+  is preserved verbatim — only the headings were merged.
+- TypeScript `Config.setReconnectStableWindowSecs` accepts `bigint`
+  (was `number`) for true `u64` parity with the Python / C++ / FFI
+  surface. Callers passing `Number` should wrap:
+  `cfg.setReconnectStableWindowSecs(BigInt(60))`. Negative or
+  >`u64::MAX` BigInt inputs are rejected at the boundary with a
+  descriptive error rather than silently truncating.
+- TypeScript reconnect setter JSDoc adds the `"custom"` policy
+  qualifier so the cross-binding docstring parity with Python's
+  `Deprecated since v10.0.1...` style is restored. The setters are
+  silent no-ops under `"manual"` and `"custom"` policies; only the
+  `Auto(limits)` variant consumes the values.
+- Stage-1 → stage-2 backpressure send no longer parks indefinitely
+  on a `crossbeam_channel::Sender::send` if every stage-2 worker
+  panics *while* stage-1 is already blocked on a full queue.
+  `Stage2PoolSender::send` now parks in
+  `POISON_CHECK_INTERVAL` (50 ms) slices via `send_timeout` and
+  re-reads the pool's poison flag between slices, so a worker
+  panic mid-park surfaces as `Stage2SendError::Poisoned` within
+  one slice instead of wedging stage-1 forever. Regression test
+  (`poisoned_pool_releases_parked_producer_within_one_second`)
+  pins the bounded wakeup under one-second deadline.
+- FLATFILES wire-format reference docs restored at the
+  `crate::flatfiles::index` module rustdoc (on-disk header layout,
+  INDEX entry shape, contract-key encoding per `SecType`,
+  strike-in-tenths-of-cent convention). Module docs are the right
+  home for reference spec; the stale link to
+  `docs-site/docs/flatfiles/protocol.md` (file never existed) is
+  gone from `flatfiles::{mod,index}` and from the changelog.
+- TypeScript `npm test` script delegates to
+  `scripts/run_tests.mjs`, which walks `__tests__/` and hands every
+  `*.test.mjs` file to `node --test` as explicit argv. Replaces the
+  prior explicit-file list (which silently skipped the
+  `config_reconnect.test.mjs` reconnect-parity coverage that landed
+  in round 3). A shell-glob form (`node --test __tests__/*.test.mjs`)
+  also fails because Windows PowerShell does not expand it and
+  Node's own `--test` glob support is 22+; the explicit-argv runner
+  works on every supported shell and on every Node version
+  satisfying `engines.node >= 20`. The runner exits non-zero when
+  no test files are found, so a future regression that empties
+  the directory cannot silently pass CI.
+- `bench-internals` feature removed in favour of an out-of-Cargo
+  `--cfg bench_internals` flag. `Stage2Pool::submit_for_bench`
+  remains gated, but downstream consumers can no longer enable it
+  from the published `[features]` graph. The bench at
+  `benches/bench_stage_pipeline.rs` activates via
+  `RUSTFLAGS='--cfg bench_internals' cargo bench
+  --bench bench_stage_pipeline`.
+- `[package.metadata.docs.rs]` switched from `all-features = true`
+  to an explicit feature list (`arrow`, `polars`, `frames`,
+  `config-file`) so the rendered docs.rs page no longer surfaces
+  bench-only or test-only symbols.
+- `__test-helpers` private feature gates the test-only
+  `MddsClient::for_fallback_test` constructor. The symbol no longer
+  enters the published rlib unless the (double-underscore-prefixed,
+  doc-hidden) feature is explicitly enabled.
+- ReconnectConfig setter parity on the TypeScript binding.
+  `Config.setReconnectPolicy`, `setReconnectMaxAttempts`,
+  `setReconnectMaxRateLimitedAttempts`, and
+  `setReconnectStableWindowSecs` mirror the Python / C++ / FFI
+  surface; `sdks/parity.toml` records the field-level cross-binding
+  state.
+- Gate 14 (`scripts/check_safety_comment_boilerplate.py`) drops the
+  wholesale `ffi/src/` exemption and replaces it with a per-site
+  allowlist file (`scripts/safety_comment_allowlist.txt`) listing
+  the genuinely-shared invariants (handle round-trip, symbol-array
+  contract, test-only factory pointer). Every other duplicate trips
+  the gate regardless of location. Extended the invariant-signal
+  patterns to recognise `NUL-terminated`, `CString::`, and `NUL`
+  references so legitimate FFI annotations are not flagged.
+- FFI `error::tests` module hoists the four duplicate stamped
+  `// SAFETY: tdx_last_error() ...` blocks into a single
+  `last_error_message()` helper with one comprehensive SAFETY
+  comment naming the thread-local-slot lifetime invariant.
+- Gate 2 (`scripts/check_binding_parity.py`) gains a
+  dotted-name carve-out so per-field parity rows
+  (`FlatFilesConfig.max_attempts`, `ReconnectConfig.policy`, etc.)
+  participate in the SSOT without forcing the class-existence check
+  to match field-level setters. Tracked for per-field granularity
+  refactor in issue #595.
+- Legacy single-stage MDDS decode path replaces the per-chunk
+  `Box<dyn FnOnce>` closure with a typed
+  `DecodeRequest::SingleStage { response, max_message_size, reply }`
+  variant. The decoder thread runs `decode_data_table_with_max`
+  directly on the typed payload, avoiding the per-chunk
+  dynamic-dispatch vtable indirection the boxed `FnOnce` carried
+  (the per-chunk allocation count is unchanged — the box is now
+  for the typed struct instead of the closure).
+- Python `Config.decoder_threads` getter and setter prepend a
+  `Deprecated since v10.0.1: set decode_threads instead.`
+  deprecation line. Visible via `help(type(c).decoder_threads)`.
+- `.pyi` stub converts the leading `#`-comment over
+  `decoder_threads` to a triple-quoted attribute docstring so the
+  deprecation surfaces in tooling that consumes attribute
+  docstrings.
+- Tier-clamp regression test
+  (`rest_arm_respects_tier_clamp_semaphore`) replaces the
+  120 ms sleep with an `Arc<Notify>` entry-side barrier
+  (`RestMock::wait_for_entry`) so the test waits deterministically
+  for "first call reached mock" instead of racing the sleep.
+- Greeks gRPC arm `end_date` tests pin the outgoing wire bytes via
+  a new `MockBehaviour::capture_request_bytes` hook: the test
+  captures the inbound request proto, decodes it with
+  `OptionHistory*Request::decode`, and asserts the `end_date` field
+  carries the expected value. Renamed
+  `*_grpc_arm_dispatches` → `*_grpc_arm_forwards_end_date` to match
+  the contract.
+- Module headers across `fpss::{mod, pinning, wake}`,
+  `rest::mod`, `frames::mod`, `grpc::decoder_pool` compressed to
+  one paragraph each — the multi-paragraph architectural narratives
+  now live in the docs site (`docs-site/docs/streaming/index.md`,
+  `docs-site/docs/streaming/latency.md`). FLATFILES on-disk wire
+  layout remains at the `crate::flatfiles::index` module level as
+  the reference spec.
+- Issue / PR references stripped from `///` user-facing rustdoc
+  across the public surface (`client.rs`, `grpc/stream.rs`,
+  `fpss/framing.rs`, `mdds/macros.rs`,
+  `streaming_async_batches.rs`, `streaming_async_session.rs`).
+  References remain on `//` internal comments and `#[test]` doc
+  blocks per the audit protocol.
+- Python codegen template stripped the hardcoded `(issue #565)`
+  attribution from 33 `.stream()` doc-blocks in
+  `historical_methods.rs`; the comparable references in the Rust
+  endpoint render, the Python streaming-terminal renderer, the
+  REST builder header, and the `mdds/macros.rs` streaming
+  variant macro doc-block were all rewritten to describe the
+  behaviour without the issue number.
+- `MddsConfig::decoder_threads` rustdoc compressed to the
+  deprecation message + redirect. The "why no `#[deprecated]`"
+  rationale moved to an internal `//` comment above the field.
+- REST `Vec::with_capacity` seed floor for the `Content-Length`-
+  advertised path: when the server emits a small `Content-Length`
+  (including `0`) but follows up with chunked DATA, the
+  accumulator now starts at the same 64 KiB floor the pure-chunked
+  path uses, instead of the advertised value.
+- `parse_legacy_six_field_quote_csv` test renamed to
+  `parse_six_field_quote_csv_zero_fills_missing_columns` so the
+  test name describes the invariant being pinned.
+- `decoder_threads` deprecation parity across every binding.
+  Rust rustdoc, Python `.pyi`, C++ Doxygen, and TypeScript JSDoc all
+  carry an identical `since v10.0.1, use decode_threads` note +
+  attribute (`[[deprecated]]` on C++, `@deprecated` JSDoc tag
+  propagated via napi-rs doc-comment forwarding).
+- `MddsConfig::decoder_threads` auto-sizing rustdoc + bench
+  + migration-doc rewrites match the post-v10.0.0 formula
+  (`(available_parallelism / 2).max(1)`, no channel cap).
+- `crate::mdds::decode::{decompress_response, decompress_response_with_max,
+  decode_data_table, decode_data_table_with_max}` take `&mut
+  ResponseData` so the identity-compression path can move
+  `compressed_data` out via `std::mem::take` instead of cloning.
+  Behaviour preserved on every existing call site; the move is
+  observable only when callers retain the `ResponseData` past the
+  decode (no in-tree consumer does so).
+- `crates/thetadatadx/src/rest/client.rs` seeds the chunked-transfer
+  body accumulator with a 64 KiB floor so the first DATA frame on a
+  chunked REST response does not trigger a per-chunk realloc.
+- `MddsClient` REST-fallback shims downgrade per-call `start_date` /
+  `end_date` logging from `tracing::debug!` to `tracing::trace!` so
+  routine operator-visible logs no longer echo request date ranges.
+- FFI codegen template emits `require_client!` + `require_symbol_array!`
+  macro calls in place of the 61 inline `// SAFETY: client is a
+  non-null pointer ...` blocks and the 7 inline
+  `// SAFETY: caller supplies a contiguous array ...` blocks the
+  prior endpoint shims carried. Regenerated
+  `ffi/src/endpoint_with_options.rs` keeps a single per-macro
+  invariant-naming SAFETY comment instead of stamping the same
+  boilerplate at every call site.
+- Every hand-written `// SAFETY: see FFI boundary doc on the
+  enclosing fn …` line in `ffi/src/{flatfiles,streaming,utility,types}.rs`
+  rewritten to name the specific invariant the local `unsafe`
+  consumes (pointer provenance, layout, lifetime, ordering).
+- `crate::grpc::decoder_pool::backoff_ring_full` split into
+  `backoff_ring_full_async(duration)` (tokio multi-thread; honours
+  the duration via `block_in_place + thread::sleep`) and
+  `backoff_ring_full_sync()` (current-thread / non-async; fixed
+  256-iter spin) so the sync arm does not silently discard a
+  parameter the async arm uses.
+
+- `crate::grpc::pool::ChannelPool` now reconnects channels on
+  `ConnectionClosed` in-place rather than marking them permanently
+  dead. Long-running clients no longer cascade after sustained load:
+  every transport-level fault (`GOAWAY`, IO failure, peer shutdown,
+  open-phase drop) triggers a single-flight reconnect of the
+  channel's inner `SendRequest<Bytes>` with bounded exponential
+  backoff (50 ms initial, 30 s cap, 8 attempts). The caller's retry
+  shell re-dispatches once and observes the fresh sender on the
+  next pool pick. Fixes the real root cause behind #571 / #577 /
+  #589 — the prior investigation pin
+  (`docs-site/docs/legacy-quote-577-investigation.md`)
+  misattributed the cascade to a server-side schema variant; the
+  actual cause was the SDK's own dead-channel mechanism introduced
+  in #578 with no recycling counterpart.
+
+- The lenient 6-/11-/12-field NBBO decoder added in #573 is
+  **kept** as defense-in-depth. `find_header` + `opt_number(row, None) -> 0`
+  is good API design regardless of cause; a subset NBBO layout
+  could surface from any upstream storage tier in the future. The
+  doc-comment attribution to "issue #571" / "patched terminal
+  `normalizeData()`" is stripped — the test name
+  `quote_tick_decodes_legacy_six_field_shape_with_zero_fill`
+  remains as a regression pin.
+- The REST transport (`crate::rest`) is **kept** as the
+  user-facing alternative transport reachable via
+  `FallbackPolicy::RestAlways`.
 
 - REST endpoint builders are now codegen-driven from
   `endpoint_surface.toml` (#580). The four hand-written
@@ -800,8 +825,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of events dropped under non-`Block` policies without holding a
   `FpssClient` reference.
 
-### Changed
-
 - `QuoteTick` decoder is now explicit about lenient column extraction
   for the legacy 6-field NBBO layout (#571). The `bid_exchange`,
   `bid_condition`, `ask_exchange`, `ask_condition` columns were
@@ -860,45 +883,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   channel-index context (`"channel {idx}: ..."`) is preserved on
   the `Transport`-shaped output.
 
-### Added
+- Workspace clippy invocation widened to
+  `cargo clippy --workspace --all-targets --locked -- -D warnings`
+  so `[[bench]]` and `#[cfg(test)]` unsafe blocks travel through
+  `clippy::undocumented_unsafe_blocks` on every PR. Adds SAFETY
+  comments on five bench-only `unsafe impl GlobalAlloc` blocks
+  and two test-only unsafe deref sites that previously escaped
+  the lint.
+- `scripts/check_banned_vocab.py` rejects the verbatim string
+  "see FFI boundary doc on the enclosing fn — raw pointers
+  satisfy the documented caller contract" outside `ffi/src/`.
+  The string was landed across 31 sites including 8 that are
+  not FFI raw-pointer contexts; the gate prevents future
+  bot-stamping from reintroducing the boilerplate.
 
-- Standalone `FpssClient` and `MddsClient` pyclasses on the Python
-  binding. `FpssClient(creds, config)` opens ONLY the FPSS TLS
-  transport (no MDDS gRPC channel, no Nexus HTTP auth); `MddsClient(creds,
-  config)` opens ONLY the MDDS gRPC channel plus the Nexus
-  authentication and surfaces the historical / FLATFILES API while
-  raising `AttributeError` on every FPSS-touching method. The bundled
-  `ThetaDataDxClient` keeps its current behaviour — the new classes
-  are purely additive and align the Python surface with the
-  standalone clients already exposed by the C ABI (`tdx_fpss_*` /
-  `tdx_client_*`) and the C++ wrapper (`tdx::FpssClient` /
-  `tdx::Client`).
-- gRPC `grpc-timeout` header is now emitted on every
-  deadline-bearing RPC (`server_streaming_with_deadline`,
-  `mdds_client.with_deadline(...)`). The header carries the
-  smallest unit that fits the budget per the gRPC HTTP/2 spec
-  (`n` / `u` / `m` / `S` / `M` / `H`), so the server can
-  short-circuit on deadline elapse instead of completing work the
-  client will discard.
-- `TransportErrorKind` is exported from `thetadatadx::error` for
-  binding consumers and retry classifiers.
-- `tdbe::types::price::Price::with_value_and_type` constructor
-  rejects out-of-range `price_type` values with a typed
-  `PriceError` instead of clamping. `Price::value()` and
-  `Price::price_type()` accessors join the public API so future
-  field visibility changes do not break call sites.
-  `Price::is_unset()` and `Price::is_zero_value()` split the
-  previous `is_zero()` conflation into the two distinct signals
-  (sentinel vs real zero).
-- `Price` POW10 indexing paths carry `debug_assert!` invariant
-  guards so a hand-constructed `Price { value, price_type }`
-  outside `0..=MAX_PRICE_TYPE` traps in debug builds rather than
-  reading past the end of the lookup tables.
-- `AuthUser::max_concurrent_requests` now routes the
-  subscription-tier shift through `SubscriptionTier::from_wire`.
-  Hostile wire bytes (negative, `> 3`, `i32::MAX`) fold to
-  `Free=1` and emit a `warn` instead of panicking on the old
-  `1usize << tier` path.
 
 ### Deprecated
 
@@ -909,7 +907,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `decompress_zstd`, etc.). The constructors will be removed in
   the next major release.
 
+
+### Removed
+
+- `Channel::is_dead`, `Channel::mark_dead`, `Channel::dead_handle`,
+  `ChannelPool::all_dead`, `ChannelPool::dead_count` — replaced by
+  in-place reconnect (see Changed above). The `ChannelLease`
+  picker no longer scans for "live" channels separately; every
+  channel in the pool stays a valid pick because the channel
+  itself swaps its inner h2 session on observed faults.
+- `ChannelError::UpstreamCascade` — folded into the existing
+  `ChannelError::ConnectionClosed` variant. The mid-stream
+  classifier (`classify_h2_error_mid_stream`) is gone; the
+  open-phase classifier (`classify_h2_error`) covers both phases
+  via the new `classify_h2_error_ref` thin wrapper.
+- `FallbackPolicy::RestOnH2Disconnect` and
+  `FallbackPolicy::RestAlwaysForDateRange` — both variants were
+  built around a misdiagnosed cascade and never actually helped.
+  `FallbackPolicy::RestAlways` is retained as the user-facing
+  escape hatch for callers who want every historical-quote call
+  routed over a locally-running Terminal's REST surface.
+- `_with_fallback` per-endpoint shims (Python / TypeScript /
+  C++ / FFI) tied to the deleted variants. The four remaining
+  `option_history_*_with_fallback` methods dispatch on
+  `FallbackPolicy::RestAlways` vs `Disabled` only.
+- `docs-site/docs/legacy-quote-577-investigation.md`,
+  `docs-site/docs/legacy-quote-handling.md` — both documented the
+  wrong root cause. Replaced by
+  `docs-site/docs/channel-pool-design.md`, which honestly
+  describes the in-place reconnect contract and pins the
+  correction so the next contributor doesn't repeat the search.
+- `crates/thetadatadx/tests/test_577_2020_onward.rs` — built on
+  the wrong premise. Replaced by
+  `crates/thetadatadx/tests/test_pool_reconnect.rs`, which pins
+  the single-flight CAS, the lifecycle observer events, and the
+  classifier-triggered reconnect spawn.
+- `tools/local-terminal-patcher/` — patched a code path
+  (`QuoteTick(Tick t)` constructor strict-length throw) that
+  bytecode analysis of the upstream terminal jar shows is never
+  invoked on the `option_history_quote` gRPC response path.
+  Decompilation confirms the constructor's sole caller is
+  `MarketValueTick`. The patcher fixed a fictional problem; the
+  workspace member, its `clap` / `zip` / `sha2` dependencies, and
+  its patch sources are removed.
+
+
 ### Fixed
+
+- Greeks `_with_fallback` regression coverage. Four new integration
+  tests pin `end_date` forwarding on both the REST and gRPC arms of
+  `option_history_greeks_implied_volatility_with_fallback` and
+  `option_history_greeks_first_order_with_fallback`, locking the
+  prior-round fix against silent regression.
+- Tier-clamp regression coverage. A new integration test runs two
+  concurrent `option_history_quote_with_fallback` calls against an
+  in-process REST mock with `concurrent_requests = 1`; the assertion
+  observes the second call parking on the semaphore until the first
+  completes.
 
 - Documentation did not flag which historical builder terminal to
   use for which workload, so users reached for the buffered `.await`
@@ -1014,22 +1068,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `mem::size_of::<FpssEventInternal>() = 96` bytes on the current
   64-bit layout; the per-`FpssClient` ring footprint at the
   default `ring_size = 4096` is now documented as ~ 384 KiB.
-
-### CI
-
-- Workspace clippy invocation widened to
-  `cargo clippy --workspace --all-targets --locked -- -D warnings`
-  so `[[bench]]` and `#[cfg(test)]` unsafe blocks travel through
-  `clippy::undocumented_unsafe_blocks` on every PR. Adds SAFETY
-  comments on five bench-only `unsafe impl GlobalAlloc` blocks
-  and two test-only unsafe deref sites that previously escaped
-  the lint.
-- `scripts/check_banned_vocab.py` rejects the verbatim string
-  "see FFI boundary doc on the enclosing fn — raw pointers
-  satisfy the documented caller contract" outside `ffi/src/`.
-  The string was landed across 31 sites including 8 that are
-  not FFI raw-pointer contexts; the gate prevents future
-  bot-stamping from reintroducing the boilerplate.
 
 ## [10.0.0] - 2026-05-09
 

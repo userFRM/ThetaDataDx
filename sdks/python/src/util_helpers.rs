@@ -1,4 +1,4 @@
-//! Cross-language utility helpers — Python bindings (issue #424).
+//! Cross-language utility helpers — Python bindings.
 //!
 //! Wraps the lookup tables in `tdbe::{conditions, exchange, sequences}`
 //! and exposes them under the `thetadatadx.util` Python submodule:
@@ -11,8 +11,8 @@
 //! util.sequence_signed_to_unsigned(-1)
 //! ```
 //!
-//! Hand-written rather than codegen'd (per issue #424). The function set
-//! is finite and the codegen pipeline targets dynamic-schema endpoints.
+//! Hand-written rather than codegen'd. The function set is finite and
+//! the codegen pipeline targets dynamic-schema endpoints.
 
 use pyo3::prelude::*;
 
