@@ -38,7 +38,7 @@ TEST_CASE("Config::set_reconnect_policy treats unknown selectors as Auto",
     REQUIRE_NOTHROW(cfg.set_reconnect_policy(-1));
 }
 
-TEST_CASE("Config::set_reconnect_max_attempts round-trips representative budgets",
+TEST_CASE("Config::set_reconnect_max_attempts accepts representative budgets without throwing",
           "[config][reconnect][offline]") {
     auto cfg = tdx::Config::production();
     cfg.set_reconnect_policy(0); // Auto
@@ -47,7 +47,7 @@ TEST_CASE("Config::set_reconnect_max_attempts round-trips representative budgets
     }
 }
 
-TEST_CASE("Config::set_reconnect_max_rate_limited_attempts round-trips representative budgets",
+TEST_CASE("Config::set_reconnect_max_rate_limited_attempts accepts representative budgets without throwing",
           "[config][reconnect][offline]") {
     auto cfg = tdx::Config::production();
     cfg.set_reconnect_policy(0); // Auto

@@ -69,8 +69,8 @@ TDX_ALIGN64_BEGIN typedef struct {
     double high;
     double low;
     double close;
-    /* volume/count are int64 to match the core crate (issue #372) and
-     * prevent overflow on high-volume symbols (2.1B+ cumulative volume). */
+    /* volume/count are int64 to match the core crate and prevent
+     * overflow on high-volume symbols (2.1B+ cumulative volume). */
     int64_t volume;
     int64_t count;
     int32_t bid_size;
@@ -238,8 +238,8 @@ TDX_ALIGN64_BEGIN typedef struct {
     double high;
     double low;
     double close;
-    /* volume/count are int64 to match the core crate (issue #372) and
-     * prevent overflow on high-volume symbols (2.1B+ cumulative volume). */
+    /* volume/count are int64 to match the core crate and prevent
+     * overflow on high-volume symbols (2.1B+ cumulative volume). */
     int64_t volume;
     int64_t count;
     int32_t date;

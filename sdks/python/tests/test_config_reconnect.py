@@ -136,6 +136,22 @@ def test_reconnect_stable_window_secs_rejects_negative():
         cfg.reconnect_stable_window_secs = -1
 
 
+def test_reconnect_stable_window_secs_rejects_above_u64() -> None:
+    """Magnitudes above ``u64::MAX`` must be rejected at the boundary.
+
+    Mirrors the TypeScript boundary case in
+    ``__tests__/config_reconnect.test.mjs`` that pins
+    ``setReconnectStableWindowSecs(1n << 65n)`` as a rejection. Python's
+    ``int`` is unbounded, so pyo3's ``u64`` extraction raises
+    ``OverflowError`` when the magnitude does not fit in 64 bits.
+    """
+    mod = _import_module()
+    cfg = mod.Config.production()
+    cfg.reconnect_policy = "auto"
+    with pytest.raises(OverflowError):
+        cfg.reconnect_stable_window_secs = 1 << 65
+
+
 # ─── Combined invariants ────────────────────────────────────────────
 
 

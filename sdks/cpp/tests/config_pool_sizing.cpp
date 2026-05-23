@@ -1,4 +1,4 @@
-// MDDS pool-sizing setters on tdx::Config (issue #584).
+// MDDS pool-sizing setters on tdx::Config.
 //
 // Offline tests pin the contract that the three new setters exposed by
 // the `tdx::Config` C++ wrapper — `set_concurrent_requests`,

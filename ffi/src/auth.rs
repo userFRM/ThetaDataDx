@@ -808,6 +808,46 @@ mod reconnect_setter_tests {
             super::tdx_config_set_reconnect_stable_window_secs(std::ptr::null_mut(), 60);
         }
     }
+
+    #[test]
+    fn reconnect_setters_compose_with_pool_sizing_setters() {
+        // Cross-binding interleaved-survival contract: reconnect setter
+        // calls and pool-sizing setter calls on the same `TdxConfig`
+        // must land in `inner` independently and persist. Mirrors the
+        // Python `test_reconnect_setter_state_survives_interleaved_calls`,
+        // TypeScript `Pool-sizing setter state survives interleaved
+        // reconnect setter calls`, and C++ `Reconnect setters compose
+        // with pool-sizing setters` cases.
+        let cfg = super::tdx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            // Apply pool-sizing knobs.
+            super::tdx_config_set_concurrent_requests(cfg, 8);
+            super::tdx_config_set_decoder_ring_size(cfg, 256);
+
+            // Apply reconnect knobs.
+            super::tdx_config_set_reconnect_policy(cfg, 0);
+            super::tdx_config_set_reconnect_max_attempts(cfg, 5);
+            super::tdx_config_set_reconnect_max_rate_limited_attempts(cfg, 3);
+            super::tdx_config_set_reconnect_stable_window_secs(cfg, 60);
+
+            // Pool-sizing mutations survived the reconnect setter sequence.
+            let mdds = &(*cfg).inner.mdds;
+            assert_eq!(mdds.concurrent_requests, 8);
+            assert_eq!(mdds.decoder_ring_size, 256);
+
+            // Reconnect mutations landed on `Auto(limits)`.
+            let thetadatadx::ReconnectPolicy::Auto(limits) = &(*cfg).inner.reconnect.policy else {
+                panic!("expected ReconnectPolicy::Auto after set_reconnect_policy(0)");
+            };
+            assert_eq!(limits.max_attempts, 5);
+            assert_eq!(limits.max_rate_limited_attempts, 3);
+            assert_eq!(limits.stable_window, std::time::Duration::from_secs(60));
+
+            super::tdx_config_free(cfg);
+        }
+    }
 }
 
 #[cfg(test)]
