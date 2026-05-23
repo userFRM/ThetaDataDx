@@ -51,8 +51,8 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 /// 1. Snapshot / calendar endpoints (`is_snapshot_endpoint`) — the
 ///    original consumer; uses the converter on the latency-sensitive
 ///    fast path that skips the `<TickName>List` wrapper allocation.
-/// 2. Parsed-endpoint `.stream(handler)` terminals (issue #565) — the
-///    OOM-fix consumer; uses the converter to build a per-chunk
+/// 2. Parsed-endpoint `.stream(handler)` terminals — the OOM-fix
+///    consumer; uses the converter to build a per-chunk
 ///    `Py<PyList>` of typed tick instances handed to the user's
 ///    callback. Without this, every parsed endpoint with a wide
 ///    response (`option_history_quote`, `stock_history_trade`, ...)

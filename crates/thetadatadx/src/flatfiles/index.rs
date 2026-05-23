@@ -1,12 +1,50 @@
 //! INDEX walker for the raw FLATFILES blob.
 //!
-//! Big-endian on-disk layout: a header with the column-DataType codes
-//! and the INDEX / DATA section lengths, followed by variable-length
-//! INDEX entries (each carries a sec-type-specific contract key plus
-//! `[block_start, block_end)` byte offsets into DATA). The DATA
-//! section is FIT-encoded per the header schema; see
-//! [`crate::flatfiles::decode`]. Full wire layout in
-//! `docs-site/docs/flatfiles/protocol.md`.
+//! # On-disk layout
+//!
+//! The raw blob the wire layer accumulates is one contiguous stream:
+//!
+//! ```text
+//! offset 0   :  i32 BE  fmt_count          number of column DataType codes
+//!         4 :  fmt_count × i32 BE          DataType.code() per column
+//!         …  :  i64 BE  index_byte_len     bytes of INDEX after this header
+//!         …  :  i64 BE  data_byte_len      bytes of DATA after the INDEX
+//!         …  :  index_byte_len bytes      INDEX entries (see below)
+//!         …  :  data_byte_len  bytes      DATA — concatenated FIT blocks
+//! ```
+//!
+//! All multi-byte integers are big-endian (network order).
+//!
+//! # INDEX entries
+//!
+//! Each entry occupies a variable-length record:
+//!
+//! ```text
+//!   u16 BE  entry_size                     bytes of entry_payload
+//!   entry_payload  (entry_size bytes)      sec-type-dependent contract key
+//!   i32 BE  block_volume                   "volume" hint (unused by SDK)
+//!   i64 BE  block_start                    byte offset into DATA section
+//!   i64 BE  block_end                      one past the last byte (exclusive)
+//! ```
+//!
+//! The contract key inside `entry_payload` is:
+//!
+//! - Option / Index:
+//!   ```text
+//!     u8 root_len ; root_utf8 ; i32 BE exp ; u8 right ; i32 BE strike ; i32 BE date
+//!   ```
+//!   `right` is the ASCII byte `'C'` (0x43) or `'P'` (0x50). `exp` and
+//!   `date` are `YYYYMMDD` integers; `strike` is in tenths of a cent
+//!   (vendor convention — strike `210000` ≡ $210.00).
+//! - Stock:
+//!   ```text
+//!     u8 root_len ; root_utf8 ; i32 BE date
+//!   ```
+//!
+//! The DATA section at `[block_start..block_end]` is FIT-encoded for the
+//! per-column schema given by the header `fmt_count` codes. Each row in
+//! the block corresponds to exactly one tick for that contract; see the
+//! [`crate::flatfiles::decode`] module for the per-block FIT walk.
 
 use std::io::{Cursor, Read};
 

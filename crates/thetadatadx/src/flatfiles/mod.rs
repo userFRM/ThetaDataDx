@@ -7,9 +7,10 @@
 //! [`flatfile_request_raw`] (raw INDEX + DATA blob). All three are
 //! also reachable via [`crate::ThetaDataDxClient`].
 //!
-//! Wire protocol + auth handshake + server identity (SPKI-pinned via
-//! `mdds_spki::MddsSpkiVerifier`) are described in
-//! `docs-site/docs/flatfiles/protocol.md`.
+//! Server identity is SPKI-pinned via the internal
+//! `mdds_spki::MddsSpkiVerifier`. On-disk blob layout is documented
+//! at the module level in `crate::flatfiles::index` (private; see
+//! `cargo doc --document-private-items`).
 
 pub(crate) mod datatype;
 pub(crate) mod decode;

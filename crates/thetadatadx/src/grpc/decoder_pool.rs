@@ -166,16 +166,19 @@ enum DecodeRequest {
     /// Legacy work-closure request — bench / fixture only. Used by
     /// [`DecoderHandle::submit_work`]; production
     /// [`DecoderHandle::submit`] now uses
-    /// [`DecodeRequest::SingleStage`] which avoids the per-chunk
-    /// closure allocation.
+    /// [`DecodeRequest::SingleStage`] which avoids per-chunk
+    /// dynamic-dispatch vtable indirection.
     #[cfg(test)]
     Legacy(LegacyRequest),
     /// Single-stage typed request. Replaces the per-chunk
-    /// `Box<dyn FnOnce>` allocation on the legacy
+    /// `Box<dyn FnOnce>` closure on the legacy
     /// [`DecoderHandle::submit`] path — the typed enum hands the
     /// `proto::ResponseData` and max-message-size knob through the
     /// queue and the decoder thread runs the same
-    /// `decode_data_table_with_max` call directly.
+    /// `decode_data_table_with_max` call directly. The per-chunk
+    /// allocation count is unchanged (the boxed payload is now the
+    /// typed struct instead of the closure); the win is the
+    /// elimination of the `dyn FnOnce` vtable indirection.
     SingleStage(Box<SingleStageRequest>),
     /// Two-stage stage-1 request. Boxed so the enum stays small
     /// even though `Stage1Request` carries a full
@@ -186,7 +189,8 @@ enum DecodeRequest {
 /// Legacy work-closure request shape — used by the bench / fixture
 /// surface via [`DecoderHandle::submit_work`]. Production
 /// `DecoderHandle::submit` calls use [`SingleStageRequest`] instead
-/// to avoid the per-chunk `Box<dyn FnOnce>` allocation.
+/// to avoid per-chunk dynamic-dispatch vtable indirection on the
+/// boxed `dyn FnOnce` closure.
 #[cfg(test)]
 struct LegacyRequest {
     work: Box<dyn FnOnce() -> DecodeResult + Send + 'static>,
@@ -194,8 +198,11 @@ struct LegacyRequest {
 }
 
 /// Typed single-stage request — the production legacy path. Carries
-/// the response and the size clamp through the queue without
-/// allocating a closure per chunk.
+/// the response and the size clamp through the queue. Replaces the
+/// boxed `dyn FnOnce` closure with a typed struct; the per-chunk
+/// box allocation is the same shape, but the decoder thread runs the
+/// `decode_data_table_with_max` call directly instead of through a
+/// `dyn FnOnce` vtable.
 struct SingleStageRequest {
     response: proto::ResponseData,
     max_message_size: usize,
