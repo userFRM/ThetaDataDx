@@ -546,7 +546,7 @@ public:
     /** Set whether to derive OHLCVC bars locally from trades. */
     void set_derive_ohlcvc(bool enabled) { tdx_config_set_derive_ohlcvc(handle_.get(), enabled ? 1 : 0); }
 
-    // ── MDDS pool sizing (issue #584) ──
+    // ── MDDS pool sizing ──
 
     /**
      * Set the number of concurrent in-flight gRPC requests.
@@ -1964,7 +1964,7 @@ inline void FpssClient::unsubscribe_many(
     for (const auto& s : subs) unsubscribe(s);
 }
 
-// ── Cross-language utility helpers (issue #424) ─────────────────────────
+// ── Cross-language utility helpers ──────────────────────────────────────
 //
 // Thin std::string wrappers over the `'static` C-string accessors in
 // `thetadx.h`. Each call copies the table entry once into a

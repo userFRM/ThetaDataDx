@@ -13,6 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Python `test_reconnect_stable_window_secs_rejects_above_u64`
+  closes the last cross-binding gap on the
+  `reconnect_stable_window_secs` boundary surface. Mirrors the
+  TypeScript `setReconnectStableWindowSecs(1n << 65n)` rejection
+  case so magnitudes above `u64::MAX` raise `OverflowError` at the
+  pyo3 extraction boundary, instead of relying on the implicit
+  Python-int-is-unbounded behaviour.
+- FFI `reconnect_setters_compose_with_pool_sizing_setters` pins
+  the interleaved-survival contract on the C-ABI surface to match
+  the existing Python / TypeScript / C++ cases. Reconnect setter
+  calls and pool-sizing setter calls on the same `TdxConfig` must
+  land in `inner` independently and persist; the new test interleaves
+  `tdx_config_set_concurrent_requests`,
+  `tdx_config_set_decoder_ring_size`,
+  `tdx_config_set_reconnect_policy`,
+  `tdx_config_set_reconnect_max_attempts`,
+  `tdx_config_set_reconnect_max_rate_limited_attempts`,
+  and `tdx_config_set_reconnect_stable_window_secs`, then asserts
+  both mutation classes round-tripped via the underlying `MddsConfig`
+  and `ReconnectPolicy::Auto(limits)` paths.
 - Cross-binding ReconnectConfig setter test parity. The TypeScript
   `__tests__/config_reconnect.test.mjs` coverage that landed in
   round 3 now has matching siblings on every binding:
@@ -387,6 +407,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- C++ ReconnectConfig setter test names corrected from
+  `round-trips representative budgets` to
+  `accepts representative budgets without throwing`. The C ABI exposes
+  no `tdx_config_get_reconnect_*` getter, so the Catch2 cases only call
+  `REQUIRE_NOTHROW` on the setter — no round-trip is verified. The new
+  wording matches the existing TypeScript (`accepts non-zero budgets
+  without throwing`) and Python (`_accepts_non_zero_budgets`) names and
+  removes the misleading claim that a getter exists.
+- Issue-number attributions stripped from the seven remaining C/C++
+  surface sites (round-5 follow-up). The previous round closed `(issue
+  #N)` parentheticals on the Python / TypeScript / FFI binding crates
+  and on the two remaining `crates/thetadatadx/src/rest` module comments;
+  this round closes the C/C++ siblings: `sdks/cpp/include/thetadx.hpp`
+  (MDDS pool-sizing banner + cross-language utility helpers banner),
+  `sdks/cpp/include/thetadx.h` (two `volume/count` rationale blocks on
+  the OHLCVC and option-OHLCVC structs), `sdks/cpp/tests/CMakeLists.txt`
+  (doctest-harness comment), `sdks/cpp/tests/doctest_examples.cpp`
+  (file-banner comment), and `sdks/cpp/tests/config_pool_sizing.cpp`
+  (file-banner comment). `grep -rn 'issue #[0-9]\+' sdks/cpp/` now
+  matches only vendored Catch2 sources under `sdks/cpp/build/_deps/`.
 - ReconnectConfig setter docstrings unified across every binding. The
   per-class budget setters (`set_reconnect_max_attempts`,
   `set_reconnect_max_rate_limited_attempts`,

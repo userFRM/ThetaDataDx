@@ -1,4 +1,4 @@
-// Gate 3 (issue #546) - C++ side: doctest gate.
+// Gate 3 - C++ side: doctest gate.
 //
 // Compiles every `// @example` block extracted from the public C++
 // headers (`thetadx.hpp` + `.inc` includes). The C++ harness piggybacks
