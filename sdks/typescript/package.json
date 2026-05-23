@@ -23,7 +23,7 @@
   "scripts": {
     "build": "napi build --platform --release && node scripts/postbuild_alias_contract.mjs",
     "build:debug": "napi build --platform && node scripts/postbuild_alias_contract.mjs",
-    "test": "node --test __tests__/*.test.mjs",
+    "test": "node scripts/run_tests.mjs",
     "version": "napi version"
   },
   "devDependencies": {

@@ -41,11 +41,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   home for reference spec; the stale link to
   `docs-site/docs/flatfiles/protocol.md` (file never existed) is
   gone from `flatfiles::{mod,index}` and from the changelog.
-- TypeScript `npm test` script now globs the `__tests__/*.test.mjs`
-  directory instead of explicitly listing each file. The
-  `config_reconnect.test.mjs` reconnect-parity coverage landed in
-  round 3 but was not in the explicit list and silently skipped in
-  CI. Glob avoids the same trap on future test files.
+- TypeScript `npm test` script delegates to
+  `scripts/run_tests.mjs`, which walks `__tests__/` and hands every
+  `*.test.mjs` file to `node --test` as explicit argv. Replaces the
+  prior explicit-file list (which silently skipped the
+  `config_reconnect.test.mjs` reconnect-parity coverage that landed
+  in round 3). A shell-glob form (`node --test __tests__/*.test.mjs`)
+  also fails because Windows PowerShell does not expand it and
+  Node's own `--test` glob support is 22+; the explicit-argv runner
+  works on every supported shell and on every Node version
+  satisfying `engines.node >= 20`. The runner exits non-zero when
+  no test files are found, so a future regression that empties
+  the directory cannot silently pass CI.
 - `bench-internals` feature removed in favour of an out-of-Cargo
   `--cfg bench_internals` flag. `Stage2Pool::submit_for_bench`
   remains gated, but downstream consumers can no longer enable it
