@@ -191,14 +191,26 @@ pub struct GreeksThirdOrderTick {
     pub right: i32,
 }
 
-/// Interest rate tick -- 3 fields. End-of-day interest rate.
+/// Interest rate tick -- 2 fields. End-of-day interest rate (percent).
+///
+/// Wire layout per `docs.thetadata.us/operations/interest_rate_history_eod.html`
+/// and verified-live against terminal jar build `202605221`:
+///
+/// | Schema field | Wire header | Wire type        | Mapping                    |
+/// |--------------|-------------|------------------|----------------------------|
+/// | `date`       | `created`   | Text (ISO date)  | `"2025-04-28"` -> 20250428 |
+/// | `rate`       | `rate`      | Number (percent) | `4.3600` -> 4.36           |
+///
+/// The `date` decode flows through [`crate::decode::row_date`], which accepts
+/// `Number`, `Timestamp`, and `Text` cells uniformly — so this tick decodes
+/// either the documented Text-ISO shape or any future Number/Timestamp
+/// narrowing without a per-parser branch.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct InterestRateTick {
-    pub ms_of_day: i32,
-    pub rate: f64,
     pub date: i32,
+    pub rate: f64,
 }
 
 /// Implied volatility tick -- 4 fields.

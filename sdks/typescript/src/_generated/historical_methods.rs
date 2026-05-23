@@ -2902,6 +2902,10 @@ impl ThetaDataDxClient {
     /// Fetch end-of-day interest rate history.
     ///
     /// - Returns the interest rate reported. Depending on the rate, reports can occur in the morning or the afternoon.
+    /// - Valid `symbol` values per upstream `RateType` enum:
+    ///   `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`,
+    ///   `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`,
+    ///   `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
     #[napi(js_name = "interestRateHistoryEOD")]
     pub fn interest_rate_history_eod(
         &self,

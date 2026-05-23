@@ -198,12 +198,17 @@ TDX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[20];
 } TdxGreeksThirdOrderTick TDX_ALIGN64_END;
 
+/* InterestRateTick (2 fields). End-of-day interest rate (percent).
+ * Wire shape per docs.thetadata.us/operations/interest_rate_history_eod.html
+ * verified against terminal jar build 202605221:
+ *   date  <- Text "YYYY-MM-DD" header `created`, parsed to YYYYMMDD i32
+ *   rate  <- Number percent (e.g. 4.36 for SOFR 2025-04-28)
+ */
 TDX_ALIGN64_BEGIN typedef struct {
-    int32_t ms_of_day;
+    int32_t date;
     /* 4 bytes padding before f64 */
     double rate;
-    int32_t date;
-    uint8_t _tail_padding[40];
+    uint8_t _tail_padding[48];
 } TdxInterestRateTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {

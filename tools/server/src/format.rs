@@ -453,9 +453,8 @@ pub fn interest_rate_ticks_to_json(ticks: &[InterestRateTick]) -> Vec<sonic_rs::
         .iter()
         .map(|t| {
             sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
-                "rate": t.rate,
-                "date": t.date
+                "date": t.date,
+                "rate": t.rate
             })
         })
         .collect()

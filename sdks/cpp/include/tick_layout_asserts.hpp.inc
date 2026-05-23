@@ -222,12 +222,10 @@ static_assert(offsetof(GreeksThirdOrderTick, right) == 104,
               "TdxGreeksThirdOrderTick.right offset drifted from Rust");
 static_assert(sizeof(InterestRateTick) == 64 && alignof(InterestRateTick) == 64,
               "TdxInterestRateTick layout drifted from Rust");
-static_assert(offsetof(InterestRateTick, ms_of_day) == 0,
-              "TdxInterestRateTick.ms_of_day offset drifted from Rust");
+static_assert(offsetof(InterestRateTick, date) == 0,
+              "TdxInterestRateTick.date offset drifted from Rust");
 static_assert(offsetof(InterestRateTick, rate) == 8,
               "TdxInterestRateTick.rate offset drifted from Rust");
-static_assert(offsetof(InterestRateTick, date) == 16,
-              "TdxInterestRateTick.date offset drifted from Rust");
 static_assert(sizeof(IvTick) == 64 && alignof(IvTick) == 64,
               "TdxIvTick layout drifted from Rust");
 static_assert(offsetof(IvTick, ms_of_day) == 0,

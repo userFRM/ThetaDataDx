@@ -133,9 +133,8 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("right", DataType::Utf8, false),
         ]))),
         "InterestRateTick" => Some(Arc::new(Schema::new(vec![
-            Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("created", DataType::Int32, false),
             Field::new("rate", DataType::Float64, false),
-            Field::new("date", DataType::Int32, false),
         ]))),
         "IvTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -705,18 +704,15 @@ pub(crate) mod slice_arrow {
     fn read_arrow_batch_from_interest_rate_tick_slice(ticks: &[tick::InterestRateTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("InterestRateTick").expect("generated schema must be present for InterestRateTick");
         let n = ticks.len();
-        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
-        let mut col_rate: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_rate: Vec<f64> = Vec::with_capacity(n);
         for t in ticks {
-            col_ms_of_day.push(t.ms_of_day);
-            col_rate.push(t.rate);
             col_date.push(t.date);
+            col_rate.push(t.rate);
         }
         let columns: Vec<ArrayRef> = vec![
-            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
-            Arc::new(Float64Array::from(col_rate)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Float64Array::from(col_rate)) as ArrayRef,
         ];
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }

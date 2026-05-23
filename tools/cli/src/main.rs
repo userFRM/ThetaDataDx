@@ -1223,18 +1223,14 @@ fn render_calendar(days: &[tdbe::types::tick::CalendarDay], fmt: &OutputFormat) 
 }
 
 fn render_interest_rates(ticks: &[tdbe::types::tick::InterestRateTick], fmt: &OutputFormat) {
-    let mut td = TabularData::new(vec!["date", "ms_of_day", "rate"]);
-    // Canonical schema -- matches sdks/python/src/tick_columnar.rs:125-134
-    // (interest_rate_ticks_to_columnar).
+    let mut td = TabularData::new(vec!["date", "rate"]);
+    // Canonical schema -- matches `INTEREST_RATE_TICK_RAW_HEADERS`
+    // (regenerated from `tick_schema.toml`).
     td.set_raw_headers(INTEREST_RATE_TICK_RAW_HEADERS.to_vec());
     for t in ticks {
         td.push_with_raw(
-            vec![
-                format_date(t.date),
-                format_ms(t.ms_of_day),
-                format!("{:.6}", t.rate),
-            ],
-            vec![raw_ms(t.ms_of_day), raw_f64(t.rate), raw_date(t.date)],
+            vec![format_date(t.date), format!("{:.6}", t.rate)],
+            vec![raw_date(t.date), raw_f64(t.rate)],
         );
     }
     td.render(fmt);

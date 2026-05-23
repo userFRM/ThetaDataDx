@@ -150,14 +150,13 @@ pub struct GreeksThirdOrderTick {
     pub right: String,
 }
 
-/// Interest rate tick. End-of-day interest rate.
+/// Interest rate tick. End-of-day interest rate (percent).
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct InterestRateTick {
-    pub ms_of_day: i32,
-    pub rate: f64,
     pub date: i32,
+    pub rate: f64,
 }
 
 /// Implied volatility tick.
@@ -490,9 +489,8 @@ fn interest_rate_ticks_to_class_vec(ticks: &[tick::InterestRateTick]) -> Vec<Int
         .iter()
         .map(|t| {
             InterestRateTick {
-                ms_of_day: t.ms_of_day,
-                rate: t.rate,
                 date: t.date,
+                rate: t.rate,
             }
         })
         .collect()
