@@ -102,10 +102,24 @@ pub mod frames;
 // ChannelPool, DecoderPool, Stage2Pool, Codec, Status, ServerStreaming).
 // The user-facing path is `MddsClient::for_each_chunk(ServerStreaming<..>)`;
 // the remainder is consumed by the SDK's own integration tests + benches.
-// `#[doc(hidden)]` keeps the module out of rustdoc / `help()` output and
-// signals to consumers that names below are not a SemVer commitment.
-// Full narrowing to `pub(crate)` is deferred to v11 — see BL-1 in
-// `/tmp/whole_repo_audit_findings.md`.
+//
+// In shipped builds (default features) the module is `pub(crate)` so none
+// of its types appear in the SemVer commitment or in rendered rustdoc.
+// Errors flowing out of the transport layer are converted to the public
+// [`crate::Error`] type via `impl From<grpc::ChannelError> for Error` at
+// the crate boundary — consumers pattern-match on [`crate::Error`] only.
+//
+// The `__test-helpers` feature re-opens the module to integration tests
+// and bench harnesses inside this repo that need to drive the raw
+// `Channel` / `Pool` / `DecoderPool` surface against synthetic frames.
+// This feature is private and unsupported for downstream consumers; see
+// the [`__test-helpers`] feature notes in `Cargo.toml` for the
+// double-underscore convention.
+//
+// Closes BL-1 (whole-repo audit wave 3) — `pub mod grpc` SemVer rope.
+#[cfg(not(feature = "__test-helpers"))]
+pub(crate) mod grpc;
+#[cfg(feature = "__test-helpers")]
 #[doc(hidden)]
 pub mod grpc;
 pub(crate) mod observability;

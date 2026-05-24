@@ -337,9 +337,35 @@ type ReconnectObserver = Arc<dyn Fn(ReconnectEvent) + Send + Sync>;
 /// Reconnect lifecycle event surfaced through
 /// [`Channel::set_reconnect_observer`]. Used by the channel-pool
 /// reconnect integration test to verify the single-flight invariant;
-/// production callers should not install an observer.
+/// production callers should not install an observer. Visibility is
+/// `pub` only under the `__test-helpers` private feature — `pub(crate)`
+/// otherwise so internal call sites continue to fire events without
+/// committing the enum to the SemVer surface.
+#[cfg(not(feature = "__test-helpers"))]
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)]
+pub(crate) enum ReconnectEvent {
+    /// The current task won the single-flight CAS and is about to
+    /// open a fresh TCP+TLS+h2 session.
+    AttemptStart,
+    /// The reconnect succeeded; the channel's inner `SendRequest`
+    /// has been swapped.
+    AttemptSuccess,
+    /// The reconnect failed after exhausting the retry budget; the
+    /// inner `SendRequest` was NOT replaced and the next caller will
+    /// observe `ConnectionClosed` again.
+    AttemptExhausted,
+}
+
+/// `__test-helpers`-public mirror of the same enum. Same variants,
+/// same trait derives — only the visibility differs. Tests pattern
+/// match on the variants directly; SemVer commitment never includes
+/// this surface because the gating feature is unsupported downstream.
+#[cfg(feature = "__test-helpers")]
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)]
 pub enum ReconnectEvent {
     /// The current task won the single-flight CAS and is about to
     /// open a fresh TCP+TLS+h2 session.
@@ -366,6 +392,11 @@ impl Channel {
     ///
     /// Returns a [`ChannelError`] when the TCP connect or h2 handshake
     /// fails.
+    ///
+    /// Reachable only when the `__test-helpers` private feature is
+    /// enabled (see BL-1 narrowing); production callers use the
+    /// `_with_max_message_size` variant exclusively.
+    #[cfg(feature = "__test-helpers")]
     pub async fn connect_h2c(host: &str, port: u16) -> Result<Self, ChannelError> {
         Self::connect_h2c_with_max_message_size(host, port, super::codec::DEFAULT_MAX_MESSAGE_SIZE)
             .await
@@ -406,6 +437,11 @@ impl Channel {
     ///
     /// Returns a [`ChannelError`] when the TCP connect, TLS handshake,
     /// or h2 handshake fails.
+    ///
+    /// Reachable only when the `__test-helpers` private feature is
+    /// enabled (see BL-1 narrowing); production callers use the
+    /// `_with_max_message_size` variant exclusively.
+    #[cfg(feature = "__test-helpers")]
     pub async fn connect_tls(
         host: &str,
         port: u16,
@@ -562,6 +598,12 @@ impl Channel {
     /// this channel. Mirrors `DirectConfig::mdds.max_message_size`;
     /// each [`Codec`] this channel constructs uses this value rather
     /// than the codec module's compile-time default.
+    ///
+    /// Exposed under `__test-helpers` for integration tests that verify
+    /// the configured ceiling propagates from `DirectConfig` to every
+    /// channel construct. Production code reaches the same value via
+    /// `DirectConfig::mdds.max_message_size` directly.
+    #[cfg(feature = "__test-helpers")]
     #[must_use]
     pub const fn max_message_size(&self) -> usize {
         self.max_message_size
@@ -573,7 +615,8 @@ impl Channel {
     /// invariant.
     ///
     /// Hidden from public docs — production callers should never
-    /// install an observer.
+    /// install an observer. Reachable only under `__test-helpers`.
+    #[cfg(feature = "__test-helpers")]
     #[doc(hidden)]
     pub fn set_reconnect_observer<F>(&self, observer: F)
     where
@@ -648,7 +691,9 @@ impl Channel {
     ///
     /// Hidden from the public docs — exposed for integration tests
     /// that need to confirm the channel records the right scheme for
-    /// each transport.
+    /// each transport. Reachable only under `__test-helpers` (or in
+    /// unit tests).
+    #[cfg(any(test, feature = "__test-helpers"))]
     #[doc(hidden)]
     #[must_use]
     pub fn scheme_str(&self) -> &'static str {
@@ -875,6 +920,11 @@ impl Channel {
     /// Same as [`Self::server_streaming`], plus
     /// [`ChannelError::DeadlineExceeded`] when the deadline elapses
     /// during the open phase.
+    ///
+    /// Reachable only under `__test-helpers` — production deadlines are
+    /// handled at the `MddsClient` layer via `tokio::time::timeout`
+    /// around the streaming consumer.
+    #[cfg(feature = "__test-helpers")]
     pub async fn server_streaming_with_deadline<Req, Resp>(
         &self,
         method: &'static str,

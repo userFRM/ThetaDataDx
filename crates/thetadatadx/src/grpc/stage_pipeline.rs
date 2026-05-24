@@ -97,18 +97,27 @@ impl Stage2Counters {
     /// Observed value of `total_decoded`. `Ordering::Relaxed` is
     /// correct for a monitoring snapshot — there is no
     /// happens-before relationship with other state to enforce.
+    ///
+    /// Reachable only under `__test-helpers` (or in unit tests) —
+    /// the production observability path emits these via the `metrics`
+    /// crate (see `observability.rs`), not by direct counter reads.
+    #[cfg(any(test, feature = "__test-helpers"))]
     #[must_use]
     pub fn total_decoded(&self) -> u64 {
         self.total_decoded.load(Ordering::Relaxed)
     }
 
-    /// Observed value of `total_dropped`.
+    /// Observed value of `total_dropped`. Reachable only under
+    /// `__test-helpers`.
+    #[cfg(feature = "__test-helpers")]
     #[must_use]
     pub fn total_dropped(&self) -> u64 {
         self.total_dropped.load(Ordering::Relaxed)
     }
 
-    /// Observed value of `total_parked` (nanoseconds).
+    /// Observed value of `total_parked` (nanoseconds). Reachable only
+    /// under `__test-helpers` (or in unit tests).
+    #[cfg(any(test, feature = "__test-helpers"))]
     #[must_use]
     pub fn total_parked_nanos(&self) -> u64 {
         self.total_parked.load(Ordering::Relaxed)
@@ -140,8 +149,17 @@ pub(crate) struct Stage2Job {
 pub struct Stage2Pool {
     sender: Option<Stage2PoolSender>,
     workers: Vec<JoinHandle<()>>,
+    /// Shared counter handle. Only read back from the bench harness
+    /// and the `__test-helpers`-gated accessor; production updates
+    /// them through `Stage2PoolSender` clones.
+    #[cfg(any(test, feature = "__test-helpers"))]
     counters: Arc<Stage2Counters>,
+    /// Configured worker thread count, surfaced only to the bench
+    /// harness for warm-up sizing assertions.
+    #[cfg(any(test, feature = "__test-helpers"))]
     worker_count: usize,
+    /// Configured queue depth, surfaced only to the bench harness.
+    #[cfg(any(test, feature = "__test-helpers"))]
     queue_depth: usize,
 }
 
@@ -327,8 +345,11 @@ impl Stage2Pool {
                 parked_in_slice_loop: Arc::new(AtomicU64::new(0)),
             }),
             workers,
+            #[cfg(any(test, feature = "__test-helpers"))]
             counters,
+            #[cfg(any(test, feature = "__test-helpers"))]
             worker_count,
+            #[cfg(any(test, feature = "__test-helpers"))]
             queue_depth,
         }
     }
@@ -355,24 +376,35 @@ impl Stage2Pool {
     /// Snapshot of the pipeline counters. Cheap — just clones an
     /// `Arc`. The returned handle reflects live state, not a frozen
     /// snapshot.
+    ///
+    /// Reachable only under `__test-helpers` (or in unit tests) —
+    /// production observability emits via the `metrics` crate inside
+    /// the worker loop.
+    #[cfg(any(test, feature = "__test-helpers"))]
     #[must_use]
     pub fn counters(&self) -> Arc<Stage2Counters> {
         Arc::clone(&self.counters)
     }
 
-    /// Number of worker threads in this stage-2 pool.
+    /// Number of worker threads in this stage-2 pool. Reachable only
+    /// under `__test-helpers` (or in unit tests).
+    #[cfg(any(test, feature = "__test-helpers"))]
     #[must_use]
     pub fn worker_count(&self) -> usize {
         self.worker_count
     }
 
-    /// Configured queue depth.
+    /// Configured queue depth. Reachable only under `__test-helpers`
+    /// (or in unit tests).
+    #[cfg(any(test, feature = "__test-helpers"))]
     #[must_use]
     pub fn queue_depth(&self) -> usize {
         self.queue_depth
     }
 
-    /// `true` once any worker has caught a panic.
+    /// `true` once any worker has caught a panic. Reachable only
+    /// under `__test-helpers` (or in unit tests).
+    #[cfg(any(test, feature = "__test-helpers"))]
     #[must_use]
     pub fn is_poisoned(&self) -> bool {
         self.sender
@@ -392,7 +424,7 @@ impl Stage2Pool {
     ///
     /// Returns `Err` with the rejected payload if the pool is
     /// poisoned or fully torn down.
-    #[cfg(any(test, bench_internals))]
+    #[cfg(any(bench_internals, feature = "__test-helpers"))]
     pub fn submit_for_bench(
         &self,
         payload: DecodedPayload,

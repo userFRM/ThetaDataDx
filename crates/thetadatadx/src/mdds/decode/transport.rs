@@ -45,10 +45,10 @@ thread_local! {
 
 /// Decompress a `ResponseData` payload using the default ceiling.
 ///
-/// Equivalent to [`decompress_response_with_max`] with
-/// [`crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE`]; new callers
-/// should prefer the `_with_max` variant so they thread their
-/// channel's configured ceiling through.
+/// Equivalent to [`decompress_response_with_max`] with the crate's
+/// built-in default per-frame ceiling; new callers should prefer the
+/// `_with_max` variant so they thread their channel's configured
+/// ceiling through.
 ///
 /// Takes the response by `&mut` so the identity-compression path can
 /// move the payload `Vec` out instead of cloning.
@@ -69,11 +69,11 @@ pub fn decompress_response(response: &mut proto::ResponseData) -> Result<Vec<u8>
 /// (`original_size = i32::MAX`, ≈ 2 GiB) cannot trigger a runaway
 /// allocation; the function returns `MessageTooLarge` first.
 ///
-/// `max_message_size` mirrors the channel's
-/// [`crate::grpc::codec::Codec::max_message_size`]. The frame-level
-/// codec rejects oversized FRAMES on the wire; this guard rejects
-/// oversized DECOMPRESSED PAYLOADS, which the codec cannot see
-/// because `original_size` rides inside the compressed payload.
+/// `max_message_size` mirrors the channel's per-frame ceiling.
+/// The frame-level codec rejects oversized FRAMES on the wire; this
+/// guard rejects oversized DECOMPRESSED PAYLOADS, which the codec
+/// cannot see because `original_size` rides inside the compressed
+/// payload.
 ///
 /// Prost's `.algo()` maps unknown enum values to `None`, so the
 /// branch dispatches on the raw `i32` instead.
@@ -152,10 +152,9 @@ pub fn decompress_response_with_max(
 }
 
 /// Decode a `ResponseData` into a `DataTable` (legacy signature;
-/// uses [`crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE`] as the
-/// ceiling). Kept on the public API for backwards compatibility with
-/// v10.0.x consumers; new callers should prefer
-/// [`decode_data_table_with_max`].
+/// uses the crate's built-in default per-frame ceiling). Kept on the
+/// public API for backwards compatibility with v10.0.x consumers; new
+/// callers should prefer [`decode_data_table_with_max`].
 ///
 /// # Errors
 ///
@@ -169,10 +168,10 @@ pub fn decode_data_table(response: &mut proto::ResponseData) -> Result<proto::Da
 /// Decode a `ResponseData` into a `DataTable`, honouring the channel's
 /// `max_message_size` ceiling.
 ///
-/// `max_message_size` is propagated from the originating
-/// [`crate::grpc::Channel`] / [`crate::grpc::codec::Codec`]. Callers
-/// without a channel-bound ceiling (offline tests, bench fixtures)
-/// pass [`crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE`].
+/// `max_message_size` is propagated from the originating gRPC
+/// channel's codec configuration. Callers without a channel-bound
+/// ceiling (offline tests, bench fixtures) pass the crate's built-in
+/// default per-frame ceiling.
 ///
 /// # Errors
 ///
