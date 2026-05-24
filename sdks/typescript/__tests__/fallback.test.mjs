@@ -11,8 +11,8 @@ let mod;
 try {
   mod = await import('../index.js');
 } catch {
-  console.log('SKIP: native addon not built (run `npm run build` first)');
-  process.exit(0);
+  console.error('FAIL: native addon not built; run `npm run build` first');
+  process.exit(1);
 }
 
 const { FallbackPolicy, Config, ThetaDataDxClient, DEFAULT_REST_BASE_URL } = mod;
