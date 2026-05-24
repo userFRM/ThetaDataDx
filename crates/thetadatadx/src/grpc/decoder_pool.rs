@@ -264,8 +264,11 @@ impl RingEvent {
     /// Caller must be the producer holding exclusive access to this
     /// slot's sequence number.
     unsafe fn write(&self, request: DecodeRequest) {
-        // SAFETY: see method docstring — producer barrier guarantees
-        // exclusivity at this sequence position.
+        // SAFETY: the caller's producer-side disruptor barrier has
+        // already claimed this sequence position exclusively — no
+        // other thread can hold a reference to the cell at the same
+        // sequence until the producer publishes. The store therefore
+        // races with nothing.
         unsafe { *self.request.get() = Some(request) };
     }
 
@@ -279,8 +282,11 @@ impl RingEvent {
     /// Caller must be the consumer holding exclusive access to this
     /// slot's sequence number.
     unsafe fn take(&self) -> Option<DecodeRequest> {
-        // SAFETY: see method docstring — consumer barrier guarantees
-        // exclusivity at this sequence position.
+        // SAFETY: the caller's consumer-side disruptor barrier has
+        // committed the matching producer sequence (Acquire ordering)
+        // and no other consumer reads this same slot — the consumer
+        // is single-threaded per `DecoderHandle`. The `take()` thus
+        // races with nothing.
         unsafe { (*self.request.get()).take() }
     }
 }

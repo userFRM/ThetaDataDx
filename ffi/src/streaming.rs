@@ -236,6 +236,30 @@ pub struct TdxSubscriptionArray {
     pub len: usize,
 }
 
+/// Free both CString pointers on a `TdxSubscription` if present.
+/// Centralises the 6-site `// SAFETY: produced by CString::into_raw …`
+/// block that audit S25 flagged for repetition. The function takes
+/// a reference rather than ownership because `TdxSubscriptionArray::data`
+/// holds the values inside a `Box<[TdxSubscription]>` and the caller
+/// drops that box separately.
+///
+/// # Safety
+///
+/// `sub.kind` and `sub.contract` MUST each be either null or a
+/// pointer produced by `CString::into_raw` on a matching path that
+/// has not been freed yet. Concurrent free of the same pointer is
+/// undefined behaviour.
+unsafe fn drop_subscription_cstrings(sub: &TdxSubscription) {
+    if !sub.kind.is_null() {
+        // SAFETY: per the function-level safety contract.
+        drop(unsafe { CString::from_raw(sub.kind.cast_mut()) });
+    }
+    if !sub.contract.is_null() {
+        // SAFETY: per the function-level safety contract.
+        drop(unsafe { CString::from_raw(sub.contract.cast_mut()) });
+    }
+}
+
 /// Build a `TdxSubscriptionArray` from an iterator of `(kind_debug, contract_display)` pairs.
 fn build_subscription_array<I>(iter: I) -> *mut TdxSubscriptionArray
 where
@@ -249,15 +273,10 @@ where
         } else {
             // Free already-allocated CStrings before returning null
             for s in &subs {
-                let s: &TdxSubscription = s;
-                if !s.kind.is_null() {
-                    // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
-                    drop(unsafe { CString::from_raw(s.kind.cast_mut()) });
-                }
-                if !s.contract.is_null() {
-                    // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
-                    drop(unsafe { CString::from_raw(s.contract.cast_mut()) });
-                }
+                // SAFETY: every `s.kind` / `s.contract` came from
+                // `CString::into_raw` two iterations earlier on the
+                // success path; nothing else can have freed them.
+                unsafe { drop_subscription_cstrings(s) };
             }
             set_error("subscription kind contains null byte");
             return ptr::null_mut();
@@ -267,15 +286,8 @@ where
         } else {
             drop(kind_c); // free the kind we just allocated
             for s in &subs {
-                let s: &TdxSubscription = s;
-                if !s.kind.is_null() {
-                    // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
-                    drop(unsafe { CString::from_raw(s.kind.cast_mut()) });
-                }
-                if !s.contract.is_null() {
-                    // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
-                    drop(unsafe { CString::from_raw(s.contract.cast_mut()) });
-                }
+                // SAFETY: see contract on `drop_subscription_cstrings`.
+                unsafe { drop_subscription_cstrings(s) };
             }
             set_error("subscription contract contains null byte");
             return ptr::null_mut();
@@ -309,14 +321,11 @@ pub unsafe extern "C" fn tdx_subscription_array_free(arr: *mut TdxSubscriptionAr
             // SAFETY: data + len describe a contiguous slice the caller is required to keep valid for the call duration.
             let slice = unsafe { std::slice::from_raw_parts(arr.data.cast_mut(), arr.len) };
             for sub in slice {
-                if !sub.kind.is_null() {
-                    // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
-                    drop(unsafe { CString::from_raw(sub.kind.cast_mut()) });
-                }
-                if !sub.contract.is_null() {
-                    // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
-                    drop(unsafe { CString::from_raw(sub.contract.cast_mut()) });
-                }
+                // SAFETY: every `sub` was produced by
+                // `build_subscription_array`, which sources both
+                // CString pointers from `CString::into_raw` and never
+                // mutates them after. This is the matching free.
+                unsafe { drop_subscription_cstrings(sub) };
             }
             // Reconstruct and drop the boxed slice.
             // SAFETY: `arr.data` was returned by `Box::into_raw` on a `Box<[TdxSubscriptionRecord]>` of length `arr.len`; ownership returns to Rust for drop. Per-element CString and contract pointers were freed in the loop above.

@@ -139,11 +139,7 @@ pub unsafe extern "C" fn tdx_config_free(config: *mut TdxConfig) {
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode: i32) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         config.inner.fpss.flush_mode = match mode {
             1 => thetadatadx::FpssFlushMode::Immediate,
             _ => thetadatadx::FpssFlushMode::Batched,
@@ -161,11 +157,7 @@ pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode:
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_reconnect_policy(config: *mut TdxConfig, policy: i32) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         config.inner.reconnect.policy = match policy {
             1 => thetadatadx::ReconnectPolicy::Manual,
             _ => thetadatadx::ReconnectPolicy::Auto(thetadatadx::ReconnectAttemptLimits::default()),
@@ -182,11 +174,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_attempts(
     max_attempts: u32,
 ) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
             limits.max_attempts = max_attempts;
         }
@@ -202,11 +190,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_rate_limited_attempts(
     max_rate_limited_attempts: u32,
 ) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
             limits.max_rate_limited_attempts = max_rate_limited_attempts;
         }
@@ -222,11 +206,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_stable_window_secs(
     secs: u64,
 ) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
             limits.stable_window = std::time::Duration::from_secs(secs);
         }
@@ -240,11 +220,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_stable_window_secs(
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, enabled: i32) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         config.inner.fpss.derive_ohlcvc = enabled != 0;
     })
 }
@@ -260,11 +236,7 @@ pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, en
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_concurrent_requests(config: *mut TdxConfig, n: u32) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         config.inner.mdds.concurrent_requests = n as usize;
     })
 }
@@ -278,11 +250,7 @@ pub unsafe extern "C" fn tdx_config_set_concurrent_requests(config: *mut TdxConf
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_decoder_threads(config: *mut TdxConfig, n: u32) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         config.inner.mdds.decoder_threads = n as usize;
     })
 }
