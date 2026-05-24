@@ -138,8 +138,15 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
         ]))),
         "IvTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("bid", DataType::Float64, false),
+            Field::new("bid_implied_volatility", DataType::Float64, false),
+            Field::new("midpoint", DataType::Float64, false),
             Field::new("implied_volatility", DataType::Float64, false),
+            Field::new("ask", DataType::Float64, false),
+            Field::new("ask_implied_volatility", DataType::Float64, false),
             Field::new("iv_error", DataType::Float64, false),
+            Field::new("underlying_ms_of_day", DataType::Int32, false),
+            Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, false),
             Field::new("strike", DataType::Float64, false),
@@ -163,6 +170,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("close", DataType::Float64, false),
             Field::new("volume", DataType::Int64, false),
             Field::new("count", DataType::Int64, false),
+            Field::new("vwap", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, false),
             Field::new("strike", DataType::Float64, false),
@@ -730,16 +738,30 @@ pub(crate) mod slice_arrow {
         let schema = arrow_schema_for_qualname("IvTick").expect("generated schema must be present for IvTick");
         let n = ticks.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid: Vec<f64> = Vec::with_capacity(n);
+        let mut col_bid_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
         let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ask: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ask_implied_volatility: Vec<f64> = Vec::with_capacity(n);
         let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
         let mut col_strike: Vec<f64> = Vec::with_capacity(n);
         let mut col_right: Vec<String> = Vec::with_capacity(n);
         for t in ticks {
             col_ms_of_day.push(t.ms_of_day);
+            col_bid.push(t.bid);
+            col_bid_implied_volatility.push(t.bid_implied_volatility);
+            col_midpoint.push(t.midpoint);
             col_implied_volatility.push(t.implied_volatility);
+            col_ask.push(t.ask);
+            col_ask_implied_volatility.push(t.ask_implied_volatility);
             col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
             col_expiration.push(t.expiration);
             col_strike.push(t.strike);
@@ -747,8 +769,15 @@ pub(crate) mod slice_arrow {
         }
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_bid)) as ArrayRef,
+            Arc::new(Float64Array::from(col_bid_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_midpoint)) as ArrayRef,
             Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ask)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ask_implied_volatility)) as ArrayRef,
             Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
@@ -819,6 +848,7 @@ pub(crate) mod slice_arrow {
         let mut col_close: Vec<f64> = Vec::with_capacity(n);
         let mut col_volume: Vec<i64> = Vec::with_capacity(n);
         let mut col_count: Vec<i64> = Vec::with_capacity(n);
+        let mut col_vwap: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
         let mut col_strike: Vec<f64> = Vec::with_capacity(n);
@@ -831,6 +861,7 @@ pub(crate) mod slice_arrow {
             col_close.push(t.close);
             col_volume.push(t.volume);
             col_count.push(t.count);
+            col_vwap.push(t.vwap);
             col_date.push(t.date);
             col_expiration.push(t.expiration);
             col_strike.push(t.strike);
@@ -844,6 +875,7 @@ pub(crate) mod slice_arrow {
             Arc::new(Float64Array::from(col_close)) as ArrayRef,
             Arc::new(Int64Array::from(col_volume)) as ArrayRef,
             Arc::new(Int64Array::from(col_count)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vwap)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,

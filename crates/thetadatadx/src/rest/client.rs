@@ -395,8 +395,27 @@ pub fn decode_iv_csv(body: &str) -> Result<Vec<IvTick>, RestError> {
         return Ok(vec![]);
     }
     let ms_idx = table.column_index("ms_of_day");
-    let iv_idx = table.column_index("implied_volatility");
+    let bid_idx = table.column_index("bid");
+    let bid_iv_idx = table
+        .column_index("bid_implied_vol")
+        .or_else(|| table.column_index("bid_implied_volatility"));
+    let midpoint_idx = table.column_index("midpoint");
+    // Accept both wire (`implied_vol`) and schema (`implied_volatility`)
+    // header forms — the REST decoder is the user-facing csv parser and
+    // production callers may pre-rewrite the header to match the public
+    // schema field name.
+    let iv_idx = table
+        .column_index("implied_vol")
+        .or_else(|| table.column_index("implied_volatility"));
+    let ask_idx = table.column_index("ask");
+    let ask_iv_idx = table
+        .column_index("ask_implied_vol")
+        .or_else(|| table.column_index("ask_implied_volatility"));
     let iv_err_idx = table.column_index("iv_error");
+    let und_ms_idx = table
+        .column_index("underlying_timestamp")
+        .or_else(|| table.column_index("underlying_ms_of_day"));
+    let und_price_idx = table.column_index("underlying_price");
     let date_idx = table.column_index("date");
 
     // N3: required columns validated before the row-buffer allocation.
@@ -419,8 +438,15 @@ pub fn decode_iv_csv(body: &str) -> Result<Vec<IvTick>, RestError> {
         let date = table.cell_i32_required(row_idx, date_idx, "date")?;
         out.push(IvTick {
             ms_of_day,
+            bid: table.cell_f64_or_zero(row_idx, bid_idx)?,
+            bid_implied_volatility: table.cell_f64_or_zero(row_idx, bid_iv_idx)?,
+            midpoint: table.cell_f64_or_zero(row_idx, midpoint_idx)?,
             implied_volatility: table.cell_f64_or_zero(row_idx, iv_idx)?,
+            ask: table.cell_f64_or_zero(row_idx, ask_idx)?,
+            ask_implied_volatility: table.cell_f64_or_zero(row_idx, ask_iv_idx)?,
             iv_error: table.cell_f64_or_zero(row_idx, iv_err_idx)?,
+            underlying_ms_of_day: table.cell_i32_or_zero(row_idx, und_ms_idx)?,
+            underlying_price: table.cell_f64_or_zero(row_idx, und_price_idx)?,
             date,
             expiration: 0,
             strike: 0.0,

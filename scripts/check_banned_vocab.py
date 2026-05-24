@@ -81,7 +81,11 @@ SCAN_GLOBS = [
     "ffi/**/*.rs",
     "ffi/**/*.toml",
     "ffi/**/*.md",
-    "proto/**/*.proto",
+    # Proto files live under each crate (`crates/<name>/proto/*.proto`),
+    # not in a top-level `proto/` directory. The earlier `proto/**/*.proto`
+    # glob always expanded to an empty list and quietly skipped wire-spec
+    # files from the banned-vocab scan.
+    "crates/**/*.proto",
     "sdks/**/*.rs",
     "sdks/**/*.py",
     "sdks/**/*.pyi",

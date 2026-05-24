@@ -162,15 +162,22 @@ mod layout_asserts {
 
     #[test]
     fn iv_tick_layout() {
-        assert_eq!(size_of::<IvTick>(), 64);
+        assert_eq!(size_of::<IvTick>(), 128);
         assert_eq!(align_of::<IvTick>(), 64);
         assert_eq!(offset_of!(IvTick, ms_of_day), 0);
-        assert_eq!(offset_of!(IvTick, implied_volatility), 8);
-        assert_eq!(offset_of!(IvTick, iv_error), 16);
-        assert_eq!(offset_of!(IvTick, date), 24);
-        assert_eq!(offset_of!(IvTick, expiration), 28);
-        assert_eq!(offset_of!(IvTick, strike), 32);
-        assert_eq!(offset_of!(IvTick, right), 40);
+        assert_eq!(offset_of!(IvTick, bid), 8);
+        assert_eq!(offset_of!(IvTick, bid_implied_volatility), 16);
+        assert_eq!(offset_of!(IvTick, midpoint), 24);
+        assert_eq!(offset_of!(IvTick, implied_volatility), 32);
+        assert_eq!(offset_of!(IvTick, ask), 40);
+        assert_eq!(offset_of!(IvTick, ask_implied_volatility), 48);
+        assert_eq!(offset_of!(IvTick, iv_error), 56);
+        assert_eq!(offset_of!(IvTick, underlying_ms_of_day), 64);
+        assert_eq!(offset_of!(IvTick, underlying_price), 72);
+        assert_eq!(offset_of!(IvTick, date), 80);
+        assert_eq!(offset_of!(IvTick, expiration), 84);
+        assert_eq!(offset_of!(IvTick, strike), 88);
+        assert_eq!(offset_of!(IvTick, right), 96);
     }
 
     #[test]
@@ -198,10 +205,11 @@ mod layout_asserts {
         assert_eq!(offset_of!(OhlcTick, close), 32);
         assert_eq!(offset_of!(OhlcTick, volume), 40);
         assert_eq!(offset_of!(OhlcTick, count), 48);
-        assert_eq!(offset_of!(OhlcTick, date), 56);
-        assert_eq!(offset_of!(OhlcTick, expiration), 60);
-        assert_eq!(offset_of!(OhlcTick, strike), 64);
-        assert_eq!(offset_of!(OhlcTick, right), 72);
+        assert_eq!(offset_of!(OhlcTick, vwap), 56);
+        assert_eq!(offset_of!(OhlcTick, date), 64);
+        assert_eq!(offset_of!(OhlcTick, expiration), 68);
+        assert_eq!(offset_of!(OhlcTick, strike), 72);
+        assert_eq!(offset_of!(OhlcTick, right), 80);
     }
 
     #[test]

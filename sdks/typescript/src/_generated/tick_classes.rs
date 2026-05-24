@@ -165,8 +165,15 @@ pub struct InterestRateTick {
 #[derive(Clone)]
 pub struct IvTick {
     pub ms_of_day: i32,
+    pub bid: f64,
+    pub bid_implied_volatility: f64,
+    pub midpoint: f64,
     pub implied_volatility: f64,
+    pub ask: f64,
+    pub ask_implied_volatility: f64,
     pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
@@ -188,7 +195,7 @@ pub struct MarketValueTick {
     pub right: String,
 }
 
-/// OHLC tick. Aggregated bar data.
+/// OHLC tick. Aggregated bar data including SIP-rule VWAP.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
@@ -200,6 +207,7 @@ pub struct OhlcTick {
     pub close: f64,
     pub volume: BigInt,
     pub count: BigInt,
+    pub vwap: f64,
     pub date: i32,
     pub expiration: i32,
     pub strike: f64,
@@ -502,8 +510,15 @@ fn iv_ticks_to_class_vec(ticks: &[tick::IvTick]) -> Vec<IvTick> {
         .map(|t| {
             IvTick {
                 ms_of_day: t.ms_of_day,
+                bid: t.bid,
+                bid_implied_volatility: t.bid_implied_volatility,
+                midpoint: t.midpoint,
                 implied_volatility: t.implied_volatility,
+                ask: t.ask,
+                ask_implied_volatility: t.ask_implied_volatility,
                 iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,
@@ -543,6 +558,7 @@ fn ohlc_ticks_to_class_vec(ticks: &[tick::OhlcTick]) -> Vec<OhlcTick> {
                 close: t.close,
                 volume: BigInt::from(t.volume),
                 count: BigInt::from(t.count),
+                vwap: t.vwap,
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,

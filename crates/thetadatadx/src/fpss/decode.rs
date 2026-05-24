@@ -120,7 +120,11 @@ pub fn decode_frame(
     // sentinelling on `0`. `Instant`-based fallback uses the program's
     // approximate epoch alignment captured at first call.
     let received_at_ns = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-        Ok(d) => d.as_nanos() as u64,
+        // u128 → u64 saturates past 2554-07-21T23:34:33Z (when ns since
+        // UNIX_EPOCH first exceeds 2^64). `as u64` would wrap to a
+        // misleading early-1970 timestamp; `try_from` + `unwrap_or` clamps
+        // to the schema sentinel without panicking on the boundary.
+        Ok(d) => u64::try_from(d.as_nanos()).unwrap_or(u64::MAX),
         Err(e) => {
             static FAIL_COUNT: AtomicU64 = AtomicU64::new(0);
             let prev = FAIL_COUNT.fetch_add(1, Ordering::Relaxed);
@@ -212,7 +216,11 @@ pub fn decode_frame(
             // The payload is the server's opaque "Bundle" string -- see
             // FpssControl::LoginSuccess docs for why we don't parse it.
             let permissions = String::from_utf8_lossy(payload).to_string();
-            tracing::debug!(permissions = %permissions, "received METADATA");
+            // The Bundle string carries the account's subscription scope
+            // (e.g. `STOCK.PRO, OPTION.PRO, INDEX.PRO`) — operationally
+            // useful but account-identifying, so log it at `trace!` where
+            // a production deployment will not capture it by default.
+            tracing::trace!(permissions = %permissions, "received METADATA");
             authenticated.store(true, Ordering::Release);
             (
                 Some(FpssEventInternal::Control(FpssControl::LoginSuccess {
@@ -741,9 +749,9 @@ mod tests {
         assert_eq!(f[6], 6, "price_type");
         assert_eq!(f[7], 20250428, "date");
 
-        // Verify the n_data <= 8 mapping path produces the correct Trade variant.
-        assert!(n_data <= 8);
-        // The wire-internal `contract_id` no longer rides on the Trade
+        // `n_data == 8` already pinned 14 lines up via `assert_eq!`;
+        // the previous `assert!(n_data <= 8)` was redundant. The
+        // wire-internal `contract_id` no longer rides on the Trade
         // event (extracted by `decode_tick`, used only to resolve the
         // `Arc<Contract>` in `decode_frame`).
         assert_eq!(contract_id, 100);
@@ -872,8 +880,9 @@ mod tests {
         assert_eq!(f[14], 8, "price_type");
         assert_eq!(f[15], 20250428, "date");
 
-        // Verify the n_data > 8 mapping path produces the correct Trade variant.
-        assert!(n_data > 8);
+        // `n_data == 16` already pinned at the top of the assertions
+        // block via `assert_eq!`; the previous `assert!(n_data > 8)`
+        // was redundant.
         let trade = FpssData::Trade {
             contract: unresolved_sentinel(contract_id),
             ms_of_day: f[0],

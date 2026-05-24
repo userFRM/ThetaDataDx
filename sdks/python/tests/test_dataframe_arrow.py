@@ -239,6 +239,7 @@ def test_ohlc_tick_to_arrow_schema():
         close=105.0,
         volume=1_000_000,
         count=500,
+        vwap=102.5,
         date=20260420,
     )
     lst = thetadatadx.OhlcTickList([tick])
@@ -251,6 +252,7 @@ def test_ohlc_tick_to_arrow_schema():
         "close": "double",
         "volume": "int64",
         "count": "int64",
+        "vwap": "double",
         "date": "int32",
         "expiration": "int32",
         "strike": "double",

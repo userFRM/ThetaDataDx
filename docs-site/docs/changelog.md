@@ -7,9 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> **Release line note**: this train accumulates 7 major + 1 minor breaking changes
+> **Release line note**: this train accumulates 9 major + 1 minor breaking changes
 > versus v10.0.0. The next release tag MUST be v11.0.0, not a v10.0.x patch.
 > Owner-greenlight gated on this audit returning zero actionable findings.
+
+### Changed (BREAKING — v11)
+
+- `IvTick` recovers 7 columns the v3 server has been emitting on
+  `option_history_greeks_implied_volatility` since v3 launch and the
+  pre-v11 decoder silently dropped (`bid`, `bid_implied_volatility`,
+  `midpoint`, `ask`, `ask_implied_volatility`, `underlying_ms_of_day`,
+  `underlying_price`). Struct size: 64 -> 128. `bid_implied_vol` /
+  `ask_implied_vol` wire headers map via new `HEADER_ALIASES` rows.
+  Closes audit BL-12.
+- `OhlcTick` recovers the SIP-rule `vwap` column emitted by every
+  `*_history_ohlc` endpoint. The snapshot variants (`*_snapshot_ohlc`)
+  default `vwap` to `0.0` via the optional-column path. Struct size
+  unchanged (was already 128 bytes after alignment); field offsets
+  shift past `count`. Closes audit BL-13.
+
+### Fixed
+
+- gRPC reconnect backoff gains decorrelated +/- 10% jitter keyed on
+  `(host, port, attempt)` so a population of clients seeing the same
+  GOAWAY no longer reconnects in lock-step (S52).
+- Per-frame `received_at_ns` cast uses saturating `u64::try_from` so
+  the schema timestamp stops wrapping at the 2554 boundary (S18).
+- METADATA-frame `permissions` and Nexus auth URL downgraded from
+  `debug!` to `trace!` so production deployments do not record
+  account subscription scope or auth-routing topology by default
+  (S55, S56).
+- TypeScript tests fail loudly when the napi addon is missing rather
+  than passing 0-assertion green; CI now catches a broken build (BL-15).
+- `scripts/check_banned_vocab.py` proto glob fixed
+  (`crates/**/*.proto`); the prior `proto/**/*.proto` expanded to
+  empty and silently skipped wire-spec files (S1).
+
+### Docs
+
+- C++ public headers (`thetadx.h`, `thetadx.hpp`) and Python pyo3
+  docstrings: scrubbed upstream-protocol jargon
+  (`FPSS reader -> LMAX Disruptor ring -> consumer thread` →
+  `streaming reader -> bounded ring -> consumer thread`,
+  "MDDS pool sizing" → "decode pool sizing"). ABI-locked symbols
+  (`tdx_fpss_*`, `TDX_FPSS_*`) unchanged. Closes BL-5, BL-6, BL-7.
 
 ### Added
 

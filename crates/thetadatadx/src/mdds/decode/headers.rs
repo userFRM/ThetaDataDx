@@ -31,8 +31,14 @@ pub(crate) const HEADER_ALIASES: &[(&str, &str)] = &[
     ("date", "trade_timestamp"),
     // option_list_contracts returns "symbol" where the schema says "root"
     ("root", "symbol"),
-    // v3 uses "implied_vol" where the schema says "implied_volatility"
+    // v3 uses "implied_vol" where the schema says "implied_volatility".
+    // The same naming applies to the bid/ask-side IV columns emitted by
+    // `option_history_greeks_implied_volatility`: server header
+    // `bid_implied_vol` / `ask_implied_vol`, schema field
+    // `bid_implied_volatility` / `ask_implied_volatility`.
     ("implied_volatility", "implied_vol"),
+    ("bid_implied_volatility", "bid_implied_vol"),
+    ("ask_implied_volatility", "ask_implied_vol"),
     // The vendor's per-order Greeks endpoints (`option_*_greeks_*_order`)
     // and the `_greeks_all` / `_greeks_eod` endpoints publish the
     // underlying snapshot timestamp as `underlying_timestamp`. The tick

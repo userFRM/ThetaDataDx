@@ -741,7 +741,10 @@ mod tests {
                 );
                 assert_eq!(*ms_of_day, 12_345);
                 assert_eq!(*sequence, 7);
-                assert!((*price - 150.0).abs() < f64::EPSILON);
+                // Decimal-ms price round-trips exactly through
+                // `Price::new(15_000, 2)` — `assert_eq!` is the right
+                // shape, no tolerance needed.
+                assert_eq!(*price, 150.0);
             }
             other => panic!("expected Data(Trade) after reborrow, got {other:?}"),
         }
@@ -817,7 +820,9 @@ mod tests {
                 contract, price, ..
             }) => {
                 assert_eq!(contract.symbol, "AAPL");
-                assert!((*price - 150.25).abs() < f64::EPSILON);
+                // Price round-trips exactly via `Price::new(15_025, 4)`
+                // — `assert_eq!` is the right shape.
+                assert_eq!(*price, 150.25);
             }
             other => panic!("expected Data(Trade), got {other:?}"),
         }

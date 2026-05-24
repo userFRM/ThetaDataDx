@@ -214,13 +214,21 @@ TDX_ALIGN64_BEGIN typedef struct {
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before f64 */
+    double bid;
+    double bid_implied_volatility;
+    double midpoint;
     double implied_volatility;
+    double ask;
+    double ask_implied_volatility;
     double iv_error;
+    int32_t underlying_ms_of_day;
+    /* 4 bytes padding before f64 */
+    double underlying_price;
     int32_t date;
     int32_t expiration;
     double strike;
     int32_t right;
-    uint8_t _tail_padding[16];
+    uint8_t _tail_padding[28];
 } TdxIvTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -247,11 +255,14 @@ TDX_ALIGN64_BEGIN typedef struct {
      * overflow on high-volume symbols (2.1B+ cumulative volume). */
     int64_t volume;
     int64_t count;
+    /* SIP-rule VWAP for the bar. Snapshot endpoints leave this as 0.0
+     * via the optional-column path. */
+    double vwap;
     int32_t date;
     int32_t expiration;
     double strike;
     int32_t right;
-    uint8_t _tail_padding[52];
+    uint8_t _tail_padding[44];
 } TdxOhlcTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -573,7 +584,7 @@ void tdx_config_set_flush_mode(TdxConfig* config, int mode);
  */
 void tdx_config_set_derive_ohlcvc(TdxConfig* config, int enabled);
 
-/* ── MDDS pool sizing ── */
+/* ── Decode pool sizing ── */
 
 /**
  * Set the number of concurrent in-flight gRPC requests.
@@ -605,10 +616,10 @@ void tdx_config_set_decoder_threads(TdxConfig* config, uint32_t n);
  */
 void tdx_config_set_decoder_ring_size(TdxConfig* config, uint32_t n);
 
-/* ── MDDS two-stage decode pipeline ── */
+/* ── Decode pipeline ── */
 
 /**
- * Set the stage-2 worker thread count for the two-stage MDDS decode
+ * Set the stage-2 worker thread count for the two-stage decode
  * pipeline.
  *
  * Stage-2 runs prost decode + Tick build off a bounded MPSC queue
@@ -627,7 +638,7 @@ int32_t tdx_config_set_decode_threads_explicit(TdxConfig* config, bool has_value
 
 /**
  * Set the bounded queue depth between stage-1 and stage-2 of the
- * two-stage MDDS decode pipeline.
+ * two-stage decode pipeline.
  *
  * When stage-2 cannot keep up, stage-1 parks rather than drops --
  * silent drops on a market-data feed are unacceptable.
@@ -864,9 +875,9 @@ TdxSubscriptionArray* tdx_fpss_active_subscriptions(const TdxFpssHandle* h);
  *  caller registered alongside the callback; it is passed back unchanged. */
 typedef void (*TdxFpssCallback)(const TdxFpssEvent* event, void* ctx);
 
-/** Register an FPSS callback and open the FPSS connection.
+/** Register a streaming callback and open the streaming connection.
  *
- *  Events flow `FPSS reader -> LMAX Disruptor ring -> consumer thread ->
+ *  Events flow `streaming reader -> bounded ring -> consumer thread ->
  *  catch_unwind(callback)`. The reader thread NEVER blocks on user code:
  *  on ring overflow events are dropped and counted (tdx_fpss_dropped_events).
  *
@@ -876,22 +887,21 @@ typedef void (*TdxFpssCallback)(const TdxFpssEvent* event, void* ctx);
  *  (which performs shutdown if needed and applies the drain barrier
  *  internally with a 5 s timeout), or (b) tdx_fpss_shutdown() /
  *  tdx_fpss_reconnect() returns AND tdx_fpss_await_drain() has
- *  returned 1. The Disruptor consumer thread accesses ctx on every
- *  event and on every tdx_fpss_reconnect(), serially on a single
- *  thread. Freeing ctx without one of these barriers is undefined
- *  behavior.
+ *  returned 1. The consumer thread accesses ctx on every event and on
+ *  every tdx_fpss_reconnect(), serially on a single thread. Freeing ctx
+ *  without one of these barriers is undefined behavior.
  *
- *  The Disruptor consumer thread invokes `callback(event, ctx)` serially on
+ *  The consumer thread invokes `callback(event, ctx)` serially on
  *  a single thread. The user does NOT need internal locks for callback-
  *  private state.
  *
- *  ## Lifecycle contract (FPSS one-shot rule)
+ *  ## Lifecycle contract (one-shot rule)
  *
  *  Must be called exactly ONCE per handle. After tdx_fpss_shutdown() this
  *  handle is terminal: a second register, a register-after-shutdown, a
  *  reconnect-after-shutdown, or a double-shutdown all return -1 with a
- *  clear tdx_last_error() string ("FPSS callback already installed -- ..."
- *  or "FPSS handle has already been shut down -- this is terminal").
+ *  clear tdx_last_error() string ("streaming callback already installed -- ..."
+ *  or "streaming handle has already been shut down -- this is terminal").
  *
  *  This is intentionally stricter than tdx_unified_set_callback(), where
  *  set-after-stop is supported as a normal user flow.
@@ -904,31 +914,31 @@ int tdx_fpss_set_callback(const TdxFpssHandle* h, TdxFpssCallback callback, void
  *  terminal" if the handle is past tdx_fpss_shutdown. */
 int tdx_fpss_reconnect(const TdxFpssHandle* h);
 
-/** Cumulative count of FPSS events the TLS reader could not publish into
- *  the LMAX Disruptor ring because the consumer fell behind and the ring
- *  was full (`Producer::try_publish` returned `RingBufferFull`). Returns 0
- *  if the handle is null or no callback has been installed yet. */
+/** Cumulative count of streaming events the TLS reader could not publish
+ *  into the bounded ring because the consumer fell behind and the ring
+ *  was full. Returns 0 if the handle is null or no callback has been
+ *  installed yet. */
 uint64_t tdx_fpss_dropped_events(const TdxFpssHandle* h);
 
 /** Shut down the FPSS client. Terminal: every subsequent set_callback /
  *  reconnect / shutdown call on this handle returns -1 with a clear
  *  tdx_last_error() string. The handle remains valid for
- *  tdx_fpss_free() only. Returns asynchronously: the FPSS reader and
- *  Disruptor consumer continue draining in-flight events through the
+ *  tdx_fpss_free() only. Returns asynchronously: the streaming reader
+ *  and consumer continue draining in-flight events through the
  *  registered callback until they observe the shutdown signal and
  *  exit. Pair with tdx_fpss_await_drain() (or use tdx_fpss_free(), which
  *  applies the drain barrier internally) before freeing the callback
  *  ctx. */
 void tdx_fpss_shutdown(const TdxFpssHandle* h);
 
-/** Wait for the previously-superseded FPSS session to quiesce.
+/** Wait for the previously-superseded streaming session to quiesce.
  *
  *  Returns 1 once the previous tdx_fpss_reconnect / tdx_fpss_shutdown
- *  session's Disruptor consumer has finished firing the registered
- *  callback. Returns 0 on timeout or when no session has been
- *  superseded on this handle.
+ *  session's consumer has finished firing the registered callback.
+ *  Returns 0 on timeout or when no session has been superseded on this
+ *  handle.
  *
- *  Must be called from a thread other than the FPSS Disruptor consumer
+ *  Must be called from a thread other than the streaming consumer
  *  thread; calling it from inside the user callback would block the
  *  helper the consumer is waiting on and always time out. */
 int tdx_fpss_await_drain(const TdxFpssHandle* h, uint64_t timeout_ms);
@@ -954,9 +964,9 @@ void tdx_fpss_free(TdxFpssHandle* h);
  *  Returns NULL on connection/auth failure (check tdx_last_error()). */
 TdxUnified* tdx_unified_connect(const TdxCredentials* creds, const TdxConfig* config);
 
-/** Register an FPSS callback and start streaming on the unified client.
+/** Register a streaming callback and start streaming on the unified client.
  *
- *  Events flow `FPSS reader -> LMAX Disruptor ring -> consumer thread ->
+ *  Events flow `streaming reader -> bounded ring -> consumer thread ->
  *  catch_unwind(callback)`. Reader never blocks on user code; ring-overflow
  *  events are dropped (tdx_unified_dropped_events).
  *
@@ -968,9 +978,9 @@ TdxUnified* tdx_unified_connect(const TdxCredentials* creds, const TdxConfig* co
  *  tdx_unified_reconnect() returns AND tdx_unified_await_drain() has
  *  returned 1, or (c) a successful replacement tdx_unified_set_callback
  *  has returned AND tdx_unified_await_drain() has returned 1 for the
- *  prior session. The Disruptor consumer thread accesses ctx on every
- *  event and reconnect, serially on a single thread. Freeing ctx
- *  without one of these barriers is undefined behavior.
+ *  prior session. The consumer thread accesses ctx on every event and
+ *  reconnect, serially on a single thread. Freeing ctx without one of
+ *  these barriers is undefined behavior.
  *
  *  ## Lifecycle contract (REPLACEMENT after stop)
  *
@@ -1044,24 +1054,24 @@ TdxSubscriptionArray* tdx_unified_active_full_subscriptions(const TdxUnified* ha
 const TdxClient* tdx_unified_historical(const TdxUnified* handle);
 
 /** Stop streaming on the unified client. Historical remains available.
- *  Returns asynchronously: the FPSS reader and Disruptor consumer
- *  continue draining in-flight events through the registered callback
- *  until they observe the shutdown signal. Pair with
- *  tdx_unified_await_drain() (or use tdx_unified_free(), which applies
- *  the drain barrier internally) before freeing the callback ctx. */
+ *  Returns asynchronously: the streaming reader and consumer continue
+ *  draining in-flight events through the registered callback until they
+ *  observe the shutdown signal. Pair with tdx_unified_await_drain()
+ *  (or use tdx_unified_free(), which applies the drain barrier
+ *  internally) before freeing the callback ctx. */
 void tdx_unified_stop_streaming(const TdxUnified* handle);
 
 /** Wait for the previously-superseded streaming session to quiesce.
  *
- *  Returns 1 once the previous Disruptor consumer thread has finished
- *  firing the registered callback. Returns 0 on timeout or when no
- *  stream has ever been started or stopped on this handle.
+ *  Returns 1 once the previous consumer thread has finished firing the
+ *  registered callback. Returns 0 on timeout or when no stream has ever
+ *  been started or stopped on this handle.
  *
- *  Must be called from a thread other than the FPSS consumer thread. */
+ *  Must be called from a thread other than the streaming consumer thread. */
 int tdx_unified_await_drain(const TdxUnified* handle, uint64_t timeout_ms);
 
-/** Cumulative count of FPSS events the TLS reader could not publish into
- *  the LMAX Disruptor ring because the consumer fell behind and the ring
+/** Cumulative count of streaming events the TLS reader could not publish
+ *  into the bounded ring because the consumer fell behind and the ring
  *  was full. Returns 0 if the handle is null or no callback has been
  *  installed yet. */
 uint64_t tdx_unified_dropped_events(const TdxUnified* handle);
@@ -1081,10 +1091,10 @@ void tdx_unified_free(TdxUnified* handle);
 /* ── Pull-iter delivery ─────────────────────────────────────
  *
  * Sibling of the push-callback path. `tdx_unified_set_callback` sends
- * each event through a user `extern "C" fn` invoked on the LMAX
- * Disruptor consumer thread; the iterator instead drains a per-client
- * bounded queue from the caller's own thread, so the consumer thread
- * is decoupled from any per-event GIL / event-loop costs the binding
+ * each event through a user `extern "C" fn` invoked on the streaming
+ * consumer thread; the iterator instead drains a per-client bounded
+ * queue from the caller's own thread, so the consumer thread is
+ * decoupled from any per-event GIL / event-loop costs the binding
  * pays. Mutually exclusive with the callback path on the same
  * `TdxUnified*`; switch by stopping streaming and starting again.
  */

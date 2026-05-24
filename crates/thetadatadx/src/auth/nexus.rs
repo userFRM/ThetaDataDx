@@ -274,12 +274,14 @@ pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthRespo
     // structured logs / crash reports are recoverable PII even when the
     // password is zeroized. The prefix is enough for operators to
     // correlate a request with a tenant without exposing the full
-    // address.
+    // address. The Nexus URL itself includes routing topology that
+    // operators rarely need at `debug` — keep that field at `trace`
+    // verbosity so production deployments do not record it by default.
     tracing::debug!(
         email_prefix = %redacted_email_prefix(&creds.email),
-        url = url,
         "authenticating against Nexus API"
     );
+    tracing::trace!(url = url, "Nexus auth URL");
 
     // Retry loop for transient network errors (connection refused, timeout, DNS).
     // Auth failures (wrong password, 401/404) are NOT retried.
