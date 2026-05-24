@@ -65,8 +65,11 @@ pub use self::session::reconnect_delay;
 /// reconnect storm, schema drift, frame-decoder fuzz).
 ///
 /// Not part of the supported public API. Subject to change without a
-/// SemVer bump. Tests are co-located in this repo so the `#[doc(hidden)]`
-/// gate is the contract.
+/// SemVer bump. Feature-gated on `__test-helpers` so the module only
+/// enters the rlib when the private test feature is enabled — matches
+/// the convention used by `crate::wire::test_requests` in `lib.rs`.
+/// `cargo-semver-checks` runs with default features and never sees it.
+#[cfg(any(test, feature = "__test-helpers"))]
 #[doc(hidden)]
 pub mod __test_internals {
     pub use super::decode::decode_frame;

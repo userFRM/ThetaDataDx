@@ -74,6 +74,12 @@
 //!   exceed the per-connection `MAX_CONCURRENT_STREAMS` limit.
 //! - [`endpoints`] — typed RPC functions, one per generated stub.
 
+// Sub-modules carry transport infrastructure consumed only by the
+// crate itself and by `__test-helpers`-gated integration tests + benches.
+// They are reachable as `thetadatadx::grpc::*` only when that private
+// feature (or `cfg(test)`) is active — the parent `pub(crate) mod grpc`
+// guard in `lib.rs` is what keeps them out of the shipped rlib. The
+// `pub` visibility here scopes within the (then-private) module tree.
 pub mod channel;
 pub mod codec;
 pub mod decoder_pool;
