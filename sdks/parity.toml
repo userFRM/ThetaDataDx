@@ -310,3 +310,39 @@ name = "RuntimeConfig.tokio_worker_threads"
 python = true
 typescript = true
 cpp = true
+
+# ─── RetryPolicy cross-binding setters ─────────────────────────────────
+#
+# Per-field access on `DirectConfig.retry`. The `delay_for_attempt`
+# / `capped_backoff` / `disabled()` helpers stay Rust-only — they are
+# method-shape helpers that callers can recompute from the four field
+# values if needed. Field setters bound on every binding (Python via
+# `Config.retry_*`, TS via `Config.setRetry*`, C++ via
+# `tdx::Config::set_retry_*`); the dotted rows below track field-level
+# parity and the parity script's class-existence check skips dotted
+# rows pending the per-field granularity tightening (issue referenced
+# in `scripts/check_binding_parity.py`).
+
+[[class]]
+name = "RetryPolicy.initial_delay_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.max_delay_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.max_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.jitter"
+python = true
+typescript = true
+cpp = true

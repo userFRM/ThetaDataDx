@@ -596,6 +596,120 @@ impl Config {
         })
     }
 
+    // ── RetryPolicy field setters/getters (BL-10) ─────────────────
+
+    /// Set the initial backoff delay (ms) for the MDDS retry policy.
+    /// Default `250n`. Subsequent retries double from here, capped at
+    /// `retryMaxDelayMs`.
+    #[napi(js_name = "setRetryInitialDelayMs")]
+    pub fn set_retry_initial_delay_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = ms.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setRetryInitialDelayMs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.retry.initial_delay = std::time::Duration::from_millis(value);
+        Ok(())
+    }
+
+    /// Current `retry.initial_delay` value (ms, returned as BigInt).
+    #[napi(getter, js_name = "retryInitialDelayMs")]
+    pub fn retry_initial_delay_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        let ms = u64::try_from(guard.retry.initial_delay.as_millis()).unwrap_or(u64::MAX);
+        Ok(napi::bindgen_prelude::BigInt::from(ms))
+    }
+
+    /// Set the upper-bound backoff delay (ms) for the MDDS retry
+    /// policy. Default `30_000n` (30 s).
+    #[napi(js_name = "setRetryMaxDelayMs")]
+    pub fn set_retry_max_delay_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = ms.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setRetryMaxDelayMs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.retry.max_delay = std::time::Duration::from_millis(value);
+        Ok(())
+    }
+
+    /// Current `retry.max_delay` value (ms, returned as BigInt).
+    #[napi(getter, js_name = "retryMaxDelayMs")]
+    pub fn retry_max_delay_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        let ms = u64::try_from(guard.retry.max_delay.as_millis()).unwrap_or(u64::MAX);
+        Ok(napi::bindgen_prelude::BigInt::from(ms))
+    }
+
+    /// Set the total attempt budget for the MDDS retry policy. `1`
+    /// disables retry; higher values permit retries up to
+    /// `maxAttempts - 1` after the initial call. Default `5`.
+    #[napi(js_name = "setRetryMaxAttempts")]
+    pub fn set_retry_max_attempts(&self, n: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.retry.max_attempts = n;
+        Ok(())
+    }
+
+    /// Current `retry.max_attempts` value.
+    #[napi(getter, js_name = "retryMaxAttempts")]
+    pub fn retry_max_attempts(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.retry.max_attempts)
+    }
+
+    /// Toggle AWS-style full-jitter on the MDDS retry policy. Default
+    /// `true`. `false` gives the deterministic backoff schedule
+    /// `min(max_delay, initial * 2^attempt)`, useful for tests that
+    /// need to assert exact timings.
+    #[napi(js_name = "setRetryJitter")]
+    pub fn set_retry_jitter(&self, jitter: bool) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.retry.jitter = jitter;
+        Ok(())
+    }
+
+    /// Current `retry.jitter` value.
+    #[napi(getter, js_name = "retryJitter")]
+    pub fn retry_jitter(&self) -> napi::Result<bool> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.retry.jitter)
+    }
+
     /// Take a snapshot of the underlying [`thetadatadx::DirectConfig`]
     /// for use by `ThetaDataDxClient.connectWithConfig`. Returns a
     /// fresh `DirectConfig` clone -- the napi `Config` remains usable

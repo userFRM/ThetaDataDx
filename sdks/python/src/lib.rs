@@ -338,6 +338,77 @@ impl Config {
         guard.runtime.tokio_worker_threads
     }
 
+    // ── RetryPolicy field setters/getters (BL-10) ─────────────────────
+    //
+    // Per-field access on ``DirectConfig.retry`` mirrors the FFI / C++
+    // / TypeScript surface. The ``delay_for_attempt`` / ``capped_backoff``
+    // methods stay Rust-only — they are method-shape helpers that
+    // callers can recompute from the four field values if needed.
+
+    /// Set the initial backoff delay (ms) for the MDDS retry policy.
+    /// Default ``250``. Subsequent retries double from here, capped
+    /// at :attr:`retry_max_delay_ms`.
+    #[setter]
+    fn set_retry_initial_delay_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.initial_delay = std::time::Duration::from_millis(ms);
+    }
+
+    /// Current ``retry.initial_delay`` value in ms.
+    #[getter]
+    fn get_retry_initial_delay_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        u64::try_from(guard.retry.initial_delay.as_millis()).unwrap_or(u64::MAX)
+    }
+
+    /// Set the upper-bound backoff delay (ms) for the MDDS retry
+    /// policy. Default ``30_000`` (30 s).
+    #[setter]
+    fn set_retry_max_delay_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.max_delay = std::time::Duration::from_millis(ms);
+    }
+
+    /// Current ``retry.max_delay`` value in ms.
+    #[getter]
+    fn get_retry_max_delay_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        u64::try_from(guard.retry.max_delay.as_millis()).unwrap_or(u64::MAX)
+    }
+
+    /// Set the total attempt budget for the MDDS retry policy. ``1``
+    /// disables retry (single call only); higher values permit retries
+    /// up to ``max_attempts - 1`` after the initial call. Default ``5``.
+    #[setter]
+    fn set_retry_max_attempts(&self, n: u32) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.max_attempts = n;
+    }
+
+    /// Current ``retry.max_attempts`` value.
+    #[getter]
+    fn get_retry_max_attempts(&self) -> u32 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.max_attempts
+    }
+
+    /// Toggle AWS-style full-jitter on the MDDS retry policy. Default
+    /// ``True``. ``False`` gives the deterministic backoff schedule
+    /// ``min(max_delay, initial * 2^attempt)``, useful for tests that
+    /// need to assert exact timings.
+    #[setter]
+    fn set_retry_jitter(&self, jitter: bool) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.jitter = jitter;
+    }
+
+    /// Current ``retry.jitter`` value.
+    #[getter]
+    fn get_retry_jitter(&self) -> bool {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.jitter
+    }
+
     /// Set whether to derive OHLCVC bars locally from trade events.
     ///
     /// When ``False``, only server-sent OHLCVC frames are emitted,

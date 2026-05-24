@@ -103,6 +103,13 @@ class Config:
     # sizing; `int` (including `0`, which clamps to `1` inside the
     # builder) pins worker count.
     tokio_worker_threads: Optional[int]
+    # RetryPolicy fields — per-field access on `DirectConfig.retry`.
+    # Defaults: `initial=250ms`, `max=30s`, `attempts=5`, `jitter=True`.
+    # Methods `delay_for_attempt` / `capped_backoff` stay Rust-only.
+    retry_initial_delay_ms: int
+    retry_max_delay_ms: int
+    retry_max_attempts: int
+    retry_jitter: bool
     # FPSS tunables.
     derive_ohlcvc: bool
     # REST-routing variant. Read-only -- write via

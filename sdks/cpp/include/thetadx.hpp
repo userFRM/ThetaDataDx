@@ -577,6 +577,40 @@ public:
         return tdx_config_get_tokio_worker_threads(handle_.get(), out_has_value, out_n);
     }
 
+    // ── RetryPolicy field setters/getters (BL-10) ──
+
+    /** Initial backoff delay (ms) for the MDDS retry policy. Default 250. */
+    void set_retry_initial_delay_ms(uint64_t ms) {
+        tdx_config_set_retry_initial_delay_ms(handle_.get(), ms);
+    }
+    int32_t get_retry_initial_delay_ms(uint64_t* out_ms) const {
+        return tdx_config_get_retry_initial_delay_ms(handle_.get(), out_ms);
+    }
+
+    /** Upper-bound backoff delay (ms). Default 30_000 (30 s). */
+    void set_retry_max_delay_ms(uint64_t ms) {
+        tdx_config_set_retry_max_delay_ms(handle_.get(), ms);
+    }
+    int32_t get_retry_max_delay_ms(uint64_t* out_ms) const {
+        return tdx_config_get_retry_max_delay_ms(handle_.get(), out_ms);
+    }
+
+    /** Total attempt budget. 1 disables retry. Default 5. */
+    void set_retry_max_attempts(uint32_t n) {
+        tdx_config_set_retry_max_attempts(handle_.get(), n);
+    }
+    int32_t get_retry_max_attempts(uint32_t* out_n) const {
+        return tdx_config_get_retry_max_attempts(handle_.get(), out_n);
+    }
+
+    /** AWS-style full jitter toggle. Default true. */
+    void set_retry_jitter(bool jitter) {
+        tdx_config_set_retry_jitter(handle_.get(), jitter);
+    }
+    int32_t get_retry_jitter(bool* out_jitter) const {
+        return tdx_config_get_retry_jitter(handle_.get(), out_jitter);
+    }
+
     /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. */
     void set_flush_mode(int mode) { tdx_config_set_flush_mode(handle_.get(), mode); }
 

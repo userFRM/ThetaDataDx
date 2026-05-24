@@ -14,15 +14,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > remaining "defined-but-not-connected" config knobs
 > (`RuntimeConfig.tokio_worker_threads`, `ReconnectConfig.wait_ms`,
 > `ReconnectConfig.wait_rate_limited_ms`) into the FPSS auto-reconnect
-> path and binds them across every binding. Five TS test files that
-> were silent-skipping on missing native addon now fail loud. All
-> additions are purely additive — break count unchanged at 19 major
-> + 1 minor.
+> path, binds the four `RetryPolicy` fields cross-language, and silences
+> five TS test files that were silent-skipping on missing native addon.
+> All additions are purely additive — break count unchanged at 19
+> major + 1 minor.
 
 ### Added
 
 #### Audit closure wave 4
 
+- `RetryPolicy` per-field setters/getters bound across every binding.
+  The Rust-only methods (`disabled()`, `delay_for_attempt()`,
+  `capped_backoff()`) stay Rust-only — they are method-shape helpers
+  that callers can recompute from the four field values if needed.
+  New surface:
+  - FFI: `tdx_config_set_retry_initial_delay_ms(u64)` /
+    `tdx_config_get_retry_initial_delay_ms(*mut u64) -> i32`, plus
+    `_max_delay_ms`, `_max_attempts(u32)`, `_jitter(bool)`.
+  - C++: `tdx::Config::set_retry_initial_delay_ms(uint64_t)` /
+    `get_retry_initial_delay_ms(uint64_t*)`, plus matching pairs for
+    `max_delay_ms`, `max_attempts`, `jitter`.
+  - Python: `Config.retry_initial_delay_ms`, `retry_max_delay_ms`,
+    `retry_max_attempts`, `retry_jitter` (pyo3 `#[getter]` +
+    `#[setter]`) + `.pyi` rows.
+  - TypeScript napi: `Config.setRetryInitialDelayMs(bigint)` /
+    `Config.retryInitialDelayMs` getter plus the other three fields
+    (BigInt for the two duration fields, number/boolean otherwise).
+  Four new `sdks/parity.toml` rows under a new `RetryPolicy
+  cross-binding setters` section header. Closes audit BL-10.
 - `ReconnectConfig.wait_ms` and `ReconnectConfig.wait_rate_limited_ms`
   fully wired into the FPSS auto-reconnect path. The values flow from
   `DirectConfig.reconnect` through `FpssConnectArgs` into the

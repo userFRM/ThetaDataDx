@@ -623,6 +623,47 @@ int32_t tdx_config_set_tokio_worker_threads_explicit(TdxConfig* config, bool has
  */
 int32_t tdx_config_get_tokio_worker_threads(const TdxConfig* config, bool* out_has_value, size_t* out_n);
 
+/* ── RetryPolicy field setters/getters (BL-10) ── */
+
+/**
+ * Set the initial backoff delay (ms) for the MDDS retry policy.
+ * Default 250. Subsequent retries double from here, capped at
+ * tdx_config_set_retry_max_delay_ms.
+ */
+void tdx_config_set_retry_initial_delay_ms(TdxConfig* config, uint64_t ms);
+
+/** Read retry.initial_delay (ms). */
+int32_t tdx_config_get_retry_initial_delay_ms(const TdxConfig* config, uint64_t* out_ms);
+
+/**
+ * Set the upper-bound backoff delay (ms) for the MDDS retry policy.
+ * Default 30_000 (30 s).
+ */
+void tdx_config_set_retry_max_delay_ms(TdxConfig* config, uint64_t ms);
+
+/** Read retry.max_delay (ms). */
+int32_t tdx_config_get_retry_max_delay_ms(const TdxConfig* config, uint64_t* out_ms);
+
+/**
+ * Set the total attempt budget for the MDDS retry policy. 1 disables
+ * retry (single call only); higher values permit retries up to
+ * max_attempts - 1 after the initial call. Default 5.
+ */
+void tdx_config_set_retry_max_attempts(TdxConfig* config, uint32_t n);
+
+/** Read retry.max_attempts. */
+int32_t tdx_config_get_retry_max_attempts(const TdxConfig* config, uint32_t* out_n);
+
+/**
+ * Toggle AWS-style full-jitter on the MDDS retry policy. Default
+ * true. false gives the deterministic backoff schedule
+ * min(max_delay, initial * 2^attempt), useful for tests.
+ */
+void tdx_config_set_retry_jitter(TdxConfig* config, bool jitter);
+
+/** Read retry.jitter. */
+int32_t tdx_config_get_retry_jitter(const TdxConfig* config, bool* out_jitter);
+
 /**
  * Set FPSS flush mode on a config handle.
  *   mode=0: Batched (default) -- flush only on PING every 100ms.

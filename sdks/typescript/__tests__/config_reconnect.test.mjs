@@ -180,3 +180,37 @@ describe('Config.setTokioWorkerThreadsExplicit', () => {
     assert.equal(got.n, 0);
   });
 });
+
+describe('Config.setRetry* — RetryPolicy field setters (BL-10)', () => {
+  it('expose the four RetryPolicy field defaults', () => {
+    const cfg = Config.production();
+    assert.equal(cfg.retryInitialDelayMs, 250n);
+    assert.equal(cfg.retryMaxDelayMs, 30_000n);
+    assert.equal(cfg.retryMaxAttempts, 5);
+    assert.equal(cfg.retryJitter, true);
+  });
+
+  it('round-trip via per-field setters', () => {
+    const cfg = Config.production();
+    cfg.setRetryInitialDelayMs(500n);
+    cfg.setRetryMaxDelayMs(60_000n);
+    cfg.setRetryMaxAttempts(7);
+    cfg.setRetryJitter(false);
+    assert.equal(cfg.retryInitialDelayMs, 500n);
+    assert.equal(cfg.retryMaxDelayMs, 60_000n);
+    assert.equal(cfg.retryMaxAttempts, 7);
+    assert.equal(cfg.retryJitter, false);
+  });
+
+  it('reject BigInt magnitudes above u64::MAX on the duration setters', () => {
+    const cfg = Config.production();
+    assert.throws(
+      () => cfg.setRetryInitialDelayMs(1n << 65n),
+      /setRetryInitialDelayMs/,
+    );
+    assert.throws(
+      () => cfg.setRetryMaxDelayMs(1n << 65n),
+      /setRetryMaxDelayMs/,
+    );
+  });
+});

@@ -188,6 +188,37 @@ export declare class Config {
    * `hasValue=false` encodes the `None` (auto) sentinel.
    */
   get tokioWorkerThreads(): TokioWorkerThreadsSetting
+  /**
+   * Set the initial backoff delay (ms) for the MDDS retry policy.
+   * Default `250n`. Subsequent retries double from here, capped at
+   * `retryMaxDelayMs`.
+   */
+  setRetryInitialDelayMs(ms: bigint): void
+  /** Current `retry.initial_delay` value (ms, returned as BigInt). */
+  get retryInitialDelayMs(): bigint
+  /**
+   * Set the upper-bound backoff delay (ms) for the MDDS retry policy.
+   * Default `30_000n` (30 s).
+   */
+  setRetryMaxDelayMs(ms: bigint): void
+  /** Current `retry.max_delay` value (ms, returned as BigInt). */
+  get retryMaxDelayMs(): bigint
+  /**
+   * Set the total attempt budget for the MDDS retry policy. `1`
+   * disables retry; higher values permit retries up to
+   * `maxAttempts - 1` after the initial call. Default `5`.
+   */
+  setRetryMaxAttempts(n: number): void
+  /** Current `retry.max_attempts` value. */
+  get retryMaxAttempts(): number
+  /**
+   * Toggle AWS-style full-jitter on the MDDS retry policy. Default
+   * `true`. `false` gives the deterministic backoff schedule
+   * `min(max_delay, initial * 2^attempt)`, useful for tests.
+   */
+  setRetryJitter(jitter: boolean): void
+  /** Current `retry.jitter` value. */
+  get retryJitter(): boolean
 }
 
 /**

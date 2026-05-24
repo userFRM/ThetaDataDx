@@ -242,3 +242,42 @@ def test_tokio_worker_threads_round_trips_some_zero() -> None:
         assert cfg.tokio_worker_threads == n
     cfg.tokio_worker_threads = None
     assert cfg.tokio_worker_threads is None
+
+
+# ─── RetryPolicy field setters/getters (BL-10) ─────────────────────
+
+
+def test_retry_policy_defaults() -> None:
+    """Defaults mirror ``RetryPolicy::default``: 250ms initial /
+    30s max / 5 attempts / jitter on.
+    """
+    mod = _import_module()
+    cfg = mod.Config.production()
+    assert cfg.retry_initial_delay_ms == 250
+    assert cfg.retry_max_delay_ms == 30_000
+    assert cfg.retry_max_attempts == 5
+    assert cfg.retry_jitter is True
+
+
+def test_retry_policy_round_trips() -> None:
+    """Per-field round-trip via the pyo3 setter/getter pairs."""
+    mod = _import_module()
+    cfg = mod.Config.production()
+    cfg.retry_initial_delay_ms = 500
+    cfg.retry_max_delay_ms = 60_000
+    cfg.retry_max_attempts = 7
+    cfg.retry_jitter = False
+    assert cfg.retry_initial_delay_ms == 500
+    assert cfg.retry_max_delay_ms == 60_000
+    assert cfg.retry_max_attempts == 7
+    assert cfg.retry_jitter is False
+
+
+def test_retry_policy_rejects_above_u64() -> None:
+    """Magnitudes above ``u64::MAX`` reject at the pyo3 boundary."""
+    mod = _import_module()
+    cfg = mod.Config.production()
+    with pytest.raises(OverflowError):
+        cfg.retry_initial_delay_ms = 1 << 65
+    with pytest.raises(OverflowError):
+        cfg.retry_max_delay_ms = 1 << 65
