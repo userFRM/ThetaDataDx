@@ -67,6 +67,27 @@ const RECONNECT_BACKOFF_MAX: Duration = Duration::from_secs(30);
 /// pool pick when this budget is exhausted.
 const RECONNECT_MAX_ATTEMPTS: u32 = 8;
 
+/// Apply +/-10% decorrelated jitter to a reconnect backoff window.
+///
+/// Uses a `DefaultHasher` over `(host, port, attempt)` so the per-client
+/// schedule is stable across runs (useful for tests) while diverging
+/// across deployments. The output is clamped to `[base * 0.9, base * 1.1]`
+/// so the budget cap from [`RECONNECT_BACKOFF_MAX`] still holds within
+/// ~10%.
+fn apply_reconnect_jitter(base: Duration, host: &str, port: u16, attempt: u32) -> Duration {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    host.hash(&mut hasher);
+    port.hash(&mut hasher);
+    attempt.hash(&mut hasher);
+    // Map hash low bits to a [-1.0, 1.0) signed offset.
+    let raw = (hasher.finish() as u32) as f64 / u32::MAX as f64;
+    let signed = raw * 2.0 - 1.0;
+    let factor = 1.0 + signed * 0.1; // +/- 10%
+    let ms = (base.as_millis() as f64 * factor).max(1.0);
+    Duration::from_millis(ms as u64)
+}
+
 /// Errors raised by [`Channel`] construction and RPC dispatch.
 ///
 /// `#[non_exhaustive]` so downstream `match` arms must include a
@@ -760,17 +781,29 @@ impl Channel {
                     return;
                 }
                 Err(e) => {
+                    // Decorrelated jitter (+/- 10%) breaks reconnect
+                    // herds when many clients see the same GOAWAY at
+                    // the same wall-clock instant. Uses a hash of the
+                    // host+port+attempt rather than RNG state so the
+                    // jitter is reproducible per channel for tests
+                    // while still diverging across clients.
+                    let jittered = apply_reconnect_jitter(
+                        backoff,
+                        &self.target.host,
+                        self.target.port,
+                        attempt,
+                    );
                     tracing::warn!(
                         target: "thetadatadx::grpc::channel",
                         host = %self.target.host,
                         port = self.target.port,
                         attempt,
-                        backoff_ms = backoff.as_millis() as u64,
+                        backoff_ms = jittered.as_millis() as u64,
                         error = %e,
                         "channel reconnect attempt failed; retrying with backoff"
                     );
                     last_err = Some(e);
-                    tokio::time::sleep(backoff).await;
+                    tokio::time::sleep(jittered).await;
                     backoff = (backoff * 2).min(RECONNECT_BACKOFF_MAX);
                 }
             }
