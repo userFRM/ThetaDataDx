@@ -204,7 +204,7 @@ jobs:
       - uses: ./.github/actions/setup-rust-deps
       - name: Run tracked benches (mock-backed, no live creds)
         run: |
-          cargo bench -p thetadatadx --bench grpc_channel --locked -- \
+          cargo bench -p thetadatadx --features __test-helpers --bench grpc_channel --locked -- \
               "stock_list_symbols/in_house" --quick
           cargo bench -p thetadatadx --bench streaming_channels --locked -- \
               "streaming_channels/direct_callback/100k_events" --quick

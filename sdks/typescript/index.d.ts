@@ -50,6 +50,21 @@ export declare class Config {
   /** Current `concurrent_requests` setting (`0` = auto-detect). */
   get concurrentRequests(): number
   /**
+   * Set the warning threshold (in bytes) for buffered (non-streaming)
+   * historical responses. Endpoints whose decoded total exceeds this
+   * value emit a Rust-side `tracing::warn!` pointing the caller at
+   * the `.stream()` surface; the data is still delivered. `0n`
+   * disables the warning entirely. Default is `100n * 1024n * 1024n`
+   * (100 MiB). Byte budgets can exceed `u32::MAX`, so the setter
+   * takes a `BigInt` matching the underlying `usize` field.
+   */
+  setWarnOnBufferedThresholdBytes(n: bigint): void
+  /**
+   * Current `warn_on_buffered_threshold_bytes` setting (bytes,
+   * returned as a `BigInt`).
+   */
+  get warnOnBufferedThresholdBytes(): bigint
+  /**
    * Set the number of dedicated decoder threads in the MDDS pool.
    *
    * `0` (default) auto-sizes to `max(available_parallelism / 2, 1)`,
