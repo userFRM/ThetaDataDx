@@ -231,6 +231,23 @@ python = false
 typescript = false
 cpp = false
 
+# ─── MddsConfig cross-binding setters ──────────────────────────────────
+#
+# Tuning knobs on the MDDS sub-config exposed across every binding.
+# `concurrent_requests` / `decoder_threads` / `decoder_ring_size` /
+# `decode_threads_explicit` / `decode_queue_depth_explicit` are bound
+# via `Config.<name>` (Python), `Config.set<Name>` (TypeScript napi),
+# `tdx::Config::set_<name>` (C++ forwarder over the C ABI). The rows
+# below track the dotted-field state for the parity audit; the
+# parity script's class-existence check skips dotted rows pending the
+# per-field granularity tightening.
+
+[[class]]
+name = "MddsConfig.warn_on_buffered_threshold_bytes"
+python = true
+typescript = true
+cpp = true
+
 # ─── ReconnectConfig cross-binding setters ─────────────────────────────
 #
 # FPSS reconnect policy + per-class attempt budgets + stable-window

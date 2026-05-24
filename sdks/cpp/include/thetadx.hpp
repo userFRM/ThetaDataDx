@@ -584,6 +584,32 @@ public:
         tdx_config_set_decoder_ring_size(handle_.get(), n);
     }
 
+    /**
+     * Set the warn_on_buffered_threshold_bytes ceiling.
+     *
+     * Pre-stream-API endpoints log a `tracing::warn!` when a buffered
+     * response's decoded total exceeds this threshold, guiding users
+     * to the streaming variant. The payload is still delivered.
+     *
+     * @p n = 0 disables the warning entirely.
+     * Default is `100 * 1024 * 1024` (100 MiB).
+     */
+    void set_warn_on_buffered_threshold_bytes(std::size_t n) {
+        tdx_config_set_warn_on_buffered_threshold_bytes(handle_.get(), n);
+    }
+
+    /**
+     * Read the current `warn_on_buffered_threshold_bytes` setting.
+     *
+     * Returns the configured byte count, or `0` on a null handle
+     * (matching the C ABI's `-1` failure mapping at the boundary).
+     */
+    std::size_t warn_on_buffered_threshold_bytes() const {
+        std::size_t n = 0;
+        tdx_config_get_warn_on_buffered_threshold_bytes(handle_.get(), &n);
+        return n;
+    }
+
     // ── MDDS two-stage decode pipeline ──
 
     /**

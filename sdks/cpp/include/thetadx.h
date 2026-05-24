@@ -607,6 +607,27 @@ void tdx_config_set_concurrent_requests(TdxConfig* config, uint32_t n);
 void tdx_config_set_decoder_threads(TdxConfig* config, uint32_t n);
 
 /**
+ * Set the warn_on_buffered_threshold_bytes ceiling on a config.
+ *
+ * Pre-stream-API endpoints (the non-`.stream()` shape) log a
+ * `tracing::warn!` when a buffered response's decoded total exceeds
+ * this threshold, guiding users to the streaming variant. The
+ * payload is still delivered.
+ *
+ *   n=0 disables the warning entirely.
+ *   default = 100 * 1024 * 1024 (100 MiB).
+ */
+void tdx_config_set_warn_on_buffered_threshold_bytes(TdxConfig* config, size_t n);
+
+/**
+ * Read the current warn_on_buffered_threshold_bytes setting.
+ *
+ * Writes the configured byte count into *out_n. Returns 0 on success,
+ * -1 if either pointer is null.
+ */
+int32_t tdx_config_get_warn_on_buffered_threshold_bytes(const TdxConfig* config, size_t* out_n);
+
+/**
  * Set the per-thread decoder ring size.
  *
  * Must be a power of two, >= 64. Invalid values are rejected at the
