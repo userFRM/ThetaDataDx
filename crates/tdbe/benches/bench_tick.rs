@@ -72,6 +72,7 @@ fn bench_ohlc_tick_all_prices(c: &mut Criterion) {
         close: 150.10,
         volume: 50_000,
         count: 250,
+        vwap: 150.05,
         date: 20240315,
         expiration: 0,
         strike: 0.0,
