@@ -152,13 +152,30 @@ def collect_header_symbols() -> set[str]:
     return out
 
 
+# Header-only `tdx_*` symbols that legitimately have no Rust
+# counterpart — e.g. opaque struct typedefs declared in C but
+# implemented entirely in C++ wrapper code, or compile-time
+# constants emitted via `#define TDX_FOO 1`. Add a comment when
+# extending this list.
+HEADER_ONLY_ALLOWLIST: set[str] = {
+    # `tdx_exchange_` (trailing underscore) is the symbol-family
+    # prose mention `tdx_exchange_*` in `thetadx.h:785`. The
+    # regex captures `tdx_exchange_` from the wildcard form. Real
+    # exports are `tdx_exchange_name` / `tdx_exchange_symbol`.
+    "tdx_exchange_",
+}
+
+
 def main() -> int:
     rust = collect_ffi_symbols()
     header = collect_header_symbols()
-    missing = sorted(rust - header)
-    if missing:
-        print(f"check_c_abi_completeness: {len(missing)} symbol(s) defined in ffi/src but absent from C headers:")
-        for name in missing:
+    missing_in_header = sorted(rust - header)
+    if missing_in_header:
+        print(
+            f"check_c_abi_completeness: {len(missing_in_header)} symbol(s) defined "
+            "in ffi/src but absent from C headers:"
+        )
+        for name in missing_in_header:
             print(f"  {name}")
         print(
             "\nFix: add the missing decl(s) to sdks/cpp/include/thetadx.h "
@@ -167,7 +184,35 @@ def main() -> int:
             "user builds at the link step, not at `cargo build`."
         )
         return 1
-    print(f"check_c_abi_completeness: clean ({len(rust)} symbols, all present in headers)")
+
+    # Reverse delta (audit S3): names declared in C headers but with
+    # no matching `#[no_mangle] pub extern "C"` Rust counterpart.
+    # These are link-time time bombs — the C++ wrapper compiles
+    # against the header but the dylib symbol is missing.
+    extras = (header - rust) - HEADER_ONLY_ALLOWLIST
+    if extras:
+        print(
+            f"check_c_abi_completeness: {len(extras)} symbol(s) declared in C "
+            "headers but absent from ffi/src:"
+        )
+        for name in sorted(extras):
+            print(f"  {name}")
+        print(
+            "\nFix: either implement the symbol with "
+            "`#[no_mangle] pub extern \"C\"` in `ffi/src/`, or remove "
+            "the header decl. A header-only decl breaks consumer "
+            "builds at LINK time (not compile), which is the "
+            "regression mode that lands in CI nightly. If the symbol "
+            "is intentionally header-only (typedef tag, macro "
+            "constant), add it to `HEADER_ONLY_ALLOWLIST` above with "
+            "a rationale comment."
+        )
+        return 1
+
+    print(
+        f"check_c_abi_completeness: clean ({len(rust)} symbols, "
+        f"bidirectional rust<->header parity)"
+    )
     return 0
 
 

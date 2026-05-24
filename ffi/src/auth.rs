@@ -624,8 +624,9 @@ mod pool_sizing_tests {
 
     #[test]
     fn null_handle_is_safe() {
-        // SAFETY: passing null is the contract — the setters must
-        // return without crashing.
+        // SAFETY: passing null to tdx_config_set_* / tdx_*_free is the
+        // documented FFI contract — the call must return without
+        // crashing. The test exercises that null-tolerance branch.
         unsafe {
             super::tdx_config_set_concurrent_requests(std::ptr::null_mut(), 4);
             super::tdx_config_set_decoder_threads(std::ptr::null_mut(), 4);
@@ -767,8 +768,9 @@ mod reconnect_setter_tests {
 
     #[test]
     fn null_handle_is_safe() {
-        // SAFETY: passing null is the contract — the setters must
-        // return without crashing.
+        // SAFETY: passing null to tdx_config_set_* / tdx_*_free is the
+        // documented FFI contract — the call must return without
+        // crashing. The test exercises that null-tolerance branch.
         unsafe {
             super::tdx_config_set_reconnect_policy(std::ptr::null_mut(), 0);
             super::tdx_config_set_reconnect_max_attempts(std::ptr::null_mut(), 3);
@@ -911,7 +913,8 @@ mod decode_pipeline_tests {
 
     #[test]
     fn decode_threads_null_handle_returns_minus_one() {
-        // SAFETY: passing null is the contract.
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — getter returns sentinel, setter no-ops.
         unsafe {
             let rc = super::tdx_config_set_decode_threads_explicit(std::ptr::null_mut(), true, 4);
             assert_eq!(rc, -1);
@@ -925,7 +928,8 @@ mod decode_pipeline_tests {
 
     #[test]
     fn decode_threads_getter_null_handle_returns_minus_one() {
-        // SAFETY: passing null is the contract.
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — getter returns sentinel, setter no-ops.
         unsafe {
             let mut hv = false;
             let mut n = 0usize;
@@ -983,7 +987,8 @@ mod decode_pipeline_tests {
 
     #[test]
     fn decode_queue_depth_null_handle_returns_minus_one() {
-        // SAFETY: passing null is the contract.
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — getter returns sentinel, setter no-ops.
         unsafe {
             let rc =
                 super::tdx_config_set_decode_queue_depth_explicit(std::ptr::null_mut(), true, 1024);

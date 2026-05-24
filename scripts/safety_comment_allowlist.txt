@@ -44,4 +44,9 @@ caller passes a contiguous array of `symbols_len` non-null nul-terminated c stri
 # accept the legitimate stamped forms.
 handle just returned by tdx_config_production
 policy was just allocated above
-passing null is the contract
+# Audit S2: tightened from the prior generic `passing null is the
+# contract` substring (which matched any text containing that
+# phrase, even outside the intended `tdx_*_free` tests) to anchor
+# on the `tdx_*_free` test family that exercises the documented
+# null-tolerance contract per `ffi/src/auth.rs` rustdoc.
+passing null to tdx_

@@ -355,7 +355,7 @@ inline std::vector<std::string> string_array_to_vector(TdxStringArray arr) {
 //
 // Empty array is ambiguous: success-with-zero-results AND failure (e.g.
 // timeout on a list endpoint) both return `{nullptr, 0}`. Disambiguate by
-// reading `tdx_last_error_raw` after the call. Generated wrappers
+// reading `tdx_last_error()` after the call. Generated wrappers
 // `tdx_clear_error()` before the FFI call so a stale error from a prior
 // call isn't misattributed.
 inline std::vector<std::string> check_string_array(TdxStringArray arr) {
