@@ -681,6 +681,132 @@ fn serialize_greeks_third_order_ticks(ticks: &[tdbe::types::tick::GreeksThirdOrd
     json!({ "ticks": rows, "count": rows.len() })
 }
 
+fn serialize_trade_greeks_all_ticks(ticks: &[tdbe::types::tick::TradeGreeksAllTick]) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            let mut row = json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1, "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3, "ext_condition4": t.ext_condition4,
+                "condition": t.condition, "size": t.size, "exchange": t.exchange, "price": t.price,
+                "delta": t.delta, "gamma": t.gamma, "theta": t.theta,
+                "vega": t.vega, "rho": t.rho, "epsilon": t.epsilon, "lambda": t.lambda,
+                "vanna": t.vanna, "charm": t.charm, "vomma": t.vomma,
+                "veta": t.veta, "vera": t.vera,
+                "speed": t.speed, "zomma": t.zomma, "color": t.color, "ultima": t.ultima,
+                "d1": t.d1, "d2": t.d2,
+                "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
+                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_trade_greeks_first_order_ticks(
+    ticks: &[tdbe::types::tick::TradeGreeksFirstOrderTick],
+) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            let mut row = json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1, "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3, "ext_condition4": t.ext_condition4,
+                "condition": t.condition, "size": t.size, "exchange": t.exchange, "price": t.price,
+                "delta": t.delta, "theta": t.theta, "vega": t.vega,
+                "rho": t.rho, "epsilon": t.epsilon, "lambda": t.lambda,
+                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_trade_greeks_second_order_ticks(
+    ticks: &[tdbe::types::tick::TradeGreeksSecondOrderTick],
+) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            let mut row = json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1, "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3, "ext_condition4": t.ext_condition4,
+                "condition": t.condition, "size": t.size, "exchange": t.exchange, "price": t.price,
+                "gamma": t.gamma, "vanna": t.vanna, "charm": t.charm,
+                "vomma": t.vomma, "veta": t.veta,
+                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_trade_greeks_third_order_ticks(
+    ticks: &[tdbe::types::tick::TradeGreeksThirdOrderTick],
+) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            let mut row = json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1, "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3, "ext_condition4": t.ext_condition4,
+                "condition": t.condition, "size": t.size, "exchange": t.exchange, "price": t.price,
+                "speed": t.speed, "zomma": t.zomma, "color": t.color,
+                "ultima": t.ultima,
+                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
+fn serialize_trade_greeks_implied_volatility_ticks(
+    ticks: &[tdbe::types::tick::TradeGreeksImpliedVolatilityTick],
+) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            let mut row = json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1, "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3, "ext_condition4": t.ext_condition4,
+                "condition": t.condition, "size": t.size, "exchange": t.exchange, "price": t.price,
+                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
 fn serialize_iv_ticks(ticks: &[tdbe::types::tick::IvTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
@@ -773,6 +899,19 @@ fn serialize_endpoint_output(name: &str, output: &EndpointOutput) -> Value {
         EndpointOutput::GreeksFirstOrderTicks(ticks) => serialize_greeks_first_order_ticks(ticks),
         EndpointOutput::GreeksSecondOrderTicks(ticks) => serialize_greeks_second_order_ticks(ticks),
         EndpointOutput::GreeksThirdOrderTicks(ticks) => serialize_greeks_third_order_ticks(ticks),
+        EndpointOutput::TradeGreeksAllTicks(ticks) => serialize_trade_greeks_all_ticks(ticks),
+        EndpointOutput::TradeGreeksFirstOrderTicks(ticks) => {
+            serialize_trade_greeks_first_order_ticks(ticks)
+        }
+        EndpointOutput::TradeGreeksSecondOrderTicks(ticks) => {
+            serialize_trade_greeks_second_order_ticks(ticks)
+        }
+        EndpointOutput::TradeGreeksThirdOrderTicks(ticks) => {
+            serialize_trade_greeks_third_order_ticks(ticks)
+        }
+        EndpointOutput::TradeGreeksImpliedVolatilityTicks(ticks) => {
+            serialize_trade_greeks_implied_volatility_ticks(ticks)
+        }
         EndpointOutput::IvTicks(ticks) => serialize_iv_ticks(ticks),
         EndpointOutput::PriceTicks(ticks) => serialize_price_ticks(ticks),
         EndpointOutput::CalendarDays(days) => serialize_calendar_days(days),

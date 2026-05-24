@@ -68,6 +68,19 @@ pub fn output_envelope(output: &EndpointOutput) -> sonic_rs::Value {
         EndpointOutput::GreeksFirstOrderTicks(ticks) => greeks_first_order_ticks_to_json(ticks),
         EndpointOutput::GreeksSecondOrderTicks(ticks) => greeks_second_order_ticks_to_json(ticks),
         EndpointOutput::GreeksThirdOrderTicks(ticks) => greeks_third_order_ticks_to_json(ticks),
+        EndpointOutput::TradeGreeksAllTicks(ticks) => trade_greeks_all_ticks_to_json(ticks),
+        EndpointOutput::TradeGreeksFirstOrderTicks(ticks) => {
+            trade_greeks_first_order_ticks_to_json(ticks)
+        }
+        EndpointOutput::TradeGreeksSecondOrderTicks(ticks) => {
+            trade_greeks_second_order_ticks_to_json(ticks)
+        }
+        EndpointOutput::TradeGreeksThirdOrderTicks(ticks) => {
+            trade_greeks_third_order_ticks_to_json(ticks)
+        }
+        EndpointOutput::TradeGreeksImpliedVolatilityTicks(ticks) => {
+            trade_greeks_implied_volatility_ticks_to_json(ticks)
+        }
         EndpointOutput::IvTicks(ticks) => iv_ticks_to_json(ticks),
         EndpointOutput::PriceTicks(ticks) => price_ticks_to_json(ticks),
         EndpointOutput::CalendarDays(days) => calendar_days_to_json(days),
@@ -389,6 +402,200 @@ pub fn greeks_third_order_ticks_to_json(ticks: &[GreeksThirdOrderTick]) -> Vec<s
                 "zomma": t.zomma,
                 "color": t.color,
                 "ultima": t.ultima,
+                "implied_volatility": t.implied_volatility,
+                "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+                "date": t.date
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect()
+}
+
+/// Convert per-OPRA-trade union Greeks ticks
+/// (`option_history_trade_greeks_all`) to JSON array. Carries the nine
+/// trade-side execution columns alongside every Greek the server
+/// publishes -- distinct from the interval-sampled `GreeksAllTick`
+/// JSON whose rows carry the bid/ask quote pair instead.
+pub fn trade_greeks_all_ticks_to_json(ticks: &[TradeGreeksAllTick]) -> Vec<sonic_rs::Value> {
+    ticks
+        .iter()
+        .map(|t| {
+            let mut row = sonic_rs::json!({
+                "ms_of_day": t.ms_of_day,
+                "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1,
+                "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3,
+                "ext_condition4": t.ext_condition4,
+                "condition": t.condition,
+                "size": t.size,
+                "exchange": t.exchange,
+                "price": t.price,
+                "delta": t.delta,
+                "theta": t.theta,
+                "vega": t.vega,
+                "rho": t.rho,
+                "epsilon": t.epsilon,
+                "lambda": t.lambda,
+                "gamma": t.gamma,
+                "vanna": t.vanna,
+                "charm": t.charm,
+                "vomma": t.vomma,
+                "veta": t.veta,
+                "vera": t.vera,
+                "speed": t.speed,
+                "zomma": t.zomma,
+                "color": t.color,
+                "ultima": t.ultima,
+                "d1": t.d1,
+                "d2": t.d2,
+                "dual_delta": t.dual_delta,
+                "dual_gamma": t.dual_gamma,
+                "implied_volatility": t.implied_volatility,
+                "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+                "date": t.date
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect()
+}
+
+/// Convert per-OPRA-trade first-order Greeks ticks
+/// (`option_history_trade_greeks_first_order`) to JSON array.
+pub fn trade_greeks_first_order_ticks_to_json(
+    ticks: &[TradeGreeksFirstOrderTick],
+) -> Vec<sonic_rs::Value> {
+    ticks
+        .iter()
+        .map(|t| {
+            let mut row = sonic_rs::json!({
+                "ms_of_day": t.ms_of_day,
+                "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1,
+                "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3,
+                "ext_condition4": t.ext_condition4,
+                "condition": t.condition,
+                "size": t.size,
+                "exchange": t.exchange,
+                "price": t.price,
+                "delta": t.delta,
+                "theta": t.theta,
+                "vega": t.vega,
+                "rho": t.rho,
+                "epsilon": t.epsilon,
+                "lambda": t.lambda,
+                "implied_volatility": t.implied_volatility,
+                "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+                "date": t.date
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect()
+}
+
+/// Convert per-OPRA-trade second-order Greeks ticks
+/// (`option_history_trade_greeks_second_order`) to JSON array.
+pub fn trade_greeks_second_order_ticks_to_json(
+    ticks: &[TradeGreeksSecondOrderTick],
+) -> Vec<sonic_rs::Value> {
+    ticks
+        .iter()
+        .map(|t| {
+            let mut row = sonic_rs::json!({
+                "ms_of_day": t.ms_of_day,
+                "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1,
+                "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3,
+                "ext_condition4": t.ext_condition4,
+                "condition": t.condition,
+                "size": t.size,
+                "exchange": t.exchange,
+                "price": t.price,
+                "gamma": t.gamma,
+                "vanna": t.vanna,
+                "charm": t.charm,
+                "vomma": t.vomma,
+                "veta": t.veta,
+                "implied_volatility": t.implied_volatility,
+                "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+                "date": t.date
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect()
+}
+
+/// Convert per-OPRA-trade third-order Greeks ticks
+/// (`option_history_trade_greeks_third_order`) to JSON array. The
+/// vendor's third-order schema does not publish `vera`.
+pub fn trade_greeks_third_order_ticks_to_json(
+    ticks: &[TradeGreeksThirdOrderTick],
+) -> Vec<sonic_rs::Value> {
+    ticks
+        .iter()
+        .map(|t| {
+            let mut row = sonic_rs::json!({
+                "ms_of_day": t.ms_of_day,
+                "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1,
+                "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3,
+                "ext_condition4": t.ext_condition4,
+                "condition": t.condition,
+                "size": t.size,
+                "exchange": t.exchange,
+                "price": t.price,
+                "speed": t.speed,
+                "zomma": t.zomma,
+                "color": t.color,
+                "ultima": t.ultima,
+                "implied_volatility": t.implied_volatility,
+                "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+                "date": t.date
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect()
+}
+
+/// Convert per-OPRA-trade implied-volatility ticks
+/// (`option_history_trade_greeks_implied_volatility`) to JSON array.
+/// Carries only the single `implied_volatility` + `iv_error` pair
+/// (NOT the bid/mid/ask IV triple of the interval-sampled `IvTick`).
+pub fn trade_greeks_implied_volatility_ticks_to_json(
+    ticks: &[TradeGreeksImpliedVolatilityTick],
+) -> Vec<sonic_rs::Value> {
+    ticks
+        .iter()
+        .map(|t| {
+            let mut row = sonic_rs::json!({
+                "ms_of_day": t.ms_of_day,
+                "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1,
+                "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3,
+                "ext_condition4": t.ext_condition4,
+                "condition": t.condition,
+                "size": t.size,
+                "exchange": t.exchange,
+                "price": t.price,
                 "implied_volatility": t.implied_volatility,
                 "iv_error": t.iv_error,
                 "underlying_ms_of_day": t.underlying_ms_of_day,
