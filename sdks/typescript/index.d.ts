@@ -1618,161 +1618,6 @@ export interface GreeksThirdOrderTick {
   right: string
 }
 
-/** Per-OPRA-trade union Greeks tick (option_history_trade_greeks_all).
- *  Carries the nine trade-side execution columns alongside every Greek the
- *  server publishes -- distinct from the interval-sampled `GreeksAllTick`
- *  whose rows carry the bid/ask quote pair instead. */
-export interface TradeGreeksAllTick {
-  msOfDay: number
-  sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
-  size: number
-  exchange: number
-  price: number
-  delta: number
-  theta: number
-  vega: number
-  rho: number
-  epsilon: number
-  lambda: number
-  gamma: number
-  vanna: number
-  charm: number
-  vomma: number
-  veta: number
-  vera: number
-  speed: number
-  zomma: number
-  color: number
-  ultima: number
-  d1: number
-  d2: number
-  dualDelta: number
-  dualGamma: number
-  impliedVolatility: number
-  ivError: number
-  underlyingMsOfDay: number
-  underlyingPrice: number
-  date: number
-  expiration: number
-  strike: number
-  right: string
-}
-
-/** Per-OPRA-trade first-order Greeks tick
- *  (option_history_trade_greeks_first_order). */
-export interface TradeGreeksFirstOrderTick {
-  msOfDay: number
-  sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
-  size: number
-  exchange: number
-  price: number
-  delta: number
-  theta: number
-  vega: number
-  rho: number
-  epsilon: number
-  lambda: number
-  impliedVolatility: number
-  ivError: number
-  underlyingMsOfDay: number
-  underlyingPrice: number
-  date: number
-  expiration: number
-  strike: number
-  right: string
-}
-
-/** Per-OPRA-trade second-order Greeks tick
- *  (option_history_trade_greeks_second_order). */
-export interface TradeGreeksSecondOrderTick {
-  msOfDay: number
-  sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
-  size: number
-  exchange: number
-  price: number
-  gamma: number
-  vanna: number
-  charm: number
-  vomma: number
-  veta: number
-  impliedVolatility: number
-  ivError: number
-  underlyingMsOfDay: number
-  underlyingPrice: number
-  date: number
-  expiration: number
-  strike: number
-  right: string
-}
-
-/** Per-OPRA-trade third-order Greeks tick
- *  (option_history_trade_greeks_third_order). The vendor's third-order
- *  schema does not publish `vera`. */
-export interface TradeGreeksThirdOrderTick {
-  msOfDay: number
-  sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
-  size: number
-  exchange: number
-  price: number
-  speed: number
-  zomma: number
-  color: number
-  ultima: number
-  impliedVolatility: number
-  ivError: number
-  underlyingMsOfDay: number
-  underlyingPrice: number
-  date: number
-  expiration: number
-  strike: number
-  right: string
-}
-
-/** Per-OPRA-trade implied-volatility tick
- *  (option_history_trade_greeks_implied_volatility). Carries only the
- *  single `impliedVolatility` + `ivError` pair (NOT the bid/mid/ask IV
- *  triple of the interval-sampled `IvTick`). */
-export interface TradeGreeksImpliedVolatilityTick {
-  msOfDay: number
-  sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
-  size: number
-  exchange: number
-  price: number
-  impliedVolatility: number
-  ivError: number
-  underlyingMsOfDay: number
-  underlyingPrice: number
-  date: number
-  expiration: number
-  strike: number
-  right: string
-}
-
 /** Interest rate tick. End-of-day interest rate (percent). */
 export interface InterestRateTick {
   date: number
@@ -2044,6 +1889,151 @@ export interface Trade {
   recordsBack: number
   date: number
   receivedAtNs: bigint
+}
+
+/** Per-trade union Greeks tick -- every Greek the v3 server publishes on */
+export interface TradeGreeksAllTick {
+  msOfDay: number
+  sequence: number
+  extCondition1: number
+  extCondition2: number
+  extCondition3: number
+  extCondition4: number
+  condition: number
+  size: number
+  exchange: number
+  price: number
+  delta: number
+  theta: number
+  vega: number
+  rho: number
+  epsilon: number
+  lambda: number
+  gamma: number
+  vanna: number
+  charm: number
+  vomma: number
+  veta: number
+  vera: number
+  speed: number
+  zomma: number
+  color: number
+  ultima: number
+  d1: number
+  d2: number
+  dualDelta: number
+  dualGamma: number
+  impliedVolatility: number
+  ivError: number
+  underlyingMsOfDay: number
+  underlyingPrice: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon */
+export interface TradeGreeksFirstOrderTick {
+  msOfDay: number
+  sequence: number
+  extCondition1: number
+  extCondition2: number
+  extCondition3: number
+  extCondition4: number
+  condition: number
+  size: number
+  exchange: number
+  price: number
+  delta: number
+  theta: number
+  vega: number
+  rho: number
+  epsilon: number
+  lambda: number
+  impliedVolatility: number
+  ivError: number
+  underlyingMsOfDay: number
+  underlyingPrice: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** Per-trade implied-volatility tick (single `implied_volatility` + */
+export interface TradeGreeksImpliedVolatilityTick {
+  msOfDay: number
+  sequence: number
+  extCondition1: number
+  extCondition2: number
+  extCondition3: number
+  extCondition4: number
+  condition: number
+  size: number
+  exchange: number
+  price: number
+  impliedVolatility: number
+  ivError: number
+  underlyingMsOfDay: number
+  underlyingPrice: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / */
+export interface TradeGreeksSecondOrderTick {
+  msOfDay: number
+  sequence: number
+  extCondition1: number
+  extCondition2: number
+  extCondition3: number
+  extCondition4: number
+  condition: number
+  size: number
+  exchange: number
+  price: number
+  gamma: number
+  vanna: number
+  charm: number
+  vomma: number
+  veta: number
+  impliedVolatility: number
+  ivError: number
+  underlyingMsOfDay: number
+  underlyingPrice: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
+/** Per-trade third-order Greeks tick (speed / zomma / color / ultima) */
+export interface TradeGreeksThirdOrderTick {
+  msOfDay: number
+  sequence: number
+  extCondition1: number
+  extCondition2: number
+  extCondition3: number
+  extCondition4: number
+  condition: number
+  size: number
+  exchange: number
+  price: number
+  speed: number
+  zomma: number
+  color: number
+  ultima: number
+  impliedVolatility: number
+  ivError: number
+  underlyingMsOfDay: number
+  underlyingPrice: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
 }
 
 /** Combined trade + quote tick. */
