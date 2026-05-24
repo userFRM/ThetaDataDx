@@ -123,17 +123,21 @@ def test_dropped_event_count_lifecycle_callable(tdx):
     assert post_stop >= 0
 
 
-def test_start_streaming_requires_callable(tdx):
-    """`start_streaming` is callback-only after PR C. Passing a
-    non-callable must surface as a Python `TypeError` at call time
-    (Python raises this when the consumer tries to invoke the
-    object), not silently store junk on the wrapper.
+def test_start_streaming_accepts_any_pyobject_at_registration_time(tdx):
+    """`start_streaming` does NOT validate that its argument is callable
+    at registration time -- PyO3 accepts `Py<PyAny>` and the validity
+    check (`PyAny::call1`) only fires on the consumer thread when an
+    event actually arrives. Without a live subscription no event
+    fires, so `start_streaming(42)` is accepted and `stop_streaming`
+    clears the reference.
+
+    (Renamed from `test_start_streaming_requires_callable` per audit
+    S43 -- the prior name lied: it implied registration-time
+    rejection which the binding does not implement. The actual
+    consumer-thread `TypeError` surface is exercised by
+    `test_non_callable_callback_panic_is_counted` below, which DOES
+    use `pytest.raises`.)
     """
-    # `42` is not callable. PyO3 accepts `Py<PyAny>` so the wrapper
-    # itself doesn't reject it -- the failure surfaces only on the
-    # consumer thread when an event arrives. We don't trigger an
-    # event here (no subscriptions, no live data), so the call should
-    # succeed and `stop_streaming` should clear the bad reference.
     tdx.start_streaming(42)
     tdx.stop_streaming()
 

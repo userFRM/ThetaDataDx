@@ -74,20 +74,24 @@ async fn option_open_interest_csv_byte_matches_vendor() {
 
     let reference = reference_csv_path();
     if !reference.path.exists() {
-        if reference.explicit {
-            panic!(
-                "THETADATADX_REFERENCE_CSV={} is set but the file is missing. \
-                 Provision the vendor reference CSV at that path or unset the \
-                 env var so the test skips silently.",
-                reference.path.display()
-            );
-        }
-        eprintln!(
-            "reference vendor CSV not present at {} — skipping byte-match test \
-             (set THETADATADX_REFERENCE_CSV to provision)",
-            reference.path.display()
+        // When the user opted into `--features live-tests`, a missing
+        // reference CSV must FAIL the test — silently skipping the
+        // byte-match contract under the opt-in flag is exactly the
+        // failure mode `npm test`-style silent-pass landed on prior.
+        // Mirror the `test_rest_live.rs` round-3 fix per audit S39:
+        // surface the missing-fixture path as a panic so CI catches it.
+        panic!(
+            "live-tests opted in but reference vendor CSV is missing. \
+             Looked at {} (env: THETADATADX_REFERENCE_CSV = {}). \
+             Provision the vendor fixture or unset the env var AND \
+             remove `--features live-tests` to skip.",
+            reference.path.display(),
+            if reference.explicit {
+                "explicit"
+            } else {
+                "default (unset)"
+            },
         );
-        return;
     }
     let creds = Credentials::from_file("creds.txt")
         .or_else(|_| Credentials::from_file("../../creds.txt"))
@@ -194,20 +198,21 @@ async fn option_eod_csv_byte_matches_vendor() {
 
     let reference = reference_eod_csv_path();
     if !reference.path.exists() {
-        if reference.explicit {
-            panic!(
-                "THETADATADX_REFERENCE_EOD_CSV={} is set but the file is missing. \
-                 Provision the vendor reference EOD CSV at that path or unset \
-                 the env var so the test skips silently.",
-                reference.path.display()
-            );
-        }
-        eprintln!(
-            "reference vendor EOD CSV not present at {} — skipping byte-match test \
-             (set THETADATADX_REFERENCE_EOD_CSV to provision)",
-            reference.path.display()
+        // S39 fix: panic under `--features live-tests` regardless of
+        // whether the env var is set, so a missing fixture surfaces
+        // as a test failure instead of a silent skip.
+        panic!(
+            "live-tests opted in but reference vendor EOD CSV is missing. \
+             Looked at {} (env: THETADATADX_REFERENCE_EOD_CSV = {}). \
+             Provision the vendor fixture or unset the env var AND \
+             remove `--features live-tests` to skip.",
+            reference.path.display(),
+            if reference.explicit {
+                "explicit"
+            } else {
+                "default (unset)"
+            },
         );
-        return;
     }
     let creds = Credentials::from_file("creds.txt")
         .or_else(|_| Credentials::from_file("../../creds.txt"))

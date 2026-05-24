@@ -1124,11 +1124,14 @@ mod tests {
                     .expect("submit succeeds"),
             );
         }
-        for rx in rxs {
-            let table = rx
-                .await
-                .expect("oneshot delivered")
-                .expect("decode succeeds");
+        // Await every oneshot concurrently so the test exercises the
+        // multi-worker fan-out instead of sequentialising waits — a
+        // sequential await loop would let a single worker drain
+        // submissions one-by-one and would still pass with a broken
+        // multi-worker dispatcher. S44 fix.
+        let tables: Vec<_> = futures::future::join_all(rxs).await;
+        for result in tables {
+            let table = result.expect("oneshot delivered").expect("decode succeeds");
             assert_eq!(table.data_table.len(), 8);
         }
         drop(pool);

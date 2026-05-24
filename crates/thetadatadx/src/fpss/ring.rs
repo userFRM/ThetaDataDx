@@ -132,8 +132,15 @@ pub(crate) struct RingEvent {
     pub(crate) event: FpssEventInternal,
 }
 
-// SAFETY: FpssEventInternal is Clone + Send; RingEvent is only accessed
-// through the disruptor's sequencing guarantees (exclusive write, shared read).
+// SAFETY: Required-invariant restate per audit MINOR sweep --
+// `FpssEventInternal` is `Send` + holds no thread-affine state
+// (only `Arc<Contract>` + owned `Vec<u8>` + POD primitives). Concurrent
+// shared access is gated by the disruptor's sequencing protocol:
+// exactly one publisher writes a slot before publishing the sequence,
+// and consumers only read slots whose sequence has been published
+// (memory-ordered Acquire on the cursor read). No reader observes an
+// in-flight write, so the lack of an internal lock on `RingEvent`
+// is safe; the `unsafe impl Sync` records the contract.
 unsafe impl Sync for RingEvent {}
 
 // Ring-size validation lives in [`crate::util::ring`] so the gRPC

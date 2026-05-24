@@ -448,14 +448,14 @@ async fn rest_arm_respects_tier_clamp_semaphore() {
     rest.release_all();
     let _ = t1.await.expect("task1 join").expect("rest call 1");
     let _ = t2.await.expect("task2 join").expect("rest call 2");
-    let elapsed = started.elapsed();
+    let _elapsed = started.elapsed();
     let captured = rest.captured_queries().await.len();
     assert_eq!(captured, 2, "both calls should ultimately reach the mock");
-    // The semaphore must have serialised the calls — wall-clock here
-    // is dominated by the entry-side barrier wait + mock handshake,
-    // not a baked-in sleep, so the lower bound stays modest.
-    assert!(
-        elapsed >= Duration::from_millis(1),
-        "elapsed too short ({elapsed:?}); the test races a non-paused mock"
-    );
+    // The strong tier-clamp invariant is asserted above: after the
+    // first call lands at the mock and BEFORE we release it, only one
+    // query was captured. Releasing then lets the second through. The
+    // prior `elapsed >= 1ms` floor was trivially satisfied by any
+    // network handshake and proved nothing about serialization.
+    // Per audit S38, the entry-side barrier IS the serialization
+    // proof — we keep `_elapsed` bound only as a debug-print hook.
 }
