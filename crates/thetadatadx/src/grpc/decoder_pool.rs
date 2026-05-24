@@ -852,6 +852,12 @@ impl DecoderPool {
     ///
     /// Returns [`DecoderPoolError`] when `n_decoders` is zero or the
     /// ring size fails validation.
+    ///
+    /// Reachable only under `__test-helpers` (or in unit tests) —
+    /// production paths go through [`Self::new_two_stage`] which fans
+    /// the decoded payload into a downstream
+    /// [`super::stage_pipeline::Stage2Pool`].
+    #[cfg(any(test, feature = "__test-helpers"))]
     pub fn new(n_decoders: usize, ring_size_per_decoder: usize) -> Result<Self, DecoderPoolError> {
         if n_decoders == 0 {
             return Err(DecoderPoolError::EmptyPool);
@@ -1002,6 +1008,9 @@ impl DecoderPool {
     /// rejects an empty pool at construction so this is normally
     /// `false`; the method exists for parity with the standard
     /// `len()` + `is_empty()` collection idiom.
+    ///
+    /// Reachable only under `__test-helpers` (or in unit tests).
+    #[cfg(any(test, feature = "__test-helpers"))]
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.handles.is_empty()

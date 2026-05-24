@@ -241,6 +241,49 @@ pub unsafe extern "C" fn tdx_config_set_concurrent_requests(config: *mut TdxConf
     })
 }
 
+/// Set the `warn_on_buffered_threshold_bytes` ceiling on a config
+/// handle. Streaming endpoints log a `tracing::warn!` when a
+/// pre-stream-API caller receives a buffered response whose decoded
+/// total size exceeds this threshold (default 100 MiB). The warning
+/// guides users towards the `.stream()` surface on large pulls; the
+/// data is still delivered.
+///
+/// `n = 0` disables the warning entirely.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_warn_on_buffered_threshold_bytes(
+    config: *mut TdxConfig,
+    n: usize,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.mdds.warn_on_buffered_threshold_bytes = n;
+    })
+}
+
+/// Read the current `warn_on_buffered_threshold_bytes` setting.
+///
+/// Writes the configured byte count into `*out_n`. Returns `0` on
+/// success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_warn_on_buffered_threshold_bytes(
+    config: *const TdxConfig,
+    out_n: *mut usize,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_n.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_n null-checked above; caller pins the storage for the call duration.
+        unsafe {
+            *out_n = config.inner.mdds.warn_on_buffered_threshold_bytes;
+        }
+        0
+    })
+}
+
 /// Set the number of dedicated decoder threads in the MDDS pool.
 ///
 /// `n = 0` (default) auto-sizes to
@@ -543,6 +586,47 @@ mod pool_sizing_tests {
             assert_eq!((*cfg).inner.mdds.concurrent_requests, 8);
             super::tdx_config_set_concurrent_requests(cfg, 0);
             assert_eq!((*cfg).inner.mdds.concurrent_requests, 0);
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn warn_on_buffered_threshold_bytes_round_trips() {
+        let cfg = super::tdx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            // Default seeded at 100 MiB by `MddsConfig::default()`.
+            let mut current: usize = 0;
+            assert_eq!(
+                super::tdx_config_get_warn_on_buffered_threshold_bytes(cfg, &mut current),
+                0
+            );
+            assert_eq!(current, 100 * 1024 * 1024);
+            // Override.
+            super::tdx_config_set_warn_on_buffered_threshold_bytes(cfg, 50 * 1024 * 1024);
+            assert_eq!(
+                (*cfg).inner.mdds.warn_on_buffered_threshold_bytes,
+                50 * 1024 * 1024
+            );
+            assert_eq!(
+                super::tdx_config_get_warn_on_buffered_threshold_bytes(cfg, &mut current),
+                0
+            );
+            assert_eq!(current, 50 * 1024 * 1024);
+            // Disable.
+            super::tdx_config_set_warn_on_buffered_threshold_bytes(cfg, 0);
+            assert_eq!((*cfg).inner.mdds.warn_on_buffered_threshold_bytes, 0);
+            // Null-pointer guards: setter is a no-op (matches the
+            // ffi_boundary `()` return); getter returns -1.
+            super::tdx_config_set_warn_on_buffered_threshold_bytes(std::ptr::null_mut(), 4);
+            assert_eq!(
+                super::tdx_config_get_warn_on_buffered_threshold_bytes(
+                    std::ptr::null(),
+                    &mut current
+                ),
+                -1
+            );
             super::tdx_config_free(cfg);
         }
     }

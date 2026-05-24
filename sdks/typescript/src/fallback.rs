@@ -192,6 +192,49 @@ impl Config {
         Ok(u32::try_from(guard.mdds.concurrent_requests).unwrap_or(u32::MAX))
     }
 
+    /// Set the warning threshold (in bytes) for buffered (non-streaming)
+    /// historical responses. Endpoints whose decoded total exceeds this
+    /// value emit a Rust-side `tracing::warn!` pointing the caller at
+    /// the `.stream()` surface; the data is still delivered. `0n`
+    /// disables the warning entirely. Default is `100n * 1024n * 1024n`
+    /// (100 MiB). Byte budgets can exceed `u32::MAX`, so the setter
+    /// takes a `BigInt` matching the underlying `usize` field.
+    #[napi(js_name = "setWarnOnBufferedThresholdBytes")]
+    pub fn set_warn_on_buffered_threshold_bytes(
+        &self,
+        n: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = n.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "warn_on_buffered_threshold_bytes must fit in u64",
+            ));
+        }
+        let value = usize::try_from(value)
+            .map_err(|_| napi::Error::from_reason("value exceeds usize on this platform"))?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.mdds.warn_on_buffered_threshold_bytes = value;
+        Ok(())
+    }
+
+    /// Current `warn_on_buffered_threshold_bytes` setting (bytes,
+    /// returned as a `BigInt`).
+    #[napi(getter, js_name = "warnOnBufferedThresholdBytes")]
+    pub fn warn_on_buffered_threshold_bytes(
+        &self,
+    ) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.mdds.warn_on_buffered_threshold_bytes as u64,
+        ))
+    }
+
     /// Set the number of dedicated decoder threads in the MDDS pool.
     ///
     /// `0` (default) auto-sizes to `max(available_parallelism / 2, 1)`,

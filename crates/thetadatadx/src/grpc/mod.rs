@@ -83,20 +83,40 @@
 pub mod channel;
 pub mod codec;
 pub mod decoder_pool;
+// `endpoints` is a hand-written `stock_list_symbols` example plus
+// `bench_support` helpers used exclusively by the gRPC benches and
+// the `grpc_stock_list_symbols` integration test. Production RPCs go
+// through the macro-generated `crate::mdds::*` endpoints directly.
+// Gating on `__test-helpers` keeps the example out of the default rlib
+// (BL-1 narrowing — whole-repo audit wave 3).
+#[cfg(feature = "__test-helpers")]
 pub mod endpoints;
 pub mod pool;
 pub mod stage_pipeline;
 pub mod status;
 pub mod stream;
 
+// Production-path re-exports — used by `crate::mdds`, `crate::error`,
+// and the `flatfiles` session bootstrap. These names are reachable as
+// `thetadatadx::grpc::*` only when the `__test-helpers` private feature
+// is enabled (see the `pub(crate) mod grpc` guard in `lib.rs`); without
+// the feature they are crate-internal only.
 pub use channel::{Channel, ChannelError};
-pub use codec::{Codec, CodecError};
-pub use decoder_pool::{
-    default_decoder_thread_count, DecodeResult, DecoderHandle, DecoderPool, DecoderPoolError,
-    DecoderSubmitError, DecoderWaitStrategy,
-};
-pub use endpoints::stock_list_symbols;
+pub use decoder_pool::{default_decoder_thread_count, DecoderHandle, DecoderPool};
 pub use pool::{ChannelLease, ChannelPool};
-pub use stage_pipeline::{DecodedPayload, Stage2Counters, Stage2Pool};
-pub use status::{Status, StatusParseError};
+pub use status::Status;
 pub use stream::ServerStreaming;
+
+// Test-only re-exports — only reachable when the `__test-helpers` feature
+// is enabled. The underlying items are themselves cfg-gated; gating the
+// re-exports avoids `unused import` errors in the default-features build.
+#[cfg(feature = "__test-helpers")]
+pub use codec::{Codec, CodecError};
+#[cfg(feature = "__test-helpers")]
+pub use decoder_pool::{DecodeResult, DecoderPoolError, DecoderSubmitError, DecoderWaitStrategy};
+#[cfg(feature = "__test-helpers")]
+pub use endpoints::stock_list_symbols;
+#[cfg(feature = "__test-helpers")]
+pub use stage_pipeline::{DecodedPayload, Stage2Counters, Stage2Pool};
+#[cfg(feature = "__test-helpers")]
+pub use status::StatusParseError;

@@ -74,6 +74,12 @@ impl ChannelPool {
     /// Panics if `channels` is empty. A pool must have at least one
     /// member; an empty pool has no semantics that would make
     /// `next()` succeed.
+    ///
+    /// Reachable only under `__test-helpers` (or in unit tests) —
+    /// production callers go through [`Self::from_channels_with_decoders`]
+    /// so decode runs on the dedicated decoder pool rather than inline
+    /// on the reactor.
+    #[cfg(any(test, feature = "__test-helpers"))]
     #[must_use]
     pub fn from_channels(channels: Vec<Channel>) -> Self {
         assert!(
@@ -140,6 +146,11 @@ impl ChannelPool {
     }
 
     /// Number of channels in the pool.
+    ///
+    /// Reachable only under `__test-helpers` — production code uses the
+    /// pool through [`Self::next`] / [`Self::from_channels_with_decoders`]
+    /// and does not introspect membership.
+    #[cfg(feature = "__test-helpers")]
     #[must_use]
     pub fn len(&self) -> usize {
         self.inner.channels.len()
@@ -148,7 +159,9 @@ impl ChannelPool {
     /// `true` if the pool holds no channels. The constructor's
     /// `assert!` rules this out in practice; the method exists so
     /// callers using the `len() + is_empty()` clippy-friendly idiom
-    /// don't have to special-case the pool.
+    /// don't have to special-case the pool. Reachable only under
+    /// `__test-helpers`.
+    #[cfg(feature = "__test-helpers")]
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.inner.channels.is_empty()
@@ -158,7 +171,8 @@ impl ChannelPool {
     /// exposed so integration tests can deterministically target a
     /// specific channel (e.g. fire a slow RPC against pool member 0
     /// to saturate it, then assert subsequent `next()` calls route
-    /// around it).
+    /// around it). Reachable only under `__test-helpers`.
+    #[cfg(feature = "__test-helpers")]
     #[doc(hidden)]
     #[must_use]
     pub fn member_for_test(&self, idx: usize) -> &Arc<Channel> {
@@ -294,6 +308,12 @@ impl<'a> ChannelLease<'a> {
     /// the reservation alive for the rest of the temporary scope;
     /// callers that need to thread `&Arc<Channel>` into a longer-lived
     /// future should keep the lease bound to a local `let`.
+    ///
+    /// Production code uses the `Deref<Target = Arc<Channel>>` impl
+    /// above instead; this explicit accessor is exposed under
+    /// `__test-helpers` so tests can name the borrow without going
+    /// through deref coercion.
+    #[cfg(feature = "__test-helpers")]
     #[must_use]
     pub fn channel(&self) -> &Arc<Channel> {
         self.channel

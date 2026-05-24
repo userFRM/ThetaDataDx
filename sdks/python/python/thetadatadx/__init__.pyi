@@ -74,6 +74,11 @@ class Config:
     preserved for backward compatibility.
     """
     decoder_ring_size: int
+    # Byte ceiling above which a buffered (non-`.stream()`) historical
+    # response emits a Rust-side `tracing::warn!` pointing the caller
+    # at the streaming surface. `0` disables the warning; the default
+    # is `100 * 1024 * 1024` (100 MiB). The data is still delivered.
+    warn_on_buffered_threshold_bytes: int
     # MDDS two-stage decode pipeline. `decode_threads` sizes the
     # stage-2 prost-decode + Tick-build worker pool;
     # `decode_queue_depth` sizes the bounded MPSC queue between

@@ -359,6 +359,30 @@ impl Config {
         guard.mdds.concurrent_requests
     }
 
+    /// Set the warning threshold (in bytes) for buffered (non-streaming)
+    /// historical responses. Endpoints whose decoded total exceeds this
+    /// value log a `tracing::warn!` pointing the caller at the
+    /// ``.stream()`` surface; the data is still delivered. ``0``
+    /// disables the warning entirely. Default is ``100 * 1024 * 1024``
+    /// (100 MiB).
+    ///
+    /// Examples
+    /// --------
+    ///     cfg = Config.production()
+    ///     cfg.warn_on_buffered_threshold_bytes = 50 * 1024 * 1024
+    #[setter]
+    fn set_warn_on_buffered_threshold_bytes(&self, n: usize) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.warn_on_buffered_threshold_bytes = n;
+    }
+
+    /// Current ``warn_on_buffered_threshold_bytes`` setting (bytes).
+    #[getter]
+    fn get_warn_on_buffered_threshold_bytes(&self) -> usize {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.mdds.warn_on_buffered_threshold_bytes
+    }
+
     /// Deprecated since v10.0.1: set ``decode_threads`` instead. This
     /// field controls only the legacy stage-1 thread count and is
     /// preserved for backward compatibility.

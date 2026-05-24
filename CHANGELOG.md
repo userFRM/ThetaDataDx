@@ -7,14 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> **Release line note**: this train accumulates 10 major + 1 minor breaking
+> **Release line note**: this train accumulates 19 major + 1 minor breaking
 > changes versus v10.0.0. The next release tag MUST be v11.0.0, not a
 > v10.0.x patch. Owner-greenlight gated on this audit returning zero
-> actionable findings. Wave-2 of the audit-fix loop added the
-> `protocol::wire` public-API narrowing and the `__test_internals`
-> feature-gating to the v11 SemVer break list (one additional major break).
+> actionable findings. Wave-3 of the audit-fix loop completed the
+> `grpc` module narrowing started in Wave 2 (`#[doc(hidden)]` → full
+> `pub(crate)`), removing nine names from the public surface and
+> taking the count from 10 → 19 major breaks.
 
 ### Changed (BREAKING — v11)
+
+#### Audit closure wave 3
+
+- `grpc` module narrowed from `pub mod` (with `#[doc(hidden)]`) to
+  `pub(crate) mod` in the default-features build. Public visibility
+  re-opens only under the private `__test-helpers` feature.
+  Nine names lose their `thetadatadx::grpc::*` reachability:
+  `Channel`, `ChannelError`, `ChannelPool`, `ChannelLease`,
+  `DecoderHandle`, `DecoderPool`, `default_decoder_thread_count`,
+  `Status`, `ServerStreaming`. Errors flowing out of the transport
+  layer continue to reach consumers via `impl From<grpc::ChannelError>
+  for Error` at the crate boundary — pattern-match on the public
+  `crate::Error` type. Closes audit BL-1.
 
 #### Audit closure wave 2
 
@@ -54,6 +68,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default `vwap` to `0.0` via the optional-column path. Struct size
   unchanged (was already 128 bytes after alignment); field offsets
   shift past `count`. Closes audit BL-13.
+
+### Added
+
+#### Audit closure wave 3
+
+- `MddsConfig.warn_on_buffered_threshold_bytes` (Rust `usize`,
+  default 100 MiB) bound across every binding. New surface:
+  - FFI: `tdx_config_set_warn_on_buffered_threshold_bytes(*mut TdxConfig,
+    usize)` setter + `tdx_config_get_warn_on_buffered_threshold_bytes(
+    *const TdxConfig, *mut usize) -> i32` getter.
+  - C++: `tdx::Config::set_warn_on_buffered_threshold_bytes(std::size_t)` +
+    matching getter.
+  - Python: `Config.warn_on_buffered_threshold_bytes` (pyo3 `#[getter]`
+    + `#[setter]`) + `.pyi` type stub.
+  - TypeScript napi: `Config.setWarnOnBufferedThresholdBytes(BigInt)` +
+    `Config.warnOnBufferedThresholdBytes` getter (BigInt because the
+    underlying field is `usize`).
+  - `sdks/parity.toml` gains a new `MddsConfig.warn_on_buffered_
+    threshold_bytes` row marked all-true under a new MddsConfig
+    section header. Closes audit BL-8.
 
 ### Fixed
 

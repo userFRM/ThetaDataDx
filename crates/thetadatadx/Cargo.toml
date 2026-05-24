@@ -302,12 +302,20 @@ name = "streaming_throughput"
 harness = false
 
 [[bench]]
+# Drives the raw `Channel` / `ChannelPool` / `endpoints::bench_support`
+# surface against a mock h2c server; gated on `__test-helpers` so the
+# `grpc` module re-export stays out of the default rlib (BL-1 narrowing).
 name = "grpc_channel"
 harness = false
+required-features = ["__test-helpers"]
 
 [[bench]]
+# Drives `default_decoder_thread_count` + `Channel` + `ChannelPool` +
+# `DecoderPool` under concurrent burst load; gated on `__test-helpers`
+# for the same reason as `grpc_channel` (BL-1 narrowing).
 name = "grpc_concurrent_burst"
 harness = false
+required-features = ["__test-helpers"]
 
 [[bench]]
 # Drives `fpss::__test_internals::{decode_frame, DeltaState}` against
@@ -326,16 +334,23 @@ name = "bench_rest_decode"
 harness = false
 
 [[bench]]
+# Drives `DecoderPool` directly to measure prost-decode throughput;
+# gated on `__test-helpers` for the `grpc` re-export (BL-1 narrowing).
 name = "bench_decoder_pool"
 harness = false
+required-features = ["__test-helpers"]
 
 [[bench]]
 name = "bench_protobuf_decode"
 harness = false
 
 [[bench]]
+# Drives `Stage2Pool` + `DecodedPayload` head-to-head against the
+# single-stage decoder; gated on `__test-helpers` for the `grpc`
+# re-export (BL-1 narrowing).
 name = "bench_stage_pipeline"
 harness = false
+required-features = ["__test-helpers"]
 
 [[test]]
 # Builds `MddsClient` against mock REST + h2c servers. Depends on the
@@ -372,6 +387,25 @@ required-features = ["__test-helpers"]
 [[test]]
 name = "midframe_disconnect"
 path = "tests/midframe_disconnect.rs"
+required-features = ["__test-helpers"]
+
+# Integration tests that drive the raw `grpc::{Channel, ChannelPool,
+# DecoderPool, ChannelError, Status}` surface against a mock h2c server.
+# Gated on `__test-helpers` so the `grpc` module re-export stays out
+# of the default rlib (BL-1 narrowing — whole-repo audit wave 3).
+[[test]]
+name = "grpc_stock_list_symbols"
+path = "tests/grpc_stock_list_symbols.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "test_pool_reconnect"
+path = "tests/test_pool_reconnect.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "grpc_mock_server"
+path = "tests/grpc_mock_server.rs"
 required-features = ["__test-helpers"]
 
 [[bin]]
