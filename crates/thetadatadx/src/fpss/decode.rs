@@ -749,9 +749,9 @@ mod tests {
         assert_eq!(f[6], 6, "price_type");
         assert_eq!(f[7], 20250428, "date");
 
-        // Verify the n_data <= 8 mapping path produces the correct Trade variant.
-        assert!(n_data <= 8);
-        // The wire-internal `contract_id` no longer rides on the Trade
+        // `n_data == 8` already pinned 14 lines up via `assert_eq!`;
+        // the previous `assert!(n_data <= 8)` was redundant. The
+        // wire-internal `contract_id` no longer rides on the Trade
         // event (extracted by `decode_tick`, used only to resolve the
         // `Arc<Contract>` in `decode_frame`).
         assert_eq!(contract_id, 100);
@@ -880,8 +880,9 @@ mod tests {
         assert_eq!(f[14], 8, "price_type");
         assert_eq!(f[15], 20250428, "date");
 
-        // Verify the n_data > 8 mapping path produces the correct Trade variant.
-        assert!(n_data > 8);
+        // `n_data == 16` already pinned at the top of the assertions
+        // block via `assert_eq!`; the previous `assert!(n_data > 8)`
+        // was redundant.
         let trade = FpssData::Trade {
             contract: unresolved_sentinel(contract_id),
             ms_of_day: f[0],

@@ -298,8 +298,12 @@ mod tests {
                 contract, bid, ask, ..
             }) => {
                 assert_eq!(contract.symbol, "AAPL");
-                assert!((bid - 150.25).abs() < f64::EPSILON);
-                assert!((ask - 150.30).abs() < f64::EPSILON);
+                // Both sides round-trip exact decimal-ms quotes
+                // (Price::new(15025, 4) and Price::new(15030, 4)) so
+                // an `assert_eq!` is sound and tighter than an
+                // EPSILON tolerance.
+                assert_eq!(*bid, 150.25);
+                assert_eq!(*ask, 150.30);
             }
             other => panic!("expected Data(Quote), got {other:?}"),
         }

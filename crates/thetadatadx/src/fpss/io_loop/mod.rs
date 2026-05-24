@@ -1227,7 +1227,10 @@ mod tests {
         let ms = crate::fpss::reconnect_delay(RemoveReason::TooManyRequests)
             .expect("TooManyRequests yields a finite reconnect delay");
         let total_ms = u128::from(ms) * u128::from(last_attempt);
-        assert!(total_ms >= 130_000 * 10);
+        // 130 000 ms (TooManyRequests cooldown) * 10 attempts = 1 300 000.
+        // Use `assert_eq!` so a future drift in either factor surfaces
+        // immediately rather than passing on any value <= the bound.
+        assert_eq!(total_ms, 1_300_000);
     }
 
     /// Stable-window reset: a session that ran cleanly for at least
@@ -1365,12 +1368,15 @@ mod tests {
         assert_eq!(wire_req_id(i64::from(i32::MAX)), i32::MAX);
         // At i32::MAX + 1: the sign-bit mask wraps to 0 (NOT -1).
         assert_eq!(wire_req_id(i64::from(i32::MAX) + 1), 0);
-        // Way past i32::MAX: stays positive, never `-1`.
+        // Way past i32::MAX: stays non-negative (mask clears the
+        // sign bit). `assert!(wire >= 0)` already implies
+        // `wire != -1`, so the second assert was redundant -- pin
+        // the exact derived value instead.
         for n in 0..256_i64 {
             let v = i64::from(i32::MAX) + 1 + n * 1_000_000;
             let wire = wire_req_id(v);
-            assert!(wire >= 0, "wire id must stay non-negative (got {wire})");
-            assert_ne!(wire, -1, "wire id must never equal the -1 sentinel");
+            let expected = (v & i64::from(i32::MAX)) as i32;
+            assert_eq!(wire, expected, "wire id must match low-31-bit mask of {v}");
         }
         // Counter value 2^32: low 31 bits clear, masks to 0.
         assert_eq!(wire_req_id(1_i64 << 32), 0);
