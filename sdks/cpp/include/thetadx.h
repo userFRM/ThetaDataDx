@@ -214,13 +214,21 @@ TDX_ALIGN64_BEGIN typedef struct {
 TDX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     /* 4 bytes padding before f64 */
+    double bid;
+    double bid_implied_volatility;
+    double midpoint;
     double implied_volatility;
+    double ask;
+    double ask_implied_volatility;
     double iv_error;
+    int32_t underlying_ms_of_day;
+    /* 4 bytes padding before f64 */
+    double underlying_price;
     int32_t date;
     int32_t expiration;
     double strike;
     int32_t right;
-    uint8_t _tail_padding[16];
+    uint8_t _tail_padding[28];
 } TdxIvTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
@@ -247,11 +255,14 @@ TDX_ALIGN64_BEGIN typedef struct {
      * overflow on high-volume symbols (2.1B+ cumulative volume). */
     int64_t volume;
     int64_t count;
+    /* SIP-rule VWAP for the bar. Snapshot endpoints leave this as 0.0
+     * via the optional-column path. */
+    double vwap;
     int32_t date;
     int32_t expiration;
     double strike;
     int32_t right;
-    uint8_t _tail_padding[52];
+    uint8_t _tail_padding[44];
 } TdxOhlcTick TDX_ALIGN64_END;
 
 TDX_ALIGN64_BEGIN typedef struct {
