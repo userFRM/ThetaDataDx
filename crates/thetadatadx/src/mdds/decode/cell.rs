@@ -19,7 +19,9 @@ use crate::proto;
 use tdbe::types::tick::{
     CalendarDay, EodTick, GreeksAllTick, GreeksFirstOrderTick, GreeksSecondOrderTick,
     GreeksThirdOrderTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick,
-    OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
+    OptionContract, PriceTick, QuoteTick, TradeGreeksAllTick, TradeGreeksFirstOrderTick,
+    TradeGreeksImpliedVolatilityTick, TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
+    TradeQuoteTick, TradeTick,
 };
 
 /// Extract a date (YYYYMMDD) from a `Number`, `Timestamp`, or `Text` cell,

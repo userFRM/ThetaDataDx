@@ -167,7 +167,7 @@ pub(crate) mod proto {
 pub mod wire {
     pub use super::proto::{
         data_value, CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList,
-        Price, ResponseData,
+        Price, ResponseData, TimeZone, ZonedDateTime,
     };
 
     /// Request proto types re-exported behind the `__test-helpers`

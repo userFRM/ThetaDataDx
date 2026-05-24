@@ -9,7 +9,9 @@ use std::collections::BTreeMap;
 use tdbe::types::tick::{
     CalendarDay, EodTick, GreeksAllTick, GreeksFirstOrderTick, GreeksSecondOrderTick,
     GreeksThirdOrderTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick,
-    OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
+    OptionContract, PriceTick, QuoteTick, TradeGreeksAllTick, TradeGreeksFirstOrderTick,
+    TradeGreeksImpliedVolatilityTick, TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
+    TradeQuoteTick, TradeTick,
 };
 
 use crate::mdds::registry::ParamType;
@@ -418,6 +420,29 @@ pub enum EndpointOutput {
     /// `Vec<GreeksThirdOrderTick>` result. Returned by
     /// `option_*_greeks_third_order` endpoints.
     GreeksThirdOrderTicks(Vec<GreeksThirdOrderTick>),
+    /// `Vec<TradeGreeksAllTick>` result. Returned by
+    /// `option_history_trade_greeks_all` -- per-OPRA-trade Greeks calculation
+    /// carrying both the trade-side execution columns and every Greek the
+    /// server publishes for the all-union endpoint.
+    TradeGreeksAllTicks(Vec<TradeGreeksAllTick>),
+    /// `Vec<TradeGreeksFirstOrderTick>` result. Returned by
+    /// `option_history_trade_greeks_first_order` -- per-OPRA-trade first-order
+    /// Greeks calculation with trade execution columns.
+    TradeGreeksFirstOrderTicks(Vec<TradeGreeksFirstOrderTick>),
+    /// `Vec<TradeGreeksSecondOrderTick>` result. Returned by
+    /// `option_history_trade_greeks_second_order` -- per-OPRA-trade
+    /// second-order Greeks calculation with trade execution columns.
+    TradeGreeksSecondOrderTicks(Vec<TradeGreeksSecondOrderTick>),
+    /// `Vec<TradeGreeksThirdOrderTick>` result. Returned by
+    /// `option_history_trade_greeks_third_order` -- per-OPRA-trade third-order
+    /// Greeks calculation with trade execution columns.
+    TradeGreeksThirdOrderTicks(Vec<TradeGreeksThirdOrderTick>),
+    /// `Vec<TradeGreeksImpliedVolatilityTick>` result. Returned by
+    /// `option_history_trade_greeks_implied_volatility` -- per-OPRA-trade IV
+    /// calculation with trade execution columns. Carries only the single
+    /// `implied_volatility` + `iv_error` pair (not the bid/mid/ask IV triple
+    /// of the interval-sampled `IvTick`).
+    TradeGreeksImpliedVolatilityTicks(Vec<TradeGreeksImpliedVolatilityTick>),
     /// `Vec<IvTick>` result.
     IvTicks(Vec<IvTick>),
     /// `Vec<PriceTick>` result.

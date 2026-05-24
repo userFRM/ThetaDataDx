@@ -1566,6 +1566,1016 @@ impl crate::frames::TicksPolarsExt for [tdbe::types::tick::QuoteTick] {
 
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksAllTick] {
+    fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_delta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_theta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vega: Vec<f64> = Vec::with_capacity(n);
+        let mut col_rho: Vec<f64> = Vec::with_capacity(n);
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(n);
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(n);
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(n);
+        let mut col_charm: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_veta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vera: Vec<f64> = Vec::with_capacity(n);
+        let mut col_speed: Vec<f64> = Vec::with_capacity(n);
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_color: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(n);
+        let mut col_d1: Vec<f64> = Vec::with_capacity(n);
+        let mut col_d2: Vec<f64> = Vec::with_capacity(n);
+        let mut col_dual_delta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_dual_gamma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in self {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_delta.push(t.delta);
+            col_theta.push(t.theta);
+            col_vega.push(t.vega);
+            col_rho.push(t.rho);
+            col_epsilon.push(t.epsilon);
+            col_lambda.push(t.lambda);
+            col_gamma.push(t.gamma);
+            col_vanna.push(t.vanna);
+            col_charm.push(t.charm);
+            col_vomma.push(t.vomma);
+            col_veta.push(t.veta);
+            col_vera.push(t.vera);
+            col_speed.push(t.speed);
+            col_zomma.push(t.zomma);
+            col_color.push(t.color);
+            col_ultima.push(t.ultima);
+            col_d1.push(t.d1);
+            col_d2.push(t.d2);
+            col_dual_delta.push(t.dual_delta);
+            col_dual_gamma.push(t.dual_gamma);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let schema = Arc::new(ArrowSchema::new(vec![
+            Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("sequence", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, false),
+            Field::new("ext_condition2", DataType::Int32, false),
+            Field::new("ext_condition3", DataType::Int32, false),
+            Field::new("ext_condition4", DataType::Int32, false),
+            Field::new("condition", DataType::Int32, false),
+            Field::new("size", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, false),
+            Field::new("price", DataType::Float64, false),
+            Field::new("delta", DataType::Float64, false),
+            Field::new("theta", DataType::Float64, false),
+            Field::new("vega", DataType::Float64, false),
+            Field::new("rho", DataType::Float64, false),
+            Field::new("epsilon", DataType::Float64, false),
+            Field::new("lambda", DataType::Float64, false),
+            Field::new("gamma", DataType::Float64, false),
+            Field::new("vanna", DataType::Float64, false),
+            Field::new("charm", DataType::Float64, false),
+            Field::new("vomma", DataType::Float64, false),
+            Field::new("veta", DataType::Float64, false),
+            Field::new("vera", DataType::Float64, false),
+            Field::new("speed", DataType::Float64, false),
+            Field::new("zomma", DataType::Float64, false),
+            Field::new("color", DataType::Float64, false),
+            Field::new("ultima", DataType::Float64, false),
+            Field::new("d1", DataType::Float64, false),
+            Field::new("d2", DataType::Float64, false),
+            Field::new("dual_delta", DataType::Float64, false),
+            Field::new("dual_gamma", DataType::Float64, false),
+            Field::new("implied_volatility", DataType::Float64, false),
+            Field::new("iv_error", DataType::Float64, false),
+            Field::new("underlying_ms_of_day", DataType::Int32, false),
+            Field::new("underlying_price", DataType::Float64, false),
+            Field::new("date", DataType::Int32, false),
+            Field::new("expiration", DataType::Int32, false),
+            Field::new("strike", DataType::Float64, false),
+            Field::new("right", DataType::Utf8, false),
+        ]));
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_sequence)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef,
+            Arc::new(Int32Array::from(col_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_price)) as ArrayRef,
+            Arc::new(Float64Array::from(col_delta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_theta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vega)) as ArrayRef,
+            Arc::new(Float64Array::from(col_rho)) as ArrayRef,
+            Arc::new(Float64Array::from(col_epsilon)) as ArrayRef,
+            Arc::new(Float64Array::from(col_lambda)) as ArrayRef,
+            Arc::new(Float64Array::from(col_gamma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vanna)) as ArrayRef,
+            Arc::new(Float64Array::from(col_charm)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vomma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_veta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vera)) as ArrayRef,
+            Arc::new(Float64Array::from(col_speed)) as ArrayRef,
+            Arc::new(Float64Array::from(col_zomma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_color)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ultima)) as ArrayRef,
+            Arc::new(Float64Array::from(col_d1)) as ArrayRef,
+            Arc::new(Float64Array::from(col_d2)) as ArrayRef,
+            Arc::new(Float64Array::from(col_dual_delta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_dual_gamma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns)
+    }
+}
+
+#[cfg(feature = "polars")]
+#[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
+impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksAllTick] {
+    fn to_polars(&self) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_delta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_theta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vega: Vec<f64> = Vec::with_capacity(n);
+        let mut col_rho: Vec<f64> = Vec::with_capacity(n);
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(n);
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(n);
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(n);
+        let mut col_charm: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_veta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vera: Vec<f64> = Vec::with_capacity(n);
+        let mut col_speed: Vec<f64> = Vec::with_capacity(n);
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_color: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(n);
+        let mut col_d1: Vec<f64> = Vec::with_capacity(n);
+        let mut col_d2: Vec<f64> = Vec::with_capacity(n);
+        let mut col_dual_delta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_dual_gamma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in self {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_delta.push(t.delta);
+            col_theta.push(t.theta);
+            col_vega.push(t.vega);
+            col_rho.push(t.rho);
+            col_epsilon.push(t.epsilon);
+            col_lambda.push(t.lambda);
+            col_gamma.push(t.gamma);
+            col_vanna.push(t.vanna);
+            col_charm.push(t.charm);
+            col_vomma.push(t.vomma);
+            col_veta.push(t.veta);
+            col_vera.push(t.vera);
+            col_speed.push(t.speed);
+            col_zomma.push(t.zomma);
+            col_color.push(t.color);
+            col_ultima.push(t.ultima);
+            col_d1.push(t.d1);
+            col_d2.push(t.d2);
+            col_dual_delta.push(t.dual_delta);
+            col_dual_gamma.push(t.dual_gamma);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        DataFrame::new(n, vec![
+            Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
+            Series::new(PlSmallStr::from_static("sequence"), col_sequence).into(),
+            Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into(),
+            Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into(),
+            Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into(),
+            Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into(),
+            Series::new(PlSmallStr::from_static("condition"), col_condition).into(),
+            Series::new(PlSmallStr::from_static("size"), col_size).into(),
+            Series::new(PlSmallStr::from_static("exchange"), col_exchange).into(),
+            Series::new(PlSmallStr::from_static("price"), col_price).into(),
+            Series::new(PlSmallStr::from_static("delta"), col_delta).into(),
+            Series::new(PlSmallStr::from_static("theta"), col_theta).into(),
+            Series::new(PlSmallStr::from_static("vega"), col_vega).into(),
+            Series::new(PlSmallStr::from_static("rho"), col_rho).into(),
+            Series::new(PlSmallStr::from_static("epsilon"), col_epsilon).into(),
+            Series::new(PlSmallStr::from_static("lambda"), col_lambda).into(),
+            Series::new(PlSmallStr::from_static("gamma"), col_gamma).into(),
+            Series::new(PlSmallStr::from_static("vanna"), col_vanna).into(),
+            Series::new(PlSmallStr::from_static("charm"), col_charm).into(),
+            Series::new(PlSmallStr::from_static("vomma"), col_vomma).into(),
+            Series::new(PlSmallStr::from_static("veta"), col_veta).into(),
+            Series::new(PlSmallStr::from_static("vera"), col_vera).into(),
+            Series::new(PlSmallStr::from_static("speed"), col_speed).into(),
+            Series::new(PlSmallStr::from_static("zomma"), col_zomma).into(),
+            Series::new(PlSmallStr::from_static("color"), col_color).into(),
+            Series::new(PlSmallStr::from_static("ultima"), col_ultima).into(),
+            Series::new(PlSmallStr::from_static("d1"), col_d1).into(),
+            Series::new(PlSmallStr::from_static("d2"), col_d2).into(),
+            Series::new(PlSmallStr::from_static("dual_delta"), col_dual_delta).into(),
+            Series::new(PlSmallStr::from_static("dual_gamma"), col_dual_gamma).into(),
+            Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into(),
+            Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into(),
+            Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
+            Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
+            Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
+            Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
+            Series::new(PlSmallStr::from_static("right"), col_right).into(),
+        ])
+    }
+}
+
+#[cfg(feature = "arrow")]
+#[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksFirstOrderTick] {
+    fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_delta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_theta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vega: Vec<f64> = Vec::with_capacity(n);
+        let mut col_rho: Vec<f64> = Vec::with_capacity(n);
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(n);
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in self {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_delta.push(t.delta);
+            col_theta.push(t.theta);
+            col_vega.push(t.vega);
+            col_rho.push(t.rho);
+            col_epsilon.push(t.epsilon);
+            col_lambda.push(t.lambda);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let schema = Arc::new(ArrowSchema::new(vec![
+            Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("sequence", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, false),
+            Field::new("ext_condition2", DataType::Int32, false),
+            Field::new("ext_condition3", DataType::Int32, false),
+            Field::new("ext_condition4", DataType::Int32, false),
+            Field::new("condition", DataType::Int32, false),
+            Field::new("size", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, false),
+            Field::new("price", DataType::Float64, false),
+            Field::new("delta", DataType::Float64, false),
+            Field::new("theta", DataType::Float64, false),
+            Field::new("vega", DataType::Float64, false),
+            Field::new("rho", DataType::Float64, false),
+            Field::new("epsilon", DataType::Float64, false),
+            Field::new("lambda", DataType::Float64, false),
+            Field::new("implied_volatility", DataType::Float64, false),
+            Field::new("iv_error", DataType::Float64, false),
+            Field::new("underlying_ms_of_day", DataType::Int32, false),
+            Field::new("underlying_price", DataType::Float64, false),
+            Field::new("date", DataType::Int32, false),
+            Field::new("expiration", DataType::Int32, false),
+            Field::new("strike", DataType::Float64, false),
+            Field::new("right", DataType::Utf8, false),
+        ]));
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_sequence)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef,
+            Arc::new(Int32Array::from(col_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_price)) as ArrayRef,
+            Arc::new(Float64Array::from(col_delta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_theta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vega)) as ArrayRef,
+            Arc::new(Float64Array::from(col_rho)) as ArrayRef,
+            Arc::new(Float64Array::from(col_epsilon)) as ArrayRef,
+            Arc::new(Float64Array::from(col_lambda)) as ArrayRef,
+            Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns)
+    }
+}
+
+#[cfg(feature = "polars")]
+#[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
+impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksFirstOrderTick] {
+    fn to_polars(&self) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_delta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_theta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vega: Vec<f64> = Vec::with_capacity(n);
+        let mut col_rho: Vec<f64> = Vec::with_capacity(n);
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(n);
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in self {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_delta.push(t.delta);
+            col_theta.push(t.theta);
+            col_vega.push(t.vega);
+            col_rho.push(t.rho);
+            col_epsilon.push(t.epsilon);
+            col_lambda.push(t.lambda);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        DataFrame::new(n, vec![
+            Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
+            Series::new(PlSmallStr::from_static("sequence"), col_sequence).into(),
+            Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into(),
+            Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into(),
+            Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into(),
+            Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into(),
+            Series::new(PlSmallStr::from_static("condition"), col_condition).into(),
+            Series::new(PlSmallStr::from_static("size"), col_size).into(),
+            Series::new(PlSmallStr::from_static("exchange"), col_exchange).into(),
+            Series::new(PlSmallStr::from_static("price"), col_price).into(),
+            Series::new(PlSmallStr::from_static("delta"), col_delta).into(),
+            Series::new(PlSmallStr::from_static("theta"), col_theta).into(),
+            Series::new(PlSmallStr::from_static("vega"), col_vega).into(),
+            Series::new(PlSmallStr::from_static("rho"), col_rho).into(),
+            Series::new(PlSmallStr::from_static("epsilon"), col_epsilon).into(),
+            Series::new(PlSmallStr::from_static("lambda"), col_lambda).into(),
+            Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into(),
+            Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into(),
+            Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
+            Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
+            Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
+            Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
+            Series::new(PlSmallStr::from_static("right"), col_right).into(),
+        ])
+    }
+}
+
+#[cfg(feature = "arrow")]
+#[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksImpliedVolatilityTick] {
+    fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in self {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let schema = Arc::new(ArrowSchema::new(vec![
+            Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("sequence", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, false),
+            Field::new("ext_condition2", DataType::Int32, false),
+            Field::new("ext_condition3", DataType::Int32, false),
+            Field::new("ext_condition4", DataType::Int32, false),
+            Field::new("condition", DataType::Int32, false),
+            Field::new("size", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, false),
+            Field::new("price", DataType::Float64, false),
+            Field::new("implied_volatility", DataType::Float64, false),
+            Field::new("iv_error", DataType::Float64, false),
+            Field::new("underlying_ms_of_day", DataType::Int32, false),
+            Field::new("underlying_price", DataType::Float64, false),
+            Field::new("date", DataType::Int32, false),
+            Field::new("expiration", DataType::Int32, false),
+            Field::new("strike", DataType::Float64, false),
+            Field::new("right", DataType::Utf8, false),
+        ]));
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_sequence)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef,
+            Arc::new(Int32Array::from(col_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_price)) as ArrayRef,
+            Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns)
+    }
+}
+
+#[cfg(feature = "polars")]
+#[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
+impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksImpliedVolatilityTick] {
+    fn to_polars(&self) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in self {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        DataFrame::new(n, vec![
+            Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
+            Series::new(PlSmallStr::from_static("sequence"), col_sequence).into(),
+            Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into(),
+            Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into(),
+            Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into(),
+            Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into(),
+            Series::new(PlSmallStr::from_static("condition"), col_condition).into(),
+            Series::new(PlSmallStr::from_static("size"), col_size).into(),
+            Series::new(PlSmallStr::from_static("exchange"), col_exchange).into(),
+            Series::new(PlSmallStr::from_static("price"), col_price).into(),
+            Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into(),
+            Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into(),
+            Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
+            Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
+            Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
+            Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
+            Series::new(PlSmallStr::from_static("right"), col_right).into(),
+        ])
+    }
+}
+
+#[cfg(feature = "arrow")]
+#[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksSecondOrderTick] {
+    fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(n);
+        let mut col_charm: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_veta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in self {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_gamma.push(t.gamma);
+            col_vanna.push(t.vanna);
+            col_charm.push(t.charm);
+            col_vomma.push(t.vomma);
+            col_veta.push(t.veta);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let schema = Arc::new(ArrowSchema::new(vec![
+            Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("sequence", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, false),
+            Field::new("ext_condition2", DataType::Int32, false),
+            Field::new("ext_condition3", DataType::Int32, false),
+            Field::new("ext_condition4", DataType::Int32, false),
+            Field::new("condition", DataType::Int32, false),
+            Field::new("size", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, false),
+            Field::new("price", DataType::Float64, false),
+            Field::new("gamma", DataType::Float64, false),
+            Field::new("vanna", DataType::Float64, false),
+            Field::new("charm", DataType::Float64, false),
+            Field::new("vomma", DataType::Float64, false),
+            Field::new("veta", DataType::Float64, false),
+            Field::new("implied_volatility", DataType::Float64, false),
+            Field::new("iv_error", DataType::Float64, false),
+            Field::new("underlying_ms_of_day", DataType::Int32, false),
+            Field::new("underlying_price", DataType::Float64, false),
+            Field::new("date", DataType::Int32, false),
+            Field::new("expiration", DataType::Int32, false),
+            Field::new("strike", DataType::Float64, false),
+            Field::new("right", DataType::Utf8, false),
+        ]));
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_sequence)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef,
+            Arc::new(Int32Array::from(col_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_price)) as ArrayRef,
+            Arc::new(Float64Array::from(col_gamma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vanna)) as ArrayRef,
+            Arc::new(Float64Array::from(col_charm)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vomma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_veta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns)
+    }
+}
+
+#[cfg(feature = "polars")]
+#[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
+impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksSecondOrderTick] {
+    fn to_polars(&self) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(n);
+        let mut col_charm: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_veta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in self {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_gamma.push(t.gamma);
+            col_vanna.push(t.vanna);
+            col_charm.push(t.charm);
+            col_vomma.push(t.vomma);
+            col_veta.push(t.veta);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        DataFrame::new(n, vec![
+            Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
+            Series::new(PlSmallStr::from_static("sequence"), col_sequence).into(),
+            Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into(),
+            Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into(),
+            Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into(),
+            Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into(),
+            Series::new(PlSmallStr::from_static("condition"), col_condition).into(),
+            Series::new(PlSmallStr::from_static("size"), col_size).into(),
+            Series::new(PlSmallStr::from_static("exchange"), col_exchange).into(),
+            Series::new(PlSmallStr::from_static("price"), col_price).into(),
+            Series::new(PlSmallStr::from_static("gamma"), col_gamma).into(),
+            Series::new(PlSmallStr::from_static("vanna"), col_vanna).into(),
+            Series::new(PlSmallStr::from_static("charm"), col_charm).into(),
+            Series::new(PlSmallStr::from_static("vomma"), col_vomma).into(),
+            Series::new(PlSmallStr::from_static("veta"), col_veta).into(),
+            Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into(),
+            Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into(),
+            Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
+            Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
+            Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
+            Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
+            Series::new(PlSmallStr::from_static("right"), col_right).into(),
+        ])
+    }
+}
+
+#[cfg(feature = "arrow")]
+#[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeGreeksThirdOrderTick] {
+    fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_speed: Vec<f64> = Vec::with_capacity(n);
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_color: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in self {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_speed.push(t.speed);
+            col_zomma.push(t.zomma);
+            col_color.push(t.color);
+            col_ultima.push(t.ultima);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let schema = Arc::new(ArrowSchema::new(vec![
+            Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("sequence", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, false),
+            Field::new("ext_condition2", DataType::Int32, false),
+            Field::new("ext_condition3", DataType::Int32, false),
+            Field::new("ext_condition4", DataType::Int32, false),
+            Field::new("condition", DataType::Int32, false),
+            Field::new("size", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, false),
+            Field::new("price", DataType::Float64, false),
+            Field::new("speed", DataType::Float64, false),
+            Field::new("zomma", DataType::Float64, false),
+            Field::new("color", DataType::Float64, false),
+            Field::new("ultima", DataType::Float64, false),
+            Field::new("implied_volatility", DataType::Float64, false),
+            Field::new("iv_error", DataType::Float64, false),
+            Field::new("underlying_ms_of_day", DataType::Int32, false),
+            Field::new("underlying_price", DataType::Float64, false),
+            Field::new("date", DataType::Int32, false),
+            Field::new("expiration", DataType::Int32, false),
+            Field::new("strike", DataType::Float64, false),
+            Field::new("right", DataType::Utf8, false),
+        ]));
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_sequence)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef,
+            Arc::new(Int32Array::from(col_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_price)) as ArrayRef,
+            Arc::new(Float64Array::from(col_speed)) as ArrayRef,
+            Arc::new(Float64Array::from(col_zomma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_color)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ultima)) as ArrayRef,
+            Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns)
+    }
+}
+
+#[cfg(feature = "polars")]
+#[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
+impl crate::frames::TicksPolarsExt for [tdbe::types::tick::TradeGreeksThirdOrderTick] {
+    fn to_polars(&self) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_speed: Vec<f64> = Vec::with_capacity(n);
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_color: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in self {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_speed.push(t.speed);
+            col_zomma.push(t.zomma);
+            col_color.push(t.color);
+            col_ultima.push(t.ultima);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        DataFrame::new(n, vec![
+            Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
+            Series::new(PlSmallStr::from_static("sequence"), col_sequence).into(),
+            Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into(),
+            Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into(),
+            Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into(),
+            Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into(),
+            Series::new(PlSmallStr::from_static("condition"), col_condition).into(),
+            Series::new(PlSmallStr::from_static("size"), col_size).into(),
+            Series::new(PlSmallStr::from_static("exchange"), col_exchange).into(),
+            Series::new(PlSmallStr::from_static("price"), col_price).into(),
+            Series::new(PlSmallStr::from_static("speed"), col_speed).into(),
+            Series::new(PlSmallStr::from_static("zomma"), col_zomma).into(),
+            Series::new(PlSmallStr::from_static("color"), col_color).into(),
+            Series::new(PlSmallStr::from_static("ultima"), col_ultima).into(),
+            Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into(),
+            Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into(),
+            Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
+            Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
+            Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
+            Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
+            Series::new(PlSmallStr::from_static("right"), col_right).into(),
+        ])
+    }
+}
+
+#[cfg(feature = "arrow")]
+#[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 impl crate::frames::TicksArrowExt for [tdbe::types::tick::TradeQuoteTick] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();

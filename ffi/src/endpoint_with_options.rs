@@ -2049,9 +2049,9 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksAllTickArray {
-    ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
+) -> TdxTradeGreeksAllTickArray {
+    ffi_boundary!(TdxTradeGreeksAllTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeGreeksAllTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2079,7 +2079,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_all_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match TdxGreeksAllTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksAllTicks(values)) => match TdxTradeGreeksAllTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2173,9 +2173,9 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksFirstOrderTickArray {
-    ffi_boundary!(TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
+) -> TdxTradeGreeksFirstOrderTickArray {
+    ffi_boundary!(TdxTradeGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2203,7 +2203,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_first_order_with_option
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => match TdxGreeksFirstOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksFirstOrderTicks(values)) => match TdxTradeGreeksFirstOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2297,9 +2297,9 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksSecondOrderTickArray {
-    ffi_boundary!(TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
+) -> TdxTradeGreeksSecondOrderTickArray {
+    ffi_boundary!(TdxTradeGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2327,7 +2327,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_second_order_with_optio
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => match TdxGreeksSecondOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksSecondOrderTicks(values)) => match TdxTradeGreeksSecondOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2421,9 +2421,9 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksThirdOrderTickArray {
-    ffi_boundary!(TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
+) -> TdxTradeGreeksThirdOrderTickArray {
+    ffi_boundary!(TdxTradeGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2451,7 +2451,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_third_order_with_option
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => match TdxGreeksThirdOrderTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksThirdOrderTicks(values)) => match TdxTradeGreeksThirdOrderTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -2545,9 +2545,9 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
     date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxIvTickArray {
-    ffi_boundary!(TdxIvTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxIvTickArray { data: ptr::null(), len: 0 };
+) -> TdxTradeGreeksImpliedVolatilityTickArray {
+    ffi_boundary!(TdxTradeGreeksImpliedVolatilityTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxTradeGreeksImpliedVolatilityTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2575,7 +2575,7 @@ pub unsafe extern "C" fn tdx_option_history_trade_greeks_implied_volatility_with
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_implied_volatility", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match TdxIvTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksImpliedVolatilityTicks(values)) => match TdxTradeGreeksImpliedVolatilityTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));

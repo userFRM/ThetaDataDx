@@ -269,6 +269,166 @@ pub struct QuoteTick {
     pub right: String,
 }
 
+/// Per-trade union Greeks tick -- every Greek the v3 server publishes on
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct TradeGreeksAllTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub delta: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub gamma: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub vera: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub d1: f64,
+    pub d2: f64,
+    pub dual_delta: f64,
+    pub dual_gamma: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    pub expiration: i32,
+    pub strike: f64,
+    pub right: String,
+}
+
+/// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct TradeGreeksFirstOrderTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub delta: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    pub expiration: i32,
+    pub strike: f64,
+    pub right: String,
+}
+
+/// Per-trade implied-volatility tick (single `implied_volatility` +
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct TradeGreeksImpliedVolatilityTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    pub expiration: i32,
+    pub strike: f64,
+    pub right: String,
+}
+
+/// Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct TradeGreeksSecondOrderTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub gamma: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    pub expiration: i32,
+    pub strike: f64,
+    pub right: String,
+}
+
+/// Per-trade third-order Greeks tick (speed / zomma / color / ultima)
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct TradeGreeksThirdOrderTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    pub expiration: i32,
+    pub strike: f64,
+    pub right: String,
+}
+
 /// Combined trade + quote tick.
 #[must_use]
 #[napi(object)]
@@ -627,6 +787,181 @@ fn quote_ticks_to_class_vec(ticks: &[tick::QuoteTick]) -> Vec<QuoteTick> {
                 ask_condition: t.ask_condition,
                 date: t.date,
                 midpoint: t.midpoint,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+            }
+        })
+        .collect()
+}
+
+fn trade_greeks_all_ticks_to_class_vec(ticks: &[tick::TradeGreeksAllTick]) -> Vec<TradeGreeksAllTick> {
+    ticks
+        .iter()
+        .map(|t| {
+            TradeGreeksAllTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                delta: t.delta,
+                theta: t.theta,
+                vega: t.vega,
+                rho: t.rho,
+                epsilon: t.epsilon,
+                lambda: t.lambda,
+                gamma: t.gamma,
+                vanna: t.vanna,
+                charm: t.charm,
+                vomma: t.vomma,
+                veta: t.veta,
+                vera: t.vera,
+                speed: t.speed,
+                zomma: t.zomma,
+                color: t.color,
+                ultima: t.ultima,
+                d1: t.d1,
+                d2: t.d2,
+                dual_delta: t.dual_delta,
+                dual_gamma: t.dual_gamma,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+            }
+        })
+        .collect()
+}
+
+fn trade_greeks_first_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksFirstOrderTick]) -> Vec<TradeGreeksFirstOrderTick> {
+    ticks
+        .iter()
+        .map(|t| {
+            TradeGreeksFirstOrderTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                delta: t.delta,
+                theta: t.theta,
+                vega: t.vega,
+                rho: t.rho,
+                epsilon: t.epsilon,
+                lambda: t.lambda,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+            }
+        })
+        .collect()
+}
+
+fn trade_greeks_implied_volatility_ticks_to_class_vec(ticks: &[tick::TradeGreeksImpliedVolatilityTick]) -> Vec<TradeGreeksImpliedVolatilityTick> {
+    ticks
+        .iter()
+        .map(|t| {
+            TradeGreeksImpliedVolatilityTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+            }
+        })
+        .collect()
+}
+
+fn trade_greeks_second_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksSecondOrderTick]) -> Vec<TradeGreeksSecondOrderTick> {
+    ticks
+        .iter()
+        .map(|t| {
+            TradeGreeksSecondOrderTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                gamma: t.gamma,
+                vanna: t.vanna,
+                charm: t.charm,
+                vomma: t.vomma,
+                veta: t.veta,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+            }
+        })
+        .collect()
+}
+
+fn trade_greeks_third_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksThirdOrderTick]) -> Vec<TradeGreeksThirdOrderTick> {
+    ticks
+        .iter()
+        .map(|t| {
+            TradeGreeksThirdOrderTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                speed: t.speed,
+                zomma: t.zomma,
+                color: t.color,
+                ultima: t.ultima,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,
                 right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },

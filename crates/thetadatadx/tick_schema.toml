@@ -639,6 +639,325 @@ ts_class = "IvTick"
 ts_class_vec = "iv_ticks_to_class_vec"
 pyclass = "IvTick"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# `option_history_trade_greeks_*` sibling tick types.
+#
+# The five `option_history_trade_greeks_*` endpoints calculate Greeks for
+# every individual OPRA trade rather than at a sampled interval. Their wire
+# rows therefore carry the nine trade-side execution columns
+# (`sequence`, `ext_condition1..4`, `condition`, `size`, `exchange`, `price`)
+# in place of the `bid` / `ask` quote pair carried by the matching
+# interval-sampled `option_history_greeks_*` endpoints.
+#
+# These were silently routed to the bare `Greeks*Tick` types for the v10
+# line, which dropped every trade-side column on decode -- users got the
+# Greeks but lost the per-trade execution context. Verified-live against
+# terminal jar build `202605221` (CSV captures pinned in
+# `tests/fixtures/captures/option_history_trade_greeks_*.meta.toml`).
+#
+# The IV variant (`option_history_trade_greeks_implied_volatility`) ships
+# only the single `implied_vol` + `iv_error` pair (not the bid/mid/ask IV
+# triple of the interval-sampled `IvTick`).
+# ─────────────────────────────────────────────────────────────────────────────
+
+[types.TradeGreeksAllTick]
+doc = """
+Per-trade union Greeks tick -- every Greek the v3 server publishes on
+`option_history_trade_greeks_all`, paired with the trade-side execution
+columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
+`exchange`, `price`) that identify which OPRA print each Greek was
+calculated against.
+
+Wire layout verified-live against terminal jar build `202605221`:
+
+  symbol, expiration, strike, right,
+  timestamp, sequence, ext_condition1..4, condition, size, exchange, price,
+  delta, theta, vega, rho, epsilon, lambda,
+  gamma, vanna, charm, vomma, veta, vera,
+  speed, zomma, color, ultima,
+  d1, d2, dual_delta, dual_gamma,
+  implied_vol, iv_error,
+  underlying_timestamp, underlying_price
+
+The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
+`underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
+mappings are applied through `HEADER_ALIASES`.
+"""
+copy = true
+align = 64
+contract_id = true
+parser = "parse_trade_greeks_all_ticks"
+required = ["ms_of_day", "price"]
+columns = [
+    { name = "ms_of_day",            field = "ms_of_day",            type = "i32" },
+    { name = "sequence",             field = "sequence",             type = "i32" },
+    { name = "ext_condition1",       field = "ext_condition1",       type = "i32" },
+    { name = "ext_condition2",       field = "ext_condition2",       type = "i32" },
+    { name = "ext_condition3",       field = "ext_condition3",       type = "i32" },
+    { name = "ext_condition4",       field = "ext_condition4",       type = "i32" },
+    { name = "condition",            field = "condition",            type = "i32" },
+    { name = "size",                 field = "size",                 type = "i32" },
+    { name = "exchange",             field = "exchange",             type = "i32" },
+    { name = "price",                field = "price",                type = "price" },
+    { name = "delta",                field = "delta",                type = "f64" },
+    { name = "theta",                field = "theta",                type = "f64" },
+    { name = "vega",                 field = "vega",                 type = "f64" },
+    { name = "rho",                  field = "rho",                  type = "f64" },
+    { name = "epsilon",              field = "epsilon",              type = "f64" },
+    { name = "lambda",               field = "lambda",               type = "f64" },
+    { name = "gamma",                field = "gamma",                type = "f64" },
+    { name = "vanna",                field = "vanna",                type = "f64" },
+    { name = "charm",                field = "charm",                type = "f64" },
+    { name = "vomma",                field = "vomma",                type = "f64" },
+    { name = "veta",                 field = "veta",                 type = "f64" },
+    { name = "vera",                 field = "vera",                 type = "f64" },
+    { name = "speed",                field = "speed",                type = "f64" },
+    { name = "zomma",                field = "zomma",                type = "f64" },
+    { name = "color",                field = "color",                type = "f64" },
+    { name = "ultima",               field = "ultima",               type = "f64" },
+    { name = "d1",                   field = "d1",                   type = "f64" },
+    { name = "d2",                   field = "d2",                   type = "f64" },
+    { name = "dual_delta",           field = "dual_delta",           type = "f64" },
+    { name = "dual_gamma",           field = "dual_gamma",           type = "f64" },
+    { name = "implied_volatility",   field = "implied_volatility",   type = "f64" },
+    { name = "iv_error",             field = "iv_error",             type = "f64" },
+    { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32" },
+    { name = "underlying_price",     field = "underlying_price",     type = "price" },
+    { name = "date",                 field = "date",                 type = "i32" },
+]
+
+[types.TradeGreeksAllTick.render]
+collection = "TradeGreeksAllTicks"
+direct = "TradeGreeksAllTick"
+parser = "parse_trade_greeks_all_ticks"
+ffi_array = "TdxTradeGreeksAllTickArray"
+ffi_output_variant = "TradeGreeksAllTicks"
+ffi_from_vec_array = "TdxTradeGreeksAllTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_trade_greeks_all_tick_array_free"
+cpp_value = "TradeGreeksAllTick"
+python_converter = "trade_greeks_all_tick_to_dict"
+python_columnar = "trade_greeks_all_ticks_to_columnar"
+python_pyclass_list = "trade_greeks_all_ticks_to_pyclass_list"
+python_vec_to_pylist = "trade_greeks_all_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::trade_greeks_all_tick_slice_to_arrow_table"
+ts_class = "TradeGreeksAllTick"
+ts_class_vec = "trade_greeks_all_ticks_to_class_vec"
+pyclass = "TradeGreeksAllTick"
+
+[types.TradeGreeksFirstOrderTick]
+doc = """
+Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
+/ lambda) paired with the trade-side execution columns identifying the
+OPRA print each Greek was calculated against. Wire layout verified-live
+against terminal jar build `202605221`.
+"""
+copy = true
+align = 64
+contract_id = true
+parser = "parse_trade_greeks_first_order_ticks"
+required = ["ms_of_day", "price"]
+columns = [
+    { name = "ms_of_day",            field = "ms_of_day",            type = "i32" },
+    { name = "sequence",             field = "sequence",             type = "i32" },
+    { name = "ext_condition1",       field = "ext_condition1",       type = "i32" },
+    { name = "ext_condition2",       field = "ext_condition2",       type = "i32" },
+    { name = "ext_condition3",       field = "ext_condition3",       type = "i32" },
+    { name = "ext_condition4",       field = "ext_condition4",       type = "i32" },
+    { name = "condition",            field = "condition",            type = "i32" },
+    { name = "size",                 field = "size",                 type = "i32" },
+    { name = "exchange",             field = "exchange",             type = "i32" },
+    { name = "price",                field = "price",                type = "price" },
+    { name = "delta",                field = "delta",                type = "f64" },
+    { name = "theta",                field = "theta",                type = "f64" },
+    { name = "vega",                 field = "vega",                 type = "f64" },
+    { name = "rho",                  field = "rho",                  type = "f64" },
+    { name = "epsilon",              field = "epsilon",              type = "f64" },
+    { name = "lambda",               field = "lambda",               type = "f64" },
+    { name = "implied_volatility",   field = "implied_volatility",   type = "f64" },
+    { name = "iv_error",             field = "iv_error",             type = "f64" },
+    { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32" },
+    { name = "underlying_price",     field = "underlying_price",     type = "price" },
+    { name = "date",                 field = "date",                 type = "i32" },
+]
+
+[types.TradeGreeksFirstOrderTick.render]
+collection = "TradeGreeksFirstOrderTicks"
+direct = "TradeGreeksFirstOrderTick"
+parser = "parse_trade_greeks_first_order_ticks"
+ffi_array = "TdxTradeGreeksFirstOrderTickArray"
+ffi_output_variant = "TradeGreeksFirstOrderTicks"
+ffi_from_vec_array = "TdxTradeGreeksFirstOrderTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_trade_greeks_first_order_tick_array_free"
+cpp_value = "TradeGreeksFirstOrderTick"
+python_converter = "trade_greeks_first_order_tick_to_dict"
+python_columnar = "trade_greeks_first_order_ticks_to_columnar"
+python_pyclass_list = "trade_greeks_first_order_ticks_to_pyclass_list"
+python_vec_to_pylist = "trade_greeks_first_order_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::trade_greeks_first_order_tick_slice_to_arrow_table"
+ts_class = "TradeGreeksFirstOrderTick"
+ts_class_vec = "trade_greeks_first_order_ticks_to_class_vec"
+pyclass = "TradeGreeksFirstOrderTick"
+
+[types.TradeGreeksSecondOrderTick]
+doc = """
+Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /
+veta) paired with the trade-side execution columns identifying the OPRA
+print each Greek was calculated against. Wire layout verified-live
+against terminal jar build `202605221`.
+"""
+copy = true
+align = 64
+contract_id = true
+parser = "parse_trade_greeks_second_order_ticks"
+required = ["ms_of_day", "price"]
+columns = [
+    { name = "ms_of_day",            field = "ms_of_day",            type = "i32" },
+    { name = "sequence",             field = "sequence",             type = "i32" },
+    { name = "ext_condition1",       field = "ext_condition1",       type = "i32" },
+    { name = "ext_condition2",       field = "ext_condition2",       type = "i32" },
+    { name = "ext_condition3",       field = "ext_condition3",       type = "i32" },
+    { name = "ext_condition4",       field = "ext_condition4",       type = "i32" },
+    { name = "condition",            field = "condition",            type = "i32" },
+    { name = "size",                 field = "size",                 type = "i32" },
+    { name = "exchange",             field = "exchange",             type = "i32" },
+    { name = "price",                field = "price",                type = "price" },
+    { name = "gamma",                field = "gamma",                type = "f64" },
+    { name = "vanna",                field = "vanna",                type = "f64" },
+    { name = "charm",                field = "charm",                type = "f64" },
+    { name = "vomma",                field = "vomma",                type = "f64" },
+    { name = "veta",                 field = "veta",                 type = "f64" },
+    { name = "implied_volatility",   field = "implied_volatility",   type = "f64" },
+    { name = "iv_error",             field = "iv_error",             type = "f64" },
+    { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32" },
+    { name = "underlying_price",     field = "underlying_price",     type = "price" },
+    { name = "date",                 field = "date",                 type = "i32" },
+]
+
+[types.TradeGreeksSecondOrderTick.render]
+collection = "TradeGreeksSecondOrderTicks"
+direct = "TradeGreeksSecondOrderTick"
+parser = "parse_trade_greeks_second_order_ticks"
+ffi_array = "TdxTradeGreeksSecondOrderTickArray"
+ffi_output_variant = "TradeGreeksSecondOrderTicks"
+ffi_from_vec_array = "TdxTradeGreeksSecondOrderTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_trade_greeks_second_order_tick_array_free"
+cpp_value = "TradeGreeksSecondOrderTick"
+python_converter = "trade_greeks_second_order_tick_to_dict"
+python_columnar = "trade_greeks_second_order_ticks_to_columnar"
+python_pyclass_list = "trade_greeks_second_order_ticks_to_pyclass_list"
+python_vec_to_pylist = "trade_greeks_second_order_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::trade_greeks_second_order_tick_slice_to_arrow_table"
+ts_class = "TradeGreeksSecondOrderTick"
+ts_class_vec = "trade_greeks_second_order_ticks_to_class_vec"
+pyclass = "TradeGreeksSecondOrderTick"
+
+[types.TradeGreeksThirdOrderTick]
+doc = """
+Per-trade third-order Greeks tick (speed / zomma / color / ultima)
+paired with the trade-side execution columns identifying the OPRA print
+each Greek was calculated against. The vendor's third-order schema does
+not publish `vera`. Wire layout verified-live against terminal jar build
+`202605221`.
+"""
+copy = true
+align = 64
+contract_id = true
+parser = "parse_trade_greeks_third_order_ticks"
+required = ["ms_of_day", "price"]
+columns = [
+    { name = "ms_of_day",            field = "ms_of_day",            type = "i32" },
+    { name = "sequence",             field = "sequence",             type = "i32" },
+    { name = "ext_condition1",       field = "ext_condition1",       type = "i32" },
+    { name = "ext_condition2",       field = "ext_condition2",       type = "i32" },
+    { name = "ext_condition3",       field = "ext_condition3",       type = "i32" },
+    { name = "ext_condition4",       field = "ext_condition4",       type = "i32" },
+    { name = "condition",            field = "condition",            type = "i32" },
+    { name = "size",                 field = "size",                 type = "i32" },
+    { name = "exchange",             field = "exchange",             type = "i32" },
+    { name = "price",                field = "price",                type = "price" },
+    { name = "speed",                field = "speed",                type = "f64" },
+    { name = "zomma",                field = "zomma",                type = "f64" },
+    { name = "color",                field = "color",                type = "f64" },
+    { name = "ultima",               field = "ultima",               type = "f64" },
+    { name = "implied_volatility",   field = "implied_volatility",   type = "f64" },
+    { name = "iv_error",             field = "iv_error",             type = "f64" },
+    { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32" },
+    { name = "underlying_price",     field = "underlying_price",     type = "price" },
+    { name = "date",                 field = "date",                 type = "i32" },
+]
+
+[types.TradeGreeksThirdOrderTick.render]
+collection = "TradeGreeksThirdOrderTicks"
+direct = "TradeGreeksThirdOrderTick"
+parser = "parse_trade_greeks_third_order_ticks"
+ffi_array = "TdxTradeGreeksThirdOrderTickArray"
+ffi_output_variant = "TradeGreeksThirdOrderTicks"
+ffi_from_vec_array = "TdxTradeGreeksThirdOrderTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_trade_greeks_third_order_tick_array_free"
+cpp_value = "TradeGreeksThirdOrderTick"
+python_converter = "trade_greeks_third_order_tick_to_dict"
+python_columnar = "trade_greeks_third_order_ticks_to_columnar"
+python_pyclass_list = "trade_greeks_third_order_ticks_to_pyclass_list"
+python_vec_to_pylist = "trade_greeks_third_order_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::trade_greeks_third_order_tick_slice_to_arrow_table"
+ts_class = "TradeGreeksThirdOrderTick"
+ts_class_vec = "trade_greeks_third_order_ticks_to_class_vec"
+pyclass = "TradeGreeksThirdOrderTick"
+
+[types.TradeGreeksImpliedVolatilityTick]
+doc = """
+Per-trade implied-volatility tick (single `implied_volatility` +
+`iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled
+`IvTick`) paired with the trade-side execution columns identifying the
+OPRA print the IV was calculated against. Wire layout verified-live
+against terminal jar build `202605221`.
+"""
+copy = true
+align = 64
+contract_id = true
+parser = "parse_trade_greeks_implied_volatility_ticks"
+required = ["ms_of_day", "price"]
+columns = [
+    { name = "ms_of_day",            field = "ms_of_day",            type = "i32" },
+    { name = "sequence",             field = "sequence",             type = "i32" },
+    { name = "ext_condition1",       field = "ext_condition1",       type = "i32" },
+    { name = "ext_condition2",       field = "ext_condition2",       type = "i32" },
+    { name = "ext_condition3",       field = "ext_condition3",       type = "i32" },
+    { name = "ext_condition4",       field = "ext_condition4",       type = "i32" },
+    { name = "condition",            field = "condition",            type = "i32" },
+    { name = "size",                 field = "size",                 type = "i32" },
+    { name = "exchange",             field = "exchange",             type = "i32" },
+    { name = "price",                field = "price",                type = "price" },
+    { name = "implied_volatility",   field = "implied_volatility",   type = "f64" },
+    { name = "iv_error",             field = "iv_error",             type = "f64" },
+    { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32" },
+    { name = "underlying_price",     field = "underlying_price",     type = "price" },
+    { name = "date",                 field = "date",                 type = "i32" },
+]
+
+[types.TradeGreeksImpliedVolatilityTick.render]
+collection = "TradeGreeksImpliedVolatilityTicks"
+direct = "TradeGreeksImpliedVolatilityTick"
+parser = "parse_trade_greeks_implied_volatility_ticks"
+ffi_array = "TdxTradeGreeksImpliedVolatilityTickArray"
+ffi_output_variant = "TradeGreeksImpliedVolatilityTicks"
+ffi_from_vec_array = "TdxTradeGreeksImpliedVolatilityTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_trade_greeks_implied_volatility_tick_array_free"
+cpp_value = "TradeGreeksImpliedVolatilityTick"
+python_converter = "trade_greeks_implied_volatility_tick_to_dict"
+python_columnar = "trade_greeks_implied_volatility_ticks_to_columnar"
+python_pyclass_list = "trade_greeks_implied_volatility_ticks_to_pyclass_list"
+python_vec_to_pylist = "trade_greeks_implied_volatility_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::trade_greeks_implied_volatility_tick_slice_to_arrow_table"
+ts_class = "TradeGreeksImpliedVolatilityTick"
+ts_class_vec = "trade_greeks_implied_volatility_ticks_to_class_vec"
+pyclass = "TradeGreeksImpliedVolatilityTick"
+
 [types.PriceTick]
 doc = "Price tick -- 3 fields. Generic price data point."
 copy = true
