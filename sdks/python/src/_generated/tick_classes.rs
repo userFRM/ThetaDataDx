@@ -194,6 +194,140 @@ impl GreeksAllTick {
     }
 }
 
+/// End-of-day union Greeks tick -- every Greek the v3 server publishes on
+/// `option_history_greeks_eod`, paired with the twelve EOD trade/quote
+/// context columns (`open`, `high`, `low`, `close`, `volume`, `count`,
+/// `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
+/// `ask_exchange`, `ask_condition`) that identify the daily bar + closing
+/// NBBO snapshot the Greeks were calculated against.
+/// 
+/// The bare `GreeksAllTick` previously routed by `endpoint_surface.toml`
+/// (28 fields) silently dropped those twelve EOD columns from the
+/// 39-column EOD response -- the same data-loss class as the per-trade
+/// Greeks endpoints (BL-14 / PR #605). `GreeksEodTick` carries the full
+/// EOD wire shape end-to-end across every binding.
+/// 
+/// Wire layout verified-live against terminal jar build `202605221`
+/// (SPY 2024-06-21 expiration query on 2024-06-14):
+/// 
+///   symbol, expiration, strike, right,
+///   timestamp, open, high, low, close, volume, count,
+///   bid_size, bid_exchange, bid, bid_condition,
+///   ask_size, ask_exchange, ask, ask_condition,
+///   delta, theta, vega, rho, epsilon, lambda,
+///   gamma, vanna, charm, vomma, veta, vera,
+///   speed, zomma, color, ultima,
+///   d1, d2, dual_delta, dual_gamma,
+///   implied_vol, iv_error,
+///   underlying_timestamp, underlying_price
+/// 
+/// The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
+/// `underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
+/// mappings are applied through `HEADER_ALIASES`.
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct GreeksEodTick {
+    #[pyo3(get)] pub ms_of_day: i32,
+    #[pyo3(get)] pub open: f64,
+    #[pyo3(get)] pub high: f64,
+    #[pyo3(get)] pub low: f64,
+    #[pyo3(get)] pub close: f64,
+    #[pyo3(get)] pub volume: i64,
+    #[pyo3(get)] pub count: i64,
+    #[pyo3(get)] pub bid_size: i32,
+    #[pyo3(get)] pub bid_exchange: i32,
+    #[pyo3(get)] pub bid: f64,
+    #[pyo3(get)] pub bid_condition: i32,
+    #[pyo3(get)] pub ask_size: i32,
+    #[pyo3(get)] pub ask_exchange: i32,
+    #[pyo3(get)] pub ask: f64,
+    #[pyo3(get)] pub ask_condition: i32,
+    #[pyo3(get)] pub delta: f64,
+    #[pyo3(get)] pub theta: f64,
+    #[pyo3(get)] pub vega: f64,
+    #[pyo3(get)] pub rho: f64,
+    #[pyo3(get)] pub epsilon: f64,
+    #[pyo3(get)] pub lambda: f64,
+    #[pyo3(get)] pub gamma: f64,
+    #[pyo3(get)] pub vanna: f64,
+    #[pyo3(get)] pub charm: f64,
+    #[pyo3(get)] pub vomma: f64,
+    #[pyo3(get)] pub veta: f64,
+    #[pyo3(get)] pub vera: f64,
+    #[pyo3(get)] pub speed: f64,
+    #[pyo3(get)] pub zomma: f64,
+    #[pyo3(get)] pub color: f64,
+    #[pyo3(get)] pub ultima: f64,
+    #[pyo3(get)] pub d1: f64,
+    #[pyo3(get)] pub d2: f64,
+    #[pyo3(get)] pub dual_delta: f64,
+    #[pyo3(get)] pub dual_gamma: f64,
+    #[pyo3(get)] pub implied_volatility: f64,
+    #[pyo3(get)] pub iv_error: f64,
+    #[pyo3(get)] pub underlying_ms_of_day: i32,
+    #[pyo3(get)] pub underlying_price: f64,
+    #[pyo3(get)] pub date: i32,
+    #[pyo3(get)] pub expiration: i32,
+    #[pyo3(get)] pub strike: f64,
+    #[pyo3(get)] pub right: String,
+}
+#[pymethods]
+impl GreeksEodTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, open = 0.0f64, high = 0.0f64, low = 0.0f64, close = 0.0f64, volume = 0i64, count = 0i64, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, delta = 0.0f64, theta = 0.0f64, vega = 0.0f64, rho = 0.0f64, epsilon = 0.0f64, lambda = 0.0f64, gamma = 0.0f64, vanna = 0.0f64, charm = 0.0f64, vomma = 0.0f64, veta = 0.0f64, vera = 0.0f64, speed = 0.0f64, zomma = 0.0f64, color = 0.0f64, ultima = 0.0f64, d1 = 0.0f64, d2 = 0.0f64, dual_delta = 0.0f64, dual_gamma = 0.0f64, implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, open: f64, high: f64, low: f64, close: f64, volume: i64, count: i64, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, delta: f64, theta: f64, vega: f64, rho: f64, epsilon: f64, lambda: f64, gamma: f64, vanna: f64, charm: f64, vomma: f64, veta: f64, vera: f64, speed: f64, zomma: f64, color: f64, ultima: f64, d1: f64, d2: f64, dual_delta: f64, dual_gamma: f64, implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+        Self {
+            ms_of_day,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            count,
+            bid_size,
+            bid_exchange,
+            bid,
+            bid_condition,
+            ask_size,
+            ask_exchange,
+            ask,
+            ask_condition,
+            delta,
+            theta,
+            vega,
+            rho,
+            epsilon,
+            lambda,
+            gamma,
+            vanna,
+            charm,
+            vomma,
+            veta,
+            vera,
+            speed,
+            zomma,
+            color,
+            ultima,
+            d1,
+            d2,
+            dual_delta,
+            dual_gamma,
+            implied_volatility,
+            iv_error,
+            underlying_ms_of_day,
+            underlying_price,
+            date,
+            expiration,
+            strike,
+            right,
+        }
+    }
+    fn __repr__(&self) -> String {
+        format!("GreeksEodTick(ms_of_day={}, open={}, high={}, low={}, close={}, volume={})", self.ms_of_day, self.open, self.high, self.low, self.close, self.volume)
+    }
+}
+
 /// First-order Greeks tick -- the strict column subset emitted by the
 /// vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega
 /// / rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and
@@ -354,6 +488,59 @@ impl GreeksThirdOrderTick {
     }
     fn __repr__(&self) -> String {
         format!("GreeksThirdOrderTick(ms_of_day={}, bid={}, ask={}, speed={}, zomma={}, color={})", self.ms_of_day, self.bid, self.ask, self.speed, self.zomma, self.color)
+    }
+}
+
+/// Index price-at-time tick -- the trade-shaped row the v3 server
+/// publishes on `index_at_time_price`. The bare `PriceTick` (3 fields:
+/// `ms_of_day`, `price`, `date`) silently dropped seven server-emitted
+/// columns -- `sequence`, `ext_condition1..4`, `condition`, `size`,
+/// `exchange` -- including the SIP-exchange attribution field.
+/// 
+/// Wire layout verified-live against terminal jar build `202605221`:
+/// 
+///   timestamp, sequence, ext_condition1..4, condition, size, exchange, price
+/// 
+/// The `timestamp` -> `ms_of_day` and `timestamp` -> `date` mappings are
+/// applied through the existing `HEADER_ALIASES` rows in
+/// `crates/thetadatadx/src/mdds/decode/headers.rs`.
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct IndexPriceAtTimeTick {
+    #[pyo3(get)] pub ms_of_day: i32,
+    #[pyo3(get)] pub sequence: i32,
+    #[pyo3(get)] pub ext_condition1: i32,
+    #[pyo3(get)] pub ext_condition2: i32,
+    #[pyo3(get)] pub ext_condition3: i32,
+    #[pyo3(get)] pub ext_condition4: i32,
+    #[pyo3(get)] pub condition: i32,
+    #[pyo3(get)] pub size: i32,
+    #[pyo3(get)] pub exchange: i32,
+    #[pyo3(get)] pub price: f64,
+    #[pyo3(get)] pub date: i32,
+}
+#[pymethods]
+impl IndexPriceAtTimeTick {
+    #[new]
+    #[pyo3(signature = (*, ms_of_day = 0i32, sequence = 0i32, ext_condition1 = 0i32, ext_condition2 = 0i32, ext_condition3 = 0i32, ext_condition4 = 0i32, condition = 0i32, size = 0i32, exchange = 0i32, price = 0.0f64, date = 0i32))]
+    fn new(ms_of_day: i32, sequence: i32, ext_condition1: i32, ext_condition2: i32, ext_condition3: i32, ext_condition4: i32, condition: i32, size: i32, exchange: i32, price: f64, date: i32) -> Self {
+        Self {
+            ms_of_day,
+            sequence,
+            ext_condition1,
+            ext_condition2,
+            ext_condition3,
+            ext_condition4,
+            condition,
+            size,
+            exchange,
+            price,
+            date,
+        }
+    }
+    fn __repr__(&self) -> String {
+        format!("IndexPriceAtTimeTick(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
     }
 }
 
@@ -1822,6 +2009,312 @@ impl GreeksAllTickListIter {
     }
 }
 
+/// Typed list of `GreeksEodTick` returned by every historical endpoint
+/// whose response is `GreeksEodTick`. Wraps the decoder-owned `Vec<GreeksEodTick>`
+/// and exposes the Python list protocol (`len(ticks)`, `ticks[i]`,
+/// `for t in ticks: ...`, `bool(ticks)`) plus the chained terminals
+/// `.to_list()`, `.to_arrow()`, `.to_pandas()`, `.to_polars()`.
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+pub(crate) struct GreeksEodTickList {
+    inner: Vec<tick::GreeksEodTick>,
+}
+
+impl GreeksEodTickList {
+    pub(crate) fn new(inner: Vec<tick::GreeksEodTick>) -> Self {
+        Self { inner }
+    }
+}
+
+#[pymethods]
+impl GreeksEodTickList {
+    #[new]
+    #[pyo3(signature = (ticks = Vec::new()))]
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, GreeksEodTick>>) -> Self {
+        let mut inner = Vec::with_capacity(ticks.len());
+        for t in &ticks {
+            inner.push(            tick::GreeksEodTick {
+                ms_of_day: t.ms_of_day,
+                open: t.open,
+                high: t.high,
+                low: t.low,
+                close: t.close,
+                volume: t.volume,
+                count: t.count,
+                bid_size: t.bid_size,
+                bid_exchange: t.bid_exchange,
+                bid: t.bid,
+                bid_condition: t.bid_condition,
+                ask_size: t.ask_size,
+                ask_exchange: t.ask_exchange,
+                ask: t.ask,
+                ask_condition: t.ask_condition,
+                delta: t.delta,
+                theta: t.theta,
+                vega: t.vega,
+                rho: t.rho,
+                epsilon: t.epsilon,
+                lambda: t.lambda,
+                gamma: t.gamma,
+                vanna: t.vanna,
+                charm: t.charm,
+                vomma: t.vomma,
+                veta: t.veta,
+                vera: t.vera,
+                speed: t.speed,
+                zomma: t.zomma,
+                color: t.color,
+                ultima: t.ultima,
+                d1: t.d1,
+                d2: t.d2,
+                dual_delta: t.dual_delta,
+                dual_gamma: t.dual_gamma,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: match t.right.as_str() { "C" => 67, "P" => 80, _ => 0 },
+            }
+            );
+        }
+        Self { inner }
+    }
+
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn __bool__(&self) -> bool {
+        !self.inner.is_empty()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("GreeksEodTickList({} rows)", self.inner.len())
+    }
+
+    fn __getitem__(&self, idx: isize) -> PyResult<GreeksEodTick> {
+        let len = self.inner.len() as isize;
+        let resolved = if idx < 0 { idx + len } else { idx };
+        if resolved < 0 || resolved >= len {
+            return Err(pyo3::exceptions::PyIndexError::new_err(format!(
+                "GreeksEodTickList index {} out of range (len={})", idx, self.inner.len()
+            )));
+        }
+        let t = &self.inner[resolved as usize];
+        Ok(            GreeksEodTick {
+                ms_of_day: t.ms_of_day,
+                open: t.open,
+                high: t.high,
+                low: t.low,
+                close: t.close,
+                volume: t.volume,
+                count: t.count,
+                bid_size: t.bid_size,
+                bid_exchange: t.bid_exchange,
+                bid: t.bid,
+                bid_condition: t.bid_condition,
+                ask_size: t.ask_size,
+                ask_exchange: t.ask_exchange,
+                ask: t.ask,
+                ask_condition: t.ask_condition,
+                delta: t.delta,
+                theta: t.theta,
+                vega: t.vega,
+                rho: t.rho,
+                epsilon: t.epsilon,
+                lambda: t.lambda,
+                gamma: t.gamma,
+                vanna: t.vanna,
+                charm: t.charm,
+                vomma: t.vomma,
+                veta: t.veta,
+                vera: t.vera,
+                speed: t.speed,
+                zomma: t.zomma,
+                color: t.color,
+                ultima: t.ultima,
+                d1: t.d1,
+                d2: t.d2,
+                dual_delta: t.dual_delta,
+                dual_gamma: t.dual_gamma,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        )
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<GreeksEodTickListIter>> {
+        Py::new(py, GreeksEodTickListIter { inner: slf.inner.clone(), cursor: 0 })
+    }
+
+    /// Return a plain Python `list` of typed tick pyclass instances.
+    /// Explicit escape hatch for callers that want a mutable list or
+    /// need to pass the data into an API that only accepts `list`.
+    fn to_list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let list = pyo3::types::PyList::empty(py);
+        for t in &self.inner {
+            let obj =                 GreeksEodTick {
+                    ms_of_day: t.ms_of_day,
+                    open: t.open,
+                    high: t.high,
+                    low: t.low,
+                    close: t.close,
+                    volume: t.volume,
+                    count: t.count,
+                    bid_size: t.bid_size,
+                    bid_exchange: t.bid_exchange,
+                    bid: t.bid,
+                    bid_condition: t.bid_condition,
+                    ask_size: t.ask_size,
+                    ask_exchange: t.ask_exchange,
+                    ask: t.ask,
+                    ask_condition: t.ask_condition,
+                    delta: t.delta,
+                    theta: t.theta,
+                    vega: t.vega,
+                    rho: t.rho,
+                    epsilon: t.epsilon,
+                    lambda: t.lambda,
+                    gamma: t.gamma,
+                    vanna: t.vanna,
+                    charm: t.charm,
+                    vomma: t.vomma,
+                    veta: t.veta,
+                    vera: t.vera,
+                    speed: t.speed,
+                    zomma: t.zomma,
+                    color: t.color,
+                    ultima: t.ultima,
+                    d1: t.d1,
+                    d2: t.d2,
+                    dual_delta: t.dual_delta,
+                    dual_gamma: t.dual_gamma,
+                    implied_volatility: t.implied_volatility,
+                    iv_error: t.iv_error,
+                    underlying_ms_of_day: t.underlying_ms_of_day,
+                    underlying_price: t.underlying_price,
+                    date: t.date,
+                    expiration: t.expiration,
+                    strike: t.strike,
+                    right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+                }
+            ;
+            list.append(Py::new(py, obj)?)?;
+        }
+        Ok(list.into_any().unbind())
+    }
+
+    /// Return a `pyarrow.Table` backed by the decoder-owned slice.
+    /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
+    /// Data Interface; downstream pandas / polars / DuckDB alias the
+    /// same Rust buffers in place.
+    fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        slice_arrow::greeks_eod_tick_slice_to_arrow_table(py, &self.inner)
+    }
+
+    /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let table = slice_arrow::greeks_eod_tick_slice_to_arrow_table(py, &self.inner)?;
+        pyarrow_table_to_pandas(py, table)
+    }
+
+    /// Return a `polars.DataFrame` via `polars.from_arrow`.
+    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let table = slice_arrow::greeks_eod_tick_slice_to_arrow_table(py, &self.inner)?;
+        pyarrow_table_to_polars(py, table)
+    }
+}
+
+/// Companion iterator for [`GreeksEodTickList`]. Yields `GreeksEodTick` pyclass
+/// instances until the wrapped `Vec` is exhausted, then raises
+/// `StopIteration`. One allocation at construction (Vec clone); each
+/// `__next__` only copies one tick out of the inner buffer.
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
+pub(crate) struct GreeksEodTickListIter {
+    inner: Vec<tick::GreeksEodTick>,
+    cursor: usize,
+}
+
+#[pymethods]
+impl GreeksEodTickListIter {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self) -> Option<GreeksEodTick> {
+        if self.cursor >= self.inner.len() {
+            return None;
+        }
+        let t = &self.inner[self.cursor];
+        self.cursor += 1;
+        Some(            GreeksEodTick {
+                ms_of_day: t.ms_of_day,
+                open: t.open,
+                high: t.high,
+                low: t.low,
+                close: t.close,
+                volume: t.volume,
+                count: t.count,
+                bid_size: t.bid_size,
+                bid_exchange: t.bid_exchange,
+                bid: t.bid,
+                bid_condition: t.bid_condition,
+                ask_size: t.ask_size,
+                ask_exchange: t.ask_exchange,
+                ask: t.ask,
+                ask_condition: t.ask_condition,
+                delta: t.delta,
+                theta: t.theta,
+                vega: t.vega,
+                rho: t.rho,
+                epsilon: t.epsilon,
+                lambda: t.lambda,
+                gamma: t.gamma,
+                vanna: t.vanna,
+                charm: t.charm,
+                vomma: t.vomma,
+                veta: t.veta,
+                vera: t.vera,
+                speed: t.speed,
+                zomma: t.zomma,
+                color: t.color,
+                ultima: t.ultima,
+                d1: t.d1,
+                d2: t.d2,
+                dual_delta: t.dual_delta,
+                dual_gamma: t.dual_gamma,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        )
+    }
+}
+
 /// Typed list of `GreeksFirstOrderTick` returned by every historical endpoint
 /// whose response is `GreeksFirstOrderTick`. Wraps the decoder-owned `Vec<GreeksFirstOrderTick>`
 /// and exposes the Python list protocol (`len(ticks)`, `ticks[i]`,
@@ -2411,6 +2904,184 @@ impl GreeksThirdOrderTickListIter {
                 expiration: t.expiration,
                 strike: t.strike,
                 right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        )
+    }
+}
+
+/// Typed list of `IndexPriceAtTimeTick` returned by every historical endpoint
+/// whose response is `IndexPriceAtTimeTick`. Wraps the decoder-owned `Vec<IndexPriceAtTimeTick>`
+/// and exposes the Python list protocol (`len(ticks)`, `ticks[i]`,
+/// `for t in ticks: ...`, `bool(ticks)`) plus the chained terminals
+/// `.to_list()`, `.to_arrow()`, `.to_pandas()`, `.to_polars()`.
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+pub(crate) struct IndexPriceAtTimeTickList {
+    inner: Vec<tick::IndexPriceAtTimeTick>,
+}
+
+impl IndexPriceAtTimeTickList {
+    pub(crate) fn new(inner: Vec<tick::IndexPriceAtTimeTick>) -> Self {
+        Self { inner }
+    }
+}
+
+#[pymethods]
+impl IndexPriceAtTimeTickList {
+    #[new]
+    #[pyo3(signature = (ticks = Vec::new()))]
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, IndexPriceAtTimeTick>>) -> Self {
+        let mut inner = Vec::with_capacity(ticks.len());
+        for t in &ticks {
+            inner.push(            tick::IndexPriceAtTimeTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                date: t.date,
+            }
+            );
+        }
+        Self { inner }
+    }
+
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn __bool__(&self) -> bool {
+        !self.inner.is_empty()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("IndexPriceAtTimeTickList({} rows)", self.inner.len())
+    }
+
+    fn __getitem__(&self, idx: isize) -> PyResult<IndexPriceAtTimeTick> {
+        let len = self.inner.len() as isize;
+        let resolved = if idx < 0 { idx + len } else { idx };
+        if resolved < 0 || resolved >= len {
+            return Err(pyo3::exceptions::PyIndexError::new_err(format!(
+                "IndexPriceAtTimeTickList index {} out of range (len={})", idx, self.inner.len()
+            )));
+        }
+        let t = &self.inner[resolved as usize];
+        Ok(            IndexPriceAtTimeTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                date: t.date,
+            }
+        )
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<IndexPriceAtTimeTickListIter>> {
+        Py::new(py, IndexPriceAtTimeTickListIter { inner: slf.inner.clone(), cursor: 0 })
+    }
+
+    /// Return a plain Python `list` of typed tick pyclass instances.
+    /// Explicit escape hatch for callers that want a mutable list or
+    /// need to pass the data into an API that only accepts `list`.
+    fn to_list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let list = pyo3::types::PyList::empty(py);
+        for t in &self.inner {
+            let obj =                 IndexPriceAtTimeTick {
+                    ms_of_day: t.ms_of_day,
+                    sequence: t.sequence,
+                    ext_condition1: t.ext_condition1,
+                    ext_condition2: t.ext_condition2,
+                    ext_condition3: t.ext_condition3,
+                    ext_condition4: t.ext_condition4,
+                    condition: t.condition,
+                    size: t.size,
+                    exchange: t.exchange,
+                    price: t.price,
+                    date: t.date,
+                }
+            ;
+            list.append(Py::new(py, obj)?)?;
+        }
+        Ok(list.into_any().unbind())
+    }
+
+    /// Return a `pyarrow.Table` backed by the decoder-owned slice.
+    /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
+    /// Data Interface; downstream pandas / polars / DuckDB alias the
+    /// same Rust buffers in place.
+    fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        slice_arrow::index_price_at_time_tick_slice_to_arrow_table(py, &self.inner)
+    }
+
+    /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let table = slice_arrow::index_price_at_time_tick_slice_to_arrow_table(py, &self.inner)?;
+        pyarrow_table_to_pandas(py, table)
+    }
+
+    /// Return a `polars.DataFrame` via `polars.from_arrow`.
+    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let table = slice_arrow::index_price_at_time_tick_slice_to_arrow_table(py, &self.inner)?;
+        pyarrow_table_to_polars(py, table)
+    }
+}
+
+/// Companion iterator for [`IndexPriceAtTimeTickList`]. Yields `IndexPriceAtTimeTick` pyclass
+/// instances until the wrapped `Vec` is exhausted, then raises
+/// `StopIteration`. One allocation at construction (Vec clone); each
+/// `__next__` only copies one tick out of the inner buffer.
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
+pub(crate) struct IndexPriceAtTimeTickListIter {
+    inner: Vec<tick::IndexPriceAtTimeTick>,
+    cursor: usize,
+}
+
+#[pymethods]
+impl IndexPriceAtTimeTickListIter {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self) -> Option<IndexPriceAtTimeTick> {
+        if self.cursor >= self.inner.len() {
+            return None;
+        }
+        let t = &self.inner[self.cursor];
+        self.cursor += 1;
+        Some(            IndexPriceAtTimeTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                date: t.date,
             }
         )
     }
@@ -5370,6 +6041,10 @@ pub(crate) fn greeks_all_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::
     Py::new(py, GreeksAllTickList::new(ticks))
 }
 
+pub(crate) fn greeks_eod_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::GreeksEodTick>) -> PyResult<Py<GreeksEodTickList>> {
+    Py::new(py, GreeksEodTickList::new(ticks))
+}
+
 pub(crate) fn greeks_first_order_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::GreeksFirstOrderTick>) -> PyResult<Py<GreeksFirstOrderTickList>> {
     Py::new(py, GreeksFirstOrderTickList::new(ticks))
 }
@@ -5380,6 +6055,10 @@ pub(crate) fn greeks_second_order_ticks_to_pyclass_list(py: Python<'_>, ticks: V
 
 pub(crate) fn greeks_third_order_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::GreeksThirdOrderTick>) -> PyResult<Py<GreeksThirdOrderTickList>> {
     Py::new(py, GreeksThirdOrderTickList::new(ticks))
+}
+
+pub(crate) fn index_price_at_time_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::IndexPriceAtTimeTick>) -> PyResult<Py<IndexPriceAtTimeTickList>> {
+    Py::new(py, IndexPriceAtTimeTickList::new(ticks))
 }
 
 pub(crate) fn interest_rate_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::InterestRateTick>) -> PyResult<Py<InterestRateTickList>> {
@@ -5544,6 +6223,64 @@ pub(crate) fn greeks_all_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::Gr
 }
 
 /// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `GreeksEodTick` pyclass instances without allocating a
+/// `GreeksEodTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn greeks_eod_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::GreeksEodTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             GreeksEodTick {
+                ms_of_day: t.ms_of_day,
+                open: t.open,
+                high: t.high,
+                low: t.low,
+                close: t.close,
+                volume: t.volume,
+                count: t.count,
+                bid_size: t.bid_size,
+                bid_exchange: t.bid_exchange,
+                bid: t.bid,
+                bid_condition: t.bid_condition,
+                ask_size: t.ask_size,
+                ask_exchange: t.ask_exchange,
+                ask: t.ask,
+                ask_condition: t.ask_condition,
+                delta: t.delta,
+                theta: t.theta,
+                vega: t.vega,
+                rho: t.rho,
+                epsilon: t.epsilon,
+                lambda: t.lambda,
+                gamma: t.gamma,
+                vanna: t.vanna,
+                charm: t.charm,
+                vomma: t.vomma,
+                veta: t.veta,
+                vera: t.vera,
+                speed: t.speed,
+                zomma: t.zomma,
+                color: t.color,
+                ultima: t.ultima,
+                d1: t.d1,
+                d2: t.d2,
+                dual_delta: t.dual_delta,
+                dual_gamma: t.dual_gamma,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
 /// `PyList` of `GreeksFirstOrderTick` pyclass instances without allocating a
 /// `GreeksFirstOrderTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
@@ -5629,6 +6366,32 @@ pub(crate) fn greeks_third_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<
                 expiration: t.expiration,
                 strike: t.strike,
                 right: (if t.is_call() { "C" } else if t.is_put() { "P" } else { "" }).to_string(),
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `IndexPriceAtTimeTick` pyclass instances without allocating a
+/// `IndexPriceAtTimeTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn index_price_at_time_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::IndexPriceAtTimeTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             IndexPriceAtTimeTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                date: t.date,
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -6248,6 +7011,9 @@ pub(crate) fn register_tick_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<GreeksAllTick>()?;
     m.add_class::<GreeksAllTickList>()?;
     m.add_class::<GreeksAllTickListIter>()?;
+    m.add_class::<GreeksEodTick>()?;
+    m.add_class::<GreeksEodTickList>()?;
+    m.add_class::<GreeksEodTickListIter>()?;
     m.add_class::<GreeksFirstOrderTick>()?;
     m.add_class::<GreeksFirstOrderTickList>()?;
     m.add_class::<GreeksFirstOrderTickListIter>()?;
@@ -6257,6 +7023,9 @@ pub(crate) fn register_tick_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<GreeksThirdOrderTick>()?;
     m.add_class::<GreeksThirdOrderTickList>()?;
     m.add_class::<GreeksThirdOrderTickListIter>()?;
+    m.add_class::<IndexPriceAtTimeTick>()?;
+    m.add_class::<IndexPriceAtTimeTickList>()?;
+    m.add_class::<IndexPriceAtTimeTickListIter>()?;
     m.add_class::<InterestRateTick>()?;
     m.add_class::<InterestRateTickList>()?;
     m.add_class::<InterestRateTickListIter>()?;

@@ -111,7 +111,7 @@
     std::vector<OpenInterestTick> option_history_open_interest(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch end-of-day Greeks history for an option contract.
-    std::vector<GreeksAllTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksEodTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
     std::vector<GreeksAllTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
@@ -180,7 +180,7 @@
     std::vector<PriceTick> index_history_price(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the index price at a specific time of day across a date range.
-    std::vector<PriceTick> index_at_time_price(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
+    std::vector<IndexPriceAtTimeTick> index_at_time_price(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
 
     /// Check whether the market is open today.
     std::vector<CalendarDay> calendar_open_today(const EndpointRequestOptions& options = {}) const;

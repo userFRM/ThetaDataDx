@@ -78,6 +78,51 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("strike", DataType::Float64, false),
             Field::new("right", DataType::Utf8, false),
         ]))),
+        "GreeksEodTick" => Some(Arc::new(Schema::new(vec![
+            Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("open", DataType::Float64, false),
+            Field::new("high", DataType::Float64, false),
+            Field::new("low", DataType::Float64, false),
+            Field::new("close", DataType::Float64, false),
+            Field::new("volume", DataType::Int64, false),
+            Field::new("count", DataType::Int64, false),
+            Field::new("bid_size", DataType::Int32, false),
+            Field::new("bid_exchange", DataType::Int32, false),
+            Field::new("bid", DataType::Float64, false),
+            Field::new("bid_condition", DataType::Int32, false),
+            Field::new("ask_size", DataType::Int32, false),
+            Field::new("ask_exchange", DataType::Int32, false),
+            Field::new("ask", DataType::Float64, false),
+            Field::new("ask_condition", DataType::Int32, false),
+            Field::new("delta", DataType::Float64, false),
+            Field::new("theta", DataType::Float64, false),
+            Field::new("vega", DataType::Float64, false),
+            Field::new("rho", DataType::Float64, false),
+            Field::new("epsilon", DataType::Float64, false),
+            Field::new("lambda", DataType::Float64, false),
+            Field::new("gamma", DataType::Float64, false),
+            Field::new("vanna", DataType::Float64, false),
+            Field::new("charm", DataType::Float64, false),
+            Field::new("vomma", DataType::Float64, false),
+            Field::new("veta", DataType::Float64, false),
+            Field::new("vera", DataType::Float64, false),
+            Field::new("speed", DataType::Float64, false),
+            Field::new("zomma", DataType::Float64, false),
+            Field::new("color", DataType::Float64, false),
+            Field::new("ultima", DataType::Float64, false),
+            Field::new("d1", DataType::Float64, false),
+            Field::new("d2", DataType::Float64, false),
+            Field::new("dual_delta", DataType::Float64, false),
+            Field::new("dual_gamma", DataType::Float64, false),
+            Field::new("implied_volatility", DataType::Float64, false),
+            Field::new("iv_error", DataType::Float64, false),
+            Field::new("underlying_ms_of_day", DataType::Int32, false),
+            Field::new("underlying_price", DataType::Float64, false),
+            Field::new("date", DataType::Int32, false),
+            Field::new("expiration", DataType::Int32, false),
+            Field::new("strike", DataType::Float64, false),
+            Field::new("right", DataType::Utf8, false),
+        ]))),
         "GreeksFirstOrderTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("bid", DataType::Float64, false),
@@ -131,6 +176,19 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("expiration", DataType::Int32, false),
             Field::new("strike", DataType::Float64, false),
             Field::new("right", DataType::Utf8, false),
+        ]))),
+        "IndexPriceAtTimeTick" => Some(Arc::new(Schema::new(vec![
+            Field::new("ms_of_day", DataType::Int32, false),
+            Field::new("sequence", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, false),
+            Field::new("ext_condition2", DataType::Int32, false),
+            Field::new("ext_condition3", DataType::Int32, false),
+            Field::new("ext_condition4", DataType::Int32, false),
+            Field::new("condition", DataType::Int32, false),
+            Field::new("size", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, false),
+            Field::new("price", DataType::Float64, false),
+            Field::new("date", DataType::Int32, false),
         ]))),
         "InterestRateTick" => Some(Arc::new(Schema::new(vec![
             Field::new("created", DataType::Int32, false),
@@ -643,6 +701,154 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_greeks_eod_tick_slice(ticks: &[tick::GreeksEodTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("GreeksEodTick").expect("generated schema must be present for GreeksEodTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_open: Vec<f64> = Vec::with_capacity(n);
+        let mut col_high: Vec<f64> = Vec::with_capacity(n);
+        let mut col_low: Vec<f64> = Vec::with_capacity(n);
+        let mut col_close: Vec<f64> = Vec::with_capacity(n);
+        let mut col_volume: Vec<i64> = Vec::with_capacity(n);
+        let mut col_count: Vec<i64> = Vec::with_capacity(n);
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_bid: Vec<f64> = Vec::with_capacity(n);
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ask: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_delta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_theta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vega: Vec<f64> = Vec::with_capacity(n);
+        let mut col_rho: Vec<f64> = Vec::with_capacity(n);
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(n);
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(n);
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(n);
+        let mut col_charm: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_veta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_vera: Vec<f64> = Vec::with_capacity(n);
+        let mut col_speed: Vec<f64> = Vec::with_capacity(n);
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_color: Vec<f64> = Vec::with_capacity(n);
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(n);
+        let mut col_d1: Vec<f64> = Vec::with_capacity(n);
+        let mut col_d2: Vec<f64> = Vec::with_capacity(n);
+        let mut col_dual_delta: Vec<f64> = Vec::with_capacity(n);
+        let mut col_dual_gamma: Vec<f64> = Vec::with_capacity(n);
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(n);
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(n);
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(n);
+        let mut col_strike: Vec<f64> = Vec::with_capacity(n);
+        let mut col_right: Vec<String> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_open.push(t.open);
+            col_high.push(t.high);
+            col_low.push(t.low);
+            col_close.push(t.close);
+            col_volume.push(t.volume);
+            col_count.push(t.count);
+            col_bid_size.push(t.bid_size);
+            col_bid_exchange.push(t.bid_exchange);
+            col_bid.push(t.bid);
+            col_bid_condition.push(t.bid_condition);
+            col_ask_size.push(t.ask_size);
+            col_ask_exchange.push(t.ask_exchange);
+            col_ask.push(t.ask);
+            col_ask_condition.push(t.ask_condition);
+            col_delta.push(t.delta);
+            col_theta.push(t.theta);
+            col_vega.push(t.vega);
+            col_rho.push(t.rho);
+            col_epsilon.push(t.epsilon);
+            col_lambda.push(t.lambda);
+            col_gamma.push(t.gamma);
+            col_vanna.push(t.vanna);
+            col_charm.push(t.charm);
+            col_vomma.push(t.vomma);
+            col_veta.push(t.veta);
+            col_vera.push(t.vera);
+            col_speed.push(t.speed);
+            col_zomma.push(t.zomma);
+            col_color.push(t.color);
+            col_ultima.push(t.ultima);
+            col_d1.push(t.d1);
+            col_d2.push(t.d2);
+            col_dual_delta.push(t.dual_delta);
+            col_dual_gamma.push(t.dual_gamma);
+            col_implied_volatility.push(t.implied_volatility);
+            col_iv_error.push(t.iv_error);
+            col_underlying_ms_of_day.push(t.underlying_ms_of_day);
+            col_underlying_price.push(t.underlying_price);
+            col_date.push(t.date);
+            col_expiration.push(t.expiration);
+            col_strike.push(t.strike);
+            col_right.push(if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() });
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_open)) as ArrayRef,
+            Arc::new(Float64Array::from(col_high)) as ArrayRef,
+            Arc::new(Float64Array::from(col_low)) as ArrayRef,
+            Arc::new(Float64Array::from(col_close)) as ArrayRef,
+            Arc::new(Int64Array::from(col_volume)) as ArrayRef,
+            Arc::new(Int64Array::from(col_count)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_bid)) as ArrayRef,
+            Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ask)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef,
+            Arc::new(Float64Array::from(col_delta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_theta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vega)) as ArrayRef,
+            Arc::new(Float64Array::from(col_rho)) as ArrayRef,
+            Arc::new(Float64Array::from(col_epsilon)) as ArrayRef,
+            Arc::new(Float64Array::from(col_lambda)) as ArrayRef,
+            Arc::new(Float64Array::from(col_gamma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vanna)) as ArrayRef,
+            Arc::new(Float64Array::from(col_charm)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vomma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_veta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_vera)) as ArrayRef,
+            Arc::new(Float64Array::from(col_speed)) as ArrayRef,
+            Arc::new(Float64Array::from(col_zomma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_color)) as ArrayRef,
+            Arc::new(Float64Array::from(col_ultima)) as ArrayRef,
+            Arc::new(Float64Array::from(col_d1)) as ArrayRef,
+            Arc::new(Float64Array::from(col_d2)) as ArrayRef,
+            Arc::new(Float64Array::from(col_dual_delta)) as ArrayRef,
+            Arc::new(Float64Array::from(col_dual_gamma)) as ArrayRef,
+            Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef,
+            Arc::new(Float64Array::from(col_iv_error)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
+            Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
+            Arc::new(Float64Array::from(col_strike)) as ArrayRef,
+            Arc::new(StringArray::from(col_right)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::GreeksEodTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn greeks_eod_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::GreeksEodTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_greeks_eod_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
     fn read_arrow_batch_from_greeks_first_order_tick_slice(ticks: &[tick::GreeksFirstOrderTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("GreeksFirstOrderTick").expect("generated schema must be present for GreeksFirstOrderTick");
         let n = ticks.len();
@@ -841,6 +1047,58 @@ pub(crate) mod slice_arrow {
     /// double-buffering RSS spike of the pyclass-list converter.
     pub(crate) fn greeks_third_order_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::GreeksThirdOrderTick]) -> PyResult<Py<PyAny>> {
         let batch = read_arrow_batch_from_greeks_third_order_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_index_price_at_time_tick_slice(ticks: &[tick::IndexPriceAtTimeTick]) -> PyResult<RecordBatch> {
+        let schema = arrow_schema_for_qualname("IndexPriceAtTimeTick").expect("generated schema must be present for IndexPriceAtTimeTick");
+        let n = ticks.len();
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
+        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_size: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_price: Vec<f64> = Vec::with_capacity(n);
+        let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        for t in ticks {
+            col_ms_of_day.push(t.ms_of_day);
+            col_sequence.push(t.sequence);
+            col_ext_condition1.push(t.ext_condition1);
+            col_ext_condition2.push(t.ext_condition2);
+            col_ext_condition3.push(t.ext_condition3);
+            col_ext_condition4.push(t.ext_condition4);
+            col_condition.push(t.condition);
+            col_size.push(t.size);
+            col_exchange.push(t.exchange);
+            col_price.push(t.price);
+            col_date.push(t.date);
+        }
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
+            Arc::new(Int32Array::from(col_sequence)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef,
+            Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef,
+            Arc::new(Int32Array::from(col_condition)) as ArrayRef,
+            Arc::new(Int32Array::from(col_size)) as ArrayRef,
+            Arc::new(Int32Array::from(col_exchange)) as ArrayRef,
+            Arc::new(Float64Array::from(col_price)) as ArrayRef,
+            Arc::new(Int32Array::from(col_date)) as ArrayRef,
+        ];
+        RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::IndexPriceAtTimeTick]` slice into a
+    /// `pyarrow.Table` without materialising typed pyclass instances.
+    /// Primary fast path for historical endpoints — avoids the
+    /// double-buffering RSS spike of the pyclass-list converter.
+    pub(crate) fn index_price_at_time_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::IndexPriceAtTimeTick]) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_index_price_at_time_tick_slice(ticks)?;
         record_batch_to_pyarrow_table(py, batch)
     }
 

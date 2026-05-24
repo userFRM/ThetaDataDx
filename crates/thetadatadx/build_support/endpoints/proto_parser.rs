@@ -375,16 +375,34 @@ fn derive_return_type(method: &str) -> String {
         return "GreeksThirdOrderTicks".into();
     }
 
-    // `_greeks_all`, `_greeks_eod`, and any future un-suffixed Greeks
-    // endpoint default to the full-union type.
+    // `_greeks_eod` routes to a dedicated `GreeksEodTick` whose wire
+    // shape (39 data columns) fuses the full Greeks union with the
+    // twelve EOD trade/quote columns (`open`, `high`, `low`, `close`,
+    // `volume`, `count`, `bid_size`, `bid_exchange`, `bid_condition`,
+    // `ask_size`, `ask_exchange`, `ask_condition`) the bare
+    // `GreeksAllTick` silently dropped. Match BEFORE the generic
+    // `_greeks_` arm so the EOD specialisation takes precedence.
+    if method.contains("greeks_eod") {
+        return "GreeksEodTicks".into();
+    }
+
+    // `_greeks_all` and any future un-suffixed Greeks endpoint default
+    // to the full-union type.
     if method.contains("_greeks_") {
         return "GreeksAllTicks".into();
     }
 
-    if method == "index_snapshot_price"
-        || method == "index_history_price"
-        || method == "index_at_time_price"
-    {
+    // `index_at_time_price` returns a trade-shaped row (10 columns:
+    // `timestamp`, `sequence`, `ext_condition1..4`, `condition`,
+    // `size`, `exchange`, `price`) -- distinct from the bare
+    // `PriceTick` (3 columns) used by `index_snapshot_price` /
+    // `index_history_price`. Match BEFORE those routes so the trade
+    // shape takes precedence.
+    if method == "index_at_time_price" {
+        return "IndexPriceAtTimeTicks".into();
+    }
+
+    if method == "index_snapshot_price" || method == "index_history_price" {
         return "PriceTicks".into();
     }
 

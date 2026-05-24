@@ -103,6 +103,88 @@ pub struct GreeksAllTick {
     pub right: i32,
 }
 
+/// End-of-day union Greeks tick -- every Greek the v3 server publishes on
+/// `option_history_greeks_eod`, paired with the twelve EOD trade/quote
+/// context columns (`open`, `high`, `low`, `close`, `volume`, `count`,
+/// `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
+/// `ask_exchange`, `ask_condition`) that identify the daily bar + closing
+/// NBBO snapshot the Greeks were calculated against.
+///
+/// The bare `GreeksAllTick` previously routed by `endpoint_surface.toml`
+/// (28 fields) silently dropped those twelve EOD columns from the
+/// 39-column EOD response -- the same data-loss class as the per-trade
+/// Greeks endpoints (BL-14 / PR #605). `GreeksEodTick` carries the full
+/// EOD wire shape end-to-end across every binding.
+///
+/// Wire layout verified-live against terminal jar build `202605221`
+/// (SPY 2024-06-21 expiration query on 2024-06-14):
+///
+///   symbol, expiration, strike, right,
+///   timestamp, open, high, low, close, volume, count,
+///   bid_size, bid_exchange, bid, bid_condition,
+///   ask_size, ask_exchange, ask, ask_condition,
+///   delta, theta, vega, rho, epsilon, lambda,
+///   gamma, vanna, charm, vomma, veta, vera,
+///   speed, zomma, color, ultima,
+///   d1, d2, dual_delta, dual_gamma,
+///   implied_vol, iv_error,
+///   underlying_timestamp, underlying_price
+///
+/// The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
+/// `underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
+/// mappings are applied through `HEADER_ALIASES`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct GreeksEodTick {
+    pub ms_of_day: i32,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: i64,
+    pub count: i64,
+    pub bid_size: i32,
+    pub bid_exchange: i32,
+    pub bid: f64,
+    pub bid_condition: i32,
+    pub ask_size: i32,
+    pub ask_exchange: i32,
+    pub ask: f64,
+    pub ask_condition: i32,
+    pub delta: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub gamma: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub vera: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub d1: f64,
+    pub d2: f64,
+    pub dual_delta: f64,
+    pub dual_gamma: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
 /// First-order Greeks tick -- the strict column subset emitted by the
 /// vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega
 /// / rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and
@@ -189,6 +271,36 @@ pub struct GreeksThirdOrderTick {
     pub strike: f64,
     /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
     pub right: i32,
+}
+
+/// Index price-at-time tick -- the trade-shaped row the v3 server
+/// publishes on `index_at_time_price`. The bare `PriceTick` (3 fields:
+/// `ms_of_day`, `price`, `date`) silently dropped seven server-emitted
+/// columns -- `sequence`, `ext_condition1..4`, `condition`, `size`,
+/// `exchange` -- including the SIP-exchange attribution field.
+///
+/// Wire layout verified-live against terminal jar build `202605221`:
+///
+///   timestamp, sequence, ext_condition1..4, condition, size, exchange, price
+///
+/// The `timestamp` -> `ms_of_day` and `timestamp` -> `date` mappings are
+/// applied through the existing `HEADER_ALIASES` rows in
+/// `crates/thetadatadx/src/mdds/decode/headers.rs`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct IndexPriceAtTimeTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub date: i32,
 }
 
 /// Interest rate tick -- 2 fields. End-of-day interest rate (percent).

@@ -81,6 +81,56 @@ pub struct GreeksAllTick {
     pub right: String,
 }
 
+/// End-of-day union Greeks tick -- every Greek the v3 server publishes on
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct GreeksEodTick {
+    pub ms_of_day: i32,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: BigInt,
+    pub count: BigInt,
+    pub bid_size: i32,
+    pub bid_exchange: i32,
+    pub bid: f64,
+    pub bid_condition: i32,
+    pub ask_size: i32,
+    pub ask_exchange: i32,
+    pub ask: f64,
+    pub ask_condition: i32,
+    pub delta: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub gamma: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub vera: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub d1: f64,
+    pub d2: f64,
+    pub dual_delta: f64,
+    pub dual_gamma: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    pub expiration: i32,
+    pub strike: f64,
+    pub right: String,
+}
+
 /// First-order Greeks tick -- the strict column subset emitted by the
 #[must_use]
 #[napi(object)]
@@ -148,6 +198,24 @@ pub struct GreeksThirdOrderTick {
     pub expiration: i32,
     pub strike: f64,
     pub right: String,
+}
+
+/// Index price-at-time tick -- the trade-shaped row the v3 server
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct IndexPriceAtTimeTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub date: i32,
 }
 
 /// Interest rate tick. End-of-day interest rate (percent).
@@ -574,6 +642,59 @@ fn greeks_all_ticks_to_class_vec(ticks: &[tick::GreeksAllTick]) -> Vec<GreeksAll
         .collect()
 }
 
+fn greeks_eod_ticks_to_class_vec(ticks: &[tick::GreeksEodTick]) -> Vec<GreeksEodTick> {
+    ticks
+        .iter()
+        .map(|t| {
+            GreeksEodTick {
+                ms_of_day: t.ms_of_day,
+                open: t.open,
+                high: t.high,
+                low: t.low,
+                close: t.close,
+                volume: BigInt::from(t.volume),
+                count: BigInt::from(t.count),
+                bid_size: t.bid_size,
+                bid_exchange: t.bid_exchange,
+                bid: t.bid,
+                bid_condition: t.bid_condition,
+                ask_size: t.ask_size,
+                ask_exchange: t.ask_exchange,
+                ask: t.ask,
+                ask_condition: t.ask_condition,
+                delta: t.delta,
+                theta: t.theta,
+                vega: t.vega,
+                rho: t.rho,
+                epsilon: t.epsilon,
+                lambda: t.lambda,
+                gamma: t.gamma,
+                vanna: t.vanna,
+                charm: t.charm,
+                vomma: t.vomma,
+                veta: t.veta,
+                vera: t.vera,
+                speed: t.speed,
+                zomma: t.zomma,
+                color: t.color,
+                ultima: t.ultima,
+                d1: t.d1,
+                d2: t.d2,
+                dual_delta: t.dual_delta,
+                dual_gamma: t.dual_gamma,
+                implied_volatility: t.implied_volatility,
+                iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
+                date: t.date,
+                expiration: t.expiration,
+                strike: t.strike,
+                right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+            }
+        })
+        .collect()
+}
+
 fn greeks_first_order_ticks_to_class_vec(ticks: &[tick::GreeksFirstOrderTick]) -> Vec<GreeksFirstOrderTick> {
     ticks
         .iter()
@@ -647,6 +768,27 @@ fn greeks_third_order_ticks_to_class_vec(ticks: &[tick::GreeksThirdOrderTick]) -
                 expiration: t.expiration,
                 strike: t.strike,
                 right: if t.is_call() { "C".to_string() } else if t.is_put() { "P".to_string() } else { String::new() },
+            }
+        })
+        .collect()
+}
+
+fn index_price_at_time_ticks_to_class_vec(ticks: &[tick::IndexPriceAtTimeTick]) -> Vec<IndexPriceAtTimeTick> {
+    ticks
+        .iter()
+        .map(|t| {
+            IndexPriceAtTimeTick {
+                ms_of_day: t.ms_of_day,
+                sequence: t.sequence,
+                ext_condition1: t.ext_condition1,
+                ext_condition2: t.ext_condition2,
+                ext_condition3: t.ext_condition3,
+                ext_condition4: t.ext_condition4,
+                condition: t.condition,
+                size: t.size,
+                exchange: t.exchange,
+                price: t.price,
+                date: t.date,
             }
         })
         .collect()

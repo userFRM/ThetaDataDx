@@ -513,19 +513,19 @@ std::vector<OpenInterestTick> Client::option_history_open_interest(const std::st
     return result;
 }
 
-std::vector<GreeksAllTick> Client::option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options) const {
+std::vector<GreeksEodTick> Client::option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     tdx_clear_error();
     auto arr = tdx_option_history_greeks_eod_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw);
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
-            tdx_greeks_all_tick_array_free(arr);
+            tdx_greeks_eod_tick_array_free(arr);
             throw std::runtime_error("thetadatadx: " + err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
-    tdx_greeks_all_tick_array_free(arr);
+    tdx_greeks_eod_tick_array_free(arr);
     return result;
 }
 
@@ -844,19 +844,19 @@ std::vector<PriceTick> Client::index_history_price(const std::string& symbol, co
     return result;
 }
 
-std::vector<PriceTick> Client::index_at_time_price(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options) const {
+std::vector<IndexPriceAtTimeTick> Client::index_at_time_price(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     tdx_clear_error();
     auto arr = tdx_index_at_time_price_with_options(handle_.get(), symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &ffi_options.raw);
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
-            tdx_price_tick_array_free(arr);
+            tdx_index_price_at_time_tick_array_free(arr);
             throw std::runtime_error("thetadatadx: " + err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
-    tdx_price_tick_array_free(arr);
+    tdx_index_price_at_time_tick_array_free(arr);
     return result;
 }
 

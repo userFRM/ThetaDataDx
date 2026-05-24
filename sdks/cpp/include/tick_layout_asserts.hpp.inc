@@ -118,6 +118,94 @@ static_assert(offsetof(GreeksAllTick, strike) == 224,
               "TdxGreeksAllTick.strike offset drifted from Rust");
 static_assert(offsetof(GreeksAllTick, right) == 232,
               "TdxGreeksAllTick.right offset drifted from Rust");
+static_assert(sizeof(GreeksEodTick) == 320 && alignof(GreeksEodTick) == 64,
+              "TdxGreeksEodTick layout drifted from Rust");
+static_assert(offsetof(GreeksEodTick, ms_of_day) == 0,
+              "TdxGreeksEodTick.ms_of_day offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, open) == 8,
+              "TdxGreeksEodTick.open offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, high) == 16,
+              "TdxGreeksEodTick.high offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, low) == 24,
+              "TdxGreeksEodTick.low offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, close) == 32,
+              "TdxGreeksEodTick.close offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, volume) == 40,
+              "TdxGreeksEodTick.volume offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, count) == 48,
+              "TdxGreeksEodTick.count offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, bid_size) == 56,
+              "TdxGreeksEodTick.bid_size offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, bid_exchange) == 60,
+              "TdxGreeksEodTick.bid_exchange offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, bid) == 64,
+              "TdxGreeksEodTick.bid offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, bid_condition) == 72,
+              "TdxGreeksEodTick.bid_condition offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, ask_size) == 76,
+              "TdxGreeksEodTick.ask_size offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, ask_exchange) == 80,
+              "TdxGreeksEodTick.ask_exchange offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, ask) == 88,
+              "TdxGreeksEodTick.ask offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, ask_condition) == 96,
+              "TdxGreeksEodTick.ask_condition offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, delta) == 104,
+              "TdxGreeksEodTick.delta offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, theta) == 112,
+              "TdxGreeksEodTick.theta offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, vega) == 120,
+              "TdxGreeksEodTick.vega offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, rho) == 128,
+              "TdxGreeksEodTick.rho offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, epsilon) == 136,
+              "TdxGreeksEodTick.epsilon offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, lambda) == 144,
+              "TdxGreeksEodTick.lambda offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, gamma) == 152,
+              "TdxGreeksEodTick.gamma offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, vanna) == 160,
+              "TdxGreeksEodTick.vanna offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, charm) == 168,
+              "TdxGreeksEodTick.charm offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, vomma) == 176,
+              "TdxGreeksEodTick.vomma offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, veta) == 184,
+              "TdxGreeksEodTick.veta offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, vera) == 192,
+              "TdxGreeksEodTick.vera offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, speed) == 200,
+              "TdxGreeksEodTick.speed offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, zomma) == 208,
+              "TdxGreeksEodTick.zomma offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, color) == 216,
+              "TdxGreeksEodTick.color offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, ultima) == 224,
+              "TdxGreeksEodTick.ultima offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, d1) == 232,
+              "TdxGreeksEodTick.d1 offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, d2) == 240,
+              "TdxGreeksEodTick.d2 offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, dual_delta) == 248,
+              "TdxGreeksEodTick.dual_delta offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, dual_gamma) == 256,
+              "TdxGreeksEodTick.dual_gamma offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, implied_volatility) == 264,
+              "TdxGreeksEodTick.implied_volatility offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, iv_error) == 272,
+              "TdxGreeksEodTick.iv_error offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, underlying_ms_of_day) == 280,
+              "TdxGreeksEodTick.underlying_ms_of_day offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, underlying_price) == 288,
+              "TdxGreeksEodTick.underlying_price offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, date) == 296,
+              "TdxGreeksEodTick.date offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, expiration) == 300,
+              "TdxGreeksEodTick.expiration offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, strike) == 304,
+              "TdxGreeksEodTick.strike offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, right) == 312,
+              "TdxGreeksEodTick.right offset drifted from Rust");
 static_assert(sizeof(GreeksFirstOrderTick) == 128 && alignof(GreeksFirstOrderTick) == 64,
               "TdxGreeksFirstOrderTick layout drifted from Rust");
 static_assert(offsetof(GreeksFirstOrderTick, ms_of_day) == 0,
@@ -220,6 +308,30 @@ static_assert(offsetof(GreeksThirdOrderTick, strike) == 96,
               "TdxGreeksThirdOrderTick.strike offset drifted from Rust");
 static_assert(offsetof(GreeksThirdOrderTick, right) == 104,
               "TdxGreeksThirdOrderTick.right offset drifted from Rust");
+static_assert(sizeof(IndexPriceAtTimeTick) == 64 && alignof(IndexPriceAtTimeTick) == 64,
+              "TdxIndexPriceAtTimeTick layout drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, ms_of_day) == 0,
+              "TdxIndexPriceAtTimeTick.ms_of_day offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, sequence) == 4,
+              "TdxIndexPriceAtTimeTick.sequence offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, ext_condition1) == 8,
+              "TdxIndexPriceAtTimeTick.ext_condition1 offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, ext_condition2) == 12,
+              "TdxIndexPriceAtTimeTick.ext_condition2 offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, ext_condition3) == 16,
+              "TdxIndexPriceAtTimeTick.ext_condition3 offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, ext_condition4) == 20,
+              "TdxIndexPriceAtTimeTick.ext_condition4 offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, condition) == 24,
+              "TdxIndexPriceAtTimeTick.condition offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, size) == 28,
+              "TdxIndexPriceAtTimeTick.size offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, exchange) == 32,
+              "TdxIndexPriceAtTimeTick.exchange offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, price) == 40,
+              "TdxIndexPriceAtTimeTick.price offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, date) == 48,
+              "TdxIndexPriceAtTimeTick.date offset drifted from Rust");
 static_assert(sizeof(InterestRateTick) == 64 && alignof(InterestRateTick) == 64,
               "TdxInterestRateTick layout drifted from Rust");
 static_assert(offsetof(InterestRateTick, date) == 0,

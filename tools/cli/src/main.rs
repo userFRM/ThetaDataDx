@@ -970,6 +970,98 @@ fn render_greeks(ticks: &[tdbe::types::tick::GreeksAllTick], fmt: &OutputFormat)
     td.render(fmt);
 }
 
+fn render_greeks_eod(ticks: &[tdbe::types::tick::GreeksEodTick], fmt: &OutputFormat) {
+    // End-of-day Greeks fused with the 12-column EOD trade/quote context
+    // (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`,
+    // `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`,
+    // `ask_condition`). The pretty table renders a representative subset
+    // for terminal readability; the raw-headers row is the full 39-column
+    // wire shape so `--format raw` / Arrow / JSON callers see every
+    // field. Wave-6 BLOCKER closure -- the previous `GreeksAllTick`
+    // routing silently dropped the 12 EOD columns.
+    let mut td = TabularData::new(vec![
+        "date",
+        "ms_of_day",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "bid",
+        "ask",
+        "iv",
+        "delta",
+        "gamma",
+        "underlying_price",
+    ]);
+    td.set_raw_headers(GREEKS_EOD_TICK_RAW_HEADERS.to_vec());
+    for t in ticks {
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format_price_f64(t.open),
+                format_price_f64(t.high),
+                format_price_f64(t.low),
+                format_price_f64(t.close),
+                format!("{}", t.volume),
+                format_price_f64(t.bid),
+                format_price_f64(t.ask),
+                format!("{:.6}", t.implied_volatility),
+                format!("{:.6}", t.delta),
+                format!("{:.6}", t.gamma),
+                format!("{:.4}", t.underlying_price),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_f64(t.open),
+                raw_f64(t.high),
+                raw_f64(t.low),
+                raw_f64(t.close),
+                raw_i64(t.volume),
+                raw_i64(t.count),
+                raw_i32(t.bid_size),
+                raw_i32(t.bid_exchange),
+                raw_f64(t.bid),
+                raw_i32(t.bid_condition),
+                raw_i32(t.ask_size),
+                raw_i32(t.ask_exchange),
+                raw_f64(t.ask),
+                raw_i32(t.ask_condition),
+                raw_f64(t.delta),
+                raw_f64(t.theta),
+                raw_f64(t.vega),
+                raw_f64(t.rho),
+                raw_f64(t.epsilon),
+                raw_f64(t.lambda),
+                raw_f64(t.gamma),
+                raw_f64(t.vanna),
+                raw_f64(t.charm),
+                raw_f64(t.vomma),
+                raw_f64(t.veta),
+                raw_f64(t.vera),
+                raw_f64(t.speed),
+                raw_f64(t.zomma),
+                raw_f64(t.color),
+                raw_f64(t.ultima),
+                raw_f64(t.d1),
+                raw_f64(t.d2),
+                raw_f64(t.dual_delta),
+                raw_f64(t.dual_gamma),
+                raw_f64(t.implied_volatility),
+                raw_f64(t.iv_error),
+                raw_ms(t.underlying_ms_of_day),
+                raw_f64(t.underlying_price),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
+    }
+    td.render(fmt);
+}
+
 fn render_greeks_first_order(
     ticks: &[tdbe::types::tick::GreeksFirstOrderTick],
     fmt: &OutputFormat,
@@ -1513,6 +1605,55 @@ fn render_price(ticks: &[tdbe::types::tick::PriceTick], fmt: &OutputFormat) {
     td.render(fmt);
 }
 
+fn render_index_price_at_time(
+    ticks: &[tdbe::types::tick::IndexPriceAtTimeTick],
+    fmt: &OutputFormat,
+) {
+    // Trade-shaped row published by `index_at_time_price` (10 wire
+    // columns: `timestamp`, `sequence`, `ext_condition1..4`,
+    // `condition`, `size`, `exchange`, `price`). Wave-6 SERIOUS
+    // closure -- the previous `PriceTick` routing silently dropped the
+    // seven trade-side execution columns including the SIP-exchange
+    // attribution field.
+    let mut td = TabularData::new(vec![
+        "date",
+        "ms_of_day",
+        "size",
+        "exchange",
+        "condition",
+        "sequence",
+        "price",
+    ]);
+    td.set_raw_headers(INDEX_PRICE_AT_TIME_TICK_RAW_HEADERS.to_vec());
+    for t in ticks {
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{}", t.size),
+                format!("{}", t.exchange),
+                format!("{}", t.condition),
+                format!("{}", t.sequence),
+                format_price_f64(t.price),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_i32(t.sequence),
+                raw_i32(t.ext_condition1),
+                raw_i32(t.ext_condition2),
+                raw_i32(t.ext_condition3),
+                raw_i32(t.ext_condition4),
+                raw_i32(t.condition),
+                raw_i32(t.size),
+                raw_i32(t.exchange),
+                raw_f64(t.price),
+                raw_date(t.date),
+            ],
+        );
+    }
+    td.render(fmt);
+}
+
 fn render_calendar(days: &[tdbe::types::tick::CalendarDay], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "is_open", "open_time", "close_time", "status"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:6-19
@@ -1608,6 +1749,7 @@ fn render_output(ep: &EndpointMeta, output: EndpointOutput, fmt: &OutputFormat) 
         EndpointOutput::OpenInterestTicks(ticks) => render_open_interest(&ticks, fmt),
         EndpointOutput::MarketValueTicks(ticks) => render_market_value(&ticks, fmt),
         EndpointOutput::GreeksAllTicks(ticks) => render_greeks(&ticks, fmt),
+        EndpointOutput::GreeksEodTicks(ticks) => render_greeks_eod(&ticks, fmt),
         EndpointOutput::GreeksFirstOrderTicks(ticks) => render_greeks_first_order(&ticks, fmt),
         EndpointOutput::GreeksSecondOrderTicks(ticks) => render_greeks_second_order(&ticks, fmt),
         EndpointOutput::GreeksThirdOrderTicks(ticks) => render_greeks_third_order(&ticks, fmt),
@@ -1626,6 +1768,7 @@ fn render_output(ep: &EndpointMeta, output: EndpointOutput, fmt: &OutputFormat) 
         }
         EndpointOutput::IvTicks(ticks) => render_iv(&ticks, fmt),
         EndpointOutput::PriceTicks(ticks) => render_price(&ticks, fmt),
+        EndpointOutput::IndexPriceAtTimeTicks(ticks) => render_index_price_at_time(&ticks, fmt),
         EndpointOutput::CalendarDays(days) => render_calendar(&days, fmt),
         EndpointOutput::InterestRateTicks(ticks) => render_interest_rates(&ticks, fmt),
         EndpointOutput::OptionContracts(contracts) => render_option_contracts(&contracts, fmt),

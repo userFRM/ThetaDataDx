@@ -158,9 +158,13 @@ tick_array_type!(TdxOhlcTickArray, tdbe::OhlcTick);
 tick_array_type!(TdxTradeTickArray, tdbe::TradeTick);
 tick_array_type!(TdxQuoteTickArray, tdbe::QuoteTick);
 // Per-order Greeks subsets emitted by `option_*_greeks_first_order` /
-// `_second_order` / `_third_order`. The full union (`option_*_greeks_all`,
-// `_greeks_eod`) lands on `TdxGreeksAllTickArray`.
+// `_second_order` / `_third_order`. The full union for the interval-sampled
+// `option_*_greeks_all` endpoints lands on `TdxGreeksAllTickArray`; the
+// end-of-day endpoint `option_history_greeks_eod` lands on
+// `TdxGreeksEodTickArray` (carries 12 EOD trade/quote columns absent from
+// the interval-sampled all-union shape).
 tick_array_type!(TdxGreeksAllTickArray, tdbe::GreeksAllTick);
+tick_array_type!(TdxGreeksEodTickArray, tdbe::GreeksEodTick);
 tick_array_type!(TdxGreeksFirstOrderTickArray, tdbe::GreeksFirstOrderTick);
 tick_array_type!(TdxGreeksSecondOrderTickArray, tdbe::GreeksSecondOrderTick);
 tick_array_type!(TdxGreeksThirdOrderTickArray, tdbe::GreeksThirdOrderTick);
@@ -187,6 +191,11 @@ tick_array_type!(
 );
 tick_array_type!(TdxIvTickArray, tdbe::IvTick);
 tick_array_type!(TdxPriceTickArray, tdbe::PriceTick);
+// Trade-shaped row emitted by `index_at_time_price` (10 wire columns:
+// `timestamp`, `sequence`, `ext_condition1..4`, `condition`, `size`,
+// `exchange`, `price`). Distinct from the bare `TdxPriceTickArray`
+// used by `index_snapshot_price` / `index_history_price` (3 columns).
+tick_array_type!(TdxIndexPriceAtTimeTickArray, tdbe::IndexPriceAtTimeTick);
 tick_array_type!(TdxOpenInterestTickArray, tdbe::OpenInterestTick);
 tick_array_type!(TdxMarketValueTickArray, tdbe::MarketValueTick);
 tick_array_type!(TdxCalendarDayArray, tdbe::CalendarDay);
@@ -212,6 +221,7 @@ tick_array_free!(tdx_ohlc_tick_array_free, TdxOhlcTickArray);
 tick_array_free!(tdx_trade_tick_array_free, TdxTradeTickArray);
 tick_array_free!(tdx_quote_tick_array_free, TdxQuoteTickArray);
 tick_array_free!(tdx_greeks_all_tick_array_free, TdxGreeksAllTickArray);
+tick_array_free!(tdx_greeks_eod_tick_array_free, TdxGreeksEodTickArray);
 tick_array_free!(
     tdx_greeks_first_order_tick_array_free,
     TdxGreeksFirstOrderTickArray
@@ -246,6 +256,10 @@ tick_array_free!(
 );
 tick_array_free!(tdx_iv_tick_array_free, TdxIvTickArray);
 tick_array_free!(tdx_price_tick_array_free, TdxPriceTickArray);
+tick_array_free!(
+    tdx_index_price_at_time_tick_array_free,
+    TdxIndexPriceAtTimeTickArray
+);
 tick_array_free!(tdx_open_interest_tick_array_free, TdxOpenInterestTickArray);
 tick_array_free!(tdx_market_value_tick_array_free, TdxMarketValueTickArray);
 tick_array_free!(tdx_calendar_day_array_free, TdxCalendarDayArray);

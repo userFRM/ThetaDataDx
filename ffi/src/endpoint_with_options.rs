@@ -1920,9 +1920,9 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
     end_date: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxGreeksAllTickArray {
-    ffi_boundary!(TdxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxGreeksAllTickArray { data: ptr::null(), len: 0 };
+) -> TdxGreeksEodTickArray {
+    ffi_boundary!(TdxGreeksEodTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxGreeksEodTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1955,7 +1955,7 @@ pub unsafe extern "C" fn tdx_option_history_greeks_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match TdxGreeksAllTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::GreeksEodTicks(values)) => match TdxGreeksEodTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));
@@ -3173,9 +3173,9 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
     time_of_day: *const c_char
 ,
     options: *const TdxEndpointRequestOptions,
-) -> TdxPriceTickArray {
-    ffi_boundary!(TdxPriceTickArray { data: ptr::null(), len: 0 }, {
-        let empty = TdxPriceTickArray { data: ptr::null(), len: 0 };
+) -> TdxIndexPriceAtTimeTickArray {
+    ffi_boundary!(TdxIndexPriceAtTimeTickArray { data: ptr::null(), len: 0 }, {
+        let empty = TdxIndexPriceAtTimeTickArray { data: ptr::null(), len: 0 };
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3208,7 +3208,7 @@ pub unsafe extern "C" fn tdx_index_at_time_price_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_at_time_price", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match TdxPriceTickArray::from_vec(values) {
+            Ok(thetadatadx::EndpointOutput::IndexPriceAtTimeTicks(values)) => match TdxIndexPriceAtTimeTickArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
                     set_error(&format!("interior NUL in server string: {e}"));

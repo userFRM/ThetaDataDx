@@ -52,6 +52,7 @@ impl_contract_id!(OpenInterestTick);
 impl_contract_id!(TradeQuoteTick);
 impl_contract_id!(MarketValueTick);
 impl_contract_id!(GreeksAllTick);
+impl_contract_id!(GreeksEodTick);
 impl_contract_id!(GreeksFirstOrderTick);
 impl_contract_id!(GreeksSecondOrderTick);
 impl_contract_id!(GreeksThirdOrderTick);
