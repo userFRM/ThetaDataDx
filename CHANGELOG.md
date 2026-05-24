@@ -132,6 +132,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   legitimate "live test, credentials required" skips in
   `dropped_events.test.mjs` are preserved with a clarifying comment.
   Closes audit BL-15.
+- `mdds::client::connect` `tracing::info!` no longer records the
+  configured Nexus URL; the URL field is moved behind a
+  `tracing::trace!` companion log matching the prior downgrade on
+  `auth::nexus::authenticate_at`. Production INFO buffers no longer
+  capture deployment-topology data by default. Closes audit S56.
 
 ### Changed (BREAKING — v11)
 
