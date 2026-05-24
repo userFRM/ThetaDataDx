@@ -222,6 +222,34 @@ macro_rules! require_symbol_array {
     };
 }
 
+/// Dereference an opaque `*mut TdxConfig` (or `*mut TdxFallbackPolicy`)
+/// handle into a `&mut` reference. Null is treated as a no-op: every
+/// `tdx_config_set_*` shim silently returns without setting an error
+/// when the caller passes null (matches the historical per-call site
+/// behaviour the macro replaces). Use [`require_client!`] when null
+/// must produce an `Err` instead.
+///
+/// Centralises the `if is_null() { return; }; unsafe { &mut *config }`
+/// pattern that audit S23/S24 found repeated 30+ times across
+/// `ffi/src/auth.rs` and `ffi/src/fallback.rs`. The SAFETY block
+/// names the actual invariant (pointer returned by `tdx_*_new`, not
+/// yet freed) once, instead of paraphrasing it inline at every
+/// setter.
+macro_rules! require_config_mut {
+    ($config:ident) => {{
+        if $config.is_null() {
+            return;
+        }
+        // SAFETY: caller passes a pointer returned by `tdx_direct_config_new` (or `tdx_fallback_policy_new` etc.) that has not been freed; null was rejected above; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
+        unsafe { &mut *$config }
+    }};
+}
+
+// `require_config_ref!` macro will be wired in alongside the C ABI
+// getter additions per audit S32-S36 (Config readback parity for the
+// C++ test suite). Deferred to that follow-up so this commit stays
+// scoped to the mutation-side cleanup.
+
 #[cfg(test)]
 mod tests {
     //! Unit tests for the typed error-code surface introduced by the

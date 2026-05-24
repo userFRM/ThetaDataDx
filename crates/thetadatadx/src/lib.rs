@@ -97,8 +97,18 @@ pub mod fpss;
 #[cfg(any(feature = "polars", feature = "arrow"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "polars", feature = "arrow"))))]
 pub mod frames;
+
+// The `grpc` module hosts in-house transport infrastructure (Channel,
+// ChannelPool, DecoderPool, Stage2Pool, Codec, Status, ServerStreaming).
+// The user-facing path is `MddsClient::for_each_chunk(ServerStreaming<..>)`;
+// the remainder is consumed by the SDK's own integration tests + benches.
+// `#[doc(hidden)]` keeps the module out of rustdoc / `help()` output and
+// signals to consumers that names below are not a SemVer commitment.
+// Full narrowing to `pub(crate)` is deferred to v11 — see BL-1 in
+// `/tmp/whole_repo_audit_findings.md`.
+#[doc(hidden)]
 pub mod grpc;
-pub mod observability;
+pub(crate) mod observability;
 pub mod rest;
 pub mod util;
 

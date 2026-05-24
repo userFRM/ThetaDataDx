@@ -219,14 +219,14 @@ pub enum FpssControl {
 /// # Layout
 ///
 /// Declared `#[repr(C, u8)]` with explicit discriminants so the in-memory
-/// layout is shared with [`FpssEventInternal`]: both enums encode `Data`
-/// at discriminant `0` and `Control` at discriminant `1`, with identical
-/// payload positions. The I/O loop publishes `FpssEventInternal` into the
-/// Disruptor ring (so it can also carry decode-fallback / placeholder
-/// variants without surfacing them publicly), then delivers a
-/// `&FpssEvent` reference to the user callback for `Data`/`Control` slots
-/// only — see [`FpssEventInternal::as_public`] for the layout-compatible
-/// reborrow that makes that zero-clone.
+/// layout is shared with the crate-private `FpssEventInternal`: both
+/// enums encode `Data` at discriminant `0` and `Control` at
+/// discriminant `1`, with identical payload positions. The I/O loop
+/// publishes `FpssEventInternal` into the Disruptor ring (so it can
+/// also carry decode-fallback / placeholder variants without surfacing
+/// them publicly), then delivers a `&FpssEvent` reference to the user
+/// callback for `Data` / `Control` slots only via a layout-compatible
+/// zero-clone reborrow.
 #[derive(Debug, Clone)]
 #[repr(C, u8)]
 #[non_exhaustive]

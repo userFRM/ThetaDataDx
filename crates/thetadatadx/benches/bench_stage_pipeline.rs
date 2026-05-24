@@ -1,79 +1,19 @@
 //! Two-stage decode pipeline benchmarks (#584, Phase 2 of 3).
 //!
-//! Exercises [`thetadatadx::grpc::Stage2Pool`] — the shared
-//! `prost::Message::decode` + `Tick`-build worker pool that runs
-//! downstream of the per-channel zstd-decompress stage. Stage-1 hands
-//! [`DecodedPayload`] handles (already-decompressed protobuf bytes)
-//! through a bounded MPSC queue; stage-2 fans the prost decode out
-//! across M worker threads so a single slow channel cannot saturate
-//! decode capacity for the whole pool.
+//! Exercises the shared `prost::Message::decode` + `Tick`-build worker
+//! pool that runs downstream of the per-channel zstd-decompress stage.
+//! Pins three invariants: linear scaling in worker count, linear scaling
+//! in payload size, and bounded backpressure cost on parked sends.
 //!
-//! # Scenarios
+//! Scenarios: `pipeline_throughput/workers={1,2,4,8}`,
+//! `pipeline_alloc_pressure/rows={256,1024,4096,16384}`,
+//! `pipeline_false_sharing/tiny_payloads` (regression detector for the
+//! `CachePadded` wrappers on `Stage2Counters`),
+//! `pipeline_backpressure/parked_send` (deliberately under-provisioned
+//! pool; asserts `total_parked` advances).
 //!
-//! * `pipeline_throughput/workers={1,2,4,8}` — sweep worker count at
-//!   a fixed 1024-row quote payload. Queue depth scales with worker
-//!   count (`workers * 64`) so the queue is not the bottleneck.
-//!   Throughput in jobs/sec; should scale near-linearly until the
-//!   host's available parallelism ceiling.
-//!
-//! * `pipeline_alloc_pressure/rows={256,1024,4096,16384}` — fix
-//!   `(workers=4, queue=256)` and sweep payload row count. Throughput
-//!   reported in ticks/sec so a constant ticks/sec across row counts
-//!   confirms the prost decode scales linearly with payload size and
-//!   the allocator is not the bottleneck at large row counts.
-//!
-//! * `pipeline_false_sharing/tiny_payloads` — saturate
-//!   `(workers=8, queue=512)` with tiny (256-row) payloads. The
-//!   [`Stage2Counters`] struct wraps each `AtomicU64` in
-//!   [`crossbeam_utils::CachePadded`] so concurrent stage-1 and
-//!   stage-2 increments on the three counters land on different
-//!   cache lines. This scenario is a regression detector: if a future
-//!   patch drops the `CachePadded` wrappers, the false-sharing stall
-//!   on the hot counter increments will trip the baseline diff.
-//!
-//! * `pipeline_backpressure/parked_send` — feed a deliberately
-//!   under-provisioned pool `(workers=2, queue=4)` at 4× the drain
-//!   rate. The bench measures wall-clock for a burst large enough
-//!   that the producer thread must park on a full queue many times,
-//!   and asserts the `total_parked` counter advances. Pins the
-//!   baseline park-rate observable so future regressions in
-//!   stage-1's park-on-full path (a silent drop, a busy-spin, a lost
-//!   counter increment) trip CI.
-//!
-//! # Why this matters
-//!
-//! Stage-2 is on the hot path for every gRPC response — its decode
-//! latency is the per-response p50 the SDK reports to callers. The
-//! four scenarios above lock in three invariants the production
-//! pipeline relies on:
-//!
-//! 1. **Linear scaling in worker count** — stage-2 is embarrassingly
-//!    parallel; a regression that introduced false-sharing or a
-//!    shared lock would flatten the throughput curve.
-//! 2. **Linear scaling in payload size** — prost decode is O(bytes);
-//!    a regression in `Vec` growth strategy or the protobuf field
-//!    iteration would inflate the per-byte cost at large payloads.
-//! 3. **Bounded backpressure cost** — stage-1 parks instead of
-//!    dropping; a regression that re-introduced drop-on-full would
-//!    silently corrupt the market-data feed.
-//!
-//! # Note on baselines
-//!
-//! The companion `benches/baseline/bench_stage_pipeline.toml` is
-//! informational only — the canonical baseline is
-//! `benches/baseline/criterion.json`, which the
-//! `scripts/check_bench_regression.py` CI gate consumes. This bench
-//! is not yet in the gated set; the TOML carries the local-run
-//! samples so a future opt-in (after a baseline is observed on the
-//! GH-hosted runner) is a copy-paste away.
-//!
-//! # Activation
-//!
-//! The bench reaches into `Stage2Pool::submit_for_bench`, which is
-//! compiled out unless `--cfg bench_internals` is set. The file
-//! therefore guards every item below on the same cfg and falls back
-//! to an empty `main` so `cargo build --benches` does not break for
-//! contributors who never opt in. Run via:
+//! Activation: gated on `--cfg bench_internals` because it reaches
+//! into the test-only `Stage2Pool::submit_for_bench`. Run via:
 //!
 //! ```sh
 //! RUSTFLAGS='--cfg bench_internals' cargo bench \

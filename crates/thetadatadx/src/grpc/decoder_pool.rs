@@ -264,8 +264,11 @@ impl RingEvent {
     /// Caller must be the producer holding exclusive access to this
     /// slot's sequence number.
     unsafe fn write(&self, request: DecodeRequest) {
-        // SAFETY: see method docstring — producer barrier guarantees
-        // exclusivity at this sequence position.
+        // SAFETY: the caller's producer-side disruptor barrier has
+        // already claimed this sequence position exclusively — no
+        // other thread can hold a reference to the cell at the same
+        // sequence until the producer publishes. The store therefore
+        // races with nothing.
         unsafe { *self.request.get() = Some(request) };
     }
 
@@ -279,8 +282,11 @@ impl RingEvent {
     /// Caller must be the consumer holding exclusive access to this
     /// slot's sequence number.
     unsafe fn take(&self) -> Option<DecodeRequest> {
-        // SAFETY: see method docstring — consumer barrier guarantees
-        // exclusivity at this sequence position.
+        // SAFETY: the caller's consumer-side disruptor barrier has
+        // committed the matching producer sequence (Acquire ordering)
+        // and no other consumer reads this same slot — the consumer
+        // is single-threaded per `DecoderHandle`. The `take()` thus
+        // races with nothing.
         unsafe { (*self.request.get()).take() }
     }
 }
@@ -1124,11 +1130,14 @@ mod tests {
                     .expect("submit succeeds"),
             );
         }
-        for rx in rxs {
-            let table = rx
-                .await
-                .expect("oneshot delivered")
-                .expect("decode succeeds");
+        // Await every oneshot concurrently so the test exercises the
+        // multi-worker fan-out instead of sequentialising waits — a
+        // sequential await loop would let a single worker drain
+        // submissions one-by-one and would still pass with a broken
+        // multi-worker dispatcher. S44 fix.
+        let tables: Vec<_> = futures::future::join_all(rxs).await;
+        for result in tables {
+            let table = result.expect("oneshot delivered").expect("decode succeeds");
             assert_eq!(table.data_table.len(), 8);
         }
         drop(pool);

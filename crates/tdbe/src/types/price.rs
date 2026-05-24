@@ -359,17 +359,31 @@ mod tests {
     }
 
     /// Every valid `price_type` (`0..=MAX_PRICE_TYPE`, i.e. `0..=19`)
-    /// round-trips through Display and to_f64 without panicking. Pins
-    /// the invariant that the POW10 tables are correctly sized for the
-    /// supported range, including the index-19 placeholder slot.
+    /// renders and converts to `f64` without panicking. Pins the
+    /// invariant that the POW10 tables are correctly sized for the
+    /// supported range, including the index-19 placeholder slot, and
+    /// that both Display and to_f64 agree on a finite numeric value.
+    /// (Renamed from `_round_trips` -- the assertion is "no panic +
+    /// finite numeric", not a Display->parse round-trip, per S37.)
     #[test]
-    fn every_valid_price_type_round_trips() {
+    fn every_valid_price_type_renders_and_converts_finitely() {
         for pt in 0..=MAX_PRICE_TYPE {
             let p = Price::new(12345, pt);
-            // Display path must not panic for any valid price_type.
-            let _ = p.to_string();
-            // to_f64 path must not panic for any valid price_type.
-            let _ = p.to_f64();
+            // Display path must not panic for any valid price_type
+            // AND must produce a non-empty string.
+            let rendered = p.to_string();
+            assert!(
+                !rendered.is_empty(),
+                "Display must produce a non-empty string for price_type {pt}"
+            );
+            // to_f64 path must not panic AND must return a finite value
+            // for any valid price_type. NaN / infinity would imply the
+            // POW10 divisor was zero or the cast wrapped past f64 range.
+            let f = p.to_f64();
+            assert!(
+                f.is_finite(),
+                "to_f64 must be finite for price_type {pt}; got {f}"
+            );
         }
     }
 

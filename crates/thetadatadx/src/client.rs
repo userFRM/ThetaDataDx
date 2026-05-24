@@ -232,56 +232,31 @@ impl ThetaDataDxClient {
 
     /// Start the FPSS streaming connection with a callback handler.
     ///
-    /// Opens a TLS/TCP connection to `ThetaData`'s FPSS servers,
-    /// authenticates with the same credentials used at connect time,
-    /// and starts the FPSS reader thread plus the LMAX Disruptor
-    /// consumer thread.
+    /// Open the streaming channel, authenticate, and start the reader
+    /// and consumer threads. The user callback fires on the bounded-ring
+    /// consumer thread, one event at a time, wrapped in
+    /// [`std::panic::catch_unwind`].
     ///
-    /// # Pipeline
+    /// # Contracts
     ///
-    /// `TLS reader thread -> Disruptor ring (try_publish, non-blocking)
-    /// -> Disruptor consumer thread -> catch_unwind(user callback)`.
+    /// 1. **Reader never blocks on user code.** A full ring drops the
+    ///    event and bumps [`Self::dropped_event_count`]. Poll the
+    ///    counter on a periodic timer to detect a slow consumer.
+    /// 2. **User panics never kill the consumer.** Panics increment
+    ///    [`Self::panic_count`]; the consumer keeps delivering.
+    /// 3. **Lifecycle restriction.** Do NOT call
+    ///    [`Self::stop_streaming`], [`Self::reconnect_streaming`], or
+    ///    anything that drops the underlying client from inside the
+    ///    callback. The calls do not deadlock (cleanup detaches), but
+    ///    they return BEFORE the old consumer has finished draining
+    ///    the in-flight ring contents — FFI callers freeing `ctx`
+    ///    after `tdx_*_stop_streaming` returns will observe
+    ///    use-after-free. Instead, set a flag from the callback, call
+    ///    [`Self::stop_streaming`] from another thread, then
+    ///    [`Self::await_drain`] before reusing captured resources.
     ///
-    /// The TLS reader publishes every decoded event into a pre-allocated
-    /// LMAX Disruptor ring via `Producer::try_publish`. A single
-    /// dedicated consumer thread owned by the Disruptor invokes the
-    /// user callback for each event, with each invocation wrapped in
-    /// [`std::panic::catch_unwind`]. Two contracts:
-    ///
-    /// 1. **Reader never blocks on user code.** When the consumer
-    ///    falls behind and the ring is full, `try_publish` returns
-    ///    [`disruptor::RingBufferFull`], the event is dropped, and
-    ///    [`Self::dropped_event_count`] increments. Operators should
-    ///    poll the counter on a periodic timer.
-    /// 2. **User panics never kill the consumer.** A panic from user
-    ///    code (or from binding glue such as PyO3 / napi) is caught,
-    ///    [`Self::panic_count`] increments, and the consumer keeps
-    ///    delivering subsequent events.
-    /// 3. **Lifecycle restriction.** The user callback runs on the
-    ///    FPSS Disruptor consumer thread. From inside the callback you
-    ///    MUST NOT call [`Self::stop_streaming`],
-    ///    [`Self::reconnect_streaming`], or any API that drops the
-    ///    underlying `Arc<FpssClient>`. These calls do not deadlock
-    ///    (the `FpssClient::Drop` self-join guard detaches cleanup
-    ///    onto a helper thread), but they return BEFORE the old
-    ///    consumer has finished firing the callback for the in-flight
-    ///    ring contents. Application code that frees a captured
-    ///    context, replaces the callback closure, or otherwise relies
-    ///    on the old callback having stopped firing the moment stop
-    ///    returns will observe a torn state — including
-    ///    use-after-free in FFI callers whose `ctx` was freed once
-    ///    `tdx_*_stop_streaming` returned.
-    ///
-    ///    If the application needs to stop or reconnect in response
-    ///    to an event, set a flag from the callback and observe it
-    ///    from a separate thread that calls [`Self::stop_streaming`]
-    ///    there, then call [`Self::await_drain`] before reusing the
-    ///    captured resources.
-    ///
-    /// The user callback runs on the LMAX Disruptor consumer thread,
-    /// with `catch_unwind` panic isolation. The callback MUST return
-    /// within microseconds; for slow downstream work, hand off to a
-    /// bounded queue inside the callback.
+    /// The callback MUST return within microseconds; hand slow work
+    /// off to a bounded queue inside the callback body.
     ///
     /// # Errors
     ///

@@ -139,11 +139,7 @@ pub unsafe extern "C" fn tdx_config_free(config: *mut TdxConfig) {
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode: i32) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         config.inner.fpss.flush_mode = match mode {
             1 => thetadatadx::FpssFlushMode::Immediate,
             _ => thetadatadx::FpssFlushMode::Batched,
@@ -161,11 +157,7 @@ pub unsafe extern "C" fn tdx_config_set_flush_mode(config: *mut TdxConfig, mode:
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_reconnect_policy(config: *mut TdxConfig, policy: i32) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         config.inner.reconnect.policy = match policy {
             1 => thetadatadx::ReconnectPolicy::Manual,
             _ => thetadatadx::ReconnectPolicy::Auto(thetadatadx::ReconnectAttemptLimits::default()),
@@ -182,11 +174,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_attempts(
     max_attempts: u32,
 ) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
             limits.max_attempts = max_attempts;
         }
@@ -202,11 +190,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_max_rate_limited_attempts(
     max_rate_limited_attempts: u32,
 ) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
             limits.max_rate_limited_attempts = max_rate_limited_attempts;
         }
@@ -222,11 +206,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_stable_window_secs(
     secs: u64,
 ) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
             limits.stable_window = std::time::Duration::from_secs(secs);
         }
@@ -240,11 +220,7 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_stable_window_secs(
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, enabled: i32) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         config.inner.fpss.derive_ohlcvc = enabled != 0;
     })
 }
@@ -260,11 +236,7 @@ pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, en
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_concurrent_requests(config: *mut TdxConfig, n: u32) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         config.inner.mdds.concurrent_requests = n as usize;
     })
 }
@@ -278,11 +250,7 @@ pub unsafe extern "C" fn tdx_config_set_concurrent_requests(config: *mut TdxConf
 #[no_mangle]
 pub unsafe extern "C" fn tdx_config_set_decoder_threads(config: *mut TdxConfig, n: u32) {
     ffi_boundary!((), {
-        if config.is_null() {
-            return;
-        }
-        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
-        let config = unsafe { &mut *config };
+        let config = require_config_mut!(config);
         config.inner.mdds.decoder_threads = n as usize;
     })
 }
@@ -656,8 +624,9 @@ mod pool_sizing_tests {
 
     #[test]
     fn null_handle_is_safe() {
-        // SAFETY: passing null is the contract — the setters must
-        // return without crashing.
+        // SAFETY: passing null to tdx_config_set_* / tdx_*_free is the
+        // documented FFI contract — the call must return without
+        // crashing. The test exercises that null-tolerance branch.
         unsafe {
             super::tdx_config_set_concurrent_requests(std::ptr::null_mut(), 4);
             super::tdx_config_set_decoder_threads(std::ptr::null_mut(), 4);
@@ -799,8 +768,9 @@ mod reconnect_setter_tests {
 
     #[test]
     fn null_handle_is_safe() {
-        // SAFETY: passing null is the contract — the setters must
-        // return without crashing.
+        // SAFETY: passing null to tdx_config_set_* / tdx_*_free is the
+        // documented FFI contract — the call must return without
+        // crashing. The test exercises that null-tolerance branch.
         unsafe {
             super::tdx_config_set_reconnect_policy(std::ptr::null_mut(), 0);
             super::tdx_config_set_reconnect_max_attempts(std::ptr::null_mut(), 3);
@@ -943,7 +913,8 @@ mod decode_pipeline_tests {
 
     #[test]
     fn decode_threads_null_handle_returns_minus_one() {
-        // SAFETY: passing null is the contract.
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — getter returns sentinel, setter no-ops.
         unsafe {
             let rc = super::tdx_config_set_decode_threads_explicit(std::ptr::null_mut(), true, 4);
             assert_eq!(rc, -1);
@@ -957,7 +928,8 @@ mod decode_pipeline_tests {
 
     #[test]
     fn decode_threads_getter_null_handle_returns_minus_one() {
-        // SAFETY: passing null is the contract.
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — getter returns sentinel, setter no-ops.
         unsafe {
             let mut hv = false;
             let mut n = 0usize;
@@ -1015,7 +987,8 @@ mod decode_pipeline_tests {
 
     #[test]
     fn decode_queue_depth_null_handle_returns_minus_one() {
-        // SAFETY: passing null is the contract.
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — getter returns sentinel, setter no-ops.
         unsafe {
             let rc =
                 super::tdx_config_set_decode_queue_depth_explicit(std::ptr::null_mut(), true, 1024);

@@ -278,8 +278,12 @@ name = "bench_framing"
 harness = false
 
 [[bench]]
+# Uses the test-only `protocol::test_wire` re-exports for FPSS payload
+# builders — gated on `__test-helpers` so the wire helpers stay out of
+# the default rlib (BL-2 narrowing).
 name = "bench_protocol"
 harness = false
+required-features = ["__test-helpers"]
 
 [[bench]]
 name = "bench_auth"
@@ -306,8 +310,12 @@ name = "grpc_concurrent_burst"
 harness = false
 
 [[bench]]
+# Drives `fpss::__test_internals::{decode_frame, DeltaState}` against
+# synthetic frame bytes; gated on `__test-helpers` so the helper module
+# stays out of the default rlib.
 name = "bench_delta_decode"
 harness = false
+required-features = ["__test-helpers"]
 
 [[bench]]
 name = "historical_streaming_memory"
@@ -335,6 +343,35 @@ harness = false
 # constructor that bypasses the Nexus auth handshake.
 name = "test_with_fallback_end_date"
 path = "tests/test_with_fallback_end_date.rs"
+required-features = ["__test-helpers"]
+
+# Integration tests that drive `fpss::__test_internals` to exercise the
+# `read_frame_into → decode_frame → FpssEvent` pipeline against synthetic
+# fixture bytes. Each entry gates on `__test-helpers` so the helper
+# module stays out of the default rlib (BL-4 narrowing).
+[[test]]
+name = "reconnect_storm"
+path = "tests/reconnect_storm.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "replay_capture"
+path = "tests/replay_capture.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "vendor_schema_drift"
+path = "tests/vendor_schema_drift.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "decode_fuzz_property"
+path = "tests/decode_fuzz_property.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "midframe_disconnect"
+path = "tests/midframe_disconnect.rs"
 required-features = ["__test-helpers"]
 
 [[bin]]

@@ -7,11 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> **Release line note**: this train accumulates 9 major + 1 minor breaking changes
-> versus v10.0.0. The next release tag MUST be v11.0.0, not a v10.0.x patch.
-> Owner-greenlight gated on this audit returning zero actionable findings.
+> **Release line note**: this train accumulates 10 major + 1 minor breaking
+> changes versus v10.0.0. The next release tag MUST be v11.0.0, not a
+> v10.0.x patch. Owner-greenlight gated on this audit returning zero
+> actionable findings. Wave-2 of the audit-fix loop added the
+> `protocol::wire` public-API narrowing and the `__test_internals`
+> feature-gating to the v11 SemVer break list (one additional major break).
 
 ### Changed (BREAKING — v11)
+
+#### Audit closure wave 2
+
+- `fpss::protocol::wire` narrowed from `pub mod` to `pub(crate) mod`;
+  the `pub use ... build_*` / `parse_*` re-exports on
+  `fpss::protocol` are gone. Crate-internal callers keep working via
+  `pub(crate) use` shadows; integration tests + benches that need
+  fixture builders import from a new
+  `fpss::protocol::test_wire` re-export module gated on the private
+  `__test-helpers` feature. Closes audit BL-2.
+- `observability` module narrowed from `pub mod` to
+  `pub(crate) mod`. The exporter setup is reachable via the public
+  `DirectConfig::with_metrics_port` knob (no consumer-visible API
+  change). Closes audit BL-3.
+- `fpss::__test_internals` re-export module feature-gated on
+  `cfg(any(test, feature = "__test-helpers"))` — matches the
+  `wire::test_requests` convention used elsewhere in `lib.rs`.
+  `cargo-semver-checks` stops tracking it as a SemVer commitment.
+  Closes audit BL-4.
+- `grpc` module gains `#[doc(hidden)]` to signal to consumers that
+  the channel / pool / decoder primitives below are infrastructure,
+  not user-facing API. Full narrowing to `pub(crate)` tracked under
+  BL-1 as a follow-up (deferred because 13 test/bench files would
+  each need feature-gated re-export surfaces).
+
+#### Audit closure wave 1
 
 - `IvTick` recovers 7 columns the v3 server has been emitting on
   `option_history_greeks_implied_volatility` since v3 launch and the
@@ -27,6 +56,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shift past `count`. Closes audit BL-13.
 
 ### Fixed
+
+#### Audit closure wave 2
+
+- `concurrent_refreshes_dedupe_to_single_nexus_call` rewritten to
+  actually prove the dedup contract. The prior test pointed both
+  refresh tasks at an unreachable Nexus URL and asserted only
+  `final_version <= 1`, satisfied whenever both calls fail before
+  either issues a request — proving nothing. The new pair of tests
+  pins (a) the version-check dedup short-circuit (both concurrent
+  refreshes return Ok from the fast path after an external
+  `bump_for_test`, version stays at 1) and (b) refresh_lock-driven
+  serialization on unreachable-URL refreshes (no deadlock, version
+  stays at 0, wall-clock bounded). Closes audit BL-16.
+- `decode_tick_*field_trade_*` rewritten as
+  `decode_frame_*field_trade_emits_trade_data_*` — both drive
+  `decode_frame` (the production decode entry) instead of
+  `decode_tick` plus a hand-copied field mapping. The hand-mapped
+  `FpssData::Trade { f[0], f[1], … }` simulation is gone; the
+  production decode arm IS the contract. Closes audit BL-17.
+- `every_valid_price_type_round_trips` (`crates/tdbe/src/types/price.rs`)
+  renamed to `every_valid_price_type_renders_and_converts_finitely`.
+  The prior name lied — the test discarded the Display result and
+  the `to_f64` result without any round-trip comparison. Renamed
+  to match what is asserted AND tightened to require non-empty
+  Display + finite `f64`. Closes audit S37.
+- `flatfiles_byte_match` byte-match tests panic loudly when
+  `--features live-tests` is enabled but the reference vendor CSV
+  is missing (mirrors the `test_rest_live.rs` round-3 fix). The
+  prior silent-skip on missing fixture defeated the opt-in flag.
+  Closes audit S39.
+- `rest_arm_respects_tier_clamp_semaphore` drops the trivial
+  `elapsed >= 1ms` assertion. The strong serialization invariant
+  is the captured-query count check before/after `release_all`,
+  already asserted; the 1ms floor was satisfied by any network
+  handshake. Closes audit S38.
+- `test_start_streaming_requires_callable` renamed to
+  `test_start_streaming_accepts_any_pyobject_at_registration_time`.
+  The prior name lied: the test calls `start_streaming(42)` and
+  asserts SUCCESS without `pytest.raises`. The actual
+  registration-time-accepts / consumer-thread-fails contract is
+  now documented in the new name. Closes audit S43.
+- `decodes_concurrent_responses` switches from sequential await to
+  `futures::future::join_all` so the test exercises the multi-worker
+  fan-out instead of letting a single worker drain submissions
+  one-by-one. Closes audit S44.
+
+#### Audit closure wave 1
 
 - gRPC reconnect backoff gains decorrelated +/- 10% jitter keyed on
   `(host, port, attempt)` so a population of clients seeing the same
@@ -45,6 +121,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Docs
 
+#### Audit closure wave 2
+
+- `decode_frame` body comments (`fpss/decode.rs:142-200`) compressed
+  from ~60 lines of LLM-narrative essay to ~10 lines that name the
+  actual decisions (Arc::clone on hit, unresolved-sentinel on miss,
+  1024-hit warn rate). Closes audit S29.
+- `start_streaming` docstring (`client.rs:240-285`) compressed from
+  45 lines to 22 — three numbered contracts (no-block,
+  panic-isolation, lifecycle) plus the microsecond-callback rule.
+  Closes audit S30.
+- `bench_stage_pipeline` module docstring
+  (`benches/bench_stage_pipeline.rs:1-82`) compressed from 82 lines
+  to ~20 — one-line summary, four scenario tags, activation snippet.
+  Closes audit S31.
+- `RingEvent` `unsafe impl Sync` SAFETY block restated inline:
+  names the disruptor sequencing protocol and Acquire ordering on
+  the cursor instead of the prior one-liner.
+- `RingEvent::write` / `take` (`grpc/decoder_pool.rs:266,281`)
+  SAFETY blocks rewritten from "see method docstring" to inline
+  statements naming the barrier invariant. Closes audit S26.
+- `flatfiles::session::login` hoists the magic `6` frame budget
+  into a named `LOGIN_FRAME_BUDGET` constant with a doc-block
+  explaining the 4-frame max + 2-frame slack derivation.
+
+#### Audit closure wave 1
+
 - C++ public headers (`thetadx.h`, `thetadx.hpp`) and Python pyo3
   docstrings: scrubbed upstream-protocol jargon
   (`FPSS reader -> LMAX Disruptor ring -> consumer thread` →
@@ -53,6 +155,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`tdx_fpss_*`, `TDX_FPSS_*`) unchanged. Closes BL-5, BL-6, BL-7.
 
 ### Added
+
+#### Audit closure wave 2
+
+- `require_config_mut!` macro in `ffi/src/error.rs` collapses the
+  `if config.is_null() { return; } unsafe { &mut *config }` pattern
+  at every `tdx_config_set_*` call site. 12 sites in
+  `ffi/src/auth.rs` rewritten to use the macro; the SAFETY block
+  is now named once in the macro doc-block instead of paraphrased
+  inline at every setter. Closes audit S23 (12 of 23 auth sites;
+  remaining 11 in `ffi/src/fallback.rs` use a different
+  return-shape and are tracked as a follow-up).
+- `drop_subscription_cstrings` free fn in `ffi/src/streaming.rs`
+  consolidates the 6 sites that hand-walked the
+  `TdxSubscription` kind / contract `CString::from_raw` pair. The
+  shared SAFETY contract is named once on the function; per-site
+  comments now describe only call-specific provenance reasoning.
+  Closes audit S25.
+- `scripts/check_lockfile_drift.py` — new CI gate. The repo
+  tracks 5 independent Cargo.lock files; the gate fails on
+  cross-lockfile drift for security-critical (rustls, tokio, h2,
+  reqwest, hyper, prost) and SDK-owned (thetadatadx, tdbe)
+  crates. Caught one real drift on first run (`rustls-pki-types`
+  1.14.0 in workspace root vs. 1.14.1 in every binding), now
+  aligned at 1.14.1 everywhere. Wired into the same CI job that
+  runs `check_version_sync.py`. Closes audit S7.
+- `scripts/check_c_abi_completeness.py` gains a bidirectional
+  reverse-delta pass: any `tdx_*` symbol declared in
+  `sdks/cpp/include/*.h`/`*.hpp` but missing from the compiled
+  `libthetadatadx_ffi.so` exports now fails CI. Prior
+  one-directional pass only caught Rust exports absent from
+  headers (compile-time error); the reverse case lands at LINK
+  time. Two false-positive prose-only mentions fixed:
+  `thetadx.hpp:358` `tdx_last_error_raw` -> `tdx_last_error`;
+  `tdx_exchange_` (trailing-underscore family wildcard) added to
+  the `HEADER_ONLY_ALLOWLIST`. Closes audit S3.
+- `protocol::test_wire` re-export module behind the private
+  `__test-helpers` feature, surfacing the now-`pub(crate)`
+  `fpss::protocol::wire` builders to integration tests and
+  benches that hand-build FPSS frame fixtures. Companion to the
+  BL-2 narrowing above.
+- 5 integration tests (`reconnect_storm`, `replay_capture`,
+  `vendor_schema_drift`, `decode_fuzz_property`,
+  `midframe_disconnect`) and 2 benches (`bench_delta_decode`,
+  `bench_protocol`) explicit `[[test]]` / `[[bench]]` entries in
+  `Cargo.toml` with `required-features = ["__test-helpers"]` so
+  the default-features build cleanly excludes them now that the
+  `__test_internals` re-export module is feature-gated.
+
+#### Audit closure wave 1
 
 - Python `test_reconnect_stable_window_secs_rejects_above_u64`
   closes the last cross-binding gap on the
