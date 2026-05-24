@@ -157,6 +157,48 @@ export declare class Config {
    * value: `setReconnectStableWindowSecs(BigInt(60))`.
    */
   setReconnectStableWindowSecs(secs: bigint): void
+  /**
+   * Set the reconnect delay (ms) honoured for generic transient
+   * disconnects (TimedOut, ServerRestarting, Unspecified, …). Plumbed
+   * through to the FPSS I/O loop at connect time. Default `2_000n`.
+   */
+  setReconnectWaitMs(ms: bigint): void
+  /** Current reconnect `wait_ms` value (default `2_000n`). */
+  get reconnectWaitMs(): bigint
+  /**
+   * Set the reconnect delay (ms) honoured for `TooManyRequests`
+   * rate-limited disconnects. Default `130_000n` (matches the Java
+   * terminal's 130 s rate-limit cooldown).
+   */
+  setReconnectWaitRateLimitedMs(ms: bigint): void
+  /** Current reconnect `wait_rate_limited_ms` value (default `130_000n`). */
+  get reconnectWaitRateLimitedMs(): bigint
+  /**
+   * Set the `RuntimeConfig.tokio_worker_threads` knob honoured by
+   * embedded runtimes built via `RuntimeConfig::build_runtime`.
+   *
+   * `hasValue=false` defers to tokio's default sizing (one worker per
+   * logical CPU). `hasValue=true` pins worker count to `n` (with
+   * `n=0` preserved as the `Some(0)` sentinel, matching the
+   * `decode_threads` setter shape across the binding matrix).
+   */
+  setTokioWorkerThreadsExplicit(hasValue: boolean, n: number): void
+  /**
+   * Current `tokio_worker_threads` setting as `{ hasValue, n }`.
+   * `hasValue=false` encodes the `None` (auto) sentinel.
+   */
+  get tokioWorkerThreads(): TokioWorkerThreadsSetting
+}
+
+/**
+ * `(hasValue, n)` shape mirroring the FFI
+ * `tdx_config_get_tokio_worker_threads` out-params — `hasValue=false`
+ * encodes `None`, `hasValue=true` carries the explicit count (`n=0`
+ * preserved verbatim).
+ */
+export interface TokioWorkerThreadsSetting {
+  hasValue: boolean
+  n: number
 }
 
 /**

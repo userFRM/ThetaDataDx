@@ -124,3 +124,59 @@ describe('Pool-sizing setter state survives interleaved reconnect setter calls',
     assert.equal(cfg.decoderRingSize, 512);
   });
 });
+
+describe('Config.setReconnectWaitMs / setReconnectWaitRateLimitedMs', () => {
+  it('default to the wire-constant cadences', () => {
+    const cfg = Config.production();
+    assert.equal(cfg.reconnectWaitMs, 2_000n);
+    assert.equal(cfg.reconnectWaitRateLimitedMs, 130_000n);
+  });
+
+  it('round-trip via getters across the documented range', () => {
+    const cfg = Config.production();
+    for (const ms of [0n, 1n, 500n, 2_000n, 60_000n, 130_000n, 1n << 60n]) {
+      cfg.setReconnectWaitMs(ms);
+      assert.equal(cfg.reconnectWaitMs, ms);
+      cfg.setReconnectWaitRateLimitedMs(ms);
+      assert.equal(cfg.reconnectWaitRateLimitedMs, ms);
+    }
+  });
+
+  it('reject BigInt magnitudes above u64::MAX', () => {
+    const cfg = Config.production();
+    assert.throws(
+      () => cfg.setReconnectWaitMs(1n << 65n),
+      /setReconnectWaitMs/,
+      'magnitude above u64::MAX must be rejected at the boundary',
+    );
+    assert.throws(
+      () => cfg.setReconnectWaitRateLimitedMs(1n << 65n),
+      /setReconnectWaitRateLimitedMs/,
+      'magnitude above u64::MAX must be rejected at the boundary',
+    );
+  });
+});
+
+describe('Config.setTokioWorkerThreadsExplicit', () => {
+  it('default tokio_worker_threads is the None (auto) sentinel', () => {
+    const cfg = Config.production();
+    const got = cfg.tokioWorkerThreads;
+    assert.equal(got.hasValue, false, 'default must be None');
+    assert.equal(got.n, 0);
+  });
+
+  it('round-trip preserves Some(0) and explicit pinned counts', () => {
+    const cfg = Config.production();
+    for (const n of [0, 1, 2, 4, 8, 16, 64]) {
+      cfg.setTokioWorkerThreadsExplicit(true, n);
+      const got = cfg.tokioWorkerThreads;
+      assert.equal(got.hasValue, true);
+      assert.equal(got.n, n);
+    }
+    // Reset to None.
+    cfg.setTokioWorkerThreadsExplicit(false, 999);
+    const got = cfg.tokioWorkerThreads;
+    assert.equal(got.hasValue, false);
+    assert.equal(got.n, 0);
+  });
+});

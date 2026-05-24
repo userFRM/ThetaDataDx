@@ -176,3 +176,69 @@ def test_reconnect_setter_state_survives_interleaved_calls():
     assert cfg.decoder_ring_size == 512
     # Reconnect policy getter still reads the policy we set.
     assert cfg.reconnect_policy == "auto"
+
+
+# ─── ReconnectConfig.wait_ms / wait_rate_limited_ms (BL-11) ────────
+
+
+def test_reconnect_wait_ms_defaults_to_wire_constants() -> None:
+    """Defaults mirror ``ReconnectConfig::production_defaults``:
+    ``wait_ms=2_000`` (transient) / ``wait_rate_limited_ms=130_000``
+    (TooManyRequests).
+    """
+    mod = _import_module()
+    cfg = mod.Config.production()
+    assert cfg.reconnect_wait_ms == 2_000
+    assert cfg.reconnect_wait_rate_limited_ms == 130_000
+
+
+def test_reconnect_wait_ms_round_trips() -> None:
+    """Setter / getter pair round-trips across the documented u64
+    range. The values are plumbed through to the FPSS I/O loop at
+    connect time via ``reconnect_delay_for``.
+    """
+    mod = _import_module()
+    cfg = mod.Config.production()
+    for ms in [0, 1, 500, 2_000, 60_000, 130_000, 2**60]:
+        cfg.reconnect_wait_ms = ms
+        assert cfg.reconnect_wait_ms == ms
+        cfg.reconnect_wait_rate_limited_ms = ms
+        assert cfg.reconnect_wait_rate_limited_ms == ms
+
+
+def test_reconnect_wait_ms_rejects_above_u64() -> None:
+    """Magnitudes above ``u64::MAX`` must be rejected at the
+    pyo3 boundary (``OverflowError`` from the ``u64`` extractor).
+    """
+    mod = _import_module()
+    cfg = mod.Config.production()
+    with pytest.raises(OverflowError):
+        cfg.reconnect_wait_ms = 1 << 65
+    with pytest.raises(OverflowError):
+        cfg.reconnect_wait_rate_limited_ms = 1 << 65
+
+
+# ─── RuntimeConfig.tokio_worker_threads (BL-9) ─────────────────────
+
+
+def test_tokio_worker_threads_default_is_none() -> None:
+    """Default is ``None`` (tokio default sizing, one worker per
+    logical CPU).
+    """
+    mod = _import_module()
+    cfg = mod.Config.production()
+    assert cfg.tokio_worker_threads is None
+
+
+def test_tokio_worker_threads_round_trips_some_zero() -> None:
+    """``Some(0)`` is preserved verbatim across the binding boundary;
+    ``RuntimeConfig::build_runtime`` clamps it to ``1`` only inside
+    the runtime builder, never at the setter.
+    """
+    mod = _import_module()
+    cfg = mod.Config.production()
+    for n in [0, 1, 2, 4, 8, 16, 64]:
+        cfg.tokio_worker_threads = n
+        assert cfg.tokio_worker_threads == n
+    cfg.tokio_worker_threads = None
+    assert cfg.tokio_worker_threads is None

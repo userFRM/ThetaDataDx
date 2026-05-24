@@ -53,7 +53,7 @@ pub use self::events::{BackpressurePolicy, FpssControl, FpssData, FpssEvent};
 // by name from `connect_iter` below.
 pub use self::framing::{read_frame, write_frame, Frame};
 use self::io_loop::{io_loop, ping_loop, wait_for_login, LoginResult};
-pub use self::session::reconnect_delay;
+pub use self::session::{reconnect_delay, reconnect_delay_for};
 
 /// Hidden test-internals surface for vendor-failure-mode resilience tests
 /// in `crates/thetadatadx/tests/`.
@@ -168,6 +168,15 @@ pub struct FpssConnectArgs<'a> {
     pub flush_mode: FpssFlushMode,
     /// Auto-reconnect policy after involuntary disconnect.
     pub policy: ReconnectPolicy,
+    /// Delay (ms) before reconnecting after a generic transient drop
+    /// (TimedOut, ServerRestarting, Unspecified, …). Mirrors
+    /// [`crate::config::ReconnectConfig::wait_ms`]. Default
+    /// [`crate::fpss::protocol::RECONNECT_DELAY_MS`] (2_000).
+    pub wait_ms: u64,
+    /// Delay (ms) before reconnecting after a `TooManyRequests` drop.
+    /// Mirrors [`crate::config::ReconnectConfig::wait_rate_limited_ms`].
+    /// Default [`crate::fpss::protocol::TOO_MANY_REQUESTS_DELAY_MS`] (130_000).
+    pub wait_rate_limited_ms: u64,
     /// When `false`, suppresses locally derived `FpssData::Ohlcvc` events.
     /// Server-sent OHLCVC frames (wire code 24) still pass through.
     pub derive_ohlcvc: bool,
@@ -204,6 +213,8 @@ impl<'a> FpssConnectArgs<'a> {
             ring_size: 4096,
             flush_mode: FpssFlushMode::default(),
             policy: ReconnectPolicy::default(),
+            wait_ms: protocol::RECONNECT_DELAY_MS,
+            wait_rate_limited_ms: protocol::TOO_MANY_REQUESTS_DELAY_MS,
             derive_ohlcvc: true,
             connect_timeout_ms: protocol::CONNECT_TIMEOUT_MS,
             read_timeout_ms: protocol::READ_TIMEOUT_MS,
@@ -607,6 +618,8 @@ impl FpssClient {
             ring_size,
             flush_mode,
             policy,
+            wait_ms,
+            wait_rate_limited_ms,
             derive_ohlcvc,
             connect_timeout_ms,
             read_timeout_ms,
@@ -662,6 +675,8 @@ impl FpssClient {
             derive_ohlcvc,
             flush_mode,
             policy,
+            wait_ms,
+            wait_rate_limited_ms,
             connect_timeout,
             read_timeout,
             ping_interval: Duration::from_millis(ping_interval_ms),
@@ -685,6 +700,8 @@ impl FpssClient {
             derive_ohlcvc,
             flush_mode,
             policy,
+            wait_ms,
+            wait_rate_limited_ms,
             connect_timeout,
             read_timeout,
             ping_interval,
@@ -812,6 +829,8 @@ impl FpssClient {
                     derive_ohlcvc,
                     flush_mode,
                     policy,
+                    wait_ms,
+                    wait_rate_limited_ms,
                     creds: io_creds,
                     hosts: io_hosts,
                     active_subs: io_active_subs,
@@ -1775,6 +1794,8 @@ mod connect_args_tests {
             ring_size: cfg.fpss.ring_size,
             flush_mode: cfg.fpss.flush_mode,
             policy: cfg.reconnect.policy.clone(),
+            wait_ms: cfg.reconnect.wait_ms,
+            wait_rate_limited_ms: cfg.reconnect.wait_rate_limited_ms,
             derive_ohlcvc: cfg.fpss.derive_ohlcvc,
             connect_timeout_ms: cfg.fpss.connect_timeout_ms,
             read_timeout_ms: cfg.fpss.timeout_ms,
@@ -1788,5 +1809,10 @@ mod connect_args_tests {
         assert_eq!(args.read_timeout_ms, cfg.fpss.timeout_ms);
         assert_eq!(args.ping_interval_ms, cfg.fpss.ping_interval_ms);
         assert_eq!(args.ring_size, cfg.fpss.ring_size);
+        assert_eq!(args.wait_ms, cfg.reconnect.wait_ms);
+        assert_eq!(
+            args.wait_rate_limited_ms,
+            cfg.reconnect.wait_rate_limited_ms
+        );
     }
 }

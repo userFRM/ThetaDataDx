@@ -14,6 +14,19 @@ use thetadatadx::config;
 
 use crate::to_napi_err;
 
+/// `(has_value, n)` shape mirroring the FFI
+/// `tdx_config_get_tokio_worker_threads` out-params and the Python
+/// `Option<usize>` return — `has_value=false` encodes the `None`
+/// sentinel, `has_value=true` carries the explicit worker count
+/// (with `n=0` preserved verbatim, matching the `decode_threads`
+/// cross-binding contract).
+#[napi(object)]
+#[derive(Clone, Copy)]
+pub struct TokioWorkerThreadsSetting {
+    pub has_value: bool,
+    pub n: u32,
+}
+
 /// REST-routing policy. Mirrors [`thetadatadx::config::FallbackPolicy`].
 ///
 /// Constructed via one of the static factories, then installed on
@@ -473,6 +486,114 @@ impl Config {
             limits.stable_window = std::time::Duration::from_secs(value);
         }
         Ok(())
+    }
+
+    /// Set the reconnect delay (ms) honoured for generic transient
+    /// disconnects (TimedOut, ServerRestarting, Unspecified, …).
+    /// Plumbed through to the FPSS I/O loop at connect time. Default
+    /// `2_000`.
+    ///
+    /// Accepts a `bigint` for parity with Python / C++ / FFI (`u64`).
+    #[napi(js_name = "setReconnectWaitMs")]
+    pub fn set_reconnect_wait_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = ms.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setReconnectWaitMs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.reconnect.wait_ms = value;
+        Ok(())
+    }
+
+    /// Current reconnect `wait_ms` value (default `2_000`).
+    #[napi(getter, js_name = "reconnectWaitMs")]
+    pub fn reconnect_wait_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.reconnect.wait_ms))
+    }
+
+    /// Set the reconnect delay (ms) honoured for `TooManyRequests`
+    /// rate-limited disconnects. Default `130_000`.
+    #[napi(js_name = "setReconnectWaitRateLimitedMs")]
+    pub fn set_reconnect_wait_rate_limited_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = ms.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setReconnectWaitRateLimitedMs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.reconnect.wait_rate_limited_ms = value;
+        Ok(())
+    }
+
+    /// Current reconnect `wait_rate_limited_ms` value (default `130_000`).
+    #[napi(getter, js_name = "reconnectWaitRateLimitedMs")]
+    pub fn reconnect_wait_rate_limited_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.reconnect.wait_rate_limited_ms,
+        ))
+    }
+
+    /// Set the `RuntimeConfig.tokio_worker_threads` knob for embedded
+    /// runtimes built via `RuntimeConfig::build_runtime`. `hasValue=false`
+    /// defers to tokio's default sizing; `hasValue=true` pins worker
+    /// count to `n` (with `n=0` preserved as the `Some(0)` sentinel,
+    /// matching the `decode_threads` setter shape across the binding
+    /// matrix).
+    #[napi(js_name = "setTokioWorkerThreadsExplicit")]
+    pub fn set_tokio_worker_threads_explicit(
+        &self,
+        has_value: bool,
+        n: u32,
+    ) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.runtime.tokio_worker_threads = if has_value { Some(n as usize) } else { None };
+        Ok(())
+    }
+
+    /// Current `tokio_worker_threads` setting as `{ hasValue, n }`.
+    /// `hasValue=false` encodes the `None` (auto) sentinel.
+    #[napi(getter, js_name = "tokioWorkerThreads")]
+    pub fn tokio_worker_threads(&self) -> napi::Result<TokioWorkerThreadsSetting> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(match guard.runtime.tokio_worker_threads {
+            Some(n) => TokioWorkerThreadsSetting {
+                has_value: true,
+                n: u32::try_from(n).unwrap_or(u32::MAX),
+            },
+            None => TokioWorkerThreadsSetting {
+                has_value: false,
+                n: 0,
+            },
+        })
     }
 
     /// Take a snapshot of the underlying [`thetadatadx::DirectConfig`]

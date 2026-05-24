@@ -92,6 +92,17 @@ class Config:
     reconnect_max_attempts: int
     reconnect_max_rate_limited_attempts: int
     reconnect_stable_window_secs: int
+    # Reconnect cadence (ms) per failure class. Default
+    # `wait_ms=2_000` (generic transient) / `wait_rate_limited_ms=130_000`
+    # (TooManyRequests). Plumbed through to the FPSS I/O loop at
+    # connect time.
+    reconnect_wait_ms: int
+    reconnect_wait_rate_limited_ms: int
+    # Tokio worker-thread count for embedded runtimes built via
+    # `RuntimeConfig::build_runtime`. `None` defers to tokio's default
+    # sizing; `int` (including `0`, which clamps to `1` inside the
+    # builder) pins worker count.
+    tokio_worker_threads: Optional[int]
     # FPSS tunables.
     derive_ohlcvc: bool
     # REST-routing variant. Read-only -- write via

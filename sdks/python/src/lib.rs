@@ -280,6 +280,64 @@ impl Config {
         Ok(())
     }
 
+    /// Set the reconnect delay (ms) honoured for generic transient
+    /// disconnects (TimedOut, ServerRestarting, Unspecified, …).
+    /// Plumbed through to the FPSS I/O loop at connect time. Default
+    /// ``2_000``.
+    #[setter]
+    fn set_reconnect_wait_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_ms = ms;
+    }
+
+    /// Current reconnect ``wait_ms`` value (default ``2_000``).
+    #[getter]
+    fn get_reconnect_wait_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_ms
+    }
+
+    /// Set the reconnect delay (ms) honoured for ``TooManyRequests``
+    /// rate-limited disconnects. Default ``130_000`` (matches the
+    /// Java terminal's 130 s rate-limit cooldown).
+    #[setter]
+    fn set_reconnect_wait_rate_limited_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_rate_limited_ms = ms;
+    }
+
+    /// Current reconnect ``wait_rate_limited_ms`` value (default ``130_000``).
+    #[getter]
+    fn get_reconnect_wait_rate_limited_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_rate_limited_ms
+    }
+
+    /// Set the tokio worker thread count for embedded bindings that own
+    /// their runtime (Python / FFI / napi). ``None`` (the default)
+    /// defers to tokio's default sizing (one worker per logical CPU);
+    /// ``Some(n)`` pins the worker pool to ``n``. ``Some(0)`` is
+    /// preserved across the binding boundary and clamps to ``1`` inside
+    /// :func:`RuntimeConfig.build_runtime` so the runtime always has at
+    /// least one worker.
+    ///
+    /// Note that the runtime backing ``ThetaDataDxClient`` is built
+    /// process-once at module init; mutating this value after import
+    /// affects only freshly-constructed runtimes such as those built
+    /// via the FFI ``tdx_config_get_tokio_worker_threads`` helper.
+    #[setter]
+    fn set_tokio_worker_threads(&self, n: Option<usize>) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.runtime.tokio_worker_threads = n;
+    }
+
+    /// Current ``tokio_worker_threads`` setting (``None`` = auto).
+    #[getter]
+    fn get_tokio_worker_threads(&self) -> Option<usize> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.runtime.tokio_worker_threads
+    }
+
     /// Set whether to derive OHLCVC bars locally from trade events.
     ///
     /// When ``False``, only server-sent OHLCVC frames are emitted,

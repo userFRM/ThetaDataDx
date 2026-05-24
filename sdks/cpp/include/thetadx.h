@@ -571,6 +571,59 @@ void tdx_config_set_reconnect_stable_window_secs(TdxConfig* config,
                                                  uint64_t secs);
 
 /**
+ * Set the reconnect delay (ms) honoured for generic transient
+ * disconnects (TimedOut, ServerRestarting, Unspecified, ...). Plumbed
+ * through to the FPSS I/O loop at connect time. Default 2_000.
+ */
+void tdx_config_set_reconnect_wait_ms(TdxConfig* config, uint64_t ms);
+
+/**
+ * Read the current reconnect wait_ms setting. Writes the configured
+ * millisecond delay into *out_ms. Returns 0 on success, -1 if either
+ * pointer is null.
+ */
+int32_t tdx_config_get_reconnect_wait_ms(const TdxConfig* config, uint64_t* out_ms);
+
+/**
+ * Set the reconnect delay (ms) honoured for `TooManyRequests`
+ * rate-limited disconnects. Default 130_000 (matches the Java
+ * terminal's 130 s rate-limit cooldown).
+ */
+void tdx_config_set_reconnect_wait_rate_limited_ms(TdxConfig* config, uint64_t ms);
+
+/**
+ * Read the current reconnect wait_rate_limited_ms setting. Same shape
+ * as tdx_config_get_reconnect_wait_ms.
+ */
+int32_t tdx_config_get_reconnect_wait_rate_limited_ms(const TdxConfig* config, uint64_t* out_ms);
+
+/**
+ * Set the RuntimeConfig.tokio_worker_threads knob for embedded
+ * runtimes built via RuntimeConfig::build_runtime.
+ *
+ *   has_value=false: encodes the auto-size sentinel (`None`); `n`
+ *     is ignored. Defers to tokio's default sizing.
+ *   has_value=true: encodes `Some(n)`. RuntimeConfig::build_runtime
+ *     clamps `n=0` to `1`, but the explicit `Some(0)` is preserved
+ *     across the C boundary matching the decode_threads shape so
+ *     Python / TS / C++ bindings agree.
+ *
+ * Returns 0 on success, -1 if `config` is NULL.
+ */
+int32_t tdx_config_set_tokio_worker_threads_explicit(TdxConfig* config, bool has_value, size_t n);
+
+/**
+ * Read the current RuntimeConfig.tokio_worker_threads setting. Same
+ * (has_value, n) shape as tdx_config_get_decode_threads:
+ *
+ *   *out_has_value=false: config holds `None` (auto-size). *out_n=0.
+ *   *out_has_value=true:  config holds `Some(*out_n)`.
+ *
+ * Returns 0 on success, -1 if any pointer is null.
+ */
+int32_t tdx_config_get_tokio_worker_threads(const TdxConfig* config, bool* out_has_value, size_t* out_n);
+
+/**
  * Set FPSS flush mode on a config handle.
  *   mode=0: Batched (default) -- flush only on PING every 100ms.
  *   mode=1: Immediate -- flush after every frame write.

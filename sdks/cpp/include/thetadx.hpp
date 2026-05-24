@@ -540,6 +540,43 @@ public:
         tdx_config_set_reconnect_stable_window_secs(handle_.get(), secs);
     }
 
+    /** Set the reconnect delay (ms) honoured for generic transient
+     *  disconnects (TimedOut, ServerRestarting, Unspecified, ...).
+     *  Default 2_000. */
+    void set_reconnect_wait_ms(uint64_t ms) {
+        tdx_config_set_reconnect_wait_ms(handle_.get(), ms);
+    }
+
+    /** Current reconnect wait_ms (default 2_000). Returns -1 if the
+     *  config handle is null (matches the C ABI sentinel). */
+    int32_t get_reconnect_wait_ms(uint64_t* out_ms) const {
+        return tdx_config_get_reconnect_wait_ms(handle_.get(), out_ms);
+    }
+
+    /** Set the reconnect delay (ms) honoured for `TooManyRequests`
+     *  rate-limited disconnects. Default 130_000. */
+    void set_reconnect_wait_rate_limited_ms(uint64_t ms) {
+        tdx_config_set_reconnect_wait_rate_limited_ms(handle_.get(), ms);
+    }
+
+    /** Current reconnect wait_rate_limited_ms (default 130_000). */
+    int32_t get_reconnect_wait_rate_limited_ms(uint64_t* out_ms) const {
+        return tdx_config_get_reconnect_wait_rate_limited_ms(handle_.get(), out_ms);
+    }
+
+    /** Set the RuntimeConfig.tokio_worker_threads knob using the
+     *  (has_value, n) shape that preserves Some(0) across the C
+     *  boundary. has_value=false defers to tokio's default sizing. */
+    int32_t set_tokio_worker_threads_explicit(bool has_value, size_t n) {
+        return tdx_config_set_tokio_worker_threads_explicit(handle_.get(), has_value, n);
+    }
+
+    /** Read tokio_worker_threads back. *out_has_value=false encodes
+     *  the None (auto-size) sentinel. */
+    int32_t get_tokio_worker_threads(bool* out_has_value, size_t* out_n) const {
+        return tdx_config_get_tokio_worker_threads(handle_.get(), out_has_value, out_n);
+    }
+
     /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. */
     void set_flush_mode(int mode) { tdx_config_set_flush_mode(handle_.get(), mode); }
 

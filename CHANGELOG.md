@@ -10,10 +10,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Release line note**: this train accumulates 19 major + 1 minor breaking
 > changes versus v10.0.0. The next release tag MUST be v11.0.0, not a
 > v10.0.x patch. Owner-greenlight gated on this audit returning zero
-> actionable findings. Wave-3 of the audit-fix loop completed the
-> `grpc` module narrowing started in Wave 2 (`#[doc(hidden)]` → full
-> `pub(crate)`), removing nine names from the public surface and
-> taking the count from 10 → 19 major breaks.
+> actionable findings. Wave-4 of the audit-fix loop wires the three
+> remaining "defined-but-not-connected" config knobs
+> (`RuntimeConfig.tokio_worker_threads`, `ReconnectConfig.wait_ms`,
+> `ReconnectConfig.wait_rate_limited_ms`) into the FPSS auto-reconnect
+> path and binds them across every binding. Five TS test files that
+> were silent-skipping on missing native addon now fail loud. All
+> additions are purely additive — break count unchanged at 19 major
+> + 1 minor.
+
+### Added
+
+#### Audit closure wave 4
+
+- `ReconnectConfig.wait_ms` and `ReconnectConfig.wait_rate_limited_ms`
+  fully wired into the FPSS auto-reconnect path. The values flow from
+  `DirectConfig.reconnect` through `FpssConnectArgs` into the
+  `IoLoopArgs` and are consumed by the `ReconnectPolicy::Auto` arm via
+  a new `fpss::reconnect_delay_for(reason, wait_ms,
+  wait_rate_limited_ms)` helper. The prior `RECONNECT_DELAY_MS` /
+  `TOO_MANY_REQUESTS_DELAY_MS` wire constants stay as the defaults
+  (`ReconnectConfig::production_defaults`) but caller overrides now
+  take effect instead of being silently dropped. New cross-binding
+  surface:
+  - FFI: `tdx_config_set_reconnect_wait_ms(*mut TdxConfig, u64)` /
+    `tdx_config_get_reconnect_wait_ms(*const TdxConfig, *mut u64) ->
+    i32`, plus the `_rate_limited_ms` pair.
+  - C++: `tdx::Config::set_reconnect_wait_ms(uint64_t)` /
+    `get_reconnect_wait_ms(uint64_t*)` plus the `_rate_limited_ms`
+    pair.
+  - Python: `Config.reconnect_wait_ms` /
+    `Config.reconnect_wait_rate_limited_ms` (pyo3 `#[getter]` +
+    `#[setter]`) + `.pyi` type-stub rows.
+  - TypeScript napi: `Config.setReconnectWaitMs(bigint)` /
+    `Config.reconnectWaitMs` getter + the `_rate_limited_ms` pair.
+  Two new `sdks/parity.toml` rows. Closes audit BL-11.
+- `RuntimeConfig.tokio_worker_threads` gains a
+  `RuntimeConfig::build_runtime() -> std::io::Result<tokio::runtime::
+  Runtime>` helper that builds a multi-threaded runtime honouring the
+  configured worker count (with `Some(0)` clamped to `1` so tokio
+  does not panic on `worker_threads(0)`). The crate itself stays
+  runtime-agnostic — `thetadatadx` async entry points still run on
+  whatever runtime the caller provides — but the helper is the single
+  source-of-truth that embedded bindings (FFI, Python, napi) consume
+  when they own the runtime. New cross-binding surface mirrors the
+  `MddsConfig::decode_threads_explicit` `(has_value, n)` shape so the
+  `Some(0)` sentinel survives the C boundary:
+  - FFI: `tdx_config_set_tokio_worker_threads_explicit(*mut TdxConfig,
+    bool, usize) -> i32` + `tdx_config_get_tokio_worker_threads(
+    *const TdxConfig, *mut bool, *mut usize) -> i32`.
+  - C++: `tdx::Config::set_tokio_worker_threads_explicit(bool, size_t)` /
+    `get_tokio_worker_threads(bool*, size_t*)`.
+  - Python: `Config.tokio_worker_threads: Optional[int]` (`None` =
+    auto, `int` pins) + `.pyi` row.
+  - TypeScript napi:
+    `Config.setTokioWorkerThreadsExplicit(boolean, number)` +
+    `Config.tokioWorkerThreads: { hasValue, n }` getter returning a
+    `TokioWorkerThreadsSetting` napi-`object` (new exported interface
+    in `index.d.ts`).
+  New `sdks/parity.toml` row under a `RuntimeConfig` section header.
+  Closes audit BL-9.
+
+### Fixed
+
+#### Audit closure wave 4
+
+- 5 TypeScript test files (`asyncdispose.test.mjs`, `basic.test.mjs`,
+  `dropped_events.test.mjs`, `iter_mode.test.mjs`,
+  `util_helpers.test.mjs`) no longer silent-skip when the napi addon
+  fails to load — they now `console.error` + `process.exit(1)` at
+  module load matching the 8 other test files. CI no longer reports
+  `npm test` green when `npm run build` failed upstream. The
+  legitimate "live test, credentials required" skips in
+  `dropped_events.test.mjs` are preserved with a clarifying comment.
+  Closes audit BL-15.
 
 ### Changed (BREAKING — v11)
 

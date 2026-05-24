@@ -81,8 +81,8 @@ use super::framing::{
     write_raw_frame_no_flush, Frame, FrameReadState,
 };
 use super::protocol::{self, build_credentials_payload, Contract};
-use super::reconnect_delay;
 use super::ring::{self, AdaptiveWaitStrategy, RingEvent};
+use super::{reconnect_delay, reconnect_delay_for};
 
 type ActiveSubs = Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract)>>>;
 type ActiveFullSubs = Arc<
@@ -136,6 +136,14 @@ pub(in crate::fpss) struct IoLoopArgs {
     pub derive_ohlcvc: bool,
     pub flush_mode: FpssFlushMode,
     pub policy: ReconnectPolicy,
+    /// Mirrors [`crate::config::ReconnectConfig::wait_ms`]. The
+    /// [`ReconnectPolicy::Auto`] arm passes this to
+    /// [`super::reconnect_delay_for`] for generic transient drops so
+    /// caller-tuned cadences flow through instead of the wire constant.
+    pub wait_ms: u64,
+    /// Mirrors [`crate::config::ReconnectConfig::wait_rate_limited_ms`].
+    /// Used for `TooManyRequests` drops by the same path.
+    pub wait_rate_limited_ms: u64,
     pub creds: Credentials,
     pub hosts: Vec<(String, u16)>,
     pub active_subs: ActiveSubs,
@@ -174,6 +182,8 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
         derive_ohlcvc,
         flush_mode,
         policy,
+        wait_ms,
+        wait_rate_limited_ms,
         creds,
         hosts,
         active_subs,
@@ -736,7 +746,13 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                     );
                     break 'session;
                 }
-                let Some(ms) = reconnect_delay(reason) else {
+                // Honour caller-tuned `wait_ms` /
+                // `wait_rate_limited_ms` from `ReconnectConfig`
+                // (BL-11). The permanent-reason check above already
+                // short-circuited the `None` case via
+                // `class_for(reason).is_none()`, so this lookup is a
+                // belt-and-braces guard.
+                let Some(ms) = reconnect_delay_for(reason, wait_ms, wait_rate_limited_ms) else {
                     tracing::error!(reason = ?reason, "permanent disconnect -- not reconnecting");
                     break 'session;
                 };
