@@ -790,10 +790,10 @@ using FpssUnknownControl = TdxFpssUnknownControl;
 using FpssUnknownFrame = TdxFpssUnknownFrame;
 using FpssEvent = TdxFpssEvent;
 
-// ── FPSS real-time streaming client ──
+// ── Real-time streaming client ──
 //
 // Event delivery is callback-driven via `set_callback(fn)`. Events flow
-// `FPSS reader -> LMAX Disruptor ring -> consumer thread ->
+// `streaming reader -> bounded ring -> consumer thread ->
 // catch_unwind(fn)`. The reader thread never blocks on user code; on
 // ring overflow events are dropped and counted via `dropped_events()`.
 //
@@ -801,11 +801,10 @@ using FpssEvent = TdxFpssEvent;
 // the stored function from the registered `void* ctx` and invokes it with
 // the event reference. The shim converts `const TdxFpssEvent*` (the C ABI
 // payload type) to `const FpssEvent&` (the C++ alias) at the boundary.
-// Callback storage outlives any FPSS reader / Disruptor consumer thread
-// because the destruction path always routes through `tdx_fpss_free`,
-// which performs an internal drain barrier (5 s timeout) so the
-// consumer has stopped firing the callback before the storage is
-// released.
+// Callback storage outlives the consumer thread because the destruction
+// path always routes through `tdx_fpss_free`, which performs an internal
+// drain barrier (5 s timeout) so the consumer has stopped firing the
+// callback before the storage is released.
 
 class FpssClient {
 public:
@@ -828,23 +827,23 @@ public:
         // ordering invariant comment above the member declarations.
         : callback_(std::move(other.callback_)),
           handle_(std::move(other.handle_)) {}
-    /** Move-assign. The receiver may already hold a live FPSS handle
-     *  with a registered callback whose `ctx` points into our existing
-     *  `callback_` storage. We must drain that wiring on the C ABI side
-     *  BEFORE destroying the old `callback_`, otherwise the Rust
-     *  Disruptor consumer could invoke through a dangling `void*` ctx.
-     *  `tdx_fpss_shutdown` returns asynchronously, so we follow it with
-     *  `tdx_fpss_await_drain` (5 s budget, matching the free contract)
-     *  to confirm the consumer thread has stopped firing the callback
-     *  before releasing the storage.
+    /** Move-assign. The receiver may already hold a live streaming
+     *  handle with a registered callback whose `ctx` points into our
+     *  existing `callback_` storage. We must drain that wiring on the
+     *  C ABI side BEFORE destroying the old `callback_`, otherwise
+     *  the consumer thread could invoke through a dangling `void*`
+     *  ctx. `tdx_fpss_shutdown` returns asynchronously, so we follow
+     *  it with `tdx_fpss_await_drain` (5 s budget, matching the free
+     *  contract) to confirm the consumer thread has stopped firing
+     *  the callback before releasing the storage.
      *
      *  Drain timeout (rare, indicates a wedged user callback): we MUST
      *  NOT reset `callback_` synchronously because a still-firing
      *  consumer would invoke through a dangling ctx. Instead we detach
      *  the callback storage onto a helper thread that holds it for an
-     *  extra 30 s grace window before dropping it. The Rust-side detach
-     *  helper bounds the consumer's worst-case lifetime to its own ring
-     *  drain, so 30 s is a generous upper bound and lets the move
+     *  extra 30 s grace window before dropping it. The internal detach
+     *  helper bounds the consumer's worst-case lifetime to its own
+     *  ring drain, so 30 s is a generous upper bound and lets the move
      *  proceed without observable liveness loss to the caller. */
     FpssClient& operator=(FpssClient&& other) noexcept {
         if (this != &other) {
@@ -854,13 +853,13 @@ public:
                 // budget matches `tdx_fpss_free`'s internal barrier.
                 int drained = tdx_fpss_await_drain(handle_.get(), 5000);
                 if (drained == 0) {
-                    // Drain barrier timed out: the Disruptor consumer
-                    // may still be firing through `callback_`'s
-                    // storage. Detach storage to a helper thread for
-                    // a 30 s grace window so destruction happens off
-                    // the move path; the consumer is bounded by its
-                    // own ring drain and will quiesce well within
-                    // that window even on a heavily backlogged ring.
+                    // Drain barrier timed out: the consumer may still
+                    // be firing through `callback_`'s storage. Detach
+                    // storage to a helper thread for a 30 s grace
+                    // window so destruction happens off the move
+                    // path; the consumer is bounded by its own ring
+                    // drain and will quiesce well within that window
+                    // even on a heavily backlogged ring.
                     std::thread([cb = std::move(callback_)]() mutable {
                         std::this_thread::sleep_for(std::chrono::seconds(30));
                         // `cb` destructs here, off the move path.
@@ -877,18 +876,17 @@ public:
         return *this;
     }
 
-    /** Register an FPSS callback and open the FPSS connection.
-     *  `fn` runs on the LMAX Disruptor consumer thread under
-     *  `catch_unwind`, never on the FPSS reader. The reader thread
-     *  cannot be blocked by user code: on ring overflow events are
-     *  dropped and counted via `dropped_events()`. Throws on
-     *  registration failure.
+    /** Register a streaming callback and open the streaming connection.
+     *  `fn` runs on the consumer thread under `catch_unwind`, never on
+     *  the streaming reader. The reader thread cannot be blocked by
+     *  user code: on ring overflow events are dropped and counted via
+     *  `dropped_events()`. Throws on registration failure.
      *
      *  ## Callback storage + thread affinity
      *
      *  The wrapper owns a `std::unique_ptr<std::function>` whose
-     *  address is what the Rust Disruptor consumer receives as `ctx`.
-     *  That address must outlive every consumer-thread invocation;
+     *  address is what the consumer thread receives as `ctx`. That
+     *  address must outlive every consumer-thread invocation;
      *  destruction routes through `tdx_fpss_free`, which performs the
      *  shutdown + drain barrier internally, and move-assign calls
      *  `tdx_fpss_shutdown` followed by `tdx_fpss_await_drain` (5 s
@@ -897,18 +895,18 @@ public:
      *  a single thread, so no internal locks are needed for
      *  callback-private state.
      *
-     *  ## Lifecycle contract (FPSS one-shot rule)
+     *  ## Lifecycle contract (one-shot rule)
      *
      *  The C ABI permits exactly one successful callback registration
      *  per handle, and rejects every register / reconnect / shutdown
      *  call after `tdx_fpss_shutdown`. A second call on a still-live
      *  handle returns -1 and KEEPS the previously installed
-     *  (callback, ctx) wired into the Rust dispatcher. We therefore
+     *  (callback, ctx) wired into the dispatcher. We therefore
      *  stage the new `std::function` into a local `unique_ptr`,
      *  attempt the FFI registration with the staged address, and only
      *  adopt it into `callback_` after the FFI reports success. On
      *  failure the existing `callback_` is left untouched so the
-     *  still-live Rust registration keeps pointing at valid storage. */
+     *  still-live registration keeps pointing at valid storage. */
     void set_callback(std::function<void(const FpssEvent&)> fn) {
         auto staged = std::make_unique<std::function<void(const FpssEvent&)>>(std::move(fn));
         int rc = tdx_fpss_set_callback(handle_.get(), &FpssClient::callback_shim, staged.get());
@@ -918,8 +916,8 @@ public:
         callback_ = std::move(staged);
     }
 
-    /** Cumulative count of FPSS events the TLS reader could not publish
-     *  into the LMAX Disruptor ring because the consumer fell behind
+    /** Cumulative count of streaming events the TLS reader could not
+     *  publish into the bounded ring because the consumer fell behind
      *  and the ring was full. Returns 0 when no callback has been
      *  installed yet. Safe to call on a moved-from client. */
     uint64_t dropped_events() const {
@@ -949,7 +947,7 @@ private:
     // barrier internally (5 s budget). For the barrier to be safe the
     // `std::function` storage backing the registered `void* ctx` MUST
     // still be alive while `tdx_fpss_free` is polling the drain flag,
-    // because the Disruptor consumer may still be invoking through it.
+    // because the consumer thread may still be invoking through it.
     //
     // We therefore declare `handle_` AFTER `callback_`: reverse-order
     // destruction destroys `handle_` first → `tdx_fpss_free` runs and
@@ -1141,7 +1139,7 @@ public:
         : callback_(std::move(other.callback_)),
           handle_(std::move(other.handle_)) {}
     /** Move-assign. The receiver may already hold a live streaming
-     *  session whose Disruptor consumer is invoking through the
+     *  session whose consumer thread is invoking through the
      *  `callback_` storage. Drain the consumer before releasing the
      *  storage — same discipline as `FpssClient::operator=`. On drain
      *  timeout, detach the callback storage onto a helper thread for a
@@ -1211,17 +1209,16 @@ public:
     /// Throws on connection / state failure.
     inline class UnifiedFpssIterSession streaming_iter_session() const;
 
-    /** Register an FPSS push callback and open the streaming session.
-     *  `fn` runs on the LMAX Disruptor consumer thread under
-     *  `catch_unwind`, never on the FPSS reader. The reader thread
-     *  cannot be blocked by user code: on ring overflow events are
-     *  dropped and counted via `dropped_event_count()`. Throws on
-     *  registration failure.
+    /** Register a streaming push callback and open the streaming session.
+     *  `fn` runs on the consumer thread under `catch_unwind`, never on
+     *  the streaming reader. The reader thread cannot be blocked by
+     *  user code: on ring overflow events are dropped and counted via
+     *  `dropped_event_count()`. Throws on registration failure.
      *
      *  ## Callback storage + thread affinity
      *
      *  The wrapper owns a `std::unique_ptr<std::function>` whose
-     *  address is the `void* ctx` registered with the Rust dispatcher.
+     *  address is the `void* ctx` registered with the dispatcher.
      *  That address must outlive every consumer-thread invocation;
      *  destruction routes through `tdx_unified_free`, which performs
      *  the shutdown + drain barrier internally, and move-assign /
@@ -1240,7 +1237,7 @@ public:
      *  the new one is wired in, with the same `await_drain(5000)`
      *  budget. */
     void set_callback(std::function<void(const FpssEvent&)> fn) {
-        // Drain the existing wiring first so the Disruptor consumer
+        // Drain the existing wiring first so the consumer thread
         // stops invoking through the old `callback_` storage before
         // we release it. Matches the C ABI's replace-allowed contract:
         // a successful replacement registration leaves the old `ctx`
@@ -1269,7 +1266,7 @@ public:
         callback_ = std::move(staged);
     }
 
-    /// Stop FPSS streaming. Historical access remains available. Pair
+    /// Stop streaming. Historical access remains available. Pair
     /// with `await_drain()` if you need to confirm the consumer
     /// thread has finished firing the registered callback before
     /// dropping any captured state.
@@ -1279,7 +1276,7 @@ public:
         }
     }
 
-    /// Reconnect FPSS streaming and re-apply every previously active
+    /// Reconnect streaming and re-apply every previously active
     /// subscription. Returns true on full success. Throws on failure
     /// — the wrapped C ABI sets the last-error slot on `-1` return.
     void reconnect() {
@@ -1289,10 +1286,10 @@ public:
         }
     }
 
-    /// Block until the previous Disruptor consumer thread has
-    /// finished firing the registered callback. Returns true on
-    /// drain, false on timeout. Pass the same 5 s budget the FFI free
-    /// path uses unless you have a specific reason to deviate.
+    /// Block until the previous consumer thread has finished firing
+    /// the registered callback. Returns true on drain, false on
+    /// timeout. Pass the same 5 s budget the FFI free path uses
+    /// unless you have a specific reason to deviate.
     bool await_drain(std::chrono::milliseconds timeout) {
         const uint64_t ms = timeout.count() < 0
                                 ? 0
@@ -1300,15 +1297,15 @@ public:
         return tdx_unified_await_drain(handle_.get(), ms) == 1;
     }
 
-    /// Cumulative count of FPSS events the TLS reader could not
-    /// publish into the LMAX Disruptor ring because the consumer fell
-    /// behind and the ring was full. Returns 0 when no callback has
-    /// been installed yet. Safe to call on a moved-from client.
+    /// Cumulative count of streaming events the TLS reader could not
+    /// publish into the bounded ring because the consumer fell behind
+    /// and the ring was full. Returns 0 when no callback has been
+    /// installed yet. Safe to call on a moved-from client.
     uint64_t dropped_event_count() const {
         return handle_ ? tdx_unified_dropped_events(handle_.get()) : 0;
     }
 
-    /// `true` iff the FPSS streaming session is currently live (set_callback
+    /// `true` iff the streaming session is currently live (set_callback
     /// or start_streaming_iter has been invoked and stop_streaming /
     /// terminal close has not).
     bool is_streaming() const {
@@ -1385,8 +1382,8 @@ private:
     // barrier internally (5 s budget). For the barrier to be safe the
     // `std::function` storage backing the registered `void* ctx` MUST
     // still be alive while `tdx_unified_free` is polling the drain
-    // flag, because the Disruptor consumer may still be invoking
-    // through it.
+    // flag, because the consumer thread may still be invoking through
+    // it.
     //
     // We therefore declare `handle_` AFTER `callback_`: reverse-order
     // destruction destroys `handle_` first → `tdx_unified_free` runs
@@ -1615,7 +1612,7 @@ public:
                 tdx_unified_stop_streaming(parent_->get());
                 int drained = tdx_unified_await_drain(parent_->get(), 5000);
                 if (drained == 0) {
-                    // The Disruptor consumer is still firing. The
+                    // The consumer thread is still firing. The
                     // event-loop body has already exited (we are in
                     // destruction), so emit a diagnostic line and let
                     // the consumer drain in the background bounded by

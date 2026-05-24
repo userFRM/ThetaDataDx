@@ -191,19 +191,19 @@ impl Config {
         Self::from_direct(config::DirectConfig::production())
     }
 
-    /// Dev FPSS configuration (port 20200, infinite historical replay).
+    /// Dev streaming configuration (port 20200, infinite historical replay).
     #[staticmethod]
     fn dev() -> Self {
         Self::from_direct(config::DirectConfig::dev())
     }
 
-    /// Stage FPSS configuration (port 20100, testing, unstable).
+    /// Stage streaming configuration (port 20100, testing, unstable).
     #[staticmethod]
     fn stage() -> Self {
         Self::from_direct(config::DirectConfig::stage())
     }
 
-    /// Set the FPSS reconnect policy.
+    /// Set the streaming reconnect policy.
     ///
     /// - "auto" (default): auto-reconnect with split per-class attempt
     ///   budgets ([`config::ReconnectAttemptLimits`] defaults — 3
@@ -297,39 +297,39 @@ impl Config {
         guard.fpss.derive_ohlcvc
     }
 
-    /// Override the MDDS gRPC host. Used by structural tests that need
-    /// to point the MDDS channel at a known-refused endpoint to prove
-    /// the FPSS-only surface never opens it; production code paths
-    /// should keep the `Config::production()` default.
+    /// Override the historical gRPC host. Used by structural tests that
+    /// need to point the historical channel at a known-refused endpoint
+    /// to prove the streaming-only surface never opens it; production
+    /// code paths should keep the `Config::production()` default.
     #[setter]
     fn set_mdds_host(&self, host: String) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.mdds.host = host;
     }
 
-    /// Current MDDS gRPC host.
+    /// Current historical gRPC host.
     #[getter]
     fn get_mdds_host(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.mdds.host.clone()
     }
 
-    /// Override the MDDS gRPC port. Companion to `mdds_host` — same
-    /// rationale and same test-only usage.
+    /// Override the historical gRPC port. Companion to `mdds_host` —
+    /// same rationale and same test-only usage.
     #[setter]
     fn set_mdds_port(&self, port: u16) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.mdds.port = port;
     }
 
-    /// Current MDDS gRPC port.
+    /// Current historical gRPC port.
     #[getter]
     fn get_mdds_port(&self) -> u16 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.mdds.port
     }
 
-    // ── MDDS pool sizing ───────────────────────────────────────────
+    // ── Historical pool sizing ─────────────────────────────────────
 
     /// Set the number of concurrent in-flight gRPC requests.
     ///
@@ -363,7 +363,7 @@ impl Config {
     /// field controls only the legacy stage-1 thread count and is
     /// preserved for backward compatibility.
     ///
-    /// Set the number of dedicated decoder threads in the MDDS pool.
+    /// Set the number of dedicated decoder threads in the historical pool.
     ///
     /// Each decoder thread runs zstd decompress + protobuf decode on
     /// dedicated OS threads, keeping CPU-bound work off the tokio
@@ -427,7 +427,7 @@ impl Config {
         guard.mdds.decoder_ring_size
     }
 
-    // ── MDDS two-stage decode pipeline knobs — Phase 3 of 3 ────────
+    // ── Two-stage decode pipeline knobs — Phase 3 of 3 ─────────────
     //
     // Mirror of the Rust core's `MddsConfig::decode_threads` and
     // `decode_queue_depth` fields, both `Option<usize>`. The Python
@@ -438,8 +438,8 @@ impl Config {
     // Negatives are rejected at the setter rather than being
     // silently coerced.
 
-    /// Set the stage-2 worker thread count for the two-stage MDDS
-    /// decode pipeline.
+    /// Set the stage-2 worker thread count for the two-stage decode
+    /// pipeline.
     ///
     /// Stage-2 runs `prost::Message::decode` and the downstream Tick
     /// build off a bounded MPSC queue fed by the stage-1 (per-channel
@@ -481,7 +481,7 @@ impl Config {
     }
 
     /// Set the bounded queue depth between stage-1 and stage-2 of
-    /// the two-stage MDDS decode pipeline.
+    /// the two-stage decode pipeline.
     ///
     /// Stage-1 pushes `DecodedPayload`s into the queue; stage-2
     /// workers pull them out. When stage-2 cannot keep up, stage-1
@@ -591,9 +591,9 @@ include!("_generated/buffered_event.rs");
 
 /// Unified ThetaData client — single connection for both historical and streaming.
 ///
-/// This is the recommended entry point. Connects historical (MDDS/gRPC)
-/// with a single authentication. Streaming (FPSS/TCP) starts lazily via
-/// ``start_streaming(callback)``.
+/// This is the recommended entry point. Connects historical (gRPC over
+/// HTTP/2 + TLS) with a single authentication. Real-time streaming
+/// starts lazily via ``start_streaming(callback)``.
 ///
 /// Usage::
 ///
@@ -640,10 +640,10 @@ struct ThetaDataDxClient {
 impl ThetaDataDxClient {
     // Lifecycle: intentionally hand-written (language-specific constructor semantics).
 
-    /// Connect to ThetaData (historical only -- FPSS is NOT started).
+    /// Connect to ThetaData (historical only -- streaming is NOT started).
     ///
     /// Authenticates once, opens gRPC channel. Call
-    /// ``start_streaming(callback)`` to begin FPSS real-time data —
+    /// ``start_streaming(callback)`` to begin real-time streaming —
     /// the dispatcher invokes ``callback(event)`` under the GIL for
     /// every typed event.
     ///
@@ -688,19 +688,18 @@ impl ThetaDataDxClient {
         format!("ThetaDataDxClient(historical=connected, {streaming})")
     }
 
-    /// Cumulative count of FPSS events the TLS reader could not
-    /// publish into the Disruptor ring because the consumer fell
-    /// behind and the ring was full (`Producer::try_publish` returned
-    /// `RingBufferFull`).
+    /// Cumulative count of streaming events the TLS reader could not
+    /// publish into the bounded ring because the consumer fell behind
+    /// and the ring was full.
     ///
     /// Forwarded directly to
     /// [`thetadatadx::ThetaDataDxClient::dropped_event_count`] so the count
     /// matches every other binding (C ABI, TypeScript, C++). The
-    /// counter lives on the live `FpssClient`, not on this Python
+    /// counter lives on the live streaming client, not on this Python
     /// wrapper, which has two consequences:
     ///
     /// * `reconnect()` calls `stop_streaming()` + `start_streaming()`
-    ///   internally; that rebuilds the FPSS client and the counter
+    ///   internally; that rebuilds the streaming client and the counter
     ///   resets to zero. Snapshot the value BEFORE reconnect if you
     ///   need to accumulate drops across session boundaries.
     /// * After `stop_streaming()` the slot is empty and the getter
@@ -961,8 +960,8 @@ impl ThetaDataDxClient {
     /// Bulk-subscribe a list / iterable of `Subscription` values.
     ///
     /// Stops at the first error and re-raises it; previously-installed
-    /// subscriptions are NOT rolled back (the FPSS protocol does not
-    /// support batched transactions).
+    /// subscriptions are NOT rolled back (the upstream streaming
+    /// protocol does not support batched transactions).
     fn subscribe_many(&self, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
         self.tdx.subscribe_many(list).map_err(to_py_err)
