@@ -129,8 +129,15 @@ pub(crate) const INTEREST_RATE_TICK_RAW_HEADERS: &[&str] = &[
 
 pub(crate) const IV_TICK_RAW_HEADERS: &[&str] = &[
     "ms_of_day",
+    "bid",
+    "bid_implied_volatility",
+    "midpoint",
     "implied_volatility",
+    "ask",
+    "ask_implied_volatility",
     "iv_error",
+    "underlying_ms_of_day",
+    "underlying_price",
     "date",
     "expiration",
     "strike",
@@ -156,6 +163,7 @@ pub(crate) const OHLC_TICK_RAW_HEADERS: &[&str] = &[
     "close",
     "volume",
     "count",
+    "vwap",
     "date",
     "expiration",
     "strike",

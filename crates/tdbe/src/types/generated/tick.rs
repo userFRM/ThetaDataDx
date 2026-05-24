@@ -213,14 +213,43 @@ pub struct InterestRateTick {
     pub rate: f64,
 }
 
-/// Implied volatility tick -- 4 fields.
+/// Implied volatility tick -- 11 fields.
+///
+/// Wire layout verified-live against `option_history_greeks_implied_volatility`
+/// (terminal jar build `202605221`):
+///
+/// | Schema field                | Wire header               | Type   |
+/// |-----------------------------|---------------------------|--------|
+/// | `ms_of_day`                 | `timestamp`               | i32    |
+/// | `bid`                       | `bid`                     | price  |
+/// | `bid_implied_volatility`    | `bid_implied_vol`         | f64    |
+/// | `midpoint`                  | `midpoint`                | price  |
+/// | `implied_volatility`        | `implied_vol`             | f64    |
+/// | `ask`                       | `ask`                     | price  |
+/// | `ask_implied_volatility`    | `ask_implied_vol`         | f64    |
+/// | `iv_error`                  | `iv_error`                | f64    |
+/// | `underlying_ms_of_day`      | `underlying_timestamp`    | i32    |
+/// | `underlying_price`          | `underlying_price`        | price  |
+/// | `date`                      | `timestamp`               | i32    |
+///
+/// The snapshot variant (`option_snapshot_greeks_implied_volatility`) emits
+/// a 4-column subset (`ms_of_day, implied_vol, iv_error, date`); the
+/// generator's optional-column path defaults the missing fields to 0.0 so
+/// the snapshot decode keeps working.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct IvTick {
     pub ms_of_day: i32,
+    pub bid: f64,
+    pub bid_implied_volatility: f64,
+    pub midpoint: f64,
     pub implied_volatility: f64,
+    pub ask: f64,
+    pub ask_implied_volatility: f64,
     pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
     pub date: i32,
     /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
     pub expiration: i32,
@@ -248,7 +277,15 @@ pub struct MarketValueTick {
     pub right: i32,
 }
 
-/// OHLC tick -- 8 fields. Aggregated bar data.
+/// OHLC tick -- 9 fields. Aggregated bar data including SIP-rule VWAP.
+///
+/// Wire layout verified-live (terminal jar build `202605221`) against
+/// `stock_history_ohlc`, `option_history_ohlc`, and `index_history_ohlc`,
+/// which emit the same 8 data columns (`timestamp,open,high,low,close,
+/// volume,count,vwap`). The snapshot variants (`*_snapshot_ohlc`) omit
+/// `vwap`; the generated parser's optional-column path defaults the
+/// field to `0.0` for those endpoints, mirroring how `volume`/`count`
+/// already zero-default on quote-only intraday bars.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
@@ -260,6 +297,7 @@ pub struct OhlcTick {
     pub close: f64,
     pub volume: i64,
     pub count: i64,
+    pub vwap: f64,
     pub date: i32,
     /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
     pub expiration: i32,

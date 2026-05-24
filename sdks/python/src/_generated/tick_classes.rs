@@ -394,13 +394,42 @@ impl InterestRateTick {
 }
 
 /// Implied volatility tick.
+/// 
+/// Wire layout verified-live against `option_history_greeks_implied_volatility`
+/// (terminal jar build `202605221`):
+/// 
+/// | Schema field                | Wire header               | Type   |
+/// |-----------------------------|---------------------------|--------|
+/// | `ms_of_day`                 | `timestamp`               | i32    |
+/// | `bid`                       | `bid`                     | price  |
+/// | `bid_implied_volatility`    | `bid_implied_vol`         | f64    |
+/// | `midpoint`                  | `midpoint`                | price  |
+/// | `implied_volatility`        | `implied_vol`             | f64    |
+/// | `ask`                       | `ask`                     | price  |
+/// | `ask_implied_volatility`    | `ask_implied_vol`         | f64    |
+/// | `iv_error`                  | `iv_error`                | f64    |
+/// | `underlying_ms_of_day`      | `underlying_timestamp`    | i32    |
+/// | `underlying_price`          | `underlying_price`        | price  |
+/// | `date`                      | `timestamp`               | i32    |
+/// 
+/// The snapshot variant (`option_snapshot_greeks_implied_volatility`) emits
+/// a 4-column subset (`ms_of_day, implied_vol, iv_error, date`); the
+/// generator's optional-column path defaults the missing fields to 0.0 so
+/// the snapshot decode keeps working.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct IvTick {
     #[pyo3(get)] pub ms_of_day: i32,
+    #[pyo3(get)] pub bid: f64,
+    #[pyo3(get)] pub bid_implied_volatility: f64,
+    #[pyo3(get)] pub midpoint: f64,
     #[pyo3(get)] pub implied_volatility: f64,
+    #[pyo3(get)] pub ask: f64,
+    #[pyo3(get)] pub ask_implied_volatility: f64,
     #[pyo3(get)] pub iv_error: f64,
+    #[pyo3(get)] pub underlying_ms_of_day: i32,
+    #[pyo3(get)] pub underlying_price: f64,
     #[pyo3(get)] pub date: i32,
     #[pyo3(get)] pub expiration: i32,
     #[pyo3(get)] pub strike: f64,
@@ -409,12 +438,19 @@ pub(crate) struct IvTick {
 #[pymethods]
 impl IvTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, implied_volatility = 0.0f64, iv_error = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, implied_volatility: f64, iv_error: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, bid = 0.0f64, bid_implied_volatility = 0.0f64, midpoint = 0.0f64, implied_volatility = 0.0f64, ask = 0.0f64, ask_implied_volatility = 0.0f64, iv_error = 0.0f64, underlying_ms_of_day = 0i32, underlying_price = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, bid: f64, bid_implied_volatility: f64, midpoint: f64, implied_volatility: f64, ask: f64, ask_implied_volatility: f64, iv_error: f64, underlying_ms_of_day: i32, underlying_price: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
         Self {
             ms_of_day,
+            bid,
+            bid_implied_volatility,
+            midpoint,
             implied_volatility,
+            ask,
+            ask_implied_volatility,
             iv_error,
+            underlying_ms_of_day,
+            underlying_price,
             date,
             expiration,
             strike,
@@ -422,7 +458,7 @@ impl IvTick {
         }
     }
     fn __repr__(&self) -> String {
-        format!("IvTick(ms_of_day={}, implied_volatility={}, iv_error={}, date={})", self.ms_of_day, self.implied_volatility, self.iv_error, self.date)
+        format!("IvTick(ms_of_day={}, bid={}, bid_implied_volatility={}, midpoint={}, implied_volatility={}, ask={})", self.ms_of_day, self.bid, self.bid_implied_volatility, self.midpoint, self.implied_volatility, self.ask)
     }
 }
 
@@ -461,7 +497,15 @@ impl MarketValueTick {
     }
 }
 
-/// OHLC tick. Aggregated bar data.
+/// OHLC tick. Aggregated bar data including SIP-rule VWAP.
+/// 
+/// Wire layout verified-live (terminal jar build `202605221`) against
+/// `stock_history_ohlc`, `option_history_ohlc`, and `index_history_ohlc`,
+/// which emit the same 8 data columns (`timestamp,open,high,low,close,
+/// volume,count,vwap`). The snapshot variants (`*_snapshot_ohlc`) omit
+/// `vwap`; the generated parser's optional-column path defaults the
+/// field to `0.0` for those endpoints, mirroring how `volume`/`count`
+/// already zero-default on quote-only intraday bars.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
@@ -473,6 +517,7 @@ pub(crate) struct OhlcTick {
     #[pyo3(get)] pub close: f64,
     #[pyo3(get)] pub volume: i64,
     #[pyo3(get)] pub count: i64,
+    #[pyo3(get)] pub vwap: f64,
     #[pyo3(get)] pub date: i32,
     #[pyo3(get)] pub expiration: i32,
     #[pyo3(get)] pub strike: f64,
@@ -481,8 +526,8 @@ pub(crate) struct OhlcTick {
 #[pymethods]
 impl OhlcTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, open = 0.0f64, high = 0.0f64, low = 0.0f64, close = 0.0f64, volume = 0i64, count = 0i64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
-    fn new(ms_of_day: i32, open: f64, high: f64, low: f64, close: f64, volume: i64, count: i64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, open = 0.0f64, high = 0.0f64, low = 0.0f64, close = 0.0f64, volume = 0i64, count = 0i64, vwap = 0.0f64, date = 0i32, expiration = 0i32, strike = 0.0f64, right = String::new()))]
+    fn new(ms_of_day: i32, open: f64, high: f64, low: f64, close: f64, volume: i64, count: i64, vwap: f64, date: i32, expiration: i32, strike: f64, right: String) -> Self {
         Self {
             ms_of_day,
             open,
@@ -491,6 +536,7 @@ impl OhlcTick {
             close,
             volume,
             count,
+            vwap,
             date,
             expiration,
             strike,
@@ -2160,8 +2206,15 @@ impl IvTickList {
         for t in &ticks {
             inner.push(            tick::IvTick {
                 ms_of_day: t.ms_of_day,
+                bid: t.bid,
+                bid_implied_volatility: t.bid_implied_volatility,
+                midpoint: t.midpoint,
                 implied_volatility: t.implied_volatility,
+                ask: t.ask,
+                ask_implied_volatility: t.ask_implied_volatility,
                 iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,
@@ -2195,8 +2248,15 @@ impl IvTickList {
         let t = &self.inner[resolved as usize];
         Ok(            IvTick {
                 ms_of_day: t.ms_of_day,
+                bid: t.bid,
+                bid_implied_volatility: t.bid_implied_volatility,
+                midpoint: t.midpoint,
                 implied_volatility: t.implied_volatility,
+                ask: t.ask,
+                ask_implied_volatility: t.ask_implied_volatility,
                 iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,
@@ -2217,8 +2277,15 @@ impl IvTickList {
         for t in &self.inner {
             let obj =                 IvTick {
                     ms_of_day: t.ms_of_day,
+                    bid: t.bid,
+                    bid_implied_volatility: t.bid_implied_volatility,
+                    midpoint: t.midpoint,
                     implied_volatility: t.implied_volatility,
+                    ask: t.ask,
+                    ask_implied_volatility: t.ask_implied_volatility,
                     iv_error: t.iv_error,
+                    underlying_ms_of_day: t.underlying_ms_of_day,
+                    underlying_price: t.underlying_price,
                     date: t.date,
                     expiration: t.expiration,
                     strike: t.strike,
@@ -2285,8 +2352,15 @@ impl IvTickListIter {
         self.cursor += 1;
         Some(            IvTick {
                 ms_of_day: t.ms_of_day,
+                bid: t.bid,
+                bid_implied_volatility: t.bid_implied_volatility,
+                midpoint: t.midpoint,
                 implied_volatility: t.implied_volatility,
+                ask: t.ask,
+                ask_implied_volatility: t.ask_implied_volatility,
                 iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,
@@ -2494,6 +2568,7 @@ impl OhlcTickList {
                 close: t.close,
                 volume: t.volume,
                 count: t.count,
+                vwap: t.vwap,
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,
@@ -2533,6 +2608,7 @@ impl OhlcTickList {
                 close: t.close,
                 volume: t.volume,
                 count: t.count,
+                vwap: t.vwap,
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,
@@ -2559,6 +2635,7 @@ impl OhlcTickList {
                     close: t.close,
                     volume: t.volume,
                     count: t.count,
+                    vwap: t.vwap,
                     date: t.date,
                     expiration: t.expiration,
                     strike: t.strike,
@@ -2631,6 +2708,7 @@ impl OhlcTickListIter {
                 close: t.close,
                 volume: t.volume,
                 count: t.count,
+                vwap: t.vwap,
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,
@@ -4016,8 +4094,15 @@ pub(crate) fn iv_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::IvTick>) -
     for t in &ticks {
         let obj =             IvTick {
                 ms_of_day: t.ms_of_day,
+                bid: t.bid,
+                bid_implied_volatility: t.bid_implied_volatility,
+                midpoint: t.midpoint,
                 implied_volatility: t.implied_volatility,
+                ask: t.ask,
+                ask_implied_volatility: t.ask_implied_volatility,
                 iv_error: t.iv_error,
+                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_price: t.underlying_price,
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,
@@ -4067,6 +4152,7 @@ pub(crate) fn ohlc_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::OhlcTick
                 close: t.close,
                 volume: t.volume,
                 count: t.count,
+                vwap: t.vwap,
                 date: t.date,
                 expiration: t.expiration,
                 strike: t.strike,
