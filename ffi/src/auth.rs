@@ -241,7 +241,10 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_ms(
         }
         // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        // SAFETY: out_ms null-checked above; caller pins the storage for the call duration.
+        // SAFETY: out_ms checked non-null at line 238; FFI contract pins
+        // the `u64` storage for the call. Writing the `reconnect.wait_ms`
+        // field cannot tear under a concurrent reader because the FFI
+        // surface is not thread-safe on a single config handle.
         unsafe {
             *out_ms = config.inner.reconnect.wait_ms;
         }
@@ -279,7 +282,10 @@ pub unsafe extern "C" fn tdx_config_get_reconnect_wait_rate_limited_ms(
         }
         // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        // SAFETY: out_ms null-checked above; caller pins the storage for the call duration.
+        // SAFETY: out_ms checked non-null at line 279; FFI contract pins
+        // the `u64` storage for the call. Writing
+        // `reconnect.wait_rate_limited_ms` cannot tear under a concurrent
+        // reader — FFI handles are not thread-safe per the public contract.
         unsafe {
             *out_ms = config.inner.reconnect.wait_rate_limited_ms;
         }
@@ -387,7 +393,10 @@ pub unsafe extern "C" fn tdx_config_get_retry_initial_delay_ms(
         // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let ms = u64::try_from(config.inner.retry.initial_delay.as_millis()).unwrap_or(u64::MAX);
-        // SAFETY: out_ms null-checked above; caller pins the storage for the call duration.
+        // SAFETY: out_ms checked non-null at line 389; FFI contract
+        // pins the `u64` storage for the call. The `ms` local lives
+        // for the entire scope so the write is in-bounds for the
+        // pointer's lifetime.
         unsafe {
             *out_ms = ms;
         }
@@ -420,7 +429,9 @@ pub unsafe extern "C" fn tdx_config_get_retry_max_delay_ms(
         // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
         let ms = u64::try_from(config.inner.retry.max_delay.as_millis()).unwrap_or(u64::MAX);
-        // SAFETY: out_ms null-checked above; caller pins the storage for the call duration.
+        // SAFETY: out_ms checked non-null at line 425; FFI contract pins
+        // the `u64` storage. Writing `retry.max_delay` (a saturating
+        // `Duration::as_millis` clamp) cannot exceed `u64::MAX`.
         unsafe {
             *out_ms = ms;
         }
