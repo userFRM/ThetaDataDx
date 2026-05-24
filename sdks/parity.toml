@@ -346,3 +346,32 @@ name = "RetryPolicy.jitter"
 python = true
 typescript = true
 cpp = true
+
+# ─── Cross-binding error-class name divergences ───────────────────────
+#
+# The Rust `Error` enum surfaces through different binding-language
+# idioms (no per-language "rename for cosmetics" pass):
+#
+#   * Rust:       `thetadatadx::Error` (single error enum).
+#   * Python:     runtime class is `Error` (matches the Rust name);
+#                 the `.pyi` stub shadows it as `FpssParseError`
+#                 (suffix-disambiguated against the generic
+#                 `Error(ThetaDataError)` exception class) to avoid the
+#                 mypy duplicate-class collision. Runtime callers still
+#                 catch `thetadatadx.Error`.
+#   * TypeScript: napi exposes the variants as a discriminated union
+#                 over the standard JS `Error` superclass — `class
+#                 Error extends globalThis.Error` is the napi default.
+#   * C++:        FFI surface returns `int32_t` status codes per the
+#                 `tdx_last_error()` thread-local string convention; the
+#                 RAII wrapper exposes them as `tdx::FpssError` to
+#                 disambiguate from `std::exception`.
+#
+# This row is informational — the parity script's class-existence
+# check skips dotted rows. Audit S59 closure.
+
+[[class]]
+name = "Error.cross_binding_name_divergence"
+python = true
+typescript = true
+cpp = true
