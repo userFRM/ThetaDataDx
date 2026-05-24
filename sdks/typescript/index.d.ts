@@ -1566,8 +1566,15 @@ export declare const enum Interval {
 /** Implied volatility tick. */
 export interface IvTick {
   msOfDay: number
+  bid: number
+  bidImpliedVolatility: number
+  midpoint: number
   impliedVolatility: number
+  ask: number
+  askImpliedVolatility: number
   ivError: number
+  underlyingMsOfDay: number
+  underlyingPrice: number
   date: number
   expiration: number
   strike: number
@@ -1601,7 +1608,7 @@ export interface MarketValueTick {
   right: string
 }
 
-/** OHLC tick. Aggregated bar data. */
+/** OHLC tick. Aggregated bar data including SIP-rule VWAP. */
 export interface OhlcTick {
   msOfDay: number
   open: number
@@ -1610,6 +1617,7 @@ export interface OhlcTick {
   close: number
   volume: bigint
   count: bigint
+  vwap: number
   date: number
   expiration: number
   strike: number
