@@ -12,24 +12,28 @@
 // verify the static factory shape; the streaming lifecycle itself is
 // exercised against an in-memory mock so the test stays unit-scoped
 // and stable across CI runs without credentials.
-import { describe, it, mock } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 const wrapperImportPath = '../streaming-session.js';
 
+// CI build step is mandatory before `npm test`; fail loud if the wrapper
+// (which depends on the napi addon) cannot be loaded so a broken build
+// does not appear green.
+let mod;
+try {
+  const imported = await import(wrapperImportPath);
+  // CJS modules show up under `default` when imported from ESM in
+  // Node's interop layer; the wrapper sets `module.exports = {...}`
+  // so we get the namespace via `default`.
+  mod = imported.default ?? imported;
+} catch {
+  console.error('FAIL: native addon not built; run `npm run build` first');
+  process.exit(1);
+}
+
 describe('streaming-session wrapper', () => {
-  it('exports StreamingSession constructor', async () => {
-    let mod;
-    try {
-      const imported = await import(wrapperImportPath);
-      // CJS modules show up under `default` when imported from ESM in
-      // Node's interop layer; the wrapper sets `module.exports = {...}`
-      // so we get the namespace via `default`.
-      mod = imported.default ?? imported;
-    } catch {
-      console.log('SKIP: native addon not built (run `npm run build` first)');
-      return;
-    }
+  it('exports StreamingSession constructor', () => {
     assert.equal(typeof mod.StreamingSession, 'function');
     assert.equal(typeof mod.ThetaDataDxClient, 'function');
     // streaming() is monkey-patched onto the prototype on require.
@@ -37,17 +41,6 @@ describe('streaming-session wrapper', () => {
   });
 
   it('Symbol.asyncDispose pairs stopStreaming with awaitDrain', async () => {
-    let mod;
-    try {
-      const imported = await import(wrapperImportPath);
-      // CJS modules show up under `default` when imported from ESM in
-      // Node's interop layer; the wrapper sets `module.exports = {...}`
-      // so we get the namespace via `default`.
-      mod = imported.default ?? imported;
-    } catch {
-      console.log('SKIP: native addon not built');
-      return;
-    }
     const calls = [];
     const fakeTdx = {
       stopStreaming() { calls.push('stopStreaming'); },
@@ -70,17 +63,6 @@ describe('streaming-session wrapper', () => {
   });
 
   it('warns to console when awaitDrain returns false', async () => {
-    let mod;
-    try {
-      const imported = await import(wrapperImportPath);
-      // CJS modules show up under `default` when imported from ESM in
-      // Node's interop layer; the wrapper sets `module.exports = {...}`
-      // so we get the namespace via `default`.
-      mod = imported.default ?? imported;
-    } catch {
-      console.log('SKIP: native addon not built');
-      return;
-    }
     const fakeTdx = {
       stopStreaming() {},
       async awaitDrain() { return false; },
@@ -100,18 +82,7 @@ describe('streaming-session wrapper', () => {
     assert.match(warned[0], /5000ms/, 'warning text should include the 5000ms timeout');
   });
 
-  it('Proxy forwards arbitrary method calls to the underlying tdx', async () => {
-    let mod;
-    try {
-      const imported = await import(wrapperImportPath);
-      // CJS modules show up under `default` when imported from ESM in
-      // Node's interop layer; the wrapper sets `module.exports = {...}`
-      // so we get the namespace via `default`.
-      mod = imported.default ?? imported;
-    } catch {
-      console.log('SKIP: native addon not built');
-      return;
-    }
+  it('Proxy forwards arbitrary method calls to the underlying tdx', () => {
     // Method that does NOT exist on StreamingSession itself but should
     // proxy through to the tdx. This is the SSOT property: adding a new
     // method to the napi binding makes it reachable on the session
