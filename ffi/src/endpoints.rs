@@ -17,7 +17,9 @@ use crate::types::{
     TdxGreeksFirstOrderTickArray, TdxGreeksSecondOrderTickArray, TdxGreeksThirdOrderTickArray,
     TdxInterestRateTickArray, TdxIvTickArray, TdxMarketValueTickArray, TdxOhlcTickArray,
     TdxOpenInterestTickArray, TdxOptionContractArray, TdxPriceTickArray, TdxQuoteTickArray,
-    TdxStringArray, TdxTradeQuoteTickArray, TdxTradeTickArray,
+    TdxStringArray, TdxTradeGreeksAllTickArray, TdxTradeGreeksFirstOrderTickArray,
+    TdxTradeGreeksImpliedVolatilityTickArray, TdxTradeGreeksSecondOrderTickArray,
+    TdxTradeGreeksThirdOrderTickArray, TdxTradeQuoteTickArray, TdxTradeTickArray,
 };
 
 include!("endpoint_request_options.rs");

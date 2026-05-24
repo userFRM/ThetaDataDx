@@ -7802,7 +7802,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksAllTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksAllTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -7863,7 +7863,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             request.await
         })?;
-        greeks_all_ticks_to_pyclass_list(py, ticks)
+        trade_greeks_all_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -7927,7 +7927,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Stream chunks of `option_history_trade_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
@@ -8005,7 +8005,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -8099,7 +8099,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -8717,7 +8717,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksFirstOrderTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksFirstOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -8778,7 +8778,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             request.await
         })?;
-        greeks_first_order_ticks_to_pyclass_list(py, ticks)
+        trade_greeks_first_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -8842,7 +8842,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Stream chunks of `option_history_trade_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
@@ -8920,7 +8920,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -9014,7 +9014,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -9632,7 +9632,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksSecondOrderTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksSecondOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -9693,7 +9693,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             request.await
         })?;
-        greeks_second_order_ticks_to_pyclass_list(py, ticks)
+        trade_greeks_second_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -9757,7 +9757,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Stream chunks of `option_history_trade_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
@@ -9835,7 +9835,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -9929,7 +9929,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -10547,7 +10547,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksThirdOrderTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksThirdOrderTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -10608,7 +10608,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             request.await
         })?;
-        greeks_third_order_ticks_to_pyclass_list(py, ticks)
+        trade_greeks_third_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -10672,7 +10672,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Stream chunks of `option_history_trade_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
@@ -10750,7 +10750,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -10844,7 +10844,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -11460,7 +11460,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<IvTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksImpliedVolatilityTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -11521,7 +11521,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             request.await
         })?;
-        iv_ticks_to_pyclass_list(py, ticks)
+        trade_greeks_implied_volatility_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -11585,7 +11585,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_greeks_implied_volatility_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Stream chunks of `option_history_trade_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
@@ -11663,7 +11663,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match iv_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -11757,7 +11757,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match iv_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -18803,7 +18803,7 @@ impl ThetaDataDxClient {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksAllTickList>> {
+    ) -> PyResult<Py<TradeGreeksAllTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -18845,7 +18845,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_all_ticks_to_pyclass_list(py, ticks)
+        trade_greeks_all_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch all Greeks on each trade for an option contract.
@@ -18931,7 +18931,7 @@ impl ThetaDataDxClient {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_all`. Chain setters then call `.list()`
@@ -19203,7 +19203,7 @@ impl ThetaDataDxClient {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksFirstOrderTickList>> {
+    ) -> PyResult<Py<TradeGreeksFirstOrderTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -19245,7 +19245,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_first_order_ticks_to_pyclass_list(py, ticks)
+        trade_greeks_first_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
@@ -19331,7 +19331,7 @@ impl ThetaDataDxClient {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_first_order`. Chain setters then call `.list()`
@@ -19603,7 +19603,7 @@ impl ThetaDataDxClient {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksSecondOrderTickList>> {
+    ) -> PyResult<Py<TradeGreeksSecondOrderTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -19645,7 +19645,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_second_order_ticks_to_pyclass_list(py, ticks)
+        trade_greeks_second_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
@@ -19731,7 +19731,7 @@ impl ThetaDataDxClient {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_second_order`. Chain setters then call `.list()`
@@ -20003,7 +20003,7 @@ impl ThetaDataDxClient {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksThirdOrderTickList>> {
+    ) -> PyResult<Py<TradeGreeksThirdOrderTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -20045,7 +20045,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_third_order_ticks_to_pyclass_list(py, ticks)
+        trade_greeks_third_order_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
@@ -20131,7 +20131,7 @@ impl ThetaDataDxClient {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_third_order`. Chain setters then call `.list()`
@@ -20400,7 +20400,7 @@ impl ThetaDataDxClient {
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<IvTickList>> {
+    ) -> PyResult<Py<TradeGreeksImpliedVolatilityTickList>> {
         let mut request = self.tdx.option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -20442,7 +20442,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        iv_ticks_to_pyclass_list(py, ticks)
+        trade_greeks_implied_volatility_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch implied volatility on each trade for an option contract.
@@ -20527,7 +20527,7 @@ impl ThetaDataDxClient {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_greeks_implied_volatility_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_trade_greeks_implied_volatility`. Chain setters then call `.list()`

@@ -381,6 +381,214 @@ pub struct QuoteTick {
     pub midpoint: f64,
 }
 
+/// Per-trade union Greeks tick -- every Greek the v3 server publishes on
+/// `option_history_trade_greeks_all`, paired with the trade-side execution
+/// columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
+/// `exchange`, `price`) that identify which OPRA print each Greek was
+/// calculated against.
+///
+/// Wire layout verified-live against terminal jar build `202605221`:
+///
+///   symbol, expiration, strike, right,
+///   timestamp, sequence, ext_condition1..4, condition, size, exchange, price,
+///   delta, theta, vega, rho, epsilon, lambda,
+///   gamma, vanna, charm, vomma, veta, vera,
+///   speed, zomma, color, ultima,
+///   d1, d2, dual_delta, dual_gamma,
+///   implied_vol, iv_error,
+///   underlying_timestamp, underlying_price
+///
+/// The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
+/// `underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
+/// mappings are applied through `HEADER_ALIASES`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct TradeGreeksAllTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub delta: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub gamma: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub vera: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub d1: f64,
+    pub d2: f64,
+    pub dual_delta: f64,
+    pub dual_gamma: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
+/// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
+/// / lambda) paired with the trade-side execution columns identifying the
+/// OPRA print each Greek was calculated against. Wire layout verified-live
+/// against terminal jar build `202605221`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct TradeGreeksFirstOrderTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub delta: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
+/// Per-trade implied-volatility tick (single `implied_volatility` +
+/// `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled
+/// `IvTick`) paired with the trade-side execution columns identifying the
+/// OPRA print the IV was calculated against. Wire layout verified-live
+/// against terminal jar build `202605221`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct TradeGreeksImpliedVolatilityTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
+/// Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /
+/// veta) paired with the trade-side execution columns identifying the OPRA
+/// print each Greek was calculated against. Wire layout verified-live
+/// against terminal jar build `202605221`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct TradeGreeksSecondOrderTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub gamma: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
+/// Per-trade third-order Greeks tick (speed / zomma / color / ultima)
+/// paired with the trade-side execution columns identifying the OPRA print
+/// each Greek was calculated against. The vendor's third-order schema does
+/// not publish `vera`. Wire layout verified-live against terminal jar build
+/// `202605221`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct TradeGreeksThirdOrderTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
 /// Combined trade + quote tick -- 24 fields.
 #[must_use]
 #[derive(Debug, Clone, Copy)]

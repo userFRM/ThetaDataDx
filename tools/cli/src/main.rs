@@ -1150,6 +1150,324 @@ fn render_greeks_third_order(
     td.render(fmt);
 }
 
+fn render_trade_greeks_all(ticks: &[tdbe::types::tick::TradeGreeksAllTick], fmt: &OutputFormat) {
+    let mut td = TabularData::new(vec![
+        "date",
+        "ms_of_day",
+        "size",
+        "exchange",
+        "price",
+        "delta",
+        "gamma",
+        "theta",
+        "vega",
+        "iv",
+        "underlying_price",
+    ]);
+    td.set_raw_headers(TRADE_GREEKS_ALL_TICK_RAW_HEADERS.to_vec());
+    for t in ticks {
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{}", t.size),
+                format!("{}", t.exchange),
+                format_price_f64(t.price),
+                format!("{:.6}", t.delta),
+                format!("{:.6}", t.gamma),
+                format!("{:.6}", t.theta),
+                format!("{:.6}", t.vega),
+                format!("{:.6}", t.implied_volatility),
+                format!("{:.4}", t.underlying_price),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_i32(t.sequence),
+                raw_i32(t.ext_condition1),
+                raw_i32(t.ext_condition2),
+                raw_i32(t.ext_condition3),
+                raw_i32(t.ext_condition4),
+                raw_i32(t.condition),
+                raw_i32(t.size),
+                raw_i32(t.exchange),
+                raw_f64(t.price),
+                raw_f64(t.delta),
+                raw_f64(t.theta),
+                raw_f64(t.vega),
+                raw_f64(t.rho),
+                raw_f64(t.epsilon),
+                raw_f64(t.lambda),
+                raw_f64(t.gamma),
+                raw_f64(t.vanna),
+                raw_f64(t.charm),
+                raw_f64(t.vomma),
+                raw_f64(t.veta),
+                raw_f64(t.vera),
+                raw_f64(t.speed),
+                raw_f64(t.zomma),
+                raw_f64(t.color),
+                raw_f64(t.ultima),
+                raw_f64(t.d1),
+                raw_f64(t.d2),
+                raw_f64(t.dual_delta),
+                raw_f64(t.dual_gamma),
+                raw_f64(t.implied_volatility),
+                raw_f64(t.iv_error),
+                raw_ms(t.underlying_ms_of_day),
+                raw_f64(t.underlying_price),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
+    }
+    td.render(fmt);
+}
+
+fn render_trade_greeks_first_order(
+    ticks: &[tdbe::types::tick::TradeGreeksFirstOrderTick],
+    fmt: &OutputFormat,
+) {
+    let mut td = TabularData::new(vec![
+        "date",
+        "ms_of_day",
+        "size",
+        "exchange",
+        "price",
+        "delta",
+        "theta",
+        "vega",
+        "rho",
+        "iv",
+        "underlying_price",
+    ]);
+    td.set_raw_headers(TRADE_GREEKS_FIRST_ORDER_TICK_RAW_HEADERS.to_vec());
+    for t in ticks {
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{}", t.size),
+                format!("{}", t.exchange),
+                format_price_f64(t.price),
+                format!("{:.6}", t.delta),
+                format!("{:.6}", t.theta),
+                format!("{:.6}", t.vega),
+                format!("{:.6}", t.rho),
+                format!("{:.6}", t.implied_volatility),
+                format!("{:.4}", t.underlying_price),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_i32(t.sequence),
+                raw_i32(t.ext_condition1),
+                raw_i32(t.ext_condition2),
+                raw_i32(t.ext_condition3),
+                raw_i32(t.ext_condition4),
+                raw_i32(t.condition),
+                raw_i32(t.size),
+                raw_i32(t.exchange),
+                raw_f64(t.price),
+                raw_f64(t.delta),
+                raw_f64(t.theta),
+                raw_f64(t.vega),
+                raw_f64(t.rho),
+                raw_f64(t.epsilon),
+                raw_f64(t.lambda),
+                raw_f64(t.implied_volatility),
+                raw_f64(t.iv_error),
+                raw_ms(t.underlying_ms_of_day),
+                raw_f64(t.underlying_price),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
+    }
+    td.render(fmt);
+}
+
+fn render_trade_greeks_second_order(
+    ticks: &[tdbe::types::tick::TradeGreeksSecondOrderTick],
+    fmt: &OutputFormat,
+) {
+    let mut td = TabularData::new(vec![
+        "date",
+        "ms_of_day",
+        "size",
+        "exchange",
+        "price",
+        "gamma",
+        "vanna",
+        "charm",
+        "vomma",
+        "veta",
+        "iv",
+        "underlying_price",
+    ]);
+    td.set_raw_headers(TRADE_GREEKS_SECOND_ORDER_TICK_RAW_HEADERS.to_vec());
+    for t in ticks {
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{}", t.size),
+                format!("{}", t.exchange),
+                format_price_f64(t.price),
+                format!("{:.6}", t.gamma),
+                format!("{:.6}", t.vanna),
+                format!("{:.6}", t.charm),
+                format!("{:.6}", t.vomma),
+                format!("{:.6}", t.veta),
+                format!("{:.6}", t.implied_volatility),
+                format!("{:.4}", t.underlying_price),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_i32(t.sequence),
+                raw_i32(t.ext_condition1),
+                raw_i32(t.ext_condition2),
+                raw_i32(t.ext_condition3),
+                raw_i32(t.ext_condition4),
+                raw_i32(t.condition),
+                raw_i32(t.size),
+                raw_i32(t.exchange),
+                raw_f64(t.price),
+                raw_f64(t.gamma),
+                raw_f64(t.vanna),
+                raw_f64(t.charm),
+                raw_f64(t.vomma),
+                raw_f64(t.veta),
+                raw_f64(t.implied_volatility),
+                raw_f64(t.iv_error),
+                raw_ms(t.underlying_ms_of_day),
+                raw_f64(t.underlying_price),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
+    }
+    td.render(fmt);
+}
+
+fn render_trade_greeks_third_order(
+    ticks: &[tdbe::types::tick::TradeGreeksThirdOrderTick],
+    fmt: &OutputFormat,
+) {
+    let mut td = TabularData::new(vec![
+        "date",
+        "ms_of_day",
+        "size",
+        "exchange",
+        "price",
+        "speed",
+        "zomma",
+        "color",
+        "ultima",
+        "iv",
+        "underlying_price",
+    ]);
+    td.set_raw_headers(TRADE_GREEKS_THIRD_ORDER_TICK_RAW_HEADERS.to_vec());
+    for t in ticks {
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{}", t.size),
+                format!("{}", t.exchange),
+                format_price_f64(t.price),
+                format!("{:.6}", t.speed),
+                format!("{:.6}", t.zomma),
+                format!("{:.6}", t.color),
+                format!("{:.6}", t.ultima),
+                format!("{:.6}", t.implied_volatility),
+                format!("{:.4}", t.underlying_price),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_i32(t.sequence),
+                raw_i32(t.ext_condition1),
+                raw_i32(t.ext_condition2),
+                raw_i32(t.ext_condition3),
+                raw_i32(t.ext_condition4),
+                raw_i32(t.condition),
+                raw_i32(t.size),
+                raw_i32(t.exchange),
+                raw_f64(t.price),
+                raw_f64(t.speed),
+                raw_f64(t.zomma),
+                raw_f64(t.color),
+                raw_f64(t.ultima),
+                raw_f64(t.implied_volatility),
+                raw_f64(t.iv_error),
+                raw_ms(t.underlying_ms_of_day),
+                raw_f64(t.underlying_price),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
+    }
+    td.render(fmt);
+}
+
+fn render_trade_greeks_implied_volatility(
+    ticks: &[tdbe::types::tick::TradeGreeksImpliedVolatilityTick],
+    fmt: &OutputFormat,
+) {
+    let mut td = TabularData::new(vec![
+        "date",
+        "ms_of_day",
+        "size",
+        "exchange",
+        "price",
+        "implied_volatility",
+        "iv_error",
+        "underlying_price",
+    ]);
+    td.set_raw_headers(TRADE_GREEKS_IMPLIED_VOLATILITY_TICK_RAW_HEADERS.to_vec());
+    for t in ticks {
+        td.push_with_raw(
+            vec![
+                format_date(t.date),
+                format_ms(t.ms_of_day),
+                format!("{}", t.size),
+                format!("{}", t.exchange),
+                format_price_f64(t.price),
+                format!("{:.6}", t.implied_volatility),
+                format!("{:.6}", t.iv_error),
+                format!("{:.4}", t.underlying_price),
+            ],
+            vec![
+                raw_ms(t.ms_of_day),
+                raw_i32(t.sequence),
+                raw_i32(t.ext_condition1),
+                raw_i32(t.ext_condition2),
+                raw_i32(t.ext_condition3),
+                raw_i32(t.ext_condition4),
+                raw_i32(t.condition),
+                raw_i32(t.size),
+                raw_i32(t.exchange),
+                raw_f64(t.price),
+                raw_f64(t.implied_volatility),
+                raw_f64(t.iv_error),
+                raw_ms(t.underlying_ms_of_day),
+                raw_f64(t.underlying_price),
+                raw_date(t.date),
+                raw_i32(t.expiration),
+                raw_f64(t.strike),
+                raw_right_label(t.is_call(), t.is_put()),
+            ],
+        );
+    }
+    td.render(fmt);
+}
+
 fn render_iv(ticks: &[tdbe::types::tick::IvTick], fmt: &OutputFormat) {
     let mut td = TabularData::new(vec!["date", "ms_of_day", "implied_volatility", "iv_error"]);
     // Canonical schema -- matches sdks/python/src/tick_columnar.rs:136-153
@@ -1293,6 +1611,19 @@ fn render_output(ep: &EndpointMeta, output: EndpointOutput, fmt: &OutputFormat) 
         EndpointOutput::GreeksFirstOrderTicks(ticks) => render_greeks_first_order(&ticks, fmt),
         EndpointOutput::GreeksSecondOrderTicks(ticks) => render_greeks_second_order(&ticks, fmt),
         EndpointOutput::GreeksThirdOrderTicks(ticks) => render_greeks_third_order(&ticks, fmt),
+        EndpointOutput::TradeGreeksAllTicks(ticks) => render_trade_greeks_all(&ticks, fmt),
+        EndpointOutput::TradeGreeksFirstOrderTicks(ticks) => {
+            render_trade_greeks_first_order(&ticks, fmt)
+        }
+        EndpointOutput::TradeGreeksSecondOrderTicks(ticks) => {
+            render_trade_greeks_second_order(&ticks, fmt)
+        }
+        EndpointOutput::TradeGreeksThirdOrderTicks(ticks) => {
+            render_trade_greeks_third_order(&ticks, fmt)
+        }
+        EndpointOutput::TradeGreeksImpliedVolatilityTicks(ticks) => {
+            render_trade_greeks_implied_volatility(&ticks, fmt)
+        }
         EndpointOutput::IvTicks(ticks) => render_iv(&ticks, fmt),
         EndpointOutput::PriceTicks(ticks) => render_price(&ticks, fmt),
         EndpointOutput::CalendarDays(days) => render_calendar(&days, fmt),

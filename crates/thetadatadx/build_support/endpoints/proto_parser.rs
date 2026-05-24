@@ -337,6 +337,28 @@ fn derive_return_type(method: &str) -> String {
         return "MarketValueTicks".into();
     }
 
+    // The `option_history_trade_greeks_*` endpoints calculate Greeks per
+    // OPRA trade and ship nine trade-side execution columns alongside the
+    // Greek values. They route to dedicated `TradeGreeks*Tick` types --
+    // distinct from the interval-sampled `Greeks*Tick` variants whose
+    // wire rows carry the bid/ask quote pair instead. Match these BEFORE
+    // the bare `greeks_*` arms so the trade-side prefix takes precedence.
+    if method.contains("trade_greeks_implied_volatility") {
+        return "TradeGreeksImpliedVolatilityTicks".into();
+    }
+    if method.contains("trade_greeks_first_order") {
+        return "TradeGreeksFirstOrderTicks".into();
+    }
+    if method.contains("trade_greeks_second_order") {
+        return "TradeGreeksSecondOrderTicks".into();
+    }
+    if method.contains("trade_greeks_third_order") {
+        return "TradeGreeksThirdOrderTicks".into();
+    }
+    if method.contains("trade_greeks") {
+        return "TradeGreeksAllTicks".into();
+    }
+
     if method.contains("greeks_implied_volatility") {
         return "IvTicks".into();
     }

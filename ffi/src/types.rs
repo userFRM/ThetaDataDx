@@ -164,6 +164,27 @@ tick_array_type!(TdxGreeksAllTickArray, tdbe::GreeksAllTick);
 tick_array_type!(TdxGreeksFirstOrderTickArray, tdbe::GreeksFirstOrderTick);
 tick_array_type!(TdxGreeksSecondOrderTickArray, tdbe::GreeksSecondOrderTick);
 tick_array_type!(TdxGreeksThirdOrderTickArray, tdbe::GreeksThirdOrderTick);
+// Per-OPRA-trade Greeks emitted by `option_history_trade_greeks_*`. These
+// carry the nine trade-side execution columns alongside the Greek values --
+// distinct from the interval-sampled `TdxGreeks*TickArray` whose rows carry
+// the bid/ask quote pair instead.
+tick_array_type!(TdxTradeGreeksAllTickArray, tdbe::TradeGreeksAllTick);
+tick_array_type!(
+    TdxTradeGreeksFirstOrderTickArray,
+    tdbe::TradeGreeksFirstOrderTick
+);
+tick_array_type!(
+    TdxTradeGreeksSecondOrderTickArray,
+    tdbe::TradeGreeksSecondOrderTick
+);
+tick_array_type!(
+    TdxTradeGreeksThirdOrderTickArray,
+    tdbe::TradeGreeksThirdOrderTick
+);
+tick_array_type!(
+    TdxTradeGreeksImpliedVolatilityTickArray,
+    tdbe::TradeGreeksImpliedVolatilityTick
+);
 tick_array_type!(TdxIvTickArray, tdbe::IvTick);
 tick_array_type!(TdxPriceTickArray, tdbe::PriceTick);
 tick_array_type!(TdxOpenInterestTickArray, tdbe::OpenInterestTick);
@@ -202,6 +223,26 @@ tick_array_free!(
 tick_array_free!(
     tdx_greeks_third_order_tick_array_free,
     TdxGreeksThirdOrderTickArray
+);
+tick_array_free!(
+    tdx_trade_greeks_all_tick_array_free,
+    TdxTradeGreeksAllTickArray
+);
+tick_array_free!(
+    tdx_trade_greeks_first_order_tick_array_free,
+    TdxTradeGreeksFirstOrderTickArray
+);
+tick_array_free!(
+    tdx_trade_greeks_second_order_tick_array_free,
+    TdxTradeGreeksSecondOrderTickArray
+);
+tick_array_free!(
+    tdx_trade_greeks_third_order_tick_array_free,
+    TdxTradeGreeksThirdOrderTickArray
+);
+tick_array_free!(
+    tdx_trade_greeks_implied_volatility_tick_array_free,
+    TdxTradeGreeksImpliedVolatilityTickArray
 );
 tick_array_free!(tdx_iv_tick_array_free, TdxIvTickArray);
 tick_array_free!(tdx_price_tick_array_free, TdxPriceTickArray);

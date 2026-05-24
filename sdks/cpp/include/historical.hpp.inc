@@ -117,31 +117,31 @@
     std::vector<GreeksAllTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all Greeks on each trade for an option contract.
-    std::vector<GreeksAllTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeGreeksAllTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksFirstOrderTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch first-order Greeks on each trade for an option contract.
-    std::vector<GreeksFirstOrderTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeGreeksFirstOrderTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksSecondOrderTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch second-order Greeks on each trade for an option contract.
-    std::vector<GreeksSecondOrderTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeGreeksSecondOrderTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksThirdOrderTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch third-order Greeks on each trade for an option contract.
-    std::vector<GreeksThirdOrderTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeGreeksThirdOrderTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch implied volatility history (intraday, sampled by interval).
     std::vector<IvTick> option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch implied volatility on each trade for an option contract.
-    std::vector<IvTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeGreeksImpliedVolatilityTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the trade at a specific time of day across a date range for an option.
     std::vector<TradeTick> option_at_time_trade(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;

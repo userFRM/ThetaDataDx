@@ -7,19 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> **Release line note**: this train accumulates 19 major + 1 minor breaking
+> **Release line note**: this train accumulates 24 major + 1 minor breaking
 > changes versus v10.0.0. The next release tag MUST be v11.0.0, not a
 > v10.0.x patch. Owner-greenlight gated on this audit returning zero
-> actionable findings. Wave-4 of the audit-fix loop wires the three
-> remaining "defined-but-not-connected" config knobs
-> (`RuntimeConfig.tokio_worker_threads`, `ReconnectConfig.wait_ms`,
-> `ReconnectConfig.wait_rate_limited_ms`) into the FPSS auto-reconnect
-> path, binds the four `RetryPolicy` fields cross-language, and silences
-> five TS test files that were silent-skipping on missing native addon.
-> All additions are purely additive — break count unchanged at 19
-> major + 1 minor.
+> actionable findings. Wave-5 of the audit-fix loop closes audit BL-14:
+> the five `option_history_trade_greeks_*` endpoints have been re-routed
+> from the bare interval-sampled `Greeks*Tick` types onto five new
+> per-trade `TradeGreeks*Tick` sibling types that carry the nine
+> trade-side execution columns the v10 line silently dropped.
+> The +5 major entries are the return-type change on the five
+> endpoints (`Vec<GreeksAllTick>` -> `Vec<TradeGreeksAllTick>`, and
+> the same per-order substitutions); the new types are listed under
+> `Added (BREAKING -- v11)`.
 
 ### Added
+
+#### Audit closure wave 5
+
+- Five new `TradeGreeks*Tick` types model the per-OPRA-trade Greek
+  endpoints (`option_history_trade_greeks_all`, `_first_order`,
+  `_second_order`, `_third_order`, `_implied_volatility`). Each carries
+  the nine trade-side execution columns (`sequence`, `ext_condition1..4`,
+  `condition`, `size`, `exchange`, `price`) alongside the relevant
+  Greek subset and the underlying snapshot. Wire layout verified-live
+  against terminal jar build `202605221`; pinned by the new
+  `tests/test_trade_greeks_schema.rs` regression suite + five new
+  fixtures under `tests/fixtures/captures/option_history_trade_greeks_*`.
+  Available on every binding (Rust direct + tdbe + ffi `TdxTradeGreeks*TickArray`
+  + Python pyclass + TypeScript napi `TradeGreeks*Tick` + C++
+  `tdx::TradeGreeks*Tick`).
 
 #### Audit closure wave 4
 
@@ -121,6 +137,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Audit closure wave 5
+
+- Five `option_history_trade_greeks_*` endpoints previously routed to
+  the interval-sampled `Greeks*Tick` types, which silently dropped the
+  nine trade-side execution columns (`sequence`, `ext_condition1..4`,
+  `condition`, `size`, `exchange`, `price`) per row. Users got the
+  Greeks but lost the per-trade execution context that distinguishes
+  these endpoints from the interval-sampled siblings. Verified live
+  against terminal jar build `202605221`; new `TradeGreeks*Tick`
+  sibling types carry the trade execution context end-to-end across
+  Rust, ffi, Python, TypeScript, and C++. Closes audit BL-14.
+
 #### Audit closure wave 4
 
 - 5 TypeScript test files (`asyncdispose.test.mjs`, `basic.test.mjs`,
@@ -139,6 +167,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   capture deployment-topology data by default. Closes audit S56.
 
 ### Changed (BREAKING — v11)
+
+#### Audit closure wave 5
+
+- Five `option_history_trade_greeks_*` endpoint return types change
+  shape: `Vec<GreeksAllTick>` -> `Vec<TradeGreeksAllTick>`,
+  `Vec<GreeksFirstOrderTick>` -> `Vec<TradeGreeksFirstOrderTick>`,
+  `Vec<GreeksSecondOrderTick>` -> `Vec<TradeGreeksSecondOrderTick>`,
+  `Vec<GreeksThirdOrderTick>` -> `Vec<TradeGreeksThirdOrderTick>`,
+  `Vec<IvTick>` -> `Vec<TradeGreeksImpliedVolatilityTick>`. Migration:
+  consumers that already iterate Greek fields keep the same field
+  names; consumers that read `bid` / `ask` from these endpoints must
+  swap to the trade execution columns (`size`, `exchange`, `price`,
+  `condition`, `sequence`, `ext_condition1..4`) the server actually
+  emits on these endpoints. Closes audit BL-14. (5 major)
 
 #### Audit closure wave 3
 

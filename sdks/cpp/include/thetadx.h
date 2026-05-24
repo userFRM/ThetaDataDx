@@ -198,6 +198,176 @@ TDX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[20];
 } TdxGreeksThirdOrderTick TDX_ALIGN64_END;
 
+/* Per-OPRA-trade union Greeks tick (option_history_trade_greeks_all).
+ * Carries the nine trade-side execution columns alongside every Greek
+ * the server publishes -- distinct from the interval-sampled
+ * TdxGreeksAllTick whose rows carry the bid/ask quote pair instead. */
+TDX_ALIGN64_BEGIN typedef struct {
+    int32_t ms_of_day;
+    int32_t sequence;
+    int32_t ext_condition1;
+    int32_t ext_condition2;
+    int32_t ext_condition3;
+    int32_t ext_condition4;
+    int32_t condition;
+    int32_t size;
+    int32_t exchange;
+    /* 4 bytes padding before f64 */
+    double price;
+    double delta;
+    double theta;
+    double vega;
+    double rho;
+    double epsilon;
+    double lambda;
+    double gamma;
+    double vanna;
+    double charm;
+    double vomma;
+    double veta;
+    double vera;
+    double speed;
+    double zomma;
+    double color;
+    double ultima;
+    double d1;
+    double d2;
+    double dual_delta;
+    double dual_gamma;
+    double implied_volatility;
+    double iv_error;
+    int32_t underlying_ms_of_day;
+    /* 4 bytes padding before f64 */
+    double underlying_price;
+    int32_t date;
+    int32_t expiration;
+    double strike;
+    int32_t right;
+    uint8_t _tail_padding[60];
+} TdxTradeGreeksAllTick TDX_ALIGN64_END;
+
+/* Per-OPRA-trade first-order Greeks tick
+ * (option_history_trade_greeks_first_order). */
+TDX_ALIGN64_BEGIN typedef struct {
+    int32_t ms_of_day;
+    int32_t sequence;
+    int32_t ext_condition1;
+    int32_t ext_condition2;
+    int32_t ext_condition3;
+    int32_t ext_condition4;
+    int32_t condition;
+    int32_t size;
+    int32_t exchange;
+    /* 4 bytes padding before f64 */
+    double price;
+    double delta;
+    double theta;
+    double vega;
+    double rho;
+    double epsilon;
+    double lambda;
+    double implied_volatility;
+    double iv_error;
+    int32_t underlying_ms_of_day;
+    /* 4 bytes padding before f64 */
+    double underlying_price;
+    int32_t date;
+    int32_t expiration;
+    double strike;
+    int32_t right;
+    uint8_t _tail_padding[44];
+} TdxTradeGreeksFirstOrderTick TDX_ALIGN64_END;
+
+/* Per-OPRA-trade second-order Greeks tick
+ * (option_history_trade_greeks_second_order). */
+TDX_ALIGN64_BEGIN typedef struct {
+    int32_t ms_of_day;
+    int32_t sequence;
+    int32_t ext_condition1;
+    int32_t ext_condition2;
+    int32_t ext_condition3;
+    int32_t ext_condition4;
+    int32_t condition;
+    int32_t size;
+    int32_t exchange;
+    /* 4 bytes padding before f64 */
+    double price;
+    double gamma;
+    double vanna;
+    double charm;
+    double vomma;
+    double veta;
+    double implied_volatility;
+    double iv_error;
+    int32_t underlying_ms_of_day;
+    /* 4 bytes padding before f64 */
+    double underlying_price;
+    int32_t date;
+    int32_t expiration;
+    double strike;
+    int32_t right;
+    uint8_t _tail_padding[52];
+} TdxTradeGreeksSecondOrderTick TDX_ALIGN64_END;
+
+/* Per-OPRA-trade third-order Greeks tick
+ * (option_history_trade_greeks_third_order). The vendor's third-order
+ * schema does not publish `vera`. */
+TDX_ALIGN64_BEGIN typedef struct {
+    int32_t ms_of_day;
+    int32_t sequence;
+    int32_t ext_condition1;
+    int32_t ext_condition2;
+    int32_t ext_condition3;
+    int32_t ext_condition4;
+    int32_t condition;
+    int32_t size;
+    int32_t exchange;
+    /* 4 bytes padding before f64 */
+    double price;
+    double speed;
+    double zomma;
+    double color;
+    double ultima;
+    double implied_volatility;
+    double iv_error;
+    int32_t underlying_ms_of_day;
+    /* 4 bytes padding before f64 */
+    double underlying_price;
+    int32_t date;
+    int32_t expiration;
+    double strike;
+    int32_t right;
+    uint8_t _tail_padding[60];
+} TdxTradeGreeksThirdOrderTick TDX_ALIGN64_END;
+
+/* Per-OPRA-trade implied-volatility tick
+ * (option_history_trade_greeks_implied_volatility). Carries only the
+ * single `implied_volatility` + `iv_error` pair (NOT the bid/mid/ask IV
+ * triple of the interval-sampled TdxIvTick). */
+TDX_ALIGN64_BEGIN typedef struct {
+    int32_t ms_of_day;
+    int32_t sequence;
+    int32_t ext_condition1;
+    int32_t ext_condition2;
+    int32_t ext_condition3;
+    int32_t ext_condition4;
+    int32_t condition;
+    int32_t size;
+    int32_t exchange;
+    /* 4 bytes padding before f64 */
+    double price;
+    double implied_volatility;
+    double iv_error;
+    int32_t underlying_ms_of_day;
+    /* 4 bytes padding before f64 */
+    double underlying_price;
+    int32_t date;
+    int32_t expiration;
+    double strike;
+    int32_t right;
+    uint8_t _tail_padding[28];
+} TdxTradeGreeksImpliedVolatilityTick TDX_ALIGN64_END;
+
 /* InterestRateTick (2 fields). End-of-day interest rate (percent).
  * Wire shape per docs.thetadata.us/operations/interest_rate_history_eod.html
  * verified against terminal jar build 202605221:
@@ -375,6 +545,11 @@ typedef struct { const TdxGreeksAllTick* data; size_t len; } TdxGreeksAllTickArr
 typedef struct { const TdxGreeksFirstOrderTick* data; size_t len; } TdxGreeksFirstOrderTickArray;
 typedef struct { const TdxGreeksSecondOrderTick* data; size_t len; } TdxGreeksSecondOrderTickArray;
 typedef struct { const TdxGreeksThirdOrderTick* data; size_t len; } TdxGreeksThirdOrderTickArray;
+typedef struct { const TdxTradeGreeksAllTick* data; size_t len; } TdxTradeGreeksAllTickArray;
+typedef struct { const TdxTradeGreeksFirstOrderTick* data; size_t len; } TdxTradeGreeksFirstOrderTickArray;
+typedef struct { const TdxTradeGreeksSecondOrderTick* data; size_t len; } TdxTradeGreeksSecondOrderTickArray;
+typedef struct { const TdxTradeGreeksThirdOrderTick* data; size_t len; } TdxTradeGreeksThirdOrderTickArray;
+typedef struct { const TdxTradeGreeksImpliedVolatilityTick* data; size_t len; } TdxTradeGreeksImpliedVolatilityTickArray;
 typedef struct { const TdxIvTick* data; size_t len; } TdxIvTickArray;
 typedef struct { const TdxPriceTick* data; size_t len; } TdxPriceTickArray;
 typedef struct { const TdxOpenInterestTick* data; size_t len; } TdxOpenInterestTickArray;
@@ -454,6 +629,11 @@ void tdx_greeks_all_tick_array_free(TdxGreeksAllTickArray arr);
 void tdx_greeks_first_order_tick_array_free(TdxGreeksFirstOrderTickArray arr);
 void tdx_greeks_second_order_tick_array_free(TdxGreeksSecondOrderTickArray arr);
 void tdx_greeks_third_order_tick_array_free(TdxGreeksThirdOrderTickArray arr);
+void tdx_trade_greeks_all_tick_array_free(TdxTradeGreeksAllTickArray arr);
+void tdx_trade_greeks_first_order_tick_array_free(TdxTradeGreeksFirstOrderTickArray arr);
+void tdx_trade_greeks_second_order_tick_array_free(TdxTradeGreeksSecondOrderTickArray arr);
+void tdx_trade_greeks_third_order_tick_array_free(TdxTradeGreeksThirdOrderTickArray arr);
+void tdx_trade_greeks_implied_volatility_tick_array_free(TdxTradeGreeksImpliedVolatilityTickArray arr);
 void tdx_iv_tick_array_free(TdxIvTickArray arr);
 void tdx_price_tick_array_free(TdxPriceTickArray arr);
 void tdx_open_interest_tick_array_free(TdxOpenInterestTickArray arr);

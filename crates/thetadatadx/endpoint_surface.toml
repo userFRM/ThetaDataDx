@@ -1551,7 +1551,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/all"
-returns = "GreeksAllTicks"
+returns = "TradeGreeksAllTicks"
 
 [[endpoints]]
 name = "option_history_greeks_first_order"
@@ -1578,7 +1578,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/first_order"
-returns = "GreeksFirstOrderTicks"
+returns = "TradeGreeksFirstOrderTicks"
 
 [[endpoints]]
 name = "option_history_greeks_second_order"
@@ -1604,7 +1604,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/second_order"
-returns = "GreeksSecondOrderTicks"
+returns = "TradeGreeksSecondOrderTicks"
 
 [[endpoints]]
 name = "option_history_greeks_third_order"
@@ -1630,7 +1630,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/third_order"
-returns = "GreeksThirdOrderTicks"
+returns = "TradeGreeksThirdOrderTicks"
 
 [[endpoints]]
 name = "option_history_greeks_implied_volatility"
@@ -1655,7 +1655,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/implied_volatility"
-returns = "IvTicks"
+returns = "TradeGreeksImpliedVolatilityTicks"
 
 [[endpoints]]
 name = "option_at_time_trade"

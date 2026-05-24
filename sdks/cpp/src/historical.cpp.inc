@@ -545,19 +545,19 @@ std::vector<GreeksAllTick> Client::option_history_greeks_all(const std::string& 
     return result;
 }
 
-std::vector<GreeksAllTick> Client::option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options) const {
+std::vector<TradeGreeksAllTick> Client::option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     tdx_clear_error();
     auto arr = tdx_option_history_trade_greeks_all_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw);
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
-            tdx_greeks_all_tick_array_free(arr);
+            tdx_trade_greeks_all_tick_array_free(arr);
             throw std::runtime_error("thetadatadx: " + err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
-    tdx_greeks_all_tick_array_free(arr);
+    tdx_trade_greeks_all_tick_array_free(arr);
     return result;
 }
 
@@ -577,19 +577,19 @@ std::vector<GreeksFirstOrderTick> Client::option_history_greeks_first_order(cons
     return result;
 }
 
-std::vector<GreeksFirstOrderTick> Client::option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options) const {
+std::vector<TradeGreeksFirstOrderTick> Client::option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     tdx_clear_error();
     auto arr = tdx_option_history_trade_greeks_first_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw);
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
-            tdx_greeks_first_order_tick_array_free(arr);
+            tdx_trade_greeks_first_order_tick_array_free(arr);
             throw std::runtime_error("thetadatadx: " + err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
-    tdx_greeks_first_order_tick_array_free(arr);
+    tdx_trade_greeks_first_order_tick_array_free(arr);
     return result;
 }
 
@@ -609,19 +609,19 @@ std::vector<GreeksSecondOrderTick> Client::option_history_greeks_second_order(co
     return result;
 }
 
-std::vector<GreeksSecondOrderTick> Client::option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options) const {
+std::vector<TradeGreeksSecondOrderTick> Client::option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     tdx_clear_error();
     auto arr = tdx_option_history_trade_greeks_second_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw);
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
-            tdx_greeks_second_order_tick_array_free(arr);
+            tdx_trade_greeks_second_order_tick_array_free(arr);
             throw std::runtime_error("thetadatadx: " + err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
-    tdx_greeks_second_order_tick_array_free(arr);
+    tdx_trade_greeks_second_order_tick_array_free(arr);
     return result;
 }
 
@@ -641,19 +641,19 @@ std::vector<GreeksThirdOrderTick> Client::option_history_greeks_third_order(cons
     return result;
 }
 
-std::vector<GreeksThirdOrderTick> Client::option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options) const {
+std::vector<TradeGreeksThirdOrderTick> Client::option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     tdx_clear_error();
     auto arr = tdx_option_history_trade_greeks_third_order_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw);
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
-            tdx_greeks_third_order_tick_array_free(arr);
+            tdx_trade_greeks_third_order_tick_array_free(arr);
             throw std::runtime_error("thetadatadx: " + err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
-    tdx_greeks_third_order_tick_array_free(arr);
+    tdx_trade_greeks_third_order_tick_array_free(arr);
     return result;
 }
 
@@ -673,19 +673,19 @@ std::vector<IvTick> Client::option_history_greeks_implied_volatility(const std::
     return result;
 }
 
-std::vector<IvTick> Client::option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options) const {
+std::vector<TradeGreeksImpliedVolatilityTick> Client::option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     tdx_clear_error();
     auto arr = tdx_option_history_trade_greeks_implied_volatility_with_options(handle_.get(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw);
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
-            tdx_iv_tick_array_free(arr);
+            tdx_trade_greeks_implied_volatility_tick_array_free(arr);
             throw std::runtime_error("thetadatadx: " + err);
         }
     }
     auto result = detail::to_vector(arr.data, arr.len);
-    tdx_iv_tick_array_free(arr);
+    tdx_trade_greeks_implied_volatility_tick_array_free(arr);
     return result;
 }
 
