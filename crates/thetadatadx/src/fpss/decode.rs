@@ -143,19 +143,11 @@ pub fn decode_frame(
         }
     };
 
-    // Resolve contract_id to an Arc<Contract> from the thread-local cache.
-    // On a miss (tick arrived before the matching `ContractAssigned`
-    // frame) build a per-tick unresolved-contract sentinel whose
-    // `symbol` is `__pending:<id>` so downstream consumers can surface
-    // the wire id as an `unresolved_contract_id` diagnostic without
-    // re-introducing the field on the public `FpssData` surface (the
-    //  removal of wire ids from data events stands).
-    //
-    // The hit path stays zero-allocation: `Arc::clone` is a refcount
-    // bump on the cached `Arc<Contract>`. The miss path pays one
-    // `String::from(format!(..))` + one `Arc::new` per unresolved tick;
-    // miss density is bounded by the brief window between the first
-    // tick on a contract and the matching `ContractAssigned` frame.
+    // Resolve contract_id via the thread-local cache. Hit: Arc::clone
+    // (zero-alloc refcount bump). Miss: per-tick unresolved-sentinel
+    // (`__pending:<id>`); downstream consumers detect via
+    // `sec_type == SecType::Unknown`. Misses are bounded by the brief
+    // window between first tick and the matching `ContractAssigned`.
     let resolve_contract =
         |contract_id: i32, cache: &HashMap<i32, Arc<Contract>>| -> Arc<Contract> {
             cache
@@ -164,26 +156,11 @@ pub fn decode_frame(
                 .unwrap_or_else(|| unresolved_sentinel(contract_id))
         };
 
-    // Log a warning when ticks arrive for contract IDs not in the local
-    // contract cache. Suppress for 5 seconds after STOP (market close) since
-    // stale ticks are expected during teardown. Matches Java terminal behavior.
-    // Uses the thread-local cache instead of locking the shared contract_map.
-    //
-    // Rate-limit at every 1024th hit to match the cadence of the
-    // slow-callback / clock-skew warnings (`decode.rs:96`,
-    // `mod.rs::slow_callback`). Without the limit, a server-side
-    // mis-routing or replay-boundary anomaly that emits ticks for an
-    // unknown id would flood `tracing` with a per-tick line on every
-    // affected contract — at FPSS arrival rates the log channel
-    // becomes the bottleneck.
-    //
-    // `MISS_COUNT` is process-global (static AtomicU64), so the
-    // cadence is shared across every `FpssClient` running inside the
-    // same process. Operators reading the warning should treat the
-    // "1 of every 1024" rate as a process-wide aggregate, not a
-    // per-client signal — two clients each missing 512 unique
-    // contracts together hit the warn boundary exactly once between
-    // them.
+    // Warn on contract-id misses outside the post-STOP suppression
+    // window, rate-limited at every 1024th hit (matches the slow-
+    // callback / clock-skew warn cadence). MISS_COUNT is process-
+    // global so the "1 of every 1024" rate aggregates across every
+    // FpssClient in the same process.
     let warn_unknown_contract =
         |contract_id: i32,
          kind: &str,
@@ -703,11 +680,18 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // 8-field trade mapping
+    // 8-field trade mapping (drives the full `decode_frame` pipeline)
     // -----------------------------------------------------------------------
 
+    /// Drive `decode_frame` with a synthetic FIT-encoded `Trade` frame
+    /// and assert on the resulting `FpssEvent::Data(FpssData::Trade{..})`.
+    /// Replaces the prior hand-mapped `decode_tick` driver per BL-17:
+    /// asserting on the production decode-entry point pins the
+    /// integration contract (FIT decode + tick-buffer -> field
+    /// extraction + Arc<Contract> resolution + Price reassembly) rather
+    /// than re-implementing the mapping inside the test body.
     #[test]
-    fn decode_tick_8field_trade_returns_correct_n_data_and_fields() {
+    fn decode_frame_8field_trade_emits_trade_data_with_correct_fields() {
         // 8-field trade layout (dev server format):
         //   FIT fields: [contract_id, ms_of_day, sequence, size, condition,
         //                price, exchange, price_type, date]
@@ -724,60 +708,34 @@ mod tests {
             20250428, // date
         ]);
 
-        let mut ds = DeltaState::new();
-        let msg_code = StreamMsgType::Trade as u8;
-        let mut f: TickFields = [0; crate::fpss::delta::MAX_DATA_FIELDS];
-        let result = ds.decode_tick(msg_code, &fit_payload, TRADE_FIELDS, &mut f);
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let aapl: Arc<Contract> = Arc::new(Contract::stock("AAPL"));
+        local_contracts.insert(100, Arc::clone(&aapl));
 
-        let (contract_id, n_data) = result.expect("decode_tick should succeed");
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let (primary, secondary) = decode_frame(
+            StreamMsgType::Trade,
+            &fit_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        // 8-field trades produce a primary Trade event and never a
+        // synthetic OHLCVC secondary (`derive_ohlcvc = false`).
+        assert!(
+            secondary.is_none(),
+            "8-field trade must not produce a secondary OHLCVC event"
+        );
 
-        // Verify contract_id extraction.
-        assert_eq!(contract_id, 100);
-
-        // The first absolute tick records the actual field count.
-        // 9 FIT fields total - 1 contract_id = 8 data fields.
-        assert_eq!(n_data, 8, "n_data must be 8 for an 8-field trade");
-
-        // Verify 8-field mapping produces correct Trade event fields.
-        // 8-field layout: [ms_of_day, sequence, size, condition, price, exchange, price_type, date]
-        assert_eq!(f[0], 34200000, "ms_of_day");
-        assert_eq!(f[1], 12345, "sequence");
-        assert_eq!(f[2], 50, "size");
-        assert_eq!(f[3], 6, "condition");
-        assert_eq!(f[4], 5500000, "price");
-        assert_eq!(f[5], 57, "exchange");
-        assert_eq!(f[6], 6, "price_type");
-        assert_eq!(f[7], 20250428, "date");
-
-        // `n_data == 8` already pinned 14 lines up via `assert_eq!`;
-        // the previous `assert!(n_data <= 8)` was redundant. The
-        // wire-internal `contract_id` no longer rides on the Trade
-        // event (extracted by `decode_tick`, used only to resolve the
-        // `Arc<Contract>` in `decode_frame`).
-        assert_eq!(contract_id, 100);
-        // Simulate the mapping from decode_frame's Trade arm:
-        let trade = FpssData::Trade {
-            contract: unresolved_sentinel(contract_id),
-            ms_of_day: f[0],
-            sequence: f[1],
-            ext_condition1: 0,
-            ext_condition2: 0,
-            ext_condition3: 0,
-            ext_condition4: 0,
-            condition: f[3],
-            size: f[2],
-            exchange: f[5],
-            price: Price::new(f[4], f[6]).to_f64(),
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
-            date: f[7],
-            received_at_ns: 0,
-        };
-
-        match trade {
-            FpssData::Trade {
+        let evt = primary.expect("decode_frame must emit a primary Trade event");
+        let public = expect_public(&evt);
+        match public {
+            FpssEvent::Data(FpssData::Trade {
+                contract,
                 ms_of_day,
                 sequence,
                 size,
@@ -794,34 +752,45 @@ mod tests {
                 volume_type,
                 records_back,
                 ..
-            } => {
-                assert_eq!(ms_of_day, 34200000);
-                assert_eq!(sequence, 12345);
-                assert_eq!(size, 50);
-                assert_eq!(condition, 6);
-                assert_eq!(price, Price::new(5500000, 6).to_f64());
-                assert_eq!(exchange, 57);
-                assert_eq!(date, 20250428);
-                // 8-field trades zero out extended fields.
-                assert_eq!(ext_condition1, 0);
-                assert_eq!(ext_condition2, 0);
-                assert_eq!(ext_condition3, 0);
-                assert_eq!(ext_condition4, 0);
-                assert_eq!(condition_flags, 0);
-                assert_eq!(price_flags, 0);
-                assert_eq!(volume_type, 0);
-                assert_eq!(records_back, 0);
+            }) => {
+                // Contract resolves via the seeded local_contracts cache
+                // (Arc refcount-clone, no unresolved-sentinel sym leak).
+                assert_eq!(contract.symbol, "AAPL");
+                assert_eq!(*ms_of_day, 34200000);
+                assert_eq!(*sequence, 12345);
+                assert_eq!(*size, 50);
+                assert_eq!(*condition, 6);
+                assert!(
+                    (*price - Price::new(5500000, 6).to_f64()).abs() < f64::EPSILON,
+                    "price must reassemble via Price::new(value, price_type)"
+                );
+                assert_eq!(*exchange, 57);
+                assert_eq!(*date, 20250428);
+                // 8-field trades zero out the extended-condition + flag fields.
+                assert_eq!(*ext_condition1, 0);
+                assert_eq!(*ext_condition2, 0);
+                assert_eq!(*ext_condition3, 0);
+                assert_eq!(*ext_condition4, 0);
+                assert_eq!(*condition_flags, 0);
+                assert_eq!(*price_flags, 0);
+                assert_eq!(*volume_type, 0);
+                assert_eq!(*records_back, 0);
             }
-            other => panic!("expected Trade, got {other:?}"),
+            other => panic!("expected FpssEvent::Data(Trade), got {other:?}"),
         }
     }
 
     // -----------------------------------------------------------------------
-    // 16-field trade mapping
+    // 16-field trade mapping (drives the full `decode_frame` pipeline)
     // -----------------------------------------------------------------------
 
+    /// 16-field production trade layout — drives `decode_frame` so the
+    /// FIT decode + every field on the public `FpssData::Trade` variant
+    /// (including the extended-condition + flag fields the 8-field
+    /// layout zeroes out) is asserted against the real decode path
+    /// rather than a hand-copied mapping. BL-17 fix.
     #[test]
-    fn decode_tick_16field_trade_returns_correct_n_data_and_fields() {
+    fn decode_frame_16field_trade_emits_trade_data_with_extended_fields() {
         // 16-field trade layout (production format):
         //   FIT fields: [contract_id, ms_of_day, sequence, ext1, ext2, ext3, ext4,
         //                condition, size, exchange, price, cond_flags, price_flags,
@@ -829,82 +798,46 @@ mod tests {
         //   = 1 contract_id + 16 data fields = 17 FIT fields total
         let fit_payload = encode_fit_row(&[
             200,      // contract_id
-            34200000, // ms_of_day (f[0])
-            99999,    // sequence  (f[1])
-            1,        // ext_condition1 (f[2])
-            2,        // ext_condition2 (f[3])
-            3,        // ext_condition3 (f[4])
-            4,        // ext_condition4 (f[5])
-            15,       // condition (f[6])
-            500,      // size (f[7])
-            57,       // exchange (f[8])
-            18750000, // price (f[9])
-            7,        // condition_flags (f[10])
-            3,        // price_flags (f[11])
-            1,        // volume_type (f[12])
-            0,        // records_back (f[13])
-            8,        // price_type (f[14])
-            20250428, // date (f[15])
+            34200000, // ms_of_day
+            99999,    // sequence
+            1,        // ext_condition1
+            2,        // ext_condition2
+            3,        // ext_condition3
+            4,        // ext_condition4
+            15,       // condition
+            500,      // size
+            57,       // exchange
+            18750000, // price
+            7,        // condition_flags
+            3,        // price_flags
+            1,        // volume_type
+            0,        // records_back
+            8,        // price_type
+            20250428, // date
         ]);
 
-        let mut ds = DeltaState::new();
-        let msg_code = StreamMsgType::Trade as u8;
-        let mut f: TickFields = [0; crate::fpss::delta::MAX_DATA_FIELDS];
-        let result = ds.decode_tick(msg_code, &fit_payload, TRADE_FIELDS, &mut f);
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let spy: Arc<Contract> = Arc::new(Contract::stock("SPY"));
+        local_contracts.insert(200, Arc::clone(&spy));
 
-        let (contract_id, n_data) = result.expect("decode_tick should succeed");
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let (primary, _secondary) = decode_frame(
+            StreamMsgType::Trade,
+            &fit_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
 
-        // Verify contract_id extraction.
-        assert_eq!(contract_id, 200);
-
-        // 17 FIT fields total - 1 contract_id = 16 data fields.
-        assert_eq!(n_data, 16, "n_data must be 16 for a 16-field trade");
-        assert_eq!(n_data, TRADE_FIELDS);
-        assert_eq!(contract_id, 200);
-
-        // Verify all 16 data fields.
-        assert_eq!(f[0], 34200000, "ms_of_day");
-        assert_eq!(f[1], 99999, "sequence");
-        assert_eq!(f[2], 1, "ext_condition1");
-        assert_eq!(f[3], 2, "ext_condition2");
-        assert_eq!(f[4], 3, "ext_condition3");
-        assert_eq!(f[5], 4, "ext_condition4");
-        assert_eq!(f[6], 15, "condition");
-        assert_eq!(f[7], 500, "size");
-        assert_eq!(f[8], 57, "exchange");
-        assert_eq!(f[9], 18750000, "price");
-        assert_eq!(f[10], 7, "condition_flags");
-        assert_eq!(f[11], 3, "price_flags");
-        assert_eq!(f[12], 1, "volume_type");
-        assert_eq!(f[13], 0, "records_back");
-        assert_eq!(f[14], 8, "price_type");
-        assert_eq!(f[15], 20250428, "date");
-
-        // `n_data == 16` already pinned at the top of the assertions
-        // block via `assert_eq!`; the previous `assert!(n_data > 8)`
-        // was redundant.
-        let trade = FpssData::Trade {
-            contract: unresolved_sentinel(contract_id),
-            ms_of_day: f[0],
-            sequence: f[1],
-            ext_condition1: f[2],
-            ext_condition2: f[3],
-            ext_condition3: f[4],
-            ext_condition4: f[5],
-            condition: f[6],
-            size: f[7],
-            exchange: f[8],
-            price: Price::new(f[9], f[14]).to_f64(),
-            condition_flags: f[10],
-            price_flags: f[11],
-            volume_type: f[12],
-            records_back: f[13],
-            date: f[15],
-            received_at_ns: 0,
-        };
-
-        match trade {
-            FpssData::Trade {
+        let evt = primary.expect("decode_frame must emit a primary Trade event");
+        let public = expect_public(&evt);
+        match public {
+            FpssEvent::Data(FpssData::Trade {
+                contract,
                 ms_of_day,
                 sequence,
                 ext_condition1,
@@ -921,22 +854,26 @@ mod tests {
                 records_back,
                 date,
                 ..
-            } => {
-                assert_eq!(ms_of_day, 34200000);
-                assert_eq!(sequence, 99999);
-                assert_eq!(ext_condition1, 1);
-                assert_eq!(ext_condition2, 2);
-                assert_eq!(ext_condition3, 3);
-                assert_eq!(ext_condition4, 4);
-                assert_eq!(condition, 15);
-                assert_eq!(size, 500);
-                assert_eq!(exchange, 57);
-                assert_eq!(price, Price::new(18750000, 8).to_f64());
-                assert_eq!(condition_flags, 7);
-                assert_eq!(price_flags, 3);
-                assert_eq!(volume_type, 1);
-                assert_eq!(records_back, 0);
-                assert_eq!(date, 20250428);
+            }) => {
+                assert_eq!(contract.symbol, "SPY");
+                assert_eq!(*ms_of_day, 34200000);
+                assert_eq!(*sequence, 99999);
+                assert_eq!(*ext_condition1, 1);
+                assert_eq!(*ext_condition2, 2);
+                assert_eq!(*ext_condition3, 3);
+                assert_eq!(*ext_condition4, 4);
+                assert_eq!(*condition, 15);
+                assert_eq!(*size, 500);
+                assert_eq!(*exchange, 57);
+                assert!(
+                    (*price - Price::new(18750000, 8).to_f64()).abs() < f64::EPSILON,
+                    "price must reassemble via Price::new(value, price_type)"
+                );
+                assert_eq!(*condition_flags, 7);
+                assert_eq!(*price_flags, 3);
+                assert_eq!(*volume_type, 1);
+                assert_eq!(*records_back, 0);
+                assert_eq!(*date, 20250428);
             }
             other => panic!("expected Trade, got {other:?}"),
         }
