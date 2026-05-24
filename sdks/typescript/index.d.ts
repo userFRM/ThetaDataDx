@@ -22,9 +22,9 @@
 export declare class Config {
   /** Production config (`ThetaData` NJ datacenter). */
   static production(): Config
-  /** Dev FPSS config (port 20200, infinite historical replay). */
+  /** Dev streaming config (port 20200, infinite historical replay). */
   static dev(): Config
-  /** Stage FPSS config (port 20100, unstable testing servers). */
+  /** Stage streaming config (port 20100, unstable testing servers). */
   static stage(): Config
   /**
    * Install a REST-fallback policy. Subsequent
@@ -65,7 +65,7 @@ export declare class Config {
    */
   get warnOnBufferedThresholdBytes(): bigint
   /**
-   * Set the number of dedicated decoder threads in the MDDS pool.
+   * Set the number of dedicated decoder threads in the historical-channel pool.
    *
    * `0` (default) auto-sizes to `max(available_parallelism / 2, 1)`,
    * leaving half the logical cores for the tokio reactor and the
@@ -92,8 +92,8 @@ export declare class Config {
   /** Current `decoder_ring_size` setting. */
   get decoderRingSize(): number
   /**
-   * Set the stage-2 worker thread count for the two-stage MDDS
-   * decode pipeline.
+   * Set the stage-2 worker thread count for the two-stage
+   * historical-channel decode pipeline.
    *
    * Stage-2 runs `prost::Message::decode` and the downstream Tick
    * build off a bounded MPSC queue fed by the stage-1 (per-channel
@@ -111,7 +111,7 @@ export declare class Config {
   get decodeThreads(): number | null
   /**
    * Set the bounded queue depth between stage-1 and stage-2 of
-   * the two-stage MDDS decode pipeline.
+   * the two-stage historical-channel decode pipeline.
    *
    * Stage-1 pushes `DecodedPayload`s into the queue; stage-2
    * workers pull them out. When stage-2 cannot keep up, stage-1
@@ -127,7 +127,7 @@ export declare class Config {
    */
   get decodeQueueDepth(): number | null
   /**
-   * Set the FPSS reconnect policy.
+   * Set the streaming reconnect policy.
    *
    * - `"auto"` (default): auto-reconnect with the per-class attempt
    *   budgets supplied by [`Config::setReconnectMaxAttempts`] and
@@ -159,28 +159,29 @@ export declare class Config {
   setReconnectStableWindowSecs(secs: bigint): void
   /**
    * Set the reconnect delay (ms) honoured for generic transient
-   * disconnects (TimedOut, ServerRestarting, Unspecified, …). Plumbed
-   * through to the FPSS I/O loop at connect time. Default `2_000n`.
+   * disconnects (TimedOut, ServerRestarting, Unspecified, …).
+   * Plumbed through to the streaming I/O loop at connect time.
+   * Default `2_000`.
+   *
+   * Accepts a `bigint` for parity with Python / C++ / FFI (`u64`).
    */
   setReconnectWaitMs(ms: bigint): void
-  /** Current reconnect `wait_ms` value (default `2_000n`). */
+  /** Current reconnect `wait_ms` value (default `2_000`). */
   get reconnectWaitMs(): bigint
   /**
    * Set the reconnect delay (ms) honoured for `TooManyRequests`
-   * rate-limited disconnects. Default `130_000n` (matches the Java
-   * terminal's 130 s rate-limit cooldown).
+   * rate-limited disconnects. Default `130_000`.
    */
   setReconnectWaitRateLimitedMs(ms: bigint): void
-  /** Current reconnect `wait_rate_limited_ms` value (default `130_000n`). */
+  /** Current reconnect `wait_rate_limited_ms` value (default `130_000`). */
   get reconnectWaitRateLimitedMs(): bigint
   /**
-   * Set the `RuntimeConfig.tokio_worker_threads` knob honoured by
-   * embedded runtimes built via `RuntimeConfig::build_runtime`.
-   *
-   * `hasValue=false` defers to tokio's default sizing (one worker per
-   * logical CPU). `hasValue=true` pins worker count to `n` (with
-   * `n=0` preserved as the `Some(0)` sentinel, matching the
-   * `decode_threads` setter shape across the binding matrix).
+   * Set the `RuntimeConfig.tokio_worker_threads` knob for embedded
+   * runtimes built via `RuntimeConfig::build_runtime`. `hasValue=false`
+   * defers to tokio's default sizing; `hasValue=true` pins worker
+   * count to `n` (with `n=0` preserved as the `Some(0)` sentinel,
+   * matching the `decode_threads` setter shape across the binding
+   * matrix).
    */
   setTokioWorkerThreadsExplicit(hasValue: boolean, n: number): void
   /**
@@ -189,7 +190,7 @@ export declare class Config {
    */
   get tokioWorkerThreads(): TokioWorkerThreadsSetting
   /**
-   * Set the initial backoff delay (ms) for the MDDS retry policy.
+   * Set the initial backoff delay (ms) for the historical-channel retry policy.
    * Default `250n`. Subsequent retries double from here, capped at
    * `retryMaxDelayMs`.
    */
@@ -197,14 +198,14 @@ export declare class Config {
   /** Current `retry.initial_delay` value (ms, returned as BigInt). */
   get retryInitialDelayMs(): bigint
   /**
-   * Set the upper-bound backoff delay (ms) for the MDDS retry policy.
-   * Default `30_000n` (30 s).
+   * Set the upper-bound backoff delay (ms) for the MDDS retry
+   * policy. Default `30_000n` (30 s).
    */
   setRetryMaxDelayMs(ms: bigint): void
   /** Current `retry.max_delay` value (ms, returned as BigInt). */
   get retryMaxDelayMs(): bigint
   /**
-   * Set the total attempt budget for the MDDS retry policy. `1`
+   * Set the total attempt budget for the historical-channel retry policy. `1`
    * disables retry; higher values permit retries up to
    * `maxAttempts - 1` after the initial call. Default `5`.
    */
@@ -212,24 +213,14 @@ export declare class Config {
   /** Current `retry.max_attempts` value. */
   get retryMaxAttempts(): number
   /**
-   * Toggle AWS-style full-jitter on the MDDS retry policy. Default
+   * Toggle AWS-style full-jitter on the historical-channel retry policy. Default
    * `true`. `false` gives the deterministic backoff schedule
-   * `min(max_delay, initial * 2^attempt)`, useful for tests.
+   * `min(max_delay, initial * 2^attempt)`, useful for tests that
+   * need to assert exact timings.
    */
   setRetryJitter(jitter: boolean): void
   /** Current `retry.jitter` value. */
   get retryJitter(): boolean
-}
-
-/**
- * `(hasValue, n)` shape mirroring the FFI
- * `tdx_config_get_tokio_worker_threads` out-params — `hasValue=false`
- * encodes `None`, `hasValue=true` carries the explicit count (`n=0`
- * preserved verbatim).
- */
-export interface TokioWorkerThreadsSetting {
-  hasValue: boolean
-  n: number
 }
 
 /**
@@ -1866,6 +1857,19 @@ export interface ServerError {
   message: string
 }
 
+/**
+ * `(has_value, n)` shape mirroring the FFI
+ * `tdx_config_get_tokio_worker_threads` out-params and the Python
+ * `Option<usize>` return — `has_value=false` encodes the `None`
+ * sentinel, `has_value=true` carries the explicit worker count
+ * (with `n=0` preserved verbatim, matching the `decode_threads`
+ * cross-binding contract).
+ */
+export interface TokioWorkerThreadsSetting {
+  hasValue: boolean
+  n: number
+}
+
 /** FPSS Trade tick. Mirrors `FpssData::Trade`. */
 export interface Trade {
   contract: Contract
@@ -1960,11 +1964,3 @@ export declare const enum Version {
   Latest = 'latest',
   V1 = '1'
 }
-
-// ─────────────────────────────────────────────────────────────
-// U7 closure: `Contract` is the documented public name for the
-// fluent contract builder. napi-rs emits the class as
-// `ContractRef` to avoid colliding with the FPSS event
-// payload field; this alias keeps the documented name live.
-// ─────────────────────────────────────────────────────────────
-export const Contract: typeof ContractRef;

@@ -132,7 +132,7 @@ impl Config {
         }
     }
 
-    /// Dev FPSS config (port 20200, infinite historical replay).
+    /// Dev streaming config (port 20200, infinite historical replay).
     #[napi(factory)]
     pub fn dev() -> Self {
         Self {
@@ -140,7 +140,7 @@ impl Config {
         }
     }
 
-    /// Stage FPSS config (port 20100, unstable testing servers).
+    /// Stage streaming config (port 20100, unstable testing servers).
     #[napi(factory)]
     pub fn stage() -> Self {
         Self {
@@ -248,7 +248,7 @@ impl Config {
         ))
     }
 
-    /// Set the number of dedicated decoder threads in the MDDS pool.
+    /// Set the number of dedicated decoder threads in the historical-channel pool.
     ///
     /// `0` (default) auto-sizes to `max(available_parallelism / 2, 1)`,
     /// leaving half the logical cores for the tokio reactor and the
@@ -323,8 +323,8 @@ impl Config {
     // clamps `Some(0)` to `1` at pool construction time so a
     // zero-worker pool cannot deadlock stage-1 on the first push.
 
-    /// Set the stage-2 worker thread count for the two-stage MDDS
-    /// decode pipeline.
+    /// Set the stage-2 worker thread count for the two-stage
+    /// historical-channel decode pipeline.
     ///
     /// Stage-2 runs `prost::Message::decode` and the downstream Tick
     /// build off a bounded MPSC queue fed by the stage-1 (per-channel
@@ -358,7 +358,7 @@ impl Config {
     }
 
     /// Set the bounded queue depth between stage-1 and stage-2 of
-    /// the two-stage MDDS decode pipeline.
+    /// the two-stage historical-channel decode pipeline.
     ///
     /// Stage-1 pushes `DecodedPayload`s into the queue; stage-2
     /// workers pull them out. When stage-2 cannot keep up, stage-1
@@ -390,9 +390,9 @@ impl Config {
             .map(|n| u32::try_from(n).unwrap_or(u32::MAX)))
     }
 
-    // ── FPSS reconnect knobs — parity with Python / C++ / FFI ──────
+    // ── Streaming reconnect knobs — parity with Python / C++ / FFI ─
 
-    /// Set the FPSS reconnect policy.
+    /// Set the streaming reconnect policy.
     ///
     /// - `"auto"` (default): auto-reconnect with the per-class attempt
     ///   budgets supplied by [`Config::setReconnectMaxAttempts`] and
@@ -490,8 +490,8 @@ impl Config {
 
     /// Set the reconnect delay (ms) honoured for generic transient
     /// disconnects (TimedOut, ServerRestarting, Unspecified, …).
-    /// Plumbed through to the FPSS I/O loop at connect time. Default
-    /// `2_000`.
+    /// Plumbed through to the streaming I/O loop at connect time.
+    /// Default `2_000`.
     ///
     /// Accepts a `bigint` for parity with Python / C++ / FFI (`u64`).
     #[napi(js_name = "setReconnectWaitMs")]
@@ -598,7 +598,7 @@ impl Config {
 
     // ── RetryPolicy field setters/getters (BL-10) ─────────────────
 
-    /// Set the initial backoff delay (ms) for the MDDS retry policy.
+    /// Set the initial backoff delay (ms) for the historical-channel retry policy.
     /// Default `250n`. Subsequent retries double from here, capped at
     /// `retryMaxDelayMs`.
     #[napi(js_name = "setRetryInitialDelayMs")]
@@ -663,7 +663,7 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(ms))
     }
 
-    /// Set the total attempt budget for the MDDS retry policy. `1`
+    /// Set the total attempt budget for the historical-channel retry policy. `1`
     /// disables retry; higher values permit retries up to
     /// `maxAttempts - 1` after the initial call. Default `5`.
     #[napi(js_name = "setRetryMaxAttempts")]
@@ -686,7 +686,7 @@ impl Config {
         Ok(guard.retry.max_attempts)
     }
 
-    /// Toggle AWS-style full-jitter on the MDDS retry policy. Default
+    /// Toggle AWS-style full-jitter on the historical-channel retry policy. Default
     /// `true`. `false` gives the deterministic backoff schedule
     /// `min(max_delay, initial * 2^attempt)`, useful for tests that
     /// need to assert exact timings.
