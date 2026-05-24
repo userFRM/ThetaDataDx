@@ -33,7 +33,7 @@
 //! # Sub-modules
 //!
 //! - [`contract`] — `Contract` struct, OCC-21 parser, wire codec.
-//! - [`wire`] — payload builders / parsers (credentials, subscribe, ping, stop, REQ_RESPONSE, CONTRACT, DISCONNECTED).
+//! - `wire` (crate-private) — payload builders / parsers (credentials, subscribe, ping, stop, REQ_RESPONSE, CONTRACT, DISCONNECTED).
 //! - [`subscription`] — `SubscriptionKind` enum (Quote / Trade / OpenInterest).
 //!
 //! Behaviour mirrors the upstream Java terminal.
