@@ -280,6 +280,135 @@ impl Config {
         Ok(())
     }
 
+    /// Set the reconnect delay (ms) honoured for generic transient
+    /// disconnects (TimedOut, ServerRestarting, Unspecified, …).
+    /// Plumbed through to the streaming I/O loop at connect time.
+    /// Default ``2_000``.
+    #[setter]
+    fn set_reconnect_wait_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_ms = ms;
+    }
+
+    /// Current reconnect ``wait_ms`` value (default ``2_000``).
+    #[getter]
+    fn get_reconnect_wait_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_ms
+    }
+
+    /// Set the reconnect delay (ms) honoured for ``TooManyRequests``
+    /// rate-limited disconnects. Default ``130_000`` (matches the
+    /// Java terminal's 130 s rate-limit cooldown).
+    #[setter]
+    fn set_reconnect_wait_rate_limited_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_rate_limited_ms = ms;
+    }
+
+    /// Current reconnect ``wait_rate_limited_ms`` value (default ``130_000``).
+    #[getter]
+    fn get_reconnect_wait_rate_limited_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.wait_rate_limited_ms
+    }
+
+    /// Set the tokio worker thread count for embedded bindings that own
+    /// their runtime (Python / FFI / napi). ``None`` (the default)
+    /// defers to tokio's default sizing (one worker per logical CPU);
+    /// ``Some(n)`` pins the worker pool to ``n``. ``Some(0)`` is
+    /// preserved across the binding boundary and clamps to ``1`` inside
+    /// :func:`RuntimeConfig.build_runtime` so the runtime always has at
+    /// least one worker.
+    ///
+    /// Note that the runtime backing ``ThetaDataDxClient`` is built
+    /// process-once at module init; mutating this value after import
+    /// affects only freshly-constructed runtimes such as those built
+    /// via the FFI ``tdx_config_get_tokio_worker_threads`` helper.
+    #[setter]
+    fn set_tokio_worker_threads(&self, n: Option<usize>) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.runtime.tokio_worker_threads = n;
+    }
+
+    /// Current ``tokio_worker_threads`` setting (``None`` = auto).
+    #[getter]
+    fn get_tokio_worker_threads(&self) -> Option<usize> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.runtime.tokio_worker_threads
+    }
+
+    // ── RetryPolicy field setters/getters (BL-10) ─────────────────────
+    //
+    // Per-field access on ``DirectConfig.retry`` mirrors the FFI / C++
+    // / TypeScript surface. The ``delay_for_attempt`` / ``capped_backoff``
+    // methods stay Rust-only — they are method-shape helpers that
+    // callers can recompute from the four field values if needed.
+
+    /// Set the initial backoff delay (ms) for the historical-channel retry policy.
+    /// Default ``250``. Subsequent retries double from here, capped
+    /// at :attr:`retry_max_delay_ms`.
+    #[setter]
+    fn set_retry_initial_delay_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.initial_delay = std::time::Duration::from_millis(ms);
+    }
+
+    /// Current ``retry.initial_delay`` value in ms.
+    #[getter]
+    fn get_retry_initial_delay_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        u64::try_from(guard.retry.initial_delay.as_millis()).unwrap_or(u64::MAX)
+    }
+
+    /// Set the upper-bound backoff delay (ms) for the
+    /// historical-channel retry policy. Default ``30_000`` (30 s).
+    #[setter]
+    fn set_retry_max_delay_ms(&self, ms: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.max_delay = std::time::Duration::from_millis(ms);
+    }
+
+    /// Current ``retry.max_delay`` value in ms.
+    #[getter]
+    fn get_retry_max_delay_ms(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        u64::try_from(guard.retry.max_delay.as_millis()).unwrap_or(u64::MAX)
+    }
+
+    /// Set the total attempt budget for the historical-channel retry policy. ``1``
+    /// disables retry (single call only); higher values permit retries
+    /// up to ``max_attempts - 1`` after the initial call. Default ``5``.
+    #[setter]
+    fn set_retry_max_attempts(&self, n: u32) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.max_attempts = n;
+    }
+
+    /// Current ``retry.max_attempts`` value.
+    #[getter]
+    fn get_retry_max_attempts(&self) -> u32 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.max_attempts
+    }
+
+    /// Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+    /// ``True``. ``False`` gives the deterministic backoff schedule
+    /// ``min(max_delay, initial * 2^attempt)``, useful for tests that
+    /// need to assert exact timings.
+    #[setter]
+    fn set_retry_jitter(&self, jitter: bool) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.jitter = jitter;
+    }
+
+    /// Current ``retry.jitter`` value.
+    #[getter]
+    fn get_retry_jitter(&self) -> bool {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.retry.jitter
+    }
+
     /// Set whether to derive OHLCVC bars locally from trade events.
     ///
     /// When ``False``, only server-sent OHLCVC frames are emitted,
@@ -646,16 +775,16 @@ struct ThetaDataDxClient {
     /// Wrapped in `Arc<>` so the per-endpoint fluent builder pyclasses
     /// emitted by the generator (`<Endpoint>Builder`) can clone a cheap
     /// handle into the awaitable returned by `*_async()` terminals. The
-    /// inner `thetadatadx::ThetaDataDxClient` is not `Clone` — its FPSS mutex
-    /// and subscription-tier state forbid it — so the builder cannot
-    /// hold the value directly without Arc ref-counting.
+    /// inner `thetadatadx::ThetaDataDxClient` is not `Clone` — its
+    /// streaming mutex and subscription-tier state forbid it — so the
+    /// builder cannot hold the value directly without Arc ref-counting.
     tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
-    /// User-registered Python callable that receives every FPSS event
-    /// after `start_streaming(callback)` succeeds. The dispatcher's
+    /// User-registered Python callable that receives every streaming
+    /// event after `start_streaming(callback)` succeeds. The dispatcher's
     /// drain thread acquires the GIL via `Python::attach` to invoke
-    /// `callback(event)`; the FPSS reader thread itself never touches
-    /// Python. `None` before any `start_streaming` and after every
-    /// `stop_streaming` / `shutdown`. `reconnect()` re-uses the
+    /// `callback(event)`; the streaming reader thread itself never
+    /// touches Python. `None` before any `start_streaming` and after
+    /// every `stop_streaming` / `shutdown`. `reconnect()` re-uses the
     /// stored handle so callers do not have to re-pass the callable.
     callback: Mutex<Option<Py<PyAny>>>,
 }

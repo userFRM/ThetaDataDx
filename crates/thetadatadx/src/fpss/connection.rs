@@ -50,6 +50,12 @@ pub(crate) struct ConnectWithStreamArgs<'a> {
     pub derive_ohlcvc: bool,
     pub flush_mode: FpssFlushMode,
     pub policy: ReconnectPolicy,
+    /// Reconnect cadence (ms) for generic transient drops. Mirrors
+    /// [`crate::config::ReconnectConfig::wait_ms`].
+    pub wait_ms: u64,
+    /// Reconnect cadence (ms) for `TooManyRequests` drops. Mirrors
+    /// [`crate::config::ReconnectConfig::wait_rate_limited_ms`].
+    pub wait_rate_limited_ms: u64,
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
     pub ping_interval: Duration,

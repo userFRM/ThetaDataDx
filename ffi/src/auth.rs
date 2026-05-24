@@ -213,6 +213,298 @@ pub unsafe extern "C" fn tdx_config_set_reconnect_stable_window_secs(
     })
 }
 
+/// Set the reconnect delay (ms) honoured for generic transient
+/// disconnects (TimedOut, ServerRestarting, Unspecified, …). Plumbed
+/// through to the FPSS I/O loop at connect time and consumed by the
+/// `Auto` reconnect arm via `reconnect_delay_for`. Default `2_000`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_reconnect_wait_ms(config: *mut TdxConfig, ms: u64) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.reconnect.wait_ms = ms;
+    })
+}
+
+/// Read the current reconnect `wait_ms` setting.
+///
+/// Writes the configured millisecond delay into `*out_ms`. Returns
+/// `0` on success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_reconnect_wait_ms(
+    config: *const TdxConfig,
+    out_ms: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_ms.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_ms checked non-null at line 238; FFI contract pins
+        // the `u64` storage for the call. Writing the `reconnect.wait_ms`
+        // field cannot tear under a concurrent reader because the FFI
+        // surface is not thread-safe on a single config handle.
+        unsafe {
+            *out_ms = config.inner.reconnect.wait_ms;
+        }
+        0
+    })
+}
+
+/// Set the reconnect delay (ms) honoured for `TooManyRequests`
+/// rate-limited disconnects. Plumbed through to the FPSS I/O loop at
+/// connect time and consumed by the `Auto` reconnect arm via
+/// `reconnect_delay_for`. Default `130_000` (matches the Java terminal's
+/// 130 s rate-limit cooldown).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_reconnect_wait_rate_limited_ms(
+    config: *mut TdxConfig,
+    ms: u64,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.reconnect.wait_rate_limited_ms = ms;
+    })
+}
+
+/// Read the current reconnect `wait_rate_limited_ms` setting. Same
+/// shape as [`tdx_config_get_reconnect_wait_ms`].
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_reconnect_wait_rate_limited_ms(
+    config: *const TdxConfig,
+    out_ms: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_ms.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_ms checked non-null at line 279; FFI contract pins
+        // the `u64` storage for the call. Writing
+        // `reconnect.wait_rate_limited_ms` cannot tear under a concurrent
+        // reader — FFI handles are not thread-safe per the public contract.
+        unsafe {
+            *out_ms = config.inner.reconnect.wait_rate_limited_ms;
+        }
+        0
+    })
+}
+
+/// Set the `RuntimeConfig.tokio_worker_threads` knob using the
+/// `(has_value, n)` widened ABI shape that preserves the `Some(0)`
+/// sentinel across the C boundary.
+///
+/// * `has_value = false` → `None` (tokio default sizing, one worker per
+///   logical CPU). `n` is ignored.
+/// * `has_value = true` → `Some(n)`. Embedders consuming
+///   [`thetadatadx::RuntimeConfig::build_runtime`] honour the value
+///   verbatim, clamping `0` to `1` to keep tokio from panicking on
+///   `worker_threads(0)`.
+///
+/// Returns `0` on success, `-1` if `config` is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_tokio_worker_threads_explicit(
+    config: *mut TdxConfig,
+    has_value: bool,
+    n: usize,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null pointer returned by
+        // tdx_config_production / tdx_config_dev / tdx_config_stage
+        // and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.runtime.tokio_worker_threads = if has_value { Some(n) } else { None };
+        0
+    })
+}
+
+/// Read the current `RuntimeConfig.tokio_worker_threads` setting. Same
+/// `(has_value, n)` ABI as [`tdx_config_get_decode_threads`]:
+///
+/// * `*out_has_value = false` → `None` (auto-size). `*out_n` is left as `0`.
+/// * `*out_has_value = true` → `Some(*out_n)`.
+///
+/// Returns `0` on success, `-1` if any pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_tokio_worker_threads(
+    config: *const TdxConfig,
+    out_has_value: *mut bool,
+    out_n: *mut usize,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_has_value.is_null() || out_n.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let (has_value, n) = match config.inner.runtime.tokio_worker_threads {
+            Some(v) => (true, v),
+            None => (false, 0),
+        };
+        // SAFETY: out_has_value / out_n null-checked above; caller pins the storage they point at for the call duration.
+        unsafe {
+            *out_has_value = has_value;
+            *out_n = n;
+        }
+        0
+    })
+}
+
+// ── RetryPolicy (BL-10) ────────────────────────────────────────────
+//
+// Per-field setters/getters on `DirectConfig.retry`. The two
+// `Duration` fields (`initial_delay`, `max_delay`) cross the ABI as
+// `u64` milliseconds; `max_attempts` is `u32`; `jitter` is `bool`.
+// `delay_for_attempt` / `capped_backoff` / `disabled()` factory stay
+// Rust-only — they are method-shape helpers that bindings can
+// reproduce on top of the four field setters if needed.
+
+/// Set the initial backoff delay (ms) for the MDDS retry policy.
+/// Default `250`. Subsequent retries double from here, capped at
+/// `tdx_config_set_retry_max_delay_ms`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_retry_initial_delay_ms(config: *mut TdxConfig, ms: u64) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.retry.initial_delay = std::time::Duration::from_millis(ms);
+    })
+}
+
+/// Read the current `retry.initial_delay` setting (ms). Returns `0` on
+/// success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_retry_initial_delay_ms(
+    config: *const TdxConfig,
+    out_ms: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_ms.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let ms = u64::try_from(config.inner.retry.initial_delay.as_millis()).unwrap_or(u64::MAX);
+        // SAFETY: out_ms checked non-null at line 389; FFI contract
+        // pins the `u64` storage for the call. The `ms` local lives
+        // for the entire scope so the write is in-bounds for the
+        // pointer's lifetime.
+        unsafe {
+            *out_ms = ms;
+        }
+        0
+    })
+}
+
+/// Set the upper-bound backoff delay (ms) for the MDDS retry policy.
+/// Default `30_000` (30 s). The exponential schedule never exceeds
+/// this value regardless of attempt number.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_retry_max_delay_ms(config: *mut TdxConfig, ms: u64) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.retry.max_delay = std::time::Duration::from_millis(ms);
+    })
+}
+
+/// Read the current `retry.max_delay` setting (ms).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_retry_max_delay_ms(
+    config: *const TdxConfig,
+    out_ms: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_ms.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let ms = u64::try_from(config.inner.retry.max_delay.as_millis()).unwrap_or(u64::MAX);
+        // SAFETY: out_ms checked non-null at line 425; FFI contract pins
+        // the `u64` storage. Writing `retry.max_delay` (a saturating
+        // `Duration::as_millis` clamp) cannot exceed `u64::MAX`.
+        unsafe {
+            *out_ms = ms;
+        }
+        0
+    })
+}
+
+/// Set the total attempt budget for the MDDS retry policy. `1`
+/// disables retry (single call only); higher values permit
+/// retries up to `max_attempts - 1` after the initial call. Default
+/// `5`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_retry_max_attempts(config: *mut TdxConfig, n: u32) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.retry.max_attempts = n;
+    })
+}
+
+/// Read the current `retry.max_attempts` setting.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_retry_max_attempts(
+    config: *const TdxConfig,
+    out_n: *mut u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_n.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_n null-checked above; caller pins the storage for the call duration.
+        unsafe {
+            *out_n = config.inner.retry.max_attempts;
+        }
+        0
+    })
+}
+
+/// Toggle AWS-style full-jitter on the MDDS retry policy. Default
+/// `true`. With `jitter=false` the backoff schedule is deterministic
+/// (`min(max_delay, initial * 2^attempt)`), which is useful for tests
+/// that need to assert exact timings.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_retry_jitter(config: *mut TdxConfig, jitter: bool) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.retry.jitter = jitter;
+    })
+}
+
+/// Read the current `retry.jitter` setting.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_retry_jitter(
+    config: *const TdxConfig,
+    out_jitter: *mut bool,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_jitter.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_jitter null-checked above; caller pins the storage for the call duration.
+        unsafe {
+            *out_jitter = config.inner.retry.jitter;
+        }
+        0
+    })
+}
+
 /// Set FPSS OHLCVC derivation on a config handle.
 ///
 /// - `enabled = 1` (default): derive OHLCVC bars locally from trade events
@@ -899,6 +1191,272 @@ mod reconnect_setter_tests {
             assert_eq!(limits.max_rate_limited_attempts, 3);
             assert_eq!(limits.stable_window, std::time::Duration::from_secs(60));
 
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn reconnect_wait_ms_round_trips_via_getter() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut got: u64 = 0;
+            // Default seeded from ReconnectConfig::production_defaults().
+            assert_eq!(super::tdx_config_get_reconnect_wait_ms(cfg, &mut got), 0);
+            assert_eq!(got, 2_000);
+            for ms in [0u64, 1, 500, 2_000, 60_000, u64::MAX] {
+                super::tdx_config_set_reconnect_wait_ms(cfg, ms);
+                assert_eq!((*cfg).inner.reconnect.wait_ms, ms);
+                assert_eq!(super::tdx_config_get_reconnect_wait_ms(cfg, &mut got), 0);
+                assert_eq!(got, ms);
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn reconnect_wait_rate_limited_ms_round_trips_via_getter() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut got: u64 = 0;
+            // Default seeded from ReconnectConfig::production_defaults().
+            assert_eq!(
+                super::tdx_config_get_reconnect_wait_rate_limited_ms(cfg, &mut got),
+                0
+            );
+            assert_eq!(got, 130_000);
+            for ms in [0u64, 1, 30_000, 130_000, 600_000, u64::MAX] {
+                super::tdx_config_set_reconnect_wait_rate_limited_ms(cfg, ms);
+                assert_eq!((*cfg).inner.reconnect.wait_rate_limited_ms, ms);
+                assert_eq!(
+                    super::tdx_config_get_reconnect_wait_rate_limited_ms(cfg, &mut got),
+                    0
+                );
+                assert_eq!(got, ms);
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn reconnect_wait_ms_null_handle_returns_minus_one() {
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — getter returns sentinel, setter no-ops.
+        unsafe {
+            let mut got: u64 = 42;
+            assert_eq!(
+                super::tdx_config_get_reconnect_wait_ms(std::ptr::null(), &mut got),
+                -1
+            );
+            assert_eq!(
+                super::tdx_config_get_reconnect_wait_rate_limited_ms(std::ptr::null(), &mut got),
+                -1
+            );
+            super::tdx_config_set_reconnect_wait_ms(std::ptr::null_mut(), 1_234);
+            super::tdx_config_set_reconnect_wait_rate_limited_ms(std::ptr::null_mut(), 1_234);
+        }
+    }
+}
+
+#[cfg(test)]
+mod runtime_setter_tests {
+    //! Offline tests for the `RuntimeConfig.tokio_worker_threads`
+    //! setter/getter pair on the FFI surface — cross-binding parity
+    //! with Python / TypeScript / C++. The `(has_value, n)` shape
+    //! preserves `Some(0)` across the C boundary the same way the
+    //! decode-pipeline setters do.
+
+    #[test]
+    fn tokio_worker_threads_explicit_round_trips_via_getter() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            // None sentinel (default).
+            let mut got_has = true;
+            let mut got_n: usize = 99;
+            assert_eq!(
+                super::tdx_config_get_tokio_worker_threads(cfg, &mut got_has, &mut got_n),
+                0
+            );
+            assert!(!got_has, "default tokio_worker_threads must be None");
+            assert_eq!(got_n, 0);
+
+            // Explicit values round-trip including the Some(0) sentinel.
+            for n in [0usize, 1, 2, 4, 8, 16, 32, 64] {
+                let rc = super::tdx_config_set_tokio_worker_threads_explicit(cfg, true, n);
+                assert_eq!(rc, 0);
+                assert_eq!((*cfg).inner.runtime.tokio_worker_threads, Some(n));
+                assert_eq!(
+                    super::tdx_config_get_tokio_worker_threads(cfg, &mut got_has, &mut got_n),
+                    0
+                );
+                assert!(got_has);
+                assert_eq!(got_n, n);
+            }
+
+            // Reset to None.
+            let rc = super::tdx_config_set_tokio_worker_threads_explicit(cfg, false, 999);
+            assert_eq!(rc, 0);
+            assert_eq!((*cfg).inner.runtime.tokio_worker_threads, None);
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn tokio_worker_threads_null_handle_returns_minus_one() {
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — getter returns sentinel, setter no-ops.
+        unsafe {
+            let rc =
+                super::tdx_config_set_tokio_worker_threads_explicit(std::ptr::null_mut(), true, 4);
+            assert_eq!(rc, -1);
+            let mut got_has = false;
+            let mut got_n: usize = 0;
+            assert_eq!(
+                super::tdx_config_get_tokio_worker_threads(
+                    std::ptr::null(),
+                    &mut got_has,
+                    &mut got_n,
+                ),
+                -1
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod retry_setter_tests {
+    //! Offline tests for the four `RetryPolicy` field setters/getters
+    //! on the FFI surface — cross-binding parity with Python /
+    //! TypeScript / C++. The `delay_for_attempt` / `capped_backoff`
+    //! helpers stay Rust-only; this module pins only field round-trip.
+
+    #[test]
+    fn retry_initial_delay_ms_round_trips_via_getter() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut got: u64 = 0;
+            // Default seeded by RetryPolicy::default().
+            assert_eq!(
+                super::tdx_config_get_retry_initial_delay_ms(cfg, &mut got),
+                0
+            );
+            assert_eq!(got, 250);
+            for ms in [0u64, 1, 100, 250, 2_000, 60_000] {
+                super::tdx_config_set_retry_initial_delay_ms(cfg, ms);
+                assert_eq!(
+                    super::tdx_config_get_retry_initial_delay_ms(cfg, &mut got),
+                    0
+                );
+                assert_eq!(got, ms);
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn retry_max_delay_ms_round_trips_via_getter() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut got: u64 = 0;
+            assert_eq!(super::tdx_config_get_retry_max_delay_ms(cfg, &mut got), 0);
+            assert_eq!(got, 30_000);
+            for ms in [0u64, 1, 1_000, 30_000, 300_000] {
+                super::tdx_config_set_retry_max_delay_ms(cfg, ms);
+                assert_eq!(super::tdx_config_get_retry_max_delay_ms(cfg, &mut got), 0);
+                assert_eq!(got, ms);
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn retry_max_attempts_round_trips_via_getter() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut got: u32 = 0;
+            assert_eq!(super::tdx_config_get_retry_max_attempts(cfg, &mut got), 0);
+            assert_eq!(got, 5);
+            for n in [0u32, 1, 3, 5, 10, 100] {
+                super::tdx_config_set_retry_max_attempts(cfg, n);
+                assert_eq!(super::tdx_config_get_retry_max_attempts(cfg, &mut got), 0);
+                assert_eq!(got, n);
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn retry_jitter_round_trips_via_getter() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut got = false;
+            assert_eq!(super::tdx_config_get_retry_jitter(cfg, &mut got), 0);
+            assert!(got, "default jitter is true");
+            super::tdx_config_set_retry_jitter(cfg, false);
+            assert_eq!(super::tdx_config_get_retry_jitter(cfg, &mut got), 0);
+            assert!(!got);
+            super::tdx_config_set_retry_jitter(cfg, true);
+            assert_eq!(super::tdx_config_get_retry_jitter(cfg, &mut got), 0);
+            assert!(got);
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn retry_setters_null_handle_returns_minus_one_or_noop() {
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — getter returns sentinel, setter no-ops.
+        unsafe {
+            super::tdx_config_set_retry_initial_delay_ms(std::ptr::null_mut(), 100);
+            super::tdx_config_set_retry_max_delay_ms(std::ptr::null_mut(), 1_000);
+            super::tdx_config_set_retry_max_attempts(std::ptr::null_mut(), 3);
+            super::tdx_config_set_retry_jitter(std::ptr::null_mut(), false);
+            let mut got_ms: u64 = 0;
+            let mut got_n: u32 = 0;
+            let mut got_b = false;
+            assert_eq!(
+                super::tdx_config_get_retry_initial_delay_ms(std::ptr::null(), &mut got_ms),
+                -1
+            );
+            assert_eq!(
+                super::tdx_config_get_retry_max_delay_ms(std::ptr::null(), &mut got_ms),
+                -1
+            );
+            assert_eq!(
+                super::tdx_config_get_retry_max_attempts(std::ptr::null(), &mut got_n),
+                -1
+            );
+            assert_eq!(
+                super::tdx_config_get_retry_jitter(std::ptr::null(), &mut got_b),
+                -1
+            );
+        }
+    }
+
+    #[test]
+    fn retry_field_setters_compose_into_consistent_policy() {
+        // After mutating all four fields the `DirectConfig::retry`
+        // struct must reflect the composed shape — proves the
+        // setters target the same underlying field rather than
+        // duplicating state.
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_retry_initial_delay_ms(cfg, 500);
+            super::tdx_config_set_retry_max_delay_ms(cfg, 60_000);
+            super::tdx_config_set_retry_max_attempts(cfg, 7);
+            super::tdx_config_set_retry_jitter(cfg, false);
+            let retry = &(*cfg).inner.retry;
+            assert_eq!(retry.initial_delay, std::time::Duration::from_millis(500));
+            assert_eq!(retry.max_delay, std::time::Duration::from_millis(60_000));
+            assert_eq!(retry.max_attempts, 7);
+            assert!(!retry.jitter);
             super::tdx_config_free(cfg);
         }
     }

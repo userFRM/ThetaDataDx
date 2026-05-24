@@ -14,6 +14,19 @@ use thetadatadx::config;
 
 use crate::to_napi_err;
 
+/// `(has_value, n)` shape mirroring the FFI
+/// `tdx_config_get_tokio_worker_threads` out-params and the Python
+/// `Option<usize>` return — `has_value=false` encodes the `None`
+/// sentinel, `has_value=true` carries the explicit worker count
+/// (with `n=0` preserved verbatim, matching the `decode_threads`
+/// cross-binding contract).
+#[napi(object)]
+#[derive(Clone, Copy)]
+pub struct TokioWorkerThreadsSetting {
+    pub has_value: bool,
+    pub n: u32,
+}
+
 /// REST-routing policy. Mirrors [`thetadatadx::config::FallbackPolicy`].
 ///
 /// Constructed via one of the static factories, then installed on
@@ -119,7 +132,7 @@ impl Config {
         }
     }
 
-    /// Dev FPSS config (port 20200, infinite historical replay).
+    /// Dev streaming config (port 20200, infinite historical replay).
     #[napi(factory)]
     pub fn dev() -> Self {
         Self {
@@ -127,7 +140,7 @@ impl Config {
         }
     }
 
-    /// Stage FPSS config (port 20100, unstable testing servers).
+    /// Stage streaming config (port 20100, unstable testing servers).
     #[napi(factory)]
     pub fn stage() -> Self {
         Self {
@@ -235,7 +248,7 @@ impl Config {
         ))
     }
 
-    /// Set the number of dedicated decoder threads in the MDDS pool.
+    /// Set the number of dedicated decoder threads in the historical-channel pool.
     ///
     /// `0` (default) auto-sizes to `max(available_parallelism / 2, 1)`,
     /// leaving half the logical cores for the tokio reactor and the
@@ -310,8 +323,8 @@ impl Config {
     // clamps `Some(0)` to `1` at pool construction time so a
     // zero-worker pool cannot deadlock stage-1 on the first push.
 
-    /// Set the stage-2 worker thread count for the two-stage MDDS
-    /// decode pipeline.
+    /// Set the stage-2 worker thread count for the two-stage
+    /// historical-channel decode pipeline.
     ///
     /// Stage-2 runs `prost::Message::decode` and the downstream Tick
     /// build off a bounded MPSC queue fed by the stage-1 (per-channel
@@ -345,7 +358,7 @@ impl Config {
     }
 
     /// Set the bounded queue depth between stage-1 and stage-2 of
-    /// the two-stage MDDS decode pipeline.
+    /// the two-stage historical-channel decode pipeline.
     ///
     /// Stage-1 pushes `DecodedPayload`s into the queue; stage-2
     /// workers pull them out. When stage-2 cannot keep up, stage-1
@@ -377,9 +390,9 @@ impl Config {
             .map(|n| u32::try_from(n).unwrap_or(u32::MAX)))
     }
 
-    // ── FPSS reconnect knobs — parity with Python / C++ / FFI ──────
+    // ── Streaming reconnect knobs — parity with Python / C++ / FFI ─
 
-    /// Set the FPSS reconnect policy.
+    /// Set the streaming reconnect policy.
     ///
     /// - `"auto"` (default): auto-reconnect with the per-class attempt
     ///   budgets supplied by [`Config::setReconnectMaxAttempts`] and
@@ -473,6 +486,228 @@ impl Config {
             limits.stable_window = std::time::Duration::from_secs(value);
         }
         Ok(())
+    }
+
+    /// Set the reconnect delay (ms) honoured for generic transient
+    /// disconnects (TimedOut, ServerRestarting, Unspecified, …).
+    /// Plumbed through to the streaming I/O loop at connect time.
+    /// Default `2_000`.
+    ///
+    /// Accepts a `bigint` for parity with Python / C++ / FFI (`u64`).
+    #[napi(js_name = "setReconnectWaitMs")]
+    pub fn set_reconnect_wait_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = ms.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setReconnectWaitMs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.reconnect.wait_ms = value;
+        Ok(())
+    }
+
+    /// Current reconnect `wait_ms` value (default `2_000`).
+    #[napi(getter, js_name = "reconnectWaitMs")]
+    pub fn reconnect_wait_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.reconnect.wait_ms))
+    }
+
+    /// Set the reconnect delay (ms) honoured for `TooManyRequests`
+    /// rate-limited disconnects. Default `130_000`.
+    #[napi(js_name = "setReconnectWaitRateLimitedMs")]
+    pub fn set_reconnect_wait_rate_limited_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = ms.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setReconnectWaitRateLimitedMs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.reconnect.wait_rate_limited_ms = value;
+        Ok(())
+    }
+
+    /// Current reconnect `wait_rate_limited_ms` value (default `130_000`).
+    #[napi(getter, js_name = "reconnectWaitRateLimitedMs")]
+    pub fn reconnect_wait_rate_limited_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.reconnect.wait_rate_limited_ms,
+        ))
+    }
+
+    /// Set the `RuntimeConfig.tokio_worker_threads` knob for embedded
+    /// runtimes built via `RuntimeConfig::build_runtime`. `hasValue=false`
+    /// defers to tokio's default sizing; `hasValue=true` pins worker
+    /// count to `n` (with `n=0` preserved as the `Some(0)` sentinel,
+    /// matching the `decode_threads` setter shape across the binding
+    /// matrix).
+    #[napi(js_name = "setTokioWorkerThreadsExplicit")]
+    pub fn set_tokio_worker_threads_explicit(
+        &self,
+        has_value: bool,
+        n: u32,
+    ) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.runtime.tokio_worker_threads = if has_value { Some(n as usize) } else { None };
+        Ok(())
+    }
+
+    /// Current `tokio_worker_threads` setting as `{ hasValue, n }`.
+    /// `hasValue=false` encodes the `None` (auto) sentinel.
+    #[napi(getter, js_name = "tokioWorkerThreads")]
+    pub fn tokio_worker_threads(&self) -> napi::Result<TokioWorkerThreadsSetting> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(match guard.runtime.tokio_worker_threads {
+            Some(n) => TokioWorkerThreadsSetting {
+                has_value: true,
+                n: u32::try_from(n).unwrap_or(u32::MAX),
+            },
+            None => TokioWorkerThreadsSetting {
+                has_value: false,
+                n: 0,
+            },
+        })
+    }
+
+    // ── RetryPolicy field setters/getters (BL-10) ─────────────────
+
+    /// Set the initial backoff delay (ms) for the historical-channel retry policy.
+    /// Default `250n`. Subsequent retries double from here, capped at
+    /// `retryMaxDelayMs`.
+    #[napi(js_name = "setRetryInitialDelayMs")]
+    pub fn set_retry_initial_delay_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = ms.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setRetryInitialDelayMs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.retry.initial_delay = std::time::Duration::from_millis(value);
+        Ok(())
+    }
+
+    /// Current `retry.initial_delay` value (ms, returned as BigInt).
+    #[napi(getter, js_name = "retryInitialDelayMs")]
+    pub fn retry_initial_delay_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        let ms = u64::try_from(guard.retry.initial_delay.as_millis()).unwrap_or(u64::MAX);
+        Ok(napi::bindgen_prelude::BigInt::from(ms))
+    }
+
+    /// Set the upper-bound backoff delay (ms) for the MDDS retry
+    /// policy. Default `30_000n` (30 s).
+    #[napi(js_name = "setRetryMaxDelayMs")]
+    pub fn set_retry_max_delay_ms(
+        &self,
+        ms: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = ms.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setRetryMaxDelayMs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.retry.max_delay = std::time::Duration::from_millis(value);
+        Ok(())
+    }
+
+    /// Current `retry.max_delay` value (ms, returned as BigInt).
+    #[napi(getter, js_name = "retryMaxDelayMs")]
+    pub fn retry_max_delay_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        let ms = u64::try_from(guard.retry.max_delay.as_millis()).unwrap_or(u64::MAX);
+        Ok(napi::bindgen_prelude::BigInt::from(ms))
+    }
+
+    /// Set the total attempt budget for the historical-channel retry policy. `1`
+    /// disables retry; higher values permit retries up to
+    /// `maxAttempts - 1` after the initial call. Default `5`.
+    #[napi(js_name = "setRetryMaxAttempts")]
+    pub fn set_retry_max_attempts(&self, n: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.retry.max_attempts = n;
+        Ok(())
+    }
+
+    /// Current `retry.max_attempts` value.
+    #[napi(getter, js_name = "retryMaxAttempts")]
+    pub fn retry_max_attempts(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.retry.max_attempts)
+    }
+
+    /// Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+    /// `true`. `false` gives the deterministic backoff schedule
+    /// `min(max_delay, initial * 2^attempt)`, useful for tests that
+    /// need to assert exact timings.
+    #[napi(js_name = "setRetryJitter")]
+    pub fn set_retry_jitter(&self, jitter: bool) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.retry.jitter = jitter;
+        Ok(())
+    }
+
+    /// Current `retry.jitter` value.
+    #[napi(getter, js_name = "retryJitter")]
+    pub fn retry_jitter(&self) -> napi::Result<bool> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.retry.jitter)
     }
 
     /// Take a snapshot of the underlying [`thetadatadx::DirectConfig`]

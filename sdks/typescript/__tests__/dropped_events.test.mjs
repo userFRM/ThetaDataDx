@@ -19,21 +19,24 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
+// CI build step is mandatory before `npm test`; fail loud if the addon
+// is missing so a broken build does not appear green.
+let mod;
+try {
+  mod = await import('../index.js');
+} catch {
+  console.error('FAIL: native addon not built; run `npm run build` first');
+  process.exit(1);
+}
+
 describe('tdx.droppedEventCount()', () => {
   it('is callable before/after startStreaming and after reconnect', async () => {
     const credsPath = process.env.THETADX_TEST_CREDS;
     if (!credsPath) {
+      // Live test — credentials are a legitimate runtime opt-in, not a build artefact.
       console.log(
         'SKIP: set THETADX_TEST_CREDS=/path/to/creds.txt to enable this live test'
       );
-      return;
-    }
-
-    let mod;
-    try {
-      mod = await import('../index.js');
-    } catch {
-      console.log('SKIP: native addon not built (run `npm run build` first)');
       return;
     }
 
@@ -82,17 +85,10 @@ describe('tdx.droppedEventCount()', () => {
     assert.equal(typeof received, 'bigint');
   });
 
-  it('rejects double startStreaming with a clear error', async () => {
+  it('rejects double startStreaming with a clear error', () => {
     const credsPath = process.env.THETADX_TEST_CREDS;
     if (!credsPath) {
       console.log('SKIP: set THETADX_TEST_CREDS=/path/to/creds.txt');
-      return;
-    }
-    let mod;
-    try {
-      mod = await import('../index.js');
-    } catch {
-      console.log('SKIP: native addon not built');
       return;
     }
     const tdx = mod.ThetaDataDxClient.connectFromFile(credsPath);
@@ -105,17 +101,10 @@ describe('tdx.droppedEventCount()', () => {
     tdx.stopStreaming();
   });
 
-  it('reconnect without prior startStreaming throws', async () => {
+  it('reconnect without prior startStreaming throws', () => {
     const credsPath = process.env.THETADX_TEST_CREDS;
     if (!credsPath) {
       console.log('SKIP: set THETADX_TEST_CREDS=/path/to/creds.txt');
-      return;
-    }
-    let mod;
-    try {
-      mod = await import('../index.js');
-    } catch {
-      console.log('SKIP: native addon not built');
       return;
     }
     const tdx = mod.ThetaDataDxClient.connectFromFile(credsPath);

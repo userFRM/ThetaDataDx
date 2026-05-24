@@ -219,7 +219,7 @@ pub mod prelude {
 }
 pub use config::{
     DirectConfig, FallbackPolicy, FlatFilesConfig, FpssFlushMode, ReconnectAttemptClass,
-    ReconnectAttemptLimits, ReconnectPolicy, DEFAULT_REST_BASE_URL,
+    ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, DEFAULT_REST_BASE_URL,
 };
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use flatfiles::{

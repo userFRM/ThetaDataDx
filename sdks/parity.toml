@@ -282,3 +282,96 @@ name = "ReconnectConfig.stable_window_secs"
 python = true
 typescript = true
 cpp = true
+
+[[class]]
+name = "ReconnectConfig.wait_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.wait_rate_limited_ms"
+python = true
+typescript = true
+cpp = true
+
+# ─── RuntimeConfig cross-binding setters ───────────────────────────────
+#
+# Async-runtime sub-config knobs honoured by embedded bindings that own
+# their tokio runtime (FFI / Python / napi). The
+# `tokio_worker_threads` field uses the widened `(has_value, n)` ABI
+# shape on the C surface so the `Some(0)` sentinel survives the C
+# boundary (matches the `MddsConfig.decode_threads_explicit` shape).
+# `RuntimeConfig::build_runtime` interprets the field for callers
+# building their own runtime.
+
+[[class]]
+name = "RuntimeConfig.tokio_worker_threads"
+python = true
+typescript = true
+cpp = true
+
+# ─── RetryPolicy cross-binding setters ─────────────────────────────────
+#
+# Per-field access on `DirectConfig.retry`. The `delay_for_attempt`
+# / `capped_backoff` / `disabled()` helpers stay Rust-only — they are
+# method-shape helpers that callers can recompute from the four field
+# values if needed. Field setters bound on every binding (Python via
+# `Config.retry_*`, TS via `Config.setRetry*`, C++ via
+# `tdx::Config::set_retry_*`); the dotted rows below track field-level
+# parity and the parity script's class-existence check skips dotted
+# rows pending the per-field granularity tightening (issue referenced
+# in `scripts/check_binding_parity.py`).
+
+[[class]]
+name = "RetryPolicy.initial_delay_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.max_delay_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.max_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.jitter"
+python = true
+typescript = true
+cpp = true
+
+# ─── Cross-binding error-class name divergences ───────────────────────
+#
+# The Rust `Error` enum surfaces through different binding-language
+# idioms (no per-language "rename for cosmetics" pass):
+#
+#   * Rust:       `thetadatadx::Error` (single error enum).
+#   * Python:     runtime class is `Error` (matches the Rust name);
+#                 the `.pyi` stub shadows it as `FpssParseError`
+#                 (suffix-disambiguated against the generic
+#                 `Error(ThetaDataError)` exception class) to avoid the
+#                 mypy duplicate-class collision. Runtime callers still
+#                 catch `thetadatadx.Error`.
+#   * TypeScript: napi exposes the variants as a discriminated union
+#                 over the standard JS `Error` superclass — `class
+#                 Error extends globalThis.Error` is the napi default.
+#   * C++:        FFI surface returns `int32_t` status codes per the
+#                 `tdx_last_error()` thread-local string convention; the
+#                 RAII wrapper exposes them as `tdx::FpssError` to
+#                 disambiguate from `std::exception`.
+#
+# This row is informational — the parity script's class-existence
+# check skips dotted rows. Audit S59 closure.
+
+[[class]]
+name = "Error.cross_binding_name_divergence"
+python = true
+typescript = true
+cpp = true

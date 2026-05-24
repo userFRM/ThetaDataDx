@@ -92,6 +92,24 @@ class Config:
     reconnect_max_attempts: int
     reconnect_max_rate_limited_attempts: int
     reconnect_stable_window_secs: int
+    # Reconnect cadence (ms) per failure class. Default
+    # `wait_ms=2_000` (generic transient) / `wait_rate_limited_ms=130_000`
+    # (TooManyRequests). Plumbed through to the FPSS I/O loop at
+    # connect time.
+    reconnect_wait_ms: int
+    reconnect_wait_rate_limited_ms: int
+    # Tokio worker-thread count for embedded runtimes built via
+    # `RuntimeConfig::build_runtime`. `None` defers to tokio's default
+    # sizing; `int` (including `0`, which clamps to `1` inside the
+    # builder) pins worker count.
+    tokio_worker_threads: Optional[int]
+    # RetryPolicy fields — per-field access on `DirectConfig.retry`.
+    # Defaults: `initial=250ms`, `max=30s`, `attempts=5`, `jitter=True`.
+    # Methods `delay_for_attempt` / `capped_backoff` stay Rust-only.
+    retry_initial_delay_ms: int
+    retry_max_delay_ms: int
+    retry_max_attempts: int
+    retry_jitter: bool
     # FPSS tunables.
     derive_ohlcvc: bool
     # REST-routing variant. Read-only -- write via

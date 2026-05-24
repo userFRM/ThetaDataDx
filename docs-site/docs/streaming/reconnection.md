@@ -1,6 +1,6 @@
 ---
 title: Reconnection & Error Handling
-description: Handle FPSS disconnects, implement reconnection logic with reconnect_streaming() or reconnect(), and manage streaming errors.
+description: Handle streaming disconnects, implement reconnection logic with reconnect_streaming() or reconnect(), and manage streaming errors.
 ---
 
 # Reconnection & Error Handling
@@ -105,7 +105,7 @@ let new_client = fpss::reconnect(
     previous_subs,             // Vec<(SubscriptionKind, Contract)>
     previous_full_subs,        // Vec<(SubscriptionKind, SecType)>
     delay_ms,                  // reconnection delay
-    config.fpss_ring_size,     // Disruptor ring size
+    config.fpss_ring_size,     // ring buffer size
     config.fpss_flush_mode,    // Batched or Immediate
     handler,                   // FnMut(&FpssEvent)
 )?;

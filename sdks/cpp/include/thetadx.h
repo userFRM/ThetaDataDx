@@ -523,17 +523,17 @@ void tdx_credentials_free(TdxCredentials* creds);
 /** Create a production config (ThetaData NJ datacenter). */
 TdxConfig* tdx_config_production(void);
 
-/** Create a dev FPSS config (port 20200, infinite historical replay). */
+/** Create a dev streaming config (port 20200, infinite historical replay). */
 TdxConfig* tdx_config_dev(void);
 
-/** Create a stage FPSS config (port 20100, testing, unstable). */
+/** Create a stage streaming config (port 20100, testing, unstable). */
 TdxConfig* tdx_config_stage(void);
 
 /** Free a config handle. */
 void tdx_config_free(TdxConfig* config);
 
 /**
- * Set FPSS reconnect policy on a config handle.
+ * Set the streaming reconnect policy on a config handle.
  *   policy=0: Auto (default) -- auto-reconnect with split per-class attempt
  *             budgets. Generic transient failures (TimedOut, ServerRestarting,
  *             Unspecified) use the budget set by
@@ -571,14 +571,108 @@ void tdx_config_set_reconnect_stable_window_secs(TdxConfig* config,
                                                  uint64_t secs);
 
 /**
- * Set FPSS flush mode on a config handle.
+ * Set the reconnect delay (ms) honoured for generic transient
+ * disconnects (TimedOut, ServerRestarting, Unspecified, ...). Plumbed
+ * through to the streaming I/O loop at connect time. Default 2_000.
+ */
+void tdx_config_set_reconnect_wait_ms(TdxConfig* config, uint64_t ms);
+
+/**
+ * Read the current reconnect wait_ms setting. Writes the configured
+ * millisecond delay into *out_ms. Returns 0 on success, -1 if either
+ * pointer is null.
+ */
+int32_t tdx_config_get_reconnect_wait_ms(const TdxConfig* config, uint64_t* out_ms);
+
+/**
+ * Set the reconnect delay (ms) honoured for `TooManyRequests`
+ * rate-limited disconnects. Default 130_000 (matches the Java
+ * terminal's 130 s rate-limit cooldown).
+ */
+void tdx_config_set_reconnect_wait_rate_limited_ms(TdxConfig* config, uint64_t ms);
+
+/**
+ * Read the current reconnect wait_rate_limited_ms setting. Same shape
+ * as tdx_config_get_reconnect_wait_ms.
+ */
+int32_t tdx_config_get_reconnect_wait_rate_limited_ms(const TdxConfig* config, uint64_t* out_ms);
+
+/**
+ * Set the RuntimeConfig.tokio_worker_threads knob for embedded
+ * runtimes built via RuntimeConfig::build_runtime.
+ *
+ *   has_value=false: encodes the auto-size sentinel (`None`); `n`
+ *     is ignored. Defers to tokio's default sizing.
+ *   has_value=true: encodes `Some(n)`. RuntimeConfig::build_runtime
+ *     clamps `n=0` to `1`, but the explicit `Some(0)` is preserved
+ *     across the C boundary matching the decode_threads shape so
+ *     Python / TS / C++ bindings agree.
+ *
+ * Returns 0 on success, -1 if `config` is NULL.
+ */
+int32_t tdx_config_set_tokio_worker_threads_explicit(TdxConfig* config, bool has_value, size_t n);
+
+/**
+ * Read the current RuntimeConfig.tokio_worker_threads setting. Same
+ * (has_value, n) shape as tdx_config_get_decode_threads:
+ *
+ *   *out_has_value=false: config holds `None` (auto-size). *out_n=0.
+ *   *out_has_value=true:  config holds `Some(*out_n)`.
+ *
+ * Returns 0 on success, -1 if any pointer is null.
+ */
+int32_t tdx_config_get_tokio_worker_threads(const TdxConfig* config, bool* out_has_value, size_t* out_n);
+
+/* ── RetryPolicy field setters/getters (BL-10) ── */
+
+/**
+ * Set the initial backoff delay (ms) for the historical-channel retry policy.
+ * Default 250. Subsequent retries double from here, capped at
+ * tdx_config_set_retry_max_delay_ms.
+ */
+void tdx_config_set_retry_initial_delay_ms(TdxConfig* config, uint64_t ms);
+
+/** Read retry.initial_delay (ms). */
+int32_t tdx_config_get_retry_initial_delay_ms(const TdxConfig* config, uint64_t* out_ms);
+
+/**
+ * Set the upper-bound backoff delay (ms) for the historical-channel retry policy.
+ * Default 30_000 (30 s).
+ */
+void tdx_config_set_retry_max_delay_ms(TdxConfig* config, uint64_t ms);
+
+/** Read retry.max_delay (ms). */
+int32_t tdx_config_get_retry_max_delay_ms(const TdxConfig* config, uint64_t* out_ms);
+
+/**
+ * Set the total attempt budget for the historical-channel retry policy. 1 disables
+ * retry (single call only); higher values permit retries up to
+ * max_attempts - 1 after the initial call. Default 5.
+ */
+void tdx_config_set_retry_max_attempts(TdxConfig* config, uint32_t n);
+
+/** Read retry.max_attempts. */
+int32_t tdx_config_get_retry_max_attempts(const TdxConfig* config, uint32_t* out_n);
+
+/**
+ * Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+ * true. false gives the deterministic backoff schedule
+ * min(max_delay, initial * 2^attempt), useful for tests.
+ */
+void tdx_config_set_retry_jitter(TdxConfig* config, bool jitter);
+
+/** Read retry.jitter. */
+int32_t tdx_config_get_retry_jitter(const TdxConfig* config, bool* out_jitter);
+
+/**
+ * Set streaming flush mode on a config handle.
  *   mode=0: Batched (default) -- flush only on PING every 100ms.
  *   mode=1: Immediate -- flush after every frame write.
  */
 void tdx_config_set_flush_mode(TdxConfig* config, int mode);
 
 /**
- * Set FPSS OHLCVC derivation on a config handle.
+ * Set streaming OHLCVC derivation on a config handle.
  *   enabled=1 (default): derive OHLCVC bars locally from trade events.
  *   enabled=0: only emit server-sent OHLCVC frames (lower overhead).
  */
@@ -597,7 +691,7 @@ void tdx_config_set_derive_ohlcvc(TdxConfig* config, int enabled);
 void tdx_config_set_concurrent_requests(TdxConfig* config, uint32_t n);
 
 /**
- * Set the number of dedicated decoder threads in the MDDS pool.
+ * Set the number of dedicated decoder threads in the historical-channel pool.
  *
  *   n=0 (default): auto-size to max(available_parallelism / 2, 1).
  *   n>0: explicit thread count. Override on shared hosts or to widen
@@ -848,21 +942,19 @@ uint64_t tdx_sequence_signed_to_unsigned(int64_t signed_value);
 int64_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
-/*  FPSS — #[repr(C)] streaming event types                               */
+/*  Streaming — #[repr(C)] event types                                    */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/* FPSS event structs are schema-driven. The include below pulls in the
- * same typedefs the Go SDK uses, generated from
- * `crates/thetadatadx/fpss_event_schema.toml` — so the C++ header can
- * never drift from the Rust `#[repr(C)]` layout again. See
- * `thetadx.hpp` for `static_assert(offsetof)` guards that fail the
+/* Streaming event structs are schema-driven. The include below pulls in
+ * the same typedefs the Go SDK uses, generated at build time — so the
+ * C++ header can never drift from the Rust `#[repr(C)]` layout again.
+ * See `thetadx.hpp` for `static_assert(offsetof)` guards that fail the
  * build at compile time if the schema and the C++ consumer ever
  * disagree.
  *
- * Flattened the flat `TdxFpssControl { kind, id, detail }`
- * envelope into one typed `#[repr(C)]` struct per `FpssControl::*` Rust
- * variant. Consumers dispatch via `event->kind` and read the matching
- * `event-><variant>` payload — for example
+ * Each variant is a typed `#[repr(C)]` struct. Consumers dispatch via
+ * `event->kind` and read the matching `event-><variant>` payload —
+ * for example
  *
  *   if (event->kind == TDX_FPSS_LOGIN_SUCCESS)
  *       printf("perms=%s\n", event->login_success.permissions);
@@ -876,10 +968,10 @@ int64_t tdx_sequence_unsigned_to_signed(uint64_t unsigned_value);
 #include "fpss_event_structs.h.inc"
 
 /* ═══════════════════════════════════════════════════════════════════════ */
-/*  FPSS — Real-time streaming client                                     */
+/*  Real-time streaming client                                            */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** Connect to FPSS streaming servers. Returns NULL on failure. */
+/** Connect to the real-time streaming servers. Returns NULL on failure. */
 TdxFpssHandle* tdx_fpss_connect(const TdxCredentials* creds, const TdxConfig* config);
 
 /** Polymorphic subscribe / unsubscribe — see TdxSubscriptionRequest below. */
@@ -930,9 +1022,10 @@ typedef void (*TdxFpssCallback)(const TdxFpssEvent* event, void* ctx);
  *  Returns 0 on success, -1 on error (check tdx_last_error()). */
 int tdx_fpss_set_callback(const TdxFpssHandle* h, TdxFpssCallback callback, void* ctx);
 
-/** Reconnect FPSS using the previously-registered callback. Returns 0 or -1.
- *  Returns -1 with "FPSS handle has already been shut down -- this is
- *  terminal" if the handle is past tdx_fpss_shutdown. */
+/** Reconnect the streaming session using the previously-registered
+ *  callback. Returns 0 or -1. Returns -1 with "streaming handle has
+ *  already been shut down -- this is terminal" if the handle is past
+ *  tdx_fpss_shutdown. */
 int tdx_fpss_reconnect(const TdxFpssHandle* h);
 
 /** Cumulative count of streaming events the TLS reader could not publish
@@ -941,9 +1034,9 @@ int tdx_fpss_reconnect(const TdxFpssHandle* h);
  *  installed yet. */
 uint64_t tdx_fpss_dropped_events(const TdxFpssHandle* h);
 
-/** Shut down the FPSS client. Terminal: every subsequent set_callback /
- *  reconnect / shutdown call on this handle returns -1 with a clear
- *  tdx_last_error() string. The handle remains valid for
+/** Shut down the streaming client. Terminal: every subsequent
+ *  set_callback / reconnect / shutdown call on this handle returns -1
+ *  with a clear tdx_last_error() string. The handle remains valid for
  *  tdx_fpss_free() only. Returns asynchronously: the streaming reader
  *  and consumer continue draining in-flight events through the
  *  registered callback until they observe the shutdown signal and
@@ -964,7 +1057,7 @@ void tdx_fpss_shutdown(const TdxFpssHandle* h);
  *  helper the consumer is waiting on and always time out. */
 int tdx_fpss_await_drain(const TdxFpssHandle* h, uint64_t timeout_ms);
 
-/** Free the FPSS handle.
+/** Free the streaming handle.
  *
  *  Accepts the handle in either lifecycle state: if shutdown has not
  *  yet been called, tdx_fpss_free performs the shutdown sequence
@@ -981,7 +1074,7 @@ void tdx_fpss_free(TdxFpssHandle* h);
 /*  Unified client -- historical + streaming through one handle            */
 /* ======================================================================= */
 
-/** Connect to ThetaData (historical only -- FPSS streaming is NOT started).
+/** Connect to ThetaData (historical only -- real-time streaming is NOT started).
  *  Returns NULL on connection/auth failure (check tdx_last_error()). */
 TdxUnified* tdx_unified_connect(const TdxCredentials* creds, const TdxConfig* config);
 
@@ -1048,10 +1141,10 @@ int tdx_unified_subscribe(const TdxUnified* handle, const TdxSubscriptionRequest
 /** Polymorphic unsubscribe on the unified client. Returns 0 or -1. */
 int tdx_unified_unsubscribe(const TdxUnified* handle, const TdxSubscriptionRequest* request);
 
-/** Polymorphic subscribe on the standalone FPSS client. Returns 0 or -1. */
+/** Polymorphic subscribe on the standalone streaming client. Returns 0 or -1. */
 int tdx_fpss_subscribe(const TdxFpssHandle* h, const TdxSubscriptionRequest* request);
 
-/** Polymorphic unsubscribe on the standalone FPSS client. Returns 0 or -1. */
+/** Polymorphic unsubscribe on the standalone streaming client. Returns 0 or -1. */
 int tdx_fpss_unsubscribe(const TdxFpssHandle* h, const TdxSubscriptionRequest* request);
 
 /** Reconnect unified streaming, re-subscribing all previous subscriptions. Returns 0 or -1. */
@@ -1123,7 +1216,7 @@ void tdx_unified_free(TdxUnified* handle);
 /** Opaque pull-iter handle returned by tdx_unified_start_streaming_iter. */
 typedef struct TdxFpssEventIterator TdxFpssEventIterator;
 
-/** Start FPSS streaming on the unified client in pull-iter mode.
+/** Start real-time streaming on the unified client in pull-iter mode.
  *
  *  Returns a freshly allocated `TdxFpssEventIterator*` on success.
  *  Mutually exclusive with `tdx_unified_set_callback` — calling
@@ -1134,7 +1227,7 @@ typedef struct TdxFpssEventIterator TdxFpssEventIterator;
  *  Returns NULL on connection / auth / state failure. */
 TdxFpssEventIterator* tdx_unified_start_streaming_iter(const TdxUnified* handle);
 
-/** Pop the next FPSS event into `*out_event`. `timeout_ms = 0` is a
+/** Pop the next streaming event into `*out_event`. `timeout_ms = 0` is a
  *  non-blocking poll; positive `timeout_ms` blocks up to that
  *  deadline.
  *
@@ -1166,11 +1259,10 @@ void tdx_fpss_event_iter_free(TdxFpssEventIterator* it);
 
 /* ── FLATFILES surface ────────────────────────────────────────────────
  *
- * Whole-universe daily snapshots over the legacy MDDS port. See
- * `crates/thetadatadx/src/flatfiles/` for the wire format. The schema
- * is determined at runtime by (sec_type, req_type), so the typed
- * decoder returns an opaque row-list handle that you serialise to
- * Arrow IPC bytes when you want columnar output.
+ * Whole-universe daily snapshots over the legacy historical-channel
+ * port. The schema is determined at runtime by (sec_type, req_type),
+ * so the typed decoder returns an opaque row-list handle that you
+ * serialise to Arrow IPC bytes when you want columnar output.
  */
 
 /** Opaque handle wrapping a decoded `Vec<FlatFileRow>`. Created by
