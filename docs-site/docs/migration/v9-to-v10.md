@@ -21,7 +21,7 @@ through each change.
 
 ## In-house gRPC transport
 
-The MDDS server-streaming path no longer uses `tonic`. The v10 Rust
+The historical channel server-streaming path no longer uses `tonic`. The v10 Rust
 core drives `h2` directly through the new `thetadatadx::grpc::*`
 module: prost encode → length-prefix frame → HTTP/2 DATA → response
 stream → trailers parse, with no tower stack, no boxed bodies, no
@@ -71,7 +71,7 @@ decoder threads (CPU work on already-arrived bytes) are independent.
 
 ## ContractRef rename
 
-The FPSS event payload field that exposes the resolved contract was
+The streaming event payload field that exposes the resolved contract was
 previously typed `Contract` on every binding, colliding with the
 fluent `Contract` builder used in `subscribe()` inputs. v10 renames
 the event payload type to `ContractRef`:
@@ -116,7 +116,7 @@ abi3 wheel. `pip` picks the matching wheel automatically:
 
 The extension carries `gil_used = false` on `#[pymodule]` so the GIL
 stays disabled after `import thetadatadx`. Every `block_on(...)`
-call site on the unified, FPSS, and MDDS Python pyclasses releases
+call site on the unified, streaming, and historical-channel Python pyclasses releases
 the GIL via `py.detach` before driving the tokio runtime; CPU-bound
 Python threads run truly in parallel with the gRPC dispatcher under
 contention.
@@ -149,26 +149,26 @@ async def main():
 asyncio.run(main())
 ```
 
-The session bridges the Disruptor consumer thread to the asyncio
+The session bridges the ring-buffer consumer thread to the asyncio
 event loop via a self-pipe wake FD: zero polling cost during quiet
 periods, one OS wake per coalesced batch. The matching surface on
 the standalone `FpssClient` (`fpss_client.streaming_async()`) opens
-no MDDS / Nexus surface — useful for asyncio apps coexisting with a
-parallel Java MDDS process.
+no historical-channel / Nexus surface — useful for asyncio apps coexisting with a
+parallel Java historical-channel process.
 
 ## Standalone `FpssClient` / `MddsClient` Python pyclasses
 
-v10 ships standalone Python pyclasses for the FPSS-only and
-MDDS-only surfaces, mirroring the C ABI `tdx_fpss_*` / `tdx_client_*`
+v10 ships standalone Python pyclasses for the streaming-only and
+historical-channel-only surfaces, mirroring the C ABI `tdx_fpss_*` / `tdx_client_*`
 split and the C++ `tdx::FpssClient` / `tdx::Client` shape:
 
 ```python
 from thetadatadx import FpssClient, MddsClient, Credentials, Config
 
-# Real-time stream only — no MDDS gRPC channel, no Nexus auth.
+# Real-time stream only — no historical-channel gRPC, no Nexus auth.
 fpss = FpssClient(Credentials.from_file("creds.txt"), Config.production())
 
-# Historical / FLATFILES only — no FPSS TLS slot. Every FPSS-touching
+# Historical / FLATFILES only — no streaming TLS slot. Every streaming-touching
 # method raises `AttributeError`.
 mdds = MddsClient(Credentials.from_file("creds.txt"), Config.production())
 ```

@@ -90,6 +90,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   New `sdks/parity.toml` row under a `RuntimeConfig` section header.
   Closes audit BL-9.
 
+### Changed (vendor-neutral docs)
+
+#### Audit closure wave 4
+
+- Replaced remaining `FPSS` / `MDDS` / `LMAX Disruptor` jargon in
+  user-facing surfaces with vendor-neutral phrasing:
+  - `sdks/cpp/include/thetadx.h` — section banners and prose
+    comments (`"FPSS — #[repr(C)] streaming event types"` →
+    `"Streaming — #[repr(C)] event types"`, "FPSS client" / "FPSS
+    handle" → "streaming client" / "streaming handle", "MDDS retry
+    policy" → "historical-channel retry policy"). ABI-locked symbol
+    names (`TDX_FPSS_*`, `tdx_fpss_*`, `tdx_config_set_*_mdds_*`)
+    stay unchanged.
+  - `sdks/python/src/lib.rs` — remaining `///` rustdoc mentions in
+    setter docstrings + the `tdx`/`callback` field doc-comments
+    rewritten ("FPSS reader" → "streaming reader", "MDDS retry
+    policy" → "historical-channel retry policy"). Generated-symbol
+    references (`PYTHON_UNIFIED_FPSS_METHODS`) and internal `//`
+    comments not exposed via PyPI long-description left as-is.
+  - `docs-site/docs/streaming/{index,connection,events,latency,
+    reconnection}.md`, `docs-site/docs/getting-started/streaming.md`,
+    `docs-site/docs/migration/v9-to-v10.md` — bulk substitution of
+    bare `FPSS` → `streaming`, bare `MDDS` → `historical channel`,
+    `LMAX Disruptor` → `ring buffer` / `SPSC ring buffer`. Mermaid
+    diagrams updated; awkward post-substitution phrases manually
+    rewritten ("streaming (Feed Processing Streaming Server)" →
+    "streaming", "Disruptor consumer thread" → "ring-buffer consumer
+    thread", etc.). Closes audit BL-5, BL-6, BL-7.
+
 ### Fixed
 
 #### Audit closure wave 4

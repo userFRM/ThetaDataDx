@@ -282,8 +282,8 @@ impl Config {
 
     /// Set the reconnect delay (ms) honoured for generic transient
     /// disconnects (TimedOut, ServerRestarting, Unspecified, …).
-    /// Plumbed through to the FPSS I/O loop at connect time. Default
-    /// ``2_000``.
+    /// Plumbed through to the streaming I/O loop at connect time.
+    /// Default ``2_000``.
     #[setter]
     fn set_reconnect_wait_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -345,7 +345,7 @@ impl Config {
     // methods stay Rust-only — they are method-shape helpers that
     // callers can recompute from the four field values if needed.
 
-    /// Set the initial backoff delay (ms) for the MDDS retry policy.
+    /// Set the initial backoff delay (ms) for the historical-channel retry policy.
     /// Default ``250``. Subsequent retries double from here, capped
     /// at :attr:`retry_max_delay_ms`.
     #[setter]
@@ -361,8 +361,8 @@ impl Config {
         u64::try_from(guard.retry.initial_delay.as_millis()).unwrap_or(u64::MAX)
     }
 
-    /// Set the upper-bound backoff delay (ms) for the MDDS retry
-    /// policy. Default ``30_000`` (30 s).
+    /// Set the upper-bound backoff delay (ms) for the
+    /// historical-channel retry policy. Default ``30_000`` (30 s).
     #[setter]
     fn set_retry_max_delay_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -376,7 +376,7 @@ impl Config {
         u64::try_from(guard.retry.max_delay.as_millis()).unwrap_or(u64::MAX)
     }
 
-    /// Set the total attempt budget for the MDDS retry policy. ``1``
+    /// Set the total attempt budget for the historical-channel retry policy. ``1``
     /// disables retry (single call only); higher values permit retries
     /// up to ``max_attempts - 1`` after the initial call. Default ``5``.
     #[setter]
@@ -392,7 +392,7 @@ impl Config {
         guard.retry.max_attempts
     }
 
-    /// Toggle AWS-style full-jitter on the MDDS retry policy. Default
+    /// Toggle AWS-style full-jitter on the historical-channel retry policy. Default
     /// ``True``. ``False`` gives the deterministic backoff schedule
     /// ``min(max_delay, initial * 2^attempt)``, useful for tests that
     /// need to assert exact timings.
@@ -775,16 +775,16 @@ struct ThetaDataDxClient {
     /// Wrapped in `Arc<>` so the per-endpoint fluent builder pyclasses
     /// emitted by the generator (`<Endpoint>Builder`) can clone a cheap
     /// handle into the awaitable returned by `*_async()` terminals. The
-    /// inner `thetadatadx::ThetaDataDxClient` is not `Clone` — its FPSS mutex
-    /// and subscription-tier state forbid it — so the builder cannot
-    /// hold the value directly without Arc ref-counting.
+    /// inner `thetadatadx::ThetaDataDxClient` is not `Clone` — its
+    /// streaming mutex and subscription-tier state forbid it — so the
+    /// builder cannot hold the value directly without Arc ref-counting.
     tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
-    /// User-registered Python callable that receives every FPSS event
-    /// after `start_streaming(callback)` succeeds. The dispatcher's
+    /// User-registered Python callable that receives every streaming
+    /// event after `start_streaming(callback)` succeeds. The dispatcher's
     /// drain thread acquires the GIL via `Python::attach` to invoke
-    /// `callback(event)`; the FPSS reader thread itself never touches
-    /// Python. `None` before any `start_streaming` and after every
-    /// `stop_streaming` / `shutdown`. `reconnect()` re-uses the
+    /// `callback(event)`; the streaming reader thread itself never
+    /// touches Python. `None` before any `start_streaming` and after
+    /// every `stop_streaming` / `shutdown`. `reconnect()` re-uses the
     /// stored handle so callers do not have to re-pass the callable.
     callback: Mutex<Option<Py<PyAny>>>,
 }
