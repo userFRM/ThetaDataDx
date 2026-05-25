@@ -398,10 +398,11 @@ fn effective_pool_size(
 ///
 /// A dedicated [`DecoderPool`] is attached to the channel pool
 /// so every RPC's zstd + protobuf decode runs on a worker thread
-/// rather than the tokio reactor. Sizing is driven by
-/// [`crate::config::MddsConfig::decoder_threads`] / `decoder_ring_size`,
-/// falling back to [`default_decoder_thread_count`] when the
-/// configured count is zero.
+/// rather than the tokio reactor. Stage-1 (zstd decompress) sizing
+/// is driven by [`default_decoder_thread_count`]; stage-2
+/// (prost-decode + Tick-build) sizing is driven by
+/// [`crate::config::MddsConfig::decode_threads`] /
+/// [`crate::config::MddsConfig::decode_queue_depth`].
 async fn open_channel_pool(
     host: &str,
     port: u16,
@@ -481,23 +482,7 @@ async fn open_channel_pool(
         })?;
         channels.push(channel);
     }
-    let stage1_threads = if config.mdds.decoder_threads == 0 {
-        default_decoder_thread_count()
-    } else {
-        // `decoder_threads` is the deprecated alias for stage-1
-        // thread count under the two-stage pipeline. Emit the
-        // deprecation warn once per pool construction so operators
-        // see it without spam on every RPC.
-        tracing::warn!(
-            target: "thetadatadx::mdds::client",
-            decoder_threads = config.mdds.decoder_threads,
-            "MddsConfig::decoder_threads is deprecated; \
-             set MddsConfig::decode_threads to tune the stage-2 \
-             decode worker pool (this knob now controls stage-1 \
-             zstd decompress threads)"
-        );
-        config.mdds.decoder_threads
-    };
+    let stage1_threads = default_decoder_thread_count();
     let stage2_threads = config
         .mdds
         .decode_threads

@@ -638,20 +638,6 @@ public:
     }
 
     /**
-     * Set the number of dedicated decoder threads in the MDDS pool.
-     *
-     * @p n = 0 (default) auto-sizes to
-     * `max(available_parallelism / 2, 1)`. Override on shared hosts
-     * or to widen the decode pipeline on historical backfills.
-     *
-     * \deprecated since v10.0.1, use set_decode_threads().
-     */
-    [[deprecated("since v10.0.1, use set_decode_threads()")]]
-    void set_decoder_threads(std::uint32_t n) {
-        tdx_config_set_decoder_threads(handle_.get(), n);
-    }
-
-    /**
      * Set the per-thread decoder ring size.
      *
      * Must be a power of two, >= 64. Invalid values are rejected at

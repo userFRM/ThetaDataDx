@@ -65,23 +65,6 @@ export declare class Config {
    */
   get warnOnBufferedThresholdBytes(): bigint
   /**
-   * Set the number of dedicated decoder threads in the historical-channel pool.
-   *
-   * `0` (default) auto-sizes to `max(available_parallelism / 2, 1)`,
-   * leaving half the logical cores for the tokio reactor and the
-   * application's own work. Override on shared hosts or to widen
-   * the decode pipeline on heavy historical backfills.
-   *
-   * @deprecated since v10.0.1, use setDecodeThreads().
-   */
-  setDecoderThreads(n: number): void
-  /**
-   * Current `decoder_threads` setting (`0` = auto-detect).
-   *
-   * @deprecated since v10.0.1, use decodeThreads.
-   */
-  get decoderThreads(): number
-  /**
    * Set the per-thread decoder ring size.
    *
    * Must be a power of two, `>= 64`. The setter rejects invalid

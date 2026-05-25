@@ -1,9 +1,9 @@
 // MDDS pool-sizing setters on `Config` (issue #584).
 //
-// Locks the contract that the three new properties exposed by the
-// `Config` napi class — `concurrentRequests`, `decoderThreads`,
-// `decoderRingSize` — round-trip through napi-rs to the underlying
-// Rust `MddsConfig` correctly, and that invalid ring sizes raise at
+// Locks the contract that the two properties exposed by the
+// `Config` napi class — `concurrentRequests`, `decoderRingSize`
+// — round-trip through napi-rs to the underlying Rust
+// `MddsConfig` correctly, and that invalid ring sizes raise at
 // the setter boundary rather than waiting for connect-time validate.
 //
 // Live behaviour (the tier clamp at connect time) is covered by the
@@ -33,21 +33,6 @@ describe('Config.concurrentRequests', () => {
     for (const n of [1, 2, 4, 8, 16]) {
       cfg.setConcurrentRequests(n);
       assert.equal(cfg.concurrentRequests, n);
-    }
-  });
-});
-
-describe('Config.decoderThreads', () => {
-  it('defaults to 0 (auto-detect sentinel)', () => {
-    const cfg = Config.production();
-    assert.equal(cfg.decoderThreads, 0);
-  });
-
-  it('round-trips through the setter', () => {
-    const cfg = Config.production();
-    for (const n of [1, 2, 4, 8, 16]) {
-      cfg.setDecoderThreads(n);
-      assert.equal(cfg.decoderThreads, n);
     }
   });
 });
@@ -100,13 +85,11 @@ describe('Config.decoderRingSize', () => {
 });
 
 describe('Config pool-sizing setters are independent', () => {
-  it('does not interfere with each other across all three properties', () => {
+  it('does not interfere with each other across both properties', () => {
     const cfg = Config.production();
     cfg.setConcurrentRequests(8);
-    cfg.setDecoderThreads(16);
     cfg.setDecoderRingSize(1024);
     assert.equal(cfg.concurrentRequests, 8);
-    assert.equal(cfg.decoderThreads, 16);
     assert.equal(cfg.decoderRingSize, 1024);
   });
 });

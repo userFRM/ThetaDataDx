@@ -68,11 +68,6 @@ class Config:
     # connect time with a warn. `decoder_ring_size` must be a power
     # of two >= 64; the setter raises ValueError otherwise.
     concurrent_requests: int
-    decoder_threads: int
-    """Deprecated since v10.0.1: set ``decode_threads`` instead. This
-    field controls only the legacy stage-1 thread count and is
-    preserved for backward compatibility.
-    """
     decoder_ring_size: int
     # Byte ceiling above which a buffered (non-`.stream()`) historical
     # response emits a Rust-side `tracing::warn!` pointing the caller

@@ -145,22 +145,20 @@ The previous behaviour honoured the configured value unconditionally, which prod
 
 For large historical pulls (multi-day backfills, wide `strike_range`, `interval = 1s` / `tick`), three knobs on `MddsConfig` control the SDK-side throughput. Each is independently tunable:
 
-| Workload | `concurrent_requests` | `decoder_threads` | `decoder_ring_size` |
+| Workload | `concurrent_requests` | `decode_threads` | `decoder_ring_size` |
 |---|---|---|---|
 | One-shot single-day single-strike query | `1` | auto | default (256) |
 | Multi-day backfill, narrow strike scope (sr < 10) | `4` (PRO) | auto | default (256) |
-| Wide `strike_range` or `1s` / `tick` interval bulk | `8` (PRO max) | `8` | default (256) |
+| Wide `strike_range` or `1s` / `tick` interval bulk | `8` (PRO max) | `Some(16)` | default (256) |
 | Reference: server-side tier caps | FREE=1 / VALUE=2 / STANDARD=4 / PRO=8 | | |
 
-### `decoder_threads`
+### `decode_threads`
 
-Each decoder thread runs zstd decompress + protobuf decode on a dedicated `std::thread`, keeping CPU-bound work off the tokio reactor. The default (`0`) auto-sizes to `max(available_parallelism / 2, 1)`, leaving half the logical cores for the reactor and the application's own work.
+Stage-2 worker thread count for the two-stage decode pipeline. Stage-2 runs `prost::Message::decode` and the downstream Tick build off a bounded MPSC queue fed by the stage-1 (per-channel zstd decompress) threads, keeping CPU-bound work off the tokio reactor. `None` (the default) auto-sizes to `std::thread::available_parallelism()` with a minimum of `1`. `Some(n)` pins the worker count to `n`; `Some(0)` clamps to `1` (a zero-worker pool would deadlock stage-1 on the first push).
 
-**Override** on shared hosts where the auto-sizing reads the wrong number from `/proc`, or to widen the decode pipeline on historical backfills with wide `strike_range`.
+**Override** on shared hosts where `available_parallelism` reads the wrong number from `/proc`, or to widen the decode pipeline on historical backfills with wide `strike_range`.
 
-::: tip Architectural caveat
-Today's MDDS pool pins each gRPC channel to one decoder ring via round-robin distribution. **Decoder threads beyond `concurrent_requests` therefore sit idle** — no producer feeds them. The two-stage pipeline rewrite (separate PR) decouples the IO and decode sides so extra decoder threads become useful; until then, setting `decoder_threads > concurrent_requests` is wasted memory (each idle thread keeps a 256-slot ring allocated).
-:::
+Stage-1 (per-channel zstd decompress) thread count auto-sizes to `max(available_parallelism / 2, 1)` and is no longer user-tunable — the two-stage pipeline rewrite decoupled stage-1 from the channel pool, so a hand-tuned stage-1 count is no longer load-bearing.
 
 ### `decoder_ring_size`
 
@@ -175,7 +173,7 @@ use thetadatadx::DirectConfig;
 
 let mut config = DirectConfig::production();
 config.mdds.concurrent_requests = 8;        // hit PRO tier cap
-config.mdds.decoder_threads = 8;            // match channel count exactly
+config.mdds.decode_threads = Some(16);      // stage-2 pool — match logical-core count
 config.mdds.decoder_ring_size = 256;        // default — bench-confirmed adequate
 ```
 
@@ -184,7 +182,7 @@ import thetadatadx as m
 
 cfg = m.Config.production()
 cfg.concurrent_requests = 8
-cfg.decoder_threads = 8
+cfg.decode_threads = 16
 cfg.decoder_ring_size = 256
 client = m.ThetaDataDxClient(creds, cfg)
 ```
@@ -194,7 +192,7 @@ import { Config, ThetaDataDxClient } from 'thetadatadx';
 
 const cfg = Config.production();
 cfg.setConcurrentRequests(8);
-cfg.setDecoderThreads(8);
+cfg.setDecodeThreads(16);
 cfg.setDecoderRingSize(256);
 const client = await ThetaDataDxClient.connectWithConfig(email, password, cfg);
 ```
@@ -204,7 +202,7 @@ const client = await ThetaDataDxClient.connectWithConfig(email, password, cfg);
 
 auto cfg = tdx::Config::production();
 cfg.set_concurrent_requests(8);
-cfg.set_decoder_threads(8);
+cfg.set_decode_threads(std::optional<std::size_t>{16});
 cfg.set_decoder_ring_size(256);
 auto creds = tdx::Credentials::from_email(email, password);
 auto client = tdx::Client::connect(creds, cfg);

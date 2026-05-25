@@ -12,9 +12,10 @@
 //   * `0` is a legal explicit value (the pool clamps to `1`
 //     internally at connect time).
 //
-// Stage-1 thread count remains controlled by the legacy
-// `decoderThreads` knob; this file pins only the new Phase-3
-// stage-2 surface.
+// Stage-1 thread count auto-sizes to
+// `max(available_parallelism / 2, 1)` at connect time and is no
+// longer user-tunable; this file pins only the Phase-3 stage-2
+// surface.
 //
 // Live behaviour (auto-sizing at connect time, the `Some(0) -> max(1)`
 // clamp, queue depth defaulting to `concurrent_requests * 64`) is
@@ -128,15 +129,13 @@ describe('Config two-stage pipeline setters are independent', () => {
     assert.equal(cfg.decodeQueueDepth, 4096);
   });
 
-  it('do not interfere with the legacy pool-sizing knobs', () => {
+  it('do not interfere with the pool-sizing knobs', () => {
     const cfg = Config.production();
     cfg.setConcurrentRequests(8);
-    cfg.setDecoderThreads(4);
     cfg.setDecoderRingSize(1024);
     cfg.setDecodeThreads(16);
     cfg.setDecodeQueueDepth(4096);
     assert.equal(cfg.concurrentRequests, 8);
-    assert.equal(cfg.decoderThreads, 4);
     assert.equal(cfg.decoderRingSize, 1024);
     assert.equal(cfg.decodeThreads, 16);
     assert.equal(cfg.decodeQueueDepth, 4096);

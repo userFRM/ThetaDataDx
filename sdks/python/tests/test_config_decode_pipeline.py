@@ -8,10 +8,10 @@ Pins the contract that the two new properties exposed by ``Config`` —
 the explicit-``0`` (clamps internally to ``1`` at pool construction)
 case, and the rejection of negative values at the setter boundary.
 
-Stage-1 thread count remains controlled by the legacy
-``decoder_threads`` knob (now deprecated-alias-only — see the rustdoc
-on ``MddsConfig::decoder_threads``); this file pins only the new
-Phase-3 stage-2 surface.
+Stage-1 thread count auto-sizes to
+``max(available_parallelism / 2, 1)`` at connect time and is no
+longer user-tunable; this file pins only the Phase-3 stage-2
+surface.
 
 Live behaviour (auto-sizing at connect time, the pool's
 ``Some(0) -> max(1)`` clamp, queue depth defaulting to
@@ -173,23 +173,20 @@ def test_decode_threads_and_queue_depth_are_independent():
     assert cfg.decode_queue_depth == 4096
 
 
-def test_decode_pipeline_setters_are_independent_from_legacy_pool_sizing():
-    """The Phase-3 setters do not collide with the legacy pool-sizing knobs.
+def test_decode_pipeline_setters_are_independent_from_pool_sizing():
+    """The Phase-3 setters do not collide with the pool-sizing knobs.
 
-    ``concurrent_requests`` (channel pool), ``decoder_threads`` (stage-1
-    zstd decompress), and ``decoder_ring_size`` (per-thread Disruptor
-    depth) must round-trip unchanged when the two-stage knobs are also
-    set on the same ``Config``.
+    ``concurrent_requests`` (channel pool) and ``decoder_ring_size``
+    (per-thread Disruptor depth) must round-trip unchanged when the
+    two-stage knobs are also set on the same ``Config``.
     """
     mod = _import_module()
     cfg = mod.Config.production()
     cfg.concurrent_requests = 8
-    cfg.decoder_threads = 4
     cfg.decoder_ring_size = 1024
     cfg.decode_threads = 16
     cfg.decode_queue_depth = 4096
     assert cfg.concurrent_requests == 8
-    assert cfg.decoder_threads == 4
     assert cfg.decoder_ring_size == 1024
     assert cfg.decode_threads == 16
     assert cfg.decode_queue_depth == 4096

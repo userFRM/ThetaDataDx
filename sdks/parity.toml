@@ -234,7 +234,7 @@ cpp = false
 # ─── MddsConfig cross-binding setters ──────────────────────────────────
 #
 # Tuning knobs on the MDDS sub-config exposed across every binding.
-# `concurrent_requests` / `decoder_threads` / `decoder_ring_size` /
+# `concurrent_requests` / `decoder_ring_size` /
 # `decode_threads_explicit` / `decode_queue_depth_explicit` are bound
 # via `Config.<name>` (Python), `Config.set<Name>` (TypeScript napi),
 # `tdx::Config::set_<name>` (C++ forwarder over the C ABI). The rows
