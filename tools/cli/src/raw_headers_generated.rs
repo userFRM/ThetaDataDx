@@ -65,6 +65,52 @@ pub(crate) const GREEKS_ALL_TICK_RAW_HEADERS: &[&str] = &[
     "right",
 ];
 
+pub(crate) const GREEKS_EOD_TICK_RAW_HEADERS: &[&str] = &[
+    "ms_of_day",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "count",
+    "bid_size",
+    "bid_exchange",
+    "bid",
+    "bid_condition",
+    "ask_size",
+    "ask_exchange",
+    "ask",
+    "ask_condition",
+    "delta",
+    "theta",
+    "vega",
+    "rho",
+    "epsilon",
+    "lambda",
+    "gamma",
+    "vanna",
+    "charm",
+    "vomma",
+    "veta",
+    "vera",
+    "speed",
+    "zomma",
+    "color",
+    "ultima",
+    "d1",
+    "d2",
+    "dual_delta",
+    "dual_gamma",
+    "implied_volatility",
+    "iv_error",
+    "underlying_ms_of_day",
+    "underlying_price",
+    "date",
+    "expiration",
+    "strike",
+    "right",
+];
+
 pub(crate) const GREEKS_FIRST_ORDER_TICK_RAW_HEADERS: &[&str] = &[
     "ms_of_day",
     "bid",
@@ -120,6 +166,20 @@ pub(crate) const GREEKS_THIRD_ORDER_TICK_RAW_HEADERS: &[&str] = &[
     "expiration",
     "strike",
     "right",
+];
+
+pub(crate) const INDEX_PRICE_AT_TIME_TICK_RAW_HEADERS: &[&str] = &[
+    "ms_of_day",
+    "sequence",
+    "ext_condition1",
+    "ext_condition2",
+    "ext_condition3",
+    "ext_condition4",
+    "condition",
+    "size",
+    "exchange",
+    "price",
+    "date",
 ];
 
 pub(crate) const INTEREST_RATE_TICK_RAW_HEADERS: &[&str] = &[

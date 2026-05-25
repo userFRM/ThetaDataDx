@@ -81,8 +81,8 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
         }
         "index_at_time_price" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_price_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(price_ticks_to_pyclass_list(py, ticks)?.into_any())
+            let ticks = thetadatadx::decode::parse_index_price_at_time_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(index_price_at_time_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
@@ -141,8 +141,8 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
         }
         "option_history_greeks_eod" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(greeks_all_ticks_to_pyclass_list(py, ticks)?.into_any())
+            let ticks = thetadatadx::decode::parse_greeks_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(greeks_eod_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_first_order" => {
             let table = decode_chunks_into_table(&refs)?;

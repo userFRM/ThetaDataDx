@@ -7,20 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> **Release line note**: this train accumulates 24 major + 1 minor breaking
+> **Release line note**: this train accumulates 26 major + 1 minor breaking
 > changes versus v10.0.0. The next release tag MUST be v11.0.0, not a
 > v10.0.x patch. Owner-greenlight gated on this audit returning zero
-> actionable findings. Wave-5 of the audit-fix loop closes audit BL-14:
-> the five `option_history_trade_greeks_*` endpoints have been re-routed
-> from the bare interval-sampled `Greeks*Tick` types onto five new
-> per-trade `TradeGreeks*Tick` sibling types that carry the nine
-> trade-side execution columns the v10 line silently dropped.
-> The +5 major entries are the return-type change on the five
-> endpoints (`Vec<GreeksAllTick>` -> `Vec<TradeGreeksAllTick>`, and
-> the same per-order substitutions); the new types are listed under
-> `Added (BREAKING -- v11)`.
+> actionable findings. Wave-6 of the audit-fix loop closes the last two
+> silent-data-loss issues uncovered by the cross-binding wire audit:
+> `option_history_greeks_eod` (BLOCKER) was re-routed from the bare
+> `GreeksAllTick` (28 columns) onto a new `GreeksEodTick` (39 columns)
+> that carries the twelve EOD trade/quote columns (`open`, `high`,
+> `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`,
+> `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`) the
+> v10 line silently dropped; and `index_at_time_price` (SERIOUS) was
+> re-routed from the bare `PriceTick` (3 columns) onto a new
+> `IndexPriceAtTimeTick` (10 columns) that carries the seven
+> trade-side execution columns including the SIP-exchange attribution
+> field. The +2 major entries are the return-type changes on the two
+> endpoints (`Vec<GreeksAllTick>` -> `Vec<GreeksEodTick>` and
+> `Vec<PriceTick>` -> `Vec<IndexPriceAtTimeTick>`); the new types are
+> listed under `Added (BREAKING -- v11)`. Wave-5 (audit BL-14) closed
+> the analogous data-loss class on the five
+> `option_history_trade_greeks_*` endpoints; Wave-6 closes the last
+> two endpoints exhibiting the same pattern.
 
 ### Added
+
+#### Audit closure wave 6
+
+- Two new tick types model the verified-live wire shape on two
+  historical endpoints whose previous routing silently dropped server-
+  emitted columns:
+  - `GreeksEodTick` carries the twelve EOD trade/quote columns
+    (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`,
+    `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`,
+    `ask_condition`) alongside every Greek published on
+    `option_history_greeks_eod`. The bare `GreeksAllTick` previously
+    routed by `endpoint_surface.toml` (28 columns) lost those twelve
+    EOD-specific columns from the 39-column EOD response.
+  - `IndexPriceAtTimeTick` carries the seven trade-side execution
+    columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
+    `exchange`) the bare `PriceTick` (3 columns) silently dropped from
+    the 10-column `index_at_time_price` response, including the
+    `exchange` SIP-source attribution column.
+  Wire layout verified-live against terminal jar build `202605221`;
+  pinned by the new `tests/test_wave6_schema.rs` regression suite +
+  two new capture fixtures under
+  `tests/fixtures/captures/{option_history_greeks_eod,index_at_time_price}.{pb.zst,meta.toml}`.
+  Available on every binding (Rust direct + tdbe + ffi
+  `Tdx{GreeksEod,IndexPriceAtTime}TickArray` + Python pyclass +
+  TypeScript napi `{GreeksEod,IndexPriceAtTime}Tick` + C++
+  `tdx::{GreeksEod,IndexPriceAtTime}Tick`).
 
 #### Audit closure wave 5
 
@@ -137,6 +172,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### Audit closure wave 6
+
+- `option_history_greeks_eod` previously routed to the interval-sampled
+  `GreeksAllTick` (28 columns), which silently dropped the twelve EOD
+  trade/quote columns (`open`, `high`, `low`, `close`, `volume`,
+  `count`, `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
+  `ask_exchange`, `ask_condition`) from the 39-column EOD response.
+  Users got the Greeks but lost the EOD bar + closing NBBO snapshot
+  the Greek values were calculated against. Verified live against
+  terminal jar build `202605221`; new `GreeksEodTick` carries the full
+  39-column wire shape end-to-end across Rust, ffi, Python, TypeScript,
+  and C++. Pinned by `tests/test_wave6_schema.rs::
+  decode_greeks_eod_carries_twelve_eod_columns_and_every_greek`.
+  Closes wave-6 BLOCKER.
+- `index_at_time_price` previously routed to the bare `PriceTick`
+  (3 columns), which silently dropped the seven trade-side execution
+  columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
+  `exchange`) from the 10-column response. The `exchange` field is the
+  SIP source attribution per row -- users lost the per-row
+  source-of-truth for the index print. Verified live against terminal
+  jar build `202605221`; new `IndexPriceAtTimeTick` carries the full
+  trade-shaped wire row end-to-end across every binding. Pinned by
+  `tests/test_wave6_schema.rs::
+  decode_index_at_time_price_carries_seven_trade_side_columns`. Closes
+  wave-6 SERIOUS.
+
 #### Audit closure wave 5
 
 - Five `option_history_trade_greeks_*` endpoints previously routed to
@@ -167,6 +228,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   capture deployment-topology data by default. Closes audit S56.
 
 ### Changed (BREAKING — v11)
+
+#### Audit closure wave 6
+
+- Two endpoint return types change shape to carry server-emitted
+  columns the v10 routing silently dropped:
+  - `option_history_greeks_eod`: `Vec<GreeksAllTick>` ->
+    `Vec<GreeksEodTick>`. Migration: consumers already iterating Greek
+    fields keep the same field names; consumers reading the bid/ask
+    quote pair keep them on `GreeksEodTick`; consumers must add reads
+    for the twelve EOD trade/quote columns the bare `GreeksAllTick`
+    elided (`open`, `high`, `low`, `close`, `volume`, `count`,
+    `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
+    `ask_exchange`, `ask_condition`) if those columns are needed.
+  - `index_at_time_price`: `Vec<PriceTick>` ->
+    `Vec<IndexPriceAtTimeTick>`. Migration: `ms_of_day`, `price`, and
+    `date` keep the same field names; consumers must add reads for the
+    seven trade-side execution columns (`sequence`, `ext_condition1..4`,
+    `condition`, `size`, `exchange`) if needed -- `exchange` is the
+    SIP source attribution that was previously lost.
+  Closes wave-6 BLOCKER + SERIOUS. (2 major)
 
 #### Audit closure wave 5
 

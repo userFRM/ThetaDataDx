@@ -1520,12 +1520,12 @@ name = "option_history_greeks_eod"
 template = "option_history_greeks_eod"
 description = "Fetch end-of-day Greeks history for an option contract."
 vendor_docstring = """
-- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Returns the data for all contracts that share the same provided symbol and expiration.
 - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
 - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
 """
 rest_path = "/v3/option/history/greeks/eod"
-returns = "GreeksAllTicks"
+returns = "GreeksEodTicks"
 
 [[endpoints]]
 name = "option_history_greeks_all"
@@ -1781,7 +1781,7 @@ vendor_docstring = """
 - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
 """
 rest_path = "/v3/index/at_time/price"
-returns = "PriceTicks"
+returns = "IndexPriceAtTimeTicks"
 
 [[endpoints]]
 name = "calendar_open_today"

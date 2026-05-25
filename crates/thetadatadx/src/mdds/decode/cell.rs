@@ -17,11 +17,11 @@ use super::error::DecodeError;
 use super::headers::find_header;
 use crate::proto;
 use tdbe::types::tick::{
-    CalendarDay, EodTick, GreeksAllTick, GreeksFirstOrderTick, GreeksSecondOrderTick,
-    GreeksThirdOrderTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick,
-    OptionContract, PriceTick, QuoteTick, TradeGreeksAllTick, TradeGreeksFirstOrderTick,
-    TradeGreeksImpliedVolatilityTick, TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
-    TradeQuoteTick, TradeTick,
+    CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
+    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
+    MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,
+    TradeGreeksAllTick, TradeGreeksFirstOrderTick, TradeGreeksImpliedVolatilityTick,
+    TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
 };
 
 /// Extract a date (YYYYMMDD) from a `Number`, `Timestamp`, or `Text` cell,

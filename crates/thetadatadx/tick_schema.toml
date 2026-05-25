@@ -434,6 +434,106 @@ ts_class = "GreeksAllTick"
 ts_class_vec = "greeks_all_ticks_to_class_vec"
 pyclass = "GreeksAllTick"
 
+[types.GreeksEodTick]
+doc = """
+End-of-day union Greeks tick -- every Greek the v3 server publishes on
+`option_history_greeks_eod`, paired with the twelve EOD trade/quote
+context columns (`open`, `high`, `low`, `close`, `volume`, `count`,
+`bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
+`ask_exchange`, `ask_condition`) that identify the daily bar + closing
+NBBO snapshot the Greeks were calculated against.
+
+The bare `GreeksAllTick` previously routed by `endpoint_surface.toml`
+(28 fields) silently dropped those twelve EOD columns from the
+39-column EOD response -- the same data-loss class as the per-trade
+Greeks endpoints (BL-14 / PR #605). `GreeksEodTick` carries the full
+EOD wire shape end-to-end across every binding.
+
+Wire layout verified-live against terminal jar build `202605221`
+(SPY 2024-06-21 expiration query on 2024-06-14):
+
+  symbol, expiration, strike, right,
+  timestamp, open, high, low, close, volume, count,
+  bid_size, bid_exchange, bid, bid_condition,
+  ask_size, ask_exchange, ask, ask_condition,
+  delta, theta, vega, rho, epsilon, lambda,
+  gamma, vanna, charm, vomma, veta, vera,
+  speed, zomma, color, ultima,
+  d1, d2, dual_delta, dual_gamma,
+  implied_vol, iv_error,
+  underlying_timestamp, underlying_price
+
+The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
+`underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
+mappings are applied through `HEADER_ALIASES`.
+"""
+copy = true
+align = 64
+contract_id = true
+parser = "parse_greeks_eod_ticks"
+required = ["ms_of_day"]
+columns = [
+    { name = "ms_of_day",            field = "ms_of_day",            type = "i32" },
+    { name = "open",                 field = "open",                 type = "price" },
+    { name = "high",                 field = "high",                 type = "price" },
+    { name = "low",                  field = "low",                  type = "price" },
+    { name = "close",                field = "close",                type = "price" },
+    { name = "volume",               field = "volume",               type = "i64" },
+    { name = "count",                field = "count",                type = "i64" },
+    { name = "bid_size",             field = "bid_size",             type = "i32" },
+    { name = "bid_exchange",         field = "bid_exchange",         type = "i32" },
+    { name = "bid",                  field = "bid",                  type = "price" },
+    { name = "bid_condition",        field = "bid_condition",        type = "i32" },
+    { name = "ask_size",             field = "ask_size",             type = "i32" },
+    { name = "ask_exchange",         field = "ask_exchange",         type = "i32" },
+    { name = "ask",                  field = "ask",                  type = "price" },
+    { name = "ask_condition",        field = "ask_condition",        type = "i32" },
+    { name = "delta",                field = "delta",                type = "f64" },
+    { name = "theta",                field = "theta",                type = "f64" },
+    { name = "vega",                 field = "vega",                 type = "f64" },
+    { name = "rho",                  field = "rho",                  type = "f64" },
+    { name = "epsilon",              field = "epsilon",              type = "f64" },
+    { name = "lambda",               field = "lambda",               type = "f64" },
+    { name = "gamma",                field = "gamma",                type = "f64" },
+    { name = "vanna",                field = "vanna",                type = "f64" },
+    { name = "charm",                field = "charm",                type = "f64" },
+    { name = "vomma",                field = "vomma",                type = "f64" },
+    { name = "veta",                 field = "veta",                 type = "f64" },
+    { name = "vera",                 field = "vera",                 type = "f64" },
+    { name = "speed",                field = "speed",                type = "f64" },
+    { name = "zomma",                field = "zomma",                type = "f64" },
+    { name = "color",                field = "color",                type = "f64" },
+    { name = "ultima",               field = "ultima",               type = "f64" },
+    { name = "d1",                   field = "d1",                   type = "f64" },
+    { name = "d2",                   field = "d2",                   type = "f64" },
+    { name = "dual_delta",           field = "dual_delta",           type = "f64" },
+    { name = "dual_gamma",           field = "dual_gamma",           type = "f64" },
+    { name = "implied_volatility",   field = "implied_volatility",   type = "f64" },
+    { name = "iv_error",             field = "iv_error",             type = "f64" },
+    { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32" },
+    { name = "underlying_price",     field = "underlying_price",     type = "price" },
+    { name = "date",                 field = "date",                 type = "i32" },
+]
+
+[types.GreeksEodTick.render]
+collection = "GreeksEodTicks"
+direct = "GreeksEodTick"
+parser = "parse_greeks_eod_ticks"
+ffi_array = "TdxGreeksEodTickArray"
+ffi_output_variant = "GreeksEodTicks"
+ffi_from_vec_array = "TdxGreeksEodTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_greeks_eod_tick_array_free"
+cpp_value = "GreeksEodTick"
+python_converter = "greeks_eod_tick_to_dict"
+python_columnar = "greeks_eod_ticks_to_columnar"
+python_pyclass_list = "greeks_eod_ticks_to_pyclass_list"
+python_vec_to_pylist = "greeks_eod_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::greeks_eod_tick_slice_to_arrow_table"
+ts_class = "GreeksEodTick"
+ts_class_vec = "greeks_eod_ticks_to_class_vec"
+pyclass = "GreeksEodTick"
+
 [types.GreeksFirstOrderTick]
 doc = """
 First-order Greeks tick -- the strict column subset emitted by the
@@ -988,6 +1088,59 @@ python_slice_arrow = "slice_arrow::price_tick_slice_to_arrow_table"
 ts_class = "PriceTick"
 ts_class_vec = "price_ticks_to_class_vec"
 pyclass = "PriceTick"
+
+[types.IndexPriceAtTimeTick]
+doc = """
+Index price-at-time tick -- the trade-shaped row the v3 server
+publishes on `index_at_time_price`. The bare `PriceTick` (3 fields:
+`ms_of_day`, `price`, `date`) silently dropped seven server-emitted
+columns -- `sequence`, `ext_condition1..4`, `condition`, `size`,
+`exchange` -- including the SIP-exchange attribution field.
+
+Wire layout verified-live against terminal jar build `202605221`:
+
+  timestamp, sequence, ext_condition1..4, condition, size, exchange, price
+
+The `timestamp` -> `ms_of_day` and `timestamp` -> `date` mappings are
+applied through the existing `HEADER_ALIASES` rows in
+`crates/thetadatadx/src/mdds/decode/headers.rs`.
+"""
+copy = true
+align = 64
+parser = "parse_index_price_at_time_ticks"
+required = ["ms_of_day", "price"]
+columns = [
+    { name = "ms_of_day",      field = "ms_of_day",      type = "i32" },
+    { name = "sequence",       field = "sequence",       type = "i32" },
+    { name = "ext_condition1", field = "ext_condition1", type = "i32" },
+    { name = "ext_condition2", field = "ext_condition2", type = "i32" },
+    { name = "ext_condition3", field = "ext_condition3", type = "i32" },
+    { name = "ext_condition4", field = "ext_condition4", type = "i32" },
+    { name = "condition",      field = "condition",      type = "i32" },
+    { name = "size",           field = "size",           type = "i32" },
+    { name = "exchange",       field = "exchange",       type = "i32" },
+    { name = "price",          field = "price",          type = "price" },
+    { name = "date",           field = "date",           type = "i32" },
+]
+
+[types.IndexPriceAtTimeTick.render]
+collection = "IndexPriceAtTimeTicks"
+direct = "IndexPriceAtTimeTick"
+parser = "parse_index_price_at_time_ticks"
+ffi_array = "TdxIndexPriceAtTimeTickArray"
+ffi_output_variant = "IndexPriceAtTimeTicks"
+ffi_from_vec_array = "TdxIndexPriceAtTimeTickArray"
+ffi_header_return = "TdxTickArray"
+ffi_free_fn = "tdx_index_price_at_time_tick_array_free"
+cpp_value = "IndexPriceAtTimeTick"
+python_converter = "index_price_at_time_tick_to_dict"
+python_columnar = "index_price_at_time_ticks_to_columnar"
+python_pyclass_list = "index_price_at_time_ticks_to_pyclass_list"
+python_vec_to_pylist = "index_price_at_time_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::index_price_at_time_tick_slice_to_arrow_table"
+ts_class = "IndexPriceAtTimeTick"
+ts_class_vec = "index_price_at_time_ticks_to_class_vec"
+pyclass = "IndexPriceAtTimeTick"
 
 [types.CalendarDay]
 doc = "Calendar day -- 5 fields. Market open/close schedule."

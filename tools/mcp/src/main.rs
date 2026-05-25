@@ -616,6 +616,36 @@ fn serialize_greeks_all_ticks(ticks: &[tdbe::types::tick::GreeksAllTick]) -> Val
     json!({ "ticks": rows, "count": rows.len() })
 }
 
+fn serialize_greeks_eod_ticks(ticks: &[tdbe::types::tick::GreeksEodTick]) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            let mut row = json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "open": t.open, "high": t.high, "low": t.low, "close": t.close,
+                "volume": t.volume, "count": t.count,
+                "bid_size": t.bid_size, "bid_exchange": t.bid_exchange,
+                "bid": t.bid, "bid_condition": t.bid_condition,
+                "ask_size": t.ask_size, "ask_exchange": t.ask_exchange,
+                "ask": t.ask, "ask_condition": t.ask_condition,
+                "delta": t.delta, "theta": t.theta, "vega": t.vega, "rho": t.rho,
+                "epsilon": t.epsilon, "lambda": t.lambda,
+                "gamma": t.gamma, "vanna": t.vanna, "charm": t.charm,
+                "vomma": t.vomma, "veta": t.veta, "vera": t.vera,
+                "speed": t.speed, "zomma": t.zomma, "color": t.color, "ultima": t.ultima,
+                "d1": t.d1, "d2": t.d2,
+                "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
+                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+                "underlying_ms_of_day": t.underlying_ms_of_day,
+                "underlying_price": t.underlying_price,
+            });
+            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+            row
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
 fn serialize_greeks_first_order_ticks(ticks: &[tdbe::types::tick::GreeksFirstOrderTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
@@ -835,6 +865,29 @@ fn serialize_price_ticks(ticks: &[tdbe::types::tick::PriceTick]) -> Value {
     json!({ "ticks": rows, "count": rows.len() })
 }
 
+fn serialize_index_price_at_time_ticks(
+    ticks: &[tdbe::types::tick::IndexPriceAtTimeTick],
+) -> Value {
+    let rows: Vec<Value> = ticks
+        .iter()
+        .map(|t| {
+            json!({
+                "date": t.date, "ms_of_day": t.ms_of_day,
+                "sequence": t.sequence,
+                "ext_condition1": t.ext_condition1,
+                "ext_condition2": t.ext_condition2,
+                "ext_condition3": t.ext_condition3,
+                "ext_condition4": t.ext_condition4,
+                "condition": t.condition,
+                "size": t.size,
+                "exchange": t.exchange,
+                "price": t.price,
+            })
+        })
+        .collect();
+    json!({ "ticks": rows, "count": rows.len() })
+}
+
 fn serialize_calendar_days(days: &[tdbe::types::tick::CalendarDay]) -> Value {
     let rows: Vec<Value> = days
         .iter()
@@ -896,6 +949,7 @@ fn serialize_endpoint_output(name: &str, output: &EndpointOutput) -> Value {
         EndpointOutput::OpenInterestTicks(ticks) => serialize_open_interest_ticks(ticks),
         EndpointOutput::MarketValueTicks(ticks) => serialize_market_value_ticks(ticks),
         EndpointOutput::GreeksAllTicks(ticks) => serialize_greeks_all_ticks(ticks),
+        EndpointOutput::GreeksEodTicks(ticks) => serialize_greeks_eod_ticks(ticks),
         EndpointOutput::GreeksFirstOrderTicks(ticks) => serialize_greeks_first_order_ticks(ticks),
         EndpointOutput::GreeksSecondOrderTicks(ticks) => serialize_greeks_second_order_ticks(ticks),
         EndpointOutput::GreeksThirdOrderTicks(ticks) => serialize_greeks_third_order_ticks(ticks),
@@ -914,6 +968,7 @@ fn serialize_endpoint_output(name: &str, output: &EndpointOutput) -> Value {
         }
         EndpointOutput::IvTicks(ticks) => serialize_iv_ticks(ticks),
         EndpointOutput::PriceTicks(ticks) => serialize_price_ticks(ticks),
+        EndpointOutput::IndexPriceAtTimeTicks(ticks) => serialize_index_price_at_time_ticks(ticks),
         EndpointOutput::CalendarDays(days) => serialize_calendar_days(days),
         EndpointOutput::InterestRateTicks(ticks) => serialize_interest_rate_ticks(ticks),
         EndpointOutput::OptionContracts(contracts) => serialize_option_contracts(contracts),

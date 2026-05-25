@@ -894,7 +894,7 @@ export declare class ThetaDataDxClient {
    * - `version`: `"latest"`
    * - `underlyer_use_nbbo`: `false`
    */
-  optionHistoryGreeksEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, underlyerUseNbbo?: boolean | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksAllTick>
+  optionHistoryGreeksEOD(symbol: string, expiration: string | Date, startDate: string | Date, endDate: string | Date, strike?: string | undefined | null, right?: string | undefined | null, annualDividend?: number | undefined | null, rateType?: string | undefined | null, rateValue?: number | undefined | null, version?: string | undefined | null, underlyerUseNbbo?: boolean | undefined | null, maxDte?: number | undefined | null, strikeRange?: number | undefined | null, timeoutMs?: number | undefined | null): Array<GreeksEodTick>
   /**
    * Fetch all Greeks history for an option contract (intraday, sampled by interval).
    *
@@ -1164,7 +1164,7 @@ export declare class ThetaDataDxClient {
    * - Retrieves historical indices price reports. [Exchanges](/Articles/Data-And-Requests/The-SIPs.html) typically generate a price report every second for popular indices like SPX.
    * - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
    */
-  indexAtTimePrice(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, timeoutMs?: number | undefined | null): Array<PriceTick>
+  indexAtTimePrice(symbol: string, startDate: string | Date, endDate: string | Date, timeOfDay: string | Date, timeoutMs?: number | undefined | null): Array<IndexPriceAtTimeTick>
   /**
    * Check whether the market is open today.
    *
@@ -1558,6 +1558,53 @@ export interface GreeksAllTick {
   right: string
 }
 
+/** End-of-day union Greeks tick -- every Greek the v3 server publishes on */
+export interface GreeksEodTick {
+  msOfDay: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: bigint
+  count: bigint
+  bidSize: number
+  bidExchange: number
+  bid: number
+  bidCondition: number
+  askSize: number
+  askExchange: number
+  ask: number
+  askCondition: number
+  delta: number
+  theta: number
+  vega: number
+  rho: number
+  epsilon: number
+  lambda: number
+  gamma: number
+  vanna: number
+  charm: number
+  vomma: number
+  veta: number
+  vera: number
+  speed: number
+  zomma: number
+  color: number
+  ultima: number
+  d1: number
+  d2: number
+  dualDelta: number
+  dualGamma: number
+  impliedVolatility: number
+  ivError: number
+  underlyingMsOfDay: number
+  underlyingPrice: number
+  date: number
+  expiration: number
+  strike: number
+  right: string
+}
+
 /** First-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksFirstOrderTick {
   msOfDay: number
@@ -1616,6 +1663,21 @@ export interface GreeksThirdOrderTick {
   expiration: number
   strike: number
   right: string
+}
+
+/** Index price-at-time tick -- the trade-shaped row the v3 server */
+export interface IndexPriceAtTimeTick {
+  msOfDay: number
+  sequence: number
+  extCondition1: number
+  extCondition2: number
+  extCondition3: number
+  extCondition4: number
+  condition: number
+  size: number
+  exchange: number
+  price: number
+  date: number
 }
 
 /** Interest rate tick. End-of-day interest rate (percent). */

@@ -6812,7 +6812,7 @@ impl OptionHistoryOpenInterestBuilder {
 
 /// Fetch end-of-day Greeks history for an option contract.
 ///
-/// - Returns the data for all contracts that share the same provided symbol and expiration. 
+/// - Returns the data for all contracts that share the same provided symbol and expiration.
 /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
 /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
 ///
@@ -6931,7 +6931,7 @@ impl OptionHistoryGreeksEodBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksAllTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksEodTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
@@ -6981,7 +6981,7 @@ impl OptionHistoryGreeksEodBuilder {
             }
             request.await
         })?;
-        greeks_all_ticks_to_pyclass_list(py, ticks)
+        greeks_eod_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -7034,7 +7034,7 @@ impl OptionHistoryGreeksEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Stream chunks of `option_history_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
@@ -7101,7 +7101,7 @@ impl OptionHistoryGreeksEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match greeks_eod_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -7184,7 +7184,7 @@ impl OptionHistoryGreeksEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match greeks_eod_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -13457,7 +13457,7 @@ impl IndexAtTimePriceBuilder {
     ///
     /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
     /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<PriceTickList>> {
+    fn list(&self, py: Python<'_>) -> PyResult<Py<IndexPriceAtTimeTickList>> {
         let tdx = self.tdx.clone();
         let symbol = self.symbol.clone();
         let start_date = self.start_date.clone();
@@ -13471,7 +13471,7 @@ impl IndexAtTimePriceBuilder {
             }
             request.await
         })?;
-        price_ticks_to_pyclass_list(py, ticks)
+        index_price_at_time_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Async companion to `list()` — awaitable yields the typed list wrapper.
@@ -13488,7 +13488,7 @@ impl IndexAtTimePriceBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| index_price_at_time_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
@@ -13519,7 +13519,7 @@ impl IndexAtTimePriceBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match price_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match index_price_at_time_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -13566,7 +13566,7 @@ impl IndexAtTimePriceBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
-                    let py_list = match price_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match index_price_at_time_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -18398,7 +18398,7 @@ impl ThetaDataDxClient {
 
     /// Fetch end-of-day Greeks history for an option contract.
     ///
-    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
     /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
     /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
     ///
@@ -18426,7 +18426,7 @@ impl ThetaDataDxClient {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<GreeksAllTickList>> {
+    ) -> PyResult<Py<GreeksEodTickList>> {
         let mut request = self.tdx.option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
@@ -18459,12 +18459,12 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        greeks_all_ticks_to_pyclass_list(py, ticks)
+        greeks_eod_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
     ///
-    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
     /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
     /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
     ///
@@ -18532,7 +18532,7 @@ impl ThetaDataDxClient {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| greeks_eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `option_history_greeks_eod`. Chain setters then call `.list()`
@@ -21492,13 +21492,13 @@ impl ThetaDataDxClient {
         end_date: PyDateArg,
         time_of_day: PyTimeArg,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<PriceTickList>> {
+    ) -> PyResult<Py<IndexPriceAtTimeTickList>> {
         let mut request = self.tdx.index_at_time_price(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking(py, async move { request.await })?;
-        price_ticks_to_pyclass_list(py, ticks)
+        index_price_at_time_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Fetch the index price at a specific time of day across a date range.
@@ -21527,7 +21527,7 @@ impl ThetaDataDxClient {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| index_price_at_time_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `index_at_time_price`. Chain setters then call `.list()`

@@ -33,7 +33,7 @@ extern TdxTradeTickArray tdx_option_history_trade_with_options(const TdxClient* 
 extern TdxQuoteTickArray tdx_option_history_quote_with_options(const TdxClient* client, const char* symbol, const char* expiration, const char* date, const TdxEndpointRequestOptions* options);
 extern TdxTradeQuoteTickArray tdx_option_history_trade_quote_with_options(const TdxClient* client, const char* symbol, const char* expiration, const char* date, const TdxEndpointRequestOptions* options);
 extern TdxOpenInterestTickArray tdx_option_history_open_interest_with_options(const TdxClient* client, const char* symbol, const char* expiration, const char* date, const TdxEndpointRequestOptions* options);
-extern TdxGreeksAllTickArray tdx_option_history_greeks_eod_with_options(const TdxClient* client, const char* symbol, const char* expiration, const char* start_date, const char* end_date, const TdxEndpointRequestOptions* options);
+extern TdxGreeksEodTickArray tdx_option_history_greeks_eod_with_options(const TdxClient* client, const char* symbol, const char* expiration, const char* start_date, const char* end_date, const TdxEndpointRequestOptions* options);
 extern TdxGreeksAllTickArray tdx_option_history_greeks_all_with_options(const TdxClient* client, const char* symbol, const char* expiration, const char* date, const TdxEndpointRequestOptions* options);
 extern TdxTradeGreeksAllTickArray tdx_option_history_trade_greeks_all_with_options(const TdxClient* client, const char* symbol, const char* expiration, const char* date, const TdxEndpointRequestOptions* options);
 extern TdxGreeksFirstOrderTickArray tdx_option_history_greeks_first_order_with_options(const TdxClient* client, const char* symbol, const char* expiration, const char* date, const TdxEndpointRequestOptions* options);
@@ -54,7 +54,7 @@ extern TdxMarketValueTickArray tdx_index_snapshot_market_value_with_options(cons
 extern TdxEodTickArray tdx_index_history_eod_with_options(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date, const TdxEndpointRequestOptions* options);
 extern TdxOhlcTickArray tdx_index_history_ohlc_with_options(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date, const TdxEndpointRequestOptions* options);
 extern TdxPriceTickArray tdx_index_history_price_with_options(const TdxClient* client, const char* symbol, const char* date, const TdxEndpointRequestOptions* options);
-extern TdxPriceTickArray tdx_index_at_time_price_with_options(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date, const char* time_of_day, const TdxEndpointRequestOptions* options);
+extern TdxIndexPriceAtTimeTickArray tdx_index_at_time_price_with_options(const TdxClient* client, const char* symbol, const char* start_date, const char* end_date, const char* time_of_day, const TdxEndpointRequestOptions* options);
 extern TdxCalendarDayArray tdx_calendar_open_today_with_options(const TdxClient* client, const TdxEndpointRequestOptions* options);
 extern TdxCalendarDayArray tdx_calendar_on_date_with_options(const TdxClient* client, const char* date, const TdxEndpointRequestOptions* options);
 extern TdxCalendarDayArray tdx_calendar_year_with_options(const TdxClient* client, const char* year, const TdxEndpointRequestOptions* options);
