@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> **Release line note**: this train accumulates 26 major + 1 minor breaking
+> **Release line note**: this train accumulates 30 major + 1 minor breaking
 > changes versus v10.0.0. The next release tag MUST be v11.0.0, not a
 > v10.0.x patch. Owner-greenlight gated on this audit returning zero
 > actionable findings. Wave-6 of the audit-fix loop closes the last two
@@ -1427,18 +1427,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bot-stamping from reintroducing the boilerplate.
 
 
-### Deprecated
-
-- `Error::config_other`, `Error::decode_other`, and
-  `Error::decompress_other` constructors are deprecated and
-  `#[doc(hidden)]`. New call sites should pick the matching typed
-  `*Kind` variant (`config_invalid`, `decode_codec`,
-  `decompress_zstd`, etc.). The constructors will be removed in
-  the next major release.
-
-
 ### Removed
 
+- `Error::config_other`, `Error::decode_other`, and
+  `Error::decompress_other` constructors removed (previously
+  `#[doc(hidden)]` + `#[deprecated(since = "10.0.1")]`). Use the
+  typed `*Kind` constructor (`config_invalid`, `config_internal`,
+  `decode_protobuf`, `decode_codec`, `decompress_zstd`,
+  `decompress_unknown_algorithm`, etc.) so retry classifiers
+  dispatch on the structured kind without parsing `Display`. The
+  `Other(String)` variant on each of `ConfigErrorKind`,
+  `DecodeErrorKind`, `DecompressErrorKind` is also removed — the
+  enums are `#[non_exhaustive]` so consumers already had a
+  catch-all match arm.
+- `MddsConfig::decoder_threads` field removed (previously the
+  deprecated alias for stage-1 zstd-decompress thread count under
+  the two-stage decode pipeline). Stage-1 thread count now
+  auto-sizes to `max(available_parallelism / 2, 1)` at connect
+  time and is no longer user-tunable. Use
+  `MddsConfig::decode_threads` to tune the stage-2 prost-decode +
+  Tick-build worker pool. Cross-binding setters
+  (`tdx_config_set_decoder_threads` on the C ABI;
+  `Config.decoder_threads` on Python; `setDecoderThreads` /
+  `decoderThreads` on the TypeScript napi binding;
+  `tdx::Config::set_decoder_threads` on the C++ wrapper) all
+  deleted in the same sweep.
+- TypeScript `Config.flatfileToPath` lowercase backwards-compat
+  alias removed. Use `flatFileToPath` (the documented camelCase
+  name); the lowercase form was retained as a one-version alias
+  for code written against pre-v10 and is no longer needed.
 - `InterestRateTick.ms_of_day` field (fictitious — the server never
   emits a `ms_of_day` column on `interest_rate/history/eod`). Counts
   as v11 breaking change #7 (after `SubscriptionInfo` non_exhaustive,

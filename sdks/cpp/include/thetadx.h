@@ -950,16 +950,6 @@ void tdx_config_set_derive_ohlcvc(TdxConfig* config, int enabled);
 void tdx_config_set_concurrent_requests(TdxConfig* config, uint32_t n);
 
 /**
- * Set the number of dedicated decoder threads in the historical-channel pool.
- *
- *   n=0 (default): auto-size to max(available_parallelism / 2, 1).
- *   n>0: explicit thread count. Override on shared hosts or to widen
- *     the decode pipeline on historical backfills with wide
- *     strike_range.
- */
-void tdx_config_set_decoder_threads(TdxConfig* config, uint32_t n);
-
-/**
  * Set the warn_on_buffered_threshold_bytes ceiling on a config.
  *
  * Pre-stream-API endpoints (the non-`.stream()` shape) log a

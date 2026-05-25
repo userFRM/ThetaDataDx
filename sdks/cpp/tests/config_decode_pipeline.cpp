@@ -111,12 +111,11 @@ TEST_CASE("Config::set_decode_queue_depth round-trips nullopt after explicit",
     REQUIRE(last_error_text().empty());
 }
 
-TEST_CASE("Config two-stage pipeline setters compose with legacy pool-sizing",
+TEST_CASE("Config two-stage pipeline setters compose with pool-sizing",
           "[config][decode_pipeline][offline]") {
     auto cfg = tdx::Config::production();
     tdx_clear_error();
     cfg.set_concurrent_requests(8);
-    cfg.set_decoder_threads(4);
     cfg.set_decoder_ring_size(1024);
     REQUIRE_NOTHROW(cfg.set_decode_threads(std::optional<std::size_t>{16}));
     REQUIRE_NOTHROW(

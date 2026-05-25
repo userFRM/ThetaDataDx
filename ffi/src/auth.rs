@@ -576,20 +576,6 @@ pub unsafe extern "C" fn tdx_config_get_warn_on_buffered_threshold_bytes(
     })
 }
 
-/// Set the number of dedicated decoder threads in the MDDS pool.
-///
-/// `n = 0` (default) auto-sizes to
-/// `max(available_parallelism / 2, 1)`. Override on shared hosts or
-/// to widen the decode pipeline on historical backfills with wide
-/// `strike_range`.
-#[no_mangle]
-pub unsafe extern "C" fn tdx_config_set_decoder_threads(config: *mut TdxConfig, n: u32) {
-    ffi_boundary!((), {
-        let config = require_config_mut!(config);
-        config.inner.mdds.decoder_threads = n as usize;
-    })
-}
-
 /// Set the per-thread decoder ring size.
 ///
 /// Must be a power of two, `>= 64`. Invalid values are rejected at
@@ -924,20 +910,6 @@ mod pool_sizing_tests {
     }
 
     #[test]
-    fn decoder_threads_round_trips() {
-        let cfg = super::tdx_config_production();
-        assert!(!cfg.is_null());
-        // SAFETY: handle just returned by tdx_config_production.
-        unsafe {
-            super::tdx_config_set_decoder_threads(cfg, 16);
-            assert_eq!((*cfg).inner.mdds.decoder_threads, 16);
-            super::tdx_config_set_decoder_threads(cfg, 0);
-            assert_eq!((*cfg).inner.mdds.decoder_threads, 0);
-            super::tdx_config_free(cfg);
-        }
-    }
-
-    #[test]
     fn decoder_ring_size_accepts_valid_power_of_two() {
         let cfg = super::tdx_config_production();
         // SAFETY: handle just returned by tdx_config_production.
@@ -1005,7 +977,6 @@ mod pool_sizing_tests {
         // crashing. The test exercises that null-tolerance branch.
         unsafe {
             super::tdx_config_set_concurrent_requests(std::ptr::null_mut(), 4);
-            super::tdx_config_set_decoder_threads(std::ptr::null_mut(), 4);
             super::tdx_config_set_decoder_ring_size(std::ptr::null_mut(), 256);
         }
     }
@@ -1641,12 +1612,11 @@ mod decode_pipeline_tests {
     }
 
     #[test]
-    fn decode_pipeline_setters_compose_with_legacy_pool_sizing() {
+    fn decode_pipeline_setters_compose_with_pool_sizing() {
         let cfg = super::tdx_config_production();
         // SAFETY: handle just returned by tdx_config_production.
         unsafe {
             super::tdx_config_set_concurrent_requests(cfg, 8);
-            super::tdx_config_set_decoder_threads(cfg, 4);
             super::tdx_config_set_decoder_ring_size(cfg, 1024);
             assert_eq!(
                 super::tdx_config_set_decode_threads_explicit(cfg, true, 16),
@@ -1657,7 +1627,6 @@ mod decode_pipeline_tests {
                 0
             );
             assert_eq!((*cfg).inner.mdds.concurrent_requests, 8);
-            assert_eq!((*cfg).inner.mdds.decoder_threads, 4);
             assert_eq!((*cfg).inner.mdds.decoder_ring_size, 1024);
             assert_eq!((*cfg).inner.mdds.decode_threads, Some(16));
             assert_eq!((*cfg).inner.mdds.decode_queue_depth, Some(4096));

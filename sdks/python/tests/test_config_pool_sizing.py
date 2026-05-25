@@ -1,11 +1,11 @@
 """MDDS pool-sizing setters on `Config` (issue #584).
 
-Locks the contract that the three new properties exposed by
-``Config`` — ``concurrent_requests`` / ``decoder_threads`` /
-``decoder_ring_size`` — round-trip through the pyo3 binding to the
-underlying Rust ``MddsConfig`` correctly, and that invalid ring sizes
-raise ``ValueError`` at the setter boundary rather than waiting for
-the connect-time `validate()` call to fail.
+Locks the contract that the two properties exposed by
+``Config`` — ``concurrent_requests`` / ``decoder_ring_size`` —
+round-trip through the pyo3 binding to the underlying Rust
+``MddsConfig`` correctly, and that invalid ring sizes raise
+``ValueError`` at the setter boundary rather than waiting for the
+connect-time `validate()` call to fail.
 
 Live behaviour (the tier clamp at connect time, the auto-detect
 default = 0 sentinels) is covered by the Rust unit tests under
@@ -48,25 +48,6 @@ def test_concurrent_requests_round_trips():
     for n in (1, 2, 4, 8, 16):
         cfg.concurrent_requests = n
         assert cfg.concurrent_requests == n
-
-
-# ─── decoder_threads ────────────────────────────────────────────────
-
-
-def test_decoder_threads_defaults_to_auto_detect_sentinel():
-    """`decoder_threads = 0` is the auto-detect sentinel."""
-    mod = _import_module()
-    cfg = mod.Config.production()
-    assert cfg.decoder_threads == 0
-
-
-def test_decoder_threads_round_trips():
-    """`decoder_threads = N` round-trips through the binding."""
-    mod = _import_module()
-    cfg = mod.Config.production()
-    for n in (1, 2, 4, 8, 16):
-        cfg.decoder_threads = n
-        assert cfg.decoder_threads == n
 
 
 # ─── decoder_ring_size ──────────────────────────────────────────────
@@ -123,17 +104,15 @@ def test_decoder_ring_size_rejects_zero():
 # ─── Combined invariants ────────────────────────────────────────────
 
 
-def test_all_three_setters_independent():
-    """The three setters do not interfere with each other.
+def test_both_setters_independent():
+    """The two setters do not interfere with each other.
 
-    Round-tripping each property after writing the others must
+    Round-tripping each property after writing the other must
     return the values that were last written.
     """
     mod = _import_module()
     cfg = mod.Config.production()
     cfg.concurrent_requests = 8
-    cfg.decoder_threads = 16
     cfg.decoder_ring_size = 1024
     assert cfg.concurrent_requests == 8
-    assert cfg.decoder_threads == 16
     assert cfg.decoder_ring_size == 1024

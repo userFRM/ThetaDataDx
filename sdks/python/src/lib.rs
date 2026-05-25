@@ -512,40 +512,6 @@ impl Config {
         guard.mdds.warn_on_buffered_threshold_bytes
     }
 
-    /// Deprecated since v10.0.1: set ``decode_threads`` instead. This
-    /// field controls only the legacy stage-1 thread count and is
-    /// preserved for backward compatibility.
-    ///
-    /// Set the number of dedicated decoder threads in the historical pool.
-    ///
-    /// Each decoder thread runs zstd decompress + protobuf decode on
-    /// dedicated OS threads, keeping CPU-bound work off the tokio
-    /// reactor. ``0`` (default) auto-sizes to
-    /// ``max(available_parallelism / 2, 1)``, leaving half the
-    /// logical cores for the reactor and the application's own work.
-    /// Override on shared hosts where the auto-sizing reads the wrong
-    /// number from `/proc`, or to widen the decode pipeline on
-    /// historical backfills with wide ``strike_range``.
-    ///
-    /// See the "Throughput tuning" section in the documentation for
-    /// the full sizing table.
-    #[setter]
-    fn set_decoder_threads(&self, n: usize) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.decoder_threads = n;
-    }
-
-    /// Deprecated since v10.0.1: set ``decode_threads`` instead. This
-    /// field controls only the legacy stage-1 thread count and is
-    /// preserved for backward compatibility.
-    ///
-    /// Current `decoder_threads` setting (``0`` = auto-detect).
-    #[getter]
-    fn get_decoder_threads(&self) -> usize {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.mdds.decoder_threads
-    }
-
     /// Set the per-thread decoder ring size.
     ///
     /// Must be a power of two, ``>= 64``. Larger rings absorb burstier

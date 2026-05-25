@@ -1,11 +1,11 @@
 // MDDS pool-sizing setters on tdx::Config.
 //
-// Offline tests pin the contract that the three new setters exposed by
+// Offline tests pin the contract that the two setters exposed by
 // the `tdx::Config` C++ wrapper — `set_concurrent_requests`,
-// `set_decoder_threads`, `set_decoder_ring_size` — invoke the underlying
-// C ABI without crashing, and that `set_decoder_ring_size` surfaces
-// validation failures via `tdx_last_error()` while leaving the config
-// unchanged on rejection.
+// `set_decoder_ring_size` — invoke the underlying C ABI without
+// crashing, and that `set_decoder_ring_size` surfaces validation
+// failures via `tdx_last_error()` while leaving the config unchanged
+// on rejection.
 
 #include <cstdint>
 #include <cstring>
@@ -40,14 +40,6 @@ TEST_CASE("Config::set_concurrent_requests round-trips", "[config][pool_sizing][
     REQUIRE_NOTHROW(cfg.set_concurrent_requests(1));
     REQUIRE_NOTHROW(cfg.set_concurrent_requests(8));
     REQUIRE_NOTHROW(cfg.set_concurrent_requests(32));
-}
-
-TEST_CASE("Config::set_decoder_threads round-trips", "[config][pool_sizing][offline]") {
-    auto cfg = tdx::Config::production();
-    REQUIRE_NOTHROW(cfg.set_decoder_threads(0));
-    REQUIRE_NOTHROW(cfg.set_decoder_threads(1));
-    REQUIRE_NOTHROW(cfg.set_decoder_threads(8));
-    REQUIRE_NOTHROW(cfg.set_decoder_threads(64));
 }
 
 TEST_CASE("Config::set_decoder_ring_size accepts valid powers of two",

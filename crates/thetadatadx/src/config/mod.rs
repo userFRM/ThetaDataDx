@@ -1132,9 +1132,6 @@ mod tests {
     #[test]
     fn mdds_decoder_defaults_match_production_baseline() {
         let mdds = crate::config::MddsConfig::production_defaults();
-        // `0` is the auto-detect sentinel; `default_decoder_thread_count`
-        // resolves it at connect time.
-        assert_eq!(mdds.decoder_threads, 0);
         assert_eq!(mdds.decoder_ring_size, 256);
         assert!(mdds.decoder_ring_size.is_power_of_two());
         // Tier clamp on by default — the override is an internal

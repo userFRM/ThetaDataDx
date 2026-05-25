@@ -248,36 +248,6 @@ impl Config {
         ))
     }
 
-    /// Set the number of dedicated decoder threads in the historical-channel pool.
-    ///
-    /// `0` (default) auto-sizes to `max(available_parallelism / 2, 1)`,
-    /// leaving half the logical cores for the tokio reactor and the
-    /// application's own work. Override on shared hosts or to widen
-    /// the decode pipeline on heavy historical backfills.
-    ///
-    /// @deprecated since v10.0.1, use setDecodeThreads().
-    #[napi(js_name = "setDecoderThreads")]
-    pub fn set_decoder_threads(&self, n: u32) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.mdds.decoder_threads = n as usize;
-        Ok(())
-    }
-
-    /// Current `decoder_threads` setting (`0` = auto-detect).
-    ///
-    /// @deprecated since v10.0.1, use decodeThreads.
-    #[napi(getter, js_name = "decoderThreads")]
-    pub fn decoder_threads(&self) -> napi::Result<u32> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(u32::try_from(guard.mdds.decoder_threads).unwrap_or(u32::MAX))
-    }
-
     /// Set the per-thread decoder ring size.
     ///
     /// Must be a power of two, `>= 64`. The setter rejects invalid
