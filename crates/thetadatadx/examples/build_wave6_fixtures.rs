@@ -126,29 +126,29 @@ fn build_greeks_eod_row() -> proto::DataValueList {
         dv_price2(4_325), // ask=43.25
         dv_num(50),       // ask_condition
         // Greeks (4-decimal precision).
-        dv_price4(10_000), // delta=1.0000
-        dv_price4(0),      // theta
-        dv_price4(0),      // vega
-        dv_price4(0),      // rho
-        dv_price4(0),      // epsilon
-        dv_price4(0),      // lambda
-        dv_price4(0),      // gamma
-        dv_price4(0),      // vanna
-        dv_price4(0),      // charm
-        dv_price4(0),      // vomma
-        dv_price4(0),      // veta
-        dv_price4(0),      // vera
-        dv_price4(0),      // speed
-        dv_price4(0),      // zomma
-        dv_price4(0),      // color
-        dv_price4(0),      // ultima
-        dv_price4(0),      // d1
-        dv_price4(0),      // d2
-        dv_price4(0),      // dual_delta
-        dv_price4(0),      // dual_gamma
-        dv_price4(0),      // implied_vol
-        dv_price4(109),    // iv_error=0.0109
-        dv_timestamp(EOD_UND_TS_MS), // underlying_timestamp
+        dv_price4(10_000),               // delta=1.0000
+        dv_price4(0),                    // theta
+        dv_price4(0),                    // vega
+        dv_price4(0),                    // rho
+        dv_price4(0),                    // epsilon
+        dv_price4(0),                    // lambda
+        dv_price4(0),                    // gamma
+        dv_price4(0),                    // vanna
+        dv_price4(0),                    // charm
+        dv_price4(0),                    // vomma
+        dv_price4(0),                    // veta
+        dv_price4(0),                    // vera
+        dv_price4(0),                    // speed
+        dv_price4(0),                    // zomma
+        dv_price4(0),                    // color
+        dv_price4(0),                    // ultima
+        dv_price4(0),                    // d1
+        dv_price4(0),                    // d2
+        dv_price4(0),                    // dual_delta
+        dv_price4(0),                    // dual_gamma
+        dv_price4(0),                    // implied_vol
+        dv_price4(109),                  // iv_error=0.0109
+        dv_timestamp(EOD_UND_TS_MS),     // underlying_timestamp
         dv_price4(EOD_UND_PRICE_X10000), // underlying_price=542.7799
     ];
     proto::DataValueList { values }
