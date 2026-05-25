@@ -103,54 +103,55 @@ const EOD_STRIKE_X100: i32 = 50_000;
 const EOD_UND_PRICE_X10000: i32 = 5_427_799;
 
 fn build_greeks_eod_row() -> proto::DataValueList {
-    let mut v = Vec::with_capacity(43);
-    // Contract id lead-in.
-    v.push(dv_text("SPY"));
-    v.push(dv_num(EOD_EXP_YYYYMMDD));
-    v.push(dv_price2(EOD_STRIKE_X100));
-    v.push(dv_text("CALL"));
-    // EOD bar header.
-    v.push(dv_timestamp(EOD_TRADE_TS_MS));
-    v.push(dv_price2(4_171)); // open=41.71
-    v.push(dv_price2(4_278)); // high=42.78
-    v.push(dv_price2(4_048)); // low=40.48
-    v.push(dv_price2(4_278)); // close=42.78
-    v.push(dv_num(683)); // volume
-    v.push(dv_num(99)); // count
-    v.push(dv_num(325)); // bid_size
-    v.push(dv_num(5)); // bid_exchange
-    v.push(dv_price2(4_239)); // bid=42.39
-    v.push(dv_num(50)); // bid_condition
-    v.push(dv_num(418)); // ask_size
-    v.push(dv_num(5)); // ask_exchange
-    v.push(dv_price2(4_325)); // ask=43.25
-    v.push(dv_num(50)); // ask_condition
-                        // Greeks (4-decimal precision).
-    v.push(dv_price4(10_000)); // delta=1.0000
-    v.push(dv_price4(0)); // theta
-    v.push(dv_price4(0)); // vega
-    v.push(dv_price4(0)); // rho
-    v.push(dv_price4(0)); // epsilon
-    v.push(dv_price4(0)); // lambda
-    v.push(dv_price4(0)); // gamma
-    v.push(dv_price4(0)); // vanna
-    v.push(dv_price4(0)); // charm
-    v.push(dv_price4(0)); // vomma
-    v.push(dv_price4(0)); // veta
-    v.push(dv_price4(0)); // vera
-    v.push(dv_price4(0)); // speed
-    v.push(dv_price4(0)); // zomma
-    v.push(dv_price4(0)); // color
-    v.push(dv_price4(0)); // ultima
-    v.push(dv_price4(0)); // d1
-    v.push(dv_price4(0)); // d2
-    v.push(dv_price4(0)); // dual_delta
-    v.push(dv_price4(0)); // dual_gamma
-    v.push(dv_price4(0)); // implied_vol
-    v.push(dv_price4(109)); // iv_error=0.0109
-    v.push(dv_timestamp(EOD_UND_TS_MS)); // underlying_timestamp
-    v.push(dv_price4(EOD_UND_PRICE_X10000)); // underlying_price=542.7799
-    proto::DataValueList { values: v }
+    let values = vec![
+        // Contract id lead-in.
+        dv_text("SPY"),
+        dv_num(EOD_EXP_YYYYMMDD),
+        dv_price2(EOD_STRIKE_X100),
+        dv_text("CALL"),
+        // EOD bar header.
+        dv_timestamp(EOD_TRADE_TS_MS),
+        dv_price2(4_171), // open=41.71
+        dv_price2(4_278), // high=42.78
+        dv_price2(4_048), // low=40.48
+        dv_price2(4_278), // close=42.78
+        dv_num(683),      // volume
+        dv_num(99),       // count
+        dv_num(325),      // bid_size
+        dv_num(5),        // bid_exchange
+        dv_price2(4_239), // bid=42.39
+        dv_num(50),       // bid_condition
+        dv_num(418),      // ask_size
+        dv_num(5),        // ask_exchange
+        dv_price2(4_325), // ask=43.25
+        dv_num(50),       // ask_condition
+        // Greeks (4-decimal precision).
+        dv_price4(10_000), // delta=1.0000
+        dv_price4(0),      // theta
+        dv_price4(0),      // vega
+        dv_price4(0),      // rho
+        dv_price4(0),      // epsilon
+        dv_price4(0),      // lambda
+        dv_price4(0),      // gamma
+        dv_price4(0),      // vanna
+        dv_price4(0),      // charm
+        dv_price4(0),      // vomma
+        dv_price4(0),      // veta
+        dv_price4(0),      // vera
+        dv_price4(0),      // speed
+        dv_price4(0),      // zomma
+        dv_price4(0),      // color
+        dv_price4(0),      // ultima
+        dv_price4(0),      // d1
+        dv_price4(0),      // d2
+        dv_price4(0),      // dual_delta
+        dv_price4(0),      // dual_gamma
+        dv_price4(0),      // implied_vol
+        dv_price4(109),    // iv_error=0.0109
+        dv_timestamp(EOD_UND_TS_MS), // underlying_timestamp
+        dv_price4(EOD_UND_PRICE_X10000), // underlying_price=542.7799
+    ];
+    proto::DataValueList { values }
 }
 
 // ────────────────────────────────────────────────────────────────────────
