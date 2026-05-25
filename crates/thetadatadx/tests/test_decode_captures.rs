@@ -150,8 +150,8 @@ fn decode_captures_stock_history_trade_quote() {
     assert_eq!(info.tick_type, "TradeQuoteTick");
 
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -194,8 +194,8 @@ fn decode_captures_option_history_trade_quote() {
     assert_eq!(info.tick_type, "TradeQuoteTick");
 
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -233,8 +233,8 @@ fn decode_captures_option_history_trade_quote() {
 fn decode_captures_stock_history_eod() {
     let endpoint = "stock_history_eod";
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -265,8 +265,8 @@ fn decode_captures_stock_history_eod() {
 fn decode_captures_option_history_greeks_all() {
     let endpoint = "option_history_greeks_all";
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -324,8 +324,8 @@ fn decode_captures_option_history_greeks_all() {
 fn decode_captures_option_history_trade() {
     let endpoint = "option_history_trade";
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -362,8 +362,8 @@ fn decode_captures_option_history_trade() {
 fn decode_captures_option_snapshot_ohlc() {
     let endpoint = "option_snapshot_ohlc";
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -398,8 +398,8 @@ fn decode_captures_option_snapshot_ohlc() {
 fn decode_captures_calendar_open_today() {
     let endpoint = "calendar_open_today";
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());

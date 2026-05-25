@@ -43,7 +43,7 @@ Rust SDK for ThetaData market data — single Rust core, four language surfaces 
 
 ```toml
 [dependencies]
-thetadatadx = "9"
+thetadatadx = "10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -67,7 +67,7 @@ Opt into chainable DataFrame ergonomics by enabling the `polars` and/or `arrow` 
 
 ```toml
 [dependencies]
-thetadatadx = { version = "9", features = ["polars"] }
+thetadatadx = { version = "10", features = ["polars"] }
 ```
 
 ```rust
@@ -116,8 +116,10 @@ for (const t of tdx.stockHistoryEOD('AAPL', '20240101', '20240301')) {
 #include <cstdio>
 
 int main() {
-    auto tdx = thetadatadx::ThetaDataDxClient::connect_from_file("creds.txt");
-    for (const auto& t : tdx.stock_history_eod("AAPL", "20240101", "20240301")) {
+    auto creds  = tdx::Credentials::from_file("creds.txt");
+    auto config = tdx::Config::production();
+    auto client = tdx::Client::connect(creds, config);
+    for (const auto& t : client.stock_history_eod("AAPL", "20240101", "20240301")) {
         std::printf("%d: O=%.2f H=%.2f L=%.2f C=%.2f V=%lld\n",
             t.date, t.open, t.high, t.low, t.close, (long long)t.volume);
     }
@@ -161,8 +163,30 @@ tdx.subscribe_many(vec![stock.quote(), option.quote()])?;
 
 All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64`, decoded during parsing.
 
+### Choosing buffered vs streaming for historical pulls
 
-All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64`, decoded during parsing.
+Every historical builder (`option_history_*`, `stock_history_*`,
+`index_history_*`, `interest_rate_history_*`) supports two terminals:
+
+| Workload | Use |
+|---|---|
+| Single day / one-shot ad-hoc query | `.await` |
+| Single day, deterministic small response | `.await` |
+| Bulk / multi-day backfill | `.stream(handler)` |
+| Tick-interval responses | `.stream(handler)` |
+| Greeks responses across a long horizon | `.stream(handler)` |
+
+Buffered `.await` collects the full response into `Vec<Tick>` before
+returning. On a 2.4 M-tick day this consumes ~5 GiB of RSS before any
+caller code runs. `.stream(handler)` yields chunks via
+`handler(&[Tick])` and drops each chunk before the next is fetched —
+peak RSS stays at ~150 MiB regardless of response size.
+
+When the buffered path returns a response whose estimated size exceeds
+`MddsConfig::warn_on_buffered_threshold_bytes` (default 100 MiB), the
+SDK emits a single `tracing::warn!` event suggesting `.stream(handler)`
+for the workload (`endpoint`, `row_count`, `bytes_est` fields). Set the
+threshold to `0` to disable.
 
 ## API coverage
 
@@ -179,6 +203,11 @@ All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64`, de
 All endpoints return fully typed data in every language. See the [API Reference](docs/api-reference.md) for the complete method list.
 
 **Additional surfaces** (not REST/gRPC endpoints): FPSS real-time streaming (7 subscribe/unsubscribe methods per contract and per full-stream type) and a local Greeks calculator (22 Black-Scholes Greeks plus an IV solver, callable individually or batched).
+
+### Coverage notes
+
+* **Long-running gRPC channel pool**: every transport-level fault (GOAWAY, IO failure, peer shutdown, open-phase drop) triggers an in-place reconnect of the channel's underlying h2 session (single-flight, bounded backoff). Long-lived clients survive server-side connection rotation, network blips, and tokio runtime hiccups transparently. See [`docs-site/docs/channel-pool-design.md`](docs-site/docs/channel-pool-design.md) for the contract.
+* **REST transport (`crate::rest::RestClient`)** is wired in as an alternative transport reachable via `FallbackPolicy::RestAlways` for callers who explicitly want every historical-quote call routed through a locally-running Terminal's REST surface (e.g. when network policy disallows direct MDDS access).
 
 ## Architecture
 
@@ -197,7 +226,7 @@ flowchart TB
     core -->|PyO3 / maturin| python["Python SDK<br/>(pyo3 · Arrow)"]
     ffi -->|napi-rs| ts["TypeScript SDK<br/>(N-API · BigInt)"]
     ffi -->|extern C| cpp["C++ SDK<br/>(RAII header-only)"]
-    core -->|tonic| rust["Rust consumer<br/>(direct crate)"]
+    core -->|in-house gRPC| rust["Rust consumer<br/>(direct crate)"]
 
     classDef coreStyle fill:#1e3a8a,stroke:#0c1e5c,color:#fff
     classDef ffiStyle fill:#7c2d12,stroke:#450a0a,color:#fff

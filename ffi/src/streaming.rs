@@ -28,7 +28,7 @@ use std::ptr;
 use std::sync::atomic::{AtomicU8, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
 
-use crate::error::set_error;
+use crate::error::{set_error, set_error_from};
 use crate::runtime;
 use crate::types::{TdxClient, TdxConfig, TdxCredentials};
 
@@ -55,12 +55,14 @@ struct FfiCallback {
     ctx: *mut c_void,
 }
 
-// SAFETY: `FfiCallback` is `Send + Sync` because the contained pointer
-// is the user's opaque context — it is never dereferenced by Rust, only
-// handed back to the user's `extern "C" fn` exactly as registered.
-// Thread affinity of the context is the user's responsibility
-// (documented on `tdx_*_set_callback`).
+// SAFETY: the contained `*mut c_void` is the user's opaque context —
+// it is never dereferenced by Rust, only handed back to the user's
+// `extern "C" fn` exactly as registered. Send-across-threads safety is
+// the user's responsibility (documented on `tdx_*_set_callback`).
 unsafe impl Send for FfiCallback {}
+// SAFETY: see the `Send` impl directly above — the pointer is opaque
+// payload, never dereferenced, and shared-reference safety is the
+// user's documented responsibility.
 unsafe impl Sync for FfiCallback {}
 
 impl FfiCallback {
@@ -147,7 +149,7 @@ pub struct TdxFpssHandle {
     /// freeing the previous `ctx`. Stacked reconnect/shutdown cycles
     /// layer multiple in-flight generations on top of each other; a
     /// single slot would silently drop earlier still-firing sessions
-    /// when a later one retired (PR #514 HIGH-001).
+    /// when a later one retired.
     prev_drained: Mutex<Vec<Arc<std::sync::atomic::AtomicBool>>>,
 }
 
@@ -158,6 +160,13 @@ struct FpssConnectParams {
     ring_size: usize,
     flush_mode: thetadatadx::FpssFlushMode,
     reconnect_policy: thetadatadx::config::ReconnectPolicy,
+    /// Mirror of `ReconnectConfig::wait_ms` snapshotted at
+    /// `tdx_*_set_callback` time so the auto-reconnect path inside
+    /// `io_loop` honours caller-tuned cadences.
+    reconnect_wait_ms: u64,
+    /// Mirror of `ReconnectConfig::wait_rate_limited_ms` — see
+    /// `reconnect_wait_ms` above.
+    reconnect_wait_rate_limited_ms: u64,
     derive_ohlcvc: bool,
     connect_timeout_ms: u64,
     read_timeout_ms: u64,
@@ -234,6 +243,30 @@ pub struct TdxSubscriptionArray {
     pub len: usize,
 }
 
+/// Free both CString pointers on a `TdxSubscription` if present.
+/// Centralises the 6-site `// SAFETY: produced by CString::into_raw …`
+/// block that audit S25 flagged for repetition. The function takes
+/// a reference rather than ownership because `TdxSubscriptionArray::data`
+/// holds the values inside a `Box<[TdxSubscription]>` and the caller
+/// drops that box separately.
+///
+/// # Safety
+///
+/// `sub.kind` and `sub.contract` MUST each be either null or a
+/// pointer produced by `CString::into_raw` on a matching path that
+/// has not been freed yet. Concurrent free of the same pointer is
+/// undefined behaviour.
+unsafe fn drop_subscription_cstrings(sub: &TdxSubscription) {
+    if !sub.kind.is_null() {
+        // SAFETY: per the function-level safety contract.
+        drop(unsafe { CString::from_raw(sub.kind.cast_mut()) });
+    }
+    if !sub.contract.is_null() {
+        // SAFETY: per the function-level safety contract.
+        drop(unsafe { CString::from_raw(sub.contract.cast_mut()) });
+    }
+}
+
 /// Build a `TdxSubscriptionArray` from an iterator of `(kind_debug, contract_display)` pairs.
 fn build_subscription_array<I>(iter: I) -> *mut TdxSubscriptionArray
 where
@@ -247,13 +280,10 @@ where
         } else {
             // Free already-allocated CStrings before returning null
             for s in &subs {
-                let s: &TdxSubscription = s;
-                if !s.kind.is_null() {
-                    drop(unsafe { CString::from_raw(s.kind.cast_mut()) });
-                }
-                if !s.contract.is_null() {
-                    drop(unsafe { CString::from_raw(s.contract.cast_mut()) });
-                }
+                // SAFETY: every `s.kind` / `s.contract` came from
+                // `CString::into_raw` two iterations earlier on the
+                // success path; nothing else can have freed them.
+                unsafe { drop_subscription_cstrings(s) };
             }
             set_error("subscription kind contains null byte");
             return ptr::null_mut();
@@ -263,13 +293,8 @@ where
         } else {
             drop(kind_c); // free the kind we just allocated
             for s in &subs {
-                let s: &TdxSubscription = s;
-                if !s.kind.is_null() {
-                    drop(unsafe { CString::from_raw(s.kind.cast_mut()) });
-                }
-                if !s.contract.is_null() {
-                    drop(unsafe { CString::from_raw(s.contract.cast_mut()) });
-                }
+                // SAFETY: see contract on `drop_subscription_cstrings`.
+                unsafe { drop_subscription_cstrings(s) };
             }
             set_error("subscription contract contains null byte");
             return ptr::null_mut();
@@ -297,18 +322,20 @@ pub unsafe extern "C" fn tdx_subscription_array_free(arr: *mut TdxSubscriptionAr
         if arr.is_null() {
             return;
         }
+        // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
         let arr = unsafe { Box::from_raw(arr) };
         if !arr.data.is_null() && arr.len > 0 {
+            // SAFETY: data + len describe a contiguous slice the caller is required to keep valid for the call duration.
             let slice = unsafe { std::slice::from_raw_parts(arr.data.cast_mut(), arr.len) };
             for sub in slice {
-                if !sub.kind.is_null() {
-                    drop(unsafe { CString::from_raw(sub.kind.cast_mut()) });
-                }
-                if !sub.contract.is_null() {
-                    drop(unsafe { CString::from_raw(sub.contract.cast_mut()) });
-                }
+                // SAFETY: every `sub` was produced by
+                // `build_subscription_array`, which sources both
+                // CString pointers from `CString::into_raw` and never
+                // mutates them after. This is the matching free.
+                unsafe { drop_subscription_cstrings(sub) };
             }
-            // Reconstruct and drop the boxed slice
+            // Reconstruct and drop the boxed slice.
+            // SAFETY: `arr.data` was returned by `Box::into_raw` on a `Box<[TdxSubscriptionRecord]>` of length `arr.len`; ownership returns to Rust for drop. Per-element CString and contract pointers were freed in the loop above.
             drop(unsafe {
                 Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                     arr.data.cast_mut(),
@@ -343,7 +370,9 @@ pub unsafe extern "C" fn tdx_unified_connect(
             set_error("config handle is null");
             return ptr::null_mut();
         }
+        // SAFETY: creds is a non-null pointer returned by tdx_credentials_new / tdx_credentials_from_file and not yet freed.
         let creds = unsafe { &*creds };
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
 
         match runtime().block_on(thetadatadx::ThetaDataDxClient::connect(
@@ -355,7 +384,7 @@ pub unsafe extern "C" fn tdx_unified_connect(
                 callback: Mutex::new(None),
             })),
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 ptr::null_mut()
             }
         }
@@ -433,6 +462,7 @@ pub unsafe extern "C" fn tdx_unified_set_callback(
             set_error("unified handle is null");
             return -1;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         let cb = FfiCallback { callback, ctx };
         match handle
@@ -453,7 +483,7 @@ pub unsafe extern "C" fn tdx_unified_set_callback(
                 0
             }
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 -1
             }
         }
@@ -522,6 +552,7 @@ unsafe fn coerce_subscription(
         set_error("subscription request is null");
         return None;
     }
+    // SAFETY: req is a non-null pointer to a caller-owned FFI request struct kept alive for the call duration.
     let req = unsafe { &*req };
     let symbol_ptr = req.symbol;
     let expiration_ptr = req.expiration;
@@ -550,7 +581,7 @@ unsafe fn coerce_subscription(
                     match Contract::option(symbol, exp, stk, rt) {
                         Ok(c) => c,
                         Err(e) => {
-                            set_error(&e.to_string());
+                            set_error_from(&e);
                             return None;
                         }
                     }
@@ -606,15 +637,17 @@ pub unsafe extern "C" fn tdx_unified_subscribe(
             set_error("unified handle is null");
             return -1;
         }
+        // SAFETY: `request` is a non-null `*const TdxSubscriptionRequest` the caller pins for the call duration; `coerce_subscription` validates its discriminant + tagged-union fields, setting `tdx_last_error` on malformed payloads.
         let sub = match unsafe { coerce_subscription(request) } {
             Some(s) => s,
             None => return -1,
         };
+        // SAFETY: `handle` is a non-null `*const TdxUnified` returned by `tdx_unified_*_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
         match handle.inner.subscribe(sub) {
             Ok(()) => 0,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 -1
             }
         }
@@ -634,15 +667,17 @@ pub unsafe extern "C" fn tdx_unified_unsubscribe(
             set_error("unified handle is null");
             return -1;
         }
+        // SAFETY: `request` is a non-null `*const TdxSubscriptionRequest` the caller pins for the call duration; `coerce_subscription` validates its discriminant + tagged-union fields, setting `tdx_last_error` on malformed payloads.
         let sub = match unsafe { coerce_subscription(request) } {
             Some(s) => s,
             None => return -1,
         };
+        // SAFETY: `handle` is a non-null `*const TdxUnified` returned by `tdx_unified_*_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
         match handle.inner.unsubscribe(sub) {
             Ok(()) => 0,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 -1
             }
         }
@@ -691,6 +726,7 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
             set_error("unified handle is null");
             return -1;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
 
         // Save active subscriptions. If streaming isn't running (or the
@@ -700,14 +736,14 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
         let saved_subs = match handle.inner.active_subscriptions() {
             Ok(subs) => subs,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 return -1;
             }
         };
         let saved_full_subs = match handle.inner.active_full_subscriptions() {
             Ok(subs) => subs,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 return -1;
             }
         };
@@ -766,7 +802,7 @@ pub unsafe extern "C" fn tdx_unified_reconnect(handle: *const TdxUnified) -> i32
                 cb.invoke(event);
             });
         if let Err(e) = result {
-            set_error(&e.to_string());
+            set_error_from(&e);
             return -1;
         }
 
@@ -848,6 +884,7 @@ pub unsafe extern "C" fn tdx_unified_is_streaming(handle: *const TdxUnified) -> 
         if handle.is_null() {
             return 0;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         i32::from(handle.inner.is_streaming())
     })
@@ -865,13 +902,47 @@ pub unsafe extern "C" fn tdx_unified_active_subscriptions(
             set_error("unified handle is null");
             return ptr::null_mut();
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         match handle.inner.active_subscriptions() {
             Ok(subs) => build_subscription_array(
                 subs.iter().map(|(k, c)| (format!("{k:?}"), format!("{c}"))),
             ),
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Get active full-stream subscriptions as a typed array. Returns
+/// null on error.
+///
+/// Each entry's `contract` field carries the security-type discriminant
+/// (`"Stock"` / `"Option"` / `"Index"`) the full-stream subscription is
+/// bound to. The `kind` field is the subscription kind discriminant
+/// (`"Trade"` / `"OpenInterest"` / `"Quote"`).
+///
+/// Caller must free the result with `tdx_subscription_array_free`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_unified_active_full_subscriptions(
+    handle: *const TdxUnified,
+) -> *mut TdxSubscriptionArray {
+    ffi_boundary!(std::ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("unified handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
+        let handle = unsafe { &*handle };
+        match handle.inner.active_full_subscriptions() {
+            Ok(subs) => build_subscription_array(
+                subs.iter()
+                    .map(|(k, st)| (format!("{k:?}"), format!("{st:?}"))),
+            ),
+            Err(e) => {
+                set_error_from(&e);
                 ptr::null_mut()
             }
         }
@@ -899,6 +970,7 @@ pub unsafe extern "C" fn tdx_unified_historical(handle: *const TdxUnified) -> *c
             set_error("unified handle is null");
             return ptr::null();
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         // TdxClient is #[repr(transparent)] over MddsClient, so this cast is safe.
         let mdds_ref: &thetadatadx::mdds::MddsClient = &handle.inner;
@@ -933,6 +1005,7 @@ pub unsafe extern "C" fn tdx_unified_stop_streaming(handle: *const TdxUnified) {
         if handle.is_null() {
             return;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         handle.inner.stop_streaming();
     })
@@ -955,6 +1028,7 @@ pub unsafe extern "C" fn tdx_unified_dropped_events(handle: *const TdxUnified) -
         if handle.is_null() {
             return 0;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         unsafe { (*handle).inner.dropped_event_count() }
     })
 }
@@ -993,6 +1067,7 @@ pub unsafe extern "C" fn tdx_unified_await_drain(
         if handle.is_null() {
             return 0;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         let timeout = std::time::Duration::from_millis(timeout_ms);
         i32::from(handle.inner.await_drain(timeout))
@@ -1022,6 +1097,7 @@ pub unsafe extern "C" fn tdx_unified_free(handle: *mut TdxUnified) {
         if handle.is_null() {
             return;
         }
+        // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
         let handle = unsafe { Box::from_raw(handle) };
 
         // Raise the stop signal first. `stop_streaming` is idempotent
@@ -1039,8 +1115,8 @@ pub unsafe extern "C" fn tdx_unified_free(handle: *mut TdxUnified) {
         handle.inner.stop_streaming();
 
         // Wait for the consumer thread to finish firing the registered
-        // callback before we destroy the handle. This is the
-        // institutional `free` contract: returning only after the
+        // callback before we destroy the handle. This is the strict
+        // `free` contract: returning only after the
         // callback path is quiesced means user code can release `ctx`
         // immediately afterwards. Default 5 s timeout; overrun is
         // surfaced via `tracing::error!` so ops can spot a wedged
@@ -1102,7 +1178,9 @@ pub unsafe extern "C" fn tdx_fpss_connect(
             set_error("config handle is null");
             return ptr::null_mut();
         }
+        // SAFETY: creds is a non-null pointer returned by tdx_credentials_new / tdx_credentials_from_file and not yet freed.
         let creds = unsafe { &*creds };
+        // SAFETY: config is a non-null pointer returned by tdx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
 
         Box::into_raw(Box::new(TdxFpssHandle {
@@ -1113,6 +1191,8 @@ pub unsafe extern "C" fn tdx_fpss_connect(
                 ring_size: config.inner.fpss.ring_size,
                 flush_mode: config.inner.fpss.flush_mode,
                 reconnect_policy: config.inner.reconnect.policy.clone(),
+                reconnect_wait_ms: config.inner.reconnect.wait_ms,
+                reconnect_wait_rate_limited_ms: config.inner.reconnect.wait_rate_limited_ms,
                 derive_ohlcvc: config.inner.fpss.derive_ohlcvc,
                 connect_timeout_ms: config.inner.fpss.connect_timeout_ms,
                 read_timeout_ms: config.inner.fpss.timeout_ms,
@@ -1203,6 +1283,8 @@ where
             ring_size: params.ring_size,
             flush_mode: params.flush_mode,
             policy: params.reconnect_policy.clone(),
+            wait_ms: params.reconnect_wait_ms,
+            wait_rate_limited_ms: params.reconnect_wait_rate_limited_ms,
             derive_ohlcvc: params.derive_ohlcvc,
             connect_timeout_ms: params.connect_timeout_ms,
             read_timeout_ms: params.read_timeout_ms,
@@ -1215,7 +1297,7 @@ where
             0
         }
         Err(e) => {
-            set_error(&e.to_string());
+            set_error_from(&e);
             -1
         }
     }
@@ -1279,6 +1361,7 @@ pub unsafe extern "C" fn tdx_fpss_set_callback(
             set_error("FPSS handle is null");
             return -1;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         if !reject_if_not_fresh(handle) {
             return -1;
@@ -1320,6 +1403,7 @@ pub unsafe extern "C" fn tdx_fpss_is_authenticated(handle: *const TdxFpssHandle)
         if handle.is_null() {
             return 0;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         let guard = handle
             .inner
@@ -1345,6 +1429,7 @@ pub unsafe extern "C" fn tdx_fpss_active_subscriptions(
             set_error("FPSS handle is null");
             return ptr::null_mut();
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         let guard = handle
             .inner
@@ -1382,10 +1467,12 @@ pub unsafe extern "C" fn tdx_fpss_subscribe(
             set_error("FPSS handle is null");
             return -1;
         }
+        // SAFETY: `request` is a non-null `*const TdxSubscriptionRequest` the caller pins for the call duration; `coerce_subscription` validates its discriminant + tagged-union fields, setting `tdx_last_error` on malformed payloads.
         let sub = match unsafe { coerce_subscription(request) } {
             Some(s) => s,
             None => return -1,
         };
+        // SAFETY: `handle` is a non-null `*const TdxFpssHandle` returned by `tdx_fpss_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
         let guard = handle
             .inner
@@ -1402,7 +1489,7 @@ pub unsafe extern "C" fn tdx_fpss_subscribe(
         match client.subscribe(sub) {
             Ok(()) => 0,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 -1
             }
         }
@@ -1422,10 +1509,12 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe(
             set_error("FPSS handle is null");
             return -1;
         }
+        // SAFETY: `request` is a non-null `*const TdxSubscriptionRequest` the caller pins for the call duration; `coerce_subscription` validates its discriminant + tagged-union fields, setting `tdx_last_error` on malformed payloads.
         let sub = match unsafe { coerce_subscription(request) } {
             Some(s) => s,
             None => return -1,
         };
+        // SAFETY: `handle` is a non-null `*const TdxFpssHandle` returned by `tdx_fpss_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
         let guard = handle
             .inner
@@ -1442,7 +1531,7 @@ pub unsafe extern "C" fn tdx_fpss_unsubscribe(
         match client.unsubscribe(sub) {
             Ok(()) => 0,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 -1
             }
         }
@@ -1486,6 +1575,7 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
             set_error("FPSS handle is null");
             return -1;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         if !reject_if_shutdown(handle) {
             return -1;
@@ -1585,6 +1675,8 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
                 ring_size: params.ring_size,
                 flush_mode: params.flush_mode,
                 policy: params.reconnect_policy.clone(),
+                wait_ms: params.reconnect_wait_ms,
+                wait_rate_limited_ms: params.reconnect_wait_rate_limited_ms,
                 derive_ohlcvc: params.derive_ohlcvc,
                 connect_timeout_ms: params.connect_timeout_ms,
                 read_timeout_ms: params.read_timeout_ms,
@@ -1598,7 +1690,7 @@ pub unsafe extern "C" fn tdx_fpss_reconnect(handle: *const TdxFpssHandle) -> i32
         let new_client = match new_client {
             Ok(c) => c,
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 return -1;
             }
         };
@@ -1674,6 +1766,7 @@ pub unsafe extern "C" fn tdx_fpss_dropped_events(handle: *const TdxFpssHandle) -
         if handle.is_null() {
             return 0;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         let guard = handle
             .inner
@@ -1704,6 +1797,7 @@ pub unsafe extern "C" fn tdx_fpss_shutdown(handle: *const TdxFpssHandle) {
         if handle.is_null() {
             return;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         if !reject_if_shutdown(handle) {
             // Double-shutdown -- error already set, nothing to drop.
@@ -1771,6 +1865,7 @@ pub unsafe extern "C" fn tdx_fpss_await_drain(
         if handle.is_null() {
             return 0;
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         // Snapshot the pending generations once and walk them on each
         // poll. New stops landing during the wait join the next call's
@@ -1853,6 +1948,7 @@ pub unsafe extern "C" fn tdx_fpss_free(handle: *mut TdxFpssHandle) {
         // returns. Detect "already shut down" via the lifecycle state
         // so we never attempt a double shutdown.
         {
+            // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
             let h = unsafe { &*handle };
             if h.state.load(AtomicOrdering::Relaxed) != FPSS_STATE_SHUTDOWN {
                 let mut guard = h
@@ -1909,6 +2005,7 @@ pub unsafe extern "C" fn tdx_fpss_free(handle: *mut TdxFpssHandle) {
         }
 
         // Now safe to destroy the handle.
+        // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
         drop(unsafe { Box::from_raw(handle) });
     })
 }
@@ -1959,6 +2056,7 @@ pub unsafe extern "C" fn tdx_unified_start_streaming_iter(
             set_error("unified handle is null");
             return ptr::null_mut();
         }
+        // SAFETY: handle is a non-null pointer returned by the matching tdx_*_new and not yet passed to tdx_*_free.
         let handle = unsafe { &*handle };
         match handle.inner.start_streaming_iter() {
             Ok(iterator) => Box::into_raw(Box::new(TdxFpssEventIterator {
@@ -1966,7 +2064,7 @@ pub unsafe extern "C" fn tdx_unified_start_streaming_iter(
                 last_buffered: None,
             })),
             Err(e) => {
-                set_error(&e.to_string());
+                set_error_from(&e);
                 ptr::null_mut()
             }
         }
@@ -2012,6 +2110,7 @@ pub unsafe extern "C" fn tdx_fpss_event_iter_next(
             set_error("out_event is null");
             return -1;
         }
+        // SAFETY: `it` is a non-null `*mut TdxFpssEventIterator` returned by `tdx_unified_start_streaming_iter` and not yet freed; `&mut *` produces an exclusive reference valid for the call duration.
         let it = unsafe { &mut *it };
         // Three-state outcome — both branches drive off the typed
         // `NextEvent` enum so `Timeout` and `Closed` cannot collapse
@@ -2045,6 +2144,7 @@ pub unsafe extern "C" fn tdx_fpss_event_iter_next(
                 // copy here is sound.
                 it.last_buffered = Some(buffered);
                 let stored = it.last_buffered.as_ref().expect("just stored");
+                // SAFETY: `out_event` was null-checked above and points to caller-owned `TdxFpssEvent`-sized storage; `&stored.event` is freshly stored on the iterator's `last_buffered` slot so its address is stable for the call duration.
                 unsafe {
                     std::ptr::copy_nonoverlapping(std::ptr::from_ref(&stored.event), out_event, 1);
                 }
@@ -2065,6 +2165,7 @@ pub unsafe extern "C" fn tdx_fpss_event_iter_close(it: *mut TdxFpssEventIterator
         if it.is_null() {
             return;
         }
+        // SAFETY: `it` is a non-null `*mut TdxFpssEventIterator` returned by `tdx_unified_start_streaming_iter` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let it = unsafe { &*it };
         it.inner.close();
     })
@@ -2081,6 +2182,7 @@ pub unsafe extern "C" fn tdx_fpss_event_iter_free(it: *mut TdxFpssEventIterator)
         if it.is_null() {
             return;
         }
+        // SAFETY: the pointer was returned by Box::into_raw / tdx_*_new and has not been freed; ownership returns to Rust.
         drop(unsafe { Box::from_raw(it) });
     })
 }
@@ -2117,6 +2219,11 @@ mod tests {
         // duration of the call and `ctx` is the pointer registered
         // alongside `capture_callback`.
         assert!(!event.is_null(), "FFI handed null event pointer");
+        // SAFETY: `ctx` was registered as a `&TestCtx` cast to
+        // `*mut c_void` two lines below in `tdx_unified_set_callback_ctx`
+        // and the `TestCtx` value outlives the call (held in a stack
+        // `Arc` for the duration of the test). Cast back to the
+        // originating type is sound.
         let ctx = unsafe { &*(ctx.cast::<TestCtx>()) };
         ctx.hits.fetch_add(1, Ordering::Relaxed);
         // Read the kind discriminant via a pointer cast to i32. The
@@ -2124,6 +2231,12 @@ mod tests {
         // integer variants, so the first 4 bytes of `*event` are the
         // tag value. Reading by reference would `move` the non-Copy
         // enum, which `&self` access on a `*const` borrow forbids.
+        //
+        // SAFETY: `event` is non-null (asserted above) and points at a
+        // `#[repr(C, i32)]`-shaped `TdxFpssEvent` whose first 4 bytes
+        // are the discriminant; a `*const i32` deref of those bytes is
+        // sound. The FFI boundary on `capture_callback`'s caller
+        // guarantees the pointee outlives the call.
         let kind = unsafe { *event.cast::<i32>() };
         ctx.last_kind.store(kind, Ordering::Relaxed);
         // Record the OS thread id so the test can compare against the
@@ -2288,6 +2401,8 @@ mod tests {
                 ring_size: 4096,
                 flush_mode: thetadatadx::FpssFlushMode::default(),
                 reconnect_policy: thetadatadx::config::ReconnectPolicy::default(),
+                reconnect_wait_ms: 2_000,
+                reconnect_wait_rate_limited_ms: 130_000,
                 derive_ohlcvc: false,
                 connect_timeout_ms: 2_000,
                 read_timeout_ms: 10_000,
@@ -2298,6 +2413,7 @@ mod tests {
             prev_drained: Mutex::new(Vec::new()),
         };
         let raw = Box::into_raw(Box::new(handle));
+        // SAFETY: `raw` was just returned by `Box::into_raw` on a fresh `Box<TdxFpssHandle>`; valid for the read inside `tdx_fpss_dropped_events`.
         let count = unsafe { tdx_fpss_dropped_events(raw) };
         assert_eq!(count, 0, "no inner client means dropped count is 0");
         // SAFETY: we just allocated this handle.
@@ -2319,6 +2435,8 @@ mod tests {
                 ring_size: 4096,
                 flush_mode: thetadatadx::FpssFlushMode::default(),
                 reconnect_policy: thetadatadx::config::ReconnectPolicy::default(),
+                reconnect_wait_ms: 2_000,
+                reconnect_wait_rate_limited_ms: 130_000,
                 derive_ohlcvc: false,
                 connect_timeout_ms: 2_000,
                 read_timeout_ms: 10_000,
@@ -2362,6 +2480,7 @@ mod tests {
     /// `tdx_unified_dropped_events` returns 0 on a null handle.
     #[test]
     fn unified_dropped_events_handles_null() {
+        // SAFETY: `tdx_unified_dropped_events` explicitly accepts `null` and returns 0; this call exercises that contract.
         let count = unsafe { tdx_unified_dropped_events(std::ptr::null()) };
         assert_eq!(count, 0);
     }
@@ -2410,6 +2529,8 @@ mod tests {
                 ring_size: 4096,
                 flush_mode: thetadatadx::FpssFlushMode::default(),
                 reconnect_policy: thetadatadx::config::ReconnectPolicy::default(),
+                reconnect_wait_ms: 2_000,
+                reconnect_wait_rate_limited_ms: 130_000,
                 derive_ohlcvc: false,
                 connect_timeout_ms: 2_000,
                 read_timeout_ms: 10_000,
@@ -2435,6 +2556,7 @@ mod tests {
             .expect("spawn helper");
 
         let started = Instant::now();
+        // SAFETY: `raw` was just returned by `Box::into_raw` on a fresh `Box<TdxFpssHandle>`; ownership transfers to `tdx_fpss_free` here.
         unsafe { tdx_fpss_free(raw) };
         let elapsed = started.elapsed();
 
@@ -2457,15 +2579,15 @@ mod tests {
         );
     }
 
-    /// Round-4 critical 1 regression: `tdx_unified_free` must wait on
-    /// the saved drain flag even after the caller has already invoked
+    /// `tdx_unified_free` must wait on the saved drain flag even
+    /// after the caller has already invoked
     /// `tdx_unified_stop_streaming`.
     ///
-    /// PR #514 HIGH-001: the slot is now a `Vec<Arc<AtomicBool>>` so
-    /// stacked stop/start/stop cycles cannot lose an earlier still-
-    /// firing generation when a later one retires. This test pins the
-    /// `prev_drained_is_set` predicate semantics on the Vec storage
-    /// that backs the FFI free path.
+    /// The slot is a `Vec<Arc<AtomicBool>>` so stacked stop/start/stop
+    /// cycles cannot lose an earlier still-firing generation when a
+    /// later one retires. This test pins the `prev_drained_is_set`
+    /// predicate semantics on the Vec storage that backs the FFI free
+    /// path.
     #[test]
     fn unified_prev_drained_is_set_persists_through_stop_then_free() {
         use std::sync::atomic::AtomicBool;
@@ -2486,7 +2608,7 @@ mod tests {
         );
 
         // A second stacked stop pushes ANOTHER flag — the prior one
-        // is NOT overwritten (the bug PR #514 closed).
+        // is NOT overwritten.
         let flag_b = Arc::new(AtomicBool::new(false));
         slot.lock().unwrap().push(Arc::clone(&flag_b));
         assert_eq!(

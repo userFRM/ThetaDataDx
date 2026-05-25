@@ -6,7 +6,7 @@
 /// - integer/boolean/float fields: check the companion `has_*` flag
 /// - string pointers: null means unset
 ///
-/// `timeout_ms` is the cross-cutting per-call deadline (W3). Set with the
+/// `timeout_ms` is the cross-cutting per-call deadline. Set with the
 /// companion `has_timeout_ms = 1`; on expiry the call returns an error and the
 /// underlying gRPC stream is cancelled, leaving the client handle reusable.
 #[repr(C)]
@@ -50,6 +50,8 @@ fn apply_endpoint_request_options(
         return Ok(());
     }
 
+    // SAFETY: options is non-null (checked above) and the caller is required
+    // to keep the TdxEndpointRequestOptions alive for the duration of this call.
     let options = unsafe { &*options };
     insert_optional_str_arg(args, "venue", options.venue)?;
     insert_optional_str_arg(args, "min_time", options.min_time)?;

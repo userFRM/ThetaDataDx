@@ -28,50 +28,47 @@
 //! The recommended entry point is [`ThetaDataDxClient`], which authenticates once and
 //! provides both historical and streaming through a single object:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
-//! use thetadatadx::fpss::{FpssData, FpssControl, FpssEvent};
+//! use thetadatadx::fpss::{FpssData, FpssEvent};
 //! use thetadatadx::fpss::protocol::Contract;
 //!
-//! #[tokio::main]
-//! async fn main() -> Result<(), thetadatadx::Error> {
-//!     let creds = Credentials::from_file("creds.txt")?;
-//!     // Or inline: let creds = Credentials::new("user@example.com", "your-password");
+//! # async fn doc() -> Result<(), thetadatadx::Error> {
+//! let creds = Credentials::from_file("creds.txt")?;
+//! // Or inline: let creds = Credentials::new("user@example.com", "your-password");
 //!
-//!     // Connect -- authenticates once, historical ready immediately
-//!     let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+//! // Connect -- authenticates once, historical ready immediately
+//! let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 //!
-//!     // Historical (MDDS gRPC) -- every generated method via Deref
-//!     let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+//! // Historical (MDDS gRPC) -- every generated method via Deref
+//! let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
-//!     // Streaming (FPSS TCP) -- connects lazily on first call
-//!     tdx.start_streaming(|event: &FpssEvent| {
-//!         match event {
-//!             FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
-//!                 println!("Trade: {} @ {price} x {size}", contract.symbol);
-//!             }
-//!             _ => {}
-//!         }
-//!     })?;
+//! // Streaming (FPSS TCP) -- connects lazily on first call
+//! tdx.start_streaming(|event: &FpssEvent| {
+//!     if let FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) = event {
+//!         println!("Trade: {} @ {price} x {size}", contract.symbol);
+//!     }
+//! })?;
 //!
-//!     tdx.subscribe(Contract::stock("AAPL").quote())?;
+//! tdx.subscribe(Contract::stock("AAPL").quote())?;
 //!
-//!     // ... when done:
-//!     tdx.stop_streaming();
-//!     Ok(())
-//! }
+//! // ... when done:
+//! tdx.stop_streaming();
+//! # Ok(()) }
 //! ```
 //!
 //! For historical-only usage, just skip `start_streaming()` -- every historical
 //! methods are available directly on `ThetaDataDxClient` via `Deref<Target = MddsClient>`:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 //!
+//! # async fn doc() -> Result<(), thetadatadx::Error> {
 //! let creds = Credentials::from_file("creds.txt")?;
 //! // Or inline: let creds = Credentials::new("user@example.com", "your-password");
 //! let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 //! let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+//! # Ok(()) }
 //! ```
 //!
 //! ## Wire protocol
@@ -100,7 +97,34 @@ pub mod fpss;
 #[cfg(any(feature = "polars", feature = "arrow"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "polars", feature = "arrow"))))]
 pub mod frames;
-pub mod observability;
+
+// The `grpc` module hosts in-house transport infrastructure (Channel,
+// ChannelPool, DecoderPool, Stage2Pool, Codec, Status, ServerStreaming).
+// The user-facing path is `MddsClient::for_each_chunk(ServerStreaming<..>)`;
+// the remainder is consumed by the SDK's own integration tests + benches.
+//
+// In shipped builds (default features) the module is `pub(crate)` so none
+// of its types appear in the SemVer commitment or in rendered rustdoc.
+// Errors flowing out of the transport layer are converted to the public
+// [`crate::Error`] type via `impl From<grpc::ChannelError> for Error` at
+// the crate boundary — consumers pattern-match on [`crate::Error`] only.
+//
+// The `__test-helpers` feature re-opens the module to integration tests
+// and bench harnesses inside this repo that need to drive the raw
+// `Channel` / `Pool` / `DecoderPool` surface against synthetic frames.
+// This feature is private and unsupported for downstream consumers; see
+// the [`__test-helpers`] feature notes in `Cargo.toml` for the
+// double-underscore convention.
+//
+// Closes BL-1 (whole-repo audit wave 3) — `pub mod grpc` SemVer rope.
+#[cfg(not(feature = "__test-helpers"))]
+pub(crate) mod grpc;
+#[cfg(feature = "__test-helpers")]
+#[doc(hidden)]
+pub mod grpc;
+pub(crate) mod observability;
+pub mod rest;
+pub mod util;
 
 // Wave 3 layout: macros, registry, validate, wire_semantics, and the
 // shared endpoint runtime (`endpoint_args`) all live under `mdds/`.
@@ -128,7 +152,7 @@ pub use mdds::decode;
 /// generated module is reachable via `crate::proto`.
 #[allow(clippy::pedantic)]
 pub(crate) mod proto {
-    tonic::include_proto!("beta_endpoints");
+    include!(concat!(env!("OUT_DIR"), "/beta_endpoints.rs"));
 }
 
 /// gRPC wire-payload re-exports for offline-decode callers.
@@ -143,8 +167,23 @@ pub(crate) mod proto {
 pub mod wire {
     pub use super::proto::{
         data_value, CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList,
-        Price, ResponseData,
+        Price, ResponseData, TimeZone, ZonedDateTime,
     };
+
+    /// Request proto types re-exported behind the `__test-helpers`
+    /// feature so integration tests can decode captured outbound
+    /// wire bytes and assert field-level content (e.g.
+    /// `option_history_*` requests carry the right `end_date`
+    /// param). Symbol stays `pub(crate)` in shipped builds — the
+    /// re-export only enters the rlib when the private test feature
+    /// is enabled.
+    #[cfg(feature = "__test-helpers")]
+    #[doc(hidden)]
+    pub mod test_requests {
+        pub use crate::proto::{
+            OptionHistoryGreeksFirstOrderRequest, OptionHistoryGreeksImpliedVolatilityRequest,
+        };
+    }
 }
 
 pub use auth::Credentials;
@@ -178,7 +217,10 @@ pub mod prelude {
     };
     pub use tdbe::types::enums::SecType;
 }
-pub use config::{DirectConfig, FpssFlushMode, ReconnectPolicy};
+pub use config::{
+    DirectConfig, FallbackPolicy, FlatFilesConfig, FpssFlushMode, ReconnectAttemptClass,
+    ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, DEFAULT_REST_BASE_URL,
+};
 pub use error::{AuthErrorKind, Error, FpssErrorKind};
 pub use flatfiles::{
     default_output_filename as flatfile_default_filename, flatfile_request,
@@ -231,4 +273,42 @@ pub use tdbe::types::price::Price;
 
 pub mod utils {
     pub use tdbe::{conditions, exchange, sequences};
+}
+
+/// Optional [`mimalloc`](https://crates.io/crates/mimalloc) re-export
+/// for consumers that prefer mimalloc over the system allocator.
+///
+/// Library crates cannot install a `#[global_allocator]` — that lives
+/// in the binary. The `mimalloc-allocator` feature pulls the crate
+/// into the dependency graph and re-exports the allocator handle here
+/// so the consuming binary can attach it with one line:
+///
+/// ```rust,ignore
+/// // `ignore` here because `#[global_allocator]` may only appear in
+/// // the consuming binary's compile unit, not in a library doc-test.
+/// // In your binary's `main.rs` (NOT in a library):
+/// #[global_allocator]
+/// static GLOBAL: thetadatadx::mimalloc::MiMalloc = thetadatadx::mimalloc::MiMalloc;
+/// ```
+///
+/// And in the binary's `Cargo.toml`:
+///
+/// ```toml
+/// [dependencies]
+/// thetadatadx = { version = "10", features = ["mimalloc-allocator"] }
+/// ```
+///
+/// Mimalloc trades a small fixed overhead per process (~64 KB of
+/// shared bookkeeping) for materially fewer page faults and lower
+/// fragmentation on the allocation-heavy gRPC decode path. The
+/// per-call savings scale with response size; tabular MDDS responses
+/// past 1 KB consistently show shorter p99 tails on workloads that
+/// fan calls out across many threads.
+///
+/// See `docs-site/docs/configuration.md` (Performance tuning) for the
+/// full integration walk-through.
+#[cfg(feature = "mimalloc-allocator")]
+#[cfg_attr(docsrs, doc(cfg(feature = "mimalloc-allocator")))]
+pub mod mimalloc {
+    pub use ::mimalloc::MiMalloc;
 }

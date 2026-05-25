@@ -43,3 +43,10 @@ unsafe_op_in_unsafe_fn = "deny"
 # target (lib, bins, tests, benches, examples), without needing the flag
 # on the command line.
 all = { level = "deny", priority = -1 }
+# Every `unsafe { ... }` block requires a `// SAFETY:` comment that
+# explains why the unsafe operation is sound (pointer provenance,
+# lifetime invariant, alignment, exclusive access, etc.). The FFI
+# boundary inherits raw-pointer args from the C ABI; without this
+# lint a maintainer could add a new `unsafe { *handle }` without
+# documenting the caller-side guarantees the boundary requires.
+undocumented_unsafe_blocks = "deny"

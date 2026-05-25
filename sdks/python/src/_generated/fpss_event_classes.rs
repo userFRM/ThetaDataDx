@@ -10,10 +10,14 @@
 /// in dollars), and `strike` (wire integer, thousandths of a dollar)
 /// directly. User code reads the same notation it writes when
 /// calling `Contract.option(symbol, expiration=..., strike="5400", right="C")`.
+///
+/// Distinct from the fluent `Contract` builder (in `fluent.rs`): this
+/// type is the read-only event payload; the fluent builder is what
+/// users instantiate via `Contract.stock("AAPL")` / `Contract.option(...)`.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct Contract {
+pub(crate) struct ContractRef {
 #[pyo3(get)] pub symbol: String,
 #[pyo3(get)] pub sec_type: String,
 #[pyo3(get)] pub expiration: Option<i32>,
@@ -22,15 +26,15 @@ pub(crate) struct Contract {
 #[pyo3(get)] pub strike: Option<i32>,
 }
 #[pymethods]
-impl Contract {
+impl ContractRef {
 fn __repr__(&self) -> String {
 format!(
-"Contract(symbol={:?}, sec_type={:?}, expiration={:?}, right={:?}, strike_dollars={:?})",
+"ContractRef(symbol={:?}, sec_type={:?}, expiration={:?}, right={:?}, strike_dollars={:?})",
 self.symbol, self.sec_type, self.expiration, self.right, self.strike_dollars
 )
 }
 }
-impl Contract {
+impl ContractRef {
 /// Build from the core `thetadatadx::fpss::protocol::Contract` value
 /// carried by each `BufferedEvent::*` Data arm. `sec_type` is the
 /// symbolic uppercase name (`"STOCK"` / `"OPTION"` / `"INDEX"` /
@@ -64,7 +68,7 @@ impl Connected {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct ContractAssigned {
     #[pyo3(get)] pub id: i32,
-    #[pyo3(get)] pub contract: Py<Contract>,
+    #[pyo3(get)] pub contract: Py<ContractRef>,
 }
 #[pymethods]
 impl ContractAssigned {
@@ -160,7 +164,7 @@ impl MarketOpen {
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Ohlcvc {
-    #[pyo3(get)] pub contract: Py<Contract>,
+    #[pyo3(get)] pub contract: Py<ContractRef>,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub open: f64,
     #[pyo3(get)] pub high: f64,
@@ -185,7 +189,7 @@ impl Ohlcvc {
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct OpenInterest {
-    #[pyo3(get)] pub contract: Py<Contract>,
+    #[pyo3(get)] pub contract: Py<ContractRef>,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub open_interest: i32,
     #[pyo3(get)] pub date: i32,
@@ -219,7 +223,7 @@ impl Ping {
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Quote {
-    #[pyo3(get)] pub contract: Py<Contract>,
+    #[pyo3(get)] pub contract: Py<ContractRef>,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub bid_size: i32,
     #[pyo3(get)] pub bid_exchange: i32,
@@ -341,7 +345,7 @@ impl ServerError {
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Trade {
-    #[pyo3(get)] pub contract: Py<Contract>,
+    #[pyo3(get)] pub contract: Py<ContractRef>,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub sequence: i32,
     #[pyo3(get)] pub ext_condition1: i32,
@@ -409,7 +413,7 @@ pub(crate) fn buffered_event_to_typed(
             id,
             contract,
         } => {
-            let contract_py = Py::new(py, Contract::from_core(contract))?;
+            let contract_py = Py::new(py, ContractRef::from_core(contract))?;
             Py::new(
                 py,
                 ContractAssigned {
@@ -462,7 +466,7 @@ pub(crate) fn buffered_event_to_typed(
             date,
             received_at_ns,
         } => {
-            let contract_py = Py::new(py, Contract::from_core(contract))?;
+            let contract_py = Py::new(py, ContractRef::from_core(contract))?;
             Py::new(
                 py,
                 Ohlcvc {
@@ -487,7 +491,7 @@ pub(crate) fn buffered_event_to_typed(
             date,
             received_at_ns,
         } => {
-            let contract_py = Py::new(py, Contract::from_core(contract))?;
+            let contract_py = Py::new(py, ContractRef::from_core(contract))?;
             Py::new(
                 py,
                 OpenInterest {
@@ -523,7 +527,7 @@ pub(crate) fn buffered_event_to_typed(
             date,
             received_at_ns,
         } => {
-            let contract_py = Py::new(py, Contract::from_core(contract))?;
+            let contract_py = Py::new(py, ContractRef::from_core(contract))?;
             Py::new(
                 py,
                 Quote {
@@ -601,7 +605,7 @@ pub(crate) fn buffered_event_to_typed(
             date,
             received_at_ns,
         } => {
-            let contract_py = Py::new(py, Contract::from_core(contract))?;
+            let contract_py = Py::new(py, ContractRef::from_core(contract))?;
             Py::new(
                 py,
                 Trade {
@@ -643,7 +647,7 @@ pub(crate) fn buffered_event_to_typed(
 }
 
 pub(crate) fn register_fpss_event_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Contract>()?;
+    m.add_class::<ContractRef>()?;
     m.add_class::<Connected>()?;
     m.add_class::<ContractAssigned>()?;
     m.add_class::<Disconnected>()?;

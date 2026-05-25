@@ -1,0 +1,46 @@
+        // `reconnect` re-registers the previously installed callback
+        // on a fresh FPSS connection. We require a prior
+        // `start_streaming(callback)` so the Python surface stays
+        // consistent: there is no implicit zero-callback streaming
+        // mode on this binding.
+        let stored = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            match guard.as_ref() {
+                Some(cb) => Python::attach(|py| cb.clone_ref(py)),
+                None => {
+                    return Err(PyRuntimeError::new_err(
+                        "no callback registered -- call start_streaming(callback) before reconnect()",
+                    ));
+                }
+            }
+        };
+        let callback_arc: Arc<Py<PyAny>> = Arc::new(stored);
+        let dispatch_cb = Arc::clone(&callback_arc);
+
+        self.tdx
+            .reconnect_streaming(move |event: &fpss::FpssEvent| {
+                Python::attach(|py| {
+                    let buffered = fpss_event_to_buffered(event);
+                    let typed = match buffered_event_to_typed(py, &buffered) {
+                        Ok(obj) => obj,
+                        Err(err) => {
+                            err.write_unraisable(py, None);
+                            return;
+                        }
+                    };
+                    if let Err(err) = dispatch_cb.call1(py, (typed,)) {
+                        err.write_unraisable(py, None);
+                    }
+                });
+            })
+            .map_err(to_py_err)?;
+
+        // Replace the stored callable with a freshly owned handle so
+        // the next reconnect / shutdown sees the same state shape.
+        // The Disruptor consumer closure already captured a clone of
+        // `callback_arc` (via `dispatch_cb`); the ref-count is >=2
+        // here so `try_unwrap` would always fail.
+        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = Some(Python::attach(|py| callback_arc.clone_ref(py)));
+        Ok(())
+    }

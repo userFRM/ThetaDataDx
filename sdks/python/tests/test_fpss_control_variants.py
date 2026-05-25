@@ -137,8 +137,15 @@ def test_class_identity_stable(thetadatadx_mod):
 
 
 def test_data_classes_still_exported(thetadatadx_mod):
-    """Sanity check: typed data classes survive the schema rewrite."""
-    for variant in ("Quote", "Trade", "Ohlcvc", "OpenInterest", "Contract"):
+    """Sanity check: typed data classes survive the schema rewrite.
+
+    `ContractRef` is the FPSS-event-payload identifier — read-only fields
+    surfaced as `event.contract.symbol` / `event.contract.strike`. It is
+    distinct from the fluent `Contract` builder (which lives at
+    `thetadatadx.Contract` and exposes `.stock()` / `.option()` factory
+    methods); see #557 for the collision-rename background.
+    """
+    for variant in ("Quote", "Trade", "Ohlcvc", "OpenInterest", "ContractRef"):
         cls = getattr(thetadatadx_mod, variant, None)
         assert cls is not None, f"thetadatadx.{variant} missing"
         assert cls.__name__ == variant

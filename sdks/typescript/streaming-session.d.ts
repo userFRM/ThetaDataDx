@@ -12,7 +12,7 @@
 
 /* eslint-disable */
 
-import type { ThetaDataDxClient, FpssEvent, ContractRef } from './index';
+import type { ThetaDataDxClient, FpssEvent, ContractRef, EventIterator } from './index';
 
 export * from './index';
 
@@ -24,6 +24,27 @@ export * from './index';
  * keeps the type-side and runtime-side names identical. */
 export const Contract: typeof ContractRef;
 export type Contract = ContractRef;
+
+// ── Typed error hierarchy ─────────────────────────────────────────────
+//
+// Every `thetadatadx::Error` surfaced through the napi boundary is
+// re-cast on the JS side as one of the leaves below. The hierarchy
+// mirrors the Python `to_py_err` leaf set one-for-one so the
+// cross-binding error contract stays uniform — port a Python
+// `except thetadatadx.SubscriptionError` clause to TS by writing
+// `catch (e) { if (e instanceof tdx.SubscriptionError) { ... } }`.
+
+export class ThetaDataError extends Error {}
+export class AuthenticationError extends ThetaDataError {}
+export class InvalidCredentialsError extends AuthenticationError {}
+export class SubscriptionError extends ThetaDataError {}
+export class RateLimitError extends ThetaDataError {}
+export class NotFoundError extends ThetaDataError {}
+export class DeadlineExceededError extends ThetaDataError {}
+export class UnavailableError extends ThetaDataError {}
+export class NetworkError extends ThetaDataError {}
+export class SchemaMismatchError extends ThetaDataError {}
+export class StreamError extends ThetaDataError {}
 
 /** Callback signature mirrored from the napi-generated
  * `startStreaming(callback)` declaration in `index.d.ts`. */
@@ -57,6 +78,31 @@ export declare const StreamingSession: {
   prototype: StreamingSession;
 };
 
+/**
+ * Pull-iter context-managed streaming session returned by
+ * `tdx.streamingIter()`. Drives the FPSS pull-iter delivery path:
+ * `for await (const event of session) { ... }` drains the per-client
+ * bounded queue, and the `[Symbol.asyncDispose]` hook pairs
+ * `close()` + `stopStreaming()` + `awaitDrain(5000)` on scope exit.
+ *
+ * The runtime forwarding is `Proxy`-based: every method on the
+ * underlying `EventIterator` (e.g. `tryNext`, `close`) AND every
+ * method on the parent `ThetaDataDxClient` (e.g. `subscribe`,
+ * `activeSubscriptions`) is reachable on the session.
+ */
+export interface StreamingIterSession extends EventIterator {
+  [Symbol.asyncIterator](): AsyncIterableIterator<FpssEvent>;
+  [Symbol.asyncDispose](): Promise<void>;
+}
+
+export declare const StreamingIterSession: {
+  new (
+    tdx: ThetaDataDxClient,
+    iter: EventIterator,
+  ): StreamingIterSession;
+  prototype: StreamingIterSession;
+};
+
 declare module './index' {
   interface ThetaDataDxClient {
     /**
@@ -70,5 +116,21 @@ declare module './index' {
      * normally so any error from the body is not masked.
      */
     streaming(callback: FpssEventCallback): Promise<StreamingSession>;
+
+    /**
+     * Open a context-managed pull-iter streaming session.
+     *
+     * `await using session = await tdx.streamingIter()` opens the FPSS
+     * connection in pull-iter mode and pairs `stopStreaming()` +
+     * `awaitDrain(5000)` on scope exit. Drain timeouts emit
+     * `console.warn`. Iterate inside the body with
+     * `for await (const event of session)` — the async iterator
+     * yields typed `FpssEvent` values and terminates cleanly on
+     * upstream shutdown.
+     *
+     * Mutually exclusive with `streaming(callback)` on the same
+     * client; switch by stopping the active session first.
+     */
+    streamingIter(): Promise<StreamingIterSession>;
   }
 }

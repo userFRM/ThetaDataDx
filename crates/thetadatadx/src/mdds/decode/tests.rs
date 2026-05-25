@@ -14,8 +14,8 @@ use super::dual_type_columns::{
 };
 use super::{
     extract_number_column, parse_eod_ticks, parse_greeks_all_ticks, parse_greeks_first_order_ticks,
-    parse_greeks_second_order_ticks, parse_greeks_third_order_ticks, parse_trade_ticks,
-    DecodeError,
+    parse_greeks_second_order_ticks, parse_greeks_third_order_ticks, parse_quote_ticks,
+    parse_trade_ticks, DecodeError,
 };
 use crate::proto;
 
@@ -1088,4 +1088,114 @@ fn parse_greeks_third_order_ticks_decodes_third_order_subset() {
     assert_eq!(t.underlying_ms_of_day, 34_200_001);
     assert!((t.underlying_price - 58.0025).abs() < 1e-9);
     assert_eq!(t.date, 20_240_614);
+}
+
+// ─────────── Subset NBBO header set: decoder must zero-fill absent
+// ─────────── exchange/condition columns
+//
+// Defense-in-depth: a `DataTable` whose header set is a subset of
+// the canonical NBBO schema (six of eleven columns present, with
+// `bid_exchange`, `bid_condition`, `ask_exchange`, `ask_condition`
+// absent) must decode without error and zero-fill the absent
+// columns. The subset layout
+// `[ms_of_day, bid_size, bid, ask_size, ask, date]` is the
+// canonical shape these tests exercise.
+//
+// This pair of tests pins that behaviour so a future regression in
+// `find_header` / the generator's `opt_number(idx)` arm surfaces
+// here.
+
+/// A `DataTable` whose headers match the subset NBBO shape
+/// (`ms_of_day, bid_size, bid, ask_size, ask, date`) must decode to a
+/// `QuoteTick` with the absent exchange / condition columns zero-filled.
+#[test]
+fn quote_tick_decodes_legacy_six_field_shape_with_zero_fill() {
+    let table = proto::DataTable {
+        headers: vec![
+            "ms_of_day".into(),
+            "bid_size".into(),
+            "bid".into(),
+            "ask_size".into(),
+            "ask".into(),
+            "date".into(),
+        ],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_number(50),
+            dv_price(15022, 6), // bid = 1.5022
+            dv_number(75),
+            dv_price(15041, 6), // ask = 1.5041
+            dv_number(20_220_414),
+        ])],
+    };
+    let ticks = parse_quote_ticks(&table).unwrap();
+    assert_eq!(ticks.len(), 1);
+    let t = &ticks[0];
+
+    // Wire-present columns decode bit-exact.
+    assert_eq!(t.ms_of_day, 34_200_000);
+    assert_eq!(t.bid_size, 50);
+    assert!((t.bid - 1.5022).abs() < 1e-9);
+    assert_eq!(t.ask_size, 75);
+    assert!((t.ask - 1.5041).abs() < 1e-9);
+    assert_eq!(t.date, 20_220_414);
+
+    // Wire-absent columns zero-fill: mirrors the gRPC decoder's
+    // `opt_number(row, None) -> 0` contract.
+    assert_eq!(t.bid_exchange, 0);
+    assert_eq!(t.bid_condition, 0);
+    assert_eq!(t.ask_exchange, 0);
+    assert_eq!(t.ask_condition, 0);
+
+    // Midpoint is computed from bid + ask regardless of legacy / current
+    // layout — pin the value so a generator regression on the midpoint
+    // post-processing step would surface here.
+    assert!((t.midpoint - 1.50315).abs() < 1e-9);
+}
+
+/// The full 11-field shape must continue to decode all columns. A
+/// fix that accidentally narrowed the parser to the 6-field subset
+/// layout would surface as wrong values on `bid_exchange` / `ask_condition`.
+#[test]
+fn quote_tick_decodes_current_eleven_field_shape_unchanged() {
+    let table = proto::DataTable {
+        headers: vec![
+            "ms_of_day".into(),
+            "bid_size".into(),
+            "bid_exchange".into(),
+            "bid".into(),
+            "bid_condition".into(),
+            "ask_size".into(),
+            "ask_exchange".into(),
+            "ask".into(),
+            "ask_condition".into(),
+            "date".into(),
+        ],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_number(50),
+            dv_number(7), // CBOE
+            dv_price(15022, 6),
+            dv_number(1),
+            dv_number(75),
+            dv_number(8), // NYSE Arca
+            dv_price(15041, 6),
+            dv_number(2),
+            dv_number(20_240_605),
+        ])],
+    };
+    let ticks = parse_quote_ticks(&table).unwrap();
+    assert_eq!(ticks.len(), 1);
+    let t = &ticks[0];
+
+    assert_eq!(t.ms_of_day, 34_200_000);
+    assert_eq!(t.bid_size, 50);
+    assert_eq!(t.bid_exchange, 7);
+    assert!((t.bid - 1.5022).abs() < 1e-9);
+    assert_eq!(t.bid_condition, 1);
+    assert_eq!(t.ask_size, 75);
+    assert_eq!(t.ask_exchange, 8);
+    assert!((t.ask - 1.5041).abs() < 1e-9);
+    assert_eq!(t.ask_condition, 2);
+    assert_eq!(t.date, 20_240_605);
 }

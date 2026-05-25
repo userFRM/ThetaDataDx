@@ -82,6 +82,13 @@ fn build_version_payload() -> Vec<u8> {
     buf
 }
 
+/// Maximum number of frames consumed during the legacy MDDS handshake
+/// before we surface an `Auth(Timeout)` failure. The server sends at
+/// most 4 frames on a successful login (SESSION_TOKEN, METADATA,
+/// optional CONNECTED, optional PING) plus a slack of 2 to absorb any
+/// late server heartbeat without erroring the auth path.
+const LOGIN_FRAME_BUDGET: usize = 6;
+
 /// Run the CREDENTIALS + VERSION login on an already-established TLS stream.
 ///
 /// On success returns the bundle string. On failure returns
@@ -103,7 +110,7 @@ pub(crate) async fn login(
     // SESSION_TOKEN → METADATA; we accept either order defensively.
     let mut session_token_seen = false;
     let mut bundle: Option<String> = None;
-    for _ in 0..6 {
+    for _ in 0..LOGIN_FRAME_BUDGET {
         let frame: Frame = read_frame(stream).await?;
         match frame.msg {
             msg::SESSION_TOKEN => session_token_seen = true,

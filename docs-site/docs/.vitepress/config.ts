@@ -128,7 +128,7 @@ export default withMermaid(defineConfig({
                 text: 'List',
                 collapsed: true,
                 items: [
-                  { text: 'Roots', link: '/historical/option/list/roots' },
+                  { text: 'Symbols', link: '/historical/option/list/symbols' },
                   { text: 'Dates', link: '/historical/option/list/dates' },
                   { text: 'Strikes', link: '/historical/option/list/strikes' },
                   { text: 'Expirations', link: '/historical/option/list/expirations' },
@@ -277,6 +277,7 @@ export default withMermaid(defineConfig({
         collapsed: true,
         items: [
           { text: 'API Reference', link: '/api-reference' },
+          { text: 'Channel Pool Design', link: '/channel-pool-design' },
         ],
       },
       {
@@ -294,6 +295,10 @@ export default withMermaid(defineConfig({
         collapsed: true,
         items: [
           { text: 'Changelog', link: '/changelog' },
+          // U11 closure: v9 → v10 migration guide. Linked here so
+          // existing v9 users have a one-click landing page covering
+          // every breaking change in the v10 wave.
+          { text: 'Migrating v9 → v10', link: '/migration/v9-to-v10' },
         ],
       },
     ],

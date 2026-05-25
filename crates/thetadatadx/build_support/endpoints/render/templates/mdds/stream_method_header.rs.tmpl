@@ -1,9 +1,45 @@
 
+    /// Apply a per-call deadline.
+    ///
+    /// On expiry the in-flight gRPC stream is cancelled and the
+    /// `stream(...)` call resolves to `Err(Error::Timeout)`. The
+    /// underlying `MddsClient` is unaffected; subsequent calls on
+    /// the same handle succeed. `Duration::ZERO` is normalized to
+    /// "no deadline" — see [`crate::mdds::macros`] for the full
+    /// rationale.
+    #[must_use]
+    pub fn with_deadline(mut self, duration: std::time::Duration) -> Self {
+        self.deadline = if duration.is_zero() { None } else { Some(duration) };
+        self
+    }
+
     /// Execute the streaming request, calling `handler` for each chunk.
+    ///
+    /// # Retry / refresh semantics
+    ///
+    /// The stream open phase and the per-chunk drain are wrapped in a
+    /// retry loop bounded by [`crate::config::RetryPolicy::max_attempts`].
+    /// Transient gRPC statuses (`Unavailable`, `DeadlineExceeded`,
+    /// `ResourceExhausted`) and mid-stream `Unauthenticated` (which
+    /// implies a session-token expiry the upstream just observed) trigger
+    /// a restart. On `Unauthenticated` the session is refreshed at most
+    /// once per call before the next attempt; a second `Unauthenticated`
+    /// surfaces as a terminal error.
+    ///
+    /// Upstream MDDS does not support mid-stream resume, so a restart
+    /// re-runs the request from chunk zero. The supplied `handler` will
+    /// see any chunks it already received on the failed attempt a second
+    /// time on the successful attempt — keep it idempotent (e.g. append
+    /// into a fresh accumulator owned per-call, not into shared state
+    /// accumulated across calls).
+    ///
+    /// Decode and decompress failures are terminal and surfaced
+    /// immediately without retry.
     ///
     /// # Errors
     ///
-    /// Returns [`Error`] if the gRPC call fails or response parsing fails.
+    /// Returns [`Error`] if the gRPC call fails terminally or response
+    /// parsing fails.
     pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>
     where
         F: FnMut(&[__TICK_TYPE__]),

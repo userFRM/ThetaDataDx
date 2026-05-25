@@ -49,27 +49,27 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>expiration</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Expiration date in <code>YYYYMMDD</code> format</div>
+<div class="param-desc">Expiration date in <code>YYYYMMDD</code> or <code>YYYY-MM-DD</code> format, or <code>"*"</code> for all expirations</div>
 </div>
 <div class="param">
-<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Strike price in dollars as a string</div>
+<div class="param-header"><code>strike</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Strike price in dollars (e.g. <code>"550"</code> or <code>"17.5"</code>), or <code>"*"</code> for all strikes. Default: <code>"*"</code>.</div>
 </div>
 <div class="param">
-<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc"><code>"C"</code> for call, <code>"P"</code> for put</div>
+<div class="param-header"><code>right</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
+<div class="param-desc">Option side: <code>"call"</code>, <code>"put"</code>, or <code>"both"</code>. SDK also accepts <code>"C"</code>/<code>"P"</code>. Default: <code>"both"</code>.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>max_dte</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Maximum days to expiration</div>
+<div class="param-desc">Maximum days to expiration. Filters contracts returned when <code>expiration="*"</code>.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>strike_range</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Strike range filter</div>
+<div class="param-desc">Returns <code>n</code> strikes above and below spot price plus one ATM strike (up to <code>2n + 1</code> strikes).</div>
 </div>
 <div class="param">
 <div class="param-header"><code>min_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Minimum time of day as milliseconds from midnight</div>
+<div class="param-desc">Filters snapshots to timestamps at or after this ET wall-clock time. Format <code>HH:MM:SS.SSS</code>; legacy millisecond strings are also accepted.</div>
 </div>
 </div>
 

@@ -49,11 +49,9 @@ use tdbe::types::enums::SecType;
 /// Snapshot of the streaming side of the unified client.
 ///
 /// One [`ArcSwap`] cell so every read path collapses to a single
-/// atomic load. The previous design carried a separate
-/// `Mutex<Option<StreamingDispatcher>>` alongside the [`FpssClient`];
-/// after the post-#513 single-queue rewrite the user callback runs
-/// directly on the Disruptor consumer thread inside [`FpssClient`],
-/// so the slot only needs to track the live client.
+/// atomic load. The user callback runs directly on the Disruptor
+/// consumer thread inside [`FpssClient`], so the slot only needs to
+/// track the live client.
 ///
 /// Lifecycle: `Idle` (constructed) → `Live` (`start_streaming`
 /// succeeded) → `Stopped` (`stop_streaming` returned). A subsequent
@@ -75,13 +73,42 @@ enum StreamingSlot {
     Stopped,
 }
 
+/// Render a [`crate::mdds::SubscriptionTier`] (or `None`) as the
+/// human-facing label this SDK uses on `SubscriptionInfo`. Kept
+/// outside the impl so the mapping is testable without spinning up an
+/// authenticated client.
+fn tier_label(tier: Option<crate::mdds::SubscriptionTier>) -> String {
+    match tier {
+        Some(crate::mdds::SubscriptionTier::Free) => "Free".to_string(),
+        Some(crate::mdds::SubscriptionTier::Value) => "Value".to_string(),
+        Some(crate::mdds::SubscriptionTier::Standard) => "Standard".to_string(),
+        Some(crate::mdds::SubscriptionTier::Pro) => "Pro".to_string(),
+        None => "Unknown".to_string(),
+    }
+}
+
 /// Subscription tier information captured at authentication time.
+///
+/// `#[non_exhaustive]` so new tiers (e.g. additional asset classes the
+/// Nexus auth payload starts emitting) can be added without a breaking
+/// API change. Callers should construct it via the SDK's
+/// [`ThetaDataDxClient::subscription_info`] entry point — fields are
+/// populated from `AuthResponse.user.{stock,options,indices,interest_rate}_subscription`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct SubscriptionInfo {
     /// Stock data subscription tier (e.g. "Free", "Value", "Standard", "Pro").
     pub stock: String,
     /// Options data subscription tier (e.g. "Free", "Value", "Standard", "Pro").
     pub options: String,
+    /// Indices (e.g. SPX, VIX) subscription tier. Same string ladder as
+    /// `stock` / `options`; "Unknown" when the upstream auth response
+    /// omits the field.
+    pub indices: String,
+    /// Interest-rate / Treasury / SOFR curve subscription tier. Same
+    /// string ladder as `stock` / `options`; "Unknown" when the upstream
+    /// auth response omits the field.
+    pub interest_rate: String,
 }
 
 /// Current state of the streaming connection.
@@ -109,6 +136,11 @@ pub enum ConnectionStatus {
 pub struct ThetaDataDxClient {
     historical: MddsClient,
     creds: Credentials,
+    /// FLATFILES retry tuning. Snapshot of
+    /// [`crate::config::DirectConfig::flatfiles`] taken at connect time
+    /// so subsequent `DirectConfig` mutations cannot retroactively change
+    /// retry behavior for already-issued requests.
+    flatfiles_config: crate::config::FlatFilesConfig,
     /// Streaming-side state machine. See [`StreamingSlot`] for the
     /// `Idle → Live → Stopped` lifecycle. The
     /// [`ArcSwap`] makes `is_streaming` / `connection_status` /
@@ -158,10 +190,12 @@ impl ThetaDataDxClient {
         // covered. No-op when the feature is disabled or `metrics_port`
         // is `None` (the default).
         crate::observability::try_install_exporter(&config)?;
+        let flatfiles_config = config.flatfiles.clone();
         let historical = MddsClient::connect(creds, config).await?;
         Ok(Self {
             historical,
             creds: creds.clone(),
+            flatfiles_config,
             state: ArcSwap::from_pointee(StreamingSlot::Idle),
             prev_drained: Mutex::new(Vec::new()),
             stop_generation: AtomicU64::new(0),
@@ -198,56 +232,31 @@ impl ThetaDataDxClient {
 
     /// Start the FPSS streaming connection with a callback handler.
     ///
-    /// Opens a TLS/TCP connection to `ThetaData`'s FPSS servers,
-    /// authenticates with the same credentials used at connect time,
-    /// and starts the FPSS reader thread plus the LMAX Disruptor
-    /// consumer thread.
+    /// Open the streaming channel, authenticate, and start the reader
+    /// and consumer threads. The user callback fires on the bounded-ring
+    /// consumer thread, one event at a time, wrapped in
+    /// [`std::panic::catch_unwind`].
     ///
-    /// # Pipeline (single-queue SSOT, post-#513)
+    /// # Contracts
     ///
-    /// `TLS reader thread -> Disruptor ring (try_publish, non-blocking)
-    /// -> Disruptor consumer thread -> catch_unwind(user callback)`.
+    /// 1. **Reader never blocks on user code.** A full ring drops the
+    ///    event and bumps [`Self::dropped_event_count`]. Poll the
+    ///    counter on a periodic timer to detect a slow consumer.
+    /// 2. **User panics never kill the consumer.** Panics increment
+    ///    [`Self::panic_count`]; the consumer keeps delivering.
+    /// 3. **Lifecycle restriction.** Do NOT call
+    ///    [`Self::stop_streaming`], [`Self::reconnect_streaming`], or
+    ///    anything that drops the underlying client from inside the
+    ///    callback. The calls do not deadlock (cleanup detaches), but
+    ///    they return BEFORE the old consumer has finished draining
+    ///    the in-flight ring contents — FFI callers freeing `ctx`
+    ///    after `tdx_*_stop_streaming` returns will observe
+    ///    use-after-free. Instead, set a flag from the callback, call
+    ///    [`Self::stop_streaming`] from another thread, then
+    ///    [`Self::await_drain`] before reusing captured resources.
     ///
-    /// The TLS reader publishes every decoded event into a pre-allocated
-    /// LMAX Disruptor ring via `Producer::try_publish`. A single
-    /// dedicated consumer thread owned by the Disruptor invokes the
-    /// user callback for each event, with each invocation wrapped in
-    /// [`std::panic::catch_unwind`]. Two contracts:
-    ///
-    /// 1. **Reader never blocks on user code.** When the consumer
-    ///    falls behind and the ring is full, `try_publish` returns
-    ///    [`disruptor::RingBufferFull`], the event is dropped, and
-    ///    [`Self::dropped_event_count`] increments. Operators should
-    ///    poll the counter on a periodic timer.
-    /// 2. **User panics never kill the consumer.** A panic from user
-    ///    code (or from binding glue such as PyO3 / napi) is caught,
-    ///    [`Self::panic_count`] increments, and the consumer keeps
-    ///    delivering subsequent events.
-    /// 3. **Lifecycle restriction.** The user callback runs on the
-    ///    FPSS Disruptor consumer thread. From inside the callback you
-    ///    MUST NOT call [`Self::stop_streaming`],
-    ///    [`Self::reconnect_streaming`], or any API that drops the
-    ///    underlying `Arc<FpssClient>`. These calls do not deadlock
-    ///    (the `FpssClient::Drop` self-join guard detaches cleanup
-    ///    onto a helper thread), but they return BEFORE the old
-    ///    consumer has finished firing the callback for the in-flight
-    ///    ring contents. Application code that frees a captured
-    ///    context, replaces the callback closure, or otherwise relies
-    ///    on the old callback having stopped firing the moment stop
-    ///    returns will observe a torn state — including
-    ///    use-after-free in FFI callers whose `ctx` was freed once
-    ///    `tdx_*_stop_streaming` returned.
-    ///
-    ///    If the application needs to stop or reconnect in response
-    ///    to an event, set a flag from the callback and observe it
-    ///    from a separate thread that calls [`Self::stop_streaming`]
-    ///    there, then call [`Self::await_drain`] before reusing the
-    ///    captured resources.
-    ///
-    /// The user callback runs on the LMAX Disruptor consumer thread,
-    /// with `catch_unwind` panic isolation. The callback MUST return
-    /// within microseconds; for slow downstream work, hand off to a
-    /// bounded queue inside the callback.
+    /// The callback MUST return within microseconds; hand slow work
+    /// off to a bounded queue inside the callback body.
     ///
     /// # Errors
     ///
@@ -278,6 +287,8 @@ impl ThetaDataDxClient {
                 ring_size: config.fpss.ring_size,
                 flush_mode: config.fpss.flush_mode,
                 policy: config.reconnect.policy.clone(),
+                wait_ms: config.reconnect.wait_ms,
+                wait_rate_limited_ms: config.reconnect.wait_rate_limited_ms,
                 derive_ohlcvc: config.fpss.derive_ohlcvc,
                 connect_timeout_ms: config.fpss.connect_timeout_ms,
                 read_timeout_ms: config.fpss.timeout_ms,
@@ -343,6 +354,8 @@ impl ThetaDataDxClient {
             ring_size: config.fpss.ring_size,
             flush_mode: config.fpss.flush_mode,
             policy: config.reconnect.policy.clone(),
+            wait_ms: config.reconnect.wait_ms,
+            wait_rate_limited_ms: config.reconnect.wait_rate_limited_ms,
             derive_ohlcvc: config.fpss.derive_ohlcvc,
             connect_timeout_ms: config.fpss.connect_timeout_ms,
             read_timeout_ms: config.fpss.timeout_ms,
@@ -351,6 +364,94 @@ impl ThetaDataDxClient {
 
         self.install_live(Self::live_slot(client), gen_at_entry)?;
         Ok(iterator)
+    }
+
+    /// Start FPSS streaming in pull-iter delivery mode with an asyncio
+    /// FD-readiness signal.
+    ///
+    /// Sibling of [`Self::start_streaming_iter`] for asyncio /
+    /// select-loop consumers. The supplied [`crate::fpss::wake::WakeFd`]
+    /// is wired into the pull-iter `Delivery::Queue` variant on the
+    /// Disruptor consumer; every successful `queue.push`
+    /// writes a coalesced byte to the FD so the host event loop wakes
+    /// without polling.
+    ///
+    /// Returns the [`EventIterator`] paired with the shared
+    /// `Arc<WakeFd>` so the asyncio reader thread can call `rearm()`
+    /// before draining the pipe. Bridging through `Arc` is what lets
+    /// the wake survive across the `start` boundary — the wake FD is
+    /// owned by the Disruptor consumer closure inside the
+    /// [`FpssClient`], which only releases it on stop_streaming +
+    /// drain.
+    ///
+    /// # Mutual exclusion
+    ///
+    /// Same as [`Self::start_streaming_iter`] — push and pull are
+    /// mutually exclusive on a given client.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same error set as [`Self::start_streaming`] (TLS,
+    /// auth, config validation).
+    pub fn start_streaming_iter_with_wake(
+        &self,
+        wake: crate::fpss::wake::WakeFd,
+    ) -> Result<(EventIterator, std::sync::Arc<crate::fpss::wake::WakeFd>), Error> {
+        self.start_streaming_iter_with_wake_policy(
+            wake,
+            None,
+            crate::fpss::BackpressurePolicy::Block,
+        )
+    }
+
+    /// Variant of [`Self::start_streaming_iter_with_wake`] that
+    /// accepts an explicit [`crate::fpss::BackpressurePolicy`]
+    /// and optional `max_queue_depth` override.
+    ///
+    /// Forwards through
+    /// [`crate::fpss::FpssClient::connect_iter_with_wake_keep_handle_policy`].
+    /// Production callers reach this through the Python
+    /// `streaming_async(backpressure=..., max_queue_depth=...)` kwargs.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same error set as [`Self::start_streaming`] (TLS,
+    /// auth, config validation), plus [`Error::Config`] when
+    /// `max_queue_depth` is out of range.
+    pub fn start_streaming_iter_with_wake_policy(
+        &self,
+        wake: crate::fpss::wake::WakeFd,
+        max_queue_depth: Option<usize>,
+        policy: crate::fpss::BackpressurePolicy,
+    ) -> Result<(EventIterator, std::sync::Arc<crate::fpss::wake::WakeFd>), Error> {
+        if matches!(&**self.state.load(), StreamingSlot::Live { .. }) {
+            return Err(Self::already_streaming());
+        }
+
+        let gen_at_entry = self.stop_generation.load(Ordering::Acquire);
+
+        let config = self.historical.config();
+        let (client, iterator, wake_arc) = FpssClient::connect_iter_with_wake_keep_handle_policy(
+            crate::fpss::FpssConnectArgs {
+                creds: &self.creds,
+                hosts: &config.fpss.hosts,
+                ring_size: config.fpss.ring_size,
+                flush_mode: config.fpss.flush_mode,
+                policy: config.reconnect.policy.clone(),
+                wait_ms: config.reconnect.wait_ms,
+                wait_rate_limited_ms: config.reconnect.wait_rate_limited_ms,
+                derive_ohlcvc: config.fpss.derive_ohlcvc,
+                connect_timeout_ms: config.fpss.connect_timeout_ms,
+                read_timeout_ms: config.fpss.timeout_ms,
+                ping_interval_ms: config.fpss.ping_interval_ms,
+            },
+            wake,
+            max_queue_depth,
+            policy,
+        )?;
+
+        self.install_live(Self::live_slot(client), gen_at_entry)?;
+        Ok((iterator, wake_arc))
     }
 
     /// Atomically swap the slot to a fresh `Live` state.
@@ -890,17 +991,18 @@ impl ThetaDataDxClient {
     }
 
     /// Get subscription tier information captured at authentication time.
+    ///
+    /// Returns one entry per asset class the Nexus auth payload carries
+    /// (`stock`, `options`, `indices`, `interest_rate`). Missing fields
+    /// surface as the string `"Unknown"` so a Pro-on-indices user is
+    /// distinguishable from an auth response that did not advertise an
+    /// indices tier.
     pub fn subscription_info(&self) -> SubscriptionInfo {
-        let label = |tier: Option<crate::mdds::SubscriptionTier>| match tier {
-            Some(crate::mdds::SubscriptionTier::Free) => "Free".to_string(),
-            Some(crate::mdds::SubscriptionTier::Value) => "Value".to_string(),
-            Some(crate::mdds::SubscriptionTier::Standard) => "Standard".to_string(),
-            Some(crate::mdds::SubscriptionTier::Pro) => "Pro".to_string(),
-            None => "Unknown".to_string(),
-        };
         SubscriptionInfo {
-            stock: label(self.historical.stock_tier()),
-            options: label(self.historical.options_tier()),
+            stock: tier_label(self.historical.stock_tier()),
+            options: tier_label(self.historical.options_tier()),
+            indices: tier_label(self.historical.indices_tier()),
+            interest_rate: tier_label(self.historical.interest_rate_tier()),
         }
     }
 
@@ -946,13 +1048,14 @@ impl ThetaDataDxClient {
         output_path: impl AsRef<std::path::Path>,
         format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
-        crate::flatfiles::flatfile_request(
+        crate::flatfiles::flatfile_request_with_config(
             &self.creds,
             sec_type,
             req_type,
             date,
             output_path,
             format,
+            &self.flatfiles_config,
         )
         .await
     }
@@ -975,7 +1078,14 @@ impl ThetaDataDxClient {
         req_type: crate::flatfiles::ReqType,
         date: &str,
     ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
-        crate::flatfiles::flatfile_request_decoded(&self.creds, sec_type, req_type, date).await
+        crate::flatfiles::flatfile_request_decoded_with_config(
+            &self.creds,
+            sec_type,
+            req_type,
+            date,
+            &self.flatfiles_config,
+        )
+        .await
     }
 
     /// Convenience: option open-interest flat file for `date`.
@@ -1677,5 +1787,97 @@ mod tests {
         fn _alias_check(c: ThetaDataDxClient) -> ThetaDataDxClient {
             c
         }
+    }
+
+    /// Every `SubscriptionTier` discriminant has a stable user-facing
+    /// label, and a `None` tier renders as "Unknown" — that's what
+    /// disambiguates a Pro-on-indices user from a Nexus response that
+    /// did not advertise an indices tier at all.
+    #[test]
+    fn tier_label_covers_every_discriminant() {
+        use crate::mdds::SubscriptionTier;
+        assert_eq!(tier_label(Some(SubscriptionTier::Free)), "Free");
+        assert_eq!(tier_label(Some(SubscriptionTier::Value)), "Value");
+        assert_eq!(tier_label(Some(SubscriptionTier::Standard)), "Standard");
+        assert_eq!(tier_label(Some(SubscriptionTier::Pro)), "Pro");
+        assert_eq!(tier_label(None), "Unknown");
+    }
+
+    /// `AuthUser`'s four `*_subscription` wire bytes map through
+    /// `SubscriptionTier::from_wire` into the four
+    /// `SubscriptionInfo` fields. Pin the mapping here so a future
+    /// refactor of the auth → client wiring cannot silently regress a
+    /// field (the existing wiring covered only `stock` + `options`).
+    #[test]
+    fn auth_user_subscription_bytes_map_to_subscription_info_fields() {
+        use crate::auth::nexus::AuthUser;
+        use crate::mdds::SubscriptionTier;
+
+        let user = AuthUser {
+            email: None,
+            // Wire bytes: Free=0, Value=1, Standard=2, Pro=3.
+            stock_subscription: Some(3),
+            options_subscription: Some(2),
+            indices_subscription: Some(1),
+            interest_rate_subscription: Some(0),
+        };
+        // The four fields fold independently through `from_wire`.
+        assert_eq!(
+            SubscriptionTier::from_wire(user.stock_subscription.unwrap()),
+            Some(SubscriptionTier::Pro),
+        );
+        assert_eq!(
+            SubscriptionTier::from_wire(user.options_subscription.unwrap()),
+            Some(SubscriptionTier::Standard),
+        );
+        assert_eq!(
+            SubscriptionTier::from_wire(user.indices_subscription.unwrap()),
+            Some(SubscriptionTier::Value),
+        );
+        assert_eq!(
+            SubscriptionTier::from_wire(user.interest_rate_subscription.unwrap()),
+            Some(SubscriptionTier::Free),
+        );
+
+        // Round-trip into the human-facing labels too — this is what
+        // `subscription_info()` returns to users.
+        let info = SubscriptionInfo {
+            stock: tier_label(SubscriptionTier::from_wire(
+                user.stock_subscription.unwrap(),
+            )),
+            options: tier_label(SubscriptionTier::from_wire(
+                user.options_subscription.unwrap(),
+            )),
+            indices: tier_label(SubscriptionTier::from_wire(
+                user.indices_subscription.unwrap(),
+            )),
+            interest_rate: tier_label(SubscriptionTier::from_wire(
+                user.interest_rate_subscription.unwrap(),
+            )),
+        };
+        assert_eq!(info.stock, "Pro");
+        assert_eq!(info.options, "Standard");
+        assert_eq!(info.indices, "Value");
+        assert_eq!(info.interest_rate, "Free");
+    }
+
+    /// Missing `*_subscription` bytes on `AuthUser` (the realistic
+    /// Pro-on-stock, no-indices case) surface as the "Unknown" string
+    /// on the corresponding `SubscriptionInfo` field — not as a
+    /// silent collapse onto another tier.
+    #[test]
+    fn missing_subscription_byte_surfaces_as_unknown() {
+        use crate::mdds::SubscriptionTier;
+
+        let info = SubscriptionInfo {
+            stock: tier_label(SubscriptionTier::from_wire(3)),
+            options: tier_label(None),
+            indices: tier_label(None),
+            interest_rate: tier_label(None),
+        };
+        assert_eq!(info.stock, "Pro");
+        assert_eq!(info.options, "Unknown");
+        assert_eq!(info.indices, "Unknown");
+        assert_eq!(info.interest_rate, "Unknown");
     }
 }

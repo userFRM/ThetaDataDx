@@ -7,20 +7,53 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Instant;
 
+use metrics::Counter;
 use tdbe::types::enums::StreamMsgType;
 use tdbe::types::price::Price;
 
 use super::accumulator::OhlcvcAccumulator;
-use super::delta::{DeltaState, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS};
+use super::delta::{DeltaState, TickFields, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS};
 use super::events::{FpssControl, FpssData, FpssEventInternal};
 use super::framing;
 use super::protocol::{
     parse_contract_message, parse_disconnect_reason, parse_req_response, Contract,
 };
 use super::reconnect_delay;
+
+// ─── Hoisted per-tick counter handles ───────────────────────────────
+//
+// `metrics::counter!(name, "kind" => value)` resolves the (name, labels)
+// tuple to a `Counter` handle on every call — that lookup is a hashmap
+// probe inside the global recorder and runs ~30 ns per tick in the
+// observed bench. Hoisting the resolution to a `LazyLock<Counter>`
+// turns the per-tick increment into a single atomic add (~5 ns) since
+// `Counter::increment` is `&self`.
+//
+// One handle per (metric, kind) pair the decoder emits. Decode-failure
+// counters are kept separately so the dashboards can split healthy
+// events from FIT parse rejections.
+
+static FPSS_QUOTE_EVENTS: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.events", "kind" => "quote"));
+static FPSS_TRADE_EVENTS: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.events", "kind" => "trade"));
+static FPSS_OI_EVENTS: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.events", "kind" => "open_interest"));
+static FPSS_OHLCVC_EVENTS: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.events", "kind" => "ohlcvc"));
+
+static FPSS_QUOTE_DECODE_FAILURES: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "quote"));
+static FPSS_TRADE_DECODE_FAILURES: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "trade"));
+static FPSS_OI_DECODE_FAILURES: LazyLock<Counter> = LazyLock::new(
+    || metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "open_interest"),
+);
+static FPSS_OHLCVC_DECODE_FAILURES: LazyLock<Counter> =
+    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "ohlcvc"));
 
 /// Prefix on the [`Contract::symbol`] of an unresolved-contract sentinel
 /// returned for a tick that arrived before the matching
@@ -87,7 +120,11 @@ pub fn decode_frame(
     // sentinelling on `0`. `Instant`-based fallback uses the program's
     // approximate epoch alignment captured at first call.
     let received_at_ns = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-        Ok(d) => d.as_nanos() as u64,
+        // u128 → u64 saturates past 2554-07-21T23:34:33Z (when ns since
+        // UNIX_EPOCH first exceeds 2^64). `as u64` would wrap to a
+        // misleading early-1970 timestamp; `try_from` + `unwrap_or` clamps
+        // to the schema sentinel without panicking on the boundary.
+        Ok(d) => u64::try_from(d.as_nanos()).unwrap_or(u64::MAX),
         Err(e) => {
             static FAIL_COUNT: AtomicU64 = AtomicU64::new(0);
             let prev = FAIL_COUNT.fetch_add(1, Ordering::Relaxed);
@@ -106,19 +143,11 @@ pub fn decode_frame(
         }
     };
 
-    // Resolve contract_id to an Arc<Contract> from the thread-local cache.
-    // On a miss (tick arrived before the matching `ContractAssigned`
-    // frame) build a per-tick unresolved-contract sentinel whose
-    // `symbol` is `__pending:<id>` so downstream consumers can surface
-    // the wire id as an `unresolved_contract_id` diagnostic without
-    // re-introducing the field on the public `FpssData` surface (the
-    //  removal of wire ids from data events stands).
-    //
-    // The hit path stays zero-allocation: `Arc::clone` is a refcount
-    // bump on the cached `Arc<Contract>`. The miss path pays one
-    // `String::from(format!(..))` + one `Arc::new` per unresolved tick;
-    // miss density is bounded by the brief window between the first
-    // tick on a contract and the matching `ContractAssigned` frame.
+    // Resolve contract_id via the thread-local cache. Hit: Arc::clone
+    // (zero-alloc refcount bump). Miss: per-tick unresolved-sentinel
+    // (`__pending:<id>`); downstream consumers detect via
+    // `sec_type == SecType::Unknown`. Misses are bounded by the brief
+    // window between first tick and the matching `ContractAssigned`.
     let resolve_contract =
         |contract_id: i32, cache: &HashMap<i32, Arc<Contract>>| -> Arc<Contract> {
             cache
@@ -127,19 +156,36 @@ pub fn decode_frame(
                 .unwrap_or_else(|| unresolved_sentinel(contract_id))
         };
 
-    // Log a warning when ticks arrive for contract IDs not in the local
-    // contract cache. Suppress for 5 seconds after STOP (market close) since
-    // stale ticks are expected during teardown. Matches Java terminal behavior.
-    // Uses the thread-local cache instead of locking the shared contract_map.
+    // Warn on contract-id misses outside the post-STOP suppression
+    // window, rate-limited at every 1024th hit (matches the slow-
+    // callback / clock-skew warn cadence). MISS_COUNT is process-
+    // global so the "1 of every 1024" rate aggregates across every
+    // FpssClient in the same process.
     let warn_unknown_contract =
         |contract_id: i32,
          kind: &str,
          delta_state: &DeltaState,
          cache: &HashMap<i32, Arc<Contract>>| {
             if !cache.contains_key(&contract_id) && !delta_state.is_in_stop_suppression_window() {
-                tracing::warn!(contract_id, kind, "no contract for ID");
+                static MISS_COUNT: AtomicU64 = AtomicU64::new(0);
+                let prev = MISS_COUNT.fetch_add(1, Ordering::Relaxed);
+                if prev.is_multiple_of(1024) {
+                    tracing::warn!(
+                        contract_id,
+                        kind,
+                        miss_count = prev + 1,
+                        "no contract for ID (1 of every 1024 emitted across all FpssClients in this process)"
+                    );
+                }
             }
         };
+
+    // Stack-allocated tick buffer reused across every FIT-decoded arm. The
+    // decoder writes the absolute field values directly here; the match arm
+    // reads `buf[i]` to construct the public `FpssData` variant. Sized at
+    // the widest tick shape (`TRADE_FIELDS = 16`) so every arm shares one
+    // buffer with zero heap traffic on the decode hot path.
+    let mut buf: TickFields = [0; super::delta::MAX_DATA_FIELDS];
 
     match code {
         StreamMsgType::Metadata => {
@@ -147,7 +193,11 @@ pub fn decode_frame(
             // The payload is the server's opaque "Bundle" string -- see
             // FpssControl::LoginSuccess docs for why we don't parse it.
             let permissions = String::from_utf8_lossy(payload).to_string();
-            tracing::debug!(permissions = %permissions, "received METADATA");
+            // The Bundle string carries the account's subscription scope
+            // (e.g. `STOCK.PRO, OPTION.PRO, INDEX.PRO`) — operationally
+            // useful but account-identifying, so log it at `trace!` where
+            // a production deployment will not capture it by default.
+            tracing::trace!(permissions = %permissions, "received METADATA");
             authenticated.store(true, Ordering::Release);
             (
                 Some(FpssEventInternal::Control(FpssControl::LoginSuccess {
@@ -192,24 +242,24 @@ pub fn decode_frame(
 
         StreamMsgType::Quote => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS) {
-                Some((contract_id, f, _n)) => {
+            match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS, &mut buf) {
+                Some((contract_id, _n)) => {
                     warn_unknown_contract(contract_id, "quote", delta_state, local_contracts);
-                    metrics::counter!("thetadatadx.fpss.events", "kind" => "quote").increment(1);
-                    let pt = f[9];
+                    FPSS_QUOTE_EVENTS.increment(1);
+                    let pt = buf[9];
                     (
                         Some(FpssEventInternal::Data(FpssData::Quote {
                             contract: resolve_contract(contract_id, local_contracts),
-                            ms_of_day: f[0],
-                            bid_size: f[1],
-                            bid_exchange: f[2],
-                            bid: Price::new(f[3], pt).to_f64(),
-                            bid_condition: f[4],
-                            ask_size: f[5],
-                            ask_exchange: f[6],
-                            ask: Price::new(f[7], pt).to_f64(),
-                            ask_condition: f[8],
-                            date: f[10],
+                            ms_of_day: buf[0],
+                            bid_size: buf[1],
+                            bid_exchange: buf[2],
+                            bid: Price::new(buf[3], pt).to_f64(),
+                            bid_condition: buf[4],
+                            ask_size: buf[5],
+                            ask_exchange: buf[6],
+                            ask: Price::new(buf[7], pt).to_f64(),
+                            ask_condition: buf[8],
+                            date: buf[10],
                             received_at_ns,
                         })),
                         None,
@@ -222,8 +272,7 @@ pub fn decode_frame(
                     // Truncated / corrupt FIT payload. Account for it on
                     // the public counter so operators see decode pressure
                     // without raw-byte fallout reaching the user callback.
-                    metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "quote")
-                        .increment(1);
+                    FPSS_QUOTE_DECODE_FAILURES.increment(1);
                     (Some(FpssEventInternal::Unparseable), None)
                 }
             }
@@ -231,10 +280,10 @@ pub fn decode_frame(
 
         StreamMsgType::Trade => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, TRADE_FIELDS) {
-                Some((contract_id, f, n_data)) => {
+            match delta_state.decode_tick(msg_code, payload, TRADE_FIELDS, &mut buf) {
+                Some((contract_id, n_data)) => {
                     warn_unknown_contract(contract_id, "trade", delta_state, local_contracts);
-                    metrics::counter!("thetadatadx.fpss.events", "kind" => "trade").increment(1);
+                    FPSS_TRADE_EVENTS.increment(1);
 
                     if n_data != 8 && n_data != TRADE_FIELDS {
                         tracing::warn!(
@@ -248,54 +297,54 @@ pub fn decode_frame(
                     // 16-field: [ms_of_day, sequence, ext1..ext4, condition, size, exchange, price, cond_flags, price_flags, vol_type, records_back, price_type, date]
                     let contract_arc = resolve_contract(contract_id, local_contracts);
                     let trade_event = if n_data <= 8 {
-                        let pt = f[6];
+                        let pt = buf[6];
                         FpssEventInternal::Data(FpssData::Trade {
                             contract: Arc::clone(&contract_arc),
-                            ms_of_day: f[0],
-                            sequence: f[1],
+                            ms_of_day: buf[0],
+                            sequence: buf[1],
                             ext_condition1: 0,
                             ext_condition2: 0,
                             ext_condition3: 0,
                             ext_condition4: 0,
-                            condition: f[3],
-                            size: f[2],
-                            exchange: f[5],
-                            price: Price::new(f[4], pt).to_f64(),
+                            condition: buf[3],
+                            size: buf[2],
+                            exchange: buf[5],
+                            price: Price::new(buf[4], pt).to_f64(),
                             condition_flags: 0,
                             price_flags: 0,
                             volume_type: 0,
                             records_back: 0,
-                            date: f[7],
+                            date: buf[7],
                             received_at_ns,
                         })
                     } else {
-                        let pt = f[14];
+                        let pt = buf[14];
                         FpssEventInternal::Data(FpssData::Trade {
                             contract: Arc::clone(&contract_arc),
-                            ms_of_day: f[0],
-                            sequence: f[1],
-                            ext_condition1: f[2],
-                            ext_condition2: f[3],
-                            ext_condition3: f[4],
-                            ext_condition4: f[5],
-                            condition: f[6],
-                            size: f[7],
-                            exchange: f[8],
-                            price: Price::new(f[9], pt).to_f64(),
-                            condition_flags: f[10],
-                            price_flags: f[11],
-                            volume_type: f[12],
-                            records_back: f[13],
-                            date: f[15],
+                            ms_of_day: buf[0],
+                            sequence: buf[1],
+                            ext_condition1: buf[2],
+                            ext_condition2: buf[3],
+                            ext_condition3: buf[4],
+                            ext_condition4: buf[5],
+                            condition: buf[6],
+                            size: buf[7],
+                            exchange: buf[8],
+                            price: Price::new(buf[9], pt).to_f64(),
+                            condition_flags: buf[10],
+                            price_flags: buf[11],
+                            volume_type: buf[12],
+                            records_back: buf[13],
+                            date: buf[15],
                             received_at_ns,
                         })
                     };
 
                     // Extract for OHLCVC derivation (format-aware)
                     let (ms_of_day, size, price, price_type, date) = if n_data <= 8 {
-                        (f[0], f[2], f[4], f[6], f[7])
+                        (buf[0], buf[2], buf[4], buf[6], buf[7])
                     } else {
-                        (f[0], f[7], f[9], f[14], f[15])
+                        (buf[0], buf[7], buf[9], buf[14], buf[15])
                     };
 
                     // Derive OHLCVC from trade (OHLCVC.processTrade).
@@ -332,8 +381,7 @@ pub fn decode_frame(
                 // DATE markers return None from decode_tick -- normal protocol flow.
                 None if delta_state.last_was_date => (None, None),
                 None => {
-                    metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "trade")
-                        .increment(1);
+                    FPSS_TRADE_DECODE_FAILURES.increment(1);
                     (Some(FpssEventInternal::Unparseable), None)
                 }
             }
@@ -341,22 +389,21 @@ pub fn decode_frame(
 
         StreamMsgType::OpenInterest => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, OI_FIELDS) {
-                Some((contract_id, f, _n)) => {
+            match delta_state.decode_tick(msg_code, payload, OI_FIELDS, &mut buf) {
+                Some((contract_id, _n)) => {
                     warn_unknown_contract(
                         contract_id,
                         "open_interest",
                         delta_state,
                         local_contracts,
                     );
-                    metrics::counter!("thetadatadx.fpss.events", "kind" => "open_interest")
-                        .increment(1);
+                    FPSS_OI_EVENTS.increment(1);
                     (
                         Some(FpssEventInternal::Data(FpssData::OpenInterest {
                             contract: resolve_contract(contract_id, local_contracts),
-                            ms_of_day: f[0],
-                            open_interest: f[1],
-                            date: f[2],
+                            ms_of_day: buf[0],
+                            open_interest: buf[1],
+                            date: buf[2],
                             received_at_ns,
                         })),
                         None,
@@ -364,11 +411,7 @@ pub fn decode_frame(
                 }
                 None if delta_state.last_was_date => (None, None),
                 None => {
-                    metrics::counter!(
-                        "thetadatadx.fpss.decode_failures",
-                        "kind" => "open_interest",
-                    )
-                    .increment(1);
+                    FPSS_OI_DECODE_FAILURES.increment(1);
                     (Some(FpssEventInternal::Unparseable), None)
                 }
             }
@@ -376,27 +419,29 @@ pub fn decode_frame(
 
         StreamMsgType::Ohlcvc => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, OHLCVC_FIELDS) {
-                Some((contract_id, f, _n)) => {
+            match delta_state.decode_tick(msg_code, payload, OHLCVC_FIELDS, &mut buf) {
+                Some((contract_id, _n)) => {
                     warn_unknown_contract(contract_id, "ohlcvc", delta_state, local_contracts);
-                    metrics::counter!("thetadatadx.fpss.events", "kind" => "ohlcvc").increment(1);
+                    FPSS_OHLCVC_EVENTS.increment(1);
                     let acc = delta_state
                         .ohlcvc
                         .entry(contract_id)
                         .or_insert_with(OhlcvcAccumulator::new);
-                    acc.init_from_server(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8]);
-                    let pt = f[7];
+                    acc.init_from_server(
+                        buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8],
+                    );
+                    let pt = buf[7];
                     (
                         Some(FpssEventInternal::Data(FpssData::Ohlcvc {
                             contract: resolve_contract(contract_id, local_contracts),
-                            ms_of_day: f[0],
-                            open: Price::new(f[1], pt).to_f64(),
-                            high: Price::new(f[2], pt).to_f64(),
-                            low: Price::new(f[3], pt).to_f64(),
-                            close: Price::new(f[4], pt).to_f64(),
-                            volume: i64::from(f[5]),
-                            count: i64::from(f[6]),
-                            date: f[8],
+                            ms_of_day: buf[0],
+                            open: Price::new(buf[1], pt).to_f64(),
+                            high: Price::new(buf[2], pt).to_f64(),
+                            low: Price::new(buf[3], pt).to_f64(),
+                            close: Price::new(buf[4], pt).to_f64(),
+                            volume: i64::from(buf[5]),
+                            count: i64::from(buf[6]),
+                            date: buf[8],
                             received_at_ns,
                         })),
                         None,
@@ -404,8 +449,7 @@ pub fn decode_frame(
                 }
                 None if delta_state.last_was_date => (None, None),
                 None => {
-                    metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "ohlcvc")
-                        .increment(1);
+                    FPSS_OHLCVC_DECODE_FAILURES.increment(1);
                     (Some(FpssEventInternal::Unparseable), None)
                 }
             }
@@ -480,7 +524,12 @@ pub fn decode_frame(
         StreamMsgType::Disconnected => {
             let reason = parse_disconnect_reason(payload);
             tracing::warn!(reason = ?reason, "server disconnected us");
-            metrics::counter!("thetadatadx.fpss.disconnects", "reason" => format!("{:?}", reason))
+            // `RemoveReason::as_str` returns a `&'static str` per
+            // variant, so the label allocation drops to zero. Disconnects
+            // are rare, so this isn't a hot-path win — it's a
+            // consistency fix per the "no per-event allocations"
+            // discipline elsewhere in this module.
+            metrics::counter!("thetadatadx.fpss.disconnects", "reason" => reason.as_str())
                 .increment(1);
             authenticated.store(false, Ordering::Release);
 
@@ -631,11 +680,18 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // 8-field trade mapping
+    // 8-field trade mapping (drives the full `decode_frame` pipeline)
     // -----------------------------------------------------------------------
 
+    /// Drive `decode_frame` with a synthetic FIT-encoded `Trade` frame
+    /// and assert on the resulting `FpssEvent::Data(FpssData::Trade{..})`.
+    /// Replaces the prior hand-mapped `decode_tick` driver per BL-17:
+    /// asserting on the production decode-entry point pins the
+    /// integration contract (FIT decode + tick-buffer -> field
+    /// extraction + Arc<Contract> resolution + Price reassembly) rather
+    /// than re-implementing the mapping inside the test body.
     #[test]
-    fn decode_tick_8field_trade_returns_correct_n_data_and_fields() {
+    fn decode_frame_8field_trade_emits_trade_data_with_correct_fields() {
         // 8-field trade layout (dev server format):
         //   FIT fields: [contract_id, ms_of_day, sequence, size, condition,
         //                price, exchange, price_type, date]
@@ -652,59 +708,34 @@ mod tests {
             20250428, // date
         ]);
 
-        let mut ds = DeltaState::new();
-        let msg_code = StreamMsgType::Trade as u8;
-        let result = ds.decode_tick(msg_code, &fit_payload, TRADE_FIELDS);
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let aapl: Arc<Contract> = Arc::new(Contract::stock("AAPL"));
+        local_contracts.insert(100, Arc::clone(&aapl));
 
-        let (contract_id, f, n_data) = result.expect("decode_tick should succeed");
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let (primary, secondary) = decode_frame(
+            StreamMsgType::Trade,
+            &fit_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        // 8-field trades produce a primary Trade event and never a
+        // synthetic OHLCVC secondary (`derive_ohlcvc = false`).
+        assert!(
+            secondary.is_none(),
+            "8-field trade must not produce a secondary OHLCVC event"
+        );
 
-        // Verify contract_id extraction.
-        assert_eq!(contract_id, 100);
-
-        // The first absolute tick records the actual field count.
-        // 9 FIT fields total - 1 contract_id = 8 data fields.
-        assert_eq!(n_data, 8, "n_data must be 8 for an 8-field trade");
-
-        // Verify 8-field mapping produces correct Trade event fields.
-        // 8-field layout: [ms_of_day, sequence, size, condition, price, exchange, price_type, date]
-        assert_eq!(f[0], 34200000, "ms_of_day");
-        assert_eq!(f[1], 12345, "sequence");
-        assert_eq!(f[2], 50, "size");
-        assert_eq!(f[3], 6, "condition");
-        assert_eq!(f[4], 5500000, "price");
-        assert_eq!(f[5], 57, "exchange");
-        assert_eq!(f[6], 6, "price_type");
-        assert_eq!(f[7], 20250428, "date");
-
-        // Verify the n_data <= 8 mapping path produces the correct Trade variant.
-        assert!(n_data <= 8);
-        // The wire-internal `contract_id` no longer rides on the Trade
-        // event (extracted by `decode_tick`, used only to resolve the
-        // `Arc<Contract>` in `decode_frame`).
-        assert_eq!(contract_id, 100);
-        // Simulate the mapping from decode_frame's Trade arm:
-        let trade = FpssData::Trade {
-            contract: unresolved_sentinel(contract_id),
-            ms_of_day: f[0],
-            sequence: f[1],
-            ext_condition1: 0,
-            ext_condition2: 0,
-            ext_condition3: 0,
-            ext_condition4: 0,
-            condition: f[3],
-            size: f[2],
-            exchange: f[5],
-            price: Price::new(f[4], f[6]).to_f64(),
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
-            date: f[7],
-            received_at_ns: 0,
-        };
-
-        match trade {
-            FpssData::Trade {
+        let evt = primary.expect("decode_frame must emit a primary Trade event");
+        let public = expect_public(&evt);
+        match public {
+            FpssEvent::Data(FpssData::Trade {
+                contract,
                 ms_of_day,
                 sequence,
                 size,
@@ -721,34 +752,45 @@ mod tests {
                 volume_type,
                 records_back,
                 ..
-            } => {
-                assert_eq!(ms_of_day, 34200000);
-                assert_eq!(sequence, 12345);
-                assert_eq!(size, 50);
-                assert_eq!(condition, 6);
-                assert_eq!(price, Price::new(5500000, 6).to_f64());
-                assert_eq!(exchange, 57);
-                assert_eq!(date, 20250428);
-                // 8-field trades zero out extended fields.
-                assert_eq!(ext_condition1, 0);
-                assert_eq!(ext_condition2, 0);
-                assert_eq!(ext_condition3, 0);
-                assert_eq!(ext_condition4, 0);
-                assert_eq!(condition_flags, 0);
-                assert_eq!(price_flags, 0);
-                assert_eq!(volume_type, 0);
-                assert_eq!(records_back, 0);
+            }) => {
+                // Contract resolves via the seeded local_contracts cache
+                // (Arc refcount-clone, no unresolved-sentinel sym leak).
+                assert_eq!(contract.symbol, "AAPL");
+                assert_eq!(*ms_of_day, 34200000);
+                assert_eq!(*sequence, 12345);
+                assert_eq!(*size, 50);
+                assert_eq!(*condition, 6);
+                assert!(
+                    (*price - Price::new(5500000, 6).to_f64()).abs() < f64::EPSILON,
+                    "price must reassemble via Price::new(value, price_type)"
+                );
+                assert_eq!(*exchange, 57);
+                assert_eq!(*date, 20250428);
+                // 8-field trades zero out the extended-condition + flag fields.
+                assert_eq!(*ext_condition1, 0);
+                assert_eq!(*ext_condition2, 0);
+                assert_eq!(*ext_condition3, 0);
+                assert_eq!(*ext_condition4, 0);
+                assert_eq!(*condition_flags, 0);
+                assert_eq!(*price_flags, 0);
+                assert_eq!(*volume_type, 0);
+                assert_eq!(*records_back, 0);
             }
-            other => panic!("expected Trade, got {other:?}"),
+            other => panic!("expected FpssEvent::Data(Trade), got {other:?}"),
         }
     }
 
     // -----------------------------------------------------------------------
-    // 16-field trade mapping
+    // 16-field trade mapping (drives the full `decode_frame` pipeline)
     // -----------------------------------------------------------------------
 
+    /// 16-field production trade layout — drives `decode_frame` so the
+    /// FIT decode + every field on the public `FpssData::Trade` variant
+    /// (including the extended-condition + flag fields the 8-field
+    /// layout zeroes out) is asserted against the real decode path
+    /// rather than a hand-copied mapping. BL-17 fix.
     #[test]
-    fn decode_tick_16field_trade_returns_correct_n_data_and_fields() {
+    fn decode_frame_16field_trade_emits_trade_data_with_extended_fields() {
         // 16-field trade layout (production format):
         //   FIT fields: [contract_id, ms_of_day, sequence, ext1, ext2, ext3, ext4,
         //                condition, size, exchange, price, cond_flags, price_flags,
@@ -756,80 +798,46 @@ mod tests {
         //   = 1 contract_id + 16 data fields = 17 FIT fields total
         let fit_payload = encode_fit_row(&[
             200,      // contract_id
-            34200000, // ms_of_day (f[0])
-            99999,    // sequence  (f[1])
-            1,        // ext_condition1 (f[2])
-            2,        // ext_condition2 (f[3])
-            3,        // ext_condition3 (f[4])
-            4,        // ext_condition4 (f[5])
-            15,       // condition (f[6])
-            500,      // size (f[7])
-            57,       // exchange (f[8])
-            18750000, // price (f[9])
-            7,        // condition_flags (f[10])
-            3,        // price_flags (f[11])
-            1,        // volume_type (f[12])
-            0,        // records_back (f[13])
-            8,        // price_type (f[14])
-            20250428, // date (f[15])
+            34200000, // ms_of_day
+            99999,    // sequence
+            1,        // ext_condition1
+            2,        // ext_condition2
+            3,        // ext_condition3
+            4,        // ext_condition4
+            15,       // condition
+            500,      // size
+            57,       // exchange
+            18750000, // price
+            7,        // condition_flags
+            3,        // price_flags
+            1,        // volume_type
+            0,        // records_back
+            8,        // price_type
+            20250428, // date
         ]);
 
-        let mut ds = DeltaState::new();
-        let msg_code = StreamMsgType::Trade as u8;
-        let result = ds.decode_tick(msg_code, &fit_payload, TRADE_FIELDS);
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let spy: Arc<Contract> = Arc::new(Contract::stock("SPY"));
+        local_contracts.insert(200, Arc::clone(&spy));
 
-        let (contract_id, f, n_data) = result.expect("decode_tick should succeed");
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let (primary, _secondary) = decode_frame(
+            StreamMsgType::Trade,
+            &fit_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
 
-        // Verify contract_id extraction.
-        assert_eq!(contract_id, 200);
-
-        // 17 FIT fields total - 1 contract_id = 16 data fields.
-        assert_eq!(n_data, 16, "n_data must be 16 for a 16-field trade");
-        assert_eq!(n_data, TRADE_FIELDS);
-        assert_eq!(contract_id, 200);
-
-        // Verify all 16 data fields.
-        assert_eq!(f[0], 34200000, "ms_of_day");
-        assert_eq!(f[1], 99999, "sequence");
-        assert_eq!(f[2], 1, "ext_condition1");
-        assert_eq!(f[3], 2, "ext_condition2");
-        assert_eq!(f[4], 3, "ext_condition3");
-        assert_eq!(f[5], 4, "ext_condition4");
-        assert_eq!(f[6], 15, "condition");
-        assert_eq!(f[7], 500, "size");
-        assert_eq!(f[8], 57, "exchange");
-        assert_eq!(f[9], 18750000, "price");
-        assert_eq!(f[10], 7, "condition_flags");
-        assert_eq!(f[11], 3, "price_flags");
-        assert_eq!(f[12], 1, "volume_type");
-        assert_eq!(f[13], 0, "records_back");
-        assert_eq!(f[14], 8, "price_type");
-        assert_eq!(f[15], 20250428, "date");
-
-        // Verify the n_data > 8 mapping path produces the correct Trade variant.
-        assert!(n_data > 8);
-        let trade = FpssData::Trade {
-            contract: unresolved_sentinel(contract_id),
-            ms_of_day: f[0],
-            sequence: f[1],
-            ext_condition1: f[2],
-            ext_condition2: f[3],
-            ext_condition3: f[4],
-            ext_condition4: f[5],
-            condition: f[6],
-            size: f[7],
-            exchange: f[8],
-            price: Price::new(f[9], f[14]).to_f64(),
-            condition_flags: f[10],
-            price_flags: f[11],
-            volume_type: f[12],
-            records_back: f[13],
-            date: f[15],
-            received_at_ns: 0,
-        };
-
-        match trade {
-            FpssData::Trade {
+        let evt = primary.expect("decode_frame must emit a primary Trade event");
+        let public = expect_public(&evt);
+        match public {
+            FpssEvent::Data(FpssData::Trade {
+                contract,
                 ms_of_day,
                 sequence,
                 ext_condition1,
@@ -846,22 +854,26 @@ mod tests {
                 records_back,
                 date,
                 ..
-            } => {
-                assert_eq!(ms_of_day, 34200000);
-                assert_eq!(sequence, 99999);
-                assert_eq!(ext_condition1, 1);
-                assert_eq!(ext_condition2, 2);
-                assert_eq!(ext_condition3, 3);
-                assert_eq!(ext_condition4, 4);
-                assert_eq!(condition, 15);
-                assert_eq!(size, 500);
-                assert_eq!(exchange, 57);
-                assert_eq!(price, Price::new(18750000, 8).to_f64());
-                assert_eq!(condition_flags, 7);
-                assert_eq!(price_flags, 3);
-                assert_eq!(volume_type, 1);
-                assert_eq!(records_back, 0);
-                assert_eq!(date, 20250428);
+            }) => {
+                assert_eq!(contract.symbol, "SPY");
+                assert_eq!(*ms_of_day, 34200000);
+                assert_eq!(*sequence, 99999);
+                assert_eq!(*ext_condition1, 1);
+                assert_eq!(*ext_condition2, 2);
+                assert_eq!(*ext_condition3, 3);
+                assert_eq!(*ext_condition4, 4);
+                assert_eq!(*condition, 15);
+                assert_eq!(*size, 500);
+                assert_eq!(*exchange, 57);
+                assert!(
+                    (*price - Price::new(18750000, 8).to_f64()).abs() < f64::EPSILON,
+                    "price must reassemble via Price::new(value, price_type)"
+                );
+                assert_eq!(*condition_flags, 7);
+                assert_eq!(*price_flags, 3);
+                assert_eq!(*volume_type, 1);
+                assert_eq!(*records_back, 0);
+                assert_eq!(*date, 20250428);
             }
             other => panic!("expected Trade, got {other:?}"),
         }
@@ -1133,11 +1145,11 @@ mod tests {
                     tdbe::types::enums::SecType::Unknown,
                     "missing contract_id must surface sec_type = Unknown"
                 );
-                // PR #514 MED-001: the sentinel's `symbol` carries the
-                // unresolved wire id under the `__pending:` prefix so
-                // downstream consumers (notably the WS bridge) can
-                // surface the diagnostic without re-introducing the
-                // wire id on the public `FpssData` surface.
+                // The sentinel's `symbol` carries the unresolved wire id
+                // under the `__pending:` prefix so downstream consumers
+                // (notably the WS bridge) can surface the diagnostic
+                // without re-introducing the wire id on the public
+                // `FpssData` surface.
                 assert_eq!(
                     contract.symbol, "__pending:999",
                     "unresolved sentinel must encode the wire id under \

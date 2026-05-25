@@ -47,6 +47,8 @@
 
 mod auth;
 mod env;
+mod fallback;
+mod flatfiles;
 mod fpss;
 mod mdds;
 mod metrics;
@@ -60,10 +62,14 @@ pub use auth::{AuthConfig, DEFAULT_CLIENT_TYPE, DEFAULT_NEXUS_URL};
 pub use env::{
     ENV_CLIENT_TYPE, ENV_FPSS_HOST, ENV_FPSS_PORT, ENV_MDDS_HOST, ENV_MDDS_PORT, ENV_NEXUS_URL,
 };
+pub use fallback::{FallbackPolicy, DEFAULT_REST_BASE_URL};
+pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
 pub use fpss::{bounds as fpss_bounds, FpssConfig, FpssFlushMode};
 pub use mdds::MddsConfig;
 pub use metrics::MetricsConfig;
-pub use reconnect::{ReconnectConfig, ReconnectPolicy};
+pub use reconnect::{
+    ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectConfig, ReconnectPolicy,
+};
 pub use retry::RetryPolicy;
 pub use runtime::RuntimeConfig;
 
@@ -106,6 +112,8 @@ pub struct DirectConfig {
     pub mdds: MddsConfig,
     /// FPSS streaming tuning.
     pub fpss: FpssConfig,
+    /// FLATFILES retry tuning.
+    pub flatfiles: FlatFilesConfig,
     /// Reconnection cadence + policy.
     pub reconnect: ReconnectConfig,
     /// MDDS retry policy.
@@ -116,6 +124,12 @@ pub struct DirectConfig {
     pub metrics: MetricsConfig,
     /// Async runtime tuning.
     pub runtime: RuntimeConfig,
+    /// REST-routing policy for the historical-quote endpoints.
+    /// Default is [`FallbackPolicy::Disabled`] -- every request goes
+    /// over gRPC. Set via [`Self::with_rest_fallback`] when the caller
+    /// wants every historical-quote call routed over a locally-running
+    /// Terminal's REST surface.
+    pub fallback: FallbackPolicy,
 }
 
 impl DirectConfig {
@@ -151,11 +165,13 @@ impl DirectConfig {
         Self {
             mdds: MddsConfig::production_defaults(),
             fpss: FpssConfig::production_defaults(),
+            flatfiles: FlatFilesConfig::production_defaults(),
             reconnect: ReconnectConfig::production_defaults(),
             retry: RetryPolicy::default(),
             auth: AuthConfig::production_defaults(),
             metrics: MetricsConfig::default(),
             runtime: RuntimeConfig::default(),
+            fallback: FallbackPolicy::Disabled,
         }
     }
 
@@ -213,7 +229,7 @@ impl DirectConfig {
     ///
     /// Returns the configuration with MDDS HTTP/2 window sizes clamped
     /// into `[64, 1024]` KB on success. Returns
-    /// [`Error::Config`](crate::error::Error::Config) when any wired FPSS
+    /// [`Error::Config`] when any wired FPSS
     /// knob (`timeout_ms`, `connect_timeout_ms`, `ping_interval_ms`)
     /// falls outside its documented range — silent rounding would
     /// rewrite the caller's stated tuning under their feet, so an
@@ -226,7 +242,7 @@ impl DirectConfig {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Config`](crate::error::Error::Config) when an FPSS
+    /// Returns [`Error::Config`] when an FPSS
     /// timing knob is out of range.
     pub fn validate(mut self) -> Result<Self, Error> {
         // u64 → i64: every bound fits comfortably under i64::MAX (max
@@ -263,8 +279,35 @@ impl DirectConfig {
         if let Err(e) = crate::fpss::ring::check_ring_size(self.fpss.ring_size) {
             return Err(Error::config_invalid("fpss.ring_size", e.to_string()));
         }
+        // Same contract for the MDDS decoder pool ring. The MDDS
+        // pool uses the same shared validator (`crate::util::ring`)
+        // so the failure mode is identical: non-power-of-two sizes
+        // would force a modulo on every consumer tick.
+        if let Err(e) = crate::util::ring::check_ring_size(self.mdds.decoder_ring_size) {
+            return Err(Error::config_invalid(
+                "mdds.decoder_ring_size",
+                e.to_string(),
+            ));
+        }
         self.mdds.window_size_kb = self.mdds.window_size_kb.clamp(64, 1_024);
         self.mdds.connection_window_size_kb = self.mdds.connection_window_size_kb.clamp(64, 1_024);
+        if !flatfiles_bounds::MAX_ATTEMPTS.contains(&self.flatfiles.max_attempts) {
+            return Err(Error::config_out_of_range(
+                "flatfiles.max_attempts",
+                i64::from(self.flatfiles.max_attempts),
+                i64::from(*flatfiles_bounds::MAX_ATTEMPTS.start()),
+                i64::from(*flatfiles_bounds::MAX_ATTEMPTS.end()),
+            ));
+        }
+        if self.flatfiles.max_backoff < self.flatfiles.initial_backoff {
+            return Err(Error::config_invalid(
+                "flatfiles.max_backoff",
+                format!(
+                    "max_backoff ({:?}) must be >= initial_backoff ({:?})",
+                    self.flatfiles.max_backoff, self.flatfiles.initial_backoff
+                ),
+            ));
+        }
         Ok(self)
     }
 
@@ -316,6 +359,30 @@ impl DirectConfig {
     #[must_use]
     pub fn with_client_type(mut self, client_type: impl Into<String>) -> Self {
         self.auth.client_type = client_type.into();
+        self
+    }
+
+    /// Configure REST routing for the historical-quote endpoints.
+    ///
+    /// Default is [`FallbackPolicy::Disabled`]; requests always flow
+    /// through gRPC. Set to [`FallbackPolicy::RestAlways`] when the
+    /// caller wants every historical-quote call routed over a
+    /// locally-running Terminal's REST surface (e.g. when network
+    /// policy disallows direct MDDS access or the local Terminal
+    /// exposes column extensions the upstream gRPC service does
+    /// not yet expose).
+    ///
+    /// ```rust,no_run
+    /// use thetadatadx::config::{DirectConfig, FallbackPolicy, DEFAULT_REST_BASE_URL};
+    /// let cfg = DirectConfig::production().with_rest_fallback(
+    ///     FallbackPolicy::RestAlways {
+    ///         base_url: DEFAULT_REST_BASE_URL.to_string(),
+    ///     },
+    /// );
+    /// ```
+    #[must_use]
+    pub fn with_rest_fallback(mut self, policy: FallbackPolicy) -> Self {
+        self.fallback = policy;
         self
     }
 
@@ -497,7 +564,9 @@ impl DirectConfig {
 
 #[cfg(feature = "config-file")]
 mod config_file {
-    use super::{DirectConfig, FpssFlushMode, ReconnectPolicy, RetryPolicy};
+    use super::{
+        DirectConfig, FpssFlushMode, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy,
+    };
     use crate::error::Error;
     use serde::Deserialize;
 
@@ -744,7 +813,7 @@ mod config_file {
             out.reconnect.wait_rate_limited_ms = cf.fpss.reconnect_wait_rate_limited;
             // TOML config cannot express custom closures; default to Auto.
             // Use the builder API to set Manual or Custom programmatically.
-            out.reconnect.policy = ReconnectPolicy::Auto;
+            out.reconnect.policy = ReconnectPolicy::Auto(ReconnectAttemptLimits::default());
 
             // TOML does not surface RetryPolicy / observability fields
             // today — the builder API (`with_retry_policy`,
@@ -766,30 +835,45 @@ mod tests {
 
     #[test]
     fn production_mdds_uri() {
+        // `DirectConfig::production()` reads `THETADATA_MDDS_*` env
+        // vars; another test in this module (`env_overrides_apply_on_production`)
+        // mutates the same env via `unsafe`, and the env is process-
+        // global. Acquire the shared test guard so the two cannot
+        // race when `cargo test` runs them in parallel.
+        let _guard = env_test_guard();
+        clear_env_matrix();
         let config = DirectConfig::production();
         assert_eq!(config.mdds_uri(), "https://mdds-01.thetadata.us:443");
     }
 
     #[test]
     fn production_has_four_fpss_hosts() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
         let config = DirectConfig::production();
         assert_eq!(config.fpss.hosts.len(), 4);
     }
 
     #[test]
     fn production_default_reconnect_policy_is_auto() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
         let config = DirectConfig::production();
-        assert!(matches!(config.reconnect.policy, ReconnectPolicy::Auto));
+        assert!(matches!(config.reconnect.policy, ReconnectPolicy::Auto(_)));
     }
 
     #[test]
     fn production_mdds_connect_timeout_default_is_ten_seconds() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
         let config = DirectConfig::production();
         assert_eq!(config.mdds.connect_timeout_secs, 10);
     }
 
     #[test]
     fn read_accessors_match_nested_fields() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
         let config = DirectConfig::production();
         assert_eq!(config.mdds_host(), config.mdds.host.as_str());
         assert_eq!(config.fpss_ring_size(), config.fpss.ring_size);
@@ -1022,6 +1106,71 @@ mod tests {
         assert!(err.to_string().contains("ring_size"));
     }
 
+    #[test]
+    fn validate_rejects_invalid_mdds_decoder_ring_size() {
+        // Same contract as `fpss.ring_size`: power of two, >= 64.
+        // 100 is the canonical "not a power of two" sentinel.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.decoder_ring_size = 100;
+        let err = config.validate().expect_err("must reject non-power-of-two");
+        assert!(
+            err.to_string().contains("decoder_ring_size"),
+            "expected error to name the offending field: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_decoder_ring_size_below_minimum() {
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.decoder_ring_size = 32; // below MIN_RING_SIZE
+        let err = config
+            .validate()
+            .expect_err("must reject sub-minimum ring size");
+        assert!(err.to_string().contains("decoder_ring_size"));
+    }
+
+    #[test]
+    fn mdds_decoder_defaults_match_production_baseline() {
+        let mdds = crate::config::MddsConfig::production_defaults();
+        // `0` is the auto-detect sentinel; `default_decoder_thread_count`
+        // resolves it at connect time.
+        assert_eq!(mdds.decoder_threads, 0);
+        assert_eq!(mdds.decoder_ring_size, 256);
+        assert!(mdds.decoder_ring_size.is_power_of_two());
+        // Tier clamp on by default — the override is an internal
+        // escape hatch only enabled by tests that need to reproduce
+        // the over-provisioning failure mode.
+        assert!(!mdds.override_tier_clamp);
+        // Two-stage decode pipeline defaults: auto-size at connect
+        // time. `None` is the sentinel; the resolution lives in
+        // `mdds::client::default_stage2_thread_count` /
+        // `default_stage2_queue_depth` so production behaviour
+        // tracks `available_parallelism` automatically.
+        assert!(mdds.decode_threads.is_none());
+        assert!(mdds.decode_queue_depth.is_none());
+    }
+
+    #[test]
+    fn mdds_decode_threads_override_clamps_zero_to_one() {
+        // The clamp lives in `Stage2Pool::new`; the config-side
+        // contract is that `Some(0)` reaches the pool as the
+        // operator's explicit choice (the pool then clamps to 1
+        // rather than the config layer reinterpreting "0 means
+        // auto-size"). This test pins the contract so a future
+        // refactor that moves the clamp here trips CI before
+        // shipping.
+        let mut mdds = crate::config::MddsConfig::production_defaults();
+        mdds.decode_threads = Some(0);
+        assert_eq!(mdds.decode_threads, Some(0));
+    }
+
+    #[test]
+    fn mdds_decode_queue_depth_override_holds_explicit_value() {
+        let mut mdds = crate::config::MddsConfig::production_defaults();
+        mdds.decode_queue_depth = Some(2048);
+        assert_eq!(mdds.decode_queue_depth, Some(2048));
+    }
+
     // ── RetryPolicy / env var tests ──────────────────────────────────
 
     #[test]
@@ -1119,8 +1268,14 @@ mod tests {
     fn clear_env_matrix() {
         // Unset every variable the env-override path reads so no test
         // leaks into another. The guard above pins us as the sole writer.
+        // SAFETY: the env-var tests serialise through `env_test_guard()`,
+        // a process-global `Mutex<()>` held for the full body of every
+        // env test; this function is only called from inside that
+        // critical section. The Rust 1.88 `unsafe fn` contract on
+        // `std::env::remove_var` requires the caller to ensure no other
+        // thread reads or writes the environment concurrently — the
+        // mutex provides exactly that.
         unsafe {
-            // Reason: test-only mutation; protected by env_test_guard.
             std::env::remove_var(ENV_MDDS_HOST);
             std::env::remove_var(ENV_MDDS_PORT);
             std::env::remove_var(ENV_NEXUS_URL);
@@ -1134,8 +1289,11 @@ mod tests {
     fn env_overrides_apply_on_production() {
         let _guard = env_test_guard();
         clear_env_matrix();
+        // SAFETY: `_guard` holds the process-global env-var mutex for
+        // the body of this test, so no other thread observes or mutates
+        // the environment while these writes land. `std::env::set_var`'s
+        // 1.88 `unsafe fn` contract is therefore upheld.
         unsafe {
-            // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_MDDS_HOST, "mdds.staging.example.com");
             std::env::set_var(ENV_MDDS_PORT, "8443");
             std::env::set_var(ENV_NEXUS_URL, "https://nexus.staging.example.com/auth");
@@ -1162,8 +1320,10 @@ mod tests {
     fn builder_takes_precedence_over_env_var() {
         let _guard = env_test_guard();
         clear_env_matrix();
+        // SAFETY: `_guard` holds the process-global env-var mutex for
+        // the body of this test, so no other thread observes or mutates
+        // the environment while this write lands.
         unsafe {
-            // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_CLIENT_TYPE, "env-wins-when-no-builder");
         }
         let config = DirectConfig::production().with_client_type("builder-wins");
@@ -1175,8 +1335,10 @@ mod tests {
     fn env_overrides_skipped_when_values_malformed() {
         let _guard = env_test_guard();
         clear_env_matrix();
+        // SAFETY: `_guard` holds the process-global env-var mutex for
+        // the body of this test, so no other thread observes or mutates
+        // the environment while these writes land.
         unsafe {
-            // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_MDDS_PORT, "not-a-port");
             std::env::set_var(ENV_FPSS_PORT, "0"); // reject zero
             std::env::set_var(ENV_MDDS_HOST, "   "); // whitespace-only
@@ -1193,8 +1355,10 @@ mod tests {
     fn production_defaults_are_not_sensitive_to_env() {
         let _guard = env_test_guard();
         clear_env_matrix();
+        // SAFETY: `_guard` holds the process-global env-var mutex for
+        // the body of this test, so no other thread observes or mutates
+        // the environment while these writes land.
         unsafe {
-            // Reason: test-only mutation; protected by env_test_guard.
             std::env::set_var(ENV_MDDS_HOST, "ignored-by-defaults");
             std::env::set_var(ENV_MDDS_PORT, "9999");
         }

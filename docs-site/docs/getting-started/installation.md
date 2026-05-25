@@ -13,7 +13,7 @@ ThetaDataDx ships four language surfaces from one Rust core. Pick your language 
 ```toml [Rust]
 # Add to your Cargo.toml
 [dependencies]
-thetadatadx = "9"
+thetadatadx = "10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 ```bash [Python]

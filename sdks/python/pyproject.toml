@@ -26,6 +26,27 @@ Repository = "https://github.com/userFRM/ThetaDataDx"
 Documentation = "https://github.com/userFRM/ThetaDataDx/blob/main/docs/api-reference.md"
 Discord = "https://discord.thetadata.us/"
 
+[tool.maturin]
+# Mixed Rust + Python layout: hand-written `.pyi` stubs and the
+# `py.typed` PEP 561 marker live in `python/thetadatadx/`. Maturin
+# merges these into the wheel alongside the compiled `.so` extension
+# emitted from `src/lib.rs`.
+python-source = "python"
+# Stable ABI: one wheel per platform covers every CPython 3.9+ release.
+#
+# N14 closure: the `abi3-py39` feature is unconditionally enabled
+# here even on the free-threaded `3.13t` / `3.14t` build matrix
+# entries — PyO3 emits a benign warning at build time for those
+# entries ("free-threaded build ignores abi3"), but the wheel
+# selection is correct either way: maturin's
+# `--interpreter python3.13t` flag overrides the abi3 emission and
+# tags the wheel `cp313-cp313t-*` (PEP 703 free-threaded ABI, not
+# abi3). The abi3 feature is then a no-op on those builds. Documented
+# as intended; flipping it on / off per matrix entry would require a
+# maturin overlay file that maintains two source-of-truth feature
+# lists. See the GH Actions log for the documented warning shape.
+features = ["pyo3/abi3-py39"]
+
 [project.optional-dependencies]
 # Arrow columnar pipeline (feat/arrow-columnar-dataframe):
 #   - `.to_arrow()` on a typed `<Tick>List` wrapper returns a

@@ -151,7 +151,13 @@ The build expands that metadata into the registry, shared endpoint runtime, and
 
 1. **Update the proto** (if the endpoint uses a new message type)
    - Update `crates/thetadatadx/proto/mdds.proto`
-   - `cargo build` regenerates Rust types automatically
+   - `cargo build` regenerates Rust message types automatically
+   - The committed gRPC codegen snapshot at
+     `crates/thetadatadx/proto/beta_endpoints.snapshot.rs` is verified
+     by the build script but never written by it. Refresh it
+     explicitly with
+     `cargo run -p thetadatadx --bin refresh_grpc_snapshot --features grpc-codegen`
+     and commit the resulting diff alongside the proto change.
 
 2. **Add or update the endpoint surface**
    - Add an entry to `crates/thetadatadx/endpoint_surface.toml`

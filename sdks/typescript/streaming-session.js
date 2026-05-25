@@ -24,6 +24,128 @@
 
 const native = require('./index.js');
 
+// ── Typed error hierarchy ─────────────────────────────────────────────
+//
+// The Rust napi binding (`to_napi_err` in `sdks/typescript/src/lib.rs`)
+// surfaces every `thetadatadx::Error` as a `napi::Error` whose
+// `reason` carries a `[ClassName] ...` prefix. The JS interceptor
+// below parses that prefix and re-throws the matching subclass so
+// callers can write `catch (e) { if (e instanceof tdx.SubscriptionError)
+// { ... } }` rather than substring-matching the message.
+//
+// The hierarchy mirrors the Python `to_py_err` leaf set one-for-one.
+
+class ThetaDataError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ThetaDataError';
+  }
+}
+class AuthenticationError extends ThetaDataError {
+  constructor(message) {
+    super(message);
+    this.name = 'AuthenticationError';
+  }
+}
+class InvalidCredentialsError extends AuthenticationError {
+  constructor(message) {
+    super(message);
+    this.name = 'InvalidCredentialsError';
+  }
+}
+class SubscriptionError extends ThetaDataError {
+  constructor(message) {
+    super(message);
+    this.name = 'SubscriptionError';
+  }
+}
+class RateLimitError extends ThetaDataError {
+  constructor(message) {
+    super(message);
+    this.name = 'RateLimitError';
+  }
+}
+class NotFoundError extends ThetaDataError {
+  constructor(message) {
+    super(message);
+    this.name = 'NotFoundError';
+  }
+}
+class DeadlineExceededError extends ThetaDataError {
+  constructor(message) {
+    super(message);
+    this.name = 'DeadlineExceededError';
+  }
+}
+class UnavailableError extends ThetaDataError {
+  constructor(message) {
+    super(message);
+    this.name = 'UnavailableError';
+  }
+}
+class NetworkError extends ThetaDataError {
+  constructor(message) {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
+class SchemaMismatchError extends ThetaDataError {
+  constructor(message) {
+    super(message);
+    this.name = 'SchemaMismatchError';
+  }
+}
+class StreamError extends ThetaDataError {
+  constructor(message) {
+    super(message);
+    this.name = 'StreamError';
+  }
+}
+
+const CLASS_BY_NAME = {
+  ThetaDataError,
+  AuthenticationError,
+  InvalidCredentialsError,
+  SubscriptionError,
+  RateLimitError,
+  NotFoundError,
+  DeadlineExceededError,
+  UnavailableError,
+  NetworkError,
+  SchemaMismatchError,
+  StreamError,
+};
+
+const PREFIX_RE = /^\[([A-Za-z]+Error)\]\s*(.*)$/s;
+
+/**
+ * Re-cast a napi-thrown `Error` as the matching typed subclass when
+ * the reason carries the `[ClassName] ...` prefix the Rust shim
+ * emits. Anything that doesn't match the prefix surfaces unchanged
+ * — preserves the existing `Error` shape for failures from the
+ * generic napi machinery (e.g. argument coercion failures inside
+ * the bindings).
+ */
+function rethrowTyped(err) {
+  if (!(err instanceof Error) || typeof err.message !== 'string') {
+    throw err;
+  }
+  const match = PREFIX_RE.exec(err.message);
+  if (!match) {
+    throw err;
+  }
+  const [, className, payload] = match;
+  const Cls = CLASS_BY_NAME[className];
+  if (!Cls) {
+    throw err;
+  }
+  const typed = new Cls(payload);
+  // Preserve the stack from the napi-thrown Error so the typed
+  // re-throw still carries the original call site.
+  typed.stack = err.stack;
+  throw typed;
+}
+
 // Drain timeout applied on `[Symbol.asyncDispose]`. Matches the C++
 // destructor's 5 s budget in `sdks/cpp/src/thetadx.cpp` and the FFI
 // free-path budget in `ffi/src/streaming.rs::FREE_DRAIN_TIMEOUT`.
@@ -123,6 +245,109 @@ if (
   };
 }
 
+// `await using session = await tdx.streamingIter()` — RAII context
+// manager around the pull-iter delivery path. Returns a
+// `StreamingIterSession` wrapping a `native.EventIterator` so user
+// code can `for await (const event of session)` and the framework
+// pairs `close()` + `stopStreaming()` + `awaitDrain(5000)` on scope
+// exit. Mirrors the Python `with tdx.streaming_iter() as it:` block
+// and the C++ `tdx::UnifiedFpssIterSession` destructor.
+
+class StreamingIterSession {
+  /**
+   * @param {InstanceType<typeof native.ThetaDataDxClient>} tdx
+   * @param {InstanceType<typeof native.EventIterator>} iter
+   */
+  constructor(tdx, iter) {
+    this._tdx = tdx;
+    this._iter = iter;
+    return new Proxy(this, {
+      get(target, prop, receiver) {
+        // Method overrides defined on this class take precedence;
+        // everything else proxies to the underlying iterator first,
+        // then to the parent ThetaDataDxClient — so subscribe /
+        // unsubscribe / activeSubscriptions are reachable through
+        // the session without an explicit forwarder per method.
+        if (
+          prop === Symbol.asyncIterator ||
+          prop === Symbol.asyncDispose ||
+          prop === '_tdx' ||
+          prop === '_iter' ||
+          prop === 'constructor'
+        ) {
+          return Reflect.get(target, prop, receiver);
+        }
+        if (typeof target[prop] !== 'undefined' && prop !== 'next') {
+          const own = Reflect.get(target, prop, receiver);
+          return typeof own === 'function' ? own.bind(target) : own;
+        }
+        const iter = target._iter;
+        const onIter = iter[prop];
+        if (onIter !== undefined) {
+          return typeof onIter === 'function' ? onIter.bind(iter) : onIter;
+        }
+        const tdx = target._tdx;
+        const onTdx = tdx[prop];
+        return typeof onTdx === 'function' ? onTdx.bind(tdx) : onTdx;
+      },
+    });
+  }
+
+  [Symbol.asyncIterator]() {
+    const iter = this._iter;
+    return {
+      async next() {
+        const evt = await iter.next();
+        if (evt === null || evt === undefined) {
+          return { value: undefined, done: true };
+        }
+        return { value: evt, done: false };
+      },
+      async return() {
+        // Early-break path — close the iterator so a pending `next()`
+        // returns promptly. The session's `[Symbol.asyncDispose]`
+        // still runs `stopStreaming` + `awaitDrain`.
+        try {
+          iter.close();
+        } catch (_) {
+          // close is best-effort
+        }
+        return { value: undefined, done: true };
+      },
+    };
+  }
+
+  async [Symbol.asyncDispose]() {
+    // Mirror the C++ `UnifiedFpssIterSession` destructor and the
+    // Python `__exit__`: close the iterator, stop the streaming
+    // session, then await the drain barrier with the same 5 s
+    // budget. Drain timeouts emit `console.warn` rather than
+    // throwing so a `using` block exit doesn't mask body errors.
+    try {
+      this._iter.close();
+    } catch (_) {}
+    this._tdx.stopStreaming();
+    const drained = await this._tdx.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
+    if (!drained) {
+      console.warn(
+        `ThetaDataDxClient streaming iter drain timed out after ${EXIT_DRAIN_TIMEOUT_MS}ms; ` +
+          'the consumer thread may still be pushing events. The iterator ' +
+          'is already closed and will stop yielding once the consumer exits.',
+      );
+    }
+  }
+}
+
+if (
+  native.ThetaDataDxClient &&
+  typeof native.ThetaDataDxClient.prototype.streamingIter !== 'function'
+) {
+  native.ThetaDataDxClient.prototype.streamingIter = async function streamingIter() {
+    const iter = this.startStreamingIter();
+    return new StreamingIterSession(this, iter);
+  };
+}
+
 // Pull-iter delivery. Patch `[Symbol.asyncIterator]` onto the
 // napi-bound `EventIterator` class so user code drains it with the
 // idiomatic `for await (const event of iter)` shape. The napi-rs
@@ -169,7 +394,59 @@ if (
 // surface documented in the quickstart is `Contract.stock("AAPL")` /
 // `Contract.option(...)`, so the alias makes the JS export agree with
 // the docs without a second pyclass.
+// Patch every method on the native binding's exported classes so
+// rejections / throws get re-cast through the typed error hierarchy.
+// The shim parses the `[ClassName] ...` prefix the Rust shim emits;
+// errors without the prefix surface unchanged.
+function wrapMethodsWithTypedErrors(klass) {
+  if (!klass || !klass.prototype) return;
+  for (const name of Object.getOwnPropertyNames(klass.prototype)) {
+    if (name === 'constructor') continue;
+    const desc = Object.getOwnPropertyDescriptor(klass.prototype, name);
+    if (!desc || typeof desc.value !== 'function') continue;
+    const original = desc.value;
+    klass.prototype[name] = function patchedNapiMethod(...args) {
+      let result;
+      try {
+        result = original.apply(this, args);
+      } catch (err) {
+        rethrowTyped(err);
+      }
+      // napi-rs async methods return a Promise; intercept the
+      // rejection without altering the resolved value.
+      if (result && typeof result.then === 'function') {
+        return result.then(
+          (value) => value,
+          (err) => rethrowTyped(err),
+        );
+      }
+      return result;
+    };
+  }
+}
+
+for (const klassName of [
+  'ThetaDataDxClient',
+  'EventIterator',
+  'FlatFileRowList',
+]) {
+  const klass = native[klassName];
+  if (klass) wrapMethodsWithTypedErrors(klass);
+}
+
 module.exports = Object.assign({}, native, {
   StreamingSession,
+  StreamingIterSession,
   Contract: native.ContractRef,
+  ThetaDataError,
+  AuthenticationError,
+  InvalidCredentialsError,
+  SubscriptionError,
+  RateLimitError,
+  NotFoundError,
+  DeadlineExceededError,
+  UnavailableError,
+  NetworkError,
+  SchemaMismatchError,
+  StreamError,
 });

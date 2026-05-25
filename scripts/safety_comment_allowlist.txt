@@ -1,0 +1,52 @@
+# Per-site allowlist for the SAFETY-comment boilerplate gate
+# (`scripts/check_safety_comment_boilerplate.py`).
+#
+# Lines starting with `#` and blank lines are ignored. Every other
+# line is a substring matched against the normalised text of a SAFETY
+# comment block. A block whose text contains an allowlist entry is
+# excluded from the duplicate-count.
+#
+# Add an entry here ONLY when:
+#
+# 1. The SAFETY invariant is genuinely shared verbatim across
+#    multiple sites (e.g. an FFI handle-based fn whose null-ness +
+#    lifetime contract is identical to every other such fn in the
+#    same family), AND
+# 2. The text mentions the actual invariant — a type, a lifetime,
+#    an ordering, an allocator contract — not a hand-wave like
+#    "caller upholds the contract".
+#
+# When in doubt, rewrite the per-site comment to name what makes
+# THAT site sound, rather than expanding this allowlist.
+
+# Standard FFI handle-based functions: every `tdx_<noun>_free` /
+# `tdx_<noun>_get_*` / etc. takes a pointer returned by the matching
+# `tdx_<noun>_new` (or a successor that documents the same handle
+# layout) and refers to a `Box<T>` whose lifetime is bounded by the
+# matching `*_free`. The repeat is intentional: the invariant IS the
+# same per-site, and the C-ABI shim cannot factor it into a helper
+# without losing the per-fn rustdoc.
+the handle is a non-null pointer returned by the matching tdx_
+
+# Endpoint-shim symbol-array contract: the same `*const *const c_char
+# + symbols_len` shape is consumed by ~30 endpoint shims. Each one's
+# null + UTF-8 + lifetime contract is identical (handed off to
+# `parse_symbol_array` which validates element-wise and surfaces
+# per-element errors through `tdx_last_error`). Allowlisted because
+# the shared contract is genuinely shared, not boilerplate.
+caller passes a contiguous array of `symbols_len` non-null nul-terminated c strings
+
+# Test-only handle round-trip: every Config / fallback / policy /
+# streaming-shim test calls `tdx_<noun>_<factory>` immediately above
+# the unsafe block, asserts the returned pointer is non-null, then
+# dereferences it. Same invariant per site: the factory returned a
+# `Box<...>` whose lifetime is the unsafe scope. Allowlist substrings
+# accept the legitimate stamped forms.
+handle just returned by tdx_config_production
+policy was just allocated above
+# Audit S2: tightened from the prior generic `passing null is the
+# contract` substring (which matched any text containing that
+# phrase, even outside the intended `tdx_*_free` tests) to anchor
+# on the `tdx_*_free` test family that exercises the documented
+# null-tolerance contract per `ffi/src/auth.rs` rustdoc.
+passing null to tdx_

@@ -7,9 +7,11 @@
 use std::collections::BTreeMap;
 
 use tdbe::types::tick::{
-    CalendarDay, EodTick, GreeksAllTick, GreeksFirstOrderTick, GreeksSecondOrderTick,
-    GreeksThirdOrderTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick,
-    OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
+    CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
+    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
+    MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,
+    TradeGreeksAllTick, TradeGreeksFirstOrderTick, TradeGreeksImpliedVolatilityTick,
+    TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
 };
 
 use crate::mdds::registry::ParamType;
@@ -406,9 +408,18 @@ pub enum EndpointOutput {
     OpenInterestTicks(Vec<OpenInterestTick>),
     /// `Vec<MarketValueTick>` result.
     MarketValueTicks(Vec<MarketValueTick>),
-    /// `Vec<GreeksAllTick>` result. Returned by `option_*_greeks_all` and
-    /// `option_*_greeks_eod` endpoints.
+    /// `Vec<GreeksAllTick>` result. Returned by `option_*_greeks_all`
+    /// endpoints (interval-sampled full-union Greeks paired with the
+    /// bid/ask quote pair).
     GreeksAllTicks(Vec<GreeksAllTick>),
+    /// `Vec<GreeksEodTick>` result. Returned by
+    /// `option_history_greeks_eod` -- end-of-day full-union Greeks
+    /// calculation fused with the twelve EOD trade/quote context
+    /// columns (`open`, `high`, `low`, `close`, `volume`, `count`,
+    /// `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
+    /// `ask_exchange`, `ask_condition`) the bare `GreeksAllTick`
+    /// silently dropped.
+    GreeksEodTicks(Vec<GreeksEodTick>),
     /// `Vec<GreeksFirstOrderTick>` result. Returned by
     /// `option_*_greeks_first_order` endpoints.
     GreeksFirstOrderTicks(Vec<GreeksFirstOrderTick>),
@@ -418,10 +429,40 @@ pub enum EndpointOutput {
     /// `Vec<GreeksThirdOrderTick>` result. Returned by
     /// `option_*_greeks_third_order` endpoints.
     GreeksThirdOrderTicks(Vec<GreeksThirdOrderTick>),
+    /// `Vec<TradeGreeksAllTick>` result. Returned by
+    /// `option_history_trade_greeks_all` -- per-OPRA-trade Greeks calculation
+    /// carrying both the trade-side execution columns and every Greek the
+    /// server publishes for the all-union endpoint.
+    TradeGreeksAllTicks(Vec<TradeGreeksAllTick>),
+    /// `Vec<TradeGreeksFirstOrderTick>` result. Returned by
+    /// `option_history_trade_greeks_first_order` -- per-OPRA-trade first-order
+    /// Greeks calculation with trade execution columns.
+    TradeGreeksFirstOrderTicks(Vec<TradeGreeksFirstOrderTick>),
+    /// `Vec<TradeGreeksSecondOrderTick>` result. Returned by
+    /// `option_history_trade_greeks_second_order` -- per-OPRA-trade
+    /// second-order Greeks calculation with trade execution columns.
+    TradeGreeksSecondOrderTicks(Vec<TradeGreeksSecondOrderTick>),
+    /// `Vec<TradeGreeksThirdOrderTick>` result. Returned by
+    /// `option_history_trade_greeks_third_order` -- per-OPRA-trade third-order
+    /// Greeks calculation with trade execution columns.
+    TradeGreeksThirdOrderTicks(Vec<TradeGreeksThirdOrderTick>),
+    /// `Vec<TradeGreeksImpliedVolatilityTick>` result. Returned by
+    /// `option_history_trade_greeks_implied_volatility` -- per-OPRA-trade IV
+    /// calculation with trade execution columns. Carries only the single
+    /// `implied_volatility` + `iv_error` pair (not the bid/mid/ask IV triple
+    /// of the interval-sampled `IvTick`).
+    TradeGreeksImpliedVolatilityTicks(Vec<TradeGreeksImpliedVolatilityTick>),
     /// `Vec<IvTick>` result.
     IvTicks(Vec<IvTick>),
     /// `Vec<PriceTick>` result.
     PriceTicks(Vec<PriceTick>),
+    /// `Vec<IndexPriceAtTimeTick>` result. Returned by
+    /// `index_at_time_price` -- trade-shaped row (10 columns:
+    /// `timestamp`, `sequence`, `ext_condition1..4`, `condition`,
+    /// `size`, `exchange`, `price`) carrying the seven trade-side
+    /// execution columns the bare `PriceTick` (3 columns) silently
+    /// dropped, including the SIP-exchange attribution field.
+    IndexPriceAtTimeTicks(Vec<IndexPriceAtTimeTick>),
     /// `Vec<CalendarDay>` result.
     CalendarDays(Vec<CalendarDay>),
     /// `Vec<InterestRateTick>` result.

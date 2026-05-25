@@ -1,0 +1,97 @@
+# Stubtest allowlist for the `thetadatadx` Python wheel (Gate 6 / #549).
+#
+# The hand-written `__init__.pyi` covers the load-bearing public
+# surface — clients, credentials, the fluent `Contract` /
+# `Subscription` / `SecType` types, the typed FPSS event payload
+# classes, streaming context managers, the FlatFiles namespace, the
+# typed exception hierarchy. Generator-emitted classes (100+
+# historical builders, 50+ typed `<Tick>List` / `<Tick>ListIter`
+# wrappers, every enum produced by
+# `coerce::register_string_enums`, etc.) are exposed via the
+# module-level `__getattr__` fallback to `Any` because a hand-typed
+# mirror would be high-maintenance noise that drifts on every
+# codegen pass.
+#
+# The CI gate runs::
+#
+#     python -m mypy.stubtest thetadatadx \
+#         --allowlist sdks/python/stubtest_allowlist.txt \
+#         --ignore-missing-stub \
+#         --ignore-disjoint-bases \
+#         --ignore-positional-only
+#
+# `--ignore-missing-stub` covers the generator-emitted surface (the
+# hundreds of classes the stub deliberately doesn't enumerate).
+# `--ignore-disjoint-bases` is a PEP 800 marker stubtest emits on
+# every pyo3 class; pyclasses are always disjoint by construction.
+# `--ignore-positional-only` covers the asymmetry between pyo3's
+# `def (self, value, /)` and the human-readable `def __eq__(self,
+# other)` we write in stubs.
+#
+# Remaining false positives below — all stem from pyo3 routing
+# constructor parameters through `__new__` while the user-facing
+# documentation talks about `__init__` (the practical user-visible
+# signature is identical; mypy.stubtest reports both halves of the
+# swap as drift).
+
+# pyo3 routes every pyclass constructor through `__new__`. The
+# stub documents the equivalent `__init__` signature because that
+# is what the user sees in `help()`, in IDE autocomplete, and in
+# the rendered Sphinx docs. Allow both halves of the
+# `__init__ / __new__` swap on every pyclass that has a non-trivial
+# constructor.
+thetadatadx\.Credentials\.__init__
+thetadatadx\.Credentials\.__new__
+thetadatadx\.ThetaDataDxClient\.__init__
+thetadatadx\.ThetaDataDxClient\.__new__
+thetadatadx\.AsyncThetaDataDxClient\.__init__
+thetadatadx\.AsyncThetaDataDxClient\.__new__
+thetadatadx\.AsyncThetaDataDxClient\.__getattr__
+# `ThetaDataDxClient.__getattr__` is intentionally NOT stubbed —
+# every public method on the unified client is hand-listed in the
+# .pyi so stubtest catches drift on the load-bearing pyclass (C6
+# closure). Generator-emitted historical builders reach the module
+# via the module-level `__getattr__` instead.
+thetadatadx\.FpssClient\.__init__
+thetadatadx\.FpssClient\.__new__
+thetadatadx\.MddsClient\.__init__
+thetadatadx\.MddsClient\.__new__
+thetadatadx\.MddsClient\.__getattr__
+thetadatadx\.StreamingSession\.__getattr__
+thetadatadx\.StreamingIterSession\.__getattr__
+
+# `__exit__` on pyo3 context managers carries default values for
+# the three positional args at runtime (matching `Optional[...] = None`
+# semantics). The hand-written stub elides the defaults because the
+# user is never going to call `__exit__` directly. Allow the swap.
+thetadatadx\..*\.__exit__
+
+# `EventCallback` is a `Callable[..., None]` alias declared in the
+# stub for documentation purposes — it never appears at runtime
+# (there is no runtime use that needs it as a value).
+thetadatadx\.EventCallback
+
+# `Contract.option(symbol, expiration=..., strike=..., right=...)` is
+# documented as kwarg-only on the second-and-onwards arguments because
+# the doc string + every example uses them as kwargs. The Rust pyo3
+# signature accepts them positionally — `stubtest` reports the
+# positional-but-stubbed-as-keyword variant as drift. Allow it: the
+# user-visible default is keyword-only, the runtime is permissive.
+thetadatadx\.Contract\.option
+
+# P4 closure: `FpssParseError` is the stub-side rename for the
+# FPSS-event payload class whose runtime name is `Error`. The
+# runtime exposes a single `Error` class (the typed FPSS-parse
+# error variant); the stub uses `FpssParseError` to avoid colliding
+# with the generic `Error` exception type that is also exposed as
+# `Error`. Both names point to the runtime class via the
+# module-level `__getattr__` fallback. The stubtest "not present at
+# runtime" diagnostic on `FpssParseError` is intentional — the
+# runtime exposes the variant under the `Error` symbol, not
+# `FpssParseError`.
+thetadatadx\.FpssParseError
+
+# `FpssEvent` is a type alias declared in the stub for
+# documentation purposes — it never appears at runtime (there is
+# no runtime use that needs it as a value).
+thetadatadx\.FpssEvent

@@ -103,6 +103,88 @@ pub struct GreeksAllTick {
     pub right: i32,
 }
 
+/// End-of-day union Greeks tick -- every Greek the v3 server publishes on
+/// `option_history_greeks_eod`, paired with the twelve EOD trade/quote
+/// context columns (`open`, `high`, `low`, `close`, `volume`, `count`,
+/// `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
+/// `ask_exchange`, `ask_condition`) that identify the daily bar + closing
+/// NBBO snapshot the Greeks were calculated against.
+///
+/// The bare `GreeksAllTick` previously routed by `endpoint_surface.toml`
+/// (28 fields) silently dropped those twelve EOD columns from the
+/// 39-column EOD response -- the same data-loss class as the per-trade
+/// Greeks endpoints (BL-14 / PR #605). `GreeksEodTick` carries the full
+/// EOD wire shape end-to-end across every binding.
+///
+/// Wire layout verified-live against terminal jar build `202605221`
+/// (SPY 2024-06-21 expiration query on 2024-06-14):
+///
+///   symbol, expiration, strike, right,
+///   timestamp, open, high, low, close, volume, count,
+///   bid_size, bid_exchange, bid, bid_condition,
+///   ask_size, ask_exchange, ask, ask_condition,
+///   delta, theta, vega, rho, epsilon, lambda,
+///   gamma, vanna, charm, vomma, veta, vera,
+///   speed, zomma, color, ultima,
+///   d1, d2, dual_delta, dual_gamma,
+///   implied_vol, iv_error,
+///   underlying_timestamp, underlying_price
+///
+/// The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
+/// `underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
+/// mappings are applied through `HEADER_ALIASES`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct GreeksEodTick {
+    pub ms_of_day: i32,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: i64,
+    pub count: i64,
+    pub bid_size: i32,
+    pub bid_exchange: i32,
+    pub bid: f64,
+    pub bid_condition: i32,
+    pub ask_size: i32,
+    pub ask_exchange: i32,
+    pub ask: f64,
+    pub ask_condition: i32,
+    pub delta: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub gamma: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub vera: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub d1: f64,
+    pub d2: f64,
+    pub dual_delta: f64,
+    pub dual_gamma: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
 /// First-order Greeks tick -- the strict column subset emitted by the
 /// vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega
 /// / rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and
@@ -191,24 +273,95 @@ pub struct GreeksThirdOrderTick {
     pub right: i32,
 }
 
-/// Interest rate tick -- 3 fields. End-of-day interest rate.
+/// Index price-at-time tick -- the trade-shaped row the v3 server
+/// publishes on `index_at_time_price`. The bare `PriceTick` (3 fields:
+/// `ms_of_day`, `price`, `date`) silently dropped seven server-emitted
+/// columns -- `sequence`, `ext_condition1..4`, `condition`, `size`,
+/// `exchange` -- including the SIP-exchange attribution field.
+///
+/// Wire layout verified-live against terminal jar build `202605221`:
+///
+///   timestamp, sequence, ext_condition1..4, condition, size, exchange, price
+///
+/// The `timestamp` -> `ms_of_day` and `timestamp` -> `date` mappings are
+/// applied through the existing `HEADER_ALIASES` rows in
+/// `crates/thetadatadx/src/mdds/decode/headers.rs`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct IndexPriceAtTimeTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub date: i32,
+}
+
+/// Interest rate tick -- 2 fields. End-of-day interest rate (percent).
+///
+/// Wire layout per `docs.thetadata.us/operations/interest_rate_history_eod.html`
+/// and verified-live against terminal jar build `202605221`:
+///
+/// | Schema field | Wire header | Wire type        | Mapping                    |
+/// |--------------|-------------|------------------|----------------------------|
+/// | `date`       | `created`   | Text (ISO date)  | `"2025-04-28"` -> 20250428 |
+/// | `rate`       | `rate`      | Number (percent) | `4.3600` -> 4.36           |
+///
+/// The `date` decode flows through `thetadatadx::decode::row_date`, which
+/// accepts `Number`, `Timestamp`, and `Text` cells uniformly — so this tick
+/// decodes either the documented Text-ISO shape or any future
+/// Number/Timestamp narrowing without a per-parser branch.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct InterestRateTick {
-    pub ms_of_day: i32,
-    pub rate: f64,
     pub date: i32,
+    pub rate: f64,
 }
 
-/// Implied volatility tick -- 4 fields.
+/// Implied volatility tick -- 11 fields.
+///
+/// Wire layout verified-live against `option_history_greeks_implied_volatility`
+/// (terminal jar build `202605221`):
+///
+/// | Schema field                | Wire header               | Type   |
+/// |-----------------------------|---------------------------|--------|
+/// | `ms_of_day`                 | `timestamp`               | i32    |
+/// | `bid`                       | `bid`                     | price  |
+/// | `bid_implied_volatility`    | `bid_implied_vol`         | f64    |
+/// | `midpoint`                  | `midpoint`                | price  |
+/// | `implied_volatility`        | `implied_vol`             | f64    |
+/// | `ask`                       | `ask`                     | price  |
+/// | `ask_implied_volatility`    | `ask_implied_vol`         | f64    |
+/// | `iv_error`                  | `iv_error`                | f64    |
+/// | `underlying_ms_of_day`      | `underlying_timestamp`    | i32    |
+/// | `underlying_price`          | `underlying_price`        | price  |
+/// | `date`                      | `timestamp`               | i32    |
+///
+/// The snapshot variant (`option_snapshot_greeks_implied_volatility`) emits
+/// a 4-column subset (`ms_of_day, implied_vol, iv_error, date`); the
+/// generator's optional-column path defaults the missing fields to 0.0 so
+/// the snapshot decode keeps working.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
 pub struct IvTick {
     pub ms_of_day: i32,
+    pub bid: f64,
+    pub bid_implied_volatility: f64,
+    pub midpoint: f64,
     pub implied_volatility: f64,
+    pub ask: f64,
+    pub ask_implied_volatility: f64,
     pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
     pub date: i32,
     /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
     pub expiration: i32,
@@ -236,7 +389,15 @@ pub struct MarketValueTick {
     pub right: i32,
 }
 
-/// OHLC tick -- 8 fields. Aggregated bar data.
+/// OHLC tick -- 9 fields. Aggregated bar data including SIP-rule VWAP.
+///
+/// Wire layout verified-live (terminal jar build `202605221`) against
+/// `stock_history_ohlc`, `option_history_ohlc`, and `index_history_ohlc`,
+/// which emit the same 8 data columns (`timestamp,open,high,low,close,
+/// volume,count,vwap`). The snapshot variants (`*_snapshot_ohlc`) omit
+/// `vwap`; the generated parser's optional-column path defaults the
+/// field to `0.0` for those endpoints, mirroring how `volume`/`count`
+/// already zero-default on quote-only intraday bars.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
@@ -248,6 +409,7 @@ pub struct OhlcTick {
     pub close: f64,
     pub volume: i64,
     pub count: i64,
+    pub vwap: f64,
     pub date: i32,
     /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
     pub expiration: i32,
@@ -297,6 +459,16 @@ pub struct PriceTick {
 }
 
 /// Quote tick -- 10 fields + midpoint. NBBO quote data.
+///
+/// Wire layout: the full shape is 11 columns (`ms_of_day`,
+/// `bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`,
+/// `ask_exchange`, `ask`, `ask_condition`, `price_type`, `date`).
+/// The four exchange / condition columns are NOT in the `required` list
+/// below so the generator emits `opt_number(row, None) -> 0` arms for
+/// them; this lets the decoder accept subset NBBO layouts (e.g. the
+/// 6-field `[ms_of_day, bid_size, bid, ask_size, ask, date]` shape some
+/// storage tiers emit) without erroring, while still decoding the full
+/// 11-field shape bit-exact when every column is present.
 #[must_use]
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(64))]
@@ -319,6 +491,214 @@ pub struct QuoteTick {
     pub right: i32,
     /// Pre-computed midpoint: `(bid + ask) / 2.0`.
     pub midpoint: f64,
+}
+
+/// Per-trade union Greeks tick -- every Greek the v3 server publishes on
+/// `option_history_trade_greeks_all`, paired with the trade-side execution
+/// columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
+/// `exchange`, `price`) that identify which OPRA print each Greek was
+/// calculated against.
+///
+/// Wire layout verified-live against terminal jar build `202605221`:
+///
+///   symbol, expiration, strike, right,
+///   timestamp, sequence, ext_condition1..4, condition, size, exchange, price,
+///   delta, theta, vega, rho, epsilon, lambda,
+///   gamma, vanna, charm, vomma, veta, vera,
+///   speed, zomma, color, ultima,
+///   d1, d2, dual_delta, dual_gamma,
+///   implied_vol, iv_error,
+///   underlying_timestamp, underlying_price
+///
+/// The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->
+/// `underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`
+/// mappings are applied through `HEADER_ALIASES`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct TradeGreeksAllTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub delta: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub gamma: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub vera: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub d1: f64,
+    pub d2: f64,
+    pub dual_delta: f64,
+    pub dual_gamma: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
+/// Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
+/// / lambda) paired with the trade-side execution columns identifying the
+/// OPRA print each Greek was calculated against. Wire layout verified-live
+/// against terminal jar build `202605221`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct TradeGreeksFirstOrderTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub delta: f64,
+    pub theta: f64,
+    pub vega: f64,
+    pub rho: f64,
+    pub epsilon: f64,
+    pub lambda: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
+/// Per-trade implied-volatility tick (single `implied_volatility` +
+/// `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled
+/// `IvTick`) paired with the trade-side execution columns identifying the
+/// OPRA print the IV was calculated against. Wire layout verified-live
+/// against terminal jar build `202605221`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct TradeGreeksImpliedVolatilityTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
+/// Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /
+/// veta) paired with the trade-side execution columns identifying the OPRA
+/// print each Greek was calculated against. Wire layout verified-live
+/// against terminal jar build `202605221`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct TradeGreeksSecondOrderTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub gamma: f64,
+    pub vanna: f64,
+    pub charm: f64,
+    pub vomma: f64,
+    pub veta: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
+}
+
+/// Per-trade third-order Greeks tick (speed / zomma / color / ultima)
+/// paired with the trade-side execution columns identifying the OPRA print
+/// each Greek was calculated against. The vendor's third-order schema does
+/// not publish `vera`. Wire layout verified-live against terminal jar build
+/// `202605221`.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct TradeGreeksThirdOrderTick {
+    pub ms_of_day: i32,
+    pub sequence: i32,
+    pub ext_condition1: i32,
+    pub ext_condition2: i32,
+    pub ext_condition3: i32,
+    pub ext_condition4: i32,
+    pub condition: i32,
+    pub size: i32,
+    pub exchange: i32,
+    pub price: f64,
+    pub speed: f64,
+    pub zomma: f64,
+    pub color: f64,
+    pub ultima: f64,
+    pub implied_volatility: f64,
+    pub iv_error: f64,
+    pub underlying_ms_of_day: i32,
+    pub underlying_price: f64,
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    pub expiration: i32,
+    /// Contract strike price (decoded to `f64`).
+    pub strike: f64,
+    /// Contract right (`'C'` = 67, `'P'` = 80 ASCII). 0 on single-contract queries.
+    pub right: i32,
 }
 
 /// Combined trade + quote tick -- 24 fields.

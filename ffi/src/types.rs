@@ -42,6 +42,7 @@ pub struct TdxConfig {
 pub unsafe extern "C" fn tdx_string_free(s: *mut c_char) {
     ffi_boundary!((), {
         if !s.is_null() {
+            // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
             drop(unsafe { CString::from_raw(s) });
         }
     })
@@ -55,6 +56,7 @@ pub(crate) fn insert_optional_str_arg(
     key: &str,
     raw: *const c_char,
 ) -> Result<(), String> {
+    // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
     match unsafe { cstr_to_str(raw) } {
         Ok(None) => Ok(()),
         Ok(Some(value)) => {
@@ -138,6 +140,7 @@ macro_rules! tick_array_type {
 
             unsafe fn free(self) {
                 if !self.data.is_null() && self.len > 0 {
+                    // SAFETY: `self.data` was returned by `Box::into_raw` on a `Box<[$tick]>` of length `self.len` in `from_vec`; ownership returns to Rust for drop. Null + zero-len gated by the surrounding `if`.
                     let _ = unsafe {
                         Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                             self.data as *mut $tick,
@@ -155,14 +158,44 @@ tick_array_type!(TdxOhlcTickArray, tdbe::OhlcTick);
 tick_array_type!(TdxTradeTickArray, tdbe::TradeTick);
 tick_array_type!(TdxQuoteTickArray, tdbe::QuoteTick);
 // Per-order Greeks subsets emitted by `option_*_greeks_first_order` /
-// `_second_order` / `_third_order`. The full union (`option_*_greeks_all`,
-// `_greeks_eod`) lands on `TdxGreeksAllTickArray`.
+// `_second_order` / `_third_order`. The full union for the interval-sampled
+// `option_*_greeks_all` endpoints lands on `TdxGreeksAllTickArray`; the
+// end-of-day endpoint `option_history_greeks_eod` lands on
+// `TdxGreeksEodTickArray` (carries 12 EOD trade/quote columns absent from
+// the interval-sampled all-union shape).
 tick_array_type!(TdxGreeksAllTickArray, tdbe::GreeksAllTick);
+tick_array_type!(TdxGreeksEodTickArray, tdbe::GreeksEodTick);
 tick_array_type!(TdxGreeksFirstOrderTickArray, tdbe::GreeksFirstOrderTick);
 tick_array_type!(TdxGreeksSecondOrderTickArray, tdbe::GreeksSecondOrderTick);
 tick_array_type!(TdxGreeksThirdOrderTickArray, tdbe::GreeksThirdOrderTick);
+// Per-OPRA-trade Greeks emitted by `option_history_trade_greeks_*`. These
+// carry the nine trade-side execution columns alongside the Greek values --
+// distinct from the interval-sampled `TdxGreeks*TickArray` whose rows carry
+// the bid/ask quote pair instead.
+tick_array_type!(TdxTradeGreeksAllTickArray, tdbe::TradeGreeksAllTick);
+tick_array_type!(
+    TdxTradeGreeksFirstOrderTickArray,
+    tdbe::TradeGreeksFirstOrderTick
+);
+tick_array_type!(
+    TdxTradeGreeksSecondOrderTickArray,
+    tdbe::TradeGreeksSecondOrderTick
+);
+tick_array_type!(
+    TdxTradeGreeksThirdOrderTickArray,
+    tdbe::TradeGreeksThirdOrderTick
+);
+tick_array_type!(
+    TdxTradeGreeksImpliedVolatilityTickArray,
+    tdbe::TradeGreeksImpliedVolatilityTick
+);
 tick_array_type!(TdxIvTickArray, tdbe::IvTick);
 tick_array_type!(TdxPriceTickArray, tdbe::PriceTick);
+// Trade-shaped row emitted by `index_at_time_price` (10 wire columns:
+// `timestamp`, `sequence`, `ext_condition1..4`, `condition`, `size`,
+// `exchange`, `price`). Distinct from the bare `TdxPriceTickArray`
+// used by `index_snapshot_price` / `index_history_price` (3 columns).
+tick_array_type!(TdxIndexPriceAtTimeTickArray, tdbe::IndexPriceAtTimeTick);
 tick_array_type!(TdxOpenInterestTickArray, tdbe::OpenInterestTick);
 tick_array_type!(TdxMarketValueTickArray, tdbe::MarketValueTick);
 tick_array_type!(TdxCalendarDayArray, tdbe::CalendarDay);
@@ -176,6 +209,7 @@ macro_rules! tick_array_free {
         #[no_mangle]
         pub unsafe extern "C" fn $fn_name(arr: $array_type) {
             ffi_boundary!((), {
+                // SAFETY: `arr` is a `$array_type` returned by the matching FFI endpoint via `from_vec`; the enclosed `free()` matches the `Box::into_raw` that produced `arr.data`.
                 unsafe { arr.free() };
             })
         }
@@ -187,6 +221,7 @@ tick_array_free!(tdx_ohlc_tick_array_free, TdxOhlcTickArray);
 tick_array_free!(tdx_trade_tick_array_free, TdxTradeTickArray);
 tick_array_free!(tdx_quote_tick_array_free, TdxQuoteTickArray);
 tick_array_free!(tdx_greeks_all_tick_array_free, TdxGreeksAllTickArray);
+tick_array_free!(tdx_greeks_eod_tick_array_free, TdxGreeksEodTickArray);
 tick_array_free!(
     tdx_greeks_first_order_tick_array_free,
     TdxGreeksFirstOrderTickArray
@@ -199,8 +234,32 @@ tick_array_free!(
     tdx_greeks_third_order_tick_array_free,
     TdxGreeksThirdOrderTickArray
 );
+tick_array_free!(
+    tdx_trade_greeks_all_tick_array_free,
+    TdxTradeGreeksAllTickArray
+);
+tick_array_free!(
+    tdx_trade_greeks_first_order_tick_array_free,
+    TdxTradeGreeksFirstOrderTickArray
+);
+tick_array_free!(
+    tdx_trade_greeks_second_order_tick_array_free,
+    TdxTradeGreeksSecondOrderTickArray
+);
+tick_array_free!(
+    tdx_trade_greeks_third_order_tick_array_free,
+    TdxTradeGreeksThirdOrderTickArray
+);
+tick_array_free!(
+    tdx_trade_greeks_implied_volatility_tick_array_free,
+    TdxTradeGreeksImpliedVolatilityTickArray
+);
 tick_array_free!(tdx_iv_tick_array_free, TdxIvTickArray);
 tick_array_free!(tdx_price_tick_array_free, TdxPriceTickArray);
+tick_array_free!(
+    tdx_index_price_at_time_tick_array_free,
+    TdxIndexPriceAtTimeTickArray
+);
 tick_array_free!(tdx_open_interest_tick_array_free, TdxOpenInterestTickArray);
 tick_array_free!(tdx_market_value_tick_array_free, TdxMarketValueTickArray);
 tick_array_free!(tdx_calendar_day_array_free, TdxCalendarDayArray);
@@ -266,13 +325,16 @@ pub unsafe extern "C" fn tdx_option_contract_array_free(arr: TdxOptionContractAr
     ffi_boundary!((), {
         if !arr.data.is_null() && arr.len > 0 {
             // First free each symbol C string
+            // SAFETY: data + len describe a contiguous slice the caller is required to keep valid for the call duration.
             let slice = unsafe { std::slice::from_raw_parts(arr.data, arr.len) };
             for contract in slice {
                 if !contract.symbol.is_null() {
+                    // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
                     drop(unsafe { CString::from_raw(contract.symbol.cast_mut()) });
                 }
             }
             // Then free the array itself
+            // SAFETY: `arr.data` was returned by `Box::into_raw` on a `Box<[TdxOptionContract]>` of length `arr.len`; ownership returns to Rust for drop. Null + zero-len gated above; per-element symbol strings were freed in the loop above.
             let _ = unsafe {
                 Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                     arr.data.cast_mut(),
@@ -319,12 +381,15 @@ impl TdxStringArray {
 pub unsafe extern "C" fn tdx_string_array_free(arr: TdxStringArray) {
     ffi_boundary!((), {
         if !arr.data.is_null() && arr.len > 0 {
+            // SAFETY: data + len describe a contiguous slice the caller is required to keep valid for the call duration.
             let slice = unsafe { std::slice::from_raw_parts(arr.data, arr.len) };
             for &s in slice {
                 if !s.is_null() {
+                    // SAFETY: the pointer was produced by CString::into_raw on the matching free path, ownership returns to Rust here.
                     drop(unsafe { CString::from_raw(s.cast_mut()) });
                 }
             }
+            // SAFETY: `arr.data` was returned by `Box::into_raw` on a `Box<[*const c_char]>` of length `arr.len`; ownership returns to Rust for drop. Null + zero-len gated above; per-element C strings were freed in the loop above.
             let _ = unsafe {
                 Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                     arr.data.cast_mut(),
@@ -353,9 +418,11 @@ pub(crate) unsafe fn parse_symbol_array(
         set_error("symbols array pointer is null");
         return None;
     }
+    // SAFETY: data + len describe a contiguous slice the caller is required to keep valid for the call duration.
     let ptrs = unsafe { std::slice::from_raw_parts(symbols, symbols_len) };
     let mut out = Vec::with_capacity(symbols_len);
     for (i, &p) in ptrs.iter().enumerate() {
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
         match unsafe { cstr_to_str(p) } {
             Ok(Some(s)) => out.push(s.to_owned()),
             Ok(None) => {

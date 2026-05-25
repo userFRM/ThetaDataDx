@@ -1,6 +1,6 @@
 //! INDEX walker for the raw FLATFILES blob.
 //!
-//! # On-disk layout (recovered from live wire bytes + bytecode shape)
+//! # On-disk layout
 //!
 //! The raw blob the wire layer accumulates is one contiguous stream:
 //!
@@ -13,8 +13,7 @@
 //!         …  :  data_byte_len  bytes      DATA — concatenated FIT blocks
 //! ```
 //!
-//! All multi-byte integers are big-endian — Java's `ByteBuffer.wrap(...)`
-//! defaults to network order.
+//! All multi-byte integers are big-endian (network order).
 //!
 //! # INDEX entries
 //!
@@ -30,7 +29,7 @@
 //!
 //! The contract key inside `entry_payload` is:
 //!
-//! - Option:
+//! - Option / Index:
 //!   ```text
 //!     u8 root_len ; root_utf8 ; i32 BE exp ; u8 right ; i32 BE strike ; i32 BE date
 //!   ```

@@ -7,7 +7,1650 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+> **Release line note**: this train accumulates 26 major + 1 minor breaking
+> changes versus v10.0.0. The next release tag MUST be v11.0.0, not a
+> v10.0.x patch. Owner-greenlight gated on this audit returning zero
+> actionable findings. Wave-6 of the audit-fix loop closes the last two
+> silent-data-loss issues uncovered by the cross-binding wire audit:
+> `option_history_greeks_eod` (BLOCKER) was re-routed from the bare
+> `GreeksAllTick` (28 columns) onto a new `GreeksEodTick` (39 columns)
+> that carries the twelve EOD trade/quote columns (`open`, `high`,
+> `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`,
+> `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`) the
+> v10 line silently dropped; and `index_at_time_price` (SERIOUS) was
+> re-routed from the bare `PriceTick` (3 columns) onto a new
+> `IndexPriceAtTimeTick` (10 columns) that carries the seven
+> trade-side execution columns including the SIP-exchange attribution
+> field. The +2 major entries are the return-type changes on the two
+> endpoints (`Vec<GreeksAllTick>` -> `Vec<GreeksEodTick>` and
+> `Vec<PriceTick>` -> `Vec<IndexPriceAtTimeTick>`); the new types are
+> listed under `Added (BREAKING -- v11)`. Wave-5 (audit BL-14) closed
+> the analogous data-loss class on the five
+> `option_history_trade_greeks_*` endpoints; Wave-6 closes the last
+> two endpoints exhibiting the same pattern.
+
+### Added
+
+#### Audit closure wave 6
+
+- Two new tick types model the verified-live wire shape on two
+  historical endpoints whose previous routing silently dropped server-
+  emitted columns:
+  - `GreeksEodTick` carries the twelve EOD trade/quote columns
+    (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`,
+    `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`,
+    `ask_condition`) alongside every Greek published on
+    `option_history_greeks_eod`. The bare `GreeksAllTick` previously
+    routed by `endpoint_surface.toml` (28 columns) lost those twelve
+    EOD-specific columns from the 39-column EOD response.
+  - `IndexPriceAtTimeTick` carries the seven trade-side execution
+    columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
+    `exchange`) the bare `PriceTick` (3 columns) silently dropped from
+    the 10-column `index_at_time_price` response, including the
+    `exchange` SIP-source attribution column.
+  Wire layout verified-live against terminal jar build `202605221`;
+  pinned by the new `tests/test_wave6_schema.rs` regression suite +
+  two new capture fixtures under
+  `tests/fixtures/captures/{option_history_greeks_eod,index_at_time_price}.{pb.zst,meta.toml}`.
+  Available on every binding (Rust direct + tdbe + ffi
+  `Tdx{GreeksEod,IndexPriceAtTime}TickArray` + Python pyclass +
+  TypeScript napi `{GreeksEod,IndexPriceAtTime}Tick` + C++
+  `tdx::{GreeksEod,IndexPriceAtTime}Tick`).
+
+#### Audit closure wave 5
+
+- Five new `TradeGreeks*Tick` types model the per-OPRA-trade Greek
+  endpoints (`option_history_trade_greeks_all`, `_first_order`,
+  `_second_order`, `_third_order`, `_implied_volatility`). Each carries
+  the nine trade-side execution columns (`sequence`, `ext_condition1..4`,
+  `condition`, `size`, `exchange`, `price`) alongside the relevant
+  Greek subset and the underlying snapshot. Wire layout verified-live
+  against terminal jar build `202605221`; pinned by the new
+  `tests/test_trade_greeks_schema.rs` regression suite + five new
+  fixtures under `tests/fixtures/captures/option_history_trade_greeks_*`.
+  Available on every binding (Rust direct + tdbe + ffi `TdxTradeGreeks*TickArray`
+  + Python pyclass + TypeScript napi `TradeGreeks*Tick` + C++
+  `tdx::TradeGreeks*Tick`).
+
+#### Audit closure wave 4
+
+- `RetryPolicy` per-field setters/getters bound across every binding.
+  The Rust-only methods (`disabled()`, `delay_for_attempt()`,
+  `capped_backoff()`) stay Rust-only — they are method-shape helpers
+  that callers can recompute from the four field values if needed.
+  New surface:
+  - FFI: `tdx_config_set_retry_initial_delay_ms(u64)` /
+    `tdx_config_get_retry_initial_delay_ms(*mut u64) -> i32`, plus
+    `_max_delay_ms`, `_max_attempts(u32)`, `_jitter(bool)`.
+  - C++: `tdx::Config::set_retry_initial_delay_ms(uint64_t)` /
+    `get_retry_initial_delay_ms(uint64_t*)`, plus matching pairs for
+    `max_delay_ms`, `max_attempts`, `jitter`.
+  - Python: `Config.retry_initial_delay_ms`, `retry_max_delay_ms`,
+    `retry_max_attempts`, `retry_jitter` (pyo3 `#[getter]` +
+    `#[setter]`) + `.pyi` rows.
+  - TypeScript napi: `Config.setRetryInitialDelayMs(bigint)` /
+    `Config.retryInitialDelayMs` getter plus the other three fields
+    (BigInt for the two duration fields, number/boolean otherwise).
+  Four new `sdks/parity.toml` rows under a new `RetryPolicy
+  cross-binding setters` section header. Closes audit BL-10.
+- `ReconnectConfig.wait_ms` and `ReconnectConfig.wait_rate_limited_ms`
+  fully wired into the FPSS auto-reconnect path. The values flow from
+  `DirectConfig.reconnect` through `FpssConnectArgs` into the
+  `IoLoopArgs` and are consumed by the `ReconnectPolicy::Auto` arm via
+  a new `fpss::reconnect_delay_for(reason, wait_ms,
+  wait_rate_limited_ms)` helper. The prior `RECONNECT_DELAY_MS` /
+  `TOO_MANY_REQUESTS_DELAY_MS` wire constants stay as the defaults
+  (`ReconnectConfig::production_defaults`) but caller overrides now
+  take effect instead of being silently dropped. New cross-binding
+  surface:
+  - FFI: `tdx_config_set_reconnect_wait_ms(*mut TdxConfig, u64)` /
+    `tdx_config_get_reconnect_wait_ms(*const TdxConfig, *mut u64) ->
+    i32`, plus the `_rate_limited_ms` pair.
+  - C++: `tdx::Config::set_reconnect_wait_ms(uint64_t)` /
+    `get_reconnect_wait_ms(uint64_t*)` plus the `_rate_limited_ms`
+    pair.
+  - Python: `Config.reconnect_wait_ms` /
+    `Config.reconnect_wait_rate_limited_ms` (pyo3 `#[getter]` +
+    `#[setter]`) + `.pyi` type-stub rows.
+  - TypeScript napi: `Config.setReconnectWaitMs(bigint)` /
+    `Config.reconnectWaitMs` getter + the `_rate_limited_ms` pair.
+  Two new `sdks/parity.toml` rows. Closes audit BL-11.
+- `RuntimeConfig.tokio_worker_threads` gains a
+  `RuntimeConfig::build_runtime() -> std::io::Result<tokio::runtime::
+  Runtime>` helper that builds a multi-threaded runtime honouring the
+  configured worker count (with `Some(0)` clamped to `1` so tokio
+  does not panic on `worker_threads(0)`). The crate itself stays
+  runtime-agnostic — `thetadatadx` async entry points still run on
+  whatever runtime the caller provides — but the helper is the single
+  source-of-truth that embedded bindings (FFI, Python, napi) consume
+  when they own the runtime. New cross-binding surface mirrors the
+  `MddsConfig::decode_threads_explicit` `(has_value, n)` shape so the
+  `Some(0)` sentinel survives the C boundary:
+  - FFI: `tdx_config_set_tokio_worker_threads_explicit(*mut TdxConfig,
+    bool, usize) -> i32` + `tdx_config_get_tokio_worker_threads(
+    *const TdxConfig, *mut bool, *mut usize) -> i32`.
+  - C++: `tdx::Config::set_tokio_worker_threads_explicit(bool, size_t)` /
+    `get_tokio_worker_threads(bool*, size_t*)`.
+  - Python: `Config.tokio_worker_threads: Optional[int]` (`None` =
+    auto, `int` pins) + `.pyi` row.
+  - TypeScript napi:
+    `Config.setTokioWorkerThreadsExplicit(boolean, number)` +
+    `Config.tokioWorkerThreads: { hasValue, n }` getter returning a
+    `TokioWorkerThreadsSetting` napi-`object` (new exported interface
+    in `index.d.ts`).
+  New `sdks/parity.toml` row under a `RuntimeConfig` section header.
+  Closes audit BL-9.
+
+### Changed (vendor-neutral docs)
+
+#### Audit closure wave 4
+
+- Replaced remaining `FPSS` / `MDDS` / `LMAX Disruptor` jargon in
+  user-facing surfaces with vendor-neutral phrasing:
+  - `sdks/cpp/include/thetadx.h` — section banners and prose
+    comments (`"FPSS — #[repr(C)] streaming event types"` →
+    `"Streaming — #[repr(C)] event types"`, "FPSS client" / "FPSS
+    handle" → "streaming client" / "streaming handle", "MDDS retry
+    policy" → "historical-channel retry policy"). ABI-locked symbol
+    names (`TDX_FPSS_*`, `tdx_fpss_*`, `tdx_config_set_*_mdds_*`)
+    stay unchanged.
+  - `sdks/python/src/lib.rs` — remaining `///` rustdoc mentions in
+    setter docstrings + the `tdx`/`callback` field doc-comments
+    rewritten ("FPSS reader" → "streaming reader", "MDDS retry
+    policy" → "historical-channel retry policy"). Generated-symbol
+    references (`PYTHON_UNIFIED_FPSS_METHODS`) and internal `//`
+    comments not exposed via PyPI long-description left as-is.
+  - `docs-site/docs/streaming/{index,connection,events,latency,
+    reconnection}.md`, `docs-site/docs/getting-started/streaming.md`,
+    `docs-site/docs/migration/v9-to-v10.md` — bulk substitution of
+    bare `FPSS` → `streaming`, bare `MDDS` → `historical channel`,
+    `LMAX Disruptor` → `ring buffer` / `SPSC ring buffer`. Mermaid
+    diagrams updated; awkward post-substitution phrases manually
+    rewritten ("streaming (Feed Processing Streaming Server)" →
+    "streaming", "Disruptor consumer thread" → "ring-buffer consumer
+    thread", etc.). Closes audit BL-5, BL-6, BL-7.
+
+### Fixed
+
+#### Audit closure wave 6
+
+- `option_history_greeks_eod` previously routed to the interval-sampled
+  `GreeksAllTick` (28 columns), which silently dropped the twelve EOD
+  trade/quote columns (`open`, `high`, `low`, `close`, `volume`,
+  `count`, `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
+  `ask_exchange`, `ask_condition`) from the 39-column EOD response.
+  Users got the Greeks but lost the EOD bar + closing NBBO snapshot
+  the Greek values were calculated against. Verified live against
+  terminal jar build `202605221`; new `GreeksEodTick` carries the full
+  39-column wire shape end-to-end across Rust, ffi, Python, TypeScript,
+  and C++. Pinned by `tests/test_wave6_schema.rs::
+  decode_greeks_eod_carries_twelve_eod_columns_and_every_greek`.
+  Closes wave-6 BLOCKER.
+- `index_at_time_price` previously routed to the bare `PriceTick`
+  (3 columns), which silently dropped the seven trade-side execution
+  columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
+  `exchange`) from the 10-column response. The `exchange` field is the
+  SIP source attribution per row -- users lost the per-row
+  source-of-truth for the index print. Verified live against terminal
+  jar build `202605221`; new `IndexPriceAtTimeTick` carries the full
+  trade-shaped wire row end-to-end across every binding. Pinned by
+  `tests/test_wave6_schema.rs::
+  decode_index_at_time_price_carries_seven_trade_side_columns`. Closes
+  wave-6 SERIOUS.
+
+#### Audit closure wave 5
+
+- Five `option_history_trade_greeks_*` endpoints previously routed to
+  the interval-sampled `Greeks*Tick` types, which silently dropped the
+  nine trade-side execution columns (`sequence`, `ext_condition1..4`,
+  `condition`, `size`, `exchange`, `price`) per row. Users got the
+  Greeks but lost the per-trade execution context that distinguishes
+  these endpoints from the interval-sampled siblings. Verified live
+  against terminal jar build `202605221`; new `TradeGreeks*Tick`
+  sibling types carry the trade execution context end-to-end across
+  Rust, ffi, Python, TypeScript, and C++. Closes audit BL-14.
+
+#### Audit closure wave 4
+
+- 5 TypeScript test files (`asyncdispose.test.mjs`, `basic.test.mjs`,
+  `dropped_events.test.mjs`, `iter_mode.test.mjs`,
+  `util_helpers.test.mjs`) no longer silent-skip when the napi addon
+  fails to load — they now `console.error` + `process.exit(1)` at
+  module load matching the 8 other test files. CI no longer reports
+  `npm test` green when `npm run build` failed upstream. The
+  legitimate "live test, credentials required" skips in
+  `dropped_events.test.mjs` are preserved with a clarifying comment.
+  Closes audit BL-15.
+- `mdds::client::connect` `tracing::info!` no longer records the
+  configured Nexus URL; the URL field is moved behind a
+  `tracing::trace!` companion log matching the prior downgrade on
+  `auth::nexus::authenticate_at`. Production INFO buffers no longer
+  capture deployment-topology data by default. Closes audit S56.
+
+### Changed (BREAKING — v11)
+
+#### Audit closure wave 6
+
+- Two endpoint return types change shape to carry server-emitted
+  columns the v10 routing silently dropped:
+  - `option_history_greeks_eod`: `Vec<GreeksAllTick>` ->
+    `Vec<GreeksEodTick>`. Migration: consumers already iterating Greek
+    fields keep the same field names; consumers reading the bid/ask
+    quote pair keep them on `GreeksEodTick`; consumers must add reads
+    for the twelve EOD trade/quote columns the bare `GreeksAllTick`
+    elided (`open`, `high`, `low`, `close`, `volume`, `count`,
+    `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
+    `ask_exchange`, `ask_condition`) if those columns are needed.
+  - `index_at_time_price`: `Vec<PriceTick>` ->
+    `Vec<IndexPriceAtTimeTick>`. Migration: `ms_of_day`, `price`, and
+    `date` keep the same field names; consumers must add reads for the
+    seven trade-side execution columns (`sequence`, `ext_condition1..4`,
+    `condition`, `size`, `exchange`) if needed -- `exchange` is the
+    SIP source attribution that was previously lost.
+  Closes wave-6 BLOCKER + SERIOUS. (2 major)
+
+#### Audit closure wave 5
+
+- Five `option_history_trade_greeks_*` endpoint return types change
+  shape: `Vec<GreeksAllTick>` -> `Vec<TradeGreeksAllTick>`,
+  `Vec<GreeksFirstOrderTick>` -> `Vec<TradeGreeksFirstOrderTick>`,
+  `Vec<GreeksSecondOrderTick>` -> `Vec<TradeGreeksSecondOrderTick>`,
+  `Vec<GreeksThirdOrderTick>` -> `Vec<TradeGreeksThirdOrderTick>`,
+  `Vec<IvTick>` -> `Vec<TradeGreeksImpliedVolatilityTick>`. Migration:
+  consumers that already iterate Greek fields keep the same field
+  names; consumers that read `bid` / `ask` from these endpoints must
+  swap to the trade execution columns (`size`, `exchange`, `price`,
+  `condition`, `sequence`, `ext_condition1..4`) the server actually
+  emits on these endpoints. Closes audit BL-14. (5 major)
+
+#### Audit closure wave 3
+
+- `grpc` module narrowed from `pub mod` (with `#[doc(hidden)]`) to
+  `pub(crate) mod` in the default-features build. Public visibility
+  re-opens only under the private `__test-helpers` feature.
+  Nine names lose their `thetadatadx::grpc::*` reachability:
+  `Channel`, `ChannelError`, `ChannelPool`, `ChannelLease`,
+  `DecoderHandle`, `DecoderPool`, `default_decoder_thread_count`,
+  `Status`, `ServerStreaming`. Errors flowing out of the transport
+  layer continue to reach consumers via `impl From<grpc::ChannelError>
+  for Error` at the crate boundary — pattern-match on the public
+  `crate::Error` type. Closes audit BL-1.
+
+#### Audit closure wave 2
+
+- `fpss::protocol::wire` narrowed from `pub mod` to `pub(crate) mod`;
+  the `pub use ... build_*` / `parse_*` re-exports on
+  `fpss::protocol` are gone. Crate-internal callers keep working via
+  `pub(crate) use` shadows; integration tests + benches that need
+  fixture builders import from a new
+  `fpss::protocol::test_wire` re-export module gated on the private
+  `__test-helpers` feature. Closes audit BL-2.
+- `observability` module narrowed from `pub mod` to
+  `pub(crate) mod`. The exporter setup is reachable via the public
+  `DirectConfig::with_metrics_port` knob (no consumer-visible API
+  change). Closes audit BL-3.
+- `fpss::__test_internals` re-export module feature-gated on
+  `cfg(any(test, feature = "__test-helpers"))` — matches the
+  `wire::test_requests` convention used elsewhere in `lib.rs`.
+  `cargo-semver-checks` stops tracking it as a SemVer commitment.
+  Closes audit BL-4.
+- `grpc` module gains `#[doc(hidden)]` to signal to consumers that
+  the channel / pool / decoder primitives below are infrastructure,
+  not user-facing API. Full narrowing to `pub(crate)` tracked under
+  BL-1 as a follow-up (deferred because 13 test/bench files would
+  each need feature-gated re-export surfaces).
+
+#### Audit closure wave 1
+
+- `IvTick` recovers 7 columns the v3 server has been emitting on
+  `option_history_greeks_implied_volatility` since v3 launch and the
+  pre-v11 decoder silently dropped (`bid`, `bid_implied_volatility`,
+  `midpoint`, `ask`, `ask_implied_volatility`, `underlying_ms_of_day`,
+  `underlying_price`). Struct size: 64 -> 128. `bid_implied_vol` /
+  `ask_implied_vol` wire headers map via new `HEADER_ALIASES` rows.
+  Closes audit BL-12.
+- `OhlcTick` recovers the SIP-rule `vwap` column emitted by every
+  `*_history_ohlc` endpoint. The snapshot variants (`*_snapshot_ohlc`)
+  default `vwap` to `0.0` via the optional-column path. Struct size
+  unchanged (was already 128 bytes after alignment); field offsets
+  shift past `count`. Closes audit BL-13.
+
+### Added
+
+#### Audit closure wave 3
+
+- `MddsConfig.warn_on_buffered_threshold_bytes` (Rust `usize`,
+  default 100 MiB) bound across every binding. New surface:
+  - FFI: `tdx_config_set_warn_on_buffered_threshold_bytes(*mut TdxConfig,
+    usize)` setter + `tdx_config_get_warn_on_buffered_threshold_bytes(
+    *const TdxConfig, *mut usize) -> i32` getter.
+  - C++: `tdx::Config::set_warn_on_buffered_threshold_bytes(std::size_t)` +
+    matching getter.
+  - Python: `Config.warn_on_buffered_threshold_bytes` (pyo3 `#[getter]`
+    + `#[setter]`) + `.pyi` type stub.
+  - TypeScript napi: `Config.setWarnOnBufferedThresholdBytes(BigInt)` +
+    `Config.warnOnBufferedThresholdBytes` getter (BigInt because the
+    underlying field is `usize`).
+  - `sdks/parity.toml` gains a new `MddsConfig.warn_on_buffered_
+    threshold_bytes` row marked all-true under a new MddsConfig
+    section header. Closes audit BL-8.
+
+### Fixed
+
+#### Audit closure wave 2
+
+- `concurrent_refreshes_dedupe_to_single_nexus_call` rewritten to
+  actually prove the dedup contract. The prior test pointed both
+  refresh tasks at an unreachable Nexus URL and asserted only
+  `final_version <= 1`, satisfied whenever both calls fail before
+  either issues a request — proving nothing. The new pair of tests
+  pins (a) the version-check dedup short-circuit (both concurrent
+  refreshes return Ok from the fast path after an external
+  `bump_for_test`, version stays at 1) and (b) refresh_lock-driven
+  serialization on unreachable-URL refreshes (no deadlock, version
+  stays at 0, wall-clock bounded). Closes audit BL-16.
+- `decode_tick_*field_trade_*` rewritten as
+  `decode_frame_*field_trade_emits_trade_data_*` — both drive
+  `decode_frame` (the production decode entry) instead of
+  `decode_tick` plus a hand-copied field mapping. The hand-mapped
+  `FpssData::Trade { f[0], f[1], … }` simulation is gone; the
+  production decode arm IS the contract. Closes audit BL-17.
+- `every_valid_price_type_round_trips` (`crates/tdbe/src/types/price.rs`)
+  renamed to `every_valid_price_type_renders_and_converts_finitely`.
+  The prior name lied — the test discarded the Display result and
+  the `to_f64` result without any round-trip comparison. Renamed
+  to match what is asserted AND tightened to require non-empty
+  Display + finite `f64`. Closes audit S37.
+- `flatfiles_byte_match` byte-match tests panic loudly when
+  `--features live-tests` is enabled but the reference vendor CSV
+  is missing (mirrors the `test_rest_live.rs` round-3 fix). The
+  prior silent-skip on missing fixture defeated the opt-in flag.
+  Closes audit S39.
+- `rest_arm_respects_tier_clamp_semaphore` drops the trivial
+  `elapsed >= 1ms` assertion. The strong serialization invariant
+  is the captured-query count check before/after `release_all`,
+  already asserted; the 1ms floor was satisfied by any network
+  handshake. Closes audit S38.
+- `test_start_streaming_requires_callable` renamed to
+  `test_start_streaming_accepts_any_pyobject_at_registration_time`.
+  The prior name lied: the test calls `start_streaming(42)` and
+  asserts SUCCESS without `pytest.raises`. The actual
+  registration-time-accepts / consumer-thread-fails contract is
+  now documented in the new name. Closes audit S43.
+- `decodes_concurrent_responses` switches from sequential await to
+  `futures::future::join_all` so the test exercises the multi-worker
+  fan-out instead of letting a single worker drain submissions
+  one-by-one. Closes audit S44.
+
+#### Audit closure wave 1
+
+- gRPC reconnect backoff gains decorrelated +/- 10% jitter keyed on
+  `(host, port, attempt)` so a population of clients seeing the same
+  GOAWAY no longer reconnects in lock-step (S52).
+- Per-frame `received_at_ns` cast uses saturating `u64::try_from` so
+  the schema timestamp stops wrapping at the 2554 boundary (S18).
+- METADATA-frame `permissions` and Nexus auth URL downgraded from
+  `debug!` to `trace!` so production deployments do not record
+  account subscription scope or auth-routing topology by default
+  (S55, S56).
+- TypeScript tests fail loudly when the napi addon is missing rather
+  than passing 0-assertion green; CI now catches a broken build (BL-15).
+- `scripts/check_banned_vocab.py` proto glob fixed
+  (`crates/**/*.proto`); the prior `proto/**/*.proto` expanded to
+  empty and silently skipped wire-spec files (S1).
+
+### Docs
+
+#### Audit closure wave 2
+
+- `decode_frame` body comments (`fpss/decode.rs:142-200`) compressed
+  from ~60 lines of LLM-narrative essay to ~10 lines that name the
+  actual decisions (Arc::clone on hit, unresolved-sentinel on miss,
+  1024-hit warn rate). Closes audit S29.
+- `start_streaming` docstring (`client.rs:240-285`) compressed from
+  45 lines to 22 — three numbered contracts (no-block,
+  panic-isolation, lifecycle) plus the microsecond-callback rule.
+  Closes audit S30.
+- `bench_stage_pipeline` module docstring
+  (`benches/bench_stage_pipeline.rs:1-82`) compressed from 82 lines
+  to ~20 — one-line summary, four scenario tags, activation snippet.
+  Closes audit S31.
+- `RingEvent` `unsafe impl Sync` SAFETY block restated inline:
+  names the disruptor sequencing protocol and Acquire ordering on
+  the cursor instead of the prior one-liner.
+- `RingEvent::write` / `take` (`grpc/decoder_pool.rs:266,281`)
+  SAFETY blocks rewritten from "see method docstring" to inline
+  statements naming the barrier invariant. Closes audit S26.
+- `flatfiles::session::login` hoists the magic `6` frame budget
+  into a named `LOGIN_FRAME_BUDGET` constant with a doc-block
+  explaining the 4-frame max + 2-frame slack derivation.
+
+#### Audit closure wave 1
+
+- C++ public headers (`thetadx.h`, `thetadx.hpp`) and Python pyo3
+  docstrings: scrubbed upstream-protocol jargon
+  (`FPSS reader -> LMAX Disruptor ring -> consumer thread` →
+  `streaming reader -> bounded ring -> consumer thread`,
+  "MDDS pool sizing" → "decode pool sizing"). ABI-locked symbols
+  (`tdx_fpss_*`, `TDX_FPSS_*`) unchanged. Closes BL-5, BL-6, BL-7.
+
+### Added
+
+#### Audit closure wave 2
+
+- `require_config_mut!` macro in `ffi/src/error.rs` collapses the
+  `if config.is_null() { return; } unsafe { &mut *config }` pattern
+  at every `tdx_config_set_*` call site. 12 sites in
+  `ffi/src/auth.rs` rewritten to use the macro; the SAFETY block
+  is now named once in the macro doc-block instead of paraphrased
+  inline at every setter. Closes audit S23 (12 of 23 auth sites;
+  remaining 11 in `ffi/src/fallback.rs` use a different
+  return-shape and are tracked as a follow-up).
+- `drop_subscription_cstrings` free fn in `ffi/src/streaming.rs`
+  consolidates the 6 sites that hand-walked the
+  `TdxSubscription` kind / contract `CString::from_raw` pair. The
+  shared SAFETY contract is named once on the function; per-site
+  comments now describe only call-specific provenance reasoning.
+  Closes audit S25.
+- `scripts/check_lockfile_drift.py` — new CI gate. The repo
+  tracks 5 independent Cargo.lock files; the gate fails on
+  cross-lockfile drift for security-critical (rustls, tokio, h2,
+  reqwest, hyper, prost) and SDK-owned (thetadatadx, tdbe)
+  crates. Caught one real drift on first run (`rustls-pki-types`
+  1.14.0 in workspace root vs. 1.14.1 in every binding), now
+  aligned at 1.14.1 everywhere. Wired into the same CI job that
+  runs `check_version_sync.py`. Closes audit S7.
+- `scripts/check_c_abi_completeness.py` gains a bidirectional
+  reverse-delta pass: any `tdx_*` symbol declared in
+  `sdks/cpp/include/*.h`/`*.hpp` but missing from the compiled
+  `libthetadatadx_ffi.so` exports now fails CI. Prior
+  one-directional pass only caught Rust exports absent from
+  headers (compile-time error); the reverse case lands at LINK
+  time. Two false-positive prose-only mentions fixed:
+  `thetadx.hpp:358` `tdx_last_error_raw` -> `tdx_last_error`;
+  `tdx_exchange_` (trailing-underscore family wildcard) added to
+  the `HEADER_ONLY_ALLOWLIST`. Closes audit S3.
+- `protocol::test_wire` re-export module behind the private
+  `__test-helpers` feature, surfacing the now-`pub(crate)`
+  `fpss::protocol::wire` builders to integration tests and
+  benches that hand-build FPSS frame fixtures. Companion to the
+  BL-2 narrowing above.
+- 5 integration tests (`reconnect_storm`, `replay_capture`,
+  `vendor_schema_drift`, `decode_fuzz_property`,
+  `midframe_disconnect`) and 2 benches (`bench_delta_decode`,
+  `bench_protocol`) explicit `[[test]]` / `[[bench]]` entries in
+  `Cargo.toml` with `required-features = ["__test-helpers"]` so
+  the default-features build cleanly excludes them now that the
+  `__test_internals` re-export module is feature-gated.
+
+#### Audit closure wave 1
+
+- Python `test_reconnect_stable_window_secs_rejects_above_u64`
+  closes the last cross-binding gap on the
+  `reconnect_stable_window_secs` boundary surface. Mirrors the
+  TypeScript `setReconnectStableWindowSecs(1n << 65n)` rejection
+  case so magnitudes above `u64::MAX` raise `OverflowError` at the
+  pyo3 extraction boundary, instead of relying on the implicit
+  Python-int-is-unbounded behaviour.
+- FFI `reconnect_setters_compose_with_pool_sizing_setters` pins
+  the interleaved-survival contract on the C-ABI surface to match
+  the existing Python / TypeScript / C++ cases. Reconnect setter
+  calls and pool-sizing setter calls on the same `TdxConfig` must
+  land in `inner` independently and persist; the new test interleaves
+  `tdx_config_set_concurrent_requests`,
+  `tdx_config_set_decoder_ring_size`,
+  `tdx_config_set_reconnect_policy`,
+  `tdx_config_set_reconnect_max_attempts`,
+  `tdx_config_set_reconnect_max_rate_limited_attempts`,
+  and `tdx_config_set_reconnect_stable_window_secs`, then asserts
+  both mutation classes round-tripped via the underlying `MddsConfig`
+  and `ReconnectPolicy::Auto(limits)` paths.
+- Cross-binding ReconnectConfig setter test parity. The TypeScript
+  `__tests__/config_reconnect.test.mjs` coverage that landed in
+  round 3 now has matching siblings on every binding:
+  `sdks/python/tests/test_config_reconnect.py` (10 tests covering
+  policy round-trip, per-class budget round-trip, stable-window
+  acceptance + negative rejection, interleaved-setter independence),
+  `sdks/cpp/tests/config_reconnect.cpp` (6 Catch2 cases mirroring
+  the Python contract on the C++ wrapper), and a new
+  `reconnect_setter_tests` module in `ffi/src/auth.rs` (7 Rust
+  tests against the underlying `tdx_config_set_reconnect_*` C ABI).
+  The existing `lifecycle.cpp` smoke also expanded to call all four
+  reconnect setters with valid values.
+- TypeScript `setReconnectStableWindowSecs` BigInt boundary
+  coverage. Adds a magnitude-above-u64 rejection case
+  (`setReconnectStableWindowSecs(1n << 65n)`) alongside the
+  existing negative-BigInt rejection so the two boundary failures
+  are pinned independently.
+- `require_client!` and `require_symbol_array!` macros (with full
+  unit-test coverage: null-pointer / valid / invalid-UTF-8 / Go-empty
+  branches) alongside the existing `require_cstr!` macro. `require_cstr!`
+  also gains direct unit tests against the macro itself.
+- `crates/thetadatadx/benches/common/quote_fixture.rs` — single
+  source for the 10-column quote-tick `DataTable` builder + the
+  `dv_number` / `dv_price` helpers. `bench_decode`,
+  `bench_decoder_pool`, `bench_protobuf_decode`, and
+  `bench_stage_pipeline` include it via `#[path = "common/..."]`.
+- Documented Rust-only `FlatFilesConfig` retry knobs in
+  `sdks/parity.toml` (`max_attempts`, `initial_backoff_secs`,
+  `max_backoff_secs`) with the binding-gap flagged in the matrix.
+- `_deferred` baseline notes in `benches/baseline/criterion.json`
+  for the three bench entries that cannot land their first sample
+  without a clean GitHub-hosted runner pass
+  (`decoder_pool/threads/4`, `protobuf_decode/quote_chunk/1024`,
+  `stage_pipeline/throughput/workers=4`).
+
+- Cross-binding parity for the two-stage MDDS decode pipeline knobs
+  (Phase 3 of 3). The `MddsConfig::decode_threads` and
+  `decode_queue_depth` fields landed in #587 (core scaffold) and #588
+  (criterion benches); PR #586 mirrored the legacy single-stage knobs
+  to every binding. This entry closes the parity gap so Python /
+  TypeScript / C++ / FFI callers can size the stage-2 prost-decode +
+  Tick-build worker pool and the bounded MPSC queue independently of
+  channel count, matching the Rust surface bit-for-bit.
+  - **Python**: `cfg.decode_threads = N` and
+    `cfg.decode_queue_depth = N` (with `None` for the auto-size
+    sentinel) and full `.pyi` stubs. Negatives raise `ValueError`
+    at the setter; explicit `0` is a legal value that the pool
+    clamps to `1` at construction.
+  - **TypeScript**: `cfg.setDecodeThreads(N)` /
+    `cfg.setDecodeQueueDepth(N)` accepting `number | null | undefined`,
+    with regenerated `index.d.ts`. The mirror property getters return
+    `number | null` for the current value.
+  - **C++**: `cfg.set_decode_threads(std::optional<size_t>)` /
+    `cfg.set_decode_queue_depth(std::optional<size_t>)` on
+    `tdx::Config`. `std::nullopt` encodes the auto-size sentinel.
+    The wrappers throw `std::runtime_error` on null-handle FFI
+    failure (unreachable through the RAII contract).
+  - **FFI**: `tdx_config_set_decode_threads(*TdxConfig, size_t) -> int32_t`
+    and `tdx_config_set_decode_queue_depth(*TdxConfig, size_t) -> int32_t`,
+    both C-ABI clean. `n = 0` encodes the auto-size sentinel; any
+    `n > 0` is the explicit `Some(n)` override. Returns `0` on
+    success, `-1` on null-handle (diagnostic via `tdx_last_error()`).
+  - 13 new Python tests, 13 new TypeScript tests, 7 new C++ Catch2
+    tests, 7 new FFI Rust tests.
+
+- MDDS pool-sizing surface on every binding (closes #584). Three
+  knobs on `MddsConfig` are now exposed through the Python, TypeScript,
+  C++, and FFI surfaces — they previously existed in the Rust core
+  but had no cross-binding equivalent:
+  - `concurrent_requests` — pool-wide concurrency cap. `0` (default)
+    auto-detects from the Nexus subscription tier (Free=1 / Value=2
+    / Standard=4 / Pro=8). Explicit values above the tier cap are
+    now **clamped at connect time** with a `tracing::warn!` rather
+    than producing confusing per-RPC `ResourceExhausted` rejections
+    on the (cap + 1)-th channel.
+  - `decoder_threads` — dedicated decoder-pool thread count. `0`
+    (default) auto-sizes to `max(available_parallelism / 2, 1)`,
+    independent of channel count (the previous formula capped at
+    `channels`, which throttled CPU-bound decode on under-channeled
+    tiers).
+  - `decoder_ring_size` — per-thread Disruptor ring depth. Setters
+    on every binding reject invalid sizes (zero, non-power-of-two,
+    below 64) at the call site rather than at connect-time validate.
+  - **Python**: `cfg.concurrent_requests = N` / `cfg.decoder_threads = N`
+    / `cfg.decoder_ring_size = N` with full `.pyi` stubs.
+  - **TypeScript**: `cfg.setConcurrentRequests(N)` / `setDecoderThreads`
+    / `setDecoderRingSize` with regenerated `index.d.ts`.
+  - **C++**: `cfg.set_concurrent_requests(n)` / `set_decoder_threads`
+    / `set_decoder_ring_size` on `tdx::Config`.
+  - **FFI**: `tdx_config_set_concurrent_requests` /
+    `tdx_config_set_decoder_threads` /
+    `tdx_config_set_decoder_ring_size`, all C-ABI clean.
+  - 7 new Rust unit tests (`pool_size_tests`), 10 new Python tests,
+    8 new TypeScript tests, 6 new C++ Catch2 tests, 7 new FFI tests.
+- `bench_decoder_pool` (criterion) — sweeps decoder thread count
+  (1/2/4/8 at fixed ring=256) and ring depth (64/256/1024/4096 at
+  fixed threads=4) through the public `DecoderPool` surface. Reports
+  ticks/sec at 1024-row quote payloads. Baseline finding: thread
+  count scales near-linearly through 4 threads; ring depth at 64–4096
+  lands within ~5% across the range at this workload.
+- `bench_protobuf_decode` (criterion) — prost decode throughput at
+  quote-chunk (256/1024/4096/8192 rows) and trade-chunk
+  (256/1024/4096 rows) payload sizes. Baseline scaffolding for the
+  SIMD / zero-copy decode follow-up to compare against; the follow-up
+  must clear ≥ 1.5× this baseline before the swap is worth a new
+  dependency in the decode path.
+- `docs-site/docs/configuration.md` — new "Throughput Tuning" section
+  with the per-workload sizing table, per-binding code samples, and
+  the architectural caveat documenting why `decoder_threads >
+  concurrent_requests` is currently wasted memory (two-stage pipeline
+  rewrite is the architectural follow-up).
+
+- Tier-aware `concurrent_requests` clamp (refs #584). Explicit
+  `MddsConfig::concurrent_requests` values above the resolved
+  subscription tier cap (Free=1 / Value=2 / Standard=4 / Pro=8) are
+  now clamped at connect time with a `tracing::warn!` rather than
+  honoured unconditionally. Previously, `concurrent_requests = 32`
+  on a PRO tier opened 32 channels and the (cap + 1)-th RPC failed
+  with confusing `ResourceExhausted` rejections that the SDK retried
+  on a different channel. The clamp surfaces the misconfiguration
+  locally. `MddsConfig::override_tier_clamp` (doc-hidden) bypasses
+  the clamp for tests that need to reproduce the over-provisioning
+  failure mode against a stubbed auth response. The per-request
+  semaphore is now sized off the resolved channel pool size so the
+  two stay strictly coupled. `DecoderHandle::submit` is now `pub`
+  (was `pub(crate)`) — the function takes wire-public types and
+  lets external bench / integrator code drive the pool without
+  going through the full gRPC stack.
+
+- `default_decoder_thread_count(channels)` no longer caps the
+  returned value at `channels` (refs #584). The argument is retained
+  on the signature for backwards compatibility but no longer
+  participates in the resolution. Channels = server-throttled gRPC
+  streams (capped by subscription tier); decoder threads = CPU work
+  on bytes already arrived. The previous cap conflated the two and
+  throttled CPU-bound decode on under-channeled tiers.
+
+- Two-stage MDDS decode pipeline scaffold (core only; benches +
+  bindings land in stacked follow-ups). The decoder pool now splits
+  the existing `zstd decompress -> prost decode -> Tick build` chain
+  into two stages so each scales independently to the workload
+  shape:
+  - **Stage 1**: per-channel decoder threads (unchanged thread
+    shape) run *only* `zstd::bulk::Decompressor::decompress_to_buffer`
+    and push a `DecodedPayload { channel_id, request_id, payload:
+    Bytes }` onto a shared bounded MPSC queue
+    (`crossbeam_channel::bounded`). Stage-1 parks on a full queue
+    rather than dropping — silent drops on a market-data feed are
+    unacceptable. Park duration accumulates into
+    `Stage2Counters::total_parked` (nanoseconds) and is
+    `tracing::debug!`-logged so operators see backpressure events.
+  - **Stage 2**: shared worker pool (`Stage2Pool`) pulls jobs from
+    the queue, runs `prost::Message::decode`, and replies through
+    the caller's `oneshot::Sender`. Worker count and queue depth
+    are independently tunable.
+  - New `MddsConfig::decode_threads: Option<usize>` controls the
+    stage-2 worker pool size (defaults to
+    `available_parallelism()` when `None`); `Some(0)` clamps to 1.
+  - New `MddsConfig::decode_queue_depth: Option<usize>` controls
+    the bounded queue depth (defaults to `pool_size * 64` when
+    `None`); `Some(0)` clamps to 1.
+  - `MddsConfig::decoder_threads` becomes the deprecated alias for
+    the stage-1 thread count; reads emit a single
+    `tracing::warn!` per pool construction pointing operators at
+    `decode_threads`.
+  - `Stage2Counters` wraps three `AtomicU64`s in
+    `crossbeam_utils::CachePadded` so false-sharing across sockets
+    cannot stall the pipeline under load. Struct alignment is
+    asserted at `>= 3 * CachePadded<AtomicU64>` so a regression
+    that drops the padding trips CI immediately.
+  - Panic containment carries over from the legacy pool: a stage-2
+    worker panic flips the shared `poisoned` flag, future jobs
+    drain with `Error::Transport { kind: DecoderPoisoned, .. }`,
+    and stage-1 producers parked on a full queue observe the
+    flip on their next push. Stage-1 owns its own `catch_unwind`
+    around the zstd decompress so a degenerate compressed payload
+    cannot kill the decoder thread.
+  - The public `.stream(handler)` callback receives the same
+    `&[QuoteTick]` as before — only the internal pipeline shape
+    changed. Existing integration tests + the lib suite pass
+    unchanged.
+  - Criterion benches and per-binding mirrors (Python / TS / C++ /
+    FFI) follow in stacked PRs.
+
+- `bench_stage_pipeline` (criterion) — four scenarios exercising the
+  shared stage-2 worker pool: `pipeline_throughput` (sweep workers
+  ∈ {1, 2, 4, 8} at fixed 1024-row payload, queue=workers*64),
+  `pipeline_alloc_pressure` (sweep payload rows ∈ {256, 1024, 4096,
+  16384} at workers=4 / queue=256, ticks/sec throughput),
+  `pipeline_false_sharing` (saturate workers=8 / queue=512 with
+  256-row payloads as a `CachePadded<AtomicU64>` regression
+  detector), and `pipeline_backpressure` (feed workers=2 / queue=4
+  at 16× the drain rate; in-bench assertion confirms `total_parked`
+  advances every iteration). Phase 2 of the two-stage decode pipeline
+  rollout — per-binding mirrors (Python / TS / C++ / FFI) follow in
+  Phase 3.
+
+- `MddsConfig::warn_on_buffered_threshold_bytes` (#576). Buffered
+  `.await` historical responses whose estimated size exceeds the
+  threshold (default 100 MiB) now emit a single `tracing::warn!`
+  event with `endpoint`, `row_count`, `bytes_est`, and
+  `threshold_bytes` fields suggesting `.stream(handler)` for the
+  workload. Fires once per request after the `Vec<Tick>` materializes
+  — no per-chunk torrent. Set to `0` to disable the warn entirely.
+  Helper lives in `crate::mdds::macros::warn_buffered_response_size`
+  with pure-decision `should_warn_buffered_size` for cheap testing.
+  Five unit tests pin the threshold semantics (zero / equal /
+  off-by-one / overflow / end-to-end event capture).
+
+- `FallbackPolicy` + `_with_fallback` shims now reach every binding —
+  FFI (C ABI), TypeScript (napi-rs), and C++ (`thetadx.hpp`) — closing
+  the cross-binding parity gap that PR #579 left as a Python-only
+  surface. The Rust core's four `option_history_*_with_fallback`
+  methods now live on `MddsClient` (`ThetaDataDxClient` derefs to
+  `MddsClient`, so existing Rust callers are unchanged); the
+  `rest_clients` `Arc<RestClient>` cache moved with them.
+  - **FFI**: `TdxFallbackPolicy` opaque handle + four factories
+    (`tdx_fallback_policy_disabled` /
+    `tdx_fallback_policy_rest_on_h2_disconnect` /
+    `tdx_fallback_policy_rest_always_for_date_range` /
+    `tdx_fallback_policy_rest_always`), `tdx_config_with_rest_fallback`,
+    and four `tdx_option_history_*_with_fallback` endpoint shims, all
+    declared in `sdks/cpp/include/thetadx.h`.
+  - **TypeScript**: `FallbackPolicy` + `Config` napi classes,
+    `Config.withRestFallback(policy)`, `ThetaDataDxClient
+    .connectWithConfig(email, password, config)` /
+    `.connectFromFileWithConfig(path, config)` factories, four
+    `optionHistory*WithFallback(...)` async methods, and the
+    `DEFAULT_REST_BASE_URL` module constant. `index.d.ts` regenerated
+    via `napi build`.
+  - **C++**: `tdx::FallbackPolicy` move-only RAII class with the four
+    named factories, `Config::withRestFallback`, and four
+    `Client::optionHistory*WithFallback(...)` methods.
+  - 8 new offline Catch2 tests in `sdks/cpp/tests/fallback.cpp`,
+    8 new offline Node tests in
+    `sdks/typescript/__tests__/fallback.test.mjs`, 7 new Rust unit
+    tests in `ffi/src/fallback.rs`. Each binding ships a live-gated
+    end-to-end test behind `THETADX_LIVE_PATCHED_TERMINAL`.
+
+- Channel-layer h2-cascade recovery (#577).
+  > **Superseded** — see Unreleased > Removed for the obliteration.
+  > Root cause was the SDK's pool, not an upstream cascade.
+
+  The pool's `next()`
+  picker now tracks a per-channel `AtomicBool` death flag and
+  routes around channels that have observed
+  `ChannelError::ConnectionClosed`. A poll that surfaces the
+  cascade flips the flag without holding a `&Channel` borrow;
+  subsequent picks see only the live members until every channel
+  dies, at which point the picker falls through to a dead channel
+  as last resort (the alternative -- blocking on a fully-dead
+  pool -- would mask the root cause behind a hang). The streaming
+  and unary retry classifiers in `mdds::macros` now treat
+  `Error::Transport { kind: ConnectionClosed, .. }` as `Transient`
+  so the retry loop reattempts on the next picker `next()`, which
+  under the dead-channel routing picks a live member. The
+  combination means a single upstream cascade is no longer
+  terminal for the call as long as one live channel remains in the
+  pool. New diagnostic surface: `ChannelPool::all_dead()` /
+  `dead_count()` + `Channel::is_dead()`. Pinned by three new pool
+  tests (`next_skips_dead_channels_while_live_members_remain`,
+  `next_falls_through_to_dead_channels_when_pool_is_fully_dead`,
+  `single_member_pool_returns_dead_channel_even_if_marked_dead`)
+  and two retry-classifier regression tests
+  (`connection_closed_transport_error_maps_to_transient`,
+  `other_transport_error_kinds_stay_terminal`).
+
+- Wire-level investigation pin at
+  `docs-site/docs/legacy-quote-577-investigation.md` (#577).
+  Documents every strict-length check on the Java tick types
+  (QuoteTick=11, TradeQuoteTick=25, MarketValueTick=11-via-super,
+  TradeTick=16, SnapshotTradeTick=7, OhlcTick=9, EodTick=18,
+  OpenInterestTick=3), confirms the patched-terminal source
+  carries exactly one structural patch (QuoteTick 6 -> 11
+  upcast) plus one cosmetic typo fix, and explains why the
+  post-Feb-2020 cascade is a vendor-side storage-cutover date
+  rather than a second schema variant. Saves the next
+  contributor from re-running the same source-reverse-engineering
+  pass.
+
+- `FallbackPolicy` pyclass + `Config.with_rest_fallback` + four
+  `option_history_*_with_fallback` methods on the Python
+  `ThetaDataDxClient` (S1). Python callers can now reach the REST
+  fallback surface that was previously Rust-only; mirrors the Rust
+  shape verbatim with `FallbackPolicy.disabled()` /
+  `.rest_on_h2_disconnect(base_url)` /
+  `.rest_always_for_date_range(base_url, before)` / `.rest_always(base_url)`
+  named constructors, the `Config.fallback_variant` getter, and the
+  `thetadatadx.DEFAULT_REST_BASE_URL` module constant. The four
+  `_with_fallback` methods accept `(start_date, end_date=None,
+  strike=None, right=None, interval=None)` kwargs; malformed
+  `start_date` / `end_date` raises `ValueError` at the Python
+  boundary rather than bubbling out of Rust. Stubs landed in
+  `python/thetadatadx/__init__.pyi`.
+
+- `_with_fallback` shims now accept `(start_date, end_date)` instead
+  of a single `date` (M6). All four affected endpoints
+  (`option_history_quote`, `option_history_trade_quote`,
+  `option_history_greeks_implied_volatility`,
+  `option_history_greeks_first_order`) carry the new pair on both
+  the Rust client and the Python bindings; the `RestAlwaysForDateRange`
+  policy keys on `start_date`. Adds the two missing shims promised
+  by the policy docstring (greeks IV + greeks first-order).
+
+- Per-base-url `RestClient` cache (M3). The four `_with_fallback`
+  shims share an `Arc<RestClient>` per distinct base URL via a
+  lazily-initialized `OnceLock<RwLock<HashMap<String, Arc<RestClient>>>>`
+  on `ThetaDataDxClient`, eliminating the per-call `reqwest::Client`
+  construction (TLS + connection-pool init) the previous shape paid.
+
+- `RestClient::with_max_response_bytes` cap with default 256 MiB
+  (`DEFAULT_MAX_RESPONSE_BYTES`) (N2). `fetch_csv` now rejects
+  oversized responses via `Content-Length` pre-flight and streamed
+  chunk-count check; surfaces `RestError::ResponseTooLarge { size,
+  limit }`. Protects against runaway-response OOM on multi-month
+  date ranges.
+
+- Live patched-Terminal integration test skeleton at
+  `crates/thetadatadx/tests/test_rest_live.rs` (N1). Two
+  `#[ignore]`d scenarios gated on `THETADX_LIVE_PATCHED_TERMINAL=1`:
+  a 2022-era `option_history_quote` legacy-row smoke + a
+  `ResponseTooLarge` cap-surface check.
+
+- Negative `--selftest` arm on `scripts/check_safety_comment_boilerplate.py`
+  (I1). Builds an FFI-only fixture and asserts the detector returns
+  zero findings, pinning the FFI-exempt logic against future refactor.
+
+- `local-terminal-patcher`: SHA-256 pinning of known-broken
+  `QuoteTick.class` releases (M1) via the new
+  `BROKEN_QUOTE_TICK_SHA256` table, fast-path accept on hash match
+  with the existing bytecode-signature check as fallback. Adds 10
+  unit tests covering `contains_subsequence`, `newest_jar_in`, and
+  `swap_classes_in_jar` (S3).
+
+- Standalone `FpssClient` and `MddsClient` pyclasses on the Python
+  binding. `FpssClient(creds, config)` opens ONLY the FPSS TLS
+  transport (no MDDS gRPC channel, no Nexus HTTP auth); `MddsClient(creds,
+  config)` opens ONLY the MDDS gRPC channel plus the Nexus
+  authentication and surfaces the historical / FLATFILES API while
+  raising `AttributeError` on every FPSS-touching method. The bundled
+  `ThetaDataDxClient` keeps its current behaviour — the new classes
+  are purely additive and align the Python surface with the
+  standalone clients already exposed by the C ABI (`tdx_fpss_*` /
+  `tdx_client_*`) and the C++ wrapper (`tdx::FpssClient` /
+  `tdx::Client`).
+- gRPC `grpc-timeout` header is now emitted on every
+  deadline-bearing RPC (`server_streaming_with_deadline`,
+  `mdds_client.with_deadline(...)`). The header carries the
+  smallest unit that fits the budget per the gRPC HTTP/2 spec
+  (`n` / `u` / `m` / `S` / `M` / `H`), so the server can
+  short-circuit on deadline elapse instead of completing work the
+  client will discard.
+- `TransportErrorKind` is exported from `thetadatadx::error` for
+  binding consumers and retry classifiers.
+- `tdbe::types::price::Price::with_value_and_type` constructor
+  rejects out-of-range `price_type` values with a typed
+  `PriceError` instead of clamping. `Price::value()` and
+  `Price::price_type()` accessors join the public API so future
+  field visibility changes do not break call sites.
+  `Price::is_unset()` and `Price::is_zero_value()` split the
+  previous `is_zero()` conflation into the two distinct signals
+  (sentinel vs real zero).
+- `Price` POW10 indexing paths carry `debug_assert!` invariant
+  guards so a hand-constructed `Price { value, price_type }`
+  outside `0..=MAX_PRICE_TYPE` traps in debug builds rather than
+  reading past the end of the lookup tables.
+- `AuthUser::max_concurrent_requests` now routes the
+  subscription-tier shift through `SubscriptionTier::from_wire`.
+  Hostile wire bytes (negative, `> 3`, `i32::MAX`) fold to
+  `Free=1` and emit a `warn` instead of panicking on the old
+  `1usize << tier` path.
+
+### Changed
+
+- `interest_rate_history_eod` rustdoc now lists the 12 valid `symbol`
+  values from upstream `RateType` (`SOFR`, `TREASURY_M1`,
+  `TREASURY_M3`, `TREASURY_M6`, `TREASURY_Y1`, `TREASURY_Y2`,
+  `TREASURY_Y3`, `TREASURY_Y5`, `TREASURY_Y7`, `TREASURY_Y10`,
+  `TREASURY_Y20`, `TREASURY_Y30`). The wire signature stays a flexible
+  `&str` (no enum constraint) so a future server-side maturity
+  addition does not break SDK callers; the docstring is the
+  authoritative surface for the documented today-set.
+- `crate::decode::row_date` now accepts `Text` cells in addition to
+  `Number` and `Timestamp`, routing them through `parse_iso_date`.
+  Every existing call site is strictly more permissive — Number /
+  Timestamp callers see no behaviour change — and the new arm is what
+  unblocks `InterestRateTick` decoding of the ISO `created` column
+  documented at
+  `docs.thetadata.us/operations/interest_rate_history_eod.html`.
+  `DecodeError::TypeMismatch` now widens its `expected` legend from
+  `"Number|Timestamp"` to `"Number|Timestamp|Text"` on this path.
+- C++ ReconnectConfig setter test names corrected from
+  `round-trips representative budgets` to
+  `accepts representative budgets without throwing`. The C ABI exposes
+  no `tdx_config_get_reconnect_*` getter, so the Catch2 cases only call
+  `REQUIRE_NOTHROW` on the setter — no round-trip is verified. The new
+  wording matches the existing TypeScript (`accepts non-zero budgets
+  without throwing`) and Python (`_accepts_non_zero_budgets`) names and
+  removes the misleading claim that a getter exists.
+- Issue-number attributions stripped from the seven remaining C/C++
+  surface sites (round-5 follow-up). The previous round closed `(issue
+  #N)` parentheticals on the Python / TypeScript / FFI binding crates
+  and on the two remaining `crates/thetadatadx/src/rest` module comments;
+  this round closes the C/C++ siblings: `sdks/cpp/include/thetadx.hpp`
+  (MDDS pool-sizing banner + cross-language utility helpers banner),
+  `sdks/cpp/include/thetadx.h` (two `volume/count` rationale blocks on
+  the OHLCVC and option-OHLCVC structs), `sdks/cpp/tests/CMakeLists.txt`
+  (doctest-harness comment), `sdks/cpp/tests/doctest_examples.cpp`
+  (file-banner comment), and `sdks/cpp/tests/config_pool_sizing.cpp`
+  (file-banner comment). `grep -rn 'issue #[0-9]\+' sdks/cpp/` now
+  matches only vendored Catch2 sources under `sdks/cpp/build/_deps/`.
+- ReconnectConfig setter docstrings unified across every binding. The
+  per-class budget setters (`set_reconnect_max_attempts`,
+  `set_reconnect_max_rate_limited_attempts`,
+  `set_reconnect_stable_window_secs`) now carry the same
+  `"No effect unless the reconnect policy is Auto"` qualifier on the
+  Python, TypeScript, FFI, and C++ Doxygen surfaces. Replaces the
+  three previous phrasings (`"manual" or "custom"` on Python/TS,
+  `"not Auto"` on FFI/C++).
+- Stage-1 → stage-2 backpressure regression tests now block on a
+  deterministic `parked_in_slice_loop` barrier counter instead of a
+  fixed `thread::sleep`. Both `backpressure_parks_producer` and
+  `poisoned_pool_releases_parked_producer_within_one_second` wait for
+  the producer to enter the bounded `send_timeout` slice loop before
+  draining the queue or flipping the poison flag, so the test pins
+  the contract under test rather than racing the wall clock.
+- Issue-number attributions stripped from `//`/`//!` block comments
+  in the Python / TypeScript / FFI binding crates and from the two
+  remaining `crates/thetadatadx/src/rest` module comments. The
+  `(issue #N)` shape rendered in tooling that consumed module
+  docstrings; the cleanup tracks the same standard already applied
+  to `///` rustdoc on the public surface. Sites covered:
+  `sdks/python/src/util_helpers.rs`, `sdks/typescript/src/util_helpers.rs`,
+  `sdks/typescript/src/{lib,fallback}.rs`, `sdks/python/src/lib.rs`,
+  `ffi/src/{auth,utility}.rs`, `sdks/cpp/include/thetadx.h`,
+  `crates/thetadatadx/src/rest/{mod,client}.rs`.
+- CHANGELOG `[Unreleased]` section consolidated into the five canonical
+  Keep-a-Changelog buckets (`Added`, `Changed`, `Deprecated`, `Removed`,
+  `Fixed`). Successive PR appends had grown three duplicate `Changed`
+  buckets, three duplicate `Added` buckets, and two duplicate `Fixed`
+  buckets; non-canonical `Retained` and `CI` headings folded into
+  `Changed` per the changelog format policy. Every individual entry
+  is preserved verbatim — only the headings were merged.
+- TypeScript `Config.setReconnectStableWindowSecs` accepts `bigint`
+  (was `number`) for true `u64` parity with the Python / C++ / FFI
+  surface. Callers passing `Number` should wrap:
+  `cfg.setReconnectStableWindowSecs(BigInt(60))`. Negative or
+  >`u64::MAX` BigInt inputs are rejected at the boundary with a
+  descriptive error rather than silently truncating.
+- TypeScript reconnect setter JSDoc adds the `"custom"` policy
+  qualifier so the cross-binding docstring parity with Python's
+  `Deprecated since v10.0.1...` style is restored. The setters are
+  silent no-ops under `"manual"` and `"custom"` policies; only the
+  `Auto(limits)` variant consumes the values.
+- Stage-1 → stage-2 backpressure send no longer parks indefinitely
+  on a `crossbeam_channel::Sender::send` if every stage-2 worker
+  panics *while* stage-1 is already blocked on a full queue.
+  `Stage2PoolSender::send` now parks in
+  `POISON_CHECK_INTERVAL` (50 ms) slices via `send_timeout` and
+  re-reads the pool's poison flag between slices, so a worker
+  panic mid-park surfaces as `Stage2SendError::Poisoned` within
+  one slice instead of wedging stage-1 forever. Regression test
+  (`poisoned_pool_releases_parked_producer_within_one_second`)
+  pins the bounded wakeup under one-second deadline.
+- FLATFILES wire-format reference docs restored at the
+  `crate::flatfiles::index` module rustdoc (on-disk header layout,
+  INDEX entry shape, contract-key encoding per `SecType`,
+  strike-in-tenths-of-cent convention). Module docs are the right
+  home for reference spec; the stale link to
+  `docs-site/docs/flatfiles/protocol.md` (file never existed) is
+  gone from `flatfiles::{mod,index}` and from the changelog.
+- TypeScript `npm test` script delegates to
+  `scripts/run_tests.mjs`, which walks `__tests__/` and hands every
+  `*.test.mjs` file to `node --test` as explicit argv. Replaces the
+  prior explicit-file list (which silently skipped the
+  `config_reconnect.test.mjs` reconnect-parity coverage that landed
+  in round 3). A shell-glob form (`node --test __tests__/*.test.mjs`)
+  also fails because Windows PowerShell does not expand it and
+  Node's own `--test` glob support is 22+; the explicit-argv runner
+  works on every supported shell and on every Node version
+  satisfying `engines.node >= 20`. The runner exits non-zero when
+  no test files are found, so a future regression that empties
+  the directory cannot silently pass CI.
+- `bench-internals` feature removed in favour of an out-of-Cargo
+  `--cfg bench_internals` flag. `Stage2Pool::submit_for_bench`
+  remains gated, but downstream consumers can no longer enable it
+  from the published `[features]` graph. The bench at
+  `benches/bench_stage_pipeline.rs` activates via
+  `RUSTFLAGS='--cfg bench_internals' cargo bench
+  --bench bench_stage_pipeline`.
+- `[package.metadata.docs.rs]` switched from `all-features = true`
+  to an explicit feature list (`arrow`, `polars`, `frames`,
+  `config-file`) so the rendered docs.rs page no longer surfaces
+  bench-only or test-only symbols.
+- `__test-helpers` private feature gates the test-only
+  `MddsClient::for_fallback_test` constructor. The symbol no longer
+  enters the published rlib unless the (double-underscore-prefixed,
+  doc-hidden) feature is explicitly enabled.
+- ReconnectConfig setter parity on the TypeScript binding.
+  `Config.setReconnectPolicy`, `setReconnectMaxAttempts`,
+  `setReconnectMaxRateLimitedAttempts`, and
+  `setReconnectStableWindowSecs` mirror the Python / C++ / FFI
+  surface; `sdks/parity.toml` records the field-level cross-binding
+  state.
+- Gate 14 (`scripts/check_safety_comment_boilerplate.py`) drops the
+  wholesale `ffi/src/` exemption and replaces it with a per-site
+  allowlist file (`scripts/safety_comment_allowlist.txt`) listing
+  the genuinely-shared invariants (handle round-trip, symbol-array
+  contract, test-only factory pointer). Every other duplicate trips
+  the gate regardless of location. Extended the invariant-signal
+  patterns to recognise `NUL-terminated`, `CString::`, and `NUL`
+  references so legitimate FFI annotations are not flagged.
+- FFI `error::tests` module hoists the four duplicate stamped
+  `// SAFETY: tdx_last_error() ...` blocks into a single
+  `last_error_message()` helper with one comprehensive SAFETY
+  comment naming the thread-local-slot lifetime invariant.
+- Gate 2 (`scripts/check_binding_parity.py`) gains a
+  dotted-name carve-out so per-field parity rows
+  (`FlatFilesConfig.max_attempts`, `ReconnectConfig.policy`, etc.)
+  participate in the SSOT without forcing the class-existence check
+  to match field-level setters. Tracked for per-field granularity
+  refactor in issue #595.
+- Legacy single-stage MDDS decode path replaces the per-chunk
+  `Box<dyn FnOnce>` closure with a typed
+  `DecodeRequest::SingleStage { response, max_message_size, reply }`
+  variant. The decoder thread runs `decode_data_table_with_max`
+  directly on the typed payload, avoiding the per-chunk
+  dynamic-dispatch vtable indirection the boxed `FnOnce` carried
+  (the per-chunk allocation count is unchanged — the box is now
+  for the typed struct instead of the closure).
+- Python `Config.decoder_threads` getter and setter prepend a
+  `Deprecated since v10.0.1: set decode_threads instead.`
+  deprecation line. Visible via `help(type(c).decoder_threads)`.
+- `.pyi` stub converts the leading `#`-comment over
+  `decoder_threads` to a triple-quoted attribute docstring so the
+  deprecation surfaces in tooling that consumes attribute
+  docstrings.
+- Tier-clamp regression test
+  (`rest_arm_respects_tier_clamp_semaphore`) replaces the
+  120 ms sleep with an `Arc<Notify>` entry-side barrier
+  (`RestMock::wait_for_entry`) so the test waits deterministically
+  for "first call reached mock" instead of racing the sleep.
+- Greeks gRPC arm `end_date` tests pin the outgoing wire bytes via
+  a new `MockBehaviour::capture_request_bytes` hook: the test
+  captures the inbound request proto, decodes it with
+  `OptionHistory*Request::decode`, and asserts the `end_date` field
+  carries the expected value. Renamed
+  `*_grpc_arm_dispatches` → `*_grpc_arm_forwards_end_date` to match
+  the contract.
+- Module headers across `fpss::{mod, pinning, wake}`,
+  `rest::mod`, `frames::mod`, `grpc::decoder_pool` compressed to
+  one paragraph each — the multi-paragraph architectural narratives
+  now live in the docs site (`docs-site/docs/streaming/index.md`,
+  `docs-site/docs/streaming/latency.md`). FLATFILES on-disk wire
+  layout remains at the `crate::flatfiles::index` module level as
+  the reference spec.
+- Issue / PR references stripped from `///` user-facing rustdoc
+  across the public surface (`client.rs`, `grpc/stream.rs`,
+  `fpss/framing.rs`, `mdds/macros.rs`,
+  `streaming_async_batches.rs`, `streaming_async_session.rs`).
+  References remain on `//` internal comments and `#[test]` doc
+  blocks per the audit protocol.
+- Python codegen template stripped the hardcoded `(issue #565)`
+  attribution from 33 `.stream()` doc-blocks in
+  `historical_methods.rs`; the comparable references in the Rust
+  endpoint render, the Python streaming-terminal renderer, the
+  REST builder header, and the `mdds/macros.rs` streaming
+  variant macro doc-block were all rewritten to describe the
+  behaviour without the issue number.
+- `MddsConfig::decoder_threads` rustdoc compressed to the
+  deprecation message + redirect. The "why no `#[deprecated]`"
+  rationale moved to an internal `//` comment above the field.
+- REST `Vec::with_capacity` seed floor for the `Content-Length`-
+  advertised path: when the server emits a small `Content-Length`
+  (including `0`) but follows up with chunked DATA, the
+  accumulator now starts at the same 64 KiB floor the pure-chunked
+  path uses, instead of the advertised value.
+- `parse_legacy_six_field_quote_csv` test renamed to
+  `parse_six_field_quote_csv_zero_fills_missing_columns` so the
+  test name describes the invariant being pinned.
+- `decoder_threads` deprecation parity across every binding.
+  Rust rustdoc, Python `.pyi`, C++ Doxygen, and TypeScript JSDoc all
+  carry an identical `since v10.0.1, use decode_threads` note +
+  attribute (`[[deprecated]]` on C++, `@deprecated` JSDoc tag
+  propagated via napi-rs doc-comment forwarding).
+- `MddsConfig::decoder_threads` auto-sizing rustdoc + bench
+  + migration-doc rewrites match the post-v10.0.0 formula
+  (`(available_parallelism / 2).max(1)`, no channel cap).
+- `crate::mdds::decode::{decompress_response, decompress_response_with_max,
+  decode_data_table, decode_data_table_with_max}` take `&mut
+  ResponseData` so the identity-compression path can move
+  `compressed_data` out via `std::mem::take` instead of cloning.
+  Behaviour preserved on every existing call site; the move is
+  observable only when callers retain the `ResponseData` past the
+  decode (no in-tree consumer does so).
+- `crates/thetadatadx/src/rest/client.rs` seeds the chunked-transfer
+  body accumulator with a 64 KiB floor so the first DATA frame on a
+  chunked REST response does not trigger a per-chunk realloc.
+- `MddsClient` REST-fallback shims downgrade per-call `start_date` /
+  `end_date` logging from `tracing::debug!` to `tracing::trace!` so
+  routine operator-visible logs no longer echo request date ranges.
+- FFI codegen template emits `require_client!` + `require_symbol_array!`
+  macro calls in place of the 61 inline `// SAFETY: client is a
+  non-null pointer ...` blocks and the 7 inline
+  `// SAFETY: caller supplies a contiguous array ...` blocks the
+  prior endpoint shims carried. Regenerated
+  `ffi/src/endpoint_with_options.rs` keeps a single per-macro
+  invariant-naming SAFETY comment instead of stamping the same
+  boilerplate at every call site.
+- Every hand-written `// SAFETY: see FFI boundary doc on the
+  enclosing fn …` line in `ffi/src/{flatfiles,streaming,utility,types}.rs`
+  rewritten to name the specific invariant the local `unsafe`
+  consumes (pointer provenance, layout, lifetime, ordering).
+- `crate::grpc::decoder_pool::backoff_ring_full` split into
+  `backoff_ring_full_async(duration)` (tokio multi-thread; honours
+  the duration via `block_in_place + thread::sleep`) and
+  `backoff_ring_full_sync()` (current-thread / non-async; fixed
+  256-iter spin) so the sync arm does not silently discard a
+  parameter the async arm uses.
+
+- `crate::grpc::pool::ChannelPool` now reconnects channels on
+  `ConnectionClosed` in-place rather than marking them permanently
+  dead. Long-running clients no longer cascade after sustained load:
+  every transport-level fault (`GOAWAY`, IO failure, peer shutdown,
+  open-phase drop) triggers a single-flight reconnect of the
+  channel's inner `SendRequest<Bytes>` with bounded exponential
+  backoff (50 ms initial, 30 s cap, 8 attempts). The caller's retry
+  shell re-dispatches once and observes the fresh sender on the
+  next pool pick. Fixes the real root cause behind #571 / #577 /
+  #589 — the prior investigation pin
+  (`docs-site/docs/legacy-quote-577-investigation.md`)
+  misattributed the cascade to a server-side schema variant; the
+  actual cause was the SDK's own dead-channel mechanism introduced
+  in #578 with no recycling counterpart.
+
+- The lenient 6-/11-/12-field NBBO decoder added in #573 is
+  **kept** as defense-in-depth. `find_header` + `opt_number(row, None) -> 0`
+  is good API design regardless of cause; a subset NBBO layout
+  could surface from any upstream storage tier in the future. The
+  doc-comment attribution to "issue #571" / "patched terminal
+  `normalizeData()`" is stripped — the test name
+  `quote_tick_decodes_legacy_six_field_shape_with_zero_fill`
+  remains as a regression pin.
+- The REST transport (`crate::rest`) is **kept** as the
+  user-facing alternative transport reachable via
+  `FallbackPolicy::RestAlways`.
+
+- REST endpoint builders are now codegen-driven from
+  `endpoint_surface.toml` (#580). The four hand-written
+  `option_history_*` builder structs + their `RestClient` constructor
+  methods + their `execute()` bodies — previously ~290 LoC of
+  per-endpoint boilerplate in `crates/thetadatadx/src/rest/client.rs`
+  — now live in `crates/thetadatadx/src/rest/_generated/rest_endpoints.rs`,
+  emitted byte-identical by the new
+  `build_support_bin/endpoints/sdk_render/rest_builder.rs` renderer.
+  The endpoint model gains a `Transport` enum (`Grpc` / `Rest` /
+  `Both`); flipping a TOML row to `transport = "both"` is now the
+  only edit needed to add a fifth REST endpoint. Public API
+  (`RestClient::option_history_*` + the four `*RestBuilder` types) is
+  unchanged.
+
+- Every `parsed_endpoint!` historical builder now ships a "When to
+  use `.await` vs `.stream(handler)`" decision matrix in rustdoc
+  (#576). Single source of truth lives in
+  `build_support/endpoints/render/mdds.rs::AWAIT_VS_STREAM_DOC` and
+  the codegen attaches it after the per-endpoint description, so
+  every `option_history_*` / `stock_history_*` / `index_history_*` /
+  `interest_rate_history_*` builder advertises the same guidance in
+  `cargo doc` without per-endpoint drift. The matrix calls out
+  tick-interval / Greeks / multi-day workloads as `.stream(handler)`
+  cases and points at `docs-site/docs/legacy-quote-handling.md` for
+  the full migration recipe.
+
+- `RestError::CsvDecode` / `RestError::MissingColumn` now lift into
+  `Error::Transport { kind: Codec, .. }` instead of
+  `Error::Config { internal, .. }` (S2). Matches the gRPC-side
+  `ChannelError::Codec` mapping and lets retry classifiers dispatch
+  uniformly across both transports.
+
+- `parse_yyyymmdd` returns `Result<i32, Error>` with
+  `Error::Config { kind: InvalidValue }` on parse failure (M8). The
+  previous implementation defaulted unparseable date strings to `0`,
+  silently coercing typos into the most-permissive
+  `RestAlwaysForDateRange` route. Propagates through both Rust and
+  Python `_with_fallback` shims.
+
+- `rest::csv::cell_i32_or_zero` / `cell_f64_or_zero` distinguish
+  three input cases (M4): column absent → `0` (legacy fill), empty
+  cell → `0` (Terminal null), malformed non-empty cell → structured
+  `CsvDecode` error. `cell_f64_or_zero` additionally rejects `NaN`
+  and `±Inf` (Rust's `f64::from_str` parses both) to prevent silent
+  poisoning of downstream comparisons.
+
+- `config::fallback::DEFAULT_REST_BASE_URL` now re-exports
+  `rest::client::DEFAULT_TERMINAL_BASE_URL` rather than inlining the
+  literal (M7). Single source of truth for the Terminal default URL.
+
+- `decode_greeks_first_order_csv` hoists all 13 `column_index` calls
+  above the row loop (M2). Bench harness at
+  `benches/bench_rest_decode.rs` is the baseline for the delta.
+
+- `decode_*_csv` helpers validate required columns (`ms_of_day`,
+  `date`) BEFORE allocating the `Vec::with_capacity(rows.len())`
+  output buffer (N3). Surfaces a `MissingColumn` error before
+  potentially-large allocations on malformed bodies.
+
+- `local-terminal-patcher`: comment on `swap_classes_in_jar` now
+  matches the implementation (M5) — every output entry is Deflated
+  regardless of source method, called out explicitly in the
+  docstring.
+
+- REST transport + `FallbackPolicy` for h2-cascading endpoints
+  (#571). The upstream Terminal's Java `QuoteTick` /
+  `TradeQuoteTick` constructors length-check incoming rows against
+  a fixed 11 / 25 element shape and throw
+  `IllegalArgumentException` on the pre-extension 6-field NBBO rows
+  that 2022-era options storage still surfaces; the exception
+  bubbles through the gRPC handler and cascades the h2 stream with
+  no error frame. The new `crate::rest::RestClient` talks
+  HTTP/1.1 to the local Terminal's `/v3/...` paths, sidestepping
+  the cascade (HTTP/1.1 is per-request rather than h2 stream
+  multiplexing). Four endpoints from the failure matrix are
+  wired:
+  `option_history_quote` /
+  `option_history_trade_quote` /
+  `option_history_greeks_implied_volatility` /
+  `option_history_greeks_first_order`. The new `FallbackPolicy`
+  (`Disabled` / `RestOnH2Disconnect` /
+  `RestAlwaysForDateRange { before }` / `RestAlways`) drives
+  auto-routing on the new
+  `ThetaDataDxClient::option_history_quote_with_fallback` and
+  `option_history_trade_quote_with_fallback` shim methods; pre-2023
+  dates skip gRPC entirely (saving the failed round trip) while
+  current dates flow through the gRPC fast path unchanged. Default
+  is `Disabled` for back-compat -- callers opt in via
+  `DirectConfig::with_rest_fallback`. Full incident write-up and
+  the policy table land in `docs-site/docs/legacy-quote-handling.md`.
+
+- `local-terminal-patcher` CLI (#571). New workspace binary at
+  `tools/local-terminal-patcher/` that rewrites the local Terminal's
+  inner library jar to tolerate the 6-field NBBO rows on the gRPC
+  path. Resolves the inner jar via autodetect or `--jar` /
+  `--terminal-dir`, verifies the known-broken bytecode signature
+  (`bipush 11 / if_icmpeq`), compiles the patched
+  `QuoteTick.java` + `OhlcTick.java` via system `javac` (JDK 11+),
+  and swaps the two classes into a copy of the jar. Patches are
+  `include_str!`'d into the binary so the tool runs without a
+  separate patches/ directory once built. Smoke-verified against
+  the live broken jar; the patched output carries the new
+  `normalizeData()` upcast + diagnostic exception messages
+  replacing the original `"Wrong number of data fields"` throw.
+
+- Universal `.stream(handler)` method on every historical builder
+  (#565). The buffered `.await -> Vec<T>` path held three live
+  copies (h2 frames + concatenated proto payload + decoded
+  `Vec<T>`) plus a `Vec::push` doubling transient, yielding 6×
+  memory amplification on tick-interval responses — a production
+  user hit 23 GiB RSS on
+  `option_history_quote(QQQ, 1DTE, interval=tick, strike_range=5)`
+  at 32-permit concurrency. The new `.stream(handler)` decodes
+  one chunk at a time, hands the slice to `handler`, then drops
+  the chunk before the next is fetched. Peak resident memory
+  drops to ~one chunk regardless of total row count. Available
+  on every parsed historical endpoint (option / stock / index
+  history, `_at_time_`, EOD, Greeks, market value, ...) without
+  SSOT churn — the streaming variant is macro-emitted alongside
+  the existing `IntoFuture` impl on every `parsed_endpoint!`
+  builder. Python builders gain `.stream(handler)` / `.stream_async(handler)`
+  terminals that hand each chunk to the user's callback as a typed
+  `list[Tick]`; the handler is dispatched under the GIL on the
+  tokio worker thread and the per-chunk `PyList` is dropped before
+  the next chunk fetch. Buffered `.await` / `.list()` /
+  `.list_async()` paths remain unchanged for back-compat.
+- Zero-copy gRPC frame detach in `ServerStreaming::poll_next`
+  (#565 Tier 4). The previous accumulator-peek did
+  `BytesMut::clone().freeze()` per poll — empirically a deep
+  copy of the entire accumulator (a 10 MiB buffer duplicates to a
+  fresh 10 MiB allocation), so a chunked response paid an
+  `O(polls × buf.len())` memory tax on the decode path. Replaced
+  with `peek_frame_length` (reads the 5-byte prefix in-place, no
+  allocation) followed by `BytesMut::split_to(frame_len).freeze()`
+  on the success branch (refcount-only). The codec invariant
+  ("Err ⇒ buf not consumed") is preserved end-to-end. Six new
+  unit tests pin the structural contract.
+- Memory footprint section in `docs/api-reference.md`,
+  `docs-site/docs/api-reference.md`, and the Python SDK README
+  (#565 Tier 5). Documents the per-tick bytes/row table, the
+  `concurrency × rows × bytes_per_row × decode_factor` budget
+  formula, the worked example for the reproducer, and the
+  `.stream()` vs `.await` recommendation matrix.
+- Python `FpssClient` and `MddsClient` standalone pyclasses
+  (#541, #543). `FpssClient(creds, config)` opens ONLY the FPSS TLS
+  transport; `MddsClient(creds, config)` opens ONLY the MDDS gRPC
+  channel plus Nexus auth and surfaces the historical / FLATFILES
+  API while raising `AttributeError` on every FPSS-touching method.
+  Mirrors the C ABI `tdx_fpss_*` / `tdx_client_*` split and the C++
+  `tdx::FpssClient` / `tdx::Client` shape.
+- Asyncio-native streaming surface
+  `ThetaDataDxClient.streaming_async()` / `FpssClient.streaming_async()`
+  (#559). The session bridges the Disruptor consumer thread to the
+  asyncio loop via a self-pipe wake FD: zero polling cost during
+  quiet periods, one OS wake per coalesced batch.
+- Free-threaded (PEP 703) wheels for CPython 3.13t / 3.14t (#561).
+  The extension carries `gil_used = false` on `#[pymodule]` so the
+  GIL stays disabled after `import thetadatadx`. Every
+  `block_on(...)` call site on the unified client and on the FPSS
+  / MDDS standalone pyclasses releases the GIL via `py.detach`
+  before driving the tokio runtime; the parallel-throughput gate
+  asserts `< 1.8x` overhead under contention on the free-threaded
+  matrix entries (`3.13t` / `3.14t`).
+- 12-gate CI invariant suite (#560). Gates cover: cross-binding
+  parity (`sdks/parity.toml` matrix), C ABI completeness (now
+  sourced from `nm` on the compiled .so so macro-emitted symbols
+  are tracked), wire-schema drift, banned-vocab scrubber, version
+  sync (Cargo / `package.json` / CMake / docs pins all in
+  lockstep), wheel + npm tarball content inspection, stubtest
+  `.pyi` ↔ runtime, fresh-install venv smoke, doc-example harness,
+  cargo-semver-checks (baseline now anchored at `v10.0.0`),
+  bench-regression gate (threshold 25% against the GH-runner
+  baseline), nogil throughput overhead gate.
+- Renamed FPSS event payload type from `Contract` to `ContractRef`
+  (#558). `event.contract` now returns `ContractRef` (the read-only
+  event payload accessor) without colliding with the fluent
+  `Contract` builder used in `subscribe()` inputs.
+- `BackpressurePolicy` enum on the FPSS pull-iter / async surfaces
+  (#564). Variants: `Block` (preserves every event by stalling the
+  Disruptor consumer until the queue drains), `DropOldest` (evicts
+  the queue head on full, preserves recency), `DropNewest` (skips
+  the new event on full, preserves history; legacy behaviour).
+  Exposed in Python as `thetadatadx.BackpressurePolicy` and threaded
+  through `streaming_iter(max_queue_depth=, backpressure=)`,
+  `streaming_async(max_queue_depth=, backpressure=)`, and
+  `streaming_async_batches(max_queue_depth=, backpressure=)`.
+- `ThetaDataDxClient.streaming_async_batches()` /
+  `FpssClient.streaming_async_batches()` (#564). Arrow IPC zero-copy
+  surface: each `async for batch in session` yields a
+  `pyarrow.RecordBatch` whose column buffers alias the Disruptor
+  consumer's pre-grouped Arrow `RecordBatch` — no per-event Python
+  object construction on the reader path. Same self-pipe wake-FD
+  signalling as
+  `streaming_async()`; the column-shape SSOT (`tick_schema.toml`)
+  guarantees schema parity with the per-event variant.
+- `queue_depth()` and `dropped_event_count()` getters on
+  `StreamingAsyncSession` and `StreamingAsyncBatchesSession` (#564).
+  Mirror the counters already exposed on the sync pull-iter surface
+  so callers can dashboard the in-flight queue depth and the count
+  of events dropped under non-`Block` policies without holding a
+  `FpssClient` reference.
+
+- `QuoteTick` decoder is now explicit about lenient column extraction
+  for the legacy 6-field NBBO layout (#571). The `bid_exchange`,
+  `bid_condition`, `ask_exchange`, `ask_condition` columns were
+  already declared optional in `tick_schema.toml` so the
+  generator-emitted `opt_number(row, None) -> 0` arm handles
+  absent columns; the schema doc + the `find_header` doc now call
+  out the contract, and two regression tests pin both the legacy
+  6-field and current 11-field shapes through `parse_quote_ticks`.
+  Forward-compat with the eventual upstream fix is preserved -- if
+  ThetaData lands a server-side upcast that adds the columns back
+  on the wire, the decoder picks them up without any further
+  change.
+
+- `reqwest` workspace feature set gains `query` for URL parameter
+  encoding on the new REST transport (#571). Adds
+  `serde_urlencoded` to the lockfile; both deps were already
+  present transitively via the existing reqwest usage on the auth
+  path.
+
+- `Error::Transport` payload restructured from `String` into a
+  typed `Transport { kind: TransportErrorKind, message: String }`
+  shape mirroring the `Grpc { kind, message }` / `Decode { kind, message }`
+  layout. `TransportErrorKind` enumerates the concrete fault
+  categories (`Tcp`, `Tls`, `InvalidServerName`, `H2Handshake`,
+  `H2Stream`, `ConnectionClosed`, `UnexpectedHttpStatus`,
+  `EmptyResponse`, `InvalidPath`, `Codec`, `DecoderPoisoned`,
+  `DecoderReplyDropped`) so retry classifiers and binding consumers
+  can dispatch on the structured `kind` without parsing `Display`.
+  The `Display` shape is stable
+  (`transport error (<kind>): <message>`) so existing string-keyed
+  consumers keep working.
+- The fpss `io_loop` thread now uses `Producer::try_publish` on
+  every publish path (handshake control frames, login success,
+  data frames, disconnect emission, reconnect control frames).
+  A saturated ring no longer wedges the TLS reader; overflow
+  increments the shared `dropped` counter and emits a `warn` log.
+- The fpss auto-reconnect re-subscribe path allocates fresh
+  `req_id` values from the shared `next_req_id` counter instead of
+  emitting `-1`. Server-side `ReqResponse` events on the
+  reconnected session now carry ids correlatable to the original
+  subscribe.
+- MDDS `extract_text_column`, `extract_number_column`, and
+  `extract_price_column` resolve headers through the alias-aware
+  `headers::find_header` helper. Upstream column renames (e.g.
+  `symbol` → `root`, `timestamp` → `ms_of_day`) now resolve through
+  `HEADER_ALIASES` instead of returning a silent empty `Vec`. A
+  non-empty `DataTable` whose column cannot be resolved emits a
+  `warn` log naming the requested header and the available set.
+- `MddsClient::open_channel_pool` routes `ChannelError -> Error`
+  through the canonical `From<ChannelError> for Error` impl in
+  `error.rs`, dropping a hand-mapped duplicate `match` arm at the
+  connect site. The duplicate carried a `_ => ConnectionClosed`
+  fallback that would silently mis-categorise any future
+  `ChannelError` variant added to the connect surface; the
+  canonical impl covers every variant exhaustively. The
+  channel-index context (`"channel {idx}: ..."`) is preserved on
+  the `Transport`-shaped output.
+
+- Workspace clippy invocation widened to
+  `cargo clippy --workspace --all-targets --locked -- -D warnings`
+  so `[[bench]]` and `#[cfg(test)]` unsafe blocks travel through
+  `clippy::undocumented_unsafe_blocks` on every PR. Adds SAFETY
+  comments on five bench-only `unsafe impl GlobalAlloc` blocks
+  and two test-only unsafe deref sites that previously escaped
+  the lint.
+- `scripts/check_banned_vocab.py` rejects the verbatim string
+  "see FFI boundary doc on the enclosing fn — raw pointers
+  satisfy the documented caller contract" outside `ffi/src/`.
+  The string was landed across 31 sites including 8 that are
+  not FFI raw-pointer contexts; the gate prevents future
+  bot-stamping from reintroducing the boilerplate.
+
+
+### Deprecated
+
+- `Error::config_other`, `Error::decode_other`, and
+  `Error::decompress_other` constructors are deprecated and
+  `#[doc(hidden)]`. New call sites should pick the matching typed
+  `*Kind` variant (`config_invalid`, `decode_codec`,
+  `decompress_zstd`, etc.). The constructors will be removed in
+  the next major release.
+
+
+### Removed
+
+- `InterestRateTick.ms_of_day` field (fictitious — the server never
+  emits a `ms_of_day` column on `interest_rate/history/eod`). Counts
+  as v11 breaking change #7 (after `SubscriptionInfo` non_exhaustive,
+  `GrpcStatusKind` repr, `Error::Transport` shape,
+  `ReconnectPolicy::Auto` shape, 3 `Error::*_other` deprecations).
+  Verified against the wire dump at the top of the matching `Fixed`
+  entry below. The struct shrinks from 3 fields to 2; the C ABI
+  `TdxInterestRateTick` re-pads from `{i32, pad, f64, i32, pad[40]}`
+  to `{i32, pad, f64, pad[48]}`; the Python pyclass
+  `InterestRateTick.__init__` keyword-only constructor drops the
+  `ms_of_day` parameter; the TypeScript `InterestRateTick` interface
+  drops `msOfDay`; the C++ wrapper `tdx::InterestRateTick` alias
+  follows the C ABI struct.
+- `Channel::is_dead`, `Channel::mark_dead`, `Channel::dead_handle`,
+  `ChannelPool::all_dead`, `ChannelPool::dead_count` — replaced by
+  in-place reconnect (see Changed above). The `ChannelLease`
+  picker no longer scans for "live" channels separately; every
+  channel in the pool stays a valid pick because the channel
+  itself swaps its inner h2 session on observed faults.
+- `ChannelError::UpstreamCascade` — folded into the existing
+  `ChannelError::ConnectionClosed` variant. The mid-stream
+  classifier (`classify_h2_error_mid_stream`) is gone; the
+  open-phase classifier (`classify_h2_error`) covers both phases
+  via the new `classify_h2_error_ref` thin wrapper.
+- `FallbackPolicy::RestOnH2Disconnect` and
+  `FallbackPolicy::RestAlwaysForDateRange` — both variants were
+  built around a misdiagnosed cascade and never actually helped.
+  `FallbackPolicy::RestAlways` is retained as the user-facing
+  escape hatch for callers who want every historical-quote call
+  routed over a locally-running Terminal's REST surface.
+- `_with_fallback` per-endpoint shims (Python / TypeScript /
+  C++ / FFI) tied to the deleted variants. The four remaining
+  `option_history_*_with_fallback` methods dispatch on
+  `FallbackPolicy::RestAlways` vs `Disabled` only.
+- `docs-site/docs/legacy-quote-577-investigation.md`,
+  `docs-site/docs/legacy-quote-handling.md` — both documented the
+  wrong root cause. Replaced by
+  `docs-site/docs/channel-pool-design.md`, which honestly
+  describes the in-place reconnect contract and pins the
+  correction so the next contributor doesn't repeat the search.
+- `crates/thetadatadx/tests/test_577_2020_onward.rs` — built on
+  the wrong premise. Replaced by
+  `crates/thetadatadx/tests/test_pool_reconnect.rs`, which pins
+  the single-flight CAS, the lifecycle observer events, and the
+  classifier-triggered reconnect spawn.
+- `tools/local-terminal-patcher/` — patched a code path
+  (`QuoteTick(Tick t)` constructor strict-length throw) that
+  bytecode analysis of the upstream terminal jar shows is never
+  invoked on the `option_history_quote` gRPC response path.
+  Decompilation confirms the constructor's sole caller is
+  `MarketValueTick`. The patcher fixed a fictional problem; the
+  workspace member, its `clap` / `zip` / `sha2` dependencies, and
+  its patch sources are removed.
+
+
+### Fixed
+
+- `InterestRateTick` schema was guessed at definition time as 3 fields
+  (`ms_of_day`, `rate`, `date`); the upstream v3 server actually
+  returns 2 columns (`created` as ISO-date Text, `rate` as a percent
+  Number). The decoder errored
+  `column 0: expected Number|Timestamp, got Text` on every
+  `interest_rate_history_eod` call until this fix. Verified against
+  terminal jar build `202605221` (queried 2026-05-22 against
+  `mdds-01.thetadata.us:443` for `SOFR` 2025-04-28..2025-05-02) and
+  `docs.thetadata.us/operations/interest_rate_history_eod.html`. Wire
+  reference:
+
+  ```text
+  created,rate
+  "2025-04-28",4.3600
+  "2025-04-29",4.3600
+  "2025-04-30",4.4100
+  "2025-05-01",4.3900
+  "2025-05-02",4.3600
+  ```
+
+  Same failure class as the `MarketValueTick` bug closed earlier:
+  field set guessed from the endpoint name without cross-checking
+  the documented wire shape. Cross-binding regression coverage in
+  `crates/thetadatadx/tests/test_interest_rate_schema.rs`,
+  `sdks/python/tests/test_interest_rate.py`,
+  `sdks/typescript/__tests__/interest_rate.test.mjs`, and
+  `sdks/cpp/tests/interest_rate.cpp` each pin the reference row
+  (`date=20250428`, `rate=4.36`) so a future schema drift fails loud
+  before any wheel ships.
+- Greeks `_with_fallback` regression coverage. Four new integration
+  tests pin `end_date` forwarding on both the REST and gRPC arms of
+  `option_history_greeks_implied_volatility_with_fallback` and
+  `option_history_greeks_first_order_with_fallback`, locking the
+  prior-round fix against silent regression.
+- Tier-clamp regression coverage. A new integration test runs two
+  concurrent `option_history_quote_with_fallback` calls against an
+  in-process REST mock with `concurrent_requests = 1`; the assertion
+  observes the second call parking on the semaphore until the first
+  completes.
+
+- Documentation did not flag which historical builder terminal to
+  use for which workload, so users reached for the buffered `.await`
+  even on bulk pulls and only discovered the wrong-API mode after
+  RSS climbed into double-digit GB (#576). Fixed by attaching a
+  `.await` vs `.stream(handler)` decision matrix to every parsed
+  historical builder in rustdoc, adding the same matrix to the root
+  + Python READMEs, expanding
+  `docs-site/docs/legacy-quote-handling.md` with a "Buffered vs
+  streaming" section, and emitting a single `tracing::warn!` event
+  when the buffered path returns a response above
+  `MddsConfig::warn_on_buffered_threshold_bytes` (default 100 MiB,
+  set to `0` to disable). Closes #576.
+
+- Post-Feb-2020 daily-expiry quote backfill no longer h2-cascades
+  on the streaming path (#577).
+  > **Superseded** — see Unreleased > Removed for the obliteration.
+  > Root cause was the SDK's pool, not an upstream cascade.
+
+  PR #573's lenient decoder + REST
+  fallback unblocked the 2019-05 to 2020-02-24 range; this
+  follow-up handles the remaining post-Feb-2020 cascade -- not via
+  a second wire variant (none exists; see the new investigation
+  doc) but via channel-layer recovery (dead-channel routing in
+  `ChannelPool::next` + classifier retry on `ConnectionClosed`).
+  A 7-year QQQ daily-expiry quote backfill now completes
+  end-to-end via `option_history_quote_with_fallback` against a
+  patched local Terminal; the per-call cascade no longer leaves
+  the pool's h2 channels pinned to a dead connection. Closes
+  #577.
+
+- `option_history_quote` / `option_history_trade_quote` /
+  `option_history_greeks_implied_volatility` /
+  `option_history_greeks_first_order` no longer leave production
+  users without a recovery path on 2022-era options (#571).
+  The upstream Terminal's h2-cascade bug remains -- the SDK now
+  ships three independent escape hatches: (a) `crate::rest::RestClient`
+  + `FallbackPolicy::Rest*` for client-side REST routing
+  (zero-friction, no Terminal change), (b) the
+  `local-terminal-patcher` CLI for users who prefer to keep the
+  gRPC fast path (one-time patch of the local jar), (c) lenient
+  optional-column extraction in the gRPC decoder so the eventual
+  upstream fix flows through without further SDK change. Closes
+  #571.
+
+- Python `StreamingAsyncSession.__aexit__` and
+  `StreamingAsyncBatchesSession.__aexit__` now close the asyncio
+  read-end FD unconditionally even when `event_loop.remove_reader`
+  raises (e.g. event loop closed mid-shutdown, FD already
+  unregistered). The previous code propagated the `remove_reader`
+  error via `?` before the close path, so a shutdown-race
+  permanently leaked the pipe read-end because `self.closed`
+  short-circuited re-entry. The error is now captured, the FD is
+  reclaimed, and the captured error is re-raised so callers still
+  see the underlying fault.
+- `next_req_id` widened from `AtomicI32` to `AtomicI64` with a
+  `wire_req_id` clamp at every wire-boundary call site. The previous
+  32-bit counter could wrap into the wire protocol's `-1`
+  "uncorrelated" sentinel after roughly `2^31` allocations (~ 5 days
+  at 5k subs/sec), breaking the user-side correlation between
+  manual subscribes and server `ReqResponse` frames. The clamp
+  masks the sign bit (`x & 0x7FFF_FFFF`) so wire ids stay strictly
+  non-negative even past `i32::MAX`.
+- Per-tick `metrics::counter!` lookup hoisted to `LazyLock<Counter>`
+  handles on the FPSS decode hot path. Eight handles (4 event
+  kinds × 2 metric names) replace the per-tick `(name, labels)`
+  hashmap probe inside the global recorder, dropping the per-call
+  observability cost from ~30 ns to ~5 ns (a single atomic add on
+  `Counter::increment`).
+- Rate-limit the "no contract for ID" warning at 1024 emissions to
+  match the existing slow-callback and clock-skew warn cadence.
+  A server-side replay-boundary anomaly that ticked unrecognised
+  ids previously flooded `tracing` with one line per tick and
+  crowded out genuinely diagnostic warnings.
+- Python `thetadatadx.__version__` now resolves through
+  `importlib.metadata.version("thetadatadx")` (PEP 396). The
+  attribute was missing on the top-level package, breaking
+  `pip show`, downstream version-pinning, and environment
+  snapshot scripts.
+- `Channel::Drop` aborts the spawned h2 connection-driver
+  `JoinHandle` as a belt-and-braces guard. The task was previously
+  detached at `Channel::handshake`; under repeated connect /
+  disconnect cycles a parked connection future could outlive the
+  `Channel` for an unbounded interval, accumulating background
+  tasks. `.abort()` is idempotent on already-finished tasks.
+- The `unwrap_or(u32::MAX)` in `Codec::encode_response_for_test`
+  becomes `.expect("…")` so a synthetic test response that ever
+  outgrows the 32-bit length prefix surfaces a diagnostic
+  failure instead of silently emitting `u32::MAX`.
+- `consecutive_timeouts * 50` in the FPSS io_loop is now
+  `consecutive_timeouts.saturating_mul(50_u64)` so a wild future
+  bump to `max_consecutive_timeouts` past `u64::MAX / 50` cannot
+  wrap the diagnostic on the warn line.
+- Per-disconnect metric label allocation: replaced
+  `format!("{:?}", reason)` with `RemoveReason::as_str()` so the
+  `reason` label points at a `&'static str` rather than allocating
+  a `String` per disconnect. Disconnects are rare, so this is a
+  consistency fix per the "no per-event allocations" discipline,
+  not a hot-path win.
+- `FpssConnectArgs::ring_size` doc comment corrected from "≈ 552
+  bytes after the typed-FpssControl variants" to the actual
+  `mem::size_of::<FpssEventInternal>() = 96` bytes on the current
+  64-bit layout; the per-`FpssClient` ring footprint at the
+  default `ring_size = 4096` is now documented as ~ 384 KiB.
+
 ## [10.0.0] - 2026-05-09
+
+**In-house gRPC transport** replaces `tonic` on the MDDS server-streaming
+path. The SDK now drives `h2` directly: prost encode → length-prefix
+frame → HTTP/2 DATA → response stream → trailers parse, with no tower
+stack, no boxed bodies, and no `async-trait` dyn dispatch. New public
+module `thetadatadx::grpc::*` exposes `Channel`, `ChannelPool`,
+`ChannelLease`, `ServerStreaming`, `Codec`, `Status`, `DecoderPool`,
+`DecoderHandle` and the matching error types (`ChannelError`,
+`CodecError`, `StatusParseError`, `DecoderPoolError`,
+`DecoderSubmitError`).
 
 Semver-honest version bump for the v9.1.0 surface. The v9.0.x →
 v9.1.0 wave introduced 12 major API breaks per
@@ -21,19 +1664,87 @@ additions, `FpssConfig.queue_depth` removal, flat
 `TdxFpssControl` → typed per-variant structs, Go SDK removal).
 Rust semver classifies that diff as a major bump.
 
-v10.0.0 is the v9.1.0 surface with no further code changes —
-bumping the version number to align with semver discipline. The
-audit chain on the v9.1.0 wave (cargo fmt, clippy --workspace
--- -D warnings, test --workspace, deny check, generate_sdk_surfaces
---check, npm test 19/19, C++ CMake build, Python wheel + pytest)
-all passed; no findings remain after the closeout chain.
-
 ### Changed
 
+- **In-house gRPC transport** replaces `tonic`; full module surface
+  (`Channel`, `ChannelPool`, `ChannelLease`, `ServerStreaming`,
+  `Codec`, `Status`, `DecoderPool`, `DecoderHandle`,
+  `ChannelError`, `CodecError`, `StatusParseError`,
+  `DecoderPoolError`, `DecoderSubmitError`).
+- `Error::Transport` payload changed from `tonic::transport::Error`
+  to `String` (later restructured to typed `{ kind, message }` —
+  see `[Unreleased]`).
+- `ChannelPool::next()` returns a `ChannelLease<'a>` instead of
+  `&'a Channel`. The lease pre-reserves an in-flight slot on the
+  picked channel synchronously so concurrent burst dispatches
+  observe each reservation immediately and route around loaded
+  channels.
+- `Status::from_trailers` tolerates malformed `grpc-message`
+  trailers per the gRPC HTTP/2 spec. The parser percent-decodes
+  (RFC 3986, `%HH` escapes only); if decoded bytes are valid UTF-8
+  they become the message, otherwise the raw header bytes fall
+  back to UTF-8 interpretation, with an empty message for opaque
+  non-UTF-8 inputs.
 - Project version: 9.1.0 → 10.0.0 across `crates/thetadatadx`,
   `crates/tdbe` dependents, `ffi`, `tools/{cli,mcp,server}`,
   `sdks/{python,typescript}`. tdbe stays at 0.13.1 (no API change
   in this bump). All standalone Cargo.lock files re-locked.
+
+### Added (in-house gRPC)
+
+- `MddsConfig::decoder_threads` and `MddsConfig::decoder_ring_size`
+  control the dedicated decoder pool that runs zstd decompress +
+  protobuf decode off the tokio reactor. `decoder_threads = 0`
+  auto-sizes to `min(channels, available_parallelism / 2)`;
+  `decoder_ring_size` must be a power of two `>= 64`.
+- `DecoderHandle::submit` returns
+  `Result<oneshot::Receiver<DecodeResult>, DecoderSubmitError>`.
+  Submits made after a worker-thread panic poisoned the pool fail
+  fast with `DecoderSubmitError::Poisoned` rather than parking the
+  caller on a dead consumer ring.
+- `ChannelError` variant routing: connection-level h2 failures —
+  `GOAWAY` (either direction), IO failure on the h2 transport, peer
+  shutdown, and open-phase connection drops (failures observed on
+  `ready()` / `send_request()` / `send_data()`) — surface as
+  `ChannelError::ConnectionClosed`. `ChannelError::H2Stream` is
+  scoped strictly to per-stream `RST_STREAM` (any reason code) and
+  h2 library-detected stream-scoped protocol errors.
+
+### Removed (in-house gRPC)
+
+- `tonic` dependency removed. The `inhouse-grpc` feature flag is
+  also gone — the in-house transport is the only path. Direct uses
+  of `tonic::transport::Channel`, `tonic::Status`, or
+  `tonic::Streaming` through `thetadatadx` re-exports are no longer
+  available.
+- `MddsClient::stub` was removed. Internal call sites now reach the
+  generated stubs through `proto::beta_theta_terminal::*` directly.
+- `GrpcStatusKind::from_code()` was renamed to
+  `GrpcStatusKind::from_u32()` to match the wire type. The enum
+  `repr` is now `u32` (was `i32`).
+- `StatusParseError::MessageNotUtf8` was removed. Malformed
+  `grpc-message` no longer fails the trailers parse; exhaustive
+  matches on `StatusParseError` need to drop the variant.
+
+### Migration (in-house gRPC)
+
+- Replace `Error::Transport(msg)` pattern with the typed shape:
+  `Error::Transport { kind, message }`. The `Display` shape stays
+  `transport error (<kind>): <message>` for legacy string-keyed
+  consumers.
+- Replace `GrpcStatusKind::from_code(n)` with
+  `GrpcStatusKind::from_u32(n)`.
+- When constructing `MddsConfig` field-by-field, add
+  `decoder_threads: 0, decoder_ring_size: 256` (or call
+  `MddsConfig::production_defaults()`).
+- Update `match` arms on `StatusParseError` — drop the
+  `MessageNotUtf8` branch.
+- `pool.next()` callers that bind the result across an `await`
+  must keep the lease alive for the dispatch window. Pattern:
+  `let lease = pool.next(); stub_fn(&lease, req).await?;`.
+- `DecoderHandle::submit` returns `Result<_, DecoderSubmitError>`.
+  Update callers from `let rx = handle.submit(r); rx.await` to
+  `let rx = handle.submit(r)?; rx.await`.
 
 ### Migration from v9.1.0
 

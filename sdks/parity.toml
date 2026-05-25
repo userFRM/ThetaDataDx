@@ -1,0 +1,412 @@
+# Cross-binding parity matrix (Gate 2 / issue #545).
+#
+# Every user-facing class registered on Python is declared here with
+# its current state in TypeScript (napi) and C++ (`thetadx.hpp`).
+# `scripts/check_binding_parity.py` parses this file and compares the
+# actual binding state of each SDK to the declared state; mismatches
+# fail CI.
+#
+# When you intentionally ship a binding asymmetry (e.g. you land a
+# Python pyclass first and TS/C++ are tracked separately), update the
+# row here. When you intend to keep the three bindings in lockstep,
+# every row should be `true` in every column and CI will block any
+# Python-only PR that forgets to update TS / C++.
+
+[[class]]
+name = "Credentials"
+python = true
+typescript = false  # JS takes credentials as constructor args, not a class
+cpp = true
+
+[[class]]
+name = "Config"
+python = true
+typescript = true   # exposed as `Config` napi class with `production() / dev() / stage()` factories + `withRestFallback(policy)` setter
+cpp = true
+
+[[class]]
+name = "FallbackPolicy"
+python = true
+typescript = true   # exposed with the four named factories + `variant` / `baseUrl` getters
+cpp = true          # exposed as `tdx::FallbackPolicy` move-only RAII class with the four named factories
+
+
+[[class]]
+name = "ThetaDataDxClient"
+python = true
+typescript = true
+cpp = true          # exposed as `tdx::Client` + `tdx::UnifiedClient`
+
+[[class]]
+name = "AsyncThetaDataDxClient"
+python = true
+typescript = false  # not yet ported — issue #545 follow-up
+cpp = false         # not yet ported — issue #545 follow-up
+
+[[class]]
+name = "FpssClient"
+python = true
+typescript = false  # not yet ported — issue #545 follow-up
+cpp = true
+
+[[class]]
+name = "MddsClient"
+python = true
+typescript = false  # not yet ported — issue #545 follow-up
+cpp = false         # not yet ported — issue #545 follow-up
+
+[[class]]
+name = "StreamingSession"
+python = true
+typescript = false  # JS uses a Promise-based async iterator instead — equivalent ergonomics
+cpp = false         # C++ uses RAII guard pattern instead
+
+[[class]]
+name = "StreamingIterSession"
+python = true
+typescript = false  # JS uses `[Symbol.asyncIterator]` directly on `EventIterator`
+cpp = true          # exposed as `tdx::UnifiedFpssIterSession`
+
+[[class]]
+name = "StreamingAsyncSession"
+python = true
+typescript = false  # JS asyncio analogue is `[Symbol.asyncIterator]` on `EventIterator` + the async-IPC bridge below; no separate session class
+cpp = false         # C++ async surface deferred — RAII guard + sync iter cover the documented C++ idiom
+
+[[class]]
+name = "StreamingAsyncBatchesSession"
+python = true
+typescript = false  # Python-only for now — Arrow IPC zero-copy surface lands on the Python binding first; TS/C++ follow once napi-arrow / arrow-cpp shape lock in
+cpp = false         # Python-only for now — same rationale as StreamingAsyncSession plus zero-copy Arrow buffer aliasing depends on pyo3's PyCapsule integration
+
+[[class]]
+name = "BackpressurePolicy"
+python = true
+typescript = false  # Python-only for now — TS streaming surface ships DropNewest-only; the Block / DropOldest knobs land once the cross-binding asyncio analogue is ported
+cpp = false         # Python-only for now — C++ async surface deferred, so the policy enum follows the session class
+
+[[class]]
+name = "EventIterator"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "Contract"
+python = true
+typescript = true   # exposed as `ContractRef` (Contract aliased post-build)
+cpp = true          # exposed as `tdx::FluentContract`
+
+[[class]]
+name = "ContractRef"
+python = true
+typescript = true   # primary class name on TS side (Contract is the post-build alias)
+cpp = false         # C++ uses the C ABI `TdxContract` struct; no dedicated C++ class wrapper
+
+[[class]]
+name = "CalendarDay"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "NoDataFoundError"
+python = true
+typescript = false
+cpp = false         # C++ folds NoData into the generic `Error` class with `.kind == NoData`
+
+[[class]]
+name = "TimeoutError"
+python = true
+typescript = false
+cpp = false         # C++ folds Timeout into the generic `Error` class with `.kind == Timeout`
+
+[[class]]
+name = "Subscription"
+python = true
+typescript = true
+cpp = true          # exposed as `tdx::FluentSubscription`
+
+[[class]]
+name = "SecType"
+python = true
+typescript = true
+cpp = true          # exposed as `tdx::FluentSecType`
+
+[[class]]
+name = "FlatFilesNamespace"
+python = true
+typescript = true
+cpp = true          # exposed as `tdx::FlatFiles`
+
+[[class]]
+name = "FlatFileRowList"
+python = true
+typescript = true
+cpp = true
+
+# ── Typed exception hierarchy.
+#
+# C++ exposes one class per leaf, matching the Python tree.
+# TypeScript surfaces every error variant via a single discriminated
+# `Error` class with `.kind` (see `index.d.ts` line ~1127); the
+# narrowing pattern is `if (e.kind === "InvalidCredentials")`. That
+# is intentional — JS error classes don't compose with `instanceof`
+# across native module boundaries — so each row below records the TS
+# column as `false` rather than misrepresenting the surface.
+
+[[class]]
+name = "ThetaDataError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "AuthenticationError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "InvalidCredentialsError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "SubscriptionError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "RateLimitError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "NetworkError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "SchemaMismatchError"
+python = true
+typescript = false
+cpp = true
+
+[[class]]
+name = "StreamError"
+python = true
+typescript = false
+cpp = true
+
+# ─── Documented Rust-only knobs ────────────────────────────────────────
+#
+# Cross-binding parity gaps that are deliberately not yet bound on
+# Python / TS / C++. The retry-tuning knobs on `FlatFilesConfig`
+# (`max_attempts`, `initial_backoff`, `max_backoff`) are Rust-only
+# today; binding them requires a cross-binding setter sweep tracked
+# in issue #594 (`feat(bindings): bind FlatFilesConfig retry knobs on
+# Python/TS/C++`). Flip the three rows below to `true` when that PR
+# lands.
+
+[[class]]
+name = "FlatFilesConfig.max_attempts"
+python = false
+typescript = false
+cpp = false
+
+[[class]]
+name = "FlatFilesConfig.initial_backoff_secs"
+python = false
+typescript = false
+cpp = false
+
+[[class]]
+name = "FlatFilesConfig.max_backoff_secs"
+python = false
+typescript = false
+cpp = false
+
+# ─── MddsConfig cross-binding setters ──────────────────────────────────
+#
+# Tuning knobs on the MDDS sub-config exposed across every binding.
+# `concurrent_requests` / `decoder_threads` / `decoder_ring_size` /
+# `decode_threads_explicit` / `decode_queue_depth_explicit` are bound
+# via `Config.<name>` (Python), `Config.set<Name>` (TypeScript napi),
+# `tdx::Config::set_<name>` (C++ forwarder over the C ABI). The rows
+# below track the dotted-field state for the parity audit; the
+# parity script's class-existence check skips dotted rows pending the
+# per-field granularity tightening.
+
+[[class]]
+name = "MddsConfig.warn_on_buffered_threshold_bytes"
+python = true
+typescript = true
+cpp = true
+
+# ─── ReconnectConfig cross-binding setters ─────────────────────────────
+#
+# FPSS reconnect policy + per-class attempt budgets + stable-window
+# timer. Bound on every binding: Python via `Config.reconnect_*`
+# setters, TypeScript via `Config.setReconnect*`, C++ via
+# `tdx::Config::set_reconnect_*` (which forwards to the FFI
+# `tdx_config_set_reconnect_*` symbols). Dotted-name rows track
+# field-level parity; the parity script's class-existence check skips
+# dotted rows pending the per-field granularity tightening (issue
+# referenced in `scripts/check_binding_parity.py`).
+
+[[class]]
+name = "ReconnectConfig.policy"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.max_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.max_rate_limited_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.stable_window_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.wait_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.wait_rate_limited_ms"
+python = true
+typescript = true
+cpp = true
+
+# ─── RuntimeConfig cross-binding setters ───────────────────────────────
+#
+# Async-runtime sub-config knobs honoured by embedded bindings that own
+# their tokio runtime (FFI / Python / napi). The
+# `tokio_worker_threads` field uses the widened `(has_value, n)` ABI
+# shape on the C surface so the `Some(0)` sentinel survives the C
+# boundary (matches the `MddsConfig.decode_threads_explicit` shape).
+# `RuntimeConfig::build_runtime` interprets the field for callers
+# building their own runtime.
+
+[[class]]
+name = "RuntimeConfig.tokio_worker_threads"
+python = true
+typescript = true
+cpp = true
+
+# ─── RetryPolicy cross-binding setters ─────────────────────────────────
+#
+# Per-field access on `DirectConfig.retry`. The `delay_for_attempt`
+# / `capped_backoff` / `disabled()` helpers stay Rust-only — they are
+# method-shape helpers that callers can recompute from the four field
+# values if needed. Field setters bound on every binding (Python via
+# `Config.retry_*`, TS via `Config.setRetry*`, C++ via
+# `tdx::Config::set_retry_*`); the dotted rows below track field-level
+# parity and the parity script's class-existence check skips dotted
+# rows pending the per-field granularity tightening (issue referenced
+# in `scripts/check_binding_parity.py`).
+
+[[class]]
+name = "RetryPolicy.initial_delay_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.max_delay_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.max_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.jitter"
+python = true
+typescript = true
+cpp = true
+
+# ─── Cross-binding error-class name divergences ───────────────────────
+#
+# The Rust `Error` enum surfaces through different binding-language
+# idioms (no per-language "rename for cosmetics" pass):
+#
+#   * Rust:       `thetadatadx::Error` (single error enum).
+#   * Python:     runtime class is `Error` (matches the Rust name);
+#                 the `.pyi` stub shadows it as `FpssParseError`
+#                 (suffix-disambiguated against the generic
+#                 `Error(ThetaDataError)` exception class) to avoid the
+#                 mypy duplicate-class collision. Runtime callers still
+#                 catch `thetadatadx.Error`.
+#   * TypeScript: napi exposes the variants as a discriminated union
+#                 over the standard JS `Error` superclass — `class
+#                 Error extends globalThis.Error` is the napi default.
+#   * C++:        FFI surface returns `int32_t` status codes per the
+#                 `tdx_last_error()` thread-local string convention; the
+#                 RAII wrapper exposes them as `tdx::FpssError` to
+#                 disambiguate from `std::exception`.
+#
+# This row is informational — the parity script's class-existence
+# check skips dotted rows. Audit S59 closure.
+
+[[class]]
+name = "Error.cross_binding_name_divergence"
+python = true
+typescript = true
+cpp = true
+
+# ─── Wave-6 tick types (audit closure) ─────────────────────────────────
+#
+# Two new tick types model the verified-live wire shape on two
+# historical endpoints whose previous routing silently dropped
+# server-emitted columns:
+#
+#   * `GreeksEodTick` (39 columns) -- `option_history_greeks_eod`.
+#     Previously routed to the bare `GreeksAllTick` (28 columns),
+#     losing the twelve EOD trade/quote columns (`open`, `high`,
+#     `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`,
+#     `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`).
+#   * `IndexPriceAtTimeTick` (10 columns) -- `index_at_time_price`.
+#     Previously routed to the bare `PriceTick` (3 columns), losing
+#     the seven trade-side execution columns (`sequence`,
+#     `ext_condition1..4`, `condition`, `size`, `exchange`) including
+#     the SIP-exchange attribution field.
+#
+# Both ticks are implicitly tracked by the parity script's `*Tick`
+# catch-all (`scripts/check_binding_parity.py::_is_implicitly_tracked`)
+# alongside every other generator-emitted tick wrapper. The rows
+# below are documentation anchors so the parity matrix records the
+# wave-6 additions; the script does not gate on dotted-name rows.
+
+[[class]]
+name = "GreeksEodTick.audit_wave6"
+python = true       # `thetadatadx.GreeksEodTick` pyclass + `GreeksEodTickList` + Arrow + columnar
+typescript = true   # `GreeksEodTick` napi class
+cpp = true          # `tdx::GreeksEodTick` alias over `TdxGreeksEodTick`
+
+[[class]]
+name = "IndexPriceAtTimeTick.audit_wave6"
+python = true       # `thetadatadx.IndexPriceAtTimeTick` pyclass + `IndexPriceAtTimeTickList` + Arrow + columnar
+typescript = true   # `IndexPriceAtTimeTick` napi class
+cpp = true          # `tdx::IndexPriceAtTimeTick` alias over `TdxIndexPriceAtTimeTick`

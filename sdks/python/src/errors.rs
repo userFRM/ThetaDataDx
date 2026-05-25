@@ -124,7 +124,7 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
         },
         thetadatadx::Error::NoData => NoDataFoundError::new_err(e.to_string()),
         thetadatadx::Error::Timeout { .. } => TimeoutError::new_err(e.to_string()),
-        thetadatadx::Error::Transport(_) => NetworkError::new_err(e.to_string()),
+        thetadatadx::Error::Transport { .. } => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Tls(_) => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Io(_) => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Http(_) => NetworkError::new_err(e.to_string()),
@@ -299,7 +299,10 @@ mod tests {
     fn config_error_maps_to_root_class() {
         Python::initialize();
         Python::attach(|py| {
-            let err = to_py_err(thetadatadx::Error::config_invalid("mdds.uri", "invalid URI"));
+            let err = to_py_err(thetadatadx::Error::config_invalid(
+                "mdds.uri",
+                "invalid URI",
+            ));
             assert_exception_class(py, &err, "ThetaDataError");
         });
     }

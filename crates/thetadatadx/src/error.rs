@@ -20,6 +20,73 @@ impl std::fmt::Display for AuthErrorKind {
     }
 }
 
+/// Classification of gRPC transport-level failures.
+///
+/// Mirrors the `ChannelError` variants so callers can pattern-match on
+/// the concrete transport fault (TLS handshake, connection-level death,
+/// stream-level reset, etc.) without parsing `Display` strings. Each
+/// variant is `#[non_exhaustive]` at the enum level so future transport
+/// failure modes can be added without breaking exhaustive matches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TransportErrorKind {
+    /// TCP connect failed (DNS, refused, network unreachable, etc.).
+    Tcp,
+    /// TLS handshake failed (cert chain rejection, ALPN mismatch, etc.).
+    Tls,
+    /// The host string was not a valid DNS name for rustls.
+    InvalidServerName,
+    /// h2 protocol handshake failed.
+    H2Handshake,
+    /// h2 stream-level error scoped to a single RPC.
+    H2Stream,
+    /// Connection-level death (GOAWAY, IO failure, open-phase drop).
+    ConnectionClosed,
+    /// Server returned a non-200 HTTP status — invariant violation
+    /// per the gRPC HTTP/2 contract.
+    UnexpectedHttpStatus,
+    /// Server's HTTP/2 response carried no body.
+    EmptyResponse,
+    /// `:path` URI for the RPC could not be built.
+    InvalidPath,
+    /// Codec-layer failure surfaced through the channel.
+    Codec,
+    /// Decoder pool poisoned by a worker-thread panic.
+    DecoderPoisoned,
+    /// Decoder pool's response channel was dropped before the result
+    /// arrived.
+    DecoderReplyDropped,
+}
+
+impl TransportErrorKind {
+    /// Stable string identifier for the variant — used in [`Error::Transport`]
+    /// Display so bindings parsing `to_string()` see a stable token before
+    /// the human-readable message.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Tcp => "tcp",
+            Self::Tls => "tls",
+            Self::InvalidServerName => "invalid_server_name",
+            Self::H2Handshake => "h2_handshake",
+            Self::H2Stream => "h2_stream",
+            Self::ConnectionClosed => "connection_closed",
+            Self::UnexpectedHttpStatus => "unexpected_http_status",
+            Self::EmptyResponse => "empty_response",
+            Self::InvalidPath => "invalid_path",
+            Self::Codec => "codec",
+            Self::DecoderPoisoned => "decoder_poisoned",
+            Self::DecoderReplyDropped => "decoder_reply_dropped",
+        }
+    }
+}
+
+impl std::fmt::Display for TransportErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Classification of FPSS streaming failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -100,6 +167,21 @@ pub enum DecompressErrorKind {
     /// `proto::CompressionAlgo` discriminant.
     #[error("unknown algorithm: {algo}")]
     UnknownAlgorithm { algo: i32 },
+    /// The peer-advertised decompressed size exceeded the
+    /// `max_message_size` ceiling threaded from
+    /// [`crate::config::MddsConfig::max_message_size`]. A hostile peer
+    /// that sets `ResponseData.original_size = i32::MAX` (≈ 2 GiB) is
+    /// rejected at this variant before any `Vec::resize` runs, so the
+    /// decoder cannot be coerced into a runaway allocation.
+    #[error("decompressed payload size {size} exceeds max_message_size {max}")]
+    MessageTooLarge {
+        /// Advertised decompressed size on the wire (`original_size`
+        /// for zstd; `compressed_data.len()` for the no-compress
+        /// path).
+        size: usize,
+        /// Configured ceiling — mirrors `MddsConfig::max_message_size`.
+        max: usize,
+    },
     /// Generic decompression failure that hasn't been categorized.
     #[error("other: {0}")]
     Other(String),
@@ -140,14 +222,14 @@ pub enum ConfigErrorKind {
     Other(String),
 }
 
-/// Typed mapping of [`tonic::Code`].
+/// Canonical gRPC status codes.
 ///
-/// Folding `tonic::Status` through this enum lets callers pattern-match
-/// on a stable Rust enum instead of stringly-typed status codes. The
-/// numeric discriminants match the gRPC wire codes one-for-one.
+/// Numeric discriminants match the gRPC wire codes one-for-one (see
+/// <https://grpc.github.io/grpc/core/md_doc_statuscodes.html>).
+/// Pattern-match on this enum instead of comparing raw `u32` codes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
-#[repr(i32)]
+#[repr(u32)]
 pub enum GrpcStatusKind {
     Ok = 0,
     Cancelled = 1,
@@ -169,27 +251,33 @@ pub enum GrpcStatusKind {
 }
 
 impl GrpcStatusKind {
-    /// Map a [`tonic::Code`] into the matching `GrpcStatusKind` variant.
+    /// Map a raw gRPC numeric code into the matching variant.
+    ///
+    /// Codes outside the canonical 0..=16 range fold into
+    /// [`GrpcStatusKind::Unknown`] — the wire is what it is, and the
+    /// caller already lost structured information by the time an
+    /// out-of-range code arrived.
     #[must_use]
-    pub fn from_code(code: tonic::Code) -> Self {
+    pub fn from_u32(code: u32) -> Self {
         match code {
-            tonic::Code::Ok => Self::Ok,
-            tonic::Code::Cancelled => Self::Cancelled,
-            tonic::Code::Unknown => Self::Unknown,
-            tonic::Code::InvalidArgument => Self::InvalidArgument,
-            tonic::Code::DeadlineExceeded => Self::DeadlineExceeded,
-            tonic::Code::NotFound => Self::NotFound,
-            tonic::Code::AlreadyExists => Self::AlreadyExists,
-            tonic::Code::PermissionDenied => Self::PermissionDenied,
-            tonic::Code::ResourceExhausted => Self::ResourceExhausted,
-            tonic::Code::FailedPrecondition => Self::FailedPrecondition,
-            tonic::Code::Aborted => Self::Aborted,
-            tonic::Code::OutOfRange => Self::OutOfRange,
-            tonic::Code::Unimplemented => Self::Unimplemented,
-            tonic::Code::Internal => Self::Internal,
-            tonic::Code::Unavailable => Self::Unavailable,
-            tonic::Code::DataLoss => Self::DataLoss,
-            tonic::Code::Unauthenticated => Self::Unauthenticated,
+            0 => Self::Ok,
+            1 => Self::Cancelled,
+            3 => Self::InvalidArgument,
+            4 => Self::DeadlineExceeded,
+            5 => Self::NotFound,
+            6 => Self::AlreadyExists,
+            7 => Self::PermissionDenied,
+            8 => Self::ResourceExhausted,
+            9 => Self::FailedPrecondition,
+            10 => Self::Aborted,
+            11 => Self::OutOfRange,
+            12 => Self::Unimplemented,
+            13 => Self::Internal,
+            14 => Self::Unavailable,
+            15 => Self::DataLoss,
+            16 => Self::Unauthenticated,
+            // 2 (Unknown) and anything else fold to Unknown.
+            _ => Self::Unknown,
         }
     }
 }
@@ -226,9 +314,21 @@ impl std::fmt::Display for GrpcStatusKind {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    /// gRPC transport-level error (TLS handshake, connection refused, etc.).
-    #[error("gRPC transport error: {0}")]
-    Transport(#[from] tonic::transport::Error),
+    /// gRPC transport-level error (TLS handshake, connection refused,
+    /// h2 protocol failure, GOAWAY from the server, etc.).
+    ///
+    /// Carries a typed [`TransportErrorKind`] so retry classifiers and
+    /// bindings can dispatch on the concrete fault category without
+    /// regexing the `Display` string. The Display shape stays stable
+    /// (`transport error (<kind>): <message>`) so binding consumers
+    /// that parse `to_string()` keep working across upgrades.
+    #[error("transport error ({kind}): {message}")]
+    Transport {
+        /// Concrete transport failure category.
+        kind: TransportErrorKind,
+        /// Human-readable detail for logs and `Display`.
+        message: String,
+    },
 
     /// gRPC status error from the upstream MDDS server.
     #[error("gRPC status {kind}: {message}")]
@@ -294,7 +394,7 @@ pub enum Error {
     /// Returned when a `with_deadline(d)` (Rust builder) or `timeout_ms`
     /// (FFI / Python / Go / C++) elapses while the gRPC call was in flight.
     /// The in-flight future is dropped before this error is returned, so the
-    /// underlying `tonic::transport::Channel` cancels the stream and the
+    /// underlying gRPC channel sends `RST_STREAM` and the
     /// request-semaphore permit is released; subsequent calls on the same
     /// `MddsClient` succeed.
     #[error("Request deadline exceeded after {duration_ms} ms")]
@@ -413,6 +513,17 @@ impl Error {
     }
 
     /// Build a `Config` error with an unspecified kind.
+    ///
+    /// Deprecated escape hatch retained for the existing
+    /// `From<tdbe::error::Error>` bridge. New call sites should pick a
+    /// typed `ConfigErrorKind` variant (`OutOfRange`, `MissingField`,
+    /// `InvalidValue`, `Io`, `TomlParse`, `Internal`) so retry
+    /// classifiers can dispatch without parsing `Display`.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "10.0.1",
+        note = "use a typed Config constructor (config_invalid, config_internal, ...)"
+    )]
     #[must_use]
     pub fn config_other(message: impl Into<String>) -> Self {
         let message = message.into();
@@ -491,6 +602,16 @@ impl Error {
     }
 
     /// Build a `Decode` error with an unspecified kind.
+    ///
+    /// Deprecated escape hatch. New call sites should pick a typed
+    /// `DecodeErrorKind` variant (`TruncatedRow`, `ColumnTypeMismatch`,
+    /// `Protobuf`, `Codec`, `Arrow`) so retry classifiers can dispatch
+    /// without parsing `Display`.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "10.0.1",
+        note = "use a typed Decode constructor (decode_protobuf, decode_codec, ...)"
+    )]
     #[must_use]
     pub fn decode_other(message: impl Into<String>) -> Self {
         let message = message.into();
@@ -521,7 +642,28 @@ impl Error {
         Self::Decompress { kind, message }
     }
 
+    /// Build a `Decompress` error for a payload whose advertised
+    /// decompressed size exceeds the channel's `max_message_size`
+    /// ceiling. Used by the MDDS decode path to refuse a hostile
+    /// `ResponseData.original_size` before any `Vec::resize` runs —
+    /// see [`crate::mdds::decode::decompress_response`].
+    #[must_use]
+    pub fn decompress_message_too_large(size: usize, max: usize) -> Self {
+        let kind = DecompressErrorKind::MessageTooLarge { size, max };
+        let message = kind.to_string();
+        Self::Decompress { kind, message }
+    }
+
     /// Build a `Decompress` error with an unspecified kind.
+    ///
+    /// Deprecated escape hatch. New call sites should pick a typed
+    /// `DecompressErrorKind` variant (`Zstd`, `UnknownAlgorithm`) so
+    /// retry classifiers can dispatch without parsing `Display`.
+    #[doc(hidden)]
+    #[deprecated(
+        since = "10.0.1",
+        note = "use a typed Decompress constructor (decompress_zstd, decompress_unknown_algorithm)"
+    )]
     #[must_use]
     pub fn decompress_other(message: impl Into<String>) -> Self {
         let message = message.into();
@@ -535,13 +677,18 @@ impl Error {
 impl From<tdbe::error::Error> for Error {
     fn from(err: tdbe::error::Error) -> Self {
         // The pure-data crate carries a small error enum; fold its variants
-        // into the closest `thetadatadx::Error` variant so callers can use
-        // `?` when invoking `tdbe` APIs (e.g. `tdbe::right::parse_right`)
+        // into the closest typed `thetadatadx::Error` variant so callers
+        // can use `?` when invoking `tdbe` APIs (e.g. `tdbe::right::parse_right`)
         // from a `Result<_, thetadatadx::Error>` context.
+        //
+        // Every previously-`config_other` site now routes to a typed
+        // `ConfigErrorKind` variant (`InvalidValue` for upstream config
+        // / parse failures, `Io` for I/O surfaces) so retry
+        // classifiers can dispatch on the structured kind.
         match err {
-            tdbe::error::Error::Config(msg) => Self::config_other(msg),
+            tdbe::error::Error::Config(msg) => Self::config_invalid("tdbe", msg),
             tdbe::error::Error::Io(e) => Self::Io(e),
-            other => Self::config_other(other.to_string()),
+            other => Self::config_invalid("tdbe", other.to_string()),
         }
     }
 }
@@ -556,31 +703,65 @@ impl From<crate::decode::DecodeError> for Error {
     }
 }
 
-impl From<tonic::Status> for Error {
-    fn from(s: tonic::Status) -> Self {
-        // Extract http_status_code from gRPC metadata and enrich the error
-        // message with the ThetaData error name when available.
-        let td_err = s
-            .metadata()
-            .get(tdbe::error::HTTP_STATUS_CODE_KEY)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse::<u16>().ok())
-            .and_then(tdbe::error::error_from_http_code);
-        let kind = GrpcStatusKind::from_code(s.code());
-        let message = match td_err {
-            Some(td) => format!(
-                "{} (ThetaData: {} -- {})",
-                s.message(),
-                td.name,
-                td.description
-            ),
-            None => s.message().to_string(),
-        };
-        Self::Grpc { kind, message }
+impl From<crate::grpc::Status> for Error {
+    fn from(s: crate::grpc::Status) -> Self {
+        // The in-house transport carries the canonical `grpc-status` and
+        // `grpc-message` trailers directly. ThetaData-specific
+        // `http_status_code` metadata enrichment used to ride on tonic's
+        // metadata map; the in-house path can recover it the same way
+        // once trailer-metadata propagation lands in `grpc::Status`. For
+        // now, surface the numeric code + UTF-8 message as-is so
+        // callers still get `GrpcStatusKind` pattern-matching.
+        let kind = GrpcStatusKind::from_u32(s.code());
+        Self::Grpc {
+            kind,
+            message: s.message().to_string(),
+        }
+    }
+}
+
+impl From<crate::grpc::ChannelError> for Error {
+    fn from(err: crate::grpc::ChannelError) -> Self {
+        use crate::grpc::ChannelError;
+        // Rpc / DeadlineExceeded route to their own variants — everything
+        // else folds into a typed `Transport { kind, message }` so retry
+        // classifiers downstream can dispatch on the structured fault
+        // without parsing `Display`.
+        match err {
+            ChannelError::Rpc { status } => Self::from(status),
+            ChannelError::DeadlineExceeded { duration_ms } => Self::Timeout { duration_ms },
+            other => {
+                let kind = match &other {
+                    ChannelError::Tcp { .. } => TransportErrorKind::Tcp,
+                    ChannelError::Tls { .. } => TransportErrorKind::Tls,
+                    ChannelError::InvalidServerName { .. } => TransportErrorKind::InvalidServerName,
+                    ChannelError::H2Handshake(_) => TransportErrorKind::H2Handshake,
+                    ChannelError::H2Stream(_) => TransportErrorKind::H2Stream,
+                    ChannelError::InvalidPath { .. } => TransportErrorKind::InvalidPath,
+                    ChannelError::Codec(_) => TransportErrorKind::Codec,
+                    ChannelError::StatusParse(_) => TransportErrorKind::Codec,
+                    ChannelError::EmptyResponse => TransportErrorKind::EmptyResponse,
+                    ChannelError::UnexpectedHttpStatus(_) => {
+                        TransportErrorKind::UnexpectedHttpStatus
+                    }
+                    ChannelError::ConnectionClosed(_) => TransportErrorKind::ConnectionClosed,
+                    // Rpc / DeadlineExceeded handled above — keep compiler
+                    // exhaustiveness happy without a runtime branch.
+                    ChannelError::Rpc { .. } | ChannelError::DeadlineExceeded { .. } => {
+                        TransportErrorKind::ConnectionClosed
+                    }
+                };
+                Self::Transport {
+                    kind,
+                    message: other.to_string(),
+                }
+            }
+        }
     }
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 
@@ -814,56 +995,41 @@ mod tests {
     }
 
     #[test]
-    fn grpc_status_kind_from_code_round_trip() {
+    fn grpc_status_kind_from_u32_round_trip() {
         let cases = [
-            (tonic::Code::Ok, GrpcStatusKind::Ok),
-            (tonic::Code::Cancelled, GrpcStatusKind::Cancelled),
-            (tonic::Code::Unknown, GrpcStatusKind::Unknown),
-            (
-                tonic::Code::InvalidArgument,
-                GrpcStatusKind::InvalidArgument,
-            ),
-            (
-                tonic::Code::DeadlineExceeded,
-                GrpcStatusKind::DeadlineExceeded,
-            ),
-            (tonic::Code::NotFound, GrpcStatusKind::NotFound),
-            (tonic::Code::AlreadyExists, GrpcStatusKind::AlreadyExists),
-            (
-                tonic::Code::PermissionDenied,
-                GrpcStatusKind::PermissionDenied,
-            ),
-            (
-                tonic::Code::ResourceExhausted,
-                GrpcStatusKind::ResourceExhausted,
-            ),
-            (
-                tonic::Code::FailedPrecondition,
-                GrpcStatusKind::FailedPrecondition,
-            ),
-            (tonic::Code::Aborted, GrpcStatusKind::Aborted),
-            (tonic::Code::OutOfRange, GrpcStatusKind::OutOfRange),
-            (tonic::Code::Unimplemented, GrpcStatusKind::Unimplemented),
-            (tonic::Code::Internal, GrpcStatusKind::Internal),
-            (tonic::Code::Unavailable, GrpcStatusKind::Unavailable),
-            (tonic::Code::DataLoss, GrpcStatusKind::DataLoss),
-            (
-                tonic::Code::Unauthenticated,
-                GrpcStatusKind::Unauthenticated,
-            ),
+            (0u32, GrpcStatusKind::Ok),
+            (1, GrpcStatusKind::Cancelled),
+            (2, GrpcStatusKind::Unknown),
+            (3, GrpcStatusKind::InvalidArgument),
+            (4, GrpcStatusKind::DeadlineExceeded),
+            (5, GrpcStatusKind::NotFound),
+            (6, GrpcStatusKind::AlreadyExists),
+            (7, GrpcStatusKind::PermissionDenied),
+            (8, GrpcStatusKind::ResourceExhausted),
+            (9, GrpcStatusKind::FailedPrecondition),
+            (10, GrpcStatusKind::Aborted),
+            (11, GrpcStatusKind::OutOfRange),
+            (12, GrpcStatusKind::Unimplemented),
+            (13, GrpcStatusKind::Internal),
+            (14, GrpcStatusKind::Unavailable),
+            (15, GrpcStatusKind::DataLoss),
+            (16, GrpcStatusKind::Unauthenticated),
         ];
         for (code, expected) in cases {
             assert_eq!(
-                GrpcStatusKind::from_code(code),
+                GrpcStatusKind::from_u32(code),
                 expected,
-                "mapping mismatch for {code:?}"
+                "mapping mismatch for code={code}"
             );
         }
+        // Out-of-range codes fold to Unknown.
+        assert_eq!(GrpcStatusKind::from_u32(99), GrpcStatusKind::Unknown);
+        assert_eq!(GrpcStatusKind::from_u32(u32::MAX), GrpcStatusKind::Unknown);
     }
 
     #[test]
-    fn from_tonic_status_carries_kind() {
-        let status = tonic::Status::new(tonic::Code::PermissionDenied, "tier insufficient");
+    fn from_grpc_status_carries_kind() {
+        let status = crate::grpc::Status::new(7, "tier insufficient");
         let err: Error = status.into();
         match err {
             Error::Grpc { kind, message } => {
@@ -875,12 +1041,176 @@ mod tests {
     }
 
     #[test]
-    fn from_tonic_status_unauthenticated_kind() {
-        let status = tonic::Status::new(tonic::Code::Unauthenticated, "expired token");
+    fn from_grpc_status_unauthenticated_kind() {
+        let status = crate::grpc::Status::new(16, "expired token");
         let err: Error = status.into();
         match err {
             Error::Grpc { kind, .. } => assert_eq!(kind, GrpcStatusKind::Unauthenticated),
             other => panic!("expected Error::Grpc, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn from_channel_error_routes_deadline_to_timeout() {
+        let err: Error = crate::grpc::ChannelError::DeadlineExceeded { duration_ms: 123 }.into();
+        match err {
+            Error::Timeout { duration_ms } => assert_eq!(duration_ms, 123),
+            other => panic!("expected Error::Timeout, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn from_channel_error_routes_rpc_to_grpc() {
+        let status = crate::grpc::Status::new(13, "internal");
+        let err: Error = crate::grpc::ChannelError::Rpc { status }.into();
+        match err {
+            Error::Grpc { kind, message } => {
+                assert_eq!(kind, GrpcStatusKind::Internal);
+                assert!(message.contains("internal"));
+            }
+            other => panic!("expected Error::Grpc, got {other:?}"),
+        }
+    }
+
+    /// Every non-Rpc / non-DeadlineExceeded `ChannelError` variant must
+    /// round-trip through `From<ChannelError> for Error` with a typed
+    /// [`TransportErrorKind`] that mirrors the variant. Pins the
+    /// structured payload promise the binding layer relies on.
+    #[test]
+    fn from_channel_error_routes_every_transport_variant_to_typed_kind() {
+        use crate::grpc::ChannelError;
+
+        let cases: Vec<(ChannelError, TransportErrorKind)> = vec![
+            (
+                ChannelError::Tcp {
+                    host: "h".into(),
+                    port: 1,
+                    source: std::io::Error::other("e"),
+                },
+                TransportErrorKind::Tcp,
+            ),
+            (
+                ChannelError::Tls {
+                    host: "h".into(),
+                    source: std::io::Error::other("e"),
+                },
+                TransportErrorKind::Tls,
+            ),
+            (
+                ChannelError::InvalidServerName { host: "h".into() },
+                TransportErrorKind::InvalidServerName,
+            ),
+            (
+                ChannelError::H2Handshake("e".into()),
+                TransportErrorKind::H2Handshake,
+            ),
+            (
+                ChannelError::H2Stream("e".into()),
+                TransportErrorKind::H2Stream,
+            ),
+            (
+                ChannelError::InvalidPath {
+                    path: "/".into(),
+                    message: "e".into(),
+                },
+                TransportErrorKind::InvalidPath,
+            ),
+            (
+                ChannelError::EmptyResponse,
+                TransportErrorKind::EmptyResponse,
+            ),
+            (
+                ChannelError::UnexpectedHttpStatus(500),
+                TransportErrorKind::UnexpectedHttpStatus,
+            ),
+            (
+                ChannelError::ConnectionClosed("e".into()),
+                TransportErrorKind::ConnectionClosed,
+            ),
+        ];
+
+        for (input, expected) in cases {
+            let err: Error = input.into();
+            match err {
+                Error::Transport { kind, message } => {
+                    assert_eq!(kind, expected, "kind mismatch (display={message})");
+                    assert!(
+                        !message.is_empty(),
+                        "transport error message must not be empty"
+                    );
+                }
+                other => panic!("expected Error::Transport, got {other:?}"),
+            }
+        }
+    }
+
+    /// The `*_other` catch-all constructors are deprecated escape
+    /// hatches. Production code must route through typed `*Kind`
+    /// variants so retry classifiers can dispatch without parsing
+    /// `Display`. This test pins the contract by exercising every
+    /// typed constructor and asserting it does NOT land on the
+    /// `Other` arm.
+    #[test]
+    fn typed_constructors_do_not_route_to_other() {
+        let cases: Vec<(Error, &'static str)> = vec![
+            (Error::config_invalid("f", "bad"), "config_invalid"),
+            (Error::config_missing("f"), "config_missing"),
+            (
+                Error::config_out_of_range("f", 0, 1, 2),
+                "config_out_of_range",
+            ),
+            (Error::config_io("io"), "config_io"),
+            (Error::config_toml("toml"), "config_toml"),
+            (Error::config_internal("bug"), "config_internal"),
+            (Error::decode_protobuf("p"), "decode_protobuf"),
+            (Error::decode_codec("c"), "decode_codec"),
+            (Error::decode_arrow("a"), "decode_arrow"),
+            (Error::decode_truncated_row(0, 0, 0), "decode_truncated_row"),
+            (
+                Error::decode_column_type_mismatch(0, "c", "e", "a"),
+                "decode_column_type_mismatch",
+            ),
+            (Error::decompress_zstd("z"), "decompress_zstd"),
+            (
+                Error::decompress_unknown_algorithm(99),
+                "decompress_unknown_algorithm",
+            ),
+        ];
+        for (err, name) in cases {
+            match err {
+                Error::Config {
+                    kind: ConfigErrorKind::Other(_),
+                    ..
+                } => panic!("{name} regressed onto ConfigErrorKind::Other"),
+                Error::Decode {
+                    kind: DecodeErrorKind::Other(_),
+                    ..
+                } => panic!("{name} regressed onto DecodeErrorKind::Other"),
+                Error::Decompress {
+                    kind: DecompressErrorKind::Other(_),
+                    ..
+                } => panic!("{name} regressed onto DecompressErrorKind::Other"),
+                _ => { /* typed kind — OK */ }
+            }
+        }
+    }
+
+    /// Display shape is part of the binding contract — assert the
+    /// `transport error (<kind>): <message>` skeleton is preserved.
+    #[test]
+    fn transport_display_carries_kind_token() {
+        let err = Error::Transport {
+            kind: TransportErrorKind::H2Stream,
+            message: "test message".into(),
+        };
+        let display = err.to_string();
+        assert!(
+            display.contains("h2_stream"),
+            "transport display must carry kind token, got {display:?}"
+        );
+        assert!(
+            display.contains("test message"),
+            "transport display must carry message, got {display:?}"
+        );
     }
 }

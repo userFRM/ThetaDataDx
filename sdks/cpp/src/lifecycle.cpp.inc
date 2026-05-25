@@ -2,13 +2,13 @@
 
 Credentials Credentials::from_file(const std::string& path) {
     auto h = tdx_credentials_from_file(path.c_str());
-    if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    if (!h) detail::throw_last_ffi_error();
     return Credentials(h);
 }
 
 Credentials Credentials::from_email(const std::string& email, const std::string& password) {
     auto h = tdx_credentials_new(email.c_str(), password.c_str());
-    if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    if (!h) detail::throw_last_ffi_error();
     return Credentials(h);
 }
 
@@ -20,7 +20,7 @@ Config Config::stage() { return Config(tdx_config_stage()); }
 
 Client Client::connect(const Credentials& creds, const Config& config) {
     auto h = tdx_client_connect(creds.get(), config.get());
-    if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    if (!h) detail::throw_last_ffi_error();
     return Client(h);
 }
 

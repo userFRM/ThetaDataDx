@@ -53,8 +53,8 @@ pub(crate) const ERROR_IO_PENDING: i32 = 997;
 ///   socket.
 /// - `ErrorKind::TimedOut` — macOS `SO_RCVTIMEO` on a blocking socket.
 /// - `raw_os_error() == Some(997)` — Windows `ERROR_IO_PENDING` from the
-///   overlapped I/O layer (issue #469). Maps to `ErrorKind::Uncategorized`
-///   in `std`, so a `kind()` match alone misses it.
+///   overlapped I/O layer. Maps to `ErrorKind::Uncategorized` in `std`,
+///   so a `kind()` match alone misses it.
 #[must_use]
 pub(crate) fn is_transient_read(io_err: &std::io::Error) -> bool {
     matches!(
@@ -209,7 +209,7 @@ fn read_header<R: Read>(
 /// bytes were valid frames that arrived 50-76 ms after the first
 /// `WouldBlock`; aggressive escalation caused a reconnect storm
 /// whose downstream effects accounted for the spurious "unknown
-/// message code" reports (#192, #369).
+/// message code" reports.
 fn read_header_with_timeout<R: Read>(
     reader: &mut R,
     state: &mut FrameReadState,
