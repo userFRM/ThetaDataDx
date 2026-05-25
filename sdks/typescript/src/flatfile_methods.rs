@@ -264,13 +264,6 @@ impl ThetaDataDxClient {
     /// Pull a flat-file blob and write the requested format to `path`.
     /// Returns the final on-disk path with the format extension
     /// auto-appended if missing.
-    ///
-    /// U14 closure: the documented camelCase name is
-    /// [`Self::flat_file_to_path`] (`flatFileToPath` on the JS side).
-    /// The lowercase `flatfileToPath` form is kept as a one-version
-    /// alias for backwards compatibility with code written against
-    /// pre-v10; it is documented as deprecated below and will be
-    /// removed in the next major bump.
     #[napi(js_name = "flatFileToPath")]
     pub fn flat_file_to_path(
         &self,
@@ -291,20 +284,5 @@ impl ThetaDataDxClient {
             })
             .map_err(to_napi_err)?;
         Ok(final_path.to_string_lossy().into_owned())
-    }
-
-    /// Backwards-compat alias for the camelCase
-    /// [`Self::flat_file_to_path`]. Documented as deprecated; will be
-    /// removed in the next major version.
-    #[napi(js_name = "flatfileToPath")]
-    pub fn flatfile_to_path(
-        &self,
-        sec_type: String,
-        req_type: String,
-        date: String,
-        path: String,
-        format: Option<String>,
-    ) -> napi::Result<String> {
-        self.flat_file_to_path(sec_type, req_type, date, path, format)
     }
 }

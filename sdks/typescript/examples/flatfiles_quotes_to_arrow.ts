@@ -29,7 +29,7 @@ const oi = tdx.flatFiles.request("OPTION", "OPEN_INTEREST", "20260428");
 console.log(`open_interest rows: ${oi.len()}`);
 
 // Drop raw vendor CSV bytes to disk without materialising rows.
-const path = tdx.flatfileToPath(
+const path = tdx.flatFileToPath(
   "OPTION",
   "QUOTE",
   "20260428",

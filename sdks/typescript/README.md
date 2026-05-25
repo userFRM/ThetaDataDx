@@ -219,7 +219,7 @@ const json = JSON.parse(rows.toJson());
 const oi = tdx.flatFiles.request("OPTION", "OPEN_INTEREST", "20260428");
 
 // Raw vendor CSV / JSONL straight to disk
-tdx.flatfileToPath("OPTION", "QUOTE", "20260428",
+tdx.flatFileToPath("OPTION", "QUOTE", "20260428",
                    "/tmp/option-quote", "csv");
 ```
 
