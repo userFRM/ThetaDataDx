@@ -113,7 +113,7 @@ pub struct GreeksAllTick {
 /// The bare `GreeksAllTick` previously routed by `endpoint_surface.toml`
 /// (28 fields) silently dropped those twelve EOD columns from the
 /// 39-column EOD response -- the same data-loss class as the per-trade
-/// Greeks endpoints (BL-14 / PR #605). `GreeksEodTick` carries the full
+/// Greeks endpoints. `GreeksEodTick` carries the full
 /// EOD wire shape end-to-end across every binding.
 ///
 /// Wire layout verified-live against terminal jar build `202605221`
