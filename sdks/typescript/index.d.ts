@@ -204,6 +204,39 @@ export declare class Config {
   setRetryJitter(jitter: boolean): void
   /** Current `retry.jitter` value. */
   get retryJitter(): boolean
+  /**
+   * Set the total attempt budget for the flatfile driver retry
+   * loop. `1` disables retry (single call only); higher values
+   * permit retries up to `maxAttempts - 1` after the initial call.
+   * Default `3`. Validated to the range `[1, 10]` at connect time.
+   */
+  setFlatFilesMaxAttempts(n: number): void
+  /** Current `flatfiles.max_attempts` value. */
+  get flatFilesMaxAttempts(): number
+  /**
+   * Set the initial backoff delay (seconds) for the flatfile
+   * driver retry loop. Doubles per attempt up to
+   * `flatFilesMaxBackoffSecs`. Default `1n`.
+   *
+   * Accepts a `bigint` for parity with the Python / C++ / FFI
+   * surface (`u64`).
+   */
+  setFlatFilesInitialBackoffSecs(secs: bigint): void
+  /** Current `flatfiles.initial_backoff` value (seconds, returned as BigInt). */
+  get flatFilesInitialBackoffSecs(): bigint
+  /**
+   * Set the upper-bound backoff delay (seconds) for the flatfile
+   * driver retry loop. The doubling schedule never exceeds this
+   * value regardless of attempt number. Default `4n`. Must be
+   * greater than or equal to `flatFilesInitialBackoffSecs`
+   * (rejected at connect-time validate otherwise).
+   *
+   * Accepts a `bigint` for parity with the Python / C++ / FFI
+   * surface (`u64`).
+   */
+  setFlatFilesMaxBackoffSecs(secs: bigint): void
+  /** Current `flatfiles.max_backoff` value (seconds, returned as BigInt). */
+  get flatFilesMaxBackoffSecs(): bigint
 }
 
 /**

@@ -105,6 +105,13 @@ class Config:
     retry_max_delay_ms: int
     retry_max_attempts: int
     retry_jitter: bool
+    # FlatFilesConfig fields — per-field access on
+    # `DirectConfig.flatfiles`. Tunes the legacy flatfile driver's
+    # retry loop. Defaults: `max_attempts=3` (validated 1..=10),
+    # `initial_backoff_secs=1`, `max_backoff_secs=4`.
+    flatfiles_max_attempts: int
+    flatfiles_initial_backoff_secs: int
+    flatfiles_max_backoff_secs: int
     # FPSS tunables.
     derive_ohlcvc: bool
     # REST-routing variant. Read-only -- write via

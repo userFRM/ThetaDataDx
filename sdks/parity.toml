@@ -203,33 +203,33 @@ python = true
 typescript = false
 cpp = true
 
-# ─── Documented Rust-only knobs ────────────────────────────────────────
+# ─── FlatFilesConfig cross-binding setters ─────────────────────────────
 #
-# Cross-binding parity gaps that are deliberately not yet bound on
-# Python / TS / C++. The retry-tuning knobs on `FlatFilesConfig`
-# (`max_attempts`, `initial_backoff`, `max_backoff`) are Rust-only
-# today; binding them requires a cross-binding setter sweep tracked
-# in issue #594 (`feat(bindings): bind FlatFilesConfig retry knobs on
-# Python/TS/C++`). Flip the three rows below to `true` when that PR
-# lands.
+# Per-field access on the legacy `FlatFilesConfig` sub-config. Bound on
+# every binding: Python via `Config.flatfiles_*` setters/getters,
+# TypeScript via `Config.setFlatFiles*`, C++ via
+# `tdx::Config::set_flatfiles_*` (which forwards to the FFI
+# `tdx_config_set_flatfiles_*` symbols). `max_attempts` is `u32`, the
+# two `Duration` fields cross the binding boundary as `u64` seconds
+# (`initial_backoff_secs` / `max_backoff_secs`).
 
 [[class]]
 name = "FlatFilesConfig.max_attempts"
-python = false
-typescript = false
-cpp = false
+python = true
+typescript = true
+cpp = true
 
 [[class]]
 name = "FlatFilesConfig.initial_backoff_secs"
-python = false
-typescript = false
-cpp = false
+python = true
+typescript = true
+cpp = true
 
 [[class]]
 name = "FlatFilesConfig.max_backoff_secs"
-python = false
-typescript = false
-cpp = false
+python = true
+typescript = true
+cpp = true
 
 # ─── MddsConfig cross-binding setters ──────────────────────────────────
 #

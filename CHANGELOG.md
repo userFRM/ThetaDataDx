@@ -31,6 +31,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Cross-binding parity sweep
+
+- `FlatFilesConfig.{max_attempts, initial_backoff_secs, max_backoff_secs}`
+  per-field setters/getters bound across every binding. The retry-tuning
+  knobs on the legacy flatfile sub-config were previously Rust-only;
+  callers on Python / TypeScript / C++ could not configure the
+  flatfile driver's retry budget without a config file. New surface:
+  - FFI: `tdx_config_set_flatfiles_max_attempts(u32)` /
+    `tdx_config_get_flatfiles_max_attempts(*mut u32) -> i32`, plus
+    `_initial_backoff_secs(u64)` and `_max_backoff_secs(u64)` pairs.
+  - C++: `tdx::Config::set_flatfiles_max_attempts(uint32_t)` /
+    `get_flatfiles_max_attempts(uint32_t*)`, plus the two seconds pairs.
+  - Python: `Config.flatfiles_max_attempts`,
+    `flatfiles_initial_backoff_secs`, `flatfiles_max_backoff_secs`
+    (pyo3 `#[getter]` + `#[setter]`) + `.pyi` rows.
+  - TypeScript napi:
+    `Config.setFlatFilesMaxAttempts(number)` /
+    `flatFilesMaxAttempts` getter plus
+    `setFlatFilesInitialBackoffSecs(bigint)` /
+    `flatFilesInitialBackoffSecs` and the matching `MaxBackoffSecs` pair
+    (BigInt on the two seconds fields).
+  The `Duration` fields cross the binding boundary as `u64` seconds
+  to match the human-meaningful units `FlatFilesConfig` documents;
+  the `backoff_for_attempt` / `production_defaults` helpers stay
+  Rust-only. Three `sdks/parity.toml` rows flip from Rust-only to
+  fully bound. Closes #594.
+
 #### Audit closure wave 6
 
 - Two new tick types model the verified-live wire shape on two

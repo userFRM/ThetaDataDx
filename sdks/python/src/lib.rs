@@ -409,6 +409,67 @@ impl Config {
         guard.retry.jitter
     }
 
+    // ── FlatFilesConfig field setters/getters (BL-8) ──────────────────
+    //
+    // Per-field access on ``DirectConfig.flatfiles`` mirrors the FFI /
+    // C++ / TypeScript surface. The two ``Duration`` fields cross the
+    // binding boundary as ``u64`` seconds (matching the
+    // human-meaningful units ``FlatFilesConfig`` documents); the
+    // ``backoff_for_attempt`` / ``production_defaults`` helpers stay
+    // Rust-only.
+
+    /// Set the total attempt budget for the flatfile driver retry loop.
+    /// ``1`` disables retry (single call only); higher values permit
+    /// retries up to ``max_attempts - 1`` after the initial call.
+    /// Default ``3``. Validated to the range ``[1, 10]`` at connect
+    /// time.
+    #[setter]
+    fn set_flatfiles_max_attempts(&self, n: u32) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.max_attempts = n;
+    }
+
+    /// Current ``flatfiles.max_attempts`` value.
+    #[getter]
+    fn get_flatfiles_max_attempts(&self) -> u32 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.max_attempts
+    }
+
+    /// Set the initial backoff delay (seconds) for the flatfile driver
+    /// retry loop. Doubles per attempt up to
+    /// :attr:`flatfiles_max_backoff_secs`. Default ``1``.
+    #[setter]
+    fn set_flatfiles_initial_backoff_secs(&self, secs: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.initial_backoff = std::time::Duration::from_secs(secs);
+    }
+
+    /// Current ``flatfiles.initial_backoff`` value in seconds.
+    #[getter]
+    fn get_flatfiles_initial_backoff_secs(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.initial_backoff.as_secs()
+    }
+
+    /// Set the upper-bound backoff delay (seconds) for the flatfile
+    /// driver retry loop. The doubling schedule never exceeds this
+    /// value regardless of attempt number. Default ``4``. Must be
+    /// greater than or equal to :attr:`flatfiles_initial_backoff_secs`
+    /// (rejected at connect-time validate otherwise).
+    #[setter]
+    fn set_flatfiles_max_backoff_secs(&self, secs: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.max_backoff = std::time::Duration::from_secs(secs);
+    }
+
+    /// Current ``flatfiles.max_backoff`` value in seconds.
+    #[getter]
+    fn get_flatfiles_max_backoff_secs(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.flatfiles.max_backoff.as_secs()
+    }
+
     /// Set whether to derive OHLCVC bars locally from trade events.
     ///
     /// When ``False``, only server-sent OHLCVC frames are emitted,

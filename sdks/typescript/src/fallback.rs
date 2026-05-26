@@ -680,6 +680,108 @@ impl Config {
         Ok(guard.retry.jitter)
     }
 
+    // ── FlatFilesConfig field setters/getters (BL-8) ──────────────
+
+    /// Set the total attempt budget for the flatfile driver retry
+    /// loop. `1` disables retry (single call only); higher values
+    /// permit retries up to `maxAttempts - 1` after the initial call.
+    /// Default `3`. Validated to the range `[1, 10]` at connect time.
+    #[napi(js_name = "setFlatFilesMaxAttempts")]
+    pub fn set_flat_files_max_attempts(&self, n: u32) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.flatfiles.max_attempts = n;
+        Ok(())
+    }
+
+    /// Current `flatfiles.max_attempts` value.
+    #[napi(getter, js_name = "flatFilesMaxAttempts")]
+    pub fn flat_files_max_attempts(&self) -> napi::Result<u32> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.flatfiles.max_attempts)
+    }
+
+    /// Set the initial backoff delay (seconds) for the flatfile
+    /// driver retry loop. Doubles per attempt up to
+    /// `flatFilesMaxBackoffSecs`. Default `1n`.
+    ///
+    /// Accepts a `bigint` for parity with the Python / C++ / FFI
+    /// surface (`u64`).
+    #[napi(js_name = "setFlatFilesInitialBackoffSecs")]
+    pub fn set_flat_files_initial_backoff_secs(
+        &self,
+        secs: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = secs.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setFlatFilesInitialBackoffSecs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.flatfiles.initial_backoff = std::time::Duration::from_secs(value);
+        Ok(())
+    }
+
+    /// Current `flatfiles.initial_backoff` value (seconds, returned as BigInt).
+    #[napi(getter, js_name = "flatFilesInitialBackoffSecs")]
+    pub fn flat_files_initial_backoff_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.flatfiles.initial_backoff.as_secs(),
+        ))
+    }
+
+    /// Set the upper-bound backoff delay (seconds) for the flatfile
+    /// driver retry loop. The doubling schedule never exceeds this
+    /// value regardless of attempt number. Default `4n`. Must be
+    /// greater than or equal to `flatFilesInitialBackoffSecs`
+    /// (rejected at connect-time validate otherwise).
+    ///
+    /// Accepts a `bigint` for parity with the Python / C++ / FFI
+    /// surface (`u64`).
+    #[napi(js_name = "setFlatFilesMaxBackoffSecs")]
+    pub fn set_flat_files_max_backoff_secs(
+        &self,
+        secs: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<()> {
+        let (_signed, value, lossless) = secs.get_u64();
+        if !lossless {
+            return Err(napi::Error::from_reason(
+                "setFlatFilesMaxBackoffSecs: BigInt magnitude must fit in u64",
+            ));
+        }
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.flatfiles.max_backoff = std::time::Duration::from_secs(value);
+        Ok(())
+    }
+
+    /// Current `flatfiles.max_backoff` value (seconds, returned as BigInt).
+    #[napi(getter, js_name = "flatFilesMaxBackoffSecs")]
+    pub fn flat_files_max_backoff_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            guard.flatfiles.max_backoff.as_secs(),
+        ))
+    }
+
     /// Take a snapshot of the underlying [`thetadatadx::DirectConfig`]
     /// for use by `ThetaDataDxClient.connectWithConfig`. Returns a
     /// fresh `DirectConfig` clone -- the napi `Config` remains usable

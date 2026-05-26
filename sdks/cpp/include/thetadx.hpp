@@ -618,6 +618,35 @@ public:
         return tdx_config_get_retry_jitter(handle_.get(), out_jitter);
     }
 
+    // ── FlatFilesConfig field setters/getters (BL-8) ──
+
+    /** Total attempt budget for the flatfile driver retry loop.
+     *  1 disables retry. Default 3. Validated to [1, 10]. */
+    void set_flatfiles_max_attempts(uint32_t n) {
+        tdx_config_set_flatfiles_max_attempts(handle_.get(), n);
+    }
+    int32_t get_flatfiles_max_attempts(uint32_t* out_n) const {
+        return tdx_config_get_flatfiles_max_attempts(handle_.get(), out_n);
+    }
+
+    /** Initial backoff delay (seconds). Doubles per attempt up to
+     *  max_backoff_secs. Default 1. */
+    void set_flatfiles_initial_backoff_secs(uint64_t secs) {
+        tdx_config_set_flatfiles_initial_backoff_secs(handle_.get(), secs);
+    }
+    int32_t get_flatfiles_initial_backoff_secs(uint64_t* out_secs) const {
+        return tdx_config_get_flatfiles_initial_backoff_secs(handle_.get(), out_secs);
+    }
+
+    /** Upper-bound backoff delay (seconds). Default 4. Must be >=
+     *  initial_backoff_secs (rejected at connect-time validate). */
+    void set_flatfiles_max_backoff_secs(uint64_t secs) {
+        tdx_config_set_flatfiles_max_backoff_secs(handle_.get(), secs);
+    }
+    int32_t get_flatfiles_max_backoff_secs(uint64_t* out_secs) const {
+        return tdx_config_get_flatfiles_max_backoff_secs(handle_.get(), out_secs);
+    }
+
     /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. */
     void set_flush_mode(int mode) { tdx_config_set_flush_mode(handle_.get(), mode); }
 

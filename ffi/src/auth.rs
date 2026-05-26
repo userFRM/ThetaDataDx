@@ -517,6 +517,132 @@ pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, en
     })
 }
 
+// ── FlatFilesConfig (BL-8) ─────────────────────────────────────────
+//
+// Per-field setters/getters on `DirectConfig.flatfiles` mirror the
+// `RetryPolicy` shape: `max_attempts` is `u32`, the two `Duration`
+// fields cross the ABI as `u64` seconds (matching the human-meaningful
+// units `FlatFilesConfig` documents). `backoff_for_attempt` /
+// `production_defaults` stay Rust-only — they are method-shape helpers
+// callers can recompute from the three field values.
+
+/// Set the total attempt budget for the flatfile driver retry loop.
+/// `1` disables retry (single call only); higher values permit
+/// retries up to `max_attempts - 1` after the initial call. Default
+/// `3`. Validated to the range `[1, 10]` at
+/// [`thetadatadx::DirectConfig::validate`] time.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_flatfiles_max_attempts(config: *mut TdxConfig, n: u32) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.flatfiles.max_attempts = n;
+    })
+}
+
+/// Read the current `flatfiles.max_attempts` setting. Returns `0` on
+/// success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_flatfiles_max_attempts(
+    config: *const TdxConfig,
+    out_n: *mut u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_n.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_n null-checked above; FFI contract pins the `u32`
+        // storage for the call. `flatfiles.max_attempts` is a `u32`
+        // field, so the write is layout-compatible with the pointee.
+        unsafe {
+            *out_n = config.inner.flatfiles.max_attempts;
+        }
+        0
+    })
+}
+
+/// Set the initial backoff delay (seconds) for the flatfile driver
+/// retry loop. Doubles per attempt up to `max_backoff_secs`. Default
+/// `1`.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_flatfiles_initial_backoff_secs(
+    config: *mut TdxConfig,
+    secs: u64,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.flatfiles.initial_backoff = std::time::Duration::from_secs(secs);
+    })
+}
+
+/// Read the current `flatfiles.initial_backoff` setting (seconds).
+/// Returns `0` on success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_flatfiles_initial_backoff_secs(
+    config: *const TdxConfig,
+    out_secs: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_secs.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_secs null-checked above. `Duration::as_secs`
+        // returns a `u64` (the seconds component truncates the
+        // sub-second remainder), so the write is layout-compatible
+        // with the caller-pinned `u64` storage.
+        unsafe {
+            *out_secs = config.inner.flatfiles.initial_backoff.as_secs();
+        }
+        0
+    })
+}
+
+/// Set the upper-bound backoff delay (seconds) for the flatfile
+/// driver retry loop. The doubling schedule never exceeds this value
+/// regardless of attempt number. Default `4`. Must be greater than
+/// or equal to `initial_backoff_secs` (rejected at
+/// [`thetadatadx::DirectConfig::validate`] time otherwise).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_flatfiles_max_backoff_secs(
+    config: *mut TdxConfig,
+    secs: u64,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.flatfiles.max_backoff = std::time::Duration::from_secs(secs);
+    })
+}
+
+/// Read the current `flatfiles.max_backoff` setting (seconds). Returns
+/// `0` on success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_flatfiles_max_backoff_secs(
+    config: *const TdxConfig,
+    out_secs: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_secs.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_secs null-checked above. The flatfile retry-loop
+        // upper bound is a whole-second value (validated against
+        // `initial_backoff` at connect time), so `Duration::as_secs()`
+        // round-trips losslessly into the caller-pinned `u64`.
+        unsafe {
+            *out_secs = config.inner.flatfiles.max_backoff.as_secs();
+        }
+        0
+    })
+}
+
 // ── MDDS pool sizing ───────────────────────────────────────────────
 
 /// Set the number of concurrent in-flight gRPC requests on a config
@@ -1630,6 +1756,144 @@ mod decode_pipeline_tests {
             assert_eq!((*cfg).inner.mdds.decoder_ring_size, 1024);
             assert_eq!((*cfg).inner.mdds.decode_threads, Some(16));
             assert_eq!((*cfg).inner.mdds.decode_queue_depth, Some(4096));
+            super::tdx_config_free(cfg);
+        }
+    }
+}
+
+#[cfg(test)]
+mod flatfiles_setter_tests {
+    //! Offline tests for the three `FlatFilesConfig` field
+    //! setters/getters on the FFI surface — cross-binding parity with
+    //! Python / TypeScript / C++. The `backoff_for_attempt` /
+    //! `production_defaults` helpers stay Rust-only; this module pins
+    //! only field round-trip across the C ABI.
+
+    #[test]
+    fn flatfiles_max_attempts_round_trips() {
+        let cfg = super::tdx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut got: u32 = 0;
+            // Default seeded from FlatFilesConfig::production_defaults().
+            assert_eq!(
+                super::tdx_config_get_flatfiles_max_attempts(cfg, &mut got),
+                0
+            );
+            assert_eq!(got, 3);
+            for n in [0u32, 1, 3, 5, 10, 100] {
+                super::tdx_config_set_flatfiles_max_attempts(cfg, n);
+                assert_eq!((*cfg).inner.flatfiles.max_attempts, n);
+                assert_eq!(
+                    super::tdx_config_get_flatfiles_max_attempts(cfg, &mut got),
+                    0
+                );
+                assert_eq!(got, n);
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn flatfiles_initial_backoff_secs_round_trips() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut got: u64 = 0;
+            // Default seeded from FlatFilesConfig::production_defaults().
+            assert_eq!(
+                super::tdx_config_get_flatfiles_initial_backoff_secs(cfg, &mut got),
+                0
+            );
+            assert_eq!(got, 1);
+            for secs in [0u64, 1, 2, 4, 10, 60, 3600] {
+                super::tdx_config_set_flatfiles_initial_backoff_secs(cfg, secs);
+                assert_eq!(
+                    (*cfg).inner.flatfiles.initial_backoff,
+                    std::time::Duration::from_secs(secs),
+                );
+                assert_eq!(
+                    super::tdx_config_get_flatfiles_initial_backoff_secs(cfg, &mut got),
+                    0
+                );
+                assert_eq!(got, secs);
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn flatfiles_max_backoff_secs_round_trips() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            let mut got: u64 = 0;
+            // Default seeded from FlatFilesConfig::production_defaults().
+            assert_eq!(
+                super::tdx_config_get_flatfiles_max_backoff_secs(cfg, &mut got),
+                0
+            );
+            assert_eq!(got, 4);
+            for secs in [0u64, 1, 4, 10, 60, 3600, 86_400] {
+                super::tdx_config_set_flatfiles_max_backoff_secs(cfg, secs);
+                assert_eq!(
+                    (*cfg).inner.flatfiles.max_backoff,
+                    std::time::Duration::from_secs(secs),
+                );
+                assert_eq!(
+                    super::tdx_config_get_flatfiles_max_backoff_secs(cfg, &mut got),
+                    0
+                );
+                assert_eq!(got, secs);
+            }
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn flatfiles_setters_null_handle_returns_minus_one_or_noop() {
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — getter returns sentinel, setter no-ops.
+        unsafe {
+            super::tdx_config_set_flatfiles_max_attempts(std::ptr::null_mut(), 3);
+            super::tdx_config_set_flatfiles_initial_backoff_secs(std::ptr::null_mut(), 1);
+            super::tdx_config_set_flatfiles_max_backoff_secs(std::ptr::null_mut(), 4);
+            let mut got_n: u32 = 0;
+            let mut got_secs: u64 = 0;
+            assert_eq!(
+                super::tdx_config_get_flatfiles_max_attempts(std::ptr::null(), &mut got_n),
+                -1
+            );
+            assert_eq!(
+                super::tdx_config_get_flatfiles_initial_backoff_secs(
+                    std::ptr::null(),
+                    &mut got_secs
+                ),
+                -1
+            );
+            assert_eq!(
+                super::tdx_config_get_flatfiles_max_backoff_secs(std::ptr::null(), &mut got_secs),
+                -1
+            );
+        }
+    }
+
+    #[test]
+    fn flatfiles_field_setters_compose_into_consistent_config() {
+        // After mutating all three fields the `DirectConfig.flatfiles`
+        // struct must reflect the composed shape — proves the setters
+        // target the same underlying field rather than duplicating state.
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            super::tdx_config_set_flatfiles_max_attempts(cfg, 5);
+            super::tdx_config_set_flatfiles_initial_backoff_secs(cfg, 2);
+            super::tdx_config_set_flatfiles_max_backoff_secs(cfg, 30);
+            let ff = &(*cfg).inner.flatfiles;
+            assert_eq!(ff.max_attempts, 5);
+            assert_eq!(ff.initial_backoff, std::time::Duration::from_secs(2));
+            assert_eq!(ff.max_backoff, std::time::Duration::from_secs(30));
             super::tdx_config_free(cfg);
         }
     }

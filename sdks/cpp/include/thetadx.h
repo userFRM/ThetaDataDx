@@ -923,6 +923,39 @@ void tdx_config_set_retry_jitter(TdxConfig* config, bool jitter);
 /** Read retry.jitter. */
 int32_t tdx_config_get_retry_jitter(const TdxConfig* config, bool* out_jitter);
 
+/* ── FlatFilesConfig field setters/getters (BL-8) ── */
+
+/**
+ * Set the total attempt budget for the flatfile driver retry loop.
+ * 1 disables retry (single call only); higher values permit retries
+ * up to max_attempts - 1 after the initial call. Default 3.
+ * Validated to the range [1, 10] at connect time.
+ */
+void tdx_config_set_flatfiles_max_attempts(TdxConfig* config, uint32_t n);
+
+/** Read flatfiles.max_attempts. */
+int32_t tdx_config_get_flatfiles_max_attempts(const TdxConfig* config, uint32_t* out_n);
+
+/**
+ * Set the initial backoff delay (seconds) for the flatfile driver
+ * retry loop. Doubles per attempt up to max_backoff_secs. Default 1.
+ */
+void tdx_config_set_flatfiles_initial_backoff_secs(TdxConfig* config, uint64_t secs);
+
+/** Read flatfiles.initial_backoff (seconds). */
+int32_t tdx_config_get_flatfiles_initial_backoff_secs(const TdxConfig* config, uint64_t* out_secs);
+
+/**
+ * Set the upper-bound backoff delay (seconds) for the flatfile
+ * driver retry loop. The doubling schedule never exceeds this value
+ * regardless of attempt number. Default 4. Must be >= initial_backoff
+ * (rejected at connect-time validate otherwise).
+ */
+void tdx_config_set_flatfiles_max_backoff_secs(TdxConfig* config, uint64_t secs);
+
+/** Read flatfiles.max_backoff (seconds). */
+int32_t tdx_config_get_flatfiles_max_backoff_secs(const TdxConfig* config, uint64_t* out_secs);
+
 /**
  * Set streaming flush mode on a config handle.
  *   mode=0: Batched (default) -- flush only on PING every 100ms.
