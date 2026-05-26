@@ -57,6 +57,13 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      # Gate 2 test harness (#595): exercise the per-field /
+      # per-setter granularity matrix in-process before running the
+      # production gate. Two layers — `--selftest` is a fast in-process
+      # smoke check; `scripts/test_check_binding_parity.py` drives the
+      # full synthetic-source matrix via tempdir.
+      - run: python3 scripts/check_binding_parity.py --selftest
+      - run: python3 scripts/test_check_binding_parity.py
       - run: python3 scripts/check_binding_parity.py
 
   wire-schema-drift:

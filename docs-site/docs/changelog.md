@@ -168,6 +168,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   New `sdks/parity.toml` row under a `RuntimeConfig` section header.
   Closes audit BL-9.
 
+### Changed
+
+#### Gate 2 per-field / per-setter granularity
+
+- `scripts/check_binding_parity.py` now enforces per-field /
+  per-setter granularity instead of class-level only. The Gate 2
+  audit previously dropped through the dotted-name rows in
+  `sdks/parity.toml` via an early `continue`, leaving field-level
+  asymmetries (e.g. someone adds a Python setter and forgets the
+  TS / C++ side) invisible to CI. The tightened gate:
+  - Parses every `pub <field>` declaration on the scoped Config
+    structs (`MddsConfig`, `FpssConfig`, `FlatFilesConfig`,
+    `ReconnectConfig`, `RuntimeConfig`, `RetryPolicy`) from
+    `crates/thetadatadx/src/config/*.rs` and requires every pub
+    field to have a matching `[[class]]` row.
+  - Resolves the canonical binding setter name per row by composing
+    the struct prefix (`reconnect_`, `retry_`, `flatfiles_`) with
+    the row suffix, with per-row `setter = "..."` override for
+    fields that bind under an alternate name (e.g. `MddsConfig.host`
+    → Python `mdds_host`).
+  - Verifies setter presence in `sdks/python/src/*.rs`,
+    `sdks/typescript/src/*.rs`,
+    `sdks/cpp/include/thetadx.{hpp,h}`, and `ffi/src/*.rs` for
+    every row whose binding column declares the field bound.
+  - Requires every `rust_only = true` row to cite an
+    `issue = "#N"` tracking number; rejects orphan `issue` fields
+    on non-`rust_only` rows and rejects `rust_only` rows that also
+    flag a binding column `true`.
+  - Accepts the `_explicit` widened-ABI suffix (used by
+    `MddsConfig.decode_threads` and `decode_queue_depth` to preserve
+    `Some(0)` across the C boundary) as equivalent to the bare name.
+  Two test harnesses: in-process `python3
+  scripts/check_binding_parity.py --selftest` runs 11 hermetic cases
+  before the production gate; the dedicated
+  `scripts/test_check_binding_parity.py` drives 12 synthetic-source
+  cases via tempdir. Both are wired into CI ahead of the production
+  invocation. Closes #595.
+
 ### Changed (vendor-neutral docs)
 
 #### Audit closure wave 4

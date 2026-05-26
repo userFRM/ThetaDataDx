@@ -235,12 +235,38 @@ cpp = true
 #
 # Tuning knobs on the MDDS sub-config exposed across every binding.
 # `concurrent_requests` / `decoder_ring_size` /
-# `decode_threads_explicit` / `decode_queue_depth_explicit` are bound
-# via `Config.<name>` (Python), `Config.set<Name>` (TypeScript napi),
-# `tdx::Config::set_<name>` (C++ forwarder over the C ABI). The rows
-# below track the dotted-field state for the parity audit; the
-# parity script's class-existence check skips dotted rows pending the
-# per-field granularity tightening.
+# `decode_threads` / `decode_queue_depth` are bound via `Config.<name>`
+# (Python), `Config.set<Name>` (TypeScript napi),
+# `tdx::Config::set_<name>` (C++ forwarder over the C ABI). The FFI
+# C-ABI for the two `Option<usize>` fields (`decode_threads` /
+# `decode_queue_depth`) uses the widened `_explicit(has_value, n)`
+# shape so the `Some(0)` sentinel survives the C boundary; the
+# parity gate accepts the `_explicit` suffix as equivalent to the
+# bare name.
+
+[[class]]
+name = "MddsConfig.concurrent_requests"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "MddsConfig.decoder_ring_size"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "MddsConfig.decode_threads"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "MddsConfig.decode_queue_depth"
+python = true
+typescript = true
+cpp = true
 
 [[class]]
 name = "MddsConfig.warn_on_buffered_threshold_bytes"
@@ -410,3 +436,159 @@ name = "IndexPriceAtTimeTick.audit_wave6"
 python = true       # `thetadatadx.IndexPriceAtTimeTick` pyclass + `IndexPriceAtTimeTickList` + Arrow + columnar
 typescript = true   # `IndexPriceAtTimeTick` napi class
 cpp = true          # `tdx::IndexPriceAtTimeTick` alias over `TdxIndexPriceAtTimeTick`
+
+# ─── Rust-only MDDS / FPSS knobs (Gate 2 tightening / #595) ─────────────
+#
+# Pub fields on `MddsConfig` / `FpssConfig` that the binding sweep has
+# not yet exposed on Python / TypeScript / C++. These are deliberately
+# Rust-only today — embedders that own the runtime can mutate the
+# field directly through the `DirectConfig` struct, but the
+# higher-level bindings do not expose a setter. The
+# `rust_only = true` flag + `issue = "#595"` citation discloses the
+# tracked-work status: #595 (the Gate 2 per-field granularity
+# tightening) is the umbrella issue under which the cross-binding
+# sweep for these fields would be planned.
+#
+# Two `MddsConfig` test-only setters (`mdds_host` / `mdds_port`) are
+# exposed on Python alone for structural-test usage (point the
+# historical channel at a refused endpoint to prove the streaming
+# surface never opens it). The dotted rows below capture the
+# partial-binding state via the `setter = "..."` override on Python.
+
+[[class]]
+name = "MddsConfig.host"
+python = true       # `Config.mdds_host` test-only setter
+typescript = false
+cpp = false
+setter = "mdds_host"
+
+[[class]]
+name = "MddsConfig.port"
+python = true       # `Config.mdds_port` test-only setter
+typescript = false
+cpp = false
+setter = "mdds_port"
+
+[[class]]
+name = "MddsConfig.tls"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "MddsConfig.max_message_size"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "MddsConfig.keepalive_secs"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "MddsConfig.keepalive_timeout_secs"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "MddsConfig.window_size_kb"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "MddsConfig.connection_window_size_kb"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "MddsConfig.connect_timeout_secs"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "MddsConfig.override_tier_clamp"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "FpssConfig.hosts"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "FpssConfig.timeout_ms"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "FpssConfig.ring_size"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "FpssConfig.ping_interval_ms"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "FpssConfig.connect_timeout_ms"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+# `FpssConfig.flush_mode` is exposed on the C ABI (`tdx_config_set_flush_mode`)
+# + C++ (`set_flush_mode`) but not on Python / TypeScript. The
+# row captures the partial-binding state — a future #595 follow-up
+# would balance Python + TypeScript onto the same surface.
+[[class]]
+name = "FpssConfig.flush_mode"
+python = false
+typescript = false
+cpp = true
+
+# `FpssConfig.derive_ohlcvc` is exposed on the C ABI
+# (`tdx_config_set_derive_ohlcvc`) + Python (`Config.derive_ohlcvc`)
+# + C++ (`set_derive_ohlcvc`) but not on TypeScript. The row
+# captures the partial-binding state.
+[[class]]
+name = "FpssConfig.derive_ohlcvc"
+python = true
+typescript = false
+cpp = true
