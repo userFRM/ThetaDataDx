@@ -412,28 +412,37 @@ pub fn parse_calendar_days_v3(
                 None => 0,
             };
 
-            // type: Text "open"/"full_close"/"early_close"/"weekend"; Number
-            // kept as a future-proofing path. `NullValue` → (0, 0). Unset
-            // oneof is a wire anomaly → TypeMismatch.
+            // type: Text "open"/"full_close"/"early_close"/"weekend";
+            // `NullValue` → (0, 0). Unset oneof or any other variant
+            // (including the previously-tolerated `Number` arm) is a wire
+            // anomaly → TypeMismatch.
+            //
+            // The canonical v3 calendar wire shape publishes `type` as Text
+            // (see `/calendar/today`, `/calendar/on_date`,
+            // `/calendar/year_holidays` in `scripts/upstream_openapi.yaml`),
+            // never Number. The previous numeric arm narrowed `*n as i32`
+            // and then mapped any nonzero truncated value to `is_open = 1`
+            // with the truncated value as `status` — schema drift silently
+            // produced a plausible-looking flag for any int64 payload. Drop
+            // the numeric fallback so a future server-side regression to
+            // numeric encoding surfaces as `TypeMismatch` with the raw
+            // variant name captured for diagnostics, matching the
+            // strict-decode policy on every other enum-typed column.
             let (is_open, status) = match type_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s)?,
-                    Some(proto::data_value::DataType::Number(n)) => {
-                        let n = *n as i32;
-                        (i32::from(n != 0), n)
-                    }
                     Some(proto::data_value::DataType::NullValue(_)) => (0, 0),
                     None => {
                         return Err(DecodeError::TypeMismatch {
                             column: i,
-                            expected: "Text|Number",
+                            expected: "Text",
                             observed: "Unset",
                         });
                     }
                     other => {
                         return Err(DecodeError::TypeMismatch {
                             column: i,
-                            expected: "Text|Number",
+                            expected: "Text",
                             observed: observed_name(other),
                         });
                     }
@@ -456,8 +465,20 @@ pub fn parse_calendar_days_v3(
 }
 
 /// Decode a calendar `open`/`close` column. `Text "HH:MM:SS"` → ms-of-day;
-/// `Number` kept as future-proofing. `NullValue` / absent column → 0. An unset
-/// oneof is a wire anomaly → [`DecodeError::TypeMismatch`].
+/// `Number(ms_of_day)` kept as future-proofing for numeric-time wire shapes.
+/// `NullValue` / absent column → 0. An unset oneof is a wire anomaly →
+/// [`DecodeError::TypeMismatch`].
+///
+/// The `Number` arm is bounds-checked against the destination `i32` range
+/// via [`i32::try_from`] and then range-checked against the documented
+/// `0..=86_400_000` ms-of-day window. `DataValue.number` is wire-typed
+/// `int64`, so the previous `*n as i32` narrowing silently accepted
+/// `i64::MAX` and other out-of-range payloads as legitimate session
+/// timestamps. Out-of-range numeric payloads now surface as
+/// [`DecodeError::NumericOverflow`] (when the wire `int64` does not fit
+/// `i32`) or [`DecodeError::InvalidTime`] (when the `i32` value falls
+/// outside the ms-of-day window), with the raw value captured verbatim
+/// for diagnostics.
 fn decode_calendar_time(
     row: &proto::DataValueList,
     idx: Option<usize>,
@@ -467,7 +488,14 @@ fn decode_calendar_time(
     };
     match cell_type(row, i)? {
         Some(proto::data_value::DataType::Text(s)) => parse_time_text(s),
-        Some(proto::data_value::DataType::Number(n)) => Ok(*n as i32),
+        Some(proto::data_value::DataType::Number(n)) => {
+            let n32 = i32::try_from(*n)
+                .map_err(|_| DecodeError::NumericOverflow { raw: n.to_string() })?;
+            if !(0..=86_400_000).contains(&n32) {
+                return Err(DecodeError::InvalidTime { raw: n.to_string() });
+            }
+            Ok(n32)
+        }
         Some(proto::data_value::DataType::NullValue(_)) => Ok(0),
         None => Err(DecodeError::TypeMismatch {
             column: i,

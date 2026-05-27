@@ -2199,3 +2199,140 @@ fn parse_trade_ticks_smoke_with_in_range_integers() {
     assert_eq!(t.exchange, 4);
     assert_eq!(t.date, 20_240_301);
 }
+
+// ─────────── parse_calendar_days_v3 numeric type / time arms ───────────
+//
+// The hand-written `parse_calendar_days_v3` accepted `Number` for the
+// `type` column and `open`/`close` time columns and cast `*n as i32` with
+// no validation. The canonical v3 wire shape publishes `type` as Text and
+// `open` / `close` as `HH:MM:SS` text (see `/calendar/today`,
+// `/calendar/on_date`, `/calendar/year_holidays` in
+// `scripts/upstream_openapi.yaml`). The numeric `type` arm is now removed
+// — any future numeric payload raises `TypeMismatch` with the variant
+// name captured for diagnostics, matching the strict-decode policy on
+// every other enum-typed column. The numeric arm of `decode_calendar_time`
+// is retained as a future-proofing path but bounds-checked: wire `int64`
+// goes through `i32::try_from` and the resulting `i32` is range-checked
+// against the documented `0..=86_400_000` ms-of-day window.
+
+#[test]
+fn parse_calendar_days_v3_rejects_numeric_type_99() {
+    // 99 used to silently truncate via `*n as i32` and map to
+    // `is_open = 1, status = 99`. The numeric arm is now removed
+    // entirely; a `Number` cell on the `type` column raises
+    // `TypeMismatch` with the variant name captured.
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into()],
+        data_table: vec![row_of(vec![dv_number(20_260_413), dv_number(99)])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::TypeMismatch {
+            column: 1,
+            expected: "Text",
+            observed: "Number",
+        }
+    );
+}
+
+#[test]
+fn parse_calendar_days_v3_rejects_numeric_type_i64_max() {
+    // The previous numeric arm cast `i64::MAX as i32` to `-1` and
+    // stored that as `status` with `is_open = 1` — a fabricated
+    // session flag from a wire-protocol anomaly. The removed arm
+    // now surfaces the variant directly.
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into()],
+        data_table: vec![row_of(vec![dv_number(20_260_413), dv_number(i64::MAX)])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::TypeMismatch {
+            column: 1,
+            expected: "Text",
+            observed: "Number",
+        }
+    );
+}
+
+#[test]
+fn parse_calendar_days_v3_rejects_numeric_open_past_day_end() {
+    // 86_400_001 = one ms past the end of the documented ms-of-day
+    // window. Without the range check this stored as a real-looking
+    // `open_time` and corrupted downstream session arithmetic.
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into(), "open".into()],
+        data_table: vec![row_of(vec![
+            dv_number(20_260_413),
+            dv_text("open"),
+            dv_number(86_400_001),
+        ])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::InvalidTime {
+            raw: "86400001".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_calendar_days_v3_rejects_numeric_open_negative() {
+    // Negative ms-of-day is outside the documented window; the
+    // previous arm narrowed `-1 as i32` to `-1` and stored it as a
+    // session timestamp, which then corrupted any consumer doing
+    // ms-since-midnight arithmetic on the value.
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into(), "open".into()],
+        data_table: vec![row_of(vec![
+            dv_number(20_260_413),
+            dv_text("open"),
+            dv_number(-1),
+        ])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::InvalidTime { raw: "-1".into() }
+    );
+}
+
+#[test]
+fn parse_calendar_days_v3_rejects_numeric_close_overflowing_i32() {
+    // i64::MAX on `close` exercises the int64 overflow guard ahead
+    // of the range check — without `i32::try_from` the value wrapped
+    // to a low-bits `i32` that fell back inside the ms-of-day window
+    // by chance and stored a fabricated session close.
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into(), "open".into(), "close".into()],
+        data_table: vec![row_of(vec![
+            dv_number(20_260_413),
+            dv_text("open"),
+            dv_number(34_200_000),
+            dv_number(i64::MAX),
+        ])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::NumericOverflow {
+            raw: i64::MAX.to_string(),
+        }
+    );
+}
+
+#[test]
+fn parse_calendar_days_v3_accepts_numeric_open_at_session_start() {
+    // 34_200_000 == 09:30:00 ET (the documented equity session open).
+    // The range check is inclusive on both ends; this is the
+    // canonical in-range payload and must round-trip unchanged.
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into(), "open".into()],
+        data_table: vec![row_of(vec![
+            dv_number(20_260_413),
+            dv_text("open"),
+            dv_number(34_200_000),
+        ])],
+    };
+    let days = parse_calendar_days_v3(&table).unwrap();
+    assert_eq!(days.len(), 1);
+    assert_eq!(days[0].open_time, 34_200_000);
+}
