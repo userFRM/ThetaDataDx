@@ -242,6 +242,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `proto::ResponseData` -- needed by the mock-driven routing suite)
   and `load_data_table` (composed with the production
   `decode::decode_data_table` for direct-parser asserts).
+- `tests/grpc_mock_server.rs` replaces three fixed-sleep barriers
+  (50 ms / 150 ms / 250 ms) with `tokio::sync::Notify` synchronisation
+  signaled from the mock-server request handler and PING driver. The
+  mock now exposes two new behaviour knobs: `on_request_drained`
+  (signaled the instant the inbound request body has been fully
+  drained -- replaces the 150 ms "let the slow RPC land on the wire"
+  sleep in `channel_pool_routes_around_saturated_channel`) and
+  `ping_pong_signal` (signaled after N successful PING/PONG
+  round-trips -- replaces the 250 ms "idle for several PING intervals"
+  sleep in `channel_keepalive_survives_server_ping`). Both tests now
+  await the Notify under a 5 s runaway-protector timeout. The 50 ms
+  "give h2 a tick to flush" sleep in `respond_partial_then_drop` is
+  replaced with three cooperative `tokio::task::yield_now()` calls;
+  the test (`channel_classifies_goaway_distinctly_from_reset`)
+  already accepts both early- and mid-stream error surfaces, so the
+  deterministic yield-based flush preserves the original semantics
+  without a wall-clock bias. Verified clean across 10 sequential
+  `cargo test --features __test-helpers --test grpc_mock_server`
+  runs.
 - Gate 2 scope widened to include `AuthConfig` (`nexus_url`,
   `client_type`) + `MetricsConfig` (`port`). The three operator-tuning
   fields are exposed on Rust via `DirectConfig::with_nexus_url` /

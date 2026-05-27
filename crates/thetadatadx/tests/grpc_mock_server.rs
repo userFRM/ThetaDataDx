@@ -23,7 +23,7 @@ use h2::server::SendResponse;
 use http::{HeaderMap, HeaderName, HeaderValue, Response, StatusCode};
 use prost::Message;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, Notify};
 use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;
 
@@ -152,6 +152,23 @@ pub struct MockBehaviour {
     /// stream stalls. Tests pair this with a multi-chunk response to
     /// confirm forward progress.
     pub clamp_initial_window: Option<u32>,
+    /// When `Some`, the mock's request handler signals this `Notify`
+    /// the instant the inbound request body has been fully drained —
+    /// i.e. when the client's `send_request()` has finished writing
+    /// its body and the server-side has reached "ready to respond".
+    /// Tests pair this with a `tokio::time::timeout(secs, notify.
+    /// notified()).await` to deterministically wait for "first call
+    /// reached the wire" instead of using a fixed `tokio::time::
+    /// sleep(...)` barrier (audit closure — fixed-sleep barriers).
+    pub on_request_drained: Option<Arc<Notify>>,
+    /// When `Some((notify, n))`, the mock's PING-driver task (active
+    /// when `inject_ping = Some(_)`) signals `notify` after `n`
+    /// successful PING/PONG round-trips. Tests pair this with a
+    /// `tokio::time::timeout(secs, notify.notified()).await` to
+    /// deterministically wait for keep-alive evidence instead of
+    /// sleeping for several PING intervals (audit closure —
+    /// fixed-sleep barriers).
+    pub ping_pong_signal: Option<(Arc<Notify>, u32)>,
 }
 
 impl MockServer {
@@ -264,16 +281,30 @@ pub async fn serve_one_connection(
     // reader thread observes liveness traffic. The driver task halts
     // when the connection's `ping_pong()` future returns an error
     // (connection closed / GOAWAY).
+    //
+    // When `ping_pong_signal = Some((notify, n))`, the driver tracks
+    // successful round-trips and signals `notify` after `n` PONGs
+    // have come back. Tests use this to wait deterministically for
+    // keep-alive evidence instead of sleeping for several PING
+    // intervals (audit closure — fixed-sleep barriers).
     let _ping_driver = behaviour.inject_ping.map(|interval| {
         let mut ping_pong = connection
             .ping_pong()
             .expect("ping_pong handle available on a fresh connection");
+        let ping_pong_signal = behaviour.ping_pong_signal.clone();
         tokio::spawn(async move {
             // Cycle: send PING, await PONG, sleep `interval`. Bail
             // silently when the connection-level future returns Err.
+            let mut completed: u32 = 0;
             loop {
                 if ping_pong.ping(h2::Ping::opaque()).await.is_err() {
                     return;
+                }
+                completed = completed.saturating_add(1);
+                if let Some((notify, target)) = ping_pong_signal.as_ref() {
+                    if completed == *target {
+                        notify.notify_waiters();
+                    }
                 }
                 tokio::time::sleep(interval).await;
             }
@@ -400,6 +431,15 @@ async fn handle_request(
             "request payload does not match expected protobuf bytes"
         );
     }
+    // Signal "request body drained" before any pre-response delay so
+    // the test's barrier observes the client-side state advance
+    // (request fully on the wire, in-flight counter ticked) without
+    // racing the pre-response sleep. Pre-existing capture / assert
+    // hooks above already inspect the drained body — this fires after
+    // both so the test sees a coherent post-drain state.
+    if let Some(notify) = behaviour.on_request_drained.as_ref() {
+        notify.notify_waiters();
+    }
     if let Some(d) = behaviour.pre_response_delay {
         tokio::time::sleep(d).await;
     }
@@ -482,11 +522,26 @@ async fn respond_partial_then_drop(
     if let Some(first) = chunks.first() {
         send_stream.send_data(frame(first), false)?;
     }
-    // Give h2 a tick to actually flush the response head + DATA to the
-    // wire before the outer loop tears the connection down. Without
-    // this, abrupt_shutdown can race the response-head emission and
-    // the client sees an IO error instead of a clean GOAWAY.
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    // Give h2 a deterministic chance to actually flush the response
+    // head + DATA to the wire before the outer loop tears the
+    // connection down. Without this, abrupt_shutdown can race the
+    // response-head emission and the client sees an IO error rather
+    // than a clean GOAWAY.
+    //
+    // The prior fixed `sleep(50ms)` here was a wall-clock barrier
+    // (audit closure — fixed-sleep barriers). The replacement is
+    // cooperative: yielding to the runtime hands control back to the
+    // h2 connection driver task spawned by `serve_one_connection`,
+    // which drains the SendStream's outbound buffer and pushes the
+    // response HEADERS + DATA frames onto the TCP socket. Three
+    // yields cover (a) the dispatch of HEADERS, (b) the DATA frame
+    // emission, and (c) the socket write completion. No
+    // sleep-derived timing assumption survives. The test
+    // `channel_classifies_goaway_distinctly_from_reset` accepts
+    // both early- and mid-stream error surfaces regardless.
+    for _ in 0..3 {
+        tokio::task::yield_now().await;
+    }
     // Deliberately drop without sending trailers. The connection-level
     // GOAWAY follows on the outer task.
     Ok(())
@@ -944,15 +999,20 @@ async fn channel_pool_routes_around_saturated_channel() {
     // Failure mode the test pins: strict round-robin would return
     // member 0 on a quarter of calls even while it's saturated,
     // reintroducing head-of-line blocking at the pool level.
+    let member_zero_drained = Arc::new(Notify::new());
     let mut mocks = Vec::new();
     let mut channels = Vec::new();
     for idx in 0..4 {
         let behaviour = if idx == 0 {
             // Member 0 holds the slow RPC: pre-response delay covers
             // the entire test so the response never lands and the
-            // stream stays in flight.
+            // stream stays in flight. The `on_request_drained` Notify
+            // signals the instant the server has drained the request
+            // body — i.e. the slow RPC has reached "response-receiving"
+            // state and the client's in-flight counter has ticked.
             MockBehaviour {
                 pre_response_delay: Some(Duration::from_secs(30)),
+                on_request_drained: Some(Arc::clone(&member_zero_drained)),
                 ..MockBehaviour::default()
             }
         } else {
@@ -996,11 +1056,16 @@ async fn channel_pool_routes_around_saturated_channel() {
         // stream open until the task is aborted.
     });
 
-    // Give the slow RPC time to land on the wire so member 0's
-    // in-flight counter advances. The server processes its body and
-    // begins the pre-response delay; the client's stream is now in
-    // its response-receiving state with the in-flight token held.
-    tokio::time::sleep(Duration::from_millis(150)).await;
+    // Wait for the slow RPC to actually land on the wire — the mock
+    // signals `member_zero_drained` the moment it finishes draining
+    // the request body, which is the same moment the client's
+    // in-flight counter advances. The 5s timeout is a runaway
+    // protector; the notify normally fires inside a few ms. This
+    // replaces a fixed `sleep(150ms)` barrier (audit closure —
+    // fixed-sleep barriers).
+    tokio::time::timeout(Duration::from_secs(5), member_zero_drained.notified())
+        .await
+        .expect("slow RPC reached the wire within 5s");
 
     // Confirm member 0's in-flight counter actually advanced — this
     // is the assertion the rest of the test depends on.
@@ -1569,12 +1634,19 @@ async fn channel_pool_distributes_across_members() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn channel_keepalive_survives_server_ping() {
-    // Pump a PING every 50ms. The connection sits idle for ~250ms
-    // between the first and second RPC; a broken keep-alive (no PONG)
-    // would surface as the second RPC failing or the connection
-    // already being torn down. We assert that a second RPC on the
-    // same channel completes after the idle window — that is the
-    // load-bearing keep-alive contract.
+    // Pump a PING every 50ms. The connection sits idle between the
+    // first and second RPC long enough for several PONG round-trips
+    // to actually exercise the keep-alive code path; a broken
+    // keep-alive (no PONG) would surface as the second RPC failing
+    // or the connection already being torn down. We assert that a
+    // second RPC on the same channel completes after the idle window
+    // — that is the load-bearing keep-alive contract.
+    //
+    // The mock's PING driver signals `ping_pongs_done` after 5
+    // successful PING/PONG round-trips, so the test waits
+    // deterministically on the Notify rather than sleeping for a
+    // wall-clock interval (audit closure — fixed-sleep barriers).
+    let ping_pongs_done = Arc::new(Notify::new());
     let chunks = vec![make_response_data(&["AAPL"])];
     let mock = MockServer::spawn_with_behaviour(
         chunks.clone(),
@@ -1582,6 +1654,7 @@ async fn channel_keepalive_survives_server_ping() {
         String::new(),
         MockBehaviour {
             inject_ping: Some(Duration::from_millis(50)),
+            ping_pong_signal: Some((Arc::clone(&ping_pongs_done), 5)),
             ..MockBehaviour::default()
         },
     )
@@ -1600,9 +1673,13 @@ async fn channel_keepalive_survives_server_ping() {
         .expect("first RPC opens");
     let _first = collect(stream).await.expect("first RPC completes");
 
-    // Idle for several PING intervals so PONG round-trips actually
-    // exercise the keep-alive code path before the next dispatch.
-    tokio::time::sleep(Duration::from_millis(250)).await;
+    // Wait for 5 PING/PONG round-trips to complete — exercises the
+    // keep-alive code path deterministically. The 5s timeout is a
+    // runaway protector; the notify normally fires within ~250ms
+    // (5 round-trips * 50ms PING interval).
+    tokio::time::timeout(Duration::from_secs(5), ping_pongs_done.notified())
+        .await
+        .expect("5 PING/PONG round-trips completed within 5s");
 
     // Second RPC on the same channel after the keep-alive window.
     // The mock's `accept().await` loop multiplexes streams over the
