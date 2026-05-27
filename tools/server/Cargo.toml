@@ -5,12 +5,15 @@ edition = "2021"
 rust-version = "1.88"
 authors = ["userFRM"]
 description = "Drop-in Rust replacement for the ThetaData Java Terminal"
-documentation = "https://docs.rs/thetadatadx-server"
 homepage = "https://github.com/userFRM/ThetaDataDx"
 repository = "https://github.com/userFRM/ThetaDataDx"
 license = "Apache-2.0"
 keywords = ["thetadata", "terminal", "market-data", "rest-api", "websocket"]
 categories = ["finance", "network-programming", "web-programming::http-server"]
+
+# Binary — not published to crates.io. Only `tdbe` and `thetadatadx`
+# are published per the publish-crate CI job.
+publish = false
 
 [workspace]
 
