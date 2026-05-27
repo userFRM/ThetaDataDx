@@ -7,9 +7,7 @@
 
 use std::collections::HashMap;
 
-use super::model::{
-    GeneratedEndpoint, GeneratedParam, ParsedEndpoints, ProtoField, Rpc, TestFixtures,
-};
+use super::model::{GeneratedEndpoint, GeneratedParam, ProtoField, Rpc, WireEndpoints};
 
 /// Parse endpoint metadata from `mdds.proto` into a reusable intermediate form.
 ///
@@ -20,7 +18,7 @@ use super::model::{
 /// runtime, and SDK surface stay aligned while the explicit endpoint surface
 /// spec is validated against the wire contract.
 #[allow(clippy::too_many_lines)] // Reason: build-time endpoint parser coordinates multiple passes over one proto source.
-pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::error::Error>> {
+pub(super) fn load_proto_endpoints() -> Result<WireEndpoints, Box<dyn std::error::Error>> {
     let proto = std::fs::read_to_string("proto/mdds.proto")?;
 
     // ── Parse RPCs ──────────────────────────────────────────────────────────
@@ -87,10 +85,9 @@ pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::err
                 name,
                 description,
                 param_type,
-                enum_name: None,
                 required,
                 binding: String::new(),
-                arg_name: None,
+                _arg_name: None,
                 default: None,
             })
             .collect::<Vec<_>>();
@@ -101,7 +98,7 @@ pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::err
             description: String::new(),
             category: String::new(),
             subcategory: String::new(),
-            rest_path: String::new(),
+            _rest_path: String::new(),
             grpc_name: format!("get_{}", rpc_to_method(&rpc.rpc_name)),
             request_type: rpc.request_type.clone(),
             query_type: query_msg_name,
@@ -114,6 +111,11 @@ pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::err
             // surface spec (endpoint_surface.toml) is the SSOT; this field
             // is merged in during `parser::merge_surface_and_wire`.
             vendor_docstring: None,
+            // Proto-derived entries default to gRPC transport. The surface
+            // spec (endpoint_surface.toml) overrides via the `transport`
+            // field during `parser::merge_surface_and_wire`; defaulting
+            // here keeps the synthetic / fallback path on gRPC alone.
+            _transport: super::model::Transport::Grpc,
         });
     }
 
@@ -129,11 +131,7 @@ pub(super) fn load_proto_endpoints() -> Result<ParsedEndpoints, Box<dyn std::err
         endpoints.push(range);
     }
 
-    Ok(ParsedEndpoints {
-        endpoints,
-        enums: Vec::new(),
-        fixtures: TestFixtures::default(),
-    })
+    Ok(WireEndpoints { endpoints })
 }
 
 fn is_simple_list_method(method: &str) -> bool {
@@ -339,6 +337,28 @@ fn derive_return_type(method: &str) -> String {
         return "MarketValueTicks".into();
     }
 
+    // The `option_history_trade_greeks_*` endpoints calculate Greeks per
+    // OPRA trade and ship nine trade-side execution columns alongside the
+    // Greek values. They route to dedicated `TradeGreeks*Tick` types --
+    // distinct from the interval-sampled `Greeks*Tick` variants whose
+    // wire rows carry the bid/ask quote pair instead. Match these BEFORE
+    // the bare `greeks_*` arms so the trade-side prefix takes precedence.
+    if method.contains("trade_greeks_implied_volatility") {
+        return "TradeGreeksImpliedVolatilityTicks".into();
+    }
+    if method.contains("trade_greeks_first_order") {
+        return "TradeGreeksFirstOrderTicks".into();
+    }
+    if method.contains("trade_greeks_second_order") {
+        return "TradeGreeksSecondOrderTicks".into();
+    }
+    if method.contains("trade_greeks_third_order") {
+        return "TradeGreeksThirdOrderTicks".into();
+    }
+    if method.contains("trade_greeks") {
+        return "TradeGreeksAllTicks".into();
+    }
+
     if method.contains("greeks_implied_volatility") {
         return "IvTicks".into();
     }
@@ -355,16 +375,34 @@ fn derive_return_type(method: &str) -> String {
         return "GreeksThirdOrderTicks".into();
     }
 
-    // `_greeks_all`, `_greeks_eod`, and any future un-suffixed Greeks
-    // endpoint default to the full-union type.
+    // `_greeks_eod` routes to a dedicated `GreeksEodTick` whose wire
+    // shape (39 data columns) fuses the full Greeks union with the
+    // twelve EOD trade/quote columns (`open`, `high`, `low`, `close`,
+    // `volume`, `count`, `bid_size`, `bid_exchange`, `bid_condition`,
+    // `ask_size`, `ask_exchange`, `ask_condition`) the bare
+    // `GreeksAllTick` silently dropped. Match BEFORE the generic
+    // `_greeks_` arm so the EOD specialisation takes precedence.
+    if method.contains("greeks_eod") {
+        return "GreeksEodTicks".into();
+    }
+
+    // `_greeks_all` and any future un-suffixed Greeks endpoint default
+    // to the full-union type.
     if method.contains("_greeks_") {
         return "GreeksAllTicks".into();
     }
 
-    if method == "index_snapshot_price"
-        || method == "index_history_price"
-        || method == "index_at_time_price"
-    {
+    // `index_at_time_price` returns a trade-shaped row (10 columns:
+    // `timestamp`, `sequence`, `ext_condition1..4`, `condition`,
+    // `size`, `exchange`, `price`) -- distinct from the bare
+    // `PriceTick` (3 columns) used by `index_snapshot_price` /
+    // `index_history_price`. Match BEFORE those routes so the trade
+    // shape takes precedence.
+    if method == "index_at_time_price" {
+        return "IndexPriceAtTimeTicks".into();
+    }
+
+    if method == "index_snapshot_price" || method == "index_history_price" {
         return "PriceTicks".into();
     }
 

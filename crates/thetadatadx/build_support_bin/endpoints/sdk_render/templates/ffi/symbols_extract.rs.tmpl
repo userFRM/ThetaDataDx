@@ -1,0 +1,5 @@
+    let symbols = require_symbol_array!(symbols, symbols_len, empty);
+    args.insert(
+        "symbol".to_string(),
+        thetadatadx::EndpointArgValue::Str(symbols.join(",")),
+    );

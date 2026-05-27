@@ -57,6 +57,7 @@ fn ohlc_tick_to_arrow_schema_matches_python() {
         close: 100.75,
         volume: 123456,
         count: 100,
+        vwap: 100.45,
         date: 20240102,
         expiration: 20240119,
         strike: 500.0,

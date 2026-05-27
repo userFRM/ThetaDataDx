@@ -24,6 +24,17 @@
 //! producer. Events are pre-allocated in the ring buffer (zero allocation on
 //! the hot path), and the single-producer barrier uses a plain store (no CAS).
 //!
+//! # Publish policy
+//!
+//! Every publish from the io_loop thread — TLS-read data frames AND
+//! handshake / reconnect / control frames — goes through
+//! `Producer::try_publish`. The blocking `Producer::publish` is
+//! **never** called on the io_loop thread: a slow callback that lets
+//! the ring fill must NOT wedge the TLS reader, because a wedged
+//! reader stops servicing PING heartbeats and the vendor session
+//! drops on the wire. On overflow the event is dropped, the shared
+//! `dropped` counter increments, and a `warn` is logged.
+//!
 //! # Wait Strategy
 //!
 //! [`AdaptiveWaitStrategy`] implements a three-phase wait inspired by LMAX Disruptor's
@@ -121,73 +132,24 @@ pub(crate) struct RingEvent {
     pub(crate) event: FpssEventInternal,
 }
 
-// SAFETY: FpssEventInternal is Clone + Send; RingEvent is only accessed
-// through the disruptor's sequencing guarantees (exclusive write, shared read).
+// SAFETY: Required-invariant restate per audit MINOR sweep --
+// `FpssEventInternal` is `Send` + holds no thread-affine state
+// (only `Arc<Contract>` + owned `Vec<u8>` + POD primitives). Concurrent
+// shared access is gated by the disruptor's sequencing protocol:
+// exactly one publisher writes a slot before publishing the sequence,
+// and consumers only read slots whose sequence has been published
+// (memory-ordered Acquire on the cursor read). No reader observes an
+// in-flight write, so the lack of an internal lock on `RingEvent`
+// is safe; the `unsafe impl Sync` records the contract.
 unsafe impl Sync for RingEvent {}
 
-/// Minimum ring size (power of 2).
-pub(crate) const MIN_RING_SIZE: usize = 64;
-
-/// Validate that `n` is a power of two no smaller than [`MIN_RING_SIZE`].
-///
-/// Returns `Ok(n)` on success. Returns the wrapped variant of
-/// [`RingSizeError`] on failure, naming the offending value and the
-/// nearest valid size so the caller can correct the configuration
-/// without grep-fishing.
-///
-/// Silent rounding to the next power of two is rejected because it
-/// rewrites caller intent. Construction-time validation is the
-/// institutional pattern — fail closed at config-time, never silently
-/// rewrite the buffer budget. Index wrap on the steady-state read path
-/// is `i & (cap - 1)` (one AND, branchless); a non-power-of-two would
-/// force a modulo (~20 cycles per tick on x86_64) and break the ILP
-/// the read path relies on.
-pub(crate) fn check_ring_size(n: usize) -> Result<usize, RingSizeError> {
-    if n < MIN_RING_SIZE {
-        return Err(RingSizeError::TooSmall {
-            provided: n,
-            minimum: MIN_RING_SIZE,
-        });
-    }
-    if !n.is_power_of_two() {
-        return Err(RingSizeError::NotPowerOfTwo {
-            provided: n,
-            suggested: n.next_power_of_two(),
-        });
-    }
-    Ok(n)
-}
-
-/// Failures rejected by [`check_ring_size`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RingSizeError {
-    /// `provided` is smaller than [`MIN_RING_SIZE`].
-    TooSmall { provided: usize, minimum: usize },
-    /// `provided` is not a power of two. `suggested` is the nearest
-    /// valid power of two `>= provided` so the caller can pick the
-    /// next viable budget without recomputing it.
-    NotPowerOfTwo { provided: usize, suggested: usize },
-}
-
-impl std::fmt::Display for RingSizeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::TooSmall { provided, minimum } => write!(
-                f,
-                "FPSS ring_size {provided} is below the minimum of {minimum}"
-            ),
-            Self::NotPowerOfTwo {
-                provided,
-                suggested,
-            } => write!(
-                f,
-                "FPSS ring_size {provided} must be a power of two; nearest valid value is {suggested}"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for RingSizeError {}
+// Ring-size validation lives in [`crate::util::ring`] so the gRPC
+// decoder pool can share the same contract. Re-export the items here
+// under their historical FPSS paths so existing consumers do not have
+// to change.
+#[cfg(test)]
+use crate::util::ring::RingSizeError;
+pub(crate) use crate::util::ring::{check_ring_size, MIN_RING_SIZE};
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -343,8 +305,12 @@ mod tests {
                 contract, bid, ask, ..
             }) => {
                 assert_eq!(contract.symbol, "AAPL");
-                assert!((bid - 150.25).abs() < f64::EPSILON);
-                assert!((ask - 150.30).abs() < f64::EPSILON);
+                // Both sides round-trip exact decimal-ms quotes
+                // (Price::new(15025, 4) and Price::new(15030, 4)) so
+                // an `assert_eq!` is sound and tighter than an
+                // EPSILON tolerance.
+                assert_eq!(*bid, 150.25);
+                assert_eq!(*ask, 150.30);
             }
             other => panic!("expected Data(Quote), got {other:?}"),
         }

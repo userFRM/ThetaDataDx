@@ -5,6 +5,8 @@ C++ SDK for ThetaData market data. Header-only RAII wrappers over the `thetadata
 Every call crosses the C ABI boundary into compiled Rust: gRPC communication, protobuf parsing, zstd decompression, and TCP streaming run inside the `thetadatadx` crate.
 
 > **Surface coverage:** the C++ binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `unified.flat_files().*()` with `.to_arrow_ipc()` terminals plus a `flat_files().to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
+>
+> **REST routing escape hatch:** `tdx::FallbackPolicy::restAlways` + `Config::withRestFallback` + four `Client::optionHistory*WithFallback` methods route the historical-quote endpoints over a locally-running Terminal's REST surface when the caller wants a single transport for every quote-bearing call. See [channel pool design](../../docs-site/docs/channel-pool-design.md) for the connection-recovery story.
 
 ## Prerequisites
 
@@ -39,6 +41,35 @@ Run the example:
 ```bash
 ./build/cpp/thetadatadx_example
 ```
+
+## Tests
+
+Catch2 v3-based test suite under `sdks/cpp/tests/`. Two buckets:
+
+- **Offline** — type-level / null-safe / move-semantics checks; no
+  network, no credentials. Always runs.
+- **Live** — full FPSS / historical round-trip against the
+  production server. Each test calls `SKIP()` unless
+  `THETADX_LIVE_CREDS` points at a `creds.txt`.
+
+```bash
+cmake -S sdks/cpp -B build/cpp-tests -DTHETADATADX_CPP_BUILD_TESTS=ON
+cmake --build build/cpp-tests --target thetadatadx_cpp_tests
+ctest --test-dir build/cpp-tests --output-on-failure
+```
+
+Run with live credentials:
+
+```bash
+THETADX_LIVE_CREDS=/path/to/creds.txt \
+    ctest --test-dir build/cpp-tests --output-on-failure
+```
+
+The Catch2 dependency is fetched via CMake's `FetchContent` from
+`github.com/catchorg/Catch2` (pinned tag `v3.5.4`). The test target
+is opt-in via `-DTHETADATADX_CPP_BUILD_TESTS=ON` so downstream
+consumers building only the production library do not pay the
+test-dependency cost.
 
 ## Quick Start
 
@@ -290,16 +321,19 @@ int main() {
         }
     });
 
-    // Fluent contract-first subscriptions (primary surface).
+    // Fluent contract-first subscriptions (primary surface). U3
+    // closure: every call below targets the same `fpss` handle
+    // constructed above — the previous example referenced an
+    // undefined `unified` variable and would not compile.
     auto stock  = tdx::Contract::stock("AAPL");
     auto option = tdx::Contract::option("SPY", "20260620", "550", "C");
 
-    unified.subscribe(stock.quote());
-    unified.subscribe(option.trade());
-    unified.subscribe(tdx::SecType::option().full_trades());
+    fpss.subscribe(stock.quote());
+    fpss.subscribe(option.trade());
+    fpss.subscribe(tdx::SecType::option().full_trades());
 
     // Bulk install:
-    unified.subscribe_many({stock.quote(), option.quote()});
+    fpss.subscribe_many({stock.quote(), option.quote()});
 
     // ... let the callback run ...
 
@@ -458,7 +492,7 @@ libthetadatadx_ffi.so / .a
     |  (Rust FFI crate)
     v
 thetadatadx Rust crate
-    |  (tonic gRPC / tokio TCP)
+    |  (in-house gRPC / tokio TCP)
     v
 ThetaData servers
 ```

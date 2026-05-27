@@ -7,26 +7,13 @@ use thetadatadx::decode::{
 };
 use thetadatadx::wire as proto;
 
+#[path = "common/quote_fixture.rs"]
+mod fixture;
+use fixture::{build_quote_data_table, dv_number, dv_price};
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Helpers
 // ═══════════════════════════════════════════════════════════════════════════
-
-/// Build a DataValue containing a Number.
-fn dv_number(n: i64) -> proto::DataValue {
-    proto::DataValue {
-        data_type: Some(proto::data_value::DataType::Number(n)),
-    }
-}
-
-/// Build a DataValue containing a Price.
-fn dv_price(value: i32, r#type: i32) -> proto::DataValue {
-    proto::DataValue {
-        data_type: Some(proto::data_value::DataType::Price(proto::Price {
-            value,
-            r#type,
-        })),
-    }
-}
 
 fn row_of(values: Vec<proto::DataValue>) -> proto::DataValueList {
     proto::DataValueList { values }
@@ -69,41 +56,6 @@ fn build_trade_data_table(n: usize) -> proto::DataTable {
             dv_number(0),                           // volume_type
             dv_number(0),                           // records_back
             dv_number(20240315),                    // date
-        ]));
-    }
-    proto::DataTable {
-        headers,
-        data_table: rows,
-    }
-}
-
-/// Build a realistic quote-tick DataTable with `n` rows.
-fn build_quote_data_table(n: usize) -> proto::DataTable {
-    let headers = vec![
-        "ms_of_day".into(),
-        "bid_size".into(),
-        "bid_exchange".into(),
-        "bid".into(),
-        "bid_condition".into(),
-        "ask_size".into(),
-        "ask_exchange".into(),
-        "ask".into(),
-        "ask_condition".into(),
-        "date".into(),
-    ];
-    let mut rows = Vec::with_capacity(n);
-    for i in 0..n {
-        rows.push(row_of(vec![
-            dv_number(34_200_000 + i as i64 * 50),
-            dv_number(10 + (i % 100) as i64),      // bid_size
-            dv_number(4),                          // bid_exchange
-            dv_price(15020 + (i % 100) as i32, 8), // bid ~150.20
-            dv_number(1),                          // bid_condition
-            dv_number(5 + (i % 80) as i64),        // ask_size
-            dv_number(4),                          // ask_exchange
-            dv_price(15030 + (i % 100) as i32, 8), // ask ~150.30
-            dv_number(1),                          // ask_condition
-            dv_number(20240315),                   // date
         ]));
     }
     proto::DataTable {
@@ -209,23 +161,28 @@ fn build_uncompressed_response(table: &proto::DataTable) -> proto::ResponseData 
 // ═══════════════════════════════════════════════════════════════════════════
 
 fn bench_decode_zstd_small(c: &mut Criterion) {
-    // ~1KB payload: small DataTable (10 rows)
+    // ~1KB payload: small DataTable (10 rows). Decompress consumes
+    // `compressed_data` via `mem::take` on the identity path; the
+    // zstd path is non-destructive but the bench clones to keep both
+    // iterations in steady state.
     let table = build_trade_data_table(10);
     let response = build_zstd_response(&table);
     c.bench_function("decode_zstd_small", |b| {
         b.iter(|| {
-            black_box(decompress_response(black_box(&response)).unwrap());
+            let mut r = response.clone();
+            black_box(decompress_response(black_box(&mut r)).unwrap());
         });
     });
 }
 
 fn bench_decode_zstd_large(c: &mut Criterion) {
-    // ~100KB payload: large DataTable (1000 rows)
+    // ~100KB payload: large DataTable (1000 rows).
     let table = build_trade_data_table(1000);
     let response = build_zstd_response(&table);
     c.bench_function("decode_zstd_large", |b| {
         b.iter(|| {
-            black_box(decompress_response(black_box(&response)).unwrap());
+            let mut r = response.clone();
+            black_box(decompress_response(black_box(&mut r)).unwrap());
         });
     });
 }
@@ -235,7 +192,8 @@ fn bench_decode_data_table_10_rows(c: &mut Criterion) {
     let response = build_uncompressed_response(&table);
     c.bench_function("decode_data_table_10_rows", |b| {
         b.iter(|| {
-            black_box(decode_data_table(black_box(&response)).unwrap());
+            let mut r = response.clone();
+            black_box(decode_data_table(black_box(&mut r)).unwrap());
         });
     });
 }
@@ -245,7 +203,8 @@ fn bench_decode_data_table_1000_rows(c: &mut Criterion) {
     let response = build_uncompressed_response(&table);
     c.bench_function("decode_data_table_1000_rows", |b| {
         b.iter(|| {
-            black_box(decode_data_table(black_box(&response)).unwrap());
+            let mut r = response.clone();
+            black_box(decode_data_table(black_box(&mut r)).unwrap());
         });
     });
 }

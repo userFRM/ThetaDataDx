@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-py"
-version = "10.0.0"
+version = "11.0.0"
 edition = "2021"
 rust-version = "1.88"
 description = "Python bindings for thetadatadx — native ThetaData SDK powered by Rust"
@@ -29,7 +29,7 @@ prost = "=0.14.3"
 
 # PyO3 bindings. We target the stable ABI so one wheel per platform supports
 # every Python version from 3.9 upward.
-pyo3 = { version = "=0.28.2", features = ["abi3-py39", "multiple-pymethods"] }
+pyo3 = { version = "=0.28.3", features = ["abi3-py39", "multiple-pymethods"] }
 
 # Bridge between pyo3 and tokio so generated `*_async` methods return real
 # awaitables backed by the shared runtime singleton (no second runtime is
@@ -88,6 +88,16 @@ tracing = "0.1.44"
 # requires. No `fmt` subscriber — we forward to Python's stdlib
 # logging, not to stderr.
 tracing-subscriber = { version = "0.3.20", default-features = false, features = ["registry"] }
+
+# POSIX pipe + read for the asyncio-native `streaming_async()` surface.
+# The pyclass allocates a self-pipe in `__aenter__`, hands the write-end
+# to the Rust core via `connect_iter_with_wake_keep_handle`, and registers
+# the read-end on the asyncio event loop with `loop.add_reader`. Bounded
+# to Unix targets — Windows asyncio uses ProactorEventLoop which does
+# not support `add_reader` on pipes; the pyclass raises at construction
+# time on non-Unix.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 # Match the main workspace's strict bar. This crate is `[workspace.exclude]`d
 # in the root `Cargo.toml` (it has its own toolchain / feature footprint), so

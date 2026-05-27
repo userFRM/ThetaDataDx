@@ -1,0 +1,33 @@
+# Verified-live wire shape captured via the terminal jar build `202605221`.
+# Synthesised by `build_trade_greeks_fixtures` for the same SPY 2026-01-16
+# 540 CALL print as the `_all` capture.
+
+endpoint = "option_history_trade_greeks_third_order"
+tick_type = "TradeGreeksThirdOrderTick"
+expected_rows = 1
+expected_headers = [
+    "symbol", "expiration", "strike", "right",
+    "timestamp", "sequence", "ext_condition1", "ext_condition2", "ext_condition3",
+    "ext_condition4", "condition", "size", "exchange", "price",
+    "speed", "zomma", "color", "ultima",
+    "implied_vol", "iv_error",
+    "underlying_timestamp", "underlying_price",
+]
+
+first_row_ms_of_day = 34372940
+first_row_sequence = 1846852600
+first_row_size = 1
+first_row_exchange = 31
+first_row_condition = 18
+first_row_price = 61.05
+first_row_expiration = 20260116
+first_row_strike = 540.0
+first_row_right = 67
+first_row_speed = 0.0
+first_row_zomma = -0.0145
+first_row_ultima = -2394.8608
+first_row_implied_volatility = 0.2001
+first_row_iv_error = 0.0
+first_row_underlying_ms_of_day = 34372000
+first_row_underlying_price = 565.13
+first_row_date = 20250502

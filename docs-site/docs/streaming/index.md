@@ -1,22 +1,22 @@
 ---
 title: Real-Time Streaming
-description: Overview of ThetaDataDx real-time streaming via FPSS - architecture, SDK models, and getting started.
+description: Overview of ThetaDataDx real-time streaming - architecture, SDK models, and getting started.
 ---
 
 # Real-Time Streaming
 
-Real-time market data is delivered via ThetaData's FPSS (Feed Processing Streaming Server) over persistent TLS/TCP connections. FPSS delivers live quotes, trades, open interest, and OHLCVC bars as typed, zero-copy events.
+Real-time market data is delivered over a persistent TLS/TCP streaming channel into the SDK. The streaming channel carries live quotes, trades, open interest, and OHLCVC bars as typed, zero-copy events.
 
 ## Architecture
 
 ```mermaid
 graph LR
-    A["Exchange<br/>(NYSE/NASDAQ)"] --> B["ThetaData FPSS<br/>(4 NJ hosts)"]
+    A["Exchange<br/>(NYSE/NASDAQ)"] --> B["ThetaData streaming<br/>servers (4 NJ hosts)"]
     B -->|"TLS/TCP"| C["SDK I/O Thread<br/>(FIT decode)"]
-    C -->|"Disruptor<br/>ring buffer"| D["Your Application<br/>(callback / poll)"]
+    C -->|"SPSC<br/>ring buffer"| D["Your Application<br/>(callback / poll)"]
 ```
 
-Events are decoded from the FIT wire format and delta-decompressed on an I/O thread, then dispatched through an LMAX Disruptor ring buffer to your callback (Rust) or polling queue (Python/TypeScript/C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
+Events are decoded from the FIT wire format and delta-decompressed on an I/O thread, then dispatched through a ring buffer to your callback (Rust) or polling queue (Python/TypeScript/C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
 
 ## Client Model
 
@@ -175,13 +175,13 @@ int main() {
 
 ## Server Environments
 
-| Config | FPSS Ports | Purpose |
+| Config | Streaming Ports | Purpose |
 |--------|-----------|---------|
 | `DirectConfig::production()` | 20000, 20001 | Live production data |
 | `DirectConfig::dev()` | 20200, 20201 | Historical day replay at max speed (markets closed testing) |
 | `DirectConfig::stage()` | 20100, 20101 | Staging/testing (frequent reboots, unstable) |
 
-FPSS hosts are configurable -- not hardcoded. Override `fpss_hosts` on `DirectConfig` or use a TOML config file.
+Streaming hosts are configurable -- not hardcoded. Override `fpss_hosts` on `DirectConfig` or use a TOML config file.
 
 ## Next Steps
 

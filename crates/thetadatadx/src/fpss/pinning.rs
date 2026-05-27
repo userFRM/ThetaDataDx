@@ -1,63 +1,12 @@
 //! SPKI certificate pinning for FPSS TLS connections.
 //!
-//! # Threat model
-//!
-//! `ThetaData`'s FPSS servers present X.509 certificates whose `notAfter`
-//! expired on `Jan 12 23:20:23 2024 GMT`, so full `webpki` trust-chain +
-//! validity checks cannot succeed. Historically the client worked around
-//! that by disabling all certificate verification -- which converted a
-//! single-vendor expiry problem into a global **MITM + credential harvest**
-//! problem: any attacker on the path to `nj-*.thetadata.us:20000` could
-//! present any cert and receive the user's email + password in the
-//! `CREDENTIALS` frame that immediately follows the handshake.
-//!
-//! # Mitigation
-//!
-//! This module implements `rustls`'s `ServerCertVerifier` trait with a
-//! **SubjectPublicKeyInfo (SPKI) pin** against the known public key of the
-//! `ThetaData` FPSS endpoints. The pin survives cert renewal as long as
-//! `ThetaData` keeps the same keypair; a keypair rotation will break the
-//! pin on purpose -- the ceremony of re-capturing [`FPSS_SPKI_SHA256`] is
-//! exactly the human-in-the-loop checkpoint we want before we trust a new
-//! key.
-//!
-//! Verification has three steps, all of which must pass:
-//!
-//! 1. **SPKI pin** -- SHA-256 of the presented leaf's `SubjectPublicKeyInfo`
-//!    must constant-time-equal [`FPSS_SPKI_SHA256`]. This authenticates
-//!    the server.
-//! 2. **Hostname allowlist** -- the SNI we connected with must be one of
-//!    the known `ThetaData` FPSS hostnames ([`ALLOWED_FPSS_HOSTS`]).
-//!    Catches configuration mistakes where we connect to an unexpected
-//!    host that happens to share the pinned keypair.
-//! 3. **TLS signature verification** -- the TLS 1.2 / 1.3 handshake
-//!    signature is verified via `rustls`'s built-in `webpki` routines.
-//!    This ensures integrity of the current handshake (the server actually
-//!    holds the private key for the pinned public key).
-//!
-//! We deliberately do **not** call `webpki::verify_server_cert` with a
-//! trust anchor: that would reintroduce the expiry problem. SPKI pinning
-//! subsumes identity validation at the cost of vendor-lock-in to a
-//! specific keypair -- an acceptable trade for a closed protocol like
-//! FPSS where the set of legitimate servers is fixed.
-//!
-//! # Capture procedure
-//!
-//! The pinned digest in [`FPSS_SPKI_SHA256`] was captured on
-//! `2026-04-20` from `nj-a.thetadata.us:20000` via:
-//!
-//! ```text
-//! openssl s_client -connect nj-a.thetadata.us:20000 \
-//!     -servername nj-a.thetadata.us < /dev/null \
-//!   | openssl x509 -pubkey -noout \
-//!   | openssl pkey -pubin -outform DER \
-//!   | openssl dgst -sha256 -binary \
-//!   | xxd -p
-//! ```
-//!
-//! The same SPKI is served by `nj-a:20000`, `nj-a:20001`, `nj-b:20000`,
-//! `nj-b:20001` (production), `nj-a:20200` (dev), and `nj-a:20100`
-//! (stage), so one constant covers every environment.
+//! `rustls` `ServerCertVerifier` impl that pins the SHA-256 of the
+//! leaf's `SubjectPublicKeyInfo` against [`FPSS_SPKI_SHA256`] and
+//! restricts SNI to [`ALLOWED_FPSS_HOSTS`]. TLS 1.2 / 1.3 signature
+//! verification still runs via the rustls / webpki built-ins —
+//! we skip only the trust-anchor chain (FPSS leaf certs are
+//! expired). Keypair rotation breaks the pin on purpose; re-capture
+//! [`FPSS_SPKI_SHA256`] when that happens.
 
 use std::sync::Arc;
 

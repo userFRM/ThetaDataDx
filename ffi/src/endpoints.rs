@@ -9,15 +9,18 @@
 use std::os::raw::c_char;
 use std::ptr;
 
-use crate::error::{cstr_to_str, set_error};
+use crate::error::set_error;
 use crate::runtime;
 use crate::types::{
-    insert_bool_arg, insert_float_arg, insert_int_arg, insert_optional_str_arg, parse_symbol_array,
-    TdxCalendarDayArray, TdxClient, TdxEodTickArray, TdxGreeksAllTickArray,
+    insert_bool_arg, insert_float_arg, insert_int_arg, insert_optional_str_arg,
+    TdxCalendarDayArray, TdxClient, TdxEodTickArray, TdxGreeksAllTickArray, TdxGreeksEodTickArray,
     TdxGreeksFirstOrderTickArray, TdxGreeksSecondOrderTickArray, TdxGreeksThirdOrderTickArray,
-    TdxInterestRateTickArray, TdxIvTickArray, TdxMarketValueTickArray, TdxOhlcTickArray,
-    TdxOpenInterestTickArray, TdxOptionContractArray, TdxPriceTickArray, TdxQuoteTickArray,
-    TdxStringArray, TdxTradeQuoteTickArray, TdxTradeTickArray,
+    TdxIndexPriceAtTimeTickArray, TdxInterestRateTickArray, TdxIvTickArray,
+    TdxMarketValueTickArray, TdxOhlcTickArray, TdxOpenInterestTickArray, TdxOptionContractArray,
+    TdxPriceTickArray, TdxQuoteTickArray, TdxStringArray, TdxTradeGreeksAllTickArray,
+    TdxTradeGreeksFirstOrderTickArray, TdxTradeGreeksImpliedVolatilityTickArray,
+    TdxTradeGreeksSecondOrderTickArray, TdxTradeGreeksThirdOrderTickArray, TdxTradeQuoteTickArray,
+    TdxTradeTickArray,
 };
 
 include!("endpoint_request_options.rs");

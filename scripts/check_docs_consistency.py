@@ -118,10 +118,14 @@ def check_static_docs() -> None:
         ROOT / "docs-site/docs/tools/mcp.md",
         "Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.",
     )
-    # Version strings in getting-started docs must match the workspace version.
+    # Version strings in getting-started docs must match the workspace
+    # major. Bumped from "10" → "11" alongside the v11.0.0 release wave;
+    # the matching version-sync gate
+    # (`scripts/check_version_sync.py`) enforces this against
+    # `crates/thetadatadx/Cargo.toml` canonically.
     expect_contains(
         ROOT / "docs-site/docs/getting-started/installation.md",
-        'thetadatadx = "9"',
+        'thetadatadx = "11"',
     )
     expect_contains(
         ROOT / "docs-site/docs/tools/mcp.md",
@@ -274,8 +278,8 @@ def check_static_docs() -> None:
         expect_not_contains(streaming_page, "contract_map")
         expect_not_contains(streaming_page, "contract_lookup")
         expect_not_contains(streaming_page, "SubscribeOptionQuotes")
-        # Pre-Wave-G `Simple` shim — replaced by typed pyclasses with
-        # snake_case `kind` discriminators per FpssControl variant.
+        # The earlier `Simple` shim was replaced by typed pyclasses
+        # with snake_case `kind` discriminators per FpssControl variant.
         expect_not_contains(streaming_page, 'event.kind == "simple"')
         expect_not_contains(streaming_page, "event.event_type")
         # `RawData` is hidden from the public surface; the

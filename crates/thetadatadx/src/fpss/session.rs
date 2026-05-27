@@ -5,10 +5,15 @@ use tdbe::types::enums::RemoveReason;
 
 use super::protocol::{RECONNECT_DELAY_MS, TOO_MANY_REQUESTS_DELAY_MS};
 
-/// Determine the reconnect delay based on the disconnect reason.
+/// Determine the reconnect delay based on the disconnect reason, using
+/// the wire-constant defaults.
 ///
 /// The classifier maps a `RemoveReason` to a retry delay (or `None` for
-/// permanent errors).
+/// permanent errors). Callers that need to honour caller-tuned cadences
+/// from [`crate::config::ReconnectConfig`] should use
+/// [`reconnect_delay_for`] instead — this entry point is kept for
+/// internal predicate use (the `.is_none()` permanent-reason check) and
+/// for tests that pin the wire constants.
 ///
 /// # Intentional divergence from upstream
 ///
@@ -19,6 +24,24 @@ use super::protocol::{RECONNECT_DELAY_MS, TOO_MANY_REQUESTS_DELAY_MS};
 /// is a deliberate improvement over the upstream behavior.
 #[must_use]
 pub fn reconnect_delay(reason: RemoveReason) -> Option<u64> {
+    reconnect_delay_for(reason, RECONNECT_DELAY_MS, TOO_MANY_REQUESTS_DELAY_MS)
+}
+
+/// Same classification as [`reconnect_delay`] but uses caller-supplied
+/// `wait_ms` / `wait_rate_limited_ms` cadences from
+/// [`crate::config::ReconnectConfig`] for the two transient classes.
+/// Permanent reasons still short-circuit to `None`.
+///
+/// Wiring the config values through this entry point closes the
+/// "defined-but-not-connected" gap on
+/// [`crate::config::ReconnectConfig::wait_ms`] /
+/// [`crate::config::ReconnectConfig::wait_rate_limited_ms`].
+#[must_use]
+pub fn reconnect_delay_for(
+    reason: RemoveReason,
+    wait_ms: u64,
+    wait_rate_limited_ms: u64,
+) -> Option<u64> {
     match reason {
         // Permanent errors -- no amount of reconnection will fix bad credentials.
         // Upstream only checks AccountAlreadyConnected here; we extend this to
@@ -31,8 +54,8 @@ pub fn reconnect_delay(reason: RemoveReason) -> Option<u64> {
         | RemoveReason::FreeAccount
         | RemoveReason::ServerUserDoesNotExist
         | RemoveReason::InvalidCredentialsNullUser => None,
-        RemoveReason::TooManyRequests => Some(TOO_MANY_REQUESTS_DELAY_MS),
-        _ => Some(RECONNECT_DELAY_MS),
+        RemoveReason::TooManyRequests => Some(wait_rate_limited_ms),
+        _ => Some(wait_ms),
     }
 }
 
@@ -82,9 +105,28 @@ mod tests {
     }
 
     #[test]
+    fn reconnect_delay_for_honours_caller_cadence() {
+        // Caller-tuned wait values flow through verbatim for both
+        // transient classes.
+        assert_eq!(
+            reconnect_delay_for(RemoveReason::ServerRestarting, 500, 60_000),
+            Some(500)
+        );
+        assert_eq!(
+            reconnect_delay_for(RemoveReason::TooManyRequests, 500, 60_000),
+            Some(60_000)
+        );
+        // Permanent reasons stay permanent regardless of cadence.
+        assert_eq!(
+            reconnect_delay_for(RemoveReason::InvalidCredentials, 500, 60_000),
+            None
+        );
+    }
+
+    #[test]
     fn reconnect_policy_default_is_auto() {
         let policy: ReconnectPolicy = Default::default();
-        assert!(matches!(policy, ReconnectPolicy::Auto));
+        assert!(matches!(policy, ReconnectPolicy::Auto(_)));
     }
 
     #[test]

@@ -84,4 +84,10 @@ FpssClient::~FpssClient() {
 
 #include "utilities.cpp.inc"
 
+// ═══════════════════════════════════════════════════════════════
+//  REST-routing policy + _with_fallback shims
+// ═══════════════════════════════════════════════════════════════
+
+#include "fallback.cpp.inc"
+
 } // namespace tdx

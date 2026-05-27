@@ -6,7 +6,7 @@ std::vector<Subscription> FpssClient::active_subscriptions() const {
 
 void FpssClient::reconnect() {
     int rc = tdx_fpss_reconnect(handle_.get());
-    if (rc < 0) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    if (rc < 0) detail::throw_last_ffi_error();
 }
 
 void FpssClient::shutdown() { tdx_fpss_shutdown(handle_.get()); }
@@ -15,7 +15,7 @@ bool FpssClient::is_authenticated() const { return tdx_fpss_is_authenticated(han
 
 FpssClient::FpssClient(const Credentials& creds, const Config& config) {
     auto h = tdx_fpss_connect(creds.get(), config.get());
-    if (!h) throw std::runtime_error("thetadatadx: " + detail::last_ffi_error());
+    if (!h) detail::throw_last_ffi_error();
     handle_.reset(h);
 }
 

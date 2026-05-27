@@ -1,13 +1,26 @@
 ---
 title: calendar_year
-description: Get the full trading calendar for a year.
+description: Get equity market holidays and early-close days for a year.
 ---
 
 # calendar_year
 
 <TierBadge tier="value" />
 
-Retrieve the complete trading calendar for an entire year, including every trading day, holiday, and early close day.
+Retrieve equity market holidays and early-close days for an entire
+year. The upstream contract (vendor `year_holidays` endpoint) returns
+**only non-standard days** — holidays and early closes — not every
+calendar day in the year. Normal trading days are omitted from the
+response.
+
+::: tip Why only non-standard days?
+The vendor endpoint is named `year_holidays`. Standard NYSE trading
+sessions (9:30 ET open, 16:00 ET close) are assumed; only deviations
+from that schedule appear in the response. If you need a per-day
+trading-session calendar for the whole year, derive it locally by
+filling in standard sessions for every weekday not present in this
+response.
+:::
 
 ## Code Example
 

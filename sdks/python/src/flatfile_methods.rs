@@ -29,9 +29,7 @@ use pyo3::exceptions::{PyImportError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
-use thetadatadx::flatfiles::{
-    self, FlatFileFormat, FlatFileRow, FlatFileValue, ReqType, SecType,
-};
+use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, FlatFileValue, ReqType, SecType};
 
 use crate::errors::to_py_err;
 use crate::run_blocking;

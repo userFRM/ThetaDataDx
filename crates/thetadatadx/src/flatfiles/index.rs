@@ -1,6 +1,6 @@
 //! INDEX walker for the raw FLATFILES blob.
 //!
-//! # On-disk layout (recovered from live wire bytes + bytecode shape)
+//! # On-disk layout
 //!
 //! The raw blob the wire layer accumulates is one contiguous stream:
 //!
@@ -13,8 +13,7 @@
 //!         …  :  data_byte_len  bytes      DATA — concatenated FIT blocks
 //! ```
 //!
-//! All multi-byte integers are big-endian — Java's `ByteBuffer.wrap(...)`
-//! defaults to network order.
+//! All multi-byte integers are big-endian (network order).
 //!
 //! # INDEX entries
 //!
@@ -30,7 +29,7 @@
 //!
 //! The contract key inside `entry_payload` is:
 //!
-//! - Option:
+//! - Option / Index:
 //!   ```text
 //!     u8 root_len ; root_utf8 ; i32 BE exp ; u8 right ; i32 BE strike ; i32 BE date
 //!   ```
@@ -163,27 +162,56 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
     let (root, exp, strike, right) = match sec {
         SecType::Option | SecType::Index => {
             // Index payload (when supported by the vendor) follows the
-            // option layout — root_len, root, exp, right, strike, date.
+            // option layout: root_len, root, exp, right, strike, date.
             let root_len = read_u8(&mut e)? as usize;
             let mut root_bytes = vec![0u8; root_len];
             e.read_exact(&mut root_bytes)?;
-            let root = String::from_utf8_lossy(&root_bytes).into_owned();
+            let root = String::from_utf8(root_bytes).map_err(|err| {
+                Error::decode_codec(format!(
+                    "flatfiles INDEX: non-UTF-8 root bytes {:?}",
+                    err.as_bytes()
+                ))
+            })?;
             let exp = read_i32(&mut e)?;
+            if !tdbe::time::is_valid_yyyymmdd(exp) {
+                return Err(Error::decode_codec(format!(
+                    "flatfiles INDEX: invalid expiration YYYYMMDD {exp}"
+                )));
+            }
             let right_byte = read_u8(&mut e)?;
+            if !matches!(right_byte, b'C' | b'P') {
+                return Err(Error::decode_codec(format!(
+                    "flatfiles INDEX: invalid right byte {right_byte} (expected b'C' or b'P')"
+                )));
+            }
             let right = right_byte as char;
             let strike = read_i32(&mut e)?;
-            // The trailing i32 is the contract's trading date; the row's
-            // own DATE column carries the per-tick date and supersedes
-            // it for CSV emission, so we consume but don't store.
-            let _date = read_i32(&mut e)?;
+            // Per-row DATE supersedes the entry-level trading date for
+            // CSV emission; validate and discard.
+            let date = read_i32(&mut e)?;
+            if !tdbe::time::is_valid_yyyymmdd(date) {
+                return Err(Error::decode_codec(format!(
+                    "flatfiles INDEX: invalid trading-date YYYYMMDD {date}"
+                )));
+            }
             (root, Some(exp), Some(strike), Some(right))
         }
         SecType::Stock => {
             let root_len = read_u8(&mut e)? as usize;
             let mut root_bytes = vec![0u8; root_len];
             e.read_exact(&mut root_bytes)?;
-            let root = String::from_utf8_lossy(&root_bytes).into_owned();
-            let _date = read_i32(&mut e)?;
+            let root = String::from_utf8(root_bytes).map_err(|err| {
+                Error::decode_codec(format!(
+                    "flatfiles INDEX: non-UTF-8 root bytes {:?}",
+                    err.as_bytes()
+                ))
+            })?;
+            let date = read_i32(&mut e)?;
+            if !tdbe::time::is_valid_yyyymmdd(date) {
+                return Err(Error::decode_codec(format!(
+                    "flatfiles INDEX: invalid trading-date YYYYMMDD {date}"
+                )));
+            }
             (root, None, None, None)
         }
     };
@@ -191,8 +219,20 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
     // Location: i32 volume, i64 start, i64 end. Volume is unused by the
     // SDK; we drop it but consume the bytes to advance the cursor.
     let _volume = read_i32(cur)?;
-    let block_start = read_i64(cur)? as u64;
-    let block_end = read_i64(cur)? as u64;
+    let block_start_i64 = read_i64(cur)?;
+    let block_end_i64 = read_i64(cur)?;
+    if block_start_i64 < 0 || block_end_i64 < 0 {
+        return Err(Error::decode_codec(format!(
+            "flatfiles INDEX: negative block offsets start={block_start_i64} end={block_end_i64}"
+        )));
+    }
+    if block_start_i64 > block_end_i64 {
+        return Err(Error::decode_codec(format!(
+            "flatfiles INDEX: block_start={block_start_i64} after block_end={block_end_i64}"
+        )));
+    }
+    let block_start = block_start_i64 as u64;
+    let block_end = block_end_i64 as u64;
     Ok(IndexEntry {
         symbol: root,
         expiration: exp,
@@ -338,5 +378,212 @@ mod tests {
         assert_eq!(entry.right, None);
         assert_eq!(entry.block_start, 0);
         assert_eq!(entry.block_end, 100);
+    }
+
+    /// Build an INDEX byte stream for one option entry.
+    fn build_option_index(
+        root_bytes: &[u8],
+        exp: i32,
+        right_byte: u8,
+        strike: i32,
+        date: i32,
+    ) -> Vec<u8> {
+        let mut e = Vec::new();
+        e.push(root_bytes.len() as u8);
+        e.extend_from_slice(root_bytes);
+        e.extend_from_slice(&exp.to_be_bytes());
+        e.push(right_byte);
+        e.extend_from_slice(&strike.to_be_bytes());
+        e.extend_from_slice(&date.to_be_bytes());
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&(e.len() as u16).to_be_bytes());
+        buf.extend_from_slice(&e);
+        buf.extend_from_slice(&42i32.to_be_bytes());
+        buf.extend_from_slice(&1000i64.to_be_bytes());
+        buf.extend_from_slice(&1500i64.to_be_bytes());
+        buf
+    }
+
+    #[test]
+    fn option_index_rejects_non_utf8_root() {
+        let buf = build_option_index(&[0xFF, 0xFE, 0xFD], 20_260_117, b'C', 200_000, 20_260_428);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("non-UTF-8 root bytes"),
+            "expected non-UTF-8 root error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_rejects_invalid_expiration() {
+        // 99991301 carries month 13.
+        let buf = build_option_index(b"AAPL", 99_991_301, b'C', 200_000, 20_260_428);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("invalid expiration YYYYMMDD 99991301"),
+            "expected invalid-expiration error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_rejects_invalid_right_byte() {
+        let buf = build_option_index(b"AAPL", 20_260_117, b'X', 200_000, 20_260_428);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("invalid right byte 88"),
+            "expected invalid-right error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_rejects_non_leap_feb_29_date() {
+        // 2025 is not a leap year.
+        let buf = build_option_index(b"AAPL", 20_260_117, b'C', 200_000, 20_250_229);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("invalid trading-date YYYYMMDD 20250229"),
+            "expected invalid-date error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_accepts_well_formed_contract() {
+        let buf = build_option_index(b"AAPL", 20_260_117, b'P', 200_000, 20_260_428);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let entry = iter.next().unwrap().unwrap();
+        assert_eq!(entry.symbol, "AAPL");
+        assert_eq!(entry.expiration, Some(20_260_117));
+        assert_eq!(entry.right, Some('P'));
+        assert_eq!(entry.strike, Some(200_000));
+        assert_eq!(entry.block_start, 1000);
+        assert_eq!(entry.block_end, 1500);
+    }
+
+    #[test]
+    fn stock_index_rejects_non_utf8_root() {
+        let mut e = Vec::new();
+        e.push(3u8);
+        e.extend_from_slice(&[0xFF, 0xFE, 0xFD]);
+        e.extend_from_slice(&20_260_428i32.to_be_bytes());
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&(e.len() as u16).to_be_bytes());
+        buf.extend_from_slice(&e);
+        buf.extend_from_slice(&0i32.to_be_bytes());
+        buf.extend_from_slice(&0i64.to_be_bytes());
+        buf.extend_from_slice(&100i64.to_be_bytes());
+
+        let mut iter = IndexIter::new(&buf, SecType::Stock);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("non-UTF-8 root bytes"),
+            "expected non-UTF-8 root error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn stock_index_rejects_invalid_date() {
+        let mut e = Vec::new();
+        e.push(3u8);
+        e.extend_from_slice(b"SPY");
+        e.extend_from_slice(&20_251_301i32.to_be_bytes());
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&(e.len() as u16).to_be_bytes());
+        buf.extend_from_slice(&e);
+        buf.extend_from_slice(&0i32.to_be_bytes());
+        buf.extend_from_slice(&0i64.to_be_bytes());
+        buf.extend_from_slice(&100i64.to_be_bytes());
+
+        let mut iter = IndexIter::new(&buf, SecType::Stock);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("invalid trading-date YYYYMMDD 20251301"),
+            "expected invalid-date error, got: {msg}"
+        );
+    }
+
+    /// Build an option INDEX entry with caller-supplied block offsets.
+    /// Mirrors `build_option_index` but with overridable `start` / `end`.
+    fn build_option_index_with_offsets(start: i64, end: i64) -> Vec<u8> {
+        let mut e = Vec::new();
+        e.push(4u8);
+        e.extend_from_slice(b"AAPL");
+        e.extend_from_slice(&20_260_117i32.to_be_bytes());
+        e.push(b'C');
+        e.extend_from_slice(&200_000i32.to_be_bytes());
+        e.extend_from_slice(&20_260_428i32.to_be_bytes());
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&(e.len() as u16).to_be_bytes());
+        buf.extend_from_slice(&e);
+        buf.extend_from_slice(&42i32.to_be_bytes());
+        buf.extend_from_slice(&start.to_be_bytes());
+        buf.extend_from_slice(&end.to_be_bytes());
+        buf
+    }
+
+    #[test]
+    fn option_index_rejects_negative_block_start() {
+        let buf = build_option_index_with_offsets(-1, 1500);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("negative block offsets"),
+            "expected negative-offsets error, got: {msg}"
+        );
+        assert!(
+            msg.contains("start=-1"),
+            "expected start=-1 in message, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_rejects_negative_block_end() {
+        let buf = build_option_index_with_offsets(1000, -1);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("negative block offsets"),
+            "expected negative-offsets error, got: {msg}"
+        );
+        assert!(
+            msg.contains("end=-1"),
+            "expected end=-1 in message, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_rejects_block_start_after_block_end() {
+        let buf = build_option_index_with_offsets(2000, 1500);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("block_start=2000 after block_end=1500"),
+            "expected start-after-end error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_accepts_valid_block_offsets() {
+        let buf = build_option_index_with_offsets(1000, 1500);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let entry = iter.next().unwrap().unwrap();
+        assert_eq!(entry.block_start, 1000);
+        assert_eq!(entry.block_end, 1500);
     }
 }

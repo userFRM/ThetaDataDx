@@ -33,22 +33,52 @@
 //! # Sub-modules
 //!
 //! - [`contract`] — `Contract` struct, OCC-21 parser, wire codec.
-//! - [`wire`] — payload builders / parsers (credentials, subscribe, ping, stop, REQ_RESPONSE, CONTRACT, DISCONNECTED).
+//! - `wire` (crate-private) — payload builders / parsers (credentials, subscribe, ping, stop, REQ_RESPONSE, CONTRACT, DISCONNECTED).
 //! - [`subscription`] — `SubscriptionKind` enum (Quote / Trade / OpenInterest).
 //!
 //! Behaviour mirrors the upstream Java terminal.
 
 pub mod contract;
 pub mod subscription;
-pub mod wire;
+
+// Wire-internal payload builders / parsers — these construct the bytes
+// for outbound FPSS frames and decode response codes. Not a supported
+// public API; the SDK's high-level methods (`subscribe`, `start_streaming`,
+// etc.) are the supported surface.
+//
+// The module stays accessible inside the crate (and under the private
+// `__test-helpers` feature for integration-test fixture builders) but
+// drops from the published `protocol::*` re-export surface. The
+// builders / parsers no longer appear on the v11 SemVer commitment.
+pub(crate) mod wire;
 
 pub use self::contract::{Contract, ContractParseError};
 pub use self::subscription::{FullSubscriptionKind, SecTypeExt, Subscription, SubscriptionKind};
-pub use self::wire::{
+
+// Crate-internal re-exports — keep the historical `protocol::build_*`
+// paths working for in-crate callers while removing the symbols from
+// the published surface.
+pub(crate) use self::wire::{
     build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,
     build_stop_payload, build_subscribe_payload, parse_contract_message, parse_disconnect_reason,
     parse_req_response,
 };
+
+/// Test-only wire-builder re-exports used by integration tests under
+/// `tests/` that hand-build FPSS frame fixtures (replay_capture,
+/// vendor_schema_drift, decode_fuzz_property). Feature-gated on
+/// `__test-helpers` so the symbols never enter the shipped rlib.
+/// `cargo-semver-checks` runs with default features and never sees
+/// this module — the helpers stay off the v11 commitment.
+#[cfg(feature = "__test-helpers")]
+#[doc(hidden)]
+pub mod test_wire {
+    pub use super::wire::{
+        build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,
+        build_stop_payload, build_subscribe_payload, parse_contract_message,
+        parse_disconnect_reason, parse_req_response,
+    };
+}
 
 /// Maximum payload size for a single FPSS frame (1-byte length field).
 pub const MAX_PAYLOAD: usize = 255;

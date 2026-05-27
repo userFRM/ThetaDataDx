@@ -12,7 +12,7 @@ and are classified `SKIP: tier-permission`. Real configuration bugs
 #287.
 
 Each cell is bounded by a per-call deadline that the CLI forwards to the
-SDK via `--timeout-ms` (W3). Concrete and list-style cells get the
+SDK via `--timeout-ms`. Concrete and list-style cells get the
 60-second baseline; bulk cells flagged `slow=True` (`all_strikes_one_exp`,
 `bulk_chain` on option history / at-time endpoints) get 180 seconds
 because a full-chain payload legitimately takes longer than a minute.
@@ -281,9 +281,9 @@ def _canonicalize(value):
     """Light producer-side canonicalization for first_row values:
     lowercase dict keys, round floats to 6 decimals, recurse into dicts
     and lists. The validator consumer (scripts/validate_agreement.py)
-    is the authoritative enforcer, so this is defense in depth; the
-    consumer also handles sentinels (date==0, ms<0, strike==0, right="")
-    and NaN/Inf, plus omit-equivalence stripping.
+    is the authoritative enforcer, so this is a redundant guard; the
+    consumer also handles sentinels (date==0, ms<0, strike==0,
+    right="") and NaN/Inf, plus omit-equivalence stripping.
     """
     if isinstance(value, dict):
         return {str(k).lower(): _canonicalize(v) for k, v in value.items()}
@@ -326,7 +326,7 @@ for endpoint, mode, min_tier, rationale, argv, slow in CELLS:
             # --format json-raw keeps dates as YYYYMMDD ints and ms_of_day as raw
             # i32 ms so first_row matches the raw form Python/Go/C++ SDKs expose.
             # See scripts/validate_agreement.py for the canonical contract.
-            # --timeout-ms forwards the SDK-enforced deadline (W3) so the
+            # --timeout-ms forwards the SDK-enforced deadline so the
             # subprocess exits cleanly with "Request deadline exceeded"
             # instead of being SIGKILLed by the subprocess kill-switch below.
             [

@@ -1,4 +1,4 @@
-// Reason: build_support modules are string-heavy code generators; pedantic lints are noise here.
+// Reason: build_support_bin modules are string-heavy code generators; pedantic lints are noise here.
 #![allow(clippy::pedantic)]
 
 //! Regenerate checked-in SDK wrapper surfaces from `endpoint_surface.toml`.
@@ -9,21 +9,8 @@
 
 use std::path::PathBuf;
 
-// Reason: modules shared with build.rs via #[path]; each module carries its own
-// module-level `#![allow(dead_code, unused_imports)]` because not all helpers are
-// called from both entry points.
-#[path = "../../build_support/endpoints/mod.rs"]
-mod endpoints;
-#[path = "../../build_support/fpss_events/mod.rs"]
-mod fpss_events;
-#[path = "../../build_support/sdk_surface/mod.rs"]
-mod sdk_surface;
-#[path = "../../build_support/ticks/mod.rs"]
-mod ticks;
-#[path = "../../build_support/upstream_openapi.rs"]
-mod upstream_openapi;
-#[path = "../../src/mdds/wire_semantics.rs"]
-mod wire_semantics;
+#[path = "../../build_support_bin/mod.rs"]
+mod build_support_bin;
 
 fn repo_root() -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -42,16 +29,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let check_only = std::env::args().skip(1).any(|arg| arg == "--check");
     std::env::set_current_dir(package_root())?;
 
+    let root = repo_root();
     if check_only {
-        endpoints::check_sdk_generated_files(&repo_root())?;
-        sdk_surface::check_sdk_generated_files(&repo_root())?;
-        ticks::check_sdk_generated_files(&repo_root())?;
-        fpss_events::check_sdk_generated_files(&repo_root())?;
+        build_support_bin::check_endpoint_sdk_generated_files(&root)?;
+        build_support_bin::check_sdk_surface_generated_files(&root)?;
+        build_support_bin::check_tick_sdk_generated_files(&root)?;
+        build_support_bin::check_fpss_event_sdk_generated_files(&root)?;
     } else {
-        endpoints::write_sdk_generated_files(&repo_root())?;
-        sdk_surface::write_sdk_generated_files(&repo_root())?;
-        ticks::write_sdk_generated_files(&repo_root())?;
-        fpss_events::write_sdk_generated_files(&repo_root())?;
+        build_support_bin::write_endpoint_sdk_generated_files(&root)?;
+        build_support_bin::write_sdk_surface_generated_files(&root)?;
+        build_support_bin::write_tick_sdk_generated_files(&root)?;
+        build_support_bin::write_fpss_event_sdk_generated_files(&root)?;
     }
     Ok(())
 }

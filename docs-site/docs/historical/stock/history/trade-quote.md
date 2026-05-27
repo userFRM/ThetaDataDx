@@ -53,19 +53,19 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>start_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Start time as milliseconds from midnight ET</div>
+<div class="param-desc">Start time (inclusive) in <code>HH:MM:SS.SSS</code> ET wall-clock format. Default: <code>"09:30:00"</code>. Legacy millisecond strings are also accepted.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>end_time</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">End time as milliseconds from midnight ET</div>
+<div class="param-desc">End time (inclusive) in <code>HH:MM:SS.SSS</code> ET wall-clock format. Default: <code>"16:00:00"</code>. Legacy millisecond strings are also accepted.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>exclusive</code><span class="param-type">bool</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Use exclusive time bounds</div>
+<div class="param-desc">When <code>true</code>, only quotes with timestamp strictly before the trade timestamp are paired. Default: <code>true</code>.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>venue</code><span class="param-type">string</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Data venue filter</div>
+<div class="param-desc">Feed selector. Allowed values: <code>nqb</code> (Nasdaq Basic), <code>utp_cta</code> (merged UTP &amp; CTA). Default: <code>"nqb"</code>.</div>
 </div>
 </div>
 

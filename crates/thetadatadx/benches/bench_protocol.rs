@@ -1,7 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::hint::black_box;
 
-use thetadatadx::fpss::protocol::{build_credentials_payload, build_subscribe_payload, Contract};
+use thetadatadx::fpss::protocol::test_wire::{build_credentials_payload, build_subscribe_payload};
+use thetadatadx::fpss::protocol::Contract;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  FPSS protocol benchmarks
