@@ -219,8 +219,20 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
     // Location: i32 volume, i64 start, i64 end. Volume is unused by the
     // SDK; we drop it but consume the bytes to advance the cursor.
     let _volume = read_i32(cur)?;
-    let block_start = read_i64(cur)? as u64;
-    let block_end = read_i64(cur)? as u64;
+    let block_start_i64 = read_i64(cur)?;
+    let block_end_i64 = read_i64(cur)?;
+    if block_start_i64 < 0 || block_end_i64 < 0 {
+        return Err(Error::decode_codec(format!(
+            "flatfiles INDEX: negative block offsets start={block_start_i64} end={block_end_i64}"
+        )));
+    }
+    if block_start_i64 > block_end_i64 {
+        return Err(Error::decode_codec(format!(
+            "flatfiles INDEX: block_start={block_start_i64} after block_end={block_end_i64}"
+        )));
+    }
+    let block_start = block_start_i64 as u64;
+    let block_end = block_end_i64 as u64;
     Ok(IndexEntry {
         symbol: root,
         expiration: exp,
@@ -500,5 +512,78 @@ mod tests {
             msg.contains("invalid trading-date YYYYMMDD 20251301"),
             "expected invalid-date error, got: {msg}"
         );
+    }
+
+    /// Build an option INDEX entry with caller-supplied block offsets.
+    /// Mirrors `build_option_index` but with overridable `start` / `end`.
+    fn build_option_index_with_offsets(start: i64, end: i64) -> Vec<u8> {
+        let mut e = Vec::new();
+        e.push(4u8);
+        e.extend_from_slice(b"AAPL");
+        e.extend_from_slice(&20_260_117i32.to_be_bytes());
+        e.push(b'C');
+        e.extend_from_slice(&200_000i32.to_be_bytes());
+        e.extend_from_slice(&20_260_428i32.to_be_bytes());
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&(e.len() as u16).to_be_bytes());
+        buf.extend_from_slice(&e);
+        buf.extend_from_slice(&42i32.to_be_bytes());
+        buf.extend_from_slice(&start.to_be_bytes());
+        buf.extend_from_slice(&end.to_be_bytes());
+        buf
+    }
+
+    #[test]
+    fn option_index_rejects_negative_block_start() {
+        let buf = build_option_index_with_offsets(-1, 1500);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("negative block offsets"),
+            "expected negative-offsets error, got: {msg}"
+        );
+        assert!(
+            msg.contains("start=-1"),
+            "expected start=-1 in message, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_rejects_negative_block_end() {
+        let buf = build_option_index_with_offsets(1000, -1);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("negative block offsets"),
+            "expected negative-offsets error, got: {msg}"
+        );
+        assert!(
+            msg.contains("end=-1"),
+            "expected end=-1 in message, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_rejects_block_start_after_block_end() {
+        let buf = build_option_index_with_offsets(2000, 1500);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("block_start=2000 after block_end=1500"),
+            "expected start-after-end error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_accepts_valid_block_offsets() {
+        let buf = build_option_index_with_offsets(1000, 1500);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let entry = iter.next().unwrap().unwrap();
+        assert_eq!(entry.block_start, 1000);
+        assert_eq!(entry.block_end, 1500);
     }
 }
