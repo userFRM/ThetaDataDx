@@ -171,7 +171,7 @@ polars = { version = "0.53", optional = true, default-features = false }
 # arrow-array + arrow-schema cover RecordBatch construction for the
 # optional `frames` feature only. Kept optional so the default dep
 # graph stays slim — FLATFILES does not pull in arrow.
-arrow-array = { version = "58.3.0", optional = true }
+arrow-array = { version = "58.1.0", optional = true }
 arrow-schema = { version = "58.1.0", optional = true }
 # JSON encoder for the FLATFILES `Format::Jsonl` output. One serde_json
 # Value per row; `to_writer` emits compact form, then we append `\n`.
