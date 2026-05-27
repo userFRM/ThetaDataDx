@@ -274,7 +274,7 @@ pub(crate) fn decode_to_memory(raw_path: &Path, sec: SecType) -> Result<Vec<Flat
                 row,
                 &data_idx,
                 pt,
-            ));
+            )?);
         }
     }
     Ok(out)
