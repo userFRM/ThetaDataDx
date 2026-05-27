@@ -9,6 +9,13 @@
 //! 4. Stream every chunk to a local file until FLAT_FILE_END.
 //! 5. Surface the local path back to the caller.
 //!
+//! Transient failures (mid-stream truncation, server-side socket reset,
+//! momentary connectivity blip on the legacy host) trigger automatic
+//! retry with exponential backoff per
+//! [`crate::config::FlatFilesConfig`]. Terminal failures (bad
+//! credentials, malformed request) surface immediately — see
+//! [`crate::flatfiles::FlatFilesUnavailableReason::is_transient`].
+//!
 //! This module owns the raw FLAT_FILE download step. The higher-level
 //! INDEX walking, FIT decoding, and on-disk / in-memory output paths
 //! live in [`crate::flatfiles`] under the `index`, `decode`, `writer`,
@@ -24,6 +31,7 @@ use tokio::fs::File;
 use tokio::io::{AsyncWriteExt, BufWriter};
 
 use crate::auth::Credentials;
+use crate::config::FlatFilesConfig;
 use crate::error::Error;
 use crate::flatfiles::framing::{msg, read_frame};
 use crate::flatfiles::mdds_spki::{ALLOWED_MDDS_HOSTS, MDDS_PORTS};
@@ -60,7 +68,7 @@ fn build_flat_file_payload(id: i64, sec: SecType, req: ReqType, date: &str) -> V
 /// Validate that `date` is exactly 8 ASCII digits AND a real Gregorian
 /// calendar date. Rejects shape-only matches like `"00000000"` or
 /// `"20260230"` via the canonical `tdbe::time::is_valid_yyyymmdd`
-/// validator shared with MDDS + FPSS (H3 + H4).
+/// validator shared with MDDS + FPSS.
 fn validate_date(date: &str) -> Result<(), Error> {
     if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
         return Err(Error::config_invalid(
@@ -83,6 +91,25 @@ fn validate_date(date: &str) -> Result<(), Error> {
     Ok(())
 }
 
+/// Classify an [`Error`] returned by [`run_one_attempt`] as transient (worth
+/// retrying on a fresh connection) or terminal (surface immediately).
+fn error_is_transient(err: &Error) -> bool {
+    match err {
+        // Local I/O failures (connect refused, mid-stream TLS reset,
+        // unexpected EOF before any payload arrived). The next attempt
+        // re-runs the host candidate list from the top so a momentary
+        // single-host blip rotates onto the next reachable host.
+        Error::Io(_) => true,
+        // Explicit reason classifier on the typed FLATFILES failure.
+        // `StreamTruncated` is transient; `RequestRejected` is terminal;
+        // `AuthRejected` depends on the wire reason code.
+        Error::FlatFilesUnavailable(reason) => reason.is_transient(),
+        // Auth-server / config errors are terminal — none of these are
+        // resolved by retry alone.
+        _ => false,
+    }
+}
+
 /// Authenticate, send a FLAT_FILE request, and stream every response chunk
 /// to `output_path`. On success returns `output_path`. On failure returns
 /// the underlying [`Error`] — typically `Error::FlatFilesUnavailable` for
@@ -95,6 +122,10 @@ fn validate_date(date: &str) -> Result<(), Error> {
 /// are exposed via [`crate::flatfiles::flatfile_request_decoded`];
 /// this function returns the raw bytes for callers that want to keep the
 /// on-disk vendor format unchanged.
+///
+/// Uses [`FlatFilesConfig::default`] for retry tuning. Callers that need
+/// to override the retry budget should call
+/// [`flatfile_request_raw_with_config`] directly.
 pub async fn flatfile_request_raw(
     creds: &Credentials,
     sec: SecType,
@@ -102,8 +133,107 @@ pub async fn flatfile_request_raw(
     date: &str,
     output_path: impl AsRef<Path>,
 ) -> Result<PathBuf, Error> {
-    validate_date(date)?;
+    let config = FlatFilesConfig::default();
+    flatfile_request_raw_with_config(creds, sec, req, date, output_path, &config).await
+}
 
+/// Same as [`flatfile_request_raw`] but with caller-supplied retry tuning.
+///
+/// Transient failures (`Error::Io`, `FlatFilesUnavailable::StreamTruncated`,
+/// `FlatFilesUnavailable::AuthRejected` with a transient reason code)
+/// trigger an exponential-backoff retry up to `config.max_attempts`
+/// total. Terminal failures surface immediately — no amount of retrying
+/// will fix bad credentials or a malformed request.
+///
+/// Backoff follows the deterministic ladder `initial_backoff`, `*2`, `*4`
+/// up to `max_backoff` — see [`FlatFilesConfig::backoff_for_attempt`].
+/// A `tracing::warn!` is emitted before each sleep so operators can
+/// observe sustained transient pressure on the legacy MDDS hosts.
+pub async fn flatfile_request_raw_with_config(
+    creds: &Credentials,
+    sec: SecType,
+    req: ReqType,
+    date: &str,
+    output_path: impl AsRef<Path>,
+    config: &FlatFilesConfig,
+) -> Result<PathBuf, Error> {
+    validate_date(date)?;
+    let output_path = output_path.as_ref().to_path_buf();
+    if let Some(parent) = output_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+    }
+
+    let output_for_attempt = output_path.clone();
+    run_retry_loop(config, move |_attempt| {
+        let creds = creds.clone();
+        let path = output_for_attempt.clone();
+        async move { run_one_attempt(&creds, sec, req, date, &path).await }
+    })
+    .await
+}
+
+/// Generic retry driver shared between [`flatfile_request_raw_with_config`]
+/// and the unit test. Calls `attempt_fn(attempt_number)` once per try,
+/// classifies the error, sleeps the configured backoff between transient
+/// failures, and surfaces terminal failures immediately.
+///
+/// Extracted so the unit test can drive the exact retry / backoff /
+/// terminal-vs-transient decision logic against a synthetic
+/// `attempt_fn` without spinning up a real TLS server.
+async fn run_retry_loop<F, Fut>(
+    config: &FlatFilesConfig,
+    mut attempt_fn: F,
+) -> Result<PathBuf, Error>
+where
+    F: FnMut(u32) -> Fut,
+    Fut: std::future::Future<Output = Result<PathBuf, Error>>,
+{
+    // Cap the attempt budget at the validated upper bound so a future
+    // bypass of `DirectConfig::validate` cannot turn a misconfigured
+    // value into an unbounded retry loop. `max_attempts.max(1)` keeps
+    // the call functional when a caller explicitly passes `0`.
+    let max_attempts = config.max_attempts.max(1);
+
+    let mut last_err: Option<Error> = None;
+    for attempt in 1..=max_attempts {
+        match attempt_fn(attempt).await {
+            Ok(path) => return Ok(path),
+            Err(err) => {
+                if attempt >= max_attempts || !error_is_transient(&err) {
+                    return Err(err);
+                }
+                let backoff = config.backoff_for_attempt(attempt);
+                tracing::warn!(
+                    target: "flatfiles",
+                    attempt,
+                    max_attempts,
+                    backoff_ms = backoff.as_millis() as u64,
+                    error = %err,
+                    "flatfile_request: transient failure, will retry",
+                );
+                last_err = Some(err);
+                tokio::time::sleep(backoff).await;
+            }
+        }
+    }
+
+    // The loop returns directly on success or on terminal error; the
+    // only way out of the bottom is exhausting the attempt budget.
+    Err(last_err.expect("retry loop must record an error before exhaustion"))
+}
+
+/// Execute one full connect-and-stream pass without any retry. Internal
+/// helper for [`flatfile_request_raw_with_config`]; returns the same
+/// `Error` taxonomy callers see on the public API.
+async fn run_one_attempt(
+    creds: &Credentials,
+    sec: SecType,
+    req: ReqType,
+    date: &str,
+    output_path: &Path,
+) -> Result<PathBuf, Error> {
     // Build the host candidate list — try every (host, port) in priority
     // order, matching the vendor terminal's `MDDS_NJ_HOSTS` config.
     let mut hosts: Vec<MddsHost<'_>> =
@@ -127,13 +257,7 @@ pub async fn flatfile_request_raw(
     )
     .await?;
 
-    let output_path = output_path.as_ref().to_path_buf();
-    if let Some(parent) = output_path.parent() {
-        if !parent.as_os_str().is_empty() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
-    }
-    let file = File::create(&output_path).await?;
+    let file = File::create(output_path).await?;
     // 1 MB buffer — typical chunks are ~8-64 KB, so this batches many
     // chunks per actual write syscall.
     let mut out = BufWriter::with_capacity(1 << 20, file);
@@ -211,7 +335,7 @@ pub async fn flatfile_request_raw(
         "FLAT_FILE_END id={request_id} chunks={chunks} bytes={total} -> {}",
         output_path.display()
     );
-    Ok(output_path)
+    Ok(output_path.to_path_buf())
 }
 
 #[cfg(test)]
@@ -234,10 +358,180 @@ mod tests {
         assert!(validate_date("2026-04-28").is_err());
         assert!(validate_date("abcdefgh").is_err());
         assert!(validate_date("").is_err());
-        // H3 follow-through: shape-only acceptance was the old bug;
-        // calendar-impossible dates must now be rejected here too.
+        // Shape-only acceptance was the old bug; calendar-impossible
+        // dates must now be rejected here too.
         assert!(validate_date("00000000").is_err());
         assert!(validate_date("20260230").is_err());
         assert!(validate_date("19990431").is_err());
+    }
+
+    /// Build a `FlatFilesConfig` with sub-millisecond backoff so the
+    /// async retry tests don't wait real wall-clock seconds. Production
+    /// validation forbids these values (the public `validate()`
+    /// requires sane intervals) — only constructed here directly,
+    /// never round-tripped through `DirectConfig::validate`.
+    fn test_config(max_attempts: u32) -> FlatFilesConfig {
+        FlatFilesConfig {
+            max_attempts,
+            initial_backoff: std::time::Duration::from_millis(1),
+            max_backoff: std::time::Duration::from_millis(4),
+        }
+    }
+
+    /// Drive the retry loop against a synthetic attempt function that
+    /// returns the queued result on each call. Verifies the four
+    /// retry-loop contracts:
+    ///
+    /// * Transient failure on attempt 1 + success on attempt 2 → loop
+    ///   reports success after one retry.
+    /// * Transient failure on attempts 1+2 + success on attempt 3 →
+    ///   loop reports success after two retries.
+    /// * Three transient failures with `max_attempts = 3` → loop
+    ///   exhausts the budget and surfaces the last error.
+    /// * Terminal failure on attempt 1 → loop short-circuits even with
+    ///   attempts remaining.
+    #[tokio::test]
+    async fn retry_loop_succeeds_after_one_transient_then_ok() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        let queue: Rc<RefCell<Vec<Result<PathBuf, Error>>>> = Rc::new(RefCell::new(vec![
+            Err(Error::Io(std::io::Error::new(
+                std::io::ErrorKind::WouldBlock,
+                "blip",
+            ))),
+            Ok(PathBuf::from("/tmp/ok")),
+        ]));
+        let attempts: Rc<RefCell<u32>> = Rc::new(RefCell::new(0));
+        let queue_ref = Rc::clone(&queue);
+        let attempts_ref = Rc::clone(&attempts);
+        let result = run_retry_loop(&test_config(3), move |_attempt| {
+            *attempts_ref.borrow_mut() += 1;
+            let next = queue_ref.borrow_mut().remove(0);
+            async move { next }
+        })
+        .await;
+        assert_eq!(result.unwrap(), PathBuf::from("/tmp/ok"));
+        assert_eq!(*attempts.borrow(), 2, "expected 1 retry then success");
+    }
+
+    #[tokio::test]
+    async fn retry_loop_succeeds_after_two_transients_then_ok() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        let queue: Rc<RefCell<Vec<Result<PathBuf, Error>>>> = Rc::new(RefCell::new(vec![
+            Err(Error::FlatFilesUnavailable(
+                FlatFilesUnavailableReason::StreamTruncated {
+                    bytes_received: 1024,
+                },
+            )),
+            Err(Error::Io(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "eof",
+            ))),
+            Ok(PathBuf::from("/tmp/recovered")),
+        ]));
+        let attempts: Rc<RefCell<u32>> = Rc::new(RefCell::new(0));
+        let queue_ref = Rc::clone(&queue);
+        let attempts_ref = Rc::clone(&attempts);
+        let result = run_retry_loop(&test_config(3), move |_attempt| {
+            *attempts_ref.borrow_mut() += 1;
+            let next = queue_ref.borrow_mut().remove(0);
+            async move { next }
+        })
+        .await;
+        assert_eq!(result.unwrap(), PathBuf::from("/tmp/recovered"));
+        assert_eq!(*attempts.borrow(), 3, "expected 2 retries then success");
+    }
+
+    #[tokio::test]
+    async fn retry_loop_exhausts_attempt_budget_on_sustained_transient() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        let attempts: Rc<RefCell<u32>> = Rc::new(RefCell::new(0));
+        let attempts_ref = Rc::clone(&attempts);
+        let result = run_retry_loop(&test_config(3), move |_attempt| {
+            *attempts_ref.borrow_mut() += 1;
+            async move {
+                Err::<PathBuf, _>(Error::Io(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionReset,
+                    "reset",
+                )))
+            }
+        })
+        .await;
+        let err = result.unwrap_err();
+        assert!(matches!(err, Error::Io(_)));
+        assert_eq!(*attempts.borrow(), 3, "expected exactly max_attempts tries");
+    }
+
+    #[tokio::test]
+    async fn retry_loop_short_circuits_on_terminal_error() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        let attempts: Rc<RefCell<u32>> = Rc::new(RefCell::new(0));
+        let attempts_ref = Rc::clone(&attempts);
+        let result = run_retry_loop(&test_config(5), move |_attempt| {
+            *attempts_ref.borrow_mut() += 1;
+            async move {
+                Err::<PathBuf, _>(Error::FlatFilesUnavailable(
+                    FlatFilesUnavailableReason::RequestRejected {
+                        server_message: "INVALID_PARAMS".into(),
+                    },
+                ))
+            }
+        })
+        .await;
+        assert!(matches!(
+            result.unwrap_err(),
+            Error::FlatFilesUnavailable(FlatFilesUnavailableReason::RequestRejected { .. })
+        ));
+        assert_eq!(
+            *attempts.borrow(),
+            1,
+            "terminal errors must not consume retry budget"
+        );
+    }
+
+    #[test]
+    fn transient_classifier_routes_io_to_retry() {
+        // `Error::Io` wraps any local socket / TLS failure; the retry
+        // loop treats these as transient because reconnecting to the
+        // next reachable host typically clears them.
+        let io_err = Error::Io(std::io::Error::new(
+            std::io::ErrorKind::ConnectionReset,
+            "reset",
+        ));
+        assert!(error_is_transient(&io_err));
+
+        // Stream truncation is transient — the legacy host dropped us
+        // mid-stream, fresh connection might complete.
+        let truncated = Error::FlatFilesUnavailable(FlatFilesUnavailableReason::StreamTruncated {
+            bytes_received: 4096,
+        });
+        assert!(error_is_transient(&truncated));
+
+        // Request rejection is terminal — bad params don't fix themselves.
+        let rejected = Error::FlatFilesUnavailable(FlatFilesUnavailableReason::RequestRejected {
+            server_message: "INVALID_PARAMS".into(),
+        });
+        assert!(!error_is_transient(&rejected));
+
+        // Auth rejection with a permanent reason code (1 = InvalidLoginValues).
+        let auth_permanent =
+            Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected {
+                reason_code: 1,
+            });
+        assert!(!error_is_transient(&auth_permanent));
+
+        // Auth rejection with a transient reason code (15 = ServerRestarting).
+        let auth_transient =
+            Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected {
+                reason_code: 15,
+            });
+        assert!(error_is_transient(&auth_transient));
+
+        // Config errors are terminal — not retryable.
+        let cfg_err = Error::config_invalid("flatfiles.date", "bad");
+        assert!(!error_is_transient(&cfg_err));
     }
 }

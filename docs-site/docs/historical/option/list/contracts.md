@@ -42,11 +42,11 @@ for (const auto& t : data) {
 <div class="param-list">
 <div class="param">
 <div class="param-header"><code>request_type</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Data type (e.g. <code>"TRADE"</code>, <code>"QUOTE"</code>)</div>
+<div class="param-desc">Data type. Upstream enum: <code>"trade"</code>, <code>"quote"</code>. SDK also accepts the legacy upper-case forms <code>"TRADE"</code> / <code>"QUOTE"</code>.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>symbol</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
-<div class="param-desc">Underlying symbol</div>
+<div class="param-desc">Underlying symbol. Upstream additionally accepts a comma-separated list or <code>"*"</code> for all symbols; the SDK takes a single symbol per call and emits the wire-side enumeration internally.</div>
 </div>
 <div class="param">
 <div class="param-header"><code>date</code><span class="param-type">string</span><span class="param-badge required">required</span></div>
@@ -54,7 +54,7 @@ for (const auto& t : data) {
 </div>
 <div class="param">
 <div class="param-header"><code>max_dte</code><span class="param-type">int</span><span class="param-badge optional">optional</span></div>
-<div class="param-desc">Maximum days to expiration filter</div>
+<div class="param-desc">Maximum days to expiration. Only contracts with DTE less than or equal to this value are returned.</div>
 </div>
 </div>
 

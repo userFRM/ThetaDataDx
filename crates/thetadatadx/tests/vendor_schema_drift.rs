@@ -10,7 +10,7 @@
 //!   the next 2-byte header lands on the right offset.
 //! - Five consecutive unknown opcodes escalate to a typed
 //!   `ProtocolError`, matching the framing module's
-//!   `MAX_CONSECUTIVE_UNKNOWN_CODES` defence-in-depth.
+//!   `MAX_CONSECUTIVE_UNKNOWN_CODES` cap.
 
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -115,7 +115,7 @@ fn single_unknown_opcode_skipped_without_desync() {
 }
 
 /// Five consecutive unknown opcodes escalate to a typed framing
-/// error (matches `MAX_CONSECUTIVE_UNKNOWN_CODES` defence in depth).
+/// error (matches the `MAX_CONSECUTIVE_UNKNOWN_CODES` cap).
 #[test]
 fn five_consecutive_unknown_opcodes_escalate() {
     let mut bytes = Vec::new();

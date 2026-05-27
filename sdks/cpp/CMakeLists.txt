@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 # `VERSION` is a release-bump target alongside the Rust Cargo manifests
 # (`Cargo.toml`, `crates/*/Cargo.toml`, `tools/*/Cargo.toml`) and the
 # TypeScript `package.json` files. Keep all of them in lockstep when
-# cutting an 8.0.x release — see `CHANGELOG.md` for the canonical version.
-project(thetadatadx-cpp VERSION 8.0.23 LANGUAGES CXX)
+# cutting an 11.0.x release — see `CHANGELOG.md` for the canonical version.
+project(thetadatadx-cpp VERSION 11.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -75,3 +75,16 @@ target_link_libraries(thetadatadx_fpss_smoke PRIVATE thetadatadx_cpp)
 
 add_executable(thetadatadx_flatfiles_example examples/flatfiles_quotes_to_arrow.cpp)
 target_link_libraries(thetadatadx_flatfiles_example PRIVATE thetadatadx_cpp)
+
+# ── Tests (Catch2-based) ──
+#
+# Opt-in via `-DTHETADATADX_CPP_BUILD_TESTS=ON`. The default is OFF so
+# a pristine `cmake -S sdks/cpp` stays a no-network build; the test
+# subdirectory pulls Catch2 via FetchContent which needs Git + a
+# reachable github.com. CI flips the flag on; downstream consumers
+# building against the SDK do not pay the dependency cost.
+option(THETADATADX_CPP_BUILD_TESTS "Build the C++ SDK test suite" OFF)
+if(THETADATADX_CPP_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

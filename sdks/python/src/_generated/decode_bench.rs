@@ -20,13 +20,20 @@ fn decode_chunks_into_table(
     let mut headers: Vec<String> = Vec::new();
     let mut rows: Vec<thetadatadx::wire::DataValueList> = Vec::new();
     for (idx, chunk) in chunks.iter().enumerate() {
-        let response = <thetadatadx::wire::ResponseData as prost::Message>::decode(*chunk)
+        let mut response = <thetadatadx::wire::ResponseData as prost::Message>::decode(*chunk)
             .map_err(|e| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "decode_response_bytes: chunk {idx} is not a valid proto::ResponseData: {e}"
                 ))
             })?;
-        let table = thetadatadx::decode::decode_data_table(&response).map_err(|e| {
+        // Offline test harness path — uses the default ceiling
+        // (`DEFAULT_MAX_MESSAGE_SIZE`) which is the v10 channel-side
+        // default. Test fixtures embed pre-captured `ResponseData`
+        // bytes that were already validated against the live channel's
+        // `max_message_size` at capture time. The R1 ceiling exists
+        // to defend against a hostile peer, not against re-decoding
+        // captured frames.
+        let table = thetadatadx::decode::decode_data_table(&mut response).map_err(|e| {
             pyo3::exceptions::PyRuntimeError::new_err(format!(
                 "decode_response_bytes: chunk {idx} decode failed: {e}"
             ))
@@ -74,8 +81,8 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
         }
         "index_at_time_price" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_price_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(price_ticks_to_pyclass_list(py, ticks)?.into_any())
+            let ticks = thetadatadx::decode::parse_index_price_at_time_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(index_price_at_time_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
@@ -134,8 +141,8 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
         }
         "option_history_greeks_eod" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(greeks_all_ticks_to_pyclass_list(py, ticks)?.into_any())
+            let ticks = thetadatadx::decode::parse_greeks_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(greeks_eod_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_first_order" => {
             let table = decode_chunks_into_table(&refs)?;
@@ -179,28 +186,28 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
         }
         "option_history_trade_greeks_all" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(greeks_all_ticks_to_pyclass_list(py, ticks)?.into_any())
+            let ticks = thetadatadx::decode::parse_trade_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(trade_greeks_all_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_first_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_first_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(greeks_first_order_ticks_to_pyclass_list(py, ticks)?.into_any())
+            let ticks = thetadatadx::decode::parse_trade_greeks_first_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(trade_greeks_first_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_implied_volatility" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_iv_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(iv_ticks_to_pyclass_list(py, ticks)?.into_any())
+            let ticks = thetadatadx::decode::parse_trade_greeks_implied_volatility_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(trade_greeks_implied_volatility_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_second_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_second_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(greeks_second_order_ticks_to_pyclass_list(py, ticks)?.into_any())
+            let ticks = thetadatadx::decode::parse_trade_greeks_second_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(trade_greeks_second_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_third_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_third_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            Ok(greeks_third_order_ticks_to_pyclass_list(py, ticks)?.into_any())
+            let ticks = thetadatadx::decode::parse_trade_greeks_third_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            Ok(trade_greeks_third_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_quote" => {
             let table = decode_chunks_into_table(&refs)?;

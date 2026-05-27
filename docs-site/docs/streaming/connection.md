@@ -1,13 +1,13 @@
 ---
 title: Connecting & Subscribing
-description: Establish a streaming connection to FPSS, choose server environments, configure flush mode, subscribe to quotes, trades, and open interest, and manage subscriptions.
+description: Establish a streaming connection to streaming, choose server environments, configure flush mode, subscribe to quotes, trades, and open interest, and manage subscriptions.
 ---
 
 # Connecting & Subscribing
 
 ## Server Environments
 
-ThetaDataDx supports three FPSS server environments:
+ThetaDataDx supports three streaming server environments:
 
 | Config | Ports | Use case |
 |--------|-------|----------|
@@ -15,11 +15,11 @@ ThetaDataDx supports three FPSS server environments:
 | `DirectConfig::dev()` | 20200/20201 | Replays a random historical trading day in an infinite loop at max speed. Use when markets are closed. |
 | `DirectConfig::stage()` | 20100/20101 | Testing/staging servers. Frequent reboots, not stable. |
 
-All three share the same MDDS (historical) production servers -- only FPSS hosts differ.
+All three share the same historical-channel production servers -- only streaming hosts differ.
 
 ## TLS & SPKI Pinning
 
-FPSS TLS uses SPKI (Subject Public Key Info) pinning via a constant-time SHA-256 comparison against the captured ThetaData keypair. The pin survives cert renewal as long as ThetaData keeps the keypair; key rotation requires a coordinated client update. MITM attacks presenting a different certificate (even a valid CA-signed one) are rejected with `RustlsError::General("FPSS SPKI pin mismatch ...")`.
+The streaming channel uses SPKI (Subject Public Key Info) pinning via a constant-time SHA-256 comparison against the captured ThetaData keypair. The pin survives cert renewal as long as ThetaData keeps the keypair; key rotation requires a coordinated client update. MITM attacks presenting a different certificate (even a valid CA-signed one) are rejected with `RustlsError::General("streaming SPKI pin mismatch ...")`.
 
 ## Connect (Production)
 
@@ -155,9 +155,9 @@ const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 ```
 :::
 
-## Custom FPSS Hosts
+## Custom streaming Hosts
 
-FPSS hosts are not hardcoded. You can override them:
+Streaming hosts are not hardcoded. You can override them:
 
 ::: code-group
 ```rust [Rust]
@@ -214,7 +214,7 @@ ThetaDataDx uses two different concurrency models for its two data paths:
 | Path | Runtime | Why |
 |------|---------|-----|
 | `connect()` + all historical methods | **async** (tokio) | gRPC/tonic requires tokio for HTTP/2 multiplexing |
-| `start_streaming()` + callbacks | **sync** (OS threads) | Dedicated I/O thread + LMAX Disruptor ring buffer for lowest latency |
+| `start_streaming()` + callbacks | **sync** (OS threads) | Dedicated I/O thread + ring buffer for lowest latency |
 | TypeScript `EventIterator.next()` | **Promise** (napi-rs) | Returns `Promise<FpssEvent \| null>` (`null` = timeout / drained) so Node's event loop stays unblocked during the read timeout |
 
 **What this means for your code:**
@@ -230,12 +230,12 @@ tokio runtime
 
 std::thread (fpss-io)
   +-- TLS read loop      blocking, 50ms timeout
-  +-- Disruptor publish  lock-free, zero-alloc
+  +-- ring publish  lock-free, zero-alloc
 
 std::thread (fpss-ping)
   +-- PING heartbeat     100ms sleep loop
 
-Disruptor consumer thread
+ring-buffer consumer thread
   +-- your callback(FnMut(&FpssEvent))
 ```
 
@@ -312,7 +312,7 @@ client.subscribe(SecType.Option.fullOpenInterest());
 
 ## Typed Contract on Data Events
 
-FPSS assigns integer IDs to contracts on the wire, but the SDK resolves every data event's contract before user code sees it. `Quote` / `Trade` / `OpenInterest` / `Ohlcvc` events carry a typed contract with `symbol`, `sec_type`, `expiration`, `strike` / `strike_dollars`, and the option side. Each field surfaces in the language-idiomatic shape:
+streaming assigns integer IDs to contracts on the wire, but the SDK resolves every data event's contract before user code sees it. `Quote` / `Trade` / `OpenInterest` / `Ohlcvc` events carry a typed contract with `symbol`, `sec_type`, `expiration`, `strike` / `strike_dollars`, and the option side. Each field surfaces in the language-idiomatic shape:
 
 - **Rust**: `Contract { symbol: String, sec_type: SecType, expiration: Option<i32>, is_call: Option<bool>, strike: Option<i32> }` plus the derived accessors `right() -> Option<Right>` and `strike_dollars() -> Option<f64>`.
 - **Python**: `event.contract` exposes `symbol: str`, `sec_type: str` (`"STOCK"` / `"OPTION"` / `"INDEX"` / `"RATE"`), `expiration: Optional[int]`, `right: Optional[str]` (`"C"` / `"P"`), `strike_dollars: Optional[float]`, and the wire-level `strike: Optional[int]`.

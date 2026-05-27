@@ -24,9 +24,7 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use thetadatadx::fpss::protocol::{
-    self, FullSubscriptionKind, SecTypeExt as _, SubscriptionKind,
-};
+use thetadatadx::fpss::protocol::{self, FullSubscriptionKind, SecTypeExt as _, SubscriptionKind};
 
 /// Mirror of the Rust `tdbe::types::enums::SecType` value, exposed as
 /// a Python class with class-level constants so users can write
@@ -186,9 +184,7 @@ impl PyContract {
 
     #[getter]
     fn right(&self) -> Option<&'static str> {
-        self.inner
-            .is_call
-            .map(|c| if c { "C" } else { "P" })
+        self.inner.is_call.map(|c| if c { "C" } else { "P" })
     }
 
     fn __repr__(&self) -> String {
@@ -209,7 +205,12 @@ impl PyContract {
 /// `SecType.OPTION.full_trades()` / `SecType.OPTION.full_open_interest()`.
 ///
 /// Pass to `client.subscribe(sub)` or `client.subscribe_many([sub, ...])`.
-#[pyclass(module = "thetadatadx", name = "Subscription", frozen, skip_from_py_object)]
+#[pyclass(
+    module = "thetadatadx",
+    name = "Subscription",
+    frozen,
+    skip_from_py_object
+)]
 #[derive(Clone, Debug)]
 pub(crate) struct PySubscription {
     pub(crate) inner: protocol::Subscription,
@@ -260,9 +261,7 @@ impl PySubscription {
     #[getter]
     fn sec_type(&self) -> Option<PySecType> {
         match &self.inner {
-            protocol::Subscription::Full { sec_type, .. } => {
-                Some(PySecType::from_inner(*sec_type))
-            }
+            protocol::Subscription::Full { sec_type, .. } => Some(PySecType::from_inner(*sec_type)),
             _ => None,
         }
     }
@@ -320,9 +319,18 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // discover the fluent surface.
     let dict = PyDict::new(m.py());
     dict.set_item("contract", "Contract.stock(...) | Contract.option(...)")?;
-    dict.set_item("subscription", "contract.quote() / .trade() / .open_interest()")?;
-    dict.set_item("full_stream", "SecType.OPTION.full_trades() / .full_open_interest()")?;
-    dict.set_item("subscribe", "client.subscribe(sub) | client.subscribe_many([sub, ...])")?;
+    dict.set_item(
+        "subscription",
+        "contract.quote() / .trade() / .open_interest()",
+    )?;
+    dict.set_item(
+        "full_stream",
+        "SecType.OPTION.full_trades() / .full_open_interest()",
+    )?;
+    dict.set_item(
+        "subscribe",
+        "client.subscribe(sub) | client.subscribe_many([sub, ...])",
+    )?;
     m.add("__fluent_api__", dict)?;
 
     // Module-level constant for the canonical fluent symbols. Ordered

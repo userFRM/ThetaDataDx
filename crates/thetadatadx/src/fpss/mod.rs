@@ -1,104 +1,28 @@
-//! FPSS (Feed Processing Streaming Server) real-time streaming client.
+//! FPSS real-time streaming client.
 //!
-//! Behaviour mirrors the upstream Java terminal. Per-line vendor-class
-//! breadcrumbs are intentionally absent from this module: they leak
-//! vendor-internal class names into the public source surface and rotate
-//! with every upstream binary version.
+//! Synchronous blocking I/O on `std::thread` (no tokio). A TLS reader
+//! publishes events to a single LMAX Disruptor ring; the consumer
+//! thread invokes the user callback inside `std::panic::catch_unwind`
+//! so panics are counted on [`FpssClient::panic_count`] rather than
+//! tearing down the pipeline. See `docs-site/docs/streaming/index.md`
+//! for the architectural overview.
 //!
-//! # Architecture
-//!
-//! The FPSS protocol provides real-time market data over a custom TLS/TCP
-//! binary protocol. The client runs:
-//!
-//! 1. A TLS connection to one of 4 FPSS servers (NJ-A/NJ-B, ports 20000/20001)
-//! 2. An authentication handshake (email + password over the wire)
-//! 3. A heartbeat thread sending PING every 100ms
-//! 4. A reader thread dispatching incoming frames to callbacks
-//! 5. Automatic reconnection on disconnect (except for permanent errors)
-//!
-//! # Fully synchronous -- no tokio in the FPSS path
-//!
-//! This module is 100% blocking I/O on `std::thread`. No tokio, no async, no
-//! `.await` anywhere. The pipeline is:
-//!
-//! ```text
-//! std::thread (blocking TLS read) -> LMAX Disruptor ring -> user's FnMut(&FpssEvent) callback
-//! ```
-//!
-//! # Usage
+//! # Examples
 //!
 //! ```rust,no_run
-//! # use thetadatadx::fpss::{FpssClient, FpssConnectArgs, FpssData, FpssEvent};
+//! # use thetadatadx::fpss::{FpssClient, FpssConnectArgs, FpssEvent};
 //! # use thetadatadx::auth::Credentials;
 //! # fn example() -> Result<(), thetadatadx::error::Error> {
 //! let creds = Credentials::new("user@example.com", "pw");
 //! let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
 //! let args = FpssConnectArgs::new(&creds, &hosts);
-//! let client = FpssClient::connect(args, |event: &FpssEvent| {
-//!     // Runs on the Disruptor consumer thread -- keep it fast.
-//!     // Push to your own queue for heavy processing.
-//!     match event {
-//!         FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) => {
-//!             let _root = &contract.symbol; // symbol / option root
-//!             let _ = (bid, ask); // f64 prices
-//!         }
-//!         FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) => {
-//!             let _root = &contract.symbol;
-//!             let _ = (price, size);
-//!         }
-//!         FpssEvent::Control(_) => { /* lifecycle */ }
-//!         _ => {}
-//!     }
-//! })?;
-//!
-//! // Subscribe (blocking write to TLS stream via internal command channel).
+//! let client = FpssClient::connect(args, |_event: &FpssEvent| {})?;
 //! use thetadatadx::fpss::protocol::Contract;
 //! client.subscribe(Contract::stock("AAPL").quote())?;
-//!
-//! // ... later
 //! client.shutdown();
 //! # Ok(())
 //! # }
 //! ```
-//!
-//! # Internal architecture
-//!
-//! ```text
-//!  +---------------+  cmd channel   +--------------------+  publish()  +------------------+
-//!  | FpssClient    |--------------->| I/O thread         |------------>| Disruptor Ring   |
-//!  |               |                | (std::thread)      |             | (SPSC, lock-     |
-//!  | .subscribe()  |                | blocking TLS read  |             |  free, pre-      |
-//!  | .unsubscribe  |                | + write drain      |             |  allocated)      |
-//!  | .shutdown()   |                +--------------------+             +--------+---------+
-//!  +---------------+                +--------------------+                      | consumer
-//!                                   | Ping thread        |                      v
-//!                                   | (std::thread,      |             +------------------+
-//!                                   |  sleep loop)       |             | User handler(F)  |
-//!                                   +--------------------+             | (catch_unwind,   |
-//!                                                                      |  panic-isolated) |
-//!                                                                      +------------------+
-//! ```
-//!
-//! The I/O thread owns the TLS stream exclusively. Write requests (subscribe,
-//! unsubscribe, ping) arrive via a `std::sync::mpsc` command channel. Between
-//! blocking reads (during read timeouts), the I/O thread drains the command
-//! queue and sends frames. This eliminates all lock contention on the TLS stream.
-//!
-//! There is exactly ONE queue between the TLS reader and the user callback —
-//! the LMAX Disruptor ring. The reader publishes events; the Disruptor's
-//! consumer thread invokes the user callback wrapped in
-//! [`std::panic::catch_unwind`] so a panic from user code (or binding glue
-//! such as PyO3 / napi) is counted on [`FpssClient::panic_count`] and
-//! reported via `tracing::error!` rather than tearing down the consumer.
-//! Ring-buffer overflow (consumer falling behind) is counted on
-//! [`FpssClient::dropped_count`] via `Producer::try_publish` failures.
-//!
-//! # Sub-modules
-//!
-//! - [`connection`] -- TLS TCP connection establishment (blocking)
-//! - [`framing`] -- Wire frame reader/writer (sync `Read`/`Write`)
-//! - [`protocol`] -- Message types, contract serialization, subscription payloads
-//! - [`ring`] -- LMAX Disruptor ring buffer and adaptive wait strategy
 
 mod accumulator;
 pub(crate) mod connection;
@@ -111,6 +35,7 @@ pub(crate) mod pinning;
 pub mod protocol;
 pub(crate) mod ring;
 mod session;
+pub mod wake;
 
 #[cfg(test)]
 mod streaming_soak_tests;
@@ -120,7 +45,7 @@ mod streaming_soak_tests;
 // crate-private; only the round-trip primitives are exposed.
 pub use self::decode::UNRESOLVED_CONTRACT_SYMBOL_PREFIX;
 use self::events::IoCommand;
-pub use self::events::{FpssControl, FpssData, FpssEvent};
+pub use self::events::{BackpressurePolicy, FpssControl, FpssData, FpssEvent};
 // `Delivery` stays crate-private; it is the union type the io_loop
 // dispatches on. Public callers reach the two modes via
 // `FpssClient::connect` (push-callback) and `FpssClient::connect_iter`
@@ -128,7 +53,7 @@ pub use self::events::{FpssControl, FpssData, FpssEvent};
 // by name from `connect_iter` below.
 pub use self::framing::{read_frame, write_frame, Frame};
 use self::io_loop::{io_loop, ping_loop, wait_for_login, LoginResult};
-pub use self::session::reconnect_delay;
+pub use self::session::{reconnect_delay, reconnect_delay_for};
 
 /// Hidden test-internals surface for vendor-failure-mode resilience tests
 /// in `crates/thetadatadx/tests/`.
@@ -140,8 +65,11 @@ pub use self::session::reconnect_delay;
 /// reconnect storm, schema drift, frame-decoder fuzz).
 ///
 /// Not part of the supported public API. Subject to change without a
-/// SemVer bump. Tests are co-located in this repo so the `#[doc(hidden)]`
-/// gate is the contract.
+/// SemVer bump. Feature-gated on `__test-helpers` so the module only
+/// enters the rlib when the private test feature is enabled — matches
+/// the convention used by `crate::wire::test_requests` in `lib.rs`.
+/// `cargo-semver-checks` runs with default features and never sees it.
+#[cfg(any(test, feature = "__test-helpers"))]
 #[doc(hidden)]
 pub mod __test_internals {
     pub use super::decode::decode_frame;
@@ -150,7 +78,7 @@ pub mod __test_internals {
     pub use super::framing::{read_frame_into, FrameReadState, MAX_PAYLOAD_LEN};
 }
 
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::{self, JoinHandle, ThreadId};
@@ -164,6 +92,36 @@ use tdbe::types::enums::{RemoveReason, StreamMsgType};
 use self::protocol::{
     build_credentials_payload, build_subscribe_payload, Contract, SubscriptionKind,
 };
+
+/// Clamp a 64-bit counter value into a positive 31-bit wire `req_id`.
+///
+/// The FPSS wire protocol carries `req_id` as a 32-bit signed integer
+/// and reserves the value `-1` as the "uncorrelated" sentinel emitted
+/// when the server cannot resolve a `ReqResponse` back to a caller-
+/// allocated id. Allocators therefore must never hand out `-1` (and,
+/// defensively, must stay strictly non-negative so a future server-side
+/// `id < 0` check cannot reject a legitimate frame).
+///
+/// `next_req_id` is widened to `AtomicI64` so a long-running session
+/// cannot wrap into the sentinel after `2^31` allocations (≈ 5 days at
+/// 5k subs/sec, well inside the realistic uptime envelope of a
+/// production streaming consumer). This helper masks off the sign bit
+/// and casts down, producing the positive `i32` the wire encoder
+/// expects.
+///
+/// Same-value id collisions remain possible after `2^31` allocations —
+/// this is a wire-protocol limitation (31-bit positive id space, since
+/// `-1` is reserved as the uncorrelated sentinel and negative ids are
+/// defensively excluded). The widening only eliminates the `-1`
+/// sentinel collision; an honest cycle of the positive id space still
+/// reuses earlier ids. Consumers correlating responses across a span
+/// longer than `2^31` allocations must add their own disambiguation
+/// (e.g. per-subscription state on the caller side, or a session-id
+/// salt prepended to the caller-visible request handle).
+#[inline]
+pub(in crate::fpss) fn wire_req_id(counter_value: i64) -> i32 {
+    (counter_value & 0x7FFF_FFFF) as i32
+}
 
 // ---------------------------------------------------------------------------
 // FpssConnectArgs — typed parameter bundle for `FpssClient::connect`
@@ -197,18 +155,28 @@ pub struct FpssConnectArgs<'a> {
     pub hosts: &'a [(String, u16)],
     /// Disruptor ring buffer size (events). Must be a power of two.
     ///
-    /// Each ring slot stores one `FpssEventInternal` (≈ 552 bytes after
-    /// the typed-FpssControl variants). The default `ring_size = 4096`
-    /// allocates roughly `4096 × 552 ≈ 2.3 MB` per `FpssClient` for the
-    /// ring, plus per-event refcounted `Arc<Contract>` storage on top.
-    /// Tune downward (e.g., 1024) if memory is tight; tune upward
-    /// (e.g., 16_384) if you observe sustained `dropped_event_count()`
-    /// under bursty load.
+    /// Each ring slot stores one `FpssEventInternal` (96 bytes on the
+    /// current 64-bit layout, validated by the `assert_layout_compat`
+    /// test). The default
+    /// `ring_size = 4096` allocates roughly `4096 × 96 ≈ 384 KiB` per
+    /// `FpssClient` for the ring, plus per-event refcounted
+    /// `Arc<Contract>` storage on top. Tune downward (e.g., 1024) if
+    /// memory is tight; tune upward (e.g., 16_384) if you observe
+    /// sustained `dropped_event_count()` under bursty load.
     pub ring_size: usize,
     /// I/O thread flush behavior. See [`FpssFlushMode`].
     pub flush_mode: FpssFlushMode,
     /// Auto-reconnect policy after involuntary disconnect.
     pub policy: ReconnectPolicy,
+    /// Delay (ms) before reconnecting after a generic transient drop
+    /// (TimedOut, ServerRestarting, Unspecified, …). Mirrors
+    /// [`crate::config::ReconnectConfig::wait_ms`]. Default
+    /// [`crate::fpss::protocol::RECONNECT_DELAY_MS`] (2_000).
+    pub wait_ms: u64,
+    /// Delay (ms) before reconnecting after a `TooManyRequests` drop.
+    /// Mirrors [`crate::config::ReconnectConfig::wait_rate_limited_ms`].
+    /// Default [`crate::fpss::protocol::TOO_MANY_REQUESTS_DELAY_MS`] (130_000).
+    pub wait_rate_limited_ms: u64,
     /// When `false`, suppresses locally derived `FpssData::Ohlcvc` events.
     /// Server-sent OHLCVC frames (wire code 24) still pass through.
     pub derive_ohlcvc: bool,
@@ -245,6 +213,8 @@ impl<'a> FpssConnectArgs<'a> {
             ring_size: 4096,
             flush_mode: FpssFlushMode::default(),
             policy: ReconnectPolicy::default(),
+            wait_ms: protocol::RECONNECT_DELAY_MS,
+            wait_rate_limited_ms: protocol::TOO_MANY_REQUESTS_DELAY_MS,
             derive_ohlcvc: true,
             connect_timeout_ms: protocol::CONNECT_TIMEOUT_MS,
             read_timeout_ms: protocol::READ_TIMEOUT_MS,
@@ -304,8 +274,19 @@ pub struct FpssClient {
     shutdown: Arc<AtomicBool>,
     /// Whether we are authenticated and the connection is live.
     authenticated: Arc<AtomicBool>,
-    /// Monotonically increasing request ID counter.
-    next_req_id: AtomicI32,
+    /// Monotonically increasing request ID counter, shared with the
+    /// fpss-io reconnect path so re-subscribe frames carry a fresh
+    /// `req_id` correlatable to the original subscribe — server-side
+    /// `ReqResponse` events with `req_id = -1` are indistinguishable
+    /// from manual subscribes, which breaks user-side correlation.
+    ///
+    /// Widened to `AtomicI64` so a long-running session at thousands of
+    /// subscribes/sec cannot wrap into the wire's `-1` sentinel after
+    /// `2^31` allocations (≈ 5 days at 5k subs/sec). The 31-bit clamp
+    /// to a positive `i32` happens at the wire boundary in
+    /// `build_subscribe_payload` / `build_full_type_subscribe_payload`
+    /// callers via `(x & 0x7FFF_FFFF) as i32`.
+    next_req_id: Arc<AtomicI64>,
     /// Active per-contract subscriptions for reconnection.
     pub(in crate::fpss) active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>>,
     /// Active full-type (full-stream) subscriptions for reconnection.
@@ -438,6 +419,11 @@ impl FpssClient {
             queue_capacity,
         ));
         let finished = Arc::new(AtomicBool::new(false));
+        // Sync pull-iter retains legacy `DropNewest` behaviour (silent
+        // overflow drops). The async surfaces route through
+        // [`Self::connect_iter_with_wake_keep_handle_policy`] when
+        // they want explicit policy control.
+        let policy = events::BackpressurePolicy::DropNewest;
         // Dedicated terminal predicate for the iterator. Flipped to
         // `true` ONLY after the Disruptor consumer thread has exited
         // its consume loop and dropped the closure that owns the queue
@@ -455,6 +441,8 @@ impl FpssClient {
         let delivery = events::Delivery::Queue {
             queue: Arc::clone(&queue),
             iter_closed: Arc::clone(&iter_closed),
+            wake_fd: None,
+            policy,
         };
         let client = Self::connect_with_delivery(args, delivery)?;
         let iterator = EventIterator {
@@ -463,6 +451,161 @@ impl FpssClient {
             iter_closed,
         };
         Ok((client, iterator))
+    }
+
+    /// Connect with pull-iter delivery AND an asyncio-style FD wake-up
+    /// channel.
+    ///
+    /// Sibling of [`Self::connect_iter`] for asyncio / select-loop
+    /// consumers that cannot afford the 100 µs polling tick of the
+    /// blocking iterator. The caller allocates a self-pipe (typically
+    /// `pipe2(O_CLOEXEC | O_NONBLOCK)`) and passes the write-end FD to
+    /// this method. The Disruptor consumer thread writes a single
+    /// coalesced byte to the FD on every successful `queue.push` so the
+    /// reader's `epoll` / `kqueue` / `select` wake fires immediately —
+    /// no polling, no busy-wait.
+    ///
+    /// `wake_fd` ownership transfers to the returned [`wake::WakeFd`]
+    /// (stored inside the pull-iter `Delivery::Queue` variant);
+    /// the FD is closed on `Drop` when the [`FpssClient`] and the
+    /// matching [`EventIterator`] are both released. Callers MUST NOT
+    /// `close(2)` the FD themselves.
+    ///
+    /// Use [`Self::connect_iter`] (no wake FD) for synchronous
+    /// consumers — the wake-fd path is pure overhead when the caller
+    /// drains via `next_timeout` polling.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same set of errors as [`Self::connect`] (TLS, login,
+    /// config validation).
+    pub fn connect_iter_with_wake(
+        args: FpssConnectArgs<'_>,
+        wake: wake::WakeFd,
+    ) -> Result<(Self, EventIterator), Error> {
+        let queue_capacity = args.ring_size;
+        let queue = Arc::new(crossbeam_queue::ArrayQueue::<FpssEvent>::new(
+            queue_capacity,
+        ));
+        let finished = Arc::new(AtomicBool::new(false));
+        let iter_closed = Arc::new(AtomicBool::new(false));
+        let wake_arc = Arc::new(wake);
+        // Async pull-iter without explicit policy defaults to `Block`
+        // — the safe default for new callers. Existing consumers that
+        // want legacy `DropNewest` semantics call the `_policy`
+        // variant below.
+        let policy = events::BackpressurePolicy::Block;
+        let delivery = events::Delivery::Queue {
+            queue: Arc::clone(&queue),
+            iter_closed: Arc::clone(&iter_closed),
+            wake_fd: Some(Arc::clone(&wake_arc)),
+            policy,
+        };
+        let client = Self::connect_with_delivery(args, delivery)?;
+        let iterator = EventIterator {
+            queue,
+            finished,
+            iter_closed,
+        };
+        // `wake_arc` is intentionally not surfaced to the caller — the
+        // [`Delivery::Queue`] variant captured a clone, and the iterator
+        // / client lifetime governs the FD close. The Python SDK keeps
+        // a third `Arc<WakeFd>` clone for the `rearm()` path that runs
+        // on the asyncio reader thread; that clone is acquired via the
+        // explicit `connect_iter_with_wake_keep_handle` constructor in
+        // `streaming_async_session.rs`, which forwards through this
+        // method.
+        let _ = wake_arc;
+        Ok((client, iterator))
+    }
+
+    /// Variant of [`Self::connect_iter_with_wake`] that hands back the
+    /// `Arc<WakeFd>` so the caller can drive [`wake::WakeFd::rearm`]
+    /// from the reader thread. The async wake protocol requires:
+    ///
+    /// 1. Reader observes pipe-read-ready on the asyncio loop.
+    /// 2. Reader calls `wake.rearm()` BEFORE draining the pipe.
+    /// 3. Reader drains the pipe with one or more non-blocking `read(2)`.
+    /// 4. Reader drains the event queue via `iterator.try_next` until
+    ///    `NextEvent::Timeout` or `NextEvent::Closed`.
+    /// 5. Reader awaits the next FD-ready signal.
+    ///
+    /// Step 2 is what makes the wake re-arm — without it, a producer
+    /// push observed between the rearm-elsewhere and the drain would
+    /// fail to re-fire the wake. Returning the shared `Arc<WakeFd>` is
+    /// the only safe way to expose `rearm()` to the reader.
+    ///
+    /// Internally builds the same pull-iter `Delivery::Queue` variant
+    /// as [`Self::connect_iter_with_wake`]; the only difference is the
+    /// third return value carrying the shared handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same set of errors as [`Self::connect`] (TLS, login,
+    /// config validation).
+    pub fn connect_iter_with_wake_keep_handle(
+        args: FpssConnectArgs<'_>,
+        wake: wake::WakeFd,
+    ) -> Result<(Self, EventIterator, Arc<wake::WakeFd>), Error> {
+        Self::connect_iter_with_wake_keep_handle_policy(
+            args,
+            wake,
+            None,
+            events::BackpressurePolicy::Block,
+        )
+    }
+
+    /// Variant of [`Self::connect_iter_with_wake_keep_handle`] that
+    /// accepts an explicit [`events::BackpressurePolicy`] and an
+    /// optional `max_queue_depth` override.
+    ///
+    /// * `max_queue_depth` — `None` reuses `args.ring_size` (the
+    ///   existing implicit sizing); `Some(n)` caps the
+    ///   [`crossbeam_queue::ArrayQueue`] at `n` events. Must satisfy
+    ///   the same power-of-two + [`ring::MIN_RING_SIZE`] constraints
+    ///   the ring does, validated via [`ring::check_ring_size`].
+    /// * `policy` — overflow strategy. See [`events::BackpressurePolicy`].
+    ///
+    /// Production callers reach this through the Python
+    /// `client.streaming_async(max_queue_depth=..., backpressure=...)`
+    /// kwargs.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same set of errors as [`Self::connect`] (TLS,
+    /// login, config validation), plus [`Error::Config`] when
+    /// `max_queue_depth` is below [`ring::MIN_RING_SIZE`] or is not a
+    /// power of two.
+    pub fn connect_iter_with_wake_keep_handle_policy(
+        args: FpssConnectArgs<'_>,
+        wake: wake::WakeFd,
+        max_queue_depth: Option<usize>,
+        policy: events::BackpressurePolicy,
+    ) -> Result<(Self, EventIterator, Arc<wake::WakeFd>), Error> {
+        let queue_capacity = match max_queue_depth {
+            Some(n) => ring::check_ring_size(n)
+                .map_err(|e| Error::config_invalid("fpss.max_queue_depth", e.to_string()))?,
+            None => args.ring_size,
+        };
+        let queue = Arc::new(crossbeam_queue::ArrayQueue::<FpssEvent>::new(
+            queue_capacity,
+        ));
+        let finished = Arc::new(AtomicBool::new(false));
+        let iter_closed = Arc::new(AtomicBool::new(false));
+        let wake_arc = Arc::new(wake);
+        let delivery = events::Delivery::Queue {
+            queue: Arc::clone(&queue),
+            iter_closed: Arc::clone(&iter_closed),
+            wake_fd: Some(Arc::clone(&wake_arc)),
+            policy,
+        };
+        let client = Self::connect_with_delivery(args, delivery)?;
+        let iterator = EventIterator {
+            queue,
+            finished,
+            iter_closed,
+        };
+        Ok((client, iterator, wake_arc))
     }
 
     fn connect_with_delivery(
@@ -475,6 +618,8 @@ impl FpssClient {
             ring_size,
             flush_mode,
             policy,
+            wait_ms,
+            wait_rate_limited_ms,
             derive_ohlcvc,
             connect_timeout_ms,
             read_timeout_ms,
@@ -530,6 +675,8 @@ impl FpssClient {
             derive_ohlcvc,
             flush_mode,
             policy,
+            wait_ms,
+            wait_rate_limited_ms,
             connect_timeout,
             read_timeout,
             ping_interval: Duration::from_millis(ping_interval_ms),
@@ -553,6 +700,8 @@ impl FpssClient {
             derive_ohlcvc,
             flush_mode,
             policy,
+            wait_ms,
+            wait_rate_limited_ms,
             connect_timeout,
             read_timeout,
             ping_interval,
@@ -637,6 +786,12 @@ impl FpssClient {
         // thread -> drop producer -> join consumer thread = self).
         let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
 
+        // Shared `next_req_id` counter — the FpssClient public API
+        // owns one handle for caller-issued subscribes; the io_loop
+        // borrows another so re-subscribe frames on auto-reconnect
+        // allocate fresh ids correlatable through `ReqResponse`.
+        let next_req_id: Arc<AtomicI64> = Arc::new(AtomicI64::new(1));
+
         // Command channel: FpssClient -> I/O thread
         let (cmd_tx, cmd_rx) = std_mpsc::channel::<IoCommand>();
 
@@ -656,6 +811,7 @@ impl FpssClient {
         let io_consumer_thread_id = Arc::clone(&consumer_thread_id);
         let io_slow_threshold_ns = Arc::clone(&slow_callback_threshold_ns);
         let io_slow_count = Arc::clone(&slow_callback_count);
+        let io_next_req_id = Arc::clone(&next_req_id);
 
         let io_handle = thread::Builder::new()
             .name("fpss-io".to_owned())
@@ -673,6 +829,8 @@ impl FpssClient {
                     derive_ohlcvc,
                     flush_mode,
                     policy,
+                    wait_ms,
+                    wait_rate_limited_ms,
                     creds: io_creds,
                     hosts: io_hosts,
                     active_subs: io_active_subs,
@@ -684,6 +842,7 @@ impl FpssClient {
                     slow_callback_count: io_slow_count,
                     connect_timeout,
                     read_timeout,
+                    next_req_id: io_next_req_id,
                 });
             })
             .map_err(|e| Error::Fpss {
@@ -716,7 +875,7 @@ impl FpssClient {
             ping_handle: Some(ping_handle),
             shutdown,
             authenticated,
-            next_req_id: AtomicI32::new(1),
+            next_req_id: Arc::clone(&next_req_id),
             active_subs,
             active_full_subs,
             server_addr,
@@ -863,7 +1022,7 @@ impl FpssClient {
         unsubscribe: bool,
     ) -> Result<(), Error> {
         self.check_connected()?;
-        let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
+        let req_id = wire_req_id(self.next_req_id.fetch_add(1, Ordering::Relaxed));
         let payload = protocol::build_full_type_subscribe_payload(req_id, sec_type);
         // Wire codes for full-stream subscribe / unsubscribe: code 22
         // (TRADE) / 52 (REMOVE_TRADE) for Trades, code 23
@@ -908,7 +1067,7 @@ impl FpssClient {
         contract.validate()?;
         self.check_connected()?;
 
-        let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
+        let req_id = wire_req_id(self.next_req_id.fetch_add(1, Ordering::Relaxed));
         let payload = build_subscribe_payload(req_id, contract)?;
         let code = kind.subscribe_code();
 
@@ -941,7 +1100,7 @@ impl FpssClient {
         contract.validate()?;
         self.check_connected()?;
 
-        let req_id = self.next_req_id.fetch_add(1, Ordering::Relaxed);
+        let req_id = wire_req_id(self.next_req_id.fetch_add(1, Ordering::Relaxed));
         let payload = build_subscribe_payload(req_id, contract)?;
         let code = kind.unsubscribe_code();
 
@@ -1103,6 +1262,7 @@ impl FpssClient {
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
         let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
+        let next_req_id: Arc<AtomicI64> = Arc::new(AtomicI64::new(1));
 
         let (cmd_tx, _cmd_rx) = std_mpsc::channel::<IoCommand>();
 
@@ -1191,7 +1351,7 @@ impl FpssClient {
             ping_handle: None,
             shutdown,
             authenticated,
-            next_req_id: AtomicI32::new(1),
+            next_req_id: Arc::clone(&next_req_id),
             active_subs,
             active_full_subs,
             server_addr: "test://self-join".to_owned(),
@@ -1252,7 +1412,7 @@ pub enum NextEvent {
     Closed,
 }
 
-/// Drain handle for a pull-iter ([`Delivery::Queue`]) streaming session.
+/// Drain handle for a pull-iter (`Delivery::Queue`) streaming session.
 ///
 /// Returned by [`FpssClient::connect_iter`] and ultimately surfaced
 /// through `start_streaming_iter()` on the language SDKs (Python
@@ -1634,6 +1794,8 @@ mod connect_args_tests {
             ring_size: cfg.fpss.ring_size,
             flush_mode: cfg.fpss.flush_mode,
             policy: cfg.reconnect.policy.clone(),
+            wait_ms: cfg.reconnect.wait_ms,
+            wait_rate_limited_ms: cfg.reconnect.wait_rate_limited_ms,
             derive_ohlcvc: cfg.fpss.derive_ohlcvc,
             connect_timeout_ms: cfg.fpss.connect_timeout_ms,
             read_timeout_ms: cfg.fpss.timeout_ms,
@@ -1647,5 +1809,10 @@ mod connect_args_tests {
         assert_eq!(args.read_timeout_ms, cfg.fpss.timeout_ms);
         assert_eq!(args.ping_interval_ms, cfg.fpss.ping_interval_ms);
         assert_eq!(args.ring_size, cfg.fpss.ring_size);
+        assert_eq!(args.wait_ms, cfg.reconnect.wait_ms);
+        assert_eq!(
+            args.wait_rate_limited_ms,
+            cfg.reconnect.wait_rate_limited_ms
+        );
     }
 }

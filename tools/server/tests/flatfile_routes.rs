@@ -4,6 +4,15 @@
 // WITHOUT touching ThetaData. The "happy path" requires a live MDDS
 // connection and is covered by the integration test suite in
 // `scripts/validate_*.py`.
+//
+// The race-regression suite that closes the BLOCKER #1 concurrent-
+// write race (unique scratch path per request + atomic rename onto a
+// deterministic final path) lives in `src/flatfile_routes.rs::tests`
+// because `flatfile_paths` is `pub(crate)` and the binary crate has no
+// public library surface to import from this integration target. The
+// path-pair contract and the rename-vs-in-flight-reader invariant are
+// pinned there; this file keeps the wire-shape smoke tests that
+// historically lived here.
 
 #[test]
 fn flatfile_routes_are_documented() {

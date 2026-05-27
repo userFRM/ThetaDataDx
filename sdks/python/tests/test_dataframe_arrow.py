@@ -239,6 +239,7 @@ def test_ohlc_tick_to_arrow_schema():
         close=105.0,
         volume=1_000_000,
         count=500,
+        vwap=102.5,
         date=20260420,
     )
     lst = thetadatadx.OhlcTickList([tick])
@@ -251,6 +252,7 @@ def test_ohlc_tick_to_arrow_schema():
         "close": "double",
         "volume": "int64",
         "count": "int64",
+        "vwap": "double",
         "date": "int32",
         "expiration": "int32",
         "strike": "double",
@@ -380,7 +382,12 @@ def test_to_arrow_does_not_need_polars(monkeypatch):
 
 
 def test_option_contract_right_is_string_in_arrow_schema():
-    oc = thetadatadx.OptionContract(root="AAPL", expiration=20260517, strike=100.0, right="C")
+    # The generator-emitted `OptionContract` pyclass field is `symbol`
+    # (matching the upstream `tdbe::types::tick::OptionContract` shape).
+    # The field was renamed from `root` to `symbol` ahead of v11; pass
+    # `symbol=...` explicitly to match the generated
+    # `#[pyo3(signature = (*, symbol = ...))]`.
+    oc = thetadatadx.OptionContract(symbol="AAPL", expiration=20260517, strike=100.0, right="C")
     lst = thetadatadx.OptionContractList([oc])
     table = lst.to_arrow()
     schema = {f.name: str(f.type) for f in table.schema}

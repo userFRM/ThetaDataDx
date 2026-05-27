@@ -12,6 +12,7 @@
 //! `PRICE_TYPE` exponent so the caller never has to apply the divisor
 //! themselves.
 
+use crate::error::Error;
 use crate::flatfiles::datatype::DataType;
 
 /// Single decoded flat-file row.
@@ -48,6 +49,12 @@ impl FlatFileRow {
     /// `price_type` carries the row's PRICE_TYPE column value (vendor
     /// `Price.price_type`). `None` means the schema has no PRICE_TYPE
     /// column, so price-bearing values are emitted as raw integers.
+    ///
+    /// # Errors
+    ///
+    /// Propagates `Error::decode_codec(..)` from
+    /// [`crate::flatfiles::writer::decode_price`] when `price_type` is
+    /// outside `0..=tdbe::types::price::MAX_PRICE_TYPE`.
     pub(crate) fn from_decoded(
         symbol: &str,
         expiration: Option<i32>,
@@ -57,7 +64,7 @@ impl FlatFileRow {
         data: &[i32],
         data_idx: &[usize],
         price_type: Option<i32>,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let mut fields = Vec::with_capacity(data_idx.len());
         for &i in data_idx {
             let val = data.get(i).copied().unwrap_or(0);
@@ -65,7 +72,7 @@ impl FlatFileRow {
             let cell = if dt.is_price() {
                 match price_type {
                     Some(pt) => {
-                        FlatFileValue::Price(crate::flatfiles::writer::decode_price(val, pt))
+                        FlatFileValue::Price(crate::flatfiles::writer::decode_price(val, pt)?)
                     }
                     None => FlatFileValue::Int(val),
                 }
@@ -74,12 +81,12 @@ impl FlatFileRow {
             };
             fields.push((dt.name().into_owned(), cell));
         }
-        Self {
+        Ok(Self {
             symbol: symbol.to_string(),
             expiration,
             strike,
             right,
             fields,
-        }
+        })
     }
 }

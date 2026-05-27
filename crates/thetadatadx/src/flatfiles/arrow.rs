@@ -9,10 +9,10 @@
 //! in one pass.
 //!
 //! Single-source-of-truth dispatch: every binding (Python, TypeScript,
-//! C++) that wants Arrow output funnels through [`rows_to_arrow`]. The
-//! mapping `FlatFileValue -> arrow_schema::DataType` lives once in
-//! [`flatfile_value_arrow_type`] and is reused both at schema-inference
-//! time and at builder-finalization time.
+//! C++) that wants Arrow output funnels through [`crate::flatfiles::arrow::rows_to_arrow`].
+//! The mapping `FlatFileValue -> arrow_schema::DataType` lives once in
+//! [`crate::flatfiles::arrow::flatfile_value_arrow_type`] and is reused
+//! both at schema-inference time and at builder-finalization time.
 //!
 //! # Schema rules
 //!
@@ -33,8 +33,8 @@
 //!
 //! # Empty input
 //!
-//! Calling `rows_to_arrow(&[])` returns a [`RecordBatch`] with zero
-//! columns and zero rows. The caller cannot recover a schema from this
+//! Calling `rows_to_arrow(&[])` returns an `arrow_array::RecordBatch`
+//! with zero columns and zero rows. The caller cannot recover a schema from this
 //! — they must inspect their own request to know what shape was
 //! expected. This is consistent with how empty MDDS responses surface
 //! through the Python `<TickName>List` wrappers.

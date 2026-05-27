@@ -264,8 +264,8 @@ impl ThetaDataDxClient {
     /// Pull a flat-file blob and write the requested format to `path`.
     /// Returns the final on-disk path with the format extension
     /// auto-appended if missing.
-    #[napi(js_name = "flatfileToPath")]
-    pub fn flatfile_to_path(
+    #[napi(js_name = "flatFileToPath")]
+    pub fn flat_file_to_path(
         &self,
         sec_type: String,
         req_type: String,

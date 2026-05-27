@@ -1,8 +1,9 @@
 //! Header alias table and lookup helper.
 //!
-//! v3 MDDS uses different column names than the tick schema. [`HEADER_ALIASES`]
-//! maps schema names to their v3 equivalents so generated and hand-written
-//! parsers work with both the schema and v3 wire payloads.
+//! v3 MDDS uses different column names than the tick schema. The
+//! `HEADER_ALIASES` table maps schema names to their v3 equivalents
+//! so generated and hand-written parsers work with both the schema
+//! and v3 wire payloads.
 
 /// Header aliases: v3 MDDS uses different column names than the tick schema.
 /// This maps schema names to their v3 equivalents so parsers work with both.
@@ -30,8 +31,14 @@ pub(crate) const HEADER_ALIASES: &[(&str, &str)] = &[
     ("date", "trade_timestamp"),
     // option_list_contracts returns "symbol" where the schema says "root"
     ("root", "symbol"),
-    // v3 uses "implied_vol" where the schema says "implied_volatility"
+    // v3 uses "implied_vol" where the schema says "implied_volatility".
+    // The same naming applies to the bid/ask-side IV columns emitted by
+    // `option_history_greeks_implied_volatility`: server header
+    // `bid_implied_vol` / `ask_implied_vol`, schema field
+    // `bid_implied_volatility` / `ask_implied_volatility`.
     ("implied_volatility", "implied_vol"),
+    ("bid_implied_volatility", "bid_implied_vol"),
+    ("ask_implied_volatility", "ask_implied_vol"),
     // The vendor's per-order Greeks endpoints (`option_*_greeks_*_order`)
     // and the `_greeks_all` / `_greeks_eod` endpoints publish the
     // underlying snapshot timestamp as `underlying_timestamp`. The tick
@@ -53,6 +60,22 @@ pub(crate) const HEADER_ALIASES: &[(&str, &str)] = &[
 /// `option_snapshot_greeks_third_order` returning only the third-order Greek
 /// columns from the `GreeksTick` union schema) are by design. Header drift
 /// can be observed at the `trace` level via `RUST_LOG=thetadatadx=trace`.
+///
+/// # Lenient subset-column handling
+///
+/// On the NBBO endpoints the decoder accepts both the full 11-field
+/// header
+/// (`[ms_of_day, bid_size, bid_exchange, bid, bid_condition, ask_size,
+/// ask_exchange, ask, ask_condition, date]`) and a 6-field subset
+/// (`[ms_of_day, bid_size, bid, ask_size, ask, date]`). The
+/// `QuoteTick` schema declares `bid_exchange`, `bid_condition`,
+/// `ask_exchange`, `ask_condition` as optional columns — when the
+/// wire response omits them the generator-emitted
+/// `opt_number(row, None)` arm defaults them to `0`. The lookup
+/// tolerates subset NBBO layouts the upstream may emit for older
+/// storage tiers; the regression test
+/// `tests::quote_tick_decodes_legacy_six_field_shape_with_zero_fill`
+/// in this module pins that behaviour.
 pub(crate) fn find_header(headers: &[&str], name: &str) -> Option<usize> {
     // Try exact match first.
     if let Some(pos) = headers.iter().position(|&s| s == name) {

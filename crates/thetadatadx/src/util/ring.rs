@@ -1,0 +1,142 @@
+//! Shared validation for Disruptor ring-buffer sizing.
+//!
+//! Disruptor ring buffers must be a power of two so the steady-state
+//! index wrap reduces to `i & (cap - 1)` — one AND, branchless. A
+//! non-power-of-two size forces a modulo (~20 cycles on x86_64) on
+//! every consumer iteration, which destroys the instruction-level
+//! parallelism the read path relies on.
+//!
+//! Silent rounding to the next power of two is rejected because it
+//! rewrites caller intent. Fail closed at construction time with a
+//! diagnostic that names both the offending value and the nearest
+//! valid size so the caller can correct the configuration without
+//! re-reading the source.
+//!
+//! Lifted out of the private `crate::fpss::ring` module so the gRPC
+//! decoder pool can reuse the same validation and FPSS / gRPC stay in
+//! lockstep on the contract.
+
+/// Minimum ring buffer size accepted by [`check_ring_size`].
+///
+/// 64 slots is the LMAX-recommended floor for SPSC rings — smaller
+/// rings amortise the consumer barrier check across too few events
+/// to amortise the cache-line traffic, and larger producers may
+/// trip the wrap fence on every fourth publish.
+pub const MIN_RING_SIZE: usize = 64;
+
+/// Validate that `n` is a power of two no smaller than [`MIN_RING_SIZE`].
+///
+/// Returns `Ok(n)` on success; `Err(RingSizeError)` on failure. The
+/// error names the offending value and the nearest valid size so the
+/// caller can correct the configuration without grep-fishing.
+///
+/// # Errors
+///
+/// Returns [`RingSizeError::TooSmall`] when `n` is below
+/// [`MIN_RING_SIZE`], or [`RingSizeError::NotPowerOfTwo`] when `n` is
+/// not a power of two.
+pub fn check_ring_size(n: usize) -> Result<usize, RingSizeError> {
+    if n < MIN_RING_SIZE {
+        return Err(RingSizeError::TooSmall {
+            provided: n,
+            minimum: MIN_RING_SIZE,
+        });
+    }
+    if !n.is_power_of_two() {
+        return Err(RingSizeError::NotPowerOfTwo {
+            provided: n,
+            suggested: n.next_power_of_two(),
+        });
+    }
+    Ok(n)
+}
+
+/// Failures rejected by [`check_ring_size`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RingSizeError {
+    /// `provided` is smaller than [`MIN_RING_SIZE`].
+    TooSmall {
+        /// The size the caller supplied.
+        provided: usize,
+        /// The minimum the validator accepts.
+        minimum: usize,
+    },
+    /// `provided` is not a power of two. `suggested` is the nearest
+    /// valid power of two `>= provided` so the caller can pick the
+    /// next viable budget without recomputing it.
+    NotPowerOfTwo {
+        /// The size the caller supplied.
+        provided: usize,
+        /// The nearest valid power of two `>= provided`.
+        suggested: usize,
+    },
+}
+
+impl std::fmt::Display for RingSizeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TooSmall { provided, minimum } => {
+                write!(f, "ring_size {provided} is below the minimum of {minimum}")
+            }
+            Self::NotPowerOfTwo {
+                provided,
+                suggested,
+            } => write!(
+                f,
+                "ring_size {provided} must be a power of two; nearest valid value is {suggested}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RingSizeError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_powers_of_two() {
+        assert_eq!(check_ring_size(64), Ok(64));
+        assert_eq!(check_ring_size(1024), Ok(1024));
+        assert_eq!(check_ring_size(131_072), Ok(131_072));
+    }
+
+    #[test]
+    fn rejects_non_power_of_two() {
+        let err = check_ring_size(65).unwrap_err();
+        assert_eq!(
+            err,
+            RingSizeError::NotPowerOfTwo {
+                provided: 65,
+                suggested: 128,
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_below_minimum() {
+        let err = check_ring_size(32).unwrap_err();
+        assert_eq!(
+            err,
+            RingSizeError::TooSmall {
+                provided: 32,
+                minimum: MIN_RING_SIZE,
+            }
+        );
+    }
+
+    #[test]
+    fn error_message_names_offender_and_suggestion() {
+        let msg = check_ring_size(1000).unwrap_err().to_string();
+        assert!(msg.contains("1000"));
+        assert!(msg.contains("1024"));
+    }
+
+    #[test]
+    fn error_message_names_minimum_on_too_small() {
+        let msg = check_ring_size(16).unwrap_err().to_string();
+        assert!(msg.contains("16"));
+        assert!(msg.contains("64"));
+    }
+}

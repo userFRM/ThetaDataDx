@@ -5,7 +5,7 @@ description: Measure wire-to-application latency using received_at_ns, tdbe::lat
 
 # Latency Measurement
 
-Every FPSS data event carries a `received_at_ns` field -- the wall-clock nanosecond timestamp captured the instant the frame is decoded in the I/O thread, before it enters the Disruptor ring buffer or reaches your callback.
+Every streaming data event carries a `received_at_ns` field -- the wall-clock nanosecond timestamp captured the instant the frame is decoded in the I/O thread, before it enters the ring buffer buffer or reaches your callback.
 
 Combined with the exchange's `ms_of_day` timestamp on each tick, this gives you wire-to-application latency per event.
 
@@ -14,13 +14,13 @@ Combined with the exchange's `ms_of_day` timestamp on each tick, this gives you 
 ```mermaid
 sequenceDiagram
     participant Exchange as Exchange (NYSE/NASDAQ)
-    participant FPSS as ThetaData FPSS (NJ)
+    participant Stream as ThetaData streaming (NJ)
     participant SDK as ThetaDataDx SDK
     participant App as User Application
 
-    Exchange->>FPSS: Market data feed
-    Note over FPSS: FIT encode + delta compress
-    FPSS->>SDK: TLS/TCP frame
+    Exchange->>streaming: Market data feed
+    Note over streaming: FIT encode + delta compress
+    streaming->>SDK: TLS/TCP frame
     Note over SDK: received_at_ns captured
     SDK->>SDK: FIT decode + delta decompress
     SDK->>App: Callback (FpssEvent)
@@ -31,7 +31,7 @@ The exchange stamps each quote/trade with `ms_of_day` (milliseconds since midnig
 
 ```mermaid
 graph LR
-    A["Exchange --> FPSS<br/>(~0ms)"] --> B["FPSS Processing<br/>(~0ms)"]
+    A["Exchange --> streaming<br/>(~0ms)"] --> B["streaming Processing<br/>(~0ms)"]
     B --> C["Network Transit<br/>(physics: distance/c)"]
     C --> D["SDK Decode<br/>(&lt; 1 us)"]
     D --> E["User Callback"]
@@ -43,7 +43,7 @@ graph LR
 The network transit segment (red) dominates total latency. The SDK decode time (green) is sub-microsecond and negligible.
 
 ::: danger Production only
-Latency can only be measured meaningfully on the **production** FPSS server (`DirectConfig::production()`, port 20000) **during live trading sessions** (pre-market 4:00 AM, regular 9:30 AM - 4:00 PM, after-hours until 8:00 PM ET). The dev server (port 20200) replays historical data from a past trading day at maximum speed -- the exchange timestamps are from the past, so `received_at_ns` minus the event's original timestamp produces values that are months or years, not real latency. The dev server is for functional testing only, not latency benchmarking.
+Latency can only be measured meaningfully on the **production** streaming server (`DirectConfig::production()`, port 20000) **during live trading sessions** (pre-market 4:00 AM, regular 9:30 AM - 4:00 PM, after-hours until 8:00 PM ET). The dev server (port 20200) replays historical data from a past trading day at maximum speed -- the exchange timestamps are from the past, so `received_at_ns` minus the event's original timestamp produces values that are months or years, not real latency. The dev server is for functional testing only, not latency benchmarking.
 :::
 
 ## `tdbe::latency::latency_ns()`
@@ -137,13 +137,13 @@ For the absolute lowest latency:
    config.fpss_flush_mode = FpssFlushMode::Immediate;
    ```
 
-2. **Keep the callback fast** -- the Disruptor callback runs on the consumer thread. Push to your own queue for heavy processing.
+2. **Keep the callback fast** -- the ring-buffer callback runs on the consumer thread. Push to your own queue for heavy processing.
 
-3. **Use the Rust SDK directly** -- the Disruptor → SPSC `ArrayQueue` → user-thread iterator path is a single-queue Rust pipeline (no mpsc / FFI hop). The Python / TypeScript / C++ pull-iter handles returned by `start_streaming_iter()` only add the per-binding GIL acquire / event-loop wakeup / FFI marshalling cost at the consumer-side boundary.
+3. **Use the Rust SDK directly** -- the ring → SPSC `ArrayQueue` → user-thread iterator path is a single-queue Rust pipeline (no mpsc / FFI hop). The Python / TypeScript / C++ pull-iter handles returned by `start_streaming_iter()` only add the per-binding GIL acquire / event-loop wakeup / FFI marshalling cost at the consumer-side boundary.
 
 ## Network Physics: Minimum Achievable Latency
 
-ThetaData's FPSS servers are located in New Jersey (NJ datacenter). The speed of light in fiber optic cable is approximately 200,000 km/s (about 2/3 of the vacuum speed of light, due to the refractive index of glass). This sets an absolute physical floor on latency that no software optimization can overcome.
+ThetaData's streaming servers are located in New Jersey (NJ datacenter). The speed of light in fiber optic cable is approximately 200,000 km/s (about 2/3 of the vacuum speed of light, due to the refractive index of glass). This sets an absolute physical floor on latency that no software optimization can overcome.
 
 The formula: `minimum_round_trip = distance_km / (300,000 * 0.67) * 2 * 1000` (in milliseconds).
 
@@ -160,13 +160,13 @@ The formula: `minimum_round_trip = distance_km / (300,000 * 0.67) * 2 * 1000` (i
 
 If you are seeing 60-80ms latency from Europe, that is not a bug -- it is the speed of light in fiber. No SDK, no protocol change, no configuration tweak can make photons travel faster.
 
-The SDK's own overhead (`received_at_ns` capture, FIT decode, Disruptor dispatch, callback invocation) is sub-microsecond and entirely negligible compared to network physics.
+The SDK's own overhead (`received_at_ns` capture, FIT decode, ring dispatch, callback invocation) is sub-microsecond and entirely negligible compared to network physics.
 
 For latency-sensitive applications:
 
 1. **Colocate near NJ** -- AWS us-east-1 (N. Virginia) or any NJ/NYC-area datacenter gets sub-5ms
 2. **`FpssFlushMode::Immediate`** reduces software batching latency by up to 100ms, but cannot beat physics
-3. **Use the Rust SDK directly** -- removes the per-event GIL acquire (Python) / event-loop wakeup (Node) / FFI marshalling (C/C++) on the consumer-side boundary; the underlying Disruptor → SPSC queue path is identical (adds <1ms total at typical wire rates).
+3. **Use the Rust SDK directly** -- removes the per-event GIL acquire (Python) / event-loop wakeup (Node) / FFI marshalling (C/C++) on the consumer-side boundary; the underlying ring → SPSC queue path is identical (adds <1ms total at typical wire rates).
 
 ## Latency Histogram Example
 

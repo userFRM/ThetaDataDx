@@ -17,39 +17,16 @@
 //! with `TDX_CAPTURE_RAW=… tdx …` + `zstd -19 *.pb > *.pb.zst`.
 
 use std::fs;
-use std::io::Read;
-use std::path::{Path, PathBuf};
 
-use prost::Message;
 use serde::Deserialize;
 use tdbe::types::tick::{CalendarDay, EodTick, GreeksAllTick, OhlcTick, TradeQuoteTick, TradeTick};
 use thetadatadx::decode::{self, DecodeError};
 use thetadatadx::wire as proto;
 
-fn fixtures_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("fixtures")
-        .join("captures")
-}
+#[path = "common/capture_loader.rs"]
+mod capture_loader;
 
-/// Load a `.pb.zst` fixture, decompress it with zstd, and return the embedded
-/// `ResponseData` protobuf. The decompression + proto decode errors are
-/// intentionally panics: a broken fixture is a test-infra bug, not a product
-/// bug.
-fn load_response(endpoint: &str) -> proto::ResponseData {
-    let path = fixtures_dir().join(format!("{endpoint}.pb.zst"));
-    let f =
-        fs::File::open(&path).unwrap_or_else(|e| panic!("open fixture {}: {e}", path.display()));
-    let mut decoder = zstd::Decoder::new(f)
-        .unwrap_or_else(|e| panic!("zstd::Decoder::new({}): {e}", path.display()));
-    let mut bytes = Vec::new();
-    decoder
-        .read_to_end(&mut bytes)
-        .unwrap_or_else(|e| panic!("zstd read_to_end {}: {e}", path.display()));
-    proto::ResponseData::decode(bytes.as_slice())
-        .unwrap_or_else(|e| panic!("proto::ResponseData::decode {}: {e}", path.display()))
-}
+use capture_loader::{fixtures_dir, load_response_data as load_response};
 
 /// Load the sibling `<endpoint>.meta.toml` into a flat TOML value map.
 fn load_meta(endpoint: &str) -> toml::Value {
@@ -150,8 +127,8 @@ fn decode_captures_stock_history_trade_quote() {
     assert_eq!(info.tick_type, "TradeQuoteTick");
 
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -194,8 +171,8 @@ fn decode_captures_option_history_trade_quote() {
     assert_eq!(info.tick_type, "TradeQuoteTick");
 
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -233,8 +210,8 @@ fn decode_captures_option_history_trade_quote() {
 fn decode_captures_stock_history_eod() {
     let endpoint = "stock_history_eod";
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -265,8 +242,8 @@ fn decode_captures_stock_history_eod() {
 fn decode_captures_option_history_greeks_all() {
     let endpoint = "option_history_greeks_all";
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -324,8 +301,8 @@ fn decode_captures_option_history_greeks_all() {
 fn decode_captures_option_history_trade() {
     let endpoint = "option_history_trade";
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -362,8 +339,8 @@ fn decode_captures_option_history_trade() {
 fn decode_captures_option_snapshot_ohlc() {
     let endpoint = "option_snapshot_ohlc";
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());
@@ -398,8 +375,8 @@ fn decode_captures_option_snapshot_ohlc() {
 fn decode_captures_calendar_open_today() {
     let endpoint = "calendar_open_today";
     let meta = load_meta(endpoint);
-    let response = load_response(endpoint);
-    let table = decode::decode_data_table(&response).expect("decode_data_table");
+    let mut response = load_response(endpoint);
+    let table = decode::decode_data_table(&mut response).expect("decode_data_table");
 
     assert_headers(&meta, &table);
     assert_row_count(&meta, table.data_table.len());

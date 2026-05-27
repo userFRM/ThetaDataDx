@@ -21,9 +21,11 @@ use crate::error::Error;
 use crate::proto;
 
 use tdbe::types::tick::{
-    CalendarDay, EodTick, GreeksAllTick, GreeksFirstOrderTick, GreeksSecondOrderTick,
-    GreeksThirdOrderTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick,
-    OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
+    CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
+    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
+    MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,
+    TradeGreeksAllTick, TradeGreeksFirstOrderTick, TradeGreeksImpliedVolatilityTick,
+    TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
 };
 
 use super::client::MddsClient;
@@ -99,24 +101,35 @@ impl From<&[String]> for SymbolInput {
 /// Convert an interval to the format the MDDS gRPC server accepts.
 ///
 /// Users can pass either:
-/// - Milliseconds as a string: `"60000"`, `"300000"`, `"900000"`
-/// - Shorthand directly: `"1m"`, `"5m"`, `"1h"`
+/// - Shorthand directly: `"tick"`, `"10ms"`, `"100ms"`, `"500ms"`,
+///   `"1s"`, `"5s"`, `"10s"`, `"15s"`, `"30s"`, `"1m"`, `"5m"`,
+///   `"10m"`, `"15m"`, `"30m"`, `"1h"`.
+/// - Milliseconds as a string (e.g. `"60000"` or `"300000"`). Values
+///   are snapped to the nearest documented preset.
 ///
-/// The server accepts these specific presets:
-/// `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`,
-/// `15m`, `30m`, `1h`.
+/// The full upstream enum is reproduced verbatim in
+/// `docs.thetadata.us/operations/option_history_quote.html` (and every
+/// other endpoint with an `interval` parameter).
 ///
-/// If milliseconds are passed, they're converted to the nearest matching
-/// preset. If already a valid shorthand (contains 's', 'm', or 'h'), the
-/// value is passed through as-is.
+/// The historical SDK accepted `"0"` and silently mapped it to
+/// `"100ms"`. That contradicted the previously-documented behaviour
+/// (`"0"` was advertised as "every quote change"), so `"0"` now snaps
+/// to `"tick"` — which is the upstream every-event vocabulary. Calls
+/// that depended on the silent-100ms behaviour should switch to an
+/// explicit preset.
 fn normalize_interval(interval: &str) -> String {
     if interval.ends_with('s') || interval.ends_with('m') || interval.ends_with('h') {
         return interval.to_string();
     }
+    if interval == "tick" {
+        return "tick".to_string();
+    }
 
     match interval.parse::<u64>() {
         Ok(ms) => match ms {
-            0..=100 => "100ms".to_string(),
+            0 => "tick".to_string(),
+            1..=10 => "10ms".to_string(),
+            11..=100 => "100ms".to_string(),
             101..=500 => "500ms".to_string(),
             501..=1000 => "1s".to_string(),
             1_001..=5_000 => "5s".to_string(),
@@ -269,6 +282,8 @@ mod tests {
 
     #[test]
     fn normalize_interval_passes_shorthand_through() {
+        assert_eq!(normalize_interval("tick"), "tick");
+        assert_eq!(normalize_interval("10ms"), "10ms");
         assert_eq!(normalize_interval("1m"), "1m");
         assert_eq!(normalize_interval("5m"), "5m");
         assert_eq!(normalize_interval("1h"), "1h");
@@ -280,5 +295,23 @@ mod tests {
         assert_eq!(normalize_interval("300000"), "5m");
         assert_eq!(normalize_interval("900000"), "15m");
         assert_eq!(normalize_interval("3600000"), "1h");
+    }
+
+    #[test]
+    fn normalize_interval_snaps_zero_to_tick() {
+        // The historical mapping was `0 -> 100ms`, which contradicted
+        // the previously-documented every-event semantics. The upstream
+        // `tick` keyword is the every-event vocabulary, so the zero
+        // sentinel snaps to it instead.
+        assert_eq!(normalize_interval("0"), "tick");
+    }
+
+    #[test]
+    fn normalize_interval_snaps_small_milliseconds_to_documented_presets() {
+        // 10ms-and-under -> 10ms; 11-100ms -> 100ms. The earlier
+        // 0..=100 -> 100ms mapping skipped the 10ms preset entirely.
+        assert_eq!(normalize_interval("10"), "10ms");
+        assert_eq!(normalize_interval("11"), "100ms");
+        assert_eq!(normalize_interval("100"), "100ms");
     }
 }

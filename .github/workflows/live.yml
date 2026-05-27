@@ -96,17 +96,20 @@ jobs:
         run: cargo test --test flatfiles_synthetic_golden -- --nocapture
       - name: FLATFILES byte-match (vendor reference)
         run: |
-          # The byte-match test panics when THETADATADX_REFERENCE_CSV /
-          # THETADATADX_REFERENCE_EOD_CSV is set but the file is
-          # missing, and skips silently when neither env var is set.
-          # We do NOT set the env vars here yet — the vendor reference
-          # CSV fixture is tracked under #453. Once a fixture lands in
-          # the runner image (or is restored from cache / artefact),
-          # set the env vars below to enable byte-match validation.
+          # Single env var gates the whole byte-match contract:
+          # THETADATADX_FLATFILE_FIXTURES_PATH points at a directory
+          # containing OPTION-OPEN_INTEREST-20260428.csv and
+          # OPTION-EOD-20260428.csv. When unset (or pointing at a
+          # missing directory / missing fixture), the test prints a
+          # one-line skip diagnostic and passes — matching the CI
+          # steady state where the gigabyte-scale vendor reference
+          # fixtures are not checked into the repo (tracked under
+          # #453). Once a fixture lands in the runner image (or is
+          # restored from cache / artefact), set the env var below to
+          # enable byte-match validation:
           #
           # env:
-          #   THETADATADX_REFERENCE_CSV: ${{ runner.temp }}/OPTION-OPEN_INTEREST-20260428.csv
-          #   THETADATADX_REFERENCE_EOD_CSV: ${{ runner.temp }}/OPTION-EOD-20260428.csv
+          #   THETADATADX_FLATFILE_FIXTURES_PATH: ${{ runner.temp }}/thetadatadx-fixtures
           cargo test --features live-tests --test flatfiles_byte_match -- --nocapture
   endpoint-validation:
     name: Full Endpoint Validation (${{ matrix.os }})

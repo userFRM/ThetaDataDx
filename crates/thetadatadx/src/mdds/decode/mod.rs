@@ -1,6 +1,6 @@
 //! `ResponseData` → `DataTable` → tick decoders.
 //!
-//! Wave 2 split of the original `crates/thetadatadx/src/decode.rs` god-file:
+//! Split of the original `crates/thetadatadx/src/decode.rs` god-file:
 //!
 //! | Submodule    | Concern                                                       |
 //! |--------------|---------------------------------------------------------------|
@@ -30,7 +30,10 @@ pub use dual_type_columns::{
 };
 pub use error::DecodeError;
 pub use extract::{extract_number_column, extract_price_column, extract_text_column};
-pub use transport::{decode_data_table, decompress_response};
+pub use transport::{
+    decode_data_table, decode_data_table_with_max, decompress_response,
+    decompress_response_with_max,
+};
 
 // Re-export the macro-generated parser functions (`parse_trade_ticks`,
 // `parse_eod_ticks`, etc.) at this module's top level so external consumers

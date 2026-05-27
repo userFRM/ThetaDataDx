@@ -1,6 +1,6 @@
 ---
 title: Handling Events
-description: Process data and control events from the FPSS streaming connection - quotes, trades, open interest, OHLCVC, control messages, and raw data.
+description: Process data and control events from the streaming connection - quotes, trades, open interest, OHLCVC, control messages, and raw data.
 ---
 
 # Handling Events
@@ -376,7 +376,7 @@ The unified `tdx::UnifiedClient` exposes pull-iter directly: `auto iter = client
 
 ### Python
 
-The unified `ThetaDataDxClient` exposes both delivery modes. Push-callback dispatch via `start_streaming(callback)` invokes the callable on the LMAX Disruptor consumer thread; pull-iter via `with client.streaming_iter() as it: for event in it:` (or the lower-level `client.start_streaming_iter()`) hands events to the caller as a typed iterator that raises `StopIteration` on terminal end-of-stream.
+The unified `ThetaDataDxClient` exposes both delivery modes. Push-callback dispatch via `start_streaming(callback)` invokes the callable on the ring buffer consumer thread; pull-iter via `with client.streaming_iter() as it: for event in it:` (or the lower-level `client.start_streaming_iter()`) hands events to the caller as a typed iterator that raises `StopIteration` on terminal end-of-stream.
 
 Either way the surfaced event is a typed pyclass — one per `FpssData` variant and one per `FpssControl` variant. Branch on `event.kind` and read the variant's typed payload directly:
 
@@ -396,7 +396,7 @@ Either way the surfaced event is a typed pyclass — one per `FpssData` variant 
 | `unsubscribe(spec)` | Polymorphic unsubscribe — same spec shape as `subscribe`. |
 | `unsubscribe_many(specs)` | Bulk unsubscribe. |
 | `reconnect_streaming(handler)` | Reconnect with new handler, re-subscribe all previous subs |
-| `is_streaming()` | Check if FPSS is active |
+| `is_streaming()` | Check if streaming is active |
 | `await_drain(timeout)` | Block until the previous session's consumer thread has fully drained (returns `true` on quiescence, `false` on timeout) |
 | `active_subscriptions()` | Get active per-contract subscriptions |
 | `stop_streaming()` | Stop the streaming connection |

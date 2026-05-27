@@ -40,3 +40,8 @@ sdks/cpp/examples/validate.cpp       text eol=lf linguist-generated=true
 *.ipynb linguist-documentation
 sdks/typescript/index.js                 text eol=lf linguist-generated=true
 sdks/typescript/index.d.ts               text eol=lf linguist-generated=true
+
+# Codegen drift snapshot. Must stay LF on every checkout so Windows
+# builds emit the same bytes as Linux and the build-time drift check
+# does not false-positive.
+crates/thetadatadx/proto/beta_endpoints.snapshot.rs text eol=lf linguist-generated=true

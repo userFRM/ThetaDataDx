@@ -1,11 +1,11 @@
 ---
-title: Streaming (FPSS)
-description: Real-time market data via FPSS with SPKI pinning, callback / polling models, lock-free ring buffer, and reconnect policy.
+title: Streaming
+description: Real-time market data over a persistent TLS/TCP streaming channel with SPKI pinning, callback / polling models, lock-free ring buffer, and reconnect policy.
 ---
 
-# Streaming (FPSS)
+# Streaming
 
-ThetaDataDx ships an FPSS (Feed Processing Streaming Server) client: persistent TLS/TCP connection, SPKI certificate pinning, delta-decompressed FIT frames, and an SPSC ring buffer for event dispatch.
+ThetaDataDx ships a real-time streaming client: persistent TLS/TCP connection, SPKI certificate pinning, delta-decompressed FIT frames, and an SPSC ring buffer for event dispatch.
 
 This page covers the streaming model at the Getting Started level. For event shapes, reconnection semantics, latency measurement, and per-SDK method references, see the dedicated [Real-Time Streaming section](../streaming/).
 
@@ -13,33 +13,33 @@ This page covers the streaming model at the Getting Started level. For event sha
 
 ```mermaid
 graph LR
-    A["Exchange<br/>(NYSE / NASDAQ)"] --> B["ThetaData FPSS<br/>(NJ datacenter)"]
+    A["Exchange<br/>(NYSE / NASDAQ)"] --> B["ThetaData streaming<br/>servers (NJ datacenter)"]
     B -->|"TLS 1.3<br/>+ SPKI pin"| C["I/O thread<br/>(FIT decode)"]
-    C -->|"Disruptor SPSC<br/>131,072 slots"| D["Your app<br/>(callback / poll)"]
+    C -->|"SPSC ring<br/>131,072 slots"| D["Your app<br/>(callback / poll)"]
 ```
 
-Events are decoded from the FIT wire format and delta-decompressed on a dedicated I/O thread, then dispatched through an LMAX Disruptor SPSC ring buffer to your callback (push mode) or pull-iter consumer (Python / TypeScript / C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
+Events are decoded from the FIT wire format and delta-decompressed on a dedicated I/O thread, then dispatched through an SPSC ring buffer to your callback (push mode) or pull-iter consumer (Python / TypeScript / C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
 
 ## SPKI pinning
 
-The FPSS client pins the server's SubjectPublicKeyInfo (SPKI) digest on TLS handshake using constant-time comparison. A server presenting a different public key — from a hostile MITM intermediary or an accidentally swapped certificate — fails the handshake before any auth credentials leave the process.
+The streaming client pins the server's SubjectPublicKeyInfo (SPKI) digest on TLS handshake using constant-time comparison. A server presenting a different public key — from a hostile MITM intermediary or an accidentally swapped certificate — fails the handshake before any auth credentials leave the process.
 
-Pins live in `crates/thetadatadx/src/fpss/pinning.rs` and are tested against all four production FPSS hosts. Callers do not need to configure pins; the default `DirectConfig::production()` wires them up.
+Pins live in `crates/thetadatadx/src/fpss/pinning.rs` and are tested against all four production streaming hosts. Callers do not need to configure pins; the default `DirectConfig::production()` wires them up.
 
 ## Dispatch model
 
 | SDK | Push (callback) | Pull (iterator) | Event shape | Details |
 |-----|-----------------|-----------------|-------------|---------|
-| **Rust** | `client.start_streaming(\|event\| ...)` | `let iter = client.start_streaming_iter()?;` then `for event in iter { ... }` | `&FpssEvent` enum | Disruptor ring dispatch. No Tokio on the hot path. |
+| **Rust** | `client.start_streaming(\|event\| ...)` | `let iter = client.start_streaming_iter()?;` then `for event in iter { ... }` | `&FpssEvent` enum | Ring-buffer dispatch. No Tokio on the hot path. |
 | **Python** | `client.start_streaming(callback)` | `with client.streaming_iter() as it: for event in it:` | typed pyclass | Iterator raises `StopIteration` once the queue drains on a stopped session. |
 | **TypeScript** | `client.startStreaming(callback)` | `for await (const event of client.startStreamingIter())` | JS object | Async iterable resolves `done: true` on terminal end-of-stream. |
 | **C++** | `client.start_streaming(lambda)` | `client.start_streaming_iter().next(timeout)` | `TdxFpssEvent` | `next(timeout)` returns `std::optional<TdxFpssEvent>`; `ended()` flips on terminal close. `#[repr(C)]` layout. |
 
-Push and pull modes are mutually exclusive on a single session. Under the hood both modes read from the same SPSC ring; push mode dispatches into a callback on the LMAX Disruptor consumer thread, pull mode hands events to an iterator the caller drives.
+Push and pull modes are mutually exclusive on a single session. Under the hood both modes read from the same SPSC ring; push mode dispatches into a callback on the ring buffer consumer thread, pull mode hands events to an iterator the caller drives.
 
 ## Ring buffer
 
-- Backing type: LMAX Disruptor SPSC with a power-of-two slot count.
+- Backing type: SPSC ring buffer with a power-of-two slot count.
 - Default: **131,072 slots**. Caller-configurable at `FpssClient::connect`.
 - Behavior on overflow: tail-drop with a `ServerError` control event so the consumer sees explicit backpressure.
 

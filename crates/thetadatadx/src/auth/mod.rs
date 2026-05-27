@@ -2,8 +2,8 @@
 //!
 //! Two sub-modules handle the two halves of the auth story:
 //!
-//! - [`creds`] — Parse `creds.txt` (email + password)
-//! - [`nexus`] — HTTP POST to Nexus API to obtain a session UUID
+//! - `creds` — Parse `creds.txt` (email + password)
+//! - `nexus` — HTTP POST to Nexus API to obtain a session UUID
 //!
 //! # Auth flow (from decompiled Java — `AuthenticationManager`)
 //!

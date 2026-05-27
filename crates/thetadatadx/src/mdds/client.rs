@@ -13,15 +13,15 @@
 //! generated endpoint method bodies in [`super::endpoints`].
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Duration;
 
 use crate::auth::{self, Credentials, SessionToken};
 use crate::config::DirectConfig;
 use crate::error::Error;
+use crate::grpc::{default_decoder_thread_count, Channel, ChannelPool, DecoderPool};
 use crate::mdds::tier::SubscriptionTier;
 use crate::proto;
-use crate::proto::beta_theta_terminal_client::BetaThetaTerminalClient;
 
 /// Version string sent in `QueryInfo.terminal_version`.
 const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -52,8 +52,10 @@ pub struct MddsClient {
     /// single-shot refresh that swaps the UUID in place. See
     /// [`crate::auth::SessionToken`].
     session: SessionToken,
-    /// gRPC channel to MDDS server.
-    channel: tonic::transport::Channel,
+    /// Pool of in-house gRPC channels to the MDDS server. Round-robin
+    /// dispatch lets workloads exceed the per-connection
+    /// `MAX_CONCURRENT_STREAMS` ceiling.
+    channels: ChannelPool,
     /// Configuration snapshot (retained for diagnostics/reconnect).
     config: DirectConfig,
     /// Reused `query_parameters` map. `client = "terminal"` is the only
@@ -77,6 +79,17 @@ pub struct MddsClient {
     /// connect time but never silently coerced into a tier).
     stock_tier: Option<SubscriptionTier>,
     options_tier: Option<SubscriptionTier>,
+    indices_tier: Option<SubscriptionTier>,
+    interest_rate_tier: Option<SubscriptionTier>,
+    /// Lazily-built [`crate::rest::RestClient`] cache keyed by
+    /// `base_url`. The REST fallback shims (`option_history_*_with_fallback`,
+    /// defined in [`super::fallback`]) previously built a fresh
+    /// `RestClient` per call, dragging the per-call cost up by a
+    /// `reqwest::Client` construction (TLS context + connection pool
+    /// init) on every fallback dispatch. One handle per distinct base
+    /// URL is shared for the lifetime of the [`MddsClient`] -- reuses
+    /// the underlying HTTP/2 connection pool across calls.
+    pub(crate) rest_clients: OnceLock<RwLock<HashMap<String, Arc<crate::rest::RestClient>>>>,
 }
 
 // ── Infrastructure (not generated — these are session/transport methods, not ThetaData endpoints) ──
@@ -96,62 +109,48 @@ impl MddsClient {
         // Step 1: Authenticate against Nexus API using the configured URL
         // (env-var / builder overridable). `config.auth.nexus_url` already
         // reflects that precedence via `DirectConfig::production()`.
-        tracing::info!(nexus_url = %config.auth.nexus_url, "authenticating with Nexus API");
+        //
+        // The Nexus URL itself encodes deployment topology that operators
+        // rarely need at `info` — keep the URL behind `trace` verbosity
+        // so production deployments do not record it by default. Mirrors
+        // the same downgrade applied to `auth/nexus.rs`.
+        tracing::info!("authenticating with Nexus API");
+        tracing::trace!(nexus_url = %config.auth.nexus_url, "Nexus auth URL");
         let auth_resp = auth::authenticate_at(&config.auth.nexus_url, creds).await?;
         let session_uuid = auth_resp.session_id.clone();
 
         tracing::debug!(
-            session_id_prefix = %&session_uuid[..8.min(session_uuid.len())],
             stock_tier = ?auth_resp.user.as_ref().and_then(|u| u.stock_subscription),
             "session established (session_id redacted)"
         );
 
-        // Step 2: Open gRPC channel to MDDS.
-        let mdds_uri = config.mdds_uri();
-        tracing::debug!(uri = %mdds_uri, "connecting to MDDS gRPC");
+        // Step 2: Open the gRPC channel pool to MDDS.
+        let host = config.mdds.host.clone();
+        let port = config.mdds.port;
+        tracing::debug!(host = %host, port, tls = config.mdds.tls, "connecting to MDDS gRPC");
 
-        let endpoint = tonic::transport::Channel::from_shared(mdds_uri.clone())
-            .map_err(|e| {
-                Error::config_invalid("mdds.uri", format!("invalid MDDS URI '{mdds_uri}': {e}"))
-            })?
-            .keep_alive_timeout(Duration::from_secs(config.mdds.keepalive_timeout_secs))
-            .http2_keep_alive_interval(Duration::from_secs(config.mdds.keepalive_secs))
-            .initial_stream_window_size(
-                u32::try_from(config.mdds.window_size_kb * 1024).unwrap_or(u32::MAX),
-            )
-            .initial_connection_window_size(
-                u32::try_from(config.mdds.connection_window_size_kb * 1024).unwrap_or(u32::MAX),
-            )
-            .connect_timeout(Duration::from_secs(config.mdds.connect_timeout_secs));
-
-        let endpoint = if config.mdds.tls {
-            endpoint.tls_config(tonic::transport::ClientTlsConfig::new().with_enabled_roots())?
-        } else {
-            endpoint
-        };
-
-        let channel = endpoint.connect().await?;
-        tracing::info!("MDDS gRPC channel connected");
+        let pool_size = effective_pool_size(&config, &auth_resp);
+        let channels = open_channel_pool(&host, port, config.mdds.tls, pool_size, &config).await?;
+        tracing::info!(
+            pool_size,
+            "MDDS gRPC channel pool connected ({} h2 connections)",
+            pool_size
+        );
 
         let mut query_parameters = HashMap::new();
         // QueryInfo always includes `"client": "terminal"`.
         query_parameters.insert("client".to_string(), "terminal".to_string());
 
-        // Auto-detect concurrency from subscription tier when config is 0.
-        // Bound is 2^subscription_tier (FREE=1, VALUE=2, STANDARD=4, PRO=8).
-        let concurrent = if config.mdds.concurrent_requests == 0 {
-            auth_resp
-                .user
-                .as_ref()
-                .map_or(2, crate::auth::nexus::AuthUser::max_concurrent_requests)
-        } else {
-            config.mdds.concurrent_requests
-        };
-
-        let request_semaphore = Arc::new(tokio::sync::Semaphore::new(concurrent));
+        // The request semaphore must match the resolved channel pool
+        // size so the (N+1)-th in-flight RPC can never claim a permit
+        // before there's a channel free to carry it. `pool_size`
+        // already reflects the tier-clamped, auto-detected resolution
+        // from `effective_pool_size`; reusing it keeps the semaphore
+        // and the channel count strictly coupled.
+        let request_semaphore = Arc::new(tokio::sync::Semaphore::new(pool_size));
 
         tracing::debug!(
-            mdds_concurrent_requests = concurrent,
+            mdds_concurrent_requests = pool_size,
             auto_detected = config.mdds.concurrent_requests == 0,
             "request semaphore initialized"
         );
@@ -166,31 +165,33 @@ impl MddsClient {
             .as_ref()
             .and_then(|u| u.options_subscription)
             .and_then(SubscriptionTier::from_wire);
+        let indices_tier = auth_resp
+            .user
+            .as_ref()
+            .and_then(|u| u.indices_subscription)
+            .and_then(SubscriptionTier::from_wire);
+        let interest_rate_tier = auth_resp
+            .user
+            .as_ref()
+            .and_then(|u| u.interest_rate_subscription)
+            .and_then(SubscriptionTier::from_wire);
 
         let session = SessionToken::new(session_uuid, config.auth.nexus_url.clone(), creds.clone());
         let client_type = config.auth.client_type.clone();
 
         Ok(Self {
             session,
-            channel,
+            channels,
             config,
             query_parameters,
             client_type,
             request_semaphore,
             stock_tier,
             options_tier,
+            indices_tier,
+            interest_rate_tier,
+            rest_clients: OnceLock::new(),
         })
-    }
-
-    /// Build a fresh `QueryInfo` pinned to the current session UUID.
-    ///
-    /// Returned value is owned — every field is cloned from shared state.
-    /// The session UUID is read from [`SessionToken`] so a mid-session
-    /// refresh (see [`Self::session`]) automatically propagates to every
-    /// subsequent request without rebuilding the client.
-    pub(crate) async fn query_info(&self) -> proto::QueryInfo {
-        let uuid = self.session.current_uuid().await;
-        self.build_query_info(uuid)
     }
 
     /// Construct a `QueryInfo` around a caller-supplied UUID. Used by
@@ -218,16 +219,20 @@ impl MddsClient {
         &self.session
     }
 
-    /// Create a new gRPC stub from the shared channel.
+    /// Pick the next in-house gRPC channel for an outbound RPC.
     ///
-    /// Tonic channels are cheap to clone (internally Arc'd), and stubs take
-    /// `&mut self` for each call, so we mint a fresh stub per request to
-    /// allow concurrent requests without external `Mutex`.
-    pub(crate) fn stub(&self) -> BetaThetaTerminalClient<tonic::transport::Channel> {
-        BetaThetaTerminalClient::new(self.channel.clone())
-            // MDDS can return large DataTables (e.g. full day of trades).
-            // Uses the config-specified max message size.
-            .max_decoding_message_size(self.config.mdds.max_message_size)
+    /// Each call advances the round-robin cursor in the underlying
+    /// [`ChannelPool`], spreading load across multiple HTTP/2
+    /// connections so workloads exceed the per-connection
+    /// `MAX_CONCURRENT_STREAMS` ceiling.
+    ///
+    /// Returns a [`crate::grpc::ChannelLease`] that pre-reserves a
+    /// slot on the picked channel so concurrent dispatches observe
+    /// the reservation immediately rather than racing on a stale
+    /// `in_flight = 0` snapshot. The lease derefs to `&Channel` so
+    /// the call shape stays unchanged.
+    pub(crate) fn channel(&self) -> crate::grpc::ChannelLease<'_> {
+        self.channels.next()
     }
 
     /// Return a reference to the underlying config for diagnostics.
@@ -255,5 +260,403 @@ impl MddsClient {
     #[must_use]
     pub fn options_tier(&self) -> Option<SubscriptionTier> {
         self.options_tier
+    }
+
+    /// Indices subscription tier captured at authentication time. Same
+    /// semantics as [`Self::stock_tier`].
+    #[must_use]
+    pub fn indices_tier(&self) -> Option<SubscriptionTier> {
+        self.indices_tier
+    }
+
+    /// Interest-rate / Treasury curve subscription tier captured at
+    /// authentication time. Same semantics as [`Self::stock_tier`].
+    #[must_use]
+    pub fn interest_rate_tier(&self) -> Option<SubscriptionTier> {
+        self.interest_rate_tier
+    }
+
+    /// Test-only constructor that bypasses the Nexus auth handshake.
+    ///
+    /// Gated behind the private `__test-helpers` feature flag so the
+    /// symbol never enters the published rlib for downstream
+    /// consumers. The integration test at
+    /// `tests/test_with_fallback_end_date.rs` activates the feature
+    /// via its `[[test]] required-features` row in `Cargo.toml`.
+    ///
+    /// `channels` must be non-empty (panics otherwise via
+    /// `ChannelPool::from_channels`). Callers exercising only the REST
+    /// arm should still supply a usable mock-backed channel so the
+    /// pool's `Drop` order does not trip an unconnected-channel
+    /// assertion.
+    #[cfg(any(test, feature = "__test-helpers"))]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn for_fallback_test(
+        config: DirectConfig,
+        channels: ChannelPool,
+        request_semaphore: Arc<tokio::sync::Semaphore>,
+    ) -> Self {
+        let creds = Credentials::new("test", "test");
+        let session = SessionToken::new(
+            "00000000-0000-0000-0000-000000000000".to_string(),
+            config.auth.nexus_url.clone(),
+            creds,
+        );
+        let mut query_parameters = HashMap::new();
+        query_parameters.insert("client".to_string(), "terminal".to_string());
+        let client_type = config.auth.client_type.clone();
+        Self {
+            session,
+            channels,
+            config,
+            query_parameters,
+            client_type,
+            request_semaphore,
+            stock_tier: None,
+            options_tier: None,
+            indices_tier: None,
+            interest_rate_tier: None,
+            rest_clients: OnceLock::new(),
+        }
+    }
+}
+
+/// Pool sizing — `concurrent_requests` from `DirectConfig` is the
+/// explicit caller intent, **clamped to the subscription tier cap**.
+/// Subscription tier supplies the default when `concurrent_requests = 0`
+/// and the upper bound when it's set explicitly.
+///
+/// # Why clamp explicit caller intent
+///
+/// ThetaData enforces a hard server-side cap on concurrent in-flight
+/// gRPC requests per tier (Free=1 / Value=2 / Standard=4 / Pro=8).
+/// A caller asking for `concurrent_requests = 32` on a Pro tier
+/// previously got 32 channels opened; the (Pro_cap + 1)-th RPC then
+/// failed with an upstream `ResourceExhausted` per-stream rejection,
+/// which the SDK retried on a different channel, producing a confusing
+/// "everything fails intermittently" symptom. Clamping locally
+/// surfaces the misconfiguration as a `tracing::warn!` on connect and
+/// keeps the live pool inside the tier's headroom.
+///
+/// The `override_tier_clamp` escape hatch on `MddsConfig` bypasses
+/// the clamp — test-only, used to reproduce the over-provisioning
+/// failure mode against a stubbed auth response.
+///
+/// # Resolution ladder
+///
+/// 1. `concurrent_requests > 0` ∧ `from_tier > 0` ∧ `!override` →
+///    `min(from_config, from_tier)` (clamp + warn if `from_config > from_tier`)
+/// 2. `concurrent_requests > 0` ∧ (`from_tier = 0` ∨ `override`) →
+///    `from_config` (no tier reference available, or operator bypass)
+/// 3. `concurrent_requests = 0` ∧ `from_tier > 0` → `from_tier` (auto-detect)
+/// 4. `concurrent_requests = 0` ∧ `from_tier = 0` → `DEFAULT_POOL_SIZE`
+fn effective_pool_size(
+    config: &DirectConfig,
+    auth_resp: &crate::auth::nexus::AuthResponse,
+) -> usize {
+    const DEFAULT_POOL_SIZE: usize = 4;
+    let from_config = config.mdds.concurrent_requests;
+    let from_tier = auth_resp
+        .user
+        .as_ref()
+        .map_or(0, crate::auth::nexus::AuthUser::max_concurrent_requests);
+    if from_config > 0 {
+        // Explicit caller intent — clamp to tier cap so a configured
+        // value above the server-side ceiling does not produce
+        // confusing per-RPC `ResourceExhausted` rejections downstream.
+        // The escape hatch (`override_tier_clamp`) bypasses the clamp
+        // for tests that need to reproduce the misconfiguration.
+        if from_tier > 0 && !config.mdds.override_tier_clamp && from_config > from_tier {
+            tracing::warn!(
+                configured = from_config,
+                tier_cap = from_tier,
+                "mdds.concurrent_requests exceeds subscription tier cap — clamping to tier cap; \
+                 set MddsConfig.override_tier_clamp = true to bypass (tests only)"
+            );
+            return from_tier;
+        }
+        return from_config.max(1);
+    }
+    if from_tier > 0 {
+        from_tier
+    } else {
+        DEFAULT_POOL_SIZE
+    }
+}
+
+/// Open `pool_size` independent gRPC channels and wrap them in a
+/// [`ChannelPool`]. Channels are opened sequentially so a transient
+/// failure on the first call fails the whole pool fast rather than
+/// leaving a half-built pool behind.
+///
+/// Each channel is built with `config.mdds.max_message_size` so the
+/// configured per-frame ceiling propagates to every RPC dispatched on
+/// the pool — oversized response frames surface as
+/// [`crate::grpc::CodecError::FrameTooLarge`] rather than the codec
+/// module's hardcoded 4 MiB default.
+///
+/// A dedicated [`DecoderPool`] is attached to the channel pool
+/// so every RPC's zstd + protobuf decode runs on a worker thread
+/// rather than the tokio reactor. Stage-1 (zstd decompress) sizing
+/// is driven by [`default_decoder_thread_count`]; stage-2
+/// (prost-decode + Tick-build) sizing is driven by
+/// [`crate::config::MddsConfig::decode_threads`] /
+/// [`crate::config::MddsConfig::decode_queue_depth`].
+async fn open_channel_pool(
+    host: &str,
+    port: u16,
+    tls: bool,
+    pool_size: usize,
+    config: &DirectConfig,
+) -> Result<ChannelPool, Error> {
+    let connect_timeout = Duration::from_secs(config.mdds.connect_timeout_secs);
+    let max_message_size = config.mdds.max_message_size;
+    // `rustls::ClientConfig` is designed for `Arc` sharing across
+    // connections — the root store + ALPN list are immutable after
+    // construction. Build once and clone the `Arc` into every
+    // channel in the pool rather than rebuilding the webpki roots
+    // and the cipher-suite tables on each iteration.
+    let tls_config = if tls {
+        Some(build_rustls_config()?)
+    } else {
+        None
+    };
+    let mut channels = Vec::with_capacity(pool_size);
+    for idx in 0..pool_size {
+        let channel = if let Some(tls_config) = tls_config.as_ref() {
+            tokio::time::timeout(
+                connect_timeout,
+                Channel::connect_tls_with_max_message_size(
+                    host,
+                    port,
+                    tls_config.clone(),
+                    max_message_size,
+                ),
+            )
+            .await
+            .map_err(|_| {
+                Error::config_invalid(
+                    "mdds.connect_timeout_secs",
+                    format!(
+                        "tls connect to {host}:{port} timed out after {}s",
+                        config.mdds.connect_timeout_secs
+                    ),
+                )
+            })?
+        } else {
+            tokio::time::timeout(
+                connect_timeout,
+                Channel::connect_h2c_with_max_message_size(host, port, max_message_size),
+            )
+            .await
+            .map_err(|_| {
+                Error::config_invalid(
+                    "mdds.connect_timeout_secs",
+                    format!(
+                        "h2c connect to {host}:{port} timed out after {}s",
+                        config.mdds.connect_timeout_secs
+                    ),
+                )
+            })?
+        }
+        .map_err(|e| {
+            // Route through the canonical `From<ChannelError> for Error`
+            // so every transport-fault category (TCP / TLS /
+            // InvalidServerName / H2Handshake / H2Stream / Codec /
+            // EmptyResponse / UnexpectedHttpStatus / ConnectionClosed)
+            // maps to the right `TransportErrorKind` without a local
+            // duplicate match. Preserve the channel-index hint by
+            // re-wrapping the `Transport`-shaped output's message —
+            // other variants (Timeout / Grpc) keep their original
+            // shape so retry classifiers downstream still dispatch
+            // correctly. SSOT for the kind-map lives in
+            // `error::From<ChannelError> for Error`.
+            match Error::from(e) {
+                Error::Transport { kind, message } => Error::Transport {
+                    kind,
+                    message: format!("channel {idx}: {message}"),
+                },
+                other => other,
+            }
+        })?;
+        channels.push(channel);
+    }
+    let stage1_threads = default_decoder_thread_count();
+    let stage2_threads = config
+        .mdds
+        .decode_threads
+        .map_or_else(default_stage2_thread_count, |n| n.max(1));
+    let queue_depth = config
+        .mdds
+        .decode_queue_depth
+        .map_or_else(|| default_stage2_queue_depth(pool_size), |n| n.max(1));
+    let decoder_pool = DecoderPool::new_two_stage(
+        stage1_threads,
+        config.mdds.decoder_ring_size,
+        stage2_threads,
+        queue_depth,
+    )
+    .map_err(Error::from)?;
+    tracing::debug!(
+        stage1_threads = decoder_pool.len(),
+        stage2_threads,
+        decoder_ring_size = config.mdds.decoder_ring_size,
+        queue_depth,
+        "MDDS two-stage decode pipeline initialised"
+    );
+    Ok(ChannelPool::from_channels_with_decoders(
+        channels,
+        decoder_pool,
+    ))
+}
+
+/// Default stage-2 worker count when [`crate::config::MddsConfig::decode_threads`]
+/// is `None`. Uses [`std::thread::available_parallelism`] with a
+/// minimum of `1` — stage-2 is parser-bound, so the full core
+/// count is the right starting point (unlike stage-1 which is
+/// capped against the per-channel decoder count).
+#[must_use]
+fn default_stage2_thread_count() -> usize {
+    std::thread::available_parallelism()
+        .map(std::num::NonZero::get)
+        .unwrap_or(2)
+        .max(1)
+}
+
+/// Default queue depth between stage-1 and stage-2 when
+/// [`crate::config::MddsConfig::decode_queue_depth`] is `None`.
+/// Sizes to `pool_size * 64` so a 64-way burst on every channel
+/// has headroom without exhausting buffer memory.
+#[must_use]
+fn default_stage2_queue_depth(pool_size: usize) -> usize {
+    pool_size.saturating_mul(64).max(64)
+}
+
+/// Build a `rustls::ClientConfig` with webpki roots and `h2` advertised
+/// in the ALPN list. gRPC over HTTP/2 requires the connection to
+/// negotiate to `h2`.
+fn build_rustls_config() -> Result<Arc<rustls::ClientConfig>, Error> {
+    let mut root_store = rustls::RootCertStore::empty();
+    for cert in webpki_roots::TLS_SERVER_ROOTS.iter().cloned() {
+        root_store.roots.push(cert);
+    }
+    let mut config = rustls::ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+    config.alpn_protocols = vec![b"h2".to_vec()];
+    Ok(Arc::new(config))
+}
+
+#[cfg(test)]
+mod pool_size_tests {
+    use super::effective_pool_size;
+    use crate::auth::nexus::{AuthResponse, AuthUser};
+    use crate::config::DirectConfig;
+
+    /// Build an AuthResponse whose user reports the given subscription
+    /// wire bytes. `AuthUser::max_concurrent_requests` maps those into
+    /// `2^tier` — the same shape the JVM terminal uses.
+    fn auth_with_tier(stock_sub: Option<i32>) -> AuthResponse {
+        AuthResponse {
+            session_id: "session".to_string(),
+            user: Some(AuthUser {
+                email: None,
+                stock_subscription: stock_sub,
+                options_subscription: None,
+                indices_subscription: None,
+                interest_rate_subscription: None,
+            }),
+            session_created: None,
+        }
+    }
+
+    #[test]
+    fn explicit_below_tier_cap_honoured() {
+        // Caller asks for exactly 1 channel; auth response carries a
+        // Pro tier (subscription byte 3 -> 2^3 = 8 concurrent). The
+        // explicit caller intent is below the tier cap, so honour it
+        // exactly without inflating.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.concurrent_requests = 1;
+        let auth = auth_with_tier(Some(3));
+        assert_eq!(effective_pool_size(&config, &auth), 1);
+    }
+
+    #[test]
+    fn auto_detect_falls_back_to_tier_when_config_is_zero() {
+        // Caller signals "auto-detect" with concurrent_requests = 0;
+        // tier (subscription byte 2 -> 4 concurrent) supplies the
+        // default.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.concurrent_requests = 0;
+        let auth = auth_with_tier(Some(2));
+        assert_eq!(effective_pool_size(&config, &auth), 4);
+    }
+
+    #[test]
+    fn auto_detect_falls_back_to_default_when_no_tier() {
+        // Auto-detect + no auth user — hardcoded `4` is the last
+        // resort.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.concurrent_requests = 0;
+        let auth = AuthResponse {
+            session_id: "session".to_string(),
+            user: None,
+            session_created: None,
+        };
+        assert_eq!(effective_pool_size(&config, &auth), 4);
+    }
+
+    #[test]
+    fn explicit_above_tier_cap_clamped() {
+        // Caller asks for 32 channels but tier is Free (byte 0 -> 1
+        // concurrent). The clamp folds the configured value to the
+        // tier cap so the per-RPC `ResourceExhausted` rejections
+        // never surface — the local warn is the SDK's friendly
+        // boundary against the server-side cap.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.concurrent_requests = 32;
+        let auth = auth_with_tier(Some(0));
+        assert_eq!(effective_pool_size(&config, &auth), 1);
+    }
+
+    #[test]
+    fn explicit_above_pro_cap_clamped_to_pro() {
+        // Pro tier permits 8. Caller asks for 16. Clamp to 8.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.concurrent_requests = 16;
+        let auth = auth_with_tier(Some(3));
+        assert_eq!(effective_pool_size(&config, &auth), 8);
+    }
+
+    #[test]
+    fn override_tier_clamp_bypasses_clamp() {
+        // The internal escape hatch lets tests reproduce the
+        // over-provisioning failure mode against a stubbed Free-tier
+        // auth response. With the override on, the configured value
+        // passes through unmodified — useful for asserting downstream
+        // behaviour against an explicitly mis-sized pool.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.concurrent_requests = 16;
+        config.mdds.override_tier_clamp = true;
+        let auth = auth_with_tier(Some(0));
+        assert_eq!(effective_pool_size(&config, &auth), 16);
+    }
+
+    #[test]
+    fn no_tier_response_does_not_clamp() {
+        // Auth response carries no tier (anonymous channel, dev
+        // harness, etc.). The clamp arm is skipped entirely — the
+        // configured value passes through. The default-pool fallback
+        // only triggers for `concurrent_requests = 0`.
+        let mut config = DirectConfig::production_defaults();
+        config.mdds.concurrent_requests = 16;
+        let auth = AuthResponse {
+            session_id: "session".to_string(),
+            user: None,
+            session_created: None,
+        };
+        assert_eq!(effective_pool_size(&config, &auth), 16);
     }
 }

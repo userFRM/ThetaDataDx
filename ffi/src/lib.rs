@@ -74,6 +74,7 @@ mod error;
 
 pub mod auth;
 pub mod endpoints;
+pub mod fallback;
 pub mod flatfiles;
 pub mod streaming;
 pub mod types;
@@ -89,6 +90,7 @@ pub mod utility;
 pub use crate::auth::*;
 pub use crate::endpoints::*;
 pub use crate::error::*;
+pub use crate::fallback::*;
 pub use crate::flatfiles::*;
 pub use crate::streaming::*;
 pub use crate::types::*;

@@ -1581,7 +1581,7 @@ impl ThetaDataDxClient {
 
     /// Fetch end-of-day Greeks history for an option contract.
     ///
-    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
     /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
     /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
     ///
@@ -1608,7 +1608,7 @@ impl ThetaDataDxClient {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksAllTick>> {
+    ) -> napi::Result<Vec<GreeksEodTick>> {
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -1644,7 +1644,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_all_ticks_to_class_vec(&ticks))
+        Ok(greeks_eod_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
@@ -1765,7 +1765,7 @@ impl ThetaDataDxClient {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksAllTick>> {
+    ) -> napi::Result<Vec<TradeGreeksAllTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -1813,7 +1813,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_all_ticks_to_class_vec(&ticks))
+        Ok(trade_greeks_all_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
@@ -1934,7 +1934,7 @@ impl ThetaDataDxClient {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
+    ) -> napi::Result<Vec<TradeGreeksFirstOrderTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -1982,7 +1982,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_first_order_ticks_to_class_vec(&ticks))
+        Ok(trade_greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
@@ -2103,7 +2103,7 @@ impl ThetaDataDxClient {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
+    ) -> napi::Result<Vec<TradeGreeksSecondOrderTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -2151,7 +2151,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_second_order_ticks_to_class_vec(&ticks))
+        Ok(trade_greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
@@ -2272,7 +2272,7 @@ impl ThetaDataDxClient {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
+    ) -> napi::Result<Vec<TradeGreeksThirdOrderTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -2320,7 +2320,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(greeks_third_order_ticks_to_class_vec(&ticks))
+        Ok(trade_greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
@@ -2439,7 +2439,7 @@ impl ThetaDataDxClient {
         start_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         end_date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<IvTick>> {
+    ) -> napi::Result<Vec<TradeGreeksImpliedVolatilityTick>> {
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let start_time = normalize_optional_time(start_time);
@@ -2487,7 +2487,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(iv_ticks_to_class_vec(&ticks))
+        Ok(trade_greeks_implied_volatility_ticks_to_class_vec(&ticks))
     }
 
     /// Fetch the trade at a specific time of day across a date range for an option.
@@ -2828,7 +2828,7 @@ impl ThetaDataDxClient {
         end_date: Either<String, chrono::DateTime<chrono::Utc>>,
         time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
         timeout_ms: Option<f64>,
-    ) -> napi::Result<Vec<PriceTick>> {
+    ) -> napi::Result<Vec<IndexPriceAtTimeTick>> {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -2837,7 +2837,7 @@ impl ThetaDataDxClient {
             request = request.with_deadline(std::time::Duration::from_millis(ms as u64));
         }
         let ticks = runtime().block_on(async move { request.await }).map_err(to_napi_err)?;
-        Ok(price_ticks_to_class_vec(&ticks))
+        Ok(index_price_at_time_ticks_to_class_vec(&ticks))
     }
 
     /// Check whether the market is open today.
@@ -2879,7 +2879,7 @@ impl ThetaDataDxClient {
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
-    /// Get calendar information for an entire year.
+    /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
     ///
     /// - Retrieves equity market holidays for a given year
     /// - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
@@ -2902,6 +2902,10 @@ impl ThetaDataDxClient {
     /// Fetch end-of-day interest rate history.
     ///
     /// - Returns the interest rate reported. Depending on the rate, reports can occur in the morning or the afternoon.
+    /// - Valid `symbol` values per upstream `RateType` enum:
+    ///   `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`,
+    ///   `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`,
+    ///   `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
     #[napi(js_name = "interestRateHistoryEOD")]
     pub fn interest_rate_history_eod(
         &self,

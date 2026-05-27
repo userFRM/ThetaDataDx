@@ -142,6 +142,18 @@ impl Subscription {
 /// through [`crate::ThetaDataDxClient::subscribe_many`].
 impl Contract {
     /// Per-contract Quote subscription.
+    ///
+    /// ```
+    /// use thetadatadx::fpss::protocol::{Contract, Subscription, SubscriptionKind};
+    ///
+    /// let sub = Contract::stock("AAPL").quote();
+    /// if let Subscription::Contract { contract, kind } = sub {
+    ///     assert_eq!(contract.symbol, "AAPL");
+    ///     assert_eq!(kind, SubscriptionKind::Quote);
+    /// } else {
+    ///     panic!("per-contract Quote subscription must round-trip as `Contract` variant");
+    /// }
+    /// ```
     #[must_use]
     pub fn quote(&self) -> Subscription {
         Subscription::Contract {
@@ -173,7 +185,7 @@ impl Contract {
 ///
 /// `SecType` lives in the `tdbe` crate, so the fluent methods are
 /// provided as an extension trait imported here. Bring it into scope
-/// via [`crate::prelude::*`] or
+/// via the [`crate::prelude`] glob or
 /// `use thetadatadx::fpss::protocol::SecTypeExt`.
 pub trait SecTypeExt: Copy {
     /// Full-stream Trade subscription for this security type.

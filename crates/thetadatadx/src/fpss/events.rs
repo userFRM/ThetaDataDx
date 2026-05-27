@@ -219,14 +219,14 @@ pub enum FpssControl {
 /// # Layout
 ///
 /// Declared `#[repr(C, u8)]` with explicit discriminants so the in-memory
-/// layout is shared with [`FpssEventInternal`]: both enums encode `Data`
-/// at discriminant `0` and `Control` at discriminant `1`, with identical
-/// payload positions. The I/O loop publishes `FpssEventInternal` into the
-/// Disruptor ring (so it can also carry decode-fallback / placeholder
-/// variants without surfacing them publicly), then delivers a
-/// `&FpssEvent` reference to the user callback for `Data`/`Control` slots
-/// only — see [`FpssEventInternal::as_public`] for the layout-compatible
-/// reborrow that makes that zero-clone.
+/// layout is shared with the crate-private `FpssEventInternal`: both
+/// enums encode `Data` at discriminant `0` and `Control` at
+/// discriminant `1`, with identical payload positions. The I/O loop
+/// publishes `FpssEventInternal` into the Disruptor ring (so it can
+/// also carry decode-fallback / placeholder variants without surfacing
+/// them publicly), then delivers a `&FpssEvent` reference to the user
+/// callback for `Data` / `Control` slots only via a layout-compatible
+/// zero-clone reborrow.
 #[derive(Debug, Clone)]
 #[repr(C, u8)]
 #[non_exhaustive]
@@ -297,6 +297,23 @@ impl Default for FpssEventInternal {
     }
 }
 
+// Compile-time layout-compatibility guards for the `FpssEventInternal ->
+// FpssEvent` reborrow performed by [`FpssEventInternal::as_public`]. Both
+// enums are `#[repr(C, u8)]` with identical payload types at the
+// `Data` / `Control` discriminants, so size + alignment must match
+// exactly. A divergence here trips the build before any callback can
+// observe a corrupted reborrow. Discriminant-byte equality is verified
+// separately by the runtime `assert_layout_compat` unit test (it
+// requires `Arc`-bearing constructed values and is not const-evaluable).
+const _: () = assert!(
+    core::mem::size_of::<FpssEvent>() == core::mem::size_of::<FpssEventInternal>(),
+    "FpssEvent and FpssEventInternal must have identical size for the as_public reborrow",
+);
+const _: () = assert!(
+    core::mem::align_of::<FpssEvent>() == core::mem::align_of::<FpssEventInternal>(),
+    "FpssEvent and FpssEventInternal must have identical alignment for the as_public reborrow",
+);
+
 impl FpssEventInternal {
     /// Borrow this internal event as a public [`FpssEvent`] reference,
     /// or return `None` for the internal-only variants.
@@ -323,11 +340,17 @@ impl FpssEventInternal {
     /// [`FPSS_EVENT_TAG_UNPARSEABLE`], [`FPSS_EVENT_TAG_EMPTY`]) can
     /// never escape into the public type — they map to `None`.
     ///
-    /// The static assertions in [`assert_layout_compat`] (run in the
-    /// crate's unit tests) verify size + alignment + discriminant
-    /// equality at compile time so a future divergence — e.g. someone
-    /// adding a private field to `FpssData` only on the internal side
-    /// — fails the build before it can corrupt a user callback.
+    /// Two layers pin this invariant against future drift:
+    ///
+    /// * Compile-time `const _: () = assert!(...)` items at the bottom
+    ///   of this module check `size_of` and `align_of` equality between
+    ///   `FpssEvent` and `FpssEventInternal`. Any divergence — e.g.
+    ///   someone adding a private field to `FpssData` only on the
+    ///   internal side — fails the build before it can corrupt a user
+    ///   callback.
+    /// * The runtime unit test [`assert_layout_compat`] additionally
+    ///   pins discriminant-byte equality (which requires constructing
+    ///   `Arc`-bearing payloads and is therefore not const-evaluable).
     #[inline]
     pub fn as_public(&self) -> Option<&FpssEvent> {
         // Gate the layout-compatibility cast on a real `match`. The
@@ -345,15 +368,20 @@ impl FpssEventInternal {
                 // optimisation; it compiles to a no-op move on every
                 // backend Rust ships.
                 core::hint::black_box(d);
-                // SAFETY: this arm proves the discriminant is
-                // `FPSS_EVENT_TAG_DATA`. Both `FpssEvent` and
-                // `FpssEventInternal` are `#[repr(C, u8)]` with
+                // SAFETY: this match arm proves the discriminant is
+                // `FPSS_EVENT_TAG_DATA`. `FpssEvent` and
+                // `FpssEventInternal` are both `#[repr(C, u8)]` with
                 // identical `Data(FpssData)` payloads at that
-                // discriminant, so the layout is shared (Rust
-                // reference, "Primitive representation of enums with
-                // fields"). The reborrow inherits the `&self`
-                // lifetime; aliasing rules treat it like the
-                // original borrow.
+                // discriminant, so the in-memory layout is shared
+                // (Rust reference, "Primitive representation of enums
+                // with fields"). The compile-time `const _` items at
+                // the bottom of this module pin `size_of` and
+                // `align_of` equality; the runtime `assert_layout_compat`
+                // test pins discriminant-byte equality. Together they
+                // trip the build (or first test run) before a future
+                // layout divergence can corrupt a callback. The reborrow
+                // inherits the `&self` lifetime; aliasing rules treat
+                // it like the original borrow.
                 Some(unsafe { &*(self as *const Self as *const FpssEvent) })
             }
             Self::Control(c) => {
@@ -377,6 +405,66 @@ impl From<FpssEvent> for FpssEventInternal {
             FpssEvent::Control(c) => Self::Control(c),
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// BackpressurePolicy — overflow strategy for the pull-iter queue
+// ---------------------------------------------------------------------------
+
+/// Producer-side strategy when the pull-iter `Delivery::Queue` ring saturates.
+///
+/// Pull-iter delivery routes events through a bounded
+/// [`crossbeam_queue::ArrayQueue`] shared with an [`super::EventIterator`].
+/// When the iterator falls behind, the queue fills. This enum tells the
+/// Disruptor consumer thread how to react.
+///
+/// Default is [`Self::Block`] — preserves every event at the cost of
+/// upstream backpressure into the TLS reader (which can ultimately get
+/// disconnected by the server if the wait runs long). Trading
+/// systems that cannot tolerate dropped ticks should hold the default;
+/// dashboards and cold-consumer tooling that prefer freshness over
+/// completeness should explicitly opt into [`Self::DropOldest`] or
+/// [`Self::DropNewest`].
+///
+/// Mirrors the standard Kafka client `acks` axis (BLOCK / DROP_OLDEST /
+/// DROP_NEWEST) and Bloomberg BLPAPI `eventQueue` overflow modes — same
+/// operator vocabulary across vendors so users coming from kdb+/kx or
+/// BLPAPI carry their mental model over without translation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BackpressurePolicy {
+    /// The Disruptor consumer parks (with backoff) on a full queue
+    /// until the iterator drains. No events are dropped; the TLS
+    /// reader applies upstream backpressure because the Disruptor
+    /// ring saturates next and `try_publish` starts incrementing the
+    /// `dropped` counter.
+    ///
+    /// This is the safe default — every event the SDK decoded is
+    /// guaranteed to reach the iterator. A sustained slow consumer
+    /// risks the server kicking the session
+    /// (`RemoveReason::TimedOut`) because the TCP read window stops
+    /// advancing, which is the correct failure mode for a
+    /// configuration that has explicitly asked for no drops.
+    #[default]
+    Block,
+    /// Evict the head of the queue before pushing the new event. The
+    /// freshest events stay; the stalest events are dropped. The
+    /// shared [`super::FpssClient::dropped_count`] counter still
+    /// increments per evicted event so operators can graph the drop
+    /// rate.
+    ///
+    /// Recommended for dashboards and visualisers where the user
+    /// cares about "what is the market doing right now" and tolerates
+    /// gaps in stale history.
+    DropOldest,
+    /// Skip the new event when the queue is full. The events already
+    /// in flight are preserved; the new event is dropped, and the
+    /// shared `dropped` counter increments.
+    ///
+    /// Equivalent to the legacy pre-v10.1 behaviour (silent
+    /// best-effort delivery). Recommended when downstream processing
+    /// is strictly causal — once an event is enqueued you want to
+    /// finish processing it before considering a newer one.
+    DropNewest,
 }
 
 // ---------------------------------------------------------------------------
@@ -433,6 +521,36 @@ pub(crate) enum Delivery {
         /// happen" is observable, which is why the EventIterator keys
         /// off it instead of the I/O-thread shutdown signal.
         iter_closed: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        /// Optional FD-readiness signal for asyncio / select-loop
+        /// consumers. `Some(wake)` is set via
+        /// [`super::FpssClient::connect_iter_with_wake`] — the
+        /// Python SDK's `streaming_async()` surface allocates a
+        /// self-pipe, hands the write-end to the wake, and registers
+        /// the read-end on the asyncio loop via `loop.add_reader`.
+        /// Each successful `queue.push` writes a coalesced single byte
+        /// (via [`super::wake::WakeFd::signal`]) so the reader's
+        /// `epoll` wake fires without polling.
+        ///
+        /// `None` for the synchronous pull-iter path
+        /// (`start_streaming_iter()` / `client.streaming_iter()`),
+        /// which drains via `next_timeout` / `next` and pays the
+        /// 100 µs sleep tick budget instead. Keeping the field
+        /// optional preserves zero-cost on the existing sync path —
+        /// no atomic load, no FD write, no extra Arc clone.
+        wake_fd: Option<std::sync::Arc<super::wake::WakeFd>>,
+        /// Overflow strategy. See [`BackpressurePolicy`]. The default
+        /// [`BackpressurePolicy::Block`] preserves every event at the
+        /// cost of upstream pressure into the TLS reader; the
+        /// `DropOldest` / `DropNewest` variants trade event-loss for
+        /// liveness.
+        ///
+        /// The sync pull-iter path
+        /// ([`super::FpssClient::connect_iter`]) hard-codes
+        /// `DropNewest` to preserve legacy behaviour. The async
+        /// surfaces (`streaming_async()`,
+        /// `streaming_async_batches()`) thread the policy through via
+        /// [`super::FpssClient::connect_iter_with_wake_keep_handle_policy`].
+        policy: BackpressurePolicy,
     },
 }
 
@@ -456,14 +574,46 @@ mod tests {
     use super::*;
     use tdbe::types::price::Price;
 
+    /// The default [`BackpressurePolicy`] must be `Block` — the safe
+    /// option that preserves every event. A future contributor
+    /// flipping the default would silently introduce drop-on-overflow
+    /// on every caller of the pull-iter surfaces; pin the contract.
+    #[test]
+    fn backpressure_policy_default_is_block() {
+        assert_eq!(BackpressurePolicy::default(), BackpressurePolicy::Block);
+    }
+
+    /// All three [`BackpressurePolicy`] variants must be distinct,
+    /// Copy, and Eq so callers can store the policy in a `#[pyclass]`
+    /// field without an `Arc` wrapper and compare it cheaply in the
+    /// io_loop hot path's `match`.
+    #[test]
+    fn backpressure_policy_variants_are_distinct() {
+        let block = BackpressurePolicy::Block;
+        let drop_oldest = BackpressurePolicy::DropOldest;
+        let drop_newest = BackpressurePolicy::DropNewest;
+        assert_ne!(block, drop_oldest);
+        assert_ne!(block, drop_newest);
+        assert_ne!(drop_oldest, drop_newest);
+        // Copy: bind through fresh `let`s.
+        let _copy: BackpressurePolicy = block;
+        let _copy: BackpressurePolicy = drop_oldest;
+        let _copy: BackpressurePolicy = drop_newest;
+    }
+
     /// Pin the layout-compatibility invariant
     /// `FpssEventInternal::as_public` relies on. Any future change that
     /// breaks size, alignment, or discriminant equality between
     /// `FpssEvent` and the public-facing variants of
     /// `FpssEventInternal` must trip this test before it can corrupt a
     /// reborrow.
+    ///
+    /// Size + alignment are also pinned at compile time by `const _`
+    /// items at module scope; this test additionally pins
+    /// discriminant-byte equality (which requires constructing
+    /// `Arc`-bearing payloads and is not const-evaluable).
     #[test]
-    fn fpss_event_internal_layout_matches_public() {
+    fn assert_layout_compat() {
         // Same `#[repr(C, u8)]` declaration on both enums plus
         // identical payload types ⇒ identical size + alignment.
         assert_eq!(
@@ -518,6 +668,12 @@ mod tests {
         let public_control = FpssEvent::Control(FpssControl::LoginSuccess {
             permissions: String::new(),
         });
+        // SAFETY: `p` points at a local stack value (one of the four
+        // `FpssEvent` / `FpssEventInternal` bindings constructed above)
+        // whose first byte holds the `#[repr(C, u8)]` discriminant tag.
+        // Reading exactly 1 byte through `*const u8` is sound for the
+        // duration of the enclosing test scope — the bindings outlive
+        // every closure call below.
         let tag = |p: *const u8| unsafe { *p };
         assert_eq!(
             tag(&internal_data as *const _ as *const u8),
@@ -585,7 +741,10 @@ mod tests {
                 );
                 assert_eq!(*ms_of_day, 12_345);
                 assert_eq!(*sequence, 7);
-                assert!((*price - 150.0).abs() < f64::EPSILON);
+                // Decimal-ms price round-trips exactly through
+                // `Price::new(15_000, 2)` — `assert_eq!` is the right
+                // shape, no tolerance needed.
+                assert_eq!(*price, 150.0);
             }
             other => panic!("expected Data(Trade) after reborrow, got {other:?}"),
         }
@@ -661,7 +820,9 @@ mod tests {
                 contract, price, ..
             }) => {
                 assert_eq!(contract.symbol, "AAPL");
-                assert!((*price - 150.25).abs() < f64::EPSILON);
+                // Price round-trips exactly via `Price::new(15_025, 4)`
+                // — `assert_eq!` is the right shape.
+                assert_eq!(*price, 150.25);
             }
             other => panic!("expected Data(Trade), got {other:?}"),
         }
