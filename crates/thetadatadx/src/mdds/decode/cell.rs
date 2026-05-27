@@ -49,24 +49,28 @@ use tdbe::types::tick::{
 /// "Unset"`), which is a wire-protocol anomaly we fail loud on. Returns
 /// [`DecodeError::MissingCell`] only when the row has fewer cells than `idx`
 /// (index out of bounds). Returns [`DecodeError::InvalidDate`] when a
-/// `Number` cell carries a value that does not decompose into a real
-/// Gregorian date under [`tdbe::time::is_valid_yyyymmdd`].
-// Reason: number values from protobuf fit in i32 for date/integer fields.
-#[allow(clippy::cast_possible_truncation)]
+/// `Number` cell carries a value that does not fit in `i32`, or whose
+/// decomposition is not a real Gregorian date under
+/// [`tdbe::time::is_valid_yyyymmdd`].
 pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<i32>, DecodeError> {
     let Some(dv) = row.values.get(idx) else {
         return Err(DecodeError::MissingCell { column: idx });
     };
     match dv.data_type.as_ref() {
         Some(proto::data_value::DataType::Number(n)) => {
-            // Round-1 hardening of `parse_iso_date` only covered the `Text`
-            // arm, but real MDDS payloads carry YYYYMMDD dates as
-            // `Number(n)` — `Number(20260230)` was previously cast straight
-            // through to i32 without any calendar-range check. Route every
-            // numeric date arm through the canonical Gregorian validator
-            // so the same calendar-impossible cell raises the same typed
-            // `InvalidDate` error regardless of wire encoding.
-            let n32 = *n as i32;
+            // Round-3 hardening routed `*n as i32` through
+            // `is_valid_yyyymmdd`, but `DataValue.number` is wire-typed
+            // `int64`, so `Number(4_315_207_525)` — `(1 << 32) + 20_240_229`
+            // — truncated cleanly to `20_240_229` and slipped past the
+            // calendar check. Bounds-check the wire integer against `i32`
+            // first so any payload outside the documented YYYYMMDD width
+            // surfaces as `InvalidDate` with the raw int64 captured for
+            // diagnostics, instead of low-32-bit-truncating into a passing
+            // shape.
+            let n32 = match i32::try_from(*n) {
+                Ok(v) => v,
+                Err(_) => return Err(DecodeError::InvalidDate { raw: n.to_string() }),
+            };
             if !tdbe::time::is_valid_yyyymmdd(n32) {
                 return Err(DecodeError::InvalidDate { raw: n.to_string() });
             }

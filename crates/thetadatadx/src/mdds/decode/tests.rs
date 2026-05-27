@@ -1776,3 +1776,127 @@ fn parse_trade_ticks_rejects_unknown_right_text() {
         }
     );
 }
+
+// ─────────── Numeric date arms: int64 overflow guards ───────────
+//
+// Round-3 wrapped the numeric date arms in `is_valid_yyyymmdd`, but the
+// validator ran on `*n as i32` and `DataValue.number` is wire-typed
+// `int64`. A drifted or hostile payload like `4_315_207_525` (==
+// `(1 << 32) + 20_240_229`) truncates cleanly to `20_240_229` and slips
+// past the Gregorian check. Every numeric date arm — `row_date`,
+// `parse_option_contracts_v3` expiration, `parse_calendar_days_v3` date,
+// the generator-emitted contract_id expiration template, the eod_date
+// template — now goes through `i32::try_from` first and raises
+// `DecodeError::InvalidDate` with the raw int64 captured verbatim.
+
+#[test]
+fn row_date_rejects_number_overflowing_i32_low_bits_look_valid() {
+    // 4_315_207_525 == (1 << 32) + 20_240_229. As i64 it's well outside
+    // i32 range; the low 32 bits decode to a real leap-day date that
+    // would otherwise pass the Gregorian check.
+    let row = row_of(vec![dv_number(4_315_207_525)]);
+    assert_eq!(
+        row_date(&row, 0),
+        Err(DecodeError::InvalidDate {
+            raw: "4315207525".into(),
+        })
+    );
+}
+
+#[test]
+fn row_date_rejects_number_i64_max() {
+    let row = row_of(vec![dv_number(i64::MAX)]);
+    assert_eq!(
+        row_date(&row, 0),
+        Err(DecodeError::InvalidDate {
+            raw: i64::MAX.to_string(),
+        })
+    );
+}
+
+#[test]
+fn row_date_rejects_negative_one() {
+    // -1 fits in i32 (`as i32` keeps -1) but the Gregorian validator
+    // rejects negative years. The raw int captured for diagnostics is
+    // the original int64.
+    let row = row_of(vec![dv_number(-1)]);
+    assert_eq!(
+        row_date(&row, 0),
+        Err(DecodeError::InvalidDate { raw: "-1".into() })
+    );
+}
+
+#[test]
+fn parse_option_contracts_v3_rejects_numeric_expiration_overflowing_i32() {
+    // i32::MAX + 1 — outside the documented YYYYMMDD width. Without the
+    // try_from guard the wrap would produce i32::MIN and short-circuit
+    // through `is_valid_yyyymmdd` as a negative year reject; with the
+    // guard the raw int64 is captured verbatim instead.
+    let table = proto::DataTable {
+        headers: vec!["root".into(), "expiration".into()],
+        data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(2_147_483_648)])],
+    };
+    assert_eq!(
+        parse_option_contracts_v3(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "2147483648".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_trade_ticks_rejects_numeric_expiration_overflowing_i32() {
+    // Generator-emitted contract_id expiration arm. 4_315_207_525 ==
+    // (1 << 32) + 20_240_229 — the low 32 bits look like a real leap
+    // day, which is exactly the failure mode the validator could not
+    // catch when fed `*n as i32`.
+    let table = proto::DataTable {
+        headers: vec!["ms_of_day".into(), "price".into(), "expiration".into()],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_price(15_000, 10),
+            dv_number(4_315_207_525),
+        ])],
+    };
+    assert_eq!(
+        parse_trade_ticks(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "4315207525".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_eod_ticks_rejects_numeric_date_overflowing_i32() {
+    // The eod_date helper template is the second canonical date path
+    // emitted by the generator. Drive an overflow through the EOD
+    // surface via the `date` column so the eod_date Number arm runs.
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "open".into()],
+        data_table: vec![row_of(vec![dv_number(i64::MAX), dv_number(15_000)])],
+    };
+    assert_eq!(
+        parse_eod_ticks(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: i64::MAX.to_string(),
+        }
+    );
+}
+
+#[test]
+fn parse_calendar_days_v3_rejects_numeric_date_overflowing_i32() {
+    // `parse_calendar_days_v3` shares the same numeric-date pattern as
+    // `parse_option_contracts_v3` and was a sibling-arm miss in the
+    // round-3 sweep. The int64 overflow surfaces with the raw value
+    // captured verbatim.
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into()],
+        data_table: vec![row_of(vec![dv_number(4_315_207_525), dv_text("open")])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "4315207525".into(),
+        }
+    );
+}

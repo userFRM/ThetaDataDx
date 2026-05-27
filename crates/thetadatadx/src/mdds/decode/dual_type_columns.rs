@@ -69,18 +69,23 @@ pub fn parse_option_contracts_v3(
             // silently coalescing to 0. `NullValue` → 0 (legit null).
             // An unset oneof is a wire anomaly → TypeMismatch.
             //
-            // The `Number(n)` arm is the canonical v3 MDDS encoding for
-            // expirations; round-1 only hardened the `Text` arm, so
-            // calendar-impossible payloads like `Number(20260230)` (Feb 30)
-            // or `Number(20261301)` (month 13) cast straight through. Route
-            // both numeric and textual arms through the canonical
-            // `tdbe::time::is_valid_yyyymmdd` validator so the same wire
-            // cell raises the same typed `InvalidDate` regardless of
-            // encoding.
+            // `Number(n)` is the canonical v3 MDDS encoding for
+            // expirations. Round-3 wrapped `*n as i32` in
+            // `is_valid_yyyymmdd`, but `DataValue.number` is wire-typed
+            // `int64`, so `Number(2_147_483_648)` (i32::MAX + 1) silently
+            // wrapped into a passing shape. Bounds-check the wire integer
+            // against `i32` before validation so any payload outside the
+            // YYYYMMDD width surfaces as `InvalidDate` instead of
+            // low-32-bit-truncating into a real-looking date.
             let expiration = match exp_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Number(n)) => {
-                        let n32 = *n as i32;
+                        let n32 = match i32::try_from(*n) {
+                            Ok(v) => v,
+                            Err(_) => {
+                                return Err(DecodeError::InvalidDate { raw: n.to_string() });
+                            }
+                        };
                         if !tdbe::time::is_valid_yyyymmdd(n32) {
                             return Err(DecodeError::InvalidDate { raw: n.to_string() });
                         }
@@ -335,16 +340,22 @@ pub fn parse_calendar_days_v3(
             // Text "2025-01-01" parses to YYYYMMDD. `NullValue` → 0 (legit
             // null). Unset oneof is a wire anomaly → TypeMismatch.
             //
-            // The `Number(n)` arm is the canonical v3 MDDS encoding for
-            // calendar dates; round-1 only hardened the `Text` arm via
-            // `parse_iso_date`, so calendar-impossible payloads cast
-            // straight through. Route the numeric arm through the
-            // canonical Gregorian validator so the same wire cell raises
-            // the same typed `InvalidDate` regardless of encoding.
+            // `Number(n)` is the canonical v3 MDDS encoding for calendar
+            // dates. Round-3 wrapped `*n as i32` in `is_valid_yyyymmdd`,
+            // but `DataValue.number` is wire-typed `int64`, so any value
+            // outside the i32 width silently wrapped into a passing shape.
+            // Bounds-check via `i32::try_from` first so out-of-range
+            // payloads raise `InvalidDate` with the raw int64 captured
+            // verbatim.
             let date = match date_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Number(n)) => {
-                        let n32 = *n as i32;
+                        let n32 = match i32::try_from(*n) {
+                            Ok(v) => v,
+                            Err(_) => {
+                                return Err(DecodeError::InvalidDate { raw: n.to_string() });
+                            }
+                        };
                         if !tdbe::time::is_valid_yyyymmdd(n32) {
                             return Err(DecodeError::InvalidDate { raw: n.to_string() });
                         }

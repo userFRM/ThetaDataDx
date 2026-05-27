@@ -3,13 +3,22 @@
     // must round-trip through the canonical Gregorian validator —
     // calendar-impossible payloads like 20260230 raise `InvalidDate`
     // instead of casting straight through as they did pre-round-2.
+    // `DataValue.number` is wire-typed `int64`, so the Number arm
+    // bounds-checks against `i32` before the Gregorian validator runs;
+    // a payload like `4_315_207_525` (== `(1 << 32) + 20_240_229`)
+    // raises `InvalidDate` instead of low-32-bit-truncating into a real
+    // date. `Price.value` is already typed `i32` on the wire so no
+    // width guard is needed there.
     fn eod_date(row: &crate::proto::DataValueList, idx: usize) -> Result<i32, DecodeError> {
         let Some(dv) = row.values.get(idx) else {
             return Err(DecodeError::MissingCell { column: idx });
         };
         match dv.data_type.as_ref() {
             Some(crate::proto::data_value::DataType::Number(n)) => {
-                let n32 = *n as i32;
+                let n32 = match i32::try_from(*n) {
+                    Ok(v) => v,
+                    Err(_) => return Err(DecodeError::InvalidDate { raw: n.to_string() }),
+                };
                 if !tdbe::time::is_valid_yyyymmdd(n32) {
                     return Err(DecodeError::InvalidDate { raw: n.to_string() });
                 }
