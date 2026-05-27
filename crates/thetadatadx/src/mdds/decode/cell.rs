@@ -92,7 +92,8 @@ pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<
 /// Decode an `i32`-valued cell with Java-matching strict semantics.
 ///
 /// Accepts:
-/// - `Number(n)` → `Ok(Some(n as i32))`.
+/// - `Number(n)` → `Ok(Some(n))` after bounds-checking the wire `int64`
+///   against the destination `i32` range.
 /// - `Timestamp(ts)` → `Ok(Some(ms_of_day))` — v3 MDDS sends time columns as
 ///   proto `Timestamp`; the parser expects milliseconds-of-day in Eastern Time.
 /// - `NullValue` → `Ok(None)`, matching Java `null` return.
@@ -104,9 +105,16 @@ pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<
 ///
 /// # Errors
 ///
-/// See variant list above.
-// Reason: protocol-defined integer widths from Java FPSS specification.
-#[allow(clippy::cast_possible_truncation)]
+/// Returns [`DecodeError::NumericOverflow`] when the wire `int64` value
+/// does not fit `i32`. Previously the arm narrowed via `*n as i32`, so a
+/// payload like `(1 << 32) + 34_200_000` truncated cleanly to a plausible
+/// `ms_of_day` / `sequence` / `size` / `exchange` / bid/ask size / EOD
+/// integer value and silently corrupted the destination field across the
+/// non-EOD generator surface (`opt_number` flows through this helper).
+/// Bounds-checking via `i32::try_from` first surfaces the overflow with
+/// the raw `int64` captured verbatim. See the
+/// [`DecodeError::TypeMismatch`] / [`DecodeError::MissingCell`] variants
+/// for the remaining error modes above.
 pub(crate) fn row_number(
     row: &proto::DataValueList,
     idx: usize,
@@ -115,7 +123,11 @@ pub(crate) fn row_number(
         return Err(DecodeError::MissingCell { column: idx });
     };
     match dv.data_type.as_ref() {
-        Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as i32)),
+        Some(proto::data_value::DataType::Number(n)) => {
+            let n32 = i32::try_from(*n)
+                .map_err(|_| DecodeError::NumericOverflow { raw: n.to_string() })?;
+            Ok(Some(n32))
+        }
         Some(proto::data_value::DataType::Timestamp(ts)) => {
             Ok(Some(tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms)))
         }

@@ -115,6 +115,25 @@ pub enum DecodeError {
         /// the failing magnitude in upstream logs.
         raw: i32,
     },
+    /// A wire `Number` cell carried an `int64` value outside the
+    /// `i32` range expected by the destination field. Used by the
+    /// generic `row_number` decoder and the `eod_num` generator
+    /// helper for integer columns whose schema width is 32-bit
+    /// (`ms_of_day`, `sequence`, `size`, `exchange`, bid/ask sizes
+    /// and conditions, `open_interest`, `underlying_ms_of_day`, EOD
+    /// integer fields). Previously the wire integer was narrowed via
+    /// `*n as i32`, so a payload like `(1 << 32) + 34_200_000`
+    /// truncated to a plausible-looking value and silently corrupted
+    /// the destination field; surfacing the overflow keeps schema
+    /// drift loud at the decode boundary instead of letting it
+    /// propagate into downstream consumers.
+    #[error("integer overflow: int64 {raw} does not fit i32")]
+    NumericOverflow {
+        /// The exact `int64` value the wire payload carried,
+        /// captured verbatim for diagnostics so operators can grep
+        /// the failing magnitude in upstream logs.
+        raw: String,
+    },
 }
 
 /// Name the `DataType` variant for error messages. `None` is treated as a

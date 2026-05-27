@@ -1,10 +1,21 @@
     // EOD numeric/time fields may arrive as Price, Number, or Timestamp cells.
+    // The Number arm bounds-checks the wire `int64` against the destination
+    // `i32` range before storing; previously it narrowed via `*n as i32`, so a
+    // payload above (1 << 31) truncated cleanly into a plausible-looking EOD
+    // integer (open/close/high/low time columns, volume bucket counters, the
+    // injected contract_id arms) and silently corrupted the destination
+    // field. `Price.value` is already wire-typed `i32` so no guard is needed
+    // there.
     fn eod_num(row: &crate::proto::DataValueList, idx: usize) -> Result<i32, DecodeError> {
         let Some(dv) = row.values.get(idx) else {
             return Err(DecodeError::MissingCell { column: idx });
         };
         match dv.data_type.as_ref() {
-            Some(crate::proto::data_value::DataType::Number(n)) => Ok(*n as i32),
+            Some(crate::proto::data_value::DataType::Number(n)) => {
+                i32::try_from(*n).map_err(|_| DecodeError::NumericOverflow {
+                    raw: n.to_string(),
+                })
+            }
             Some(crate::proto::data_value::DataType::Price(p)) => Ok(p.value),
             Some(crate::proto::data_value::DataType::Timestamp(ts)) => Ok(tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms)),
             Some(crate::proto::data_value::DataType::NullValue(_)) => Ok(0),

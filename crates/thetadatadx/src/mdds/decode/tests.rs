@@ -2023,3 +2023,179 @@ fn parse_quote_ticks_rejects_numeric_right_overflowing_i32() {
         }
     );
 }
+
+// ─────────── Generic integer wire arms: int64 overflow guards ───────────
+//
+// Round-4 hardened the date and right surface against `*n as i32` narrowing
+// but the generic `row_number` helper plus the `eod_num` generator template
+// still cast wire `int64` payloads through `as i32` with no width check.
+// `DataValue.number` is wire-typed `int64`, so a payload like
+// `4_329_167_296` (== `(1 << 32) + 34_200_000`) truncated cleanly into a
+// plausible-looking `ms_of_day` / `sequence` / `size` / `exchange` / bid/ask
+// size / EOD integer value and silently corrupted the destination field
+// across the whole non-EOD generator surface (via `opt_number`) plus every
+// `eod_num` column. Both helpers now route through `i32::try_from` first
+// and raise `DecodeError::NumericOverflow` with the raw `int64` captured
+// verbatim.
+
+#[test]
+fn row_number_rejects_int64_above_i32_range() {
+    // 4_294_967_296 == (1 << 32). Outside i32 range; the low 32 bits decode
+    // to 0, which would silently zero out the destination field if the wire
+    // value reached the parser narrowed via `*n as i32`.
+    let row = row_of(vec![dv_number(4_294_967_296)]);
+    assert_eq!(
+        row_number(&row, 0),
+        Err(DecodeError::NumericOverflow {
+            raw: "4294967296".into(),
+        })
+    );
+}
+
+#[test]
+fn row_number_rejects_int64_max() {
+    let row = row_of(vec![dv_number(i64::MAX)]);
+    assert_eq!(
+        row_number(&row, 0),
+        Err(DecodeError::NumericOverflow {
+            raw: i64::MAX.to_string(),
+        })
+    );
+}
+
+#[test]
+fn row_number_accepts_value_inside_i32_range() {
+    // Regression smoke: a real `ms_of_day` value at 09:30:00 ET must
+    // still decode bit-exact after the bounds check lands.
+    let row = row_of(vec![dv_number(34_200_000)]);
+    assert_eq!(row_number(&row, 0).unwrap(), Some(34_200_000));
+}
+
+#[test]
+fn row_number_accepts_i32_max_and_min() {
+    // The i32 boundary values themselves must round-trip — the
+    // bounds check is inclusive on both ends.
+    let max_row = row_of(vec![dv_number(i64::from(i32::MAX))]);
+    assert_eq!(row_number(&max_row, 0).unwrap(), Some(i32::MAX));
+    let min_row = row_of(vec![dv_number(i64::from(i32::MIN))]);
+    assert_eq!(row_number(&min_row, 0).unwrap(), Some(i32::MIN));
+}
+
+#[test]
+fn parse_trade_ticks_rejects_overflowing_ms_of_day() {
+    // The `ms_of_day` column flows through `row_number` via the required
+    // arm of the generated `parse_trade_ticks`. A wire payload like
+    // `(1 << 32) + 34_200_000` previously truncated to a real-looking
+    // `34_200_000` and corrupted every trade in the response; the bounds
+    // check now surfaces the raw `int64` verbatim.
+    let table = proto::DataTable {
+        headers: vec!["ms_of_day".into(), "price".into()],
+        data_table: vec![row_of(vec![dv_number(4_329_167_296), dv_price(15_000, 10)])],
+    };
+    assert_eq!(
+        parse_trade_ticks(&table).unwrap_err(),
+        DecodeError::NumericOverflow {
+            raw: "4329167296".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_trade_ticks_rejects_overflowing_sequence() {
+    // `sequence` is an optional column that flows through `opt_number`
+    // and from there through `row_number`. `i64::MAX` exercises the
+    // far-end of the wire-int64 range against the same code path.
+    let table = proto::DataTable {
+        headers: vec!["ms_of_day".into(), "sequence".into(), "price".into()],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_number(i64::MAX),
+            dv_price(15_000, 10),
+        ])],
+    };
+    assert_eq!(
+        parse_trade_ticks(&table).unwrap_err(),
+        DecodeError::NumericOverflow {
+            raw: i64::MAX.to_string(),
+        }
+    );
+}
+
+#[test]
+fn parse_quote_ticks_rejects_overflowing_bid_size() {
+    // `bid_size` is an `i32` column on `QuoteTick`. A trillion-share
+    // payload is the canonical "wire drifted to int64" failure mode —
+    // without the bounds check it would silently truncate via the
+    // `opt_number -> row_number` path and ship a fabricated size.
+    let table = proto::DataTable {
+        headers: vec![
+            "ms_of_day".into(),
+            "bid_size".into(),
+            "bid".into(),
+            "ask".into(),
+        ],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_number(1_000_000_000_000),
+            dv_price(15_000, 10),
+            dv_price(15_100, 10),
+        ])],
+    };
+    assert_eq!(
+        parse_quote_ticks(&table).unwrap_err(),
+        DecodeError::NumericOverflow {
+            raw: "1000000000000".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_eod_ticks_rejects_overflowing_numeric_field() {
+    // The `eod_num` generator helper covers every i32 EOD column
+    // (ms_of_day, ms_of_day2, bid/ask sizes, bid/ask exchanges,
+    // bid/ask conditions). Drive an overflow through `ms_of_day` so
+    // the eod_num Number arm runs against the bounds check.
+    let table = proto::DataTable {
+        headers: vec!["ms_of_day".into(), "open".into()],
+        data_table: vec![row_of(vec![dv_number(4_329_167_296), dv_number(15_000)])],
+    };
+    assert_eq!(
+        parse_eod_ticks(&table).unwrap_err(),
+        DecodeError::NumericOverflow {
+            raw: "4329167296".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_trade_ticks_smoke_with_in_range_integers() {
+    // Positive smoke: every i32 column inside the supported range
+    // must still decode unchanged after the bounds check lands. This
+    // is the regression sentinel for the generic Number arm.
+    let table = proto::DataTable {
+        headers: vec![
+            "ms_of_day".into(),
+            "sequence".into(),
+            "size".into(),
+            "exchange".into(),
+            "price".into(),
+            "date".into(),
+        ],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_number(1),
+            dv_number(100),
+            dv_number(4),
+            dv_price(15_000, 10),
+            dv_number(20_240_301),
+        ])],
+    };
+    let ticks = parse_trade_ticks(&table).unwrap();
+    assert_eq!(ticks.len(), 1);
+    let t = &ticks[0];
+    assert_eq!(t.ms_of_day, 34_200_000);
+    assert_eq!(t.sequence, 1);
+    assert_eq!(t.size, 100);
+    assert_eq!(t.exchange, 4);
+    assert_eq!(t.date, 20_240_301);
+}
