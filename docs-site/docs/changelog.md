@@ -1792,6 +1792,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   64-bit layout; the per-`FpssClient` ring footprint at the
   default `ring_size = 4096` is now documented as ~ 384 KiB.
 
+### Known issues
+
+- `tdbe::types::price::Price::Display` panics on debug builds when
+  `self.value == i32::MIN` because the impl negates an `i32` before
+  widening. Debug builds raise `attempt to negate with overflow`;
+  release builds wrap silently. Vendor wire payloads do not emit
+  `i32::MIN` in production, but a fixture / fuzzer can hit it.
+  Deferred to a future tdbe patch because the fix touches
+  `crates/tdbe/` source which is owner-gated outside the v11.0.0
+  branch scope. Tracking: [#609](https://github.com/userFRM/ThetaDataDx/issues/609).
+
 ## [10.0.0] - 2026-05-09
 
 **In-house gRPC transport** replaces `tonic` on the MDDS server-streaming
