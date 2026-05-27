@@ -489,8 +489,8 @@ def _check_dotted_rows(
         if prefix is None:
             # Unknown struct — likely a "documentation anchor" row
             # (e.g. `Error.cross_binding_name_divergence`,
-            # `GreeksEodTick.audit_wave6`). Skip — these are not
-            # field-level bindings.
+            # `GreeksEodTick.cross_binding_anchor`). Skip — these are
+            # not field-level bindings.
             continue
         # Allow rows to override the auto-derived setter name. Used
         # when a single struct has a mix of prefixed / unprefixed

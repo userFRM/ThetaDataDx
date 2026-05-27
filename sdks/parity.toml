@@ -394,7 +394,7 @@ cpp = true
 #                 disambiguate from `std::exception`.
 #
 # This row is informational — the parity script's class-existence
-# check skips dotted rows. Audit S59 closure.
+# check skips dotted rows.
 
 [[class]]
 name = "Error.cross_binding_name_divergence"
@@ -402,11 +402,10 @@ python = true
 typescript = true
 cpp = true
 
-# ─── Wave-6 tick types (audit closure) ─────────────────────────────────
+# ─── EOD-Greek + index-price tick anchors ─────────────────────────────
 #
-# Two new tick types model the verified-live wire shape on two
-# historical endpoints whose previous routing silently dropped
-# server-emitted columns:
+# Two tick types model the verified-live wire shape on two endpoints
+# whose v10 routing dropped server-emitted columns:
 #
 #   * `GreeksEodTick` (39 columns) -- `option_history_greeks_eod`.
 #     Previously routed to the bare `GreeksAllTick` (28 columns),
@@ -423,16 +422,16 @@ cpp = true
 # catch-all (`scripts/check_binding_parity.py::_is_implicitly_tracked`)
 # alongside every other generator-emitted tick wrapper. The rows
 # below are documentation anchors so the parity matrix records the
-# wave-6 additions; the script does not gate on dotted-name rows.
+# v11 additions; the script does not gate on dotted-name rows.
 
 [[class]]
-name = "GreeksEodTick.audit_wave6"
+name = "GreeksEodTick.cross_binding_anchor"
 python = true       # `thetadatadx.GreeksEodTick` pyclass + `GreeksEodTickList` + Arrow + columnar
 typescript = true   # `GreeksEodTick` napi class
 cpp = true          # `tdx::GreeksEodTick` alias over `TdxGreeksEodTick`
 
 [[class]]
-name = "IndexPriceAtTimeTick.audit_wave6"
+name = "IndexPriceAtTimeTick.cross_binding_anchor"
 python = true       # `thetadatadx.IndexPriceAtTimeTick` pyclass + `IndexPriceAtTimeTickList` + Arrow + columnar
 typescript = true   # `IndexPriceAtTimeTick` napi class
 cpp = true          # `tdx::IndexPriceAtTimeTick` alias over `TdxIndexPriceAtTimeTick`

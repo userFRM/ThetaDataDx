@@ -307,9 +307,9 @@ def test_setter_override_resolves_alternate_name(tmpdir: pathlib.Path) -> None:
 def test_unknown_struct_dotted_row_is_skipped() -> None:
     """Dotted rows whose struct prefix is not in `STRUCT_TO_PREFIX`
     (e.g. `Error.cross_binding_name_divergence`,
-    `GreeksEodTick.audit_wave6`) are documentation anchors. The
-    gate must not gate on them — these declare class-level intent,
-    not field-level binding.
+    `GreeksEodTick.cross_binding_anchor`) are documentation anchors.
+    The gate must not gate on them — these declare class-level
+    intent, not field-level binding.
     """
     rows = [
         {
