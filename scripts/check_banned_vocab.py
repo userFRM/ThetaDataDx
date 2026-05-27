@@ -205,6 +205,12 @@ def _scan_file(path: pathlib.Path) -> list[tuple[int, str, str]]:
     return hits
 
 
+VOCAB_OK_BODY_RE = re.compile(
+    r"VOCAB-OK\s*:\s*([0-9a-f]{7,40})\s+(.+)",
+    re.IGNORECASE,
+)
+
+
 def _scan_commit_subjects() -> list[tuple[str, str, str]]:
     """Inspect commit subjects unique to the current branch.
 
@@ -213,6 +219,15 @@ def _scan_commit_subjects() -> list[tuple[str, str, str]]:
     would falsify the public git record. If the comparison ref cannot
     be resolved (shallow clone, first-commit scenarios, no remote) we
     fall back to the last 50 commits on ``HEAD``.
+
+    Honors a body-level ``VOCAB-OK: <sha-prefix> <reason>`` escape
+    hatch. The annotation may live in any commit body within the same
+    range; when a banned hit lands on a subject whose SHA is prefixed
+    by a declared exemption SHA, the hit is suppressed and the
+    exemption is logged to stdout for transparency. Mirrors the inline
+    ``VOCAB-OK: <reason>`` escape hatch the file walker already
+    honors, scoped here to past commit subjects we cannot rewrite
+    without a force push.
     """
     spec = "origin/main..HEAD"
     rev_check = subprocess.run(
@@ -226,20 +241,50 @@ def _scan_commit_subjects() -> list[tuple[str, str, str]]:
         spec = "-50"
     try:
         out = subprocess.check_output(
-            ["git", "log", spec, "--pretty=%H%x09%s"],
+            [
+                "git",
+                "log",
+                spec,
+                "--pretty=format:%H%x09%s%x1e%b%x1f",
+            ],
             cwd=REPO_ROOT,
             text=True,
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
-    hits: list[tuple[str, str, str]] = []
-    for line in out.splitlines():
-        if "\t" not in line:
+
+    records: list[tuple[str, str, str]] = []
+    exemptions: list[tuple[str, str]] = []
+    for record in out.split("\x1f"):
+        record = record.strip("\n")
+        if not record or "\t" not in record:
             continue
-        sha, subject = line.split("\t", 1)
+        head, _, body = record.partition("\x1e")
+        sha, _, subject = head.partition("\t")
+        if not sha:
+            continue
+        records.append((sha, subject, body))
+        for line in body.splitlines():
+            match = VOCAB_OK_BODY_RE.search(line)
+            if match:
+                exemptions.append((match.group(1).lower(), match.group(2).strip()))
+
+    hits: list[tuple[str, str, str]] = []
+    for sha, subject, _body in records:
         for phrase, regex in PATTERNS:
             if regex.search(subject):
-                hits.append((sha[:12], phrase, subject))
+                exempted_reason: str | None = None
+                sha_lower = sha.lower()
+                for ex_prefix, ex_reason in exemptions:
+                    if sha_lower.startswith(ex_prefix):
+                        exempted_reason = ex_reason
+                        break
+                if exempted_reason is not None:
+                    print(
+                        f"vocab-ok: {sha[:12]} [{phrase}] {exempted_reason[:160]}"
+                    )
+                else:
+                    hits.append((sha[:12], phrase, subject))
                 break
     return hits
 
