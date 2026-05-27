@@ -1636,3 +1636,143 @@ fn parse_calendar_days_v3_accepts_numeric_date_real_leap_day() {
     assert_eq!(days.len(), 1);
     assert_eq!(days[0].date, 20_240_229);
 }
+
+// ─────────── Generator-emitted contract_id expiration arm ───────────
+//
+// Round-2 hardened `eod_date`, `row_date`, and `parse_iso_date` so the
+// hand-written numeric date paths reject calendar-impossible payloads.
+// The generator template that inlines `expiration` into every parser
+// with `contract_id = true` was missed — `Number(n) -> *n as i32` still
+// cast straight through. That affected 18 public parsers including
+// `parse_trade_ticks`, `parse_quote_ticks`, `parse_eod_ticks`, and
+// every greeks variant. These tests pin the canonical `InvalidDate`
+// behaviour across a representative sample of the affected surface
+// (one of each: i32-style, quote-style, eod-style, greeks-style) on
+// Feb-30, month-13, non-leap Feb-29, and the valid leap-day shapes.
+
+#[test]
+fn parse_trade_ticks_rejects_numeric_expiration_feb_30() {
+    // `parse_trade_ticks` injects the contract_id arm when an
+    // `expiration` header is present in the server payload. Number
+    // arms used to cast straight to i32 with no Gregorian check;
+    // `Number(20260230)` (Feb 30) must now raise the canonical
+    // `InvalidDate { raw: "20260230" }` instead of propagating
+    // through to downstream timestamp arithmetic.
+    let table = proto::DataTable {
+        headers: vec!["ms_of_day".into(), "price".into(), "expiration".into()],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_price(15_000, 10),
+            dv_number(20_260_230),
+        ])],
+    };
+    assert_eq!(
+        parse_trade_ticks(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "20260230".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_quote_ticks_rejects_numeric_expiration_month_13() {
+    // Quote surface — same generator template, different parser. The
+    // month-13 payload tests the high-half of the YYYYMMDD validator.
+    let table = proto::DataTable {
+        headers: vec![
+            "ms_of_day".into(),
+            "bid".into(),
+            "ask".into(),
+            "expiration".into(),
+        ],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_price(15_000, 10),
+            dv_price(15_100, 10),
+            dv_number(20_261_301),
+        ])],
+    };
+    assert_eq!(
+        parse_quote_ticks(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "20261301".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_eod_ticks_accepts_numeric_expiration_real_leap_day() {
+    // 2024 is a leap year — Feb 29 is a real Gregorian date and must
+    // round-trip unchanged. Sanity check that the new validator does
+    // not over-reject legitimate expirations on the eod surface.
+    let table = proto::DataTable {
+        headers: vec!["timestamp".into(), "open".into(), "expiration".into()],
+        data_table: vec![row_of(vec![
+            dv_timestamp(1_775_050_200_000),
+            dv_number(15_000),
+            dv_number(20_240_229),
+        ])],
+    };
+    let ticks = parse_eod_ticks(&table).unwrap();
+    assert_eq!(ticks.len(), 1);
+    assert_eq!(ticks[0].expiration, 20_240_229);
+}
+
+#[test]
+fn parse_greeks_all_ticks_rejects_numeric_expiration_non_leap_feb_29() {
+    // 2025 % 4 != 0 — Feb 29 is calendar-impossible. The non-leap
+    // boundary is the failure mode most likely to slip through a
+    // naive "month/day in range" check; the Gregorian validator
+    // catches it. Greeks surface confirms the same template applies
+    // across every contract_id tick type.
+    let table = proto::DataTable {
+        headers: vec![
+            "ms_of_day".into(),
+            "bid".into(),
+            "ask".into(),
+            "delta".into(),
+            "expiration".into(),
+        ],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_price(15_000, 10),
+            dv_price(15_100, 10),
+            dv_price(500, 13),
+            dv_number(20_250_229),
+        ])],
+    };
+    assert_eq!(
+        parse_greeks_all_ticks(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "20250229".into(),
+        }
+    );
+}
+
+// ─────────── Generator-emitted contract_id right arm ───────────
+//
+// Sibling-arm cleanup: the hand-written `parse_option_contracts_v3`
+// right-text arm surfaces unknown text as `UnknownEnumVariant`, but
+// the generator template silently coalesced unknown right strings to
+// `0`. A future server change (e.g. introducing a new option style)
+// would have masked schema drift. Mirror the canonical strict-decode
+// policy on the generator surface too.
+
+#[test]
+fn parse_trade_ticks_rejects_unknown_right_text() {
+    let table = proto::DataTable {
+        headers: vec!["ms_of_day".into(), "price".into(), "right".into()],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_price(15_000, 10),
+            dv_text("STRADDLE"),
+        ])],
+    };
+    assert_eq!(
+        parse_trade_ticks(&table).unwrap_err(),
+        DecodeError::UnknownEnumVariant {
+            field: "right",
+            raw: "STRADDLE".into(),
+        }
+    );
+}

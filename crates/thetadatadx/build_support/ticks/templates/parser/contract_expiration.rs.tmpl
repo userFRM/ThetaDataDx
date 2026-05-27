@@ -2,7 +2,28 @@
                     Some(i) => {
                         let dv = row.values.get(i).ok_or(DecodeError::MissingCell { column: i })?;
                         match dv.data_type.as_ref() {
-                            Some(crate::proto::data_value::DataType::Number(n)) => *n as i32,
+                            Some(crate::proto::data_value::DataType::Number(n)) => {
+                                // Round-2 hardened `eod_date` and the hand-written
+                                // numeric date arms in `row_date` /
+                                // `parse_option_contracts_v3` against
+                                // calendar-impossible payloads, but this
+                                // generator-emitted arm — inlined into every
+                                // wildcard-tick parser with `contract_id = true`
+                                // (`parse_trade_ticks`, `parse_quote_ticks`,
+                                // `parse_eod_ticks`, all greeks variants, …) —
+                                // still cast `Number(n)` straight to `i32` with
+                                // no Gregorian check. `Number(20260230)` (Feb 30)
+                                // and `Number(20261301)` (month 13) propagated
+                                // silently. Route through the canonical
+                                // validator so the same wire integer raises the
+                                // same typed `InvalidDate` on every public
+                                // tick surface.
+                                let n32 = *n as i32;
+                                if !tdbe::time::is_valid_yyyymmdd(n32) {
+                                    return Err(DecodeError::InvalidDate { raw: n.to_string() });
+                                }
+                                n32
+                            }
                             Some(crate::proto::data_value::DataType::Text(s)) => parse_iso_date(s)?,
                             Some(crate::proto::data_value::DataType::NullValue(_)) => 0,
                             None => return Err(DecodeError::TypeMismatch {
