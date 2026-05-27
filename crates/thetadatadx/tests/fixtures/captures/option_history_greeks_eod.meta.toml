@@ -2,13 +2,14 @@
 #   curl http://127.0.0.1:25503/v3/option/history/greeks/eod?\
 #     symbol=SPY&expiration=20240621&start_date=20240614&end_date=20240614
 # Synthesised into a single-row `proto::ResponseData` by the
-# `build_wave6_fixtures` example so the parser regression test can
-# round-trip the exact 43-column wire shape without a live terminal. The
-# header list, row count, and first-row values are pinned against captured
-# CSV row 1 verbatim. Wave-6 BLOCKER closure: the previous `GreeksAllTick`
-# routing silently dropped the twelve EOD trade/quote columns (`open`,
-# `high`, `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`,
-# `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`).
+# `build_eod_greeks_fixtures` example so the parser regression test
+# can round-trip the exact 43-column wire shape without a live
+# terminal. The header list, row count, and first-row values are
+# pinned against captured CSV row 1 verbatim. The v10 `GreeksAllTick`
+# routing dropped the twelve EOD trade/quote columns (`open`,
+# `high`, `low`, `close`, `volume`, `count`, `bid_size`,
+# `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`,
+# `ask_condition`); v11 restores the full schema.
 
 endpoint = "option_history_greeks_eod"
 tick_type = "GreeksEodTick"
@@ -34,9 +35,9 @@ first_row_expiration = 20240621
 first_row_strike = 500.0
 first_row_right = 67  # ASCII 'C'
 
-# Twelve EOD trade/quote columns -- the data the pre-wave-6 routing
-# silently dropped. Pinning each here catches any regression that
-# reverts the endpoint back to the bare `GreeksAllTicks` collection.
+# Twelve EOD trade/quote columns -- the data the v10 routing dropped.
+# Pinning each here catches any regression that reverts the endpoint
+# back to the bare `GreeksAllTicks` collection.
 first_row_open = 41.71
 first_row_high = 42.78
 first_row_low = 40.48

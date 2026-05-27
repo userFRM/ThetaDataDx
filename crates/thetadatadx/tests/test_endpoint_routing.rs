@@ -1,18 +1,18 @@
-//! Endpoint-to-parser routing regression tests (audit closure).
+//! Endpoint-to-parser routing regression tests.
 //!
-//! The sibling `test_wave6_schema.rs` and `test_trade_greeks_schema.rs`
-//! suites prove that the per-tick *parsers* (`parse_greeks_eod_ticks`,
-//! `parse_trade_greeks_*_ticks`, `parse_index_price_at_time_ticks`)
-//! preserve every wire column when fed a hand-built `DataTable`. They
-//! do NOT prove that the high-level `MddsClient::<endpoint>` dispatch
-//! method routes the response through that parser -- the heuristic
-//! that picks `parse: decode::parse_<tick>` for each endpoint inside
-//! `build_support/endpoints/proto_parser.rs` can drift silently and
-//! the per-parser regressions would still pass.
+//! The sibling `test_eod_greeks_schema.rs` and
+//! `test_trade_greeks_schema.rs` suites prove that the per-tick
+//! *parsers* (`parse_greeks_eod_ticks`, `parse_trade_greeks_*_ticks`,
+//! `parse_index_price_at_time_ticks`) preserve every wire column when
+//! fed a hand-built `DataTable`. They do NOT prove that the high-level
+//! `MddsClient::<endpoint>` dispatch method routes the response through
+//! that parser -- the heuristic that picks `parse: decode::parse_<tick>`
+//! for each endpoint inside `build_support/endpoints/proto_parser.rs`
+//! can drift silently and the per-parser regressions would still pass.
 //!
 //! These tests close the routing gap end-to-end. For each of the
-//! seven endpoints whose silent-mis-routing was the audit closure
-//! payload (Wave-5 BL-14 + Wave-6 BLOCKER/SERIOUS), the harness:
+//! seven endpoints whose silent mis-routing previously dropped the
+//! trade-side execution / EOD trade-quote columns, the harness:
 //!
 //!   1. Loads the verified-live capture fixture as a raw
 //!      `proto::ResponseData`.
@@ -74,7 +74,7 @@ async fn client_for_response(response: proto::ResponseData) -> (mock::MockServer
 }
 
 // ────────────────────────────────────────────────────────────────────
-// Wave-6 BLOCKER: option_history_greeks_eod -> GreeksEodTick
+// option_history_greeks_eod -> GreeksEodTick
 // ────────────────────────────────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -92,9 +92,9 @@ async fn option_history_greeks_eod_routes_to_greeks_eod_parser() {
 
     assert!(!ticks.is_empty(), "mock served a non-empty fixture");
     let first = ticks.first().expect("non-empty ticks");
-    // EOD trade-quote columns the pre-wave-6 routing dropped. Pin
-    // values from the verified-live capture (terminal jar
-    // `202605221`, fixture meta `first_row_*`).
+    // EOD trade-quote columns the v10 routing dropped. Pin values
+    // from the verified-live capture (terminal jar `202605221`,
+    // fixture meta `first_row_*`).
     assert!(
         (first.open - 41.71).abs() < 1e-4,
         "open dropped or wrong (got {})",
@@ -120,7 +120,7 @@ async fn option_history_greeks_eod_routes_to_greeks_eod_parser() {
 }
 
 // ────────────────────────────────────────────────────────────────────
-// Wave-6 SERIOUS: index_at_time_price -> IndexPriceAtTimeTick
+// index_at_time_price -> IndexPriceAtTimeTick
 // ────────────────────────────────────────────────────────────────────
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -135,10 +135,10 @@ async fn index_at_time_price_routes_to_index_price_at_time_parser() {
 
     assert!(!ticks.is_empty(), "mock served a non-empty fixture");
     let first = ticks.first().expect("non-empty ticks");
-    // Seven trade-side execution columns the pre-wave-6 routing
-    // dropped, including the SIP-source `exchange` attribution.
-    // Sequencing / sizing fields are tick-shape fingerprints — any
-    // non-trade routing zero-fills them.
+    // Seven trade-side execution columns the v10 routing dropped,
+    // including the SIP-source `exchange` attribution. Sequencing /
+    // sizing fields are tick-shape fingerprints — any non-trade
+    // routing zero-fills them.
     assert!(
         first.sequence != 0 || first.size != 0 || first.exchange != 0,
         "trade-side execution columns all zero — routing reverted to PriceTick"
@@ -146,7 +146,7 @@ async fn index_at_time_price_routes_to_index_price_at_time_parser() {
 }
 
 // ────────────────────────────────────────────────────────────────────
-// Wave-5 BL-14: option_history_trade_greeks_* -> TradeGreeks*Tick
+// option_history_trade_greeks_* -> TradeGreeks*Tick
 //
 // Five endpoints whose silent reroute through the interval-sampled
 // `Greeks*Tick` parsers dropped the nine trade-side execution

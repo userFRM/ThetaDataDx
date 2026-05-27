@@ -166,13 +166,13 @@ def test_parallel_throughput_bench_runs() -> None:
     """Smoke-runs the parallel-throughput bench so CI catches an
     import-time regression on either GIL or nogil interpreters.
 
-    N12 closure: when running on a free-threaded interpreter (where
+    When running on a free-threaded interpreter (where
     ``sys._is_gil_enabled() is False``), this test ALSO asserts the
     nogil claim — the binding must achieve `overhead_ratio < 1.8` and
     `gil_enabled == False` on the bench's output. The 1.8x threshold
-    matches the C16-updated CI gate; a regression that re-acquires
-    the GIL on the hot path pushes the ratio toward ~2.0x and trips
-    both this test and the GH Actions gate.
+    matches the CI gate; a regression that re-acquires the GIL on the
+    hot path pushes the ratio toward ~2.0x and trips both this test
+    and the GH Actions gate.
     """
     bench = Path(__file__).resolve().parent.parent / "benches" / "bench_parallel_throughput.py"
     assert bench.is_file(), f"missing bench script: {bench}"

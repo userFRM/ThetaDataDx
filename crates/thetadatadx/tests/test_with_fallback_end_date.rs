@@ -456,6 +456,6 @@ async fn rest_arm_respects_tier_clamp_semaphore() {
     // query was captured. Releasing then lets the second through. The
     // prior `elapsed >= 1ms` floor was trivially satisfied by any
     // network handshake and proved nothing about serialization.
-    // Per audit S38, the entry-side barrier IS the serialization
-    // proof — we keep `_elapsed` bound only as a debug-print hook.
+    // The entry-side barrier IS the serialization proof — we keep
+    // `_elapsed` bound only as a debug-print hook.
 }

@@ -1,15 +1,15 @@
 //! Shared capture-fixture loaders for the integration suites.
 //!
 //! Three integration tests (`test_decode_captures.rs`,
-//! `test_wave6_schema.rs`, `test_trade_greeks_schema.rs`) historically
-//! carried hand-copied `load_response` helpers that differed in subtle
-//! ways: the original `test_decode_captures.rs` copy decoded the
-//! zstd-wrapped fixture format only, while the newer wave-5/wave-6
-//! suites added a dual-format sniff (`0x28 0xb5 0x2f 0xfd` magic vs
-//! raw `ResponseData` proto bytes). The new routing suite
-//! (`test_endpoint_routing.rs`) needed the same logic for the gRPC
-//! mock and the divergence multiplied. This module is the
-//! single source-of-truth: every suite includes it via
+//! `test_eod_greeks_schema.rs`, `test_trade_greeks_schema.rs`)
+//! historically carried hand-copied `load_response` helpers that
+//! differed in subtle ways: the original `test_decode_captures.rs`
+//! copy decoded the zstd-wrapped fixture format only, while the
+//! newer trade-greeks and EOD-greek suites added a dual-format sniff
+//! (`0x28 0xb5 0x2f 0xfd` magic vs raw `ResponseData` proto bytes).
+//! The routing suite (`test_endpoint_routing.rs`) needed the same
+//! logic for the gRPC mock and the divergence multiplied. This
+//! module is the single source-of-truth: every suite includes it via
 //! `#[path = "common/capture_loader.rs"] mod capture_loader;` and
 //! calls [`load_response_data`] (raw `ResponseData` for the mock
 //! transport tests) or [`load_data_table`] (decoded `DataTable` for

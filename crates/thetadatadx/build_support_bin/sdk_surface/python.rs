@@ -234,12 +234,12 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("    }\n");
         }
         MethodKind::ActiveSubscriptions => {
-            // P1 closure: project per-contract subscriptions to typed
-            // `PySubscription` values that round-trip with the
-            // `subscribe()` input shape. The previous generator emitted
-            // `Vec<HashMap<String, String>>` with debug-format strings,
-            // which lied about the `List[Subscription]` claim in the
-            // .pyi stub and broke the `for sub in client.active_subscriptions(): client.unsubscribe(sub)`
+            // Project per-contract subscriptions to typed `PySubscription`
+            // values that round-trip with the `subscribe()` input shape.
+            // The previous generator emitted `Vec<HashMap<String, String>>`
+            // with debug-format strings, which contradicted the
+            // `List[Subscription]` claim in the .pyi stub and broke the
+            // `for sub in client.active_subscriptions(): client.unsubscribe(sub)`
             // user pattern. The hand-written `FpssClient` projection
             // already followed this shape; this brings the unified
             // pyclass into lockstep.

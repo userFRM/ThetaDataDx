@@ -2,12 +2,12 @@
 #   curl 'http://127.0.0.1:25503/v3/index/at_time/price?symbol=SPX&\
 #     start_date=20240614&end_date=20240614&time_of_day=10:30:00'
 # Synthesised into a single-row `proto::ResponseData` by the
-# `build_wave6_fixtures` example so the parser regression test can
-# round-trip the exact 10-column wire shape without a live terminal.
-# Wave-6 SERIOUS closure: the previous `PriceTick` routing silently
-# dropped the seven trade-side execution columns (`sequence`,
-# `ext_condition1..4`, `condition`, `size`, `exchange`) -- including
-# the SIP-exchange attribution field on `exchange`.
+# `build_eod_greeks_fixtures` example so the parser regression test
+# can round-trip the exact 10-column wire shape without a live
+# terminal. The v10 `PriceTick` routing dropped the seven trade-side
+# execution columns (`sequence`, `ext_condition1..4`, `condition`,
+# `size`, `exchange`) -- including the SIP-exchange attribution field
+# on `exchange`; v11 restores the full schema.
 
 endpoint = "index_at_time_price"
 tick_type = "IndexPriceAtTimeTick"
@@ -32,9 +32,9 @@ first_row_condition = 0
 first_row_size = 0
 
 # `exchange = 5` is the SIP source code for CBOE -- the per-row
-# attribution data the pre-wave-6 routing lost. Pinning the literal
-# value here catches any regression that reverts the endpoint back to
-# the bare `PriceTicks` collection.
+# attribution data the v10 routing dropped. Pinning the literal value
+# here catches any regression that reverts the endpoint back to the
+# bare `PriceTicks` collection.
 first_row_exchange = 5
 first_row_price = 5414.14
 first_row_date = 20240614

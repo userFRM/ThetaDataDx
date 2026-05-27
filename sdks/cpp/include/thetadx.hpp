@@ -584,7 +584,7 @@ public:
         return tdx_config_get_tokio_worker_threads(handle_.get(), out_has_value, out_n);
     }
 
-    // ── RetryPolicy field setters/getters (BL-10) ──
+    // ── RetryPolicy field setters/getters ──
 
     /** Initial backoff delay (ms) for the MDDS retry policy. Default 250. */
     void set_retry_initial_delay_ms(uint64_t ms) {
@@ -618,7 +618,7 @@ public:
         return tdx_config_get_retry_jitter(handle_.get(), out_jitter);
     }
 
-    // ── FlatFilesConfig field setters/getters (BL-8) ──
+    // ── FlatFilesConfig field setters/getters ──
 
     /** Total attempt budget for the flatfile driver retry loop.
      *  1 disables retry. Default 3. Validated to [1, 10]. */

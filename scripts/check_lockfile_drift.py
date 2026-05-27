@@ -26,8 +26,6 @@ Usage:
 
 `--strict` fails on ANY shared-dep drift; default mode only fails
 on the curated security/API list below.
-
-Closes audit S7.
 """
 
 from __future__ import annotations

@@ -9,8 +9,8 @@ headers are hand-maintained and the link contract only breaks at the
 user's compile time, after they've already pip-installed or fetched
 the C++ SDK.
 
-C4 closure: the symbol inventory is sourced from the compiled
-library via `nm -D --defined-only` rather than a regex pass over
+The symbol inventory is sourced from the compiled library via
+`nm -D --defined-only` rather than a regex pass over
 `ffi/src/**/*.rs`. The regex pass missed macro-emitted symbols
 (e.g. `tdx_*_tick_array_free` emitted by the `tick_array_free!`
 macro), so a macro-generated free fn that the C++ headers did not
@@ -185,8 +185,8 @@ def main() -> int:
         )
         return 1
 
-    # Reverse delta (audit S3): names declared in C headers but with
-    # no matching `#[no_mangle] pub extern "C"` Rust counterpart.
+    # Reverse delta: names declared in C headers but with no matching
+    # `#[no_mangle] pub extern "C"` Rust counterpart.
     # These are link-time time bombs — the C++ wrapper compiles
     # against the header but the dylib symbol is missing.
     extras = (header - rust) - HEADER_ONLY_ALLOWLIST

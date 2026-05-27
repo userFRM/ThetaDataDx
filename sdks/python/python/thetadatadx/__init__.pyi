@@ -248,11 +248,11 @@ class Subscription:
 # ─────────────────────────────────────────────────────────────────────
 # FPSS event classes — emitted to the streaming callback
 #
-# P4 closure: every field below was extracted from the
-# `#[pyo3(get)]` declarations on the generated `_generated/fpss_event_classes.rs`
-# at v10.0.0 + the post-v10 surface additions. Updating this stub
-# without touching the matching pyclass attribute (or vice versa) is
-# caught by `python -m mypy.stubtest thetadatadx --ignore-missing-stub`.
+# Every field below was extracted from the `#[pyo3(get)]` declarations
+# on the generated `_generated/fpss_event_classes.rs` at v10.0.0 plus
+# the post-v10 surface additions. Updating this stub without touching
+# the matching pyclass attribute (or vice versa) is caught by
+# `python -m mypy.stubtest thetadatadx --ignore-missing-stub`.
 # ─────────────────────────────────────────────────────────────────────
 
 
@@ -551,13 +551,13 @@ EventCallback = Callable[[Any], None]
 class ThetaDataDxClient:
     """Unified client: opens MDDS + Nexus at construction, FPSS on demand.
 
-    C6 closure: this stub no longer carries a per-class ``__getattr__``
-    fallback. Every public method below is hand-listed so a new
-    generator-emitted method shows up as a stubtest failure until the
-    stub is regenerated. The module-level ``__getattr__`` at the
-    bottom of this file routes the catch-all generator-emitted
-    historical builders / list classes / endpoint factories without
-    masking method-level drift on the load-bearing pyclasses.
+    This stub does not carry a per-class ``__getattr__`` fallback.
+    Every public method below is hand-listed so a new generator-emitted
+    method shows up as a stubtest failure until the stub is
+    regenerated. The module-level ``__getattr__`` at the bottom of
+    this file routes the catch-all generator-emitted historical
+    builders / list classes / endpoint factories without masking
+    method-level drift on the load-bearing pyclasses.
     """
 
     def __init__(self, creds: Credentials, config: Config) -> None: ...
@@ -1153,14 +1153,14 @@ class AllGreeks:
 # hand-mirroring every one here is high-maintenance noise that mypy
 # would re-emit on every endpoint addition.
 #
-# C6 closure: this catch-all is scoped to MODULE-LEVEL attribute
-# lookup ONLY. Every load-bearing pyclass (`ThetaDataDxClient`,
-# `FpssClient`, `MddsClient`, `AsyncThetaDataDxClient`,
-# `StreamingSession`, `StreamingIterSession`, `StreamingAsyncSession`,
-# `EventIterator`) explicitly removed its per-class `__getattr__`
-# fallback so stubtest catches method-level drift on those classes.
-# Adding a new public method to any of them is a stubtest failure
-# until the matching stub is updated.
+# This catch-all is scoped to MODULE-LEVEL attribute lookup ONLY.
+# Every load-bearing pyclass (`ThetaDataDxClient`, `FpssClient`,
+# `MddsClient`, `AsyncThetaDataDxClient`, `StreamingSession`,
+# `StreamingIterSession`, `StreamingAsyncSession`, `EventIterator`)
+# explicitly omits a per-class `__getattr__` fallback so stubtest
+# catches method-level drift on those classes. Adding a new public
+# method to any of them is a stubtest failure until the matching stub
+# is updated.
 # ─────────────────────────────────────────────────────────────────────
 
 

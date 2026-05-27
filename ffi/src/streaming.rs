@@ -245,10 +245,10 @@ pub struct TdxSubscriptionArray {
 
 /// Free both CString pointers on a `TdxSubscription` if present.
 /// Centralises the 6-site `// SAFETY: produced by CString::into_raw …`
-/// block that audit S25 flagged for repetition. The function takes
-/// a reference rather than ownership because `TdxSubscriptionArray::data`
-/// holds the values inside a `Box<[TdxSubscription]>` and the caller
-/// drops that box separately.
+/// block that was previously repeated across every drop path. The
+/// function takes a reference rather than ownership because
+/// `TdxSubscriptionArray::data` holds the values inside a
+/// `Box<[TdxSubscription]>` and the caller drops that box separately.
 ///
 /// # Safety
 ///
@@ -2503,11 +2503,11 @@ mod tests {
     ///   3. the helper thread observed `_free` returning AFTER
     ///      it set the flag, not before.
     ///
-    /// This is the load-bearing assertion for the round-4 fix: the
-    /// barrier polls `prev_drained` regardless of whether the caller
-    /// invoked `tdx_fpss_shutdown` first (the bug was the unified path
-    /// gated on `is_streaming()` and skipped the wait when shutdown
-    /// had already flipped that bit to `false`).
+    /// Asserts that the barrier polls `prev_drained` regardless of
+    /// whether the caller invoked `tdx_fpss_shutdown` first. The
+    /// earlier unified path gated on `is_streaming()` and skipped
+    /// the wait when shutdown had already flipped that bit to
+    /// `false`; this test pins the post-fix behaviour.
     #[test]
     fn ffi_fpss_free_blocks_on_prev_drained_flag() {
         use std::sync::atomic::AtomicBool;

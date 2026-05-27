@@ -278,8 +278,8 @@ def check_static_docs() -> None:
         expect_not_contains(streaming_page, "contract_map")
         expect_not_contains(streaming_page, "contract_lookup")
         expect_not_contains(streaming_page, "SubscribeOptionQuotes")
-        # Pre-Wave-G `Simple` shim — replaced by typed pyclasses with
-        # snake_case `kind` discriminators per FpssControl variant.
+        # The earlier `Simple` shim was replaced by typed pyclasses
+        # with snake_case `kind` discriminators per FpssControl variant.
         expect_not_contains(streaming_page, 'event.kind == "simple"')
         expect_not_contains(streaming_page, "event.event_type")
         # `RawData` is hidden from the public surface; the

@@ -882,7 +882,7 @@ int32_t tdx_config_set_tokio_worker_threads_explicit(TdxConfig* config, bool has
  */
 int32_t tdx_config_get_tokio_worker_threads(const TdxConfig* config, bool* out_has_value, size_t* out_n);
 
-/* ── RetryPolicy field setters/getters (BL-10) ── */
+/* ── RetryPolicy field setters/getters ── */
 
 /**
  * Set the initial backoff delay (ms) for the historical-channel retry policy.
@@ -923,7 +923,7 @@ void tdx_config_set_retry_jitter(TdxConfig* config, bool jitter);
 /** Read retry.jitter. */
 int32_t tdx_config_get_retry_jitter(const TdxConfig* config, bool* out_jitter);
 
-/* ── FlatFilesConfig field setters/getters (BL-8) ── */
+/* ── FlatFilesConfig field setters/getters ── */
 
 /**
  * Set the total attempt budget for the flatfile driver retry loop.

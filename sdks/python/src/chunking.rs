@@ -22,7 +22,7 @@
 //! 4. Chunk boundaries use YYYYMMDD string format (what the wire expects).
 //! 5. Invalid input (end before start, malformed YYYYMMDD) returns an
 //!    `Err`, NOT a panic — called from pre-flight code that already
-//!    validated, but defense-in-depth never hurt.
+//!    validated, but the redundant validation is harmless here.
 
 // The `chunking` module is staged for the auto-chunk fan-out that lands
 // once the Rust-enhancements agent threads `DirectConfig::auto_chunk`

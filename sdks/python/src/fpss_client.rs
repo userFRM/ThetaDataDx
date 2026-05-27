@@ -263,9 +263,9 @@ impl FpssClient {
     /// Loads credentials from a two-line file and connects with the
     /// supplied `config`, defaulting to `Config.production()`.
     ///
-    /// P7 closure: parity with `ThetaDataDxClient.from_file()`,
+    /// Parity with `ThetaDataDxClient.from_file()`,
     /// `AsyncThetaDataDxClient.from_file()`, and
-    /// `MddsClient.from_file()` — every standalone Python client now
+    /// `MddsClient.from_file()` — every standalone Python client
     /// surfaces the same one-shot constructor shape.
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]

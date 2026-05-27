@@ -383,10 +383,10 @@ def test_to_arrow_does_not_need_polars(monkeypatch):
 
 def test_option_contract_right_is_string_in_arrow_schema():
     # The generator-emitted `OptionContract` pyclass field is `symbol`
-    # (matching the upstream `tdbe::types::tick::OptionContract` shape);
-    # an earlier audit-fix renamed `root` -> `symbol` and this test was
-    # not updated until the post-v10 audit cycle. Pass `symbol=...`
-    # explicitly to match the generated `#[pyo3(signature = (*, symbol = ...))]`.
+    # (matching the upstream `tdbe::types::tick::OptionContract` shape).
+    # The field was renamed from `root` to `symbol` ahead of v11; pass
+    # `symbol=...` explicitly to match the generated
+    # `#[pyo3(signature = (*, symbol = ...))]`.
     oc = thetadatadx.OptionContract(symbol="AAPL", expiration=20260517, strike=100.0, right="C")
     lst = thetadatadx.OptionContractList([oc])
     table = lst.to_arrow()

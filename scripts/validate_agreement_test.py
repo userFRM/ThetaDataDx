@@ -841,11 +841,11 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("novel_field", err)
 
     def test_typescript_status_pass_does_not_falseflag_runtime_status_disagreement(self) -> None:
-        # Pre-Wave-H9, the TS manifest's hardcoded `status: PASS`
-        # would have folded into the status-disagreement comparator
-        # alongside any runtime FAIL, masking the real Python-vs-CLI
-        # status diff. Shape-only langs must NOT participate in
-        # status comparison.
+        # Earlier versions of the TS manifest hardcoded
+        # `status: PASS`, which would have folded into the
+        # status-disagreement comparator alongside any runtime FAIL
+        # and masked the real Python-vs-CLI status diff. Shape-only
+        # langs must NOT participate in status comparison.
         _write_artifact(
             self.artifacts,
             "python",

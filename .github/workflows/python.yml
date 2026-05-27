@@ -161,12 +161,12 @@ jobs:
           path: dist/*.whl
 
   # ───────────────────────────────────────────────────────────────
-  # C17 closure: Gates 6, 8, and the nogil throughput gate are
-  # lifted to standalone jobs with their own `runs-on` so a matrix
-  # label rename (`ubuntu-latest` → anything else) does NOT silently
-  # skip them. The previous in-matrix `if: matrix.os == 'ubuntu-latest'`
-  # form depended on the literal matrix value; lifting them out
-  # decouples the gate execution from the build-matrix label shape.
+  # The stubtest, doctest, and nogil throughput gates are lifted to
+  # standalone jobs with their own `runs-on` so a matrix label rename
+  # (`ubuntu-latest` → anything else) does NOT silently skip them.
+  # A prior in-matrix `if: matrix.os == 'ubuntu-latest'` form depended
+  # on the literal matrix value; lifting them out decouples the gate
+  # execution from the build-matrix label shape.
   # ───────────────────────────────────────────────────────────────
 
   stubtest:
@@ -240,13 +240,13 @@ jobs:
     # contention; a regression that re-acquires the GIL surfaces
     # here as a ratio approaching the GIL-build value (~2x).
     #
-    # C16 closure: threshold raised from 1.5x to 1.8x. The 1.5x
-    # bound was too tight for GH shared-runner perf jitter — false
-    # positives at ~1.55x masked the gate's signal value. The 1.8x
-    # bound is below the held-GIL band (~2.0x observed on the
-    # stock 3.13 build) so a real GIL regression still trips it,
-    # while transient runner contention no longer fails the gate.
-    # The matching pytest assertion lives in
+    # Threshold raised from 1.5x to 1.8x. The 1.5x bound was too
+    # tight for GH shared-runner perf jitter — false positives at
+    # ~1.55x masked the gate's signal value. The 1.8x bound is below
+    # the held-GIL band (~2.0x observed on the stock 3.13 build) so
+    # a real GIL regression still trips it, while transient runner
+    # contention no longer fails the gate. The matching pytest
+    # assertion lives in
     # `sdks/python/tests/test_no_gil.py::test_parallel_throughput_bench_runs`
     # and is kept in lockstep at 1.8x.
     name: Parallel throughput (nogil gate, py${{ matrix.python }})

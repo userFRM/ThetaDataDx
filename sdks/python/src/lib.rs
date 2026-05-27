@@ -338,7 +338,7 @@ impl Config {
         guard.runtime.tokio_worker_threads
     }
 
-    // ── RetryPolicy field setters/getters (BL-10) ─────────────────────
+    // ── RetryPolicy field setters/getters ─────────────────────────────
     //
     // Per-field access on ``DirectConfig.retry`` mirrors the FFI / C++
     // / TypeScript surface. The ``delay_for_attempt`` / ``capped_backoff``
@@ -409,7 +409,7 @@ impl Config {
         guard.retry.jitter
     }
 
-    // ── FlatFilesConfig field setters/getters (BL-8) ──────────────────
+    // ── FlatFilesConfig field setters/getters ─────────────────────────
     //
     // Per-field access on ``DirectConfig.flatfiles`` mirrors the FFI /
     // C++ / TypeScript surface. The two ``Duration`` fields cross the
@@ -1201,9 +1201,9 @@ impl ThetaDataDxClient {
 /// assertion below pins that invariant at compile time so we cannot
 /// promise a method that the inner pyclass does not implement.
 ///
-/// P3 closure: `is_authenticated` (lives only on `FpssClient` — not
-/// on the unified client) and `config` (no such getter) were removed
-/// from this list. The remaining names map 1:1 to public methods on
+/// `is_authenticated` lives only on `FpssClient` (not on the unified
+/// client) and `config` has no such getter, so neither appears in
+/// this list. The remaining names map 1:1 to public methods on
 /// `ThetaDataDxClient` reachable via `bound.getattr(name)`.
 pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     // Subscription management.
@@ -1335,7 +1335,7 @@ impl AsyncThetaDataDxClient {
 
     /// Convenience constructor: `AsyncThetaDataDxClient.from_file("creds.txt")`.
     /// Accepts an optional `config` kwarg defaulting to
-    /// `Config.production()` — P6 closure for non-production env tests.
+    /// `Config.production()` for non-production environment tests.
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]
     fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
@@ -1357,13 +1357,12 @@ impl AsyncThetaDataDxClient {
     /// methods are reachable; everything else raises `AttributeError`
     /// so callers who picked the async surface stay on the async path.
     ///
-    /// P3 closure: every name in `ALLOWED` is checked at compile time
-    /// (see the `_ALLOWED_NAMES_ON_UNIFIED` const-eval block below)
-    /// to actually exist on `ThetaDataDxClient`. The previous list
-    /// promised `is_authenticated` (only on `FpssClient`) and `config`
-    /// (no such getter); both lookups raised `AttributeError` from
-    /// the inner `getattr` after the allowlist passed, surfacing as
-    /// a confusing error. The new list is verified by `_ALLOWED_NAMES`.
+    /// Every name in `ALLOWED` is checked at compile time (see the
+    /// `_ALLOWED_NAMES_ON_UNIFIED` const-eval block below) to actually
+    /// exist on `ThetaDataDxClient`. The list is verified by
+    /// `_ALLOWED_NAMES`; `is_authenticated` (only on `FpssClient`)
+    /// and `config` (no such getter) are intentionally excluded so
+    /// the proxy does not advertise methods the inner client lacks.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
         if !name.ends_with("_async") && !ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) {
             return Err(pyo3::exceptions::PyAttributeError::new_err(format!(

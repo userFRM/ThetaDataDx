@@ -39,12 +39,11 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      # C4 closure: build the release FFI library first so the gate
-      # sources its symbol inventory from `nm -D --defined-only` on
-      # the compiled .so. The previous regex pass missed
-      # macro-emitted symbols (`tick_array_free!` etc.); the
-      # nm-based ground truth catches every exported `tdx_*` symbol
-      # the loader will actually expose.
+      # Build the release FFI library first so the gate sources its
+      # symbol inventory from `nm -D --defined-only` on the compiled
+      # .so. A regex pass over source would miss macro-emitted symbols
+      # (`tick_array_free!` etc.); the nm-based ground truth catches
+      # every exported `tdx_*` symbol the loader will actually expose.
       - run: cargo build -p thetadatadx-ffi --release
       - run: python3 scripts/check_c_abi_completeness.py
 
@@ -229,15 +228,14 @@ jobs:
           # GitHub-hosted runner without one observed sample.
           cargo bench -p thetadatadx --bench bench_fpss_event --locked -- --quick
       - name: Compare against checked-in baseline
-        # C10 closure: threshold tightened from 100% (a 2x slowdown
-        # passed) to 25%. The baseline JSON is recaptured against the
-        # GH-hosted runner perf profile so the comparison is
-        # apples-to-apples; a 25% slowdown is the smallest regression
-        # we want to gate against. The previous 100% threshold was a
-        # placeholder set when the gate first landed (local vs CI
-        # runner perf delta was unknown); now that the baseline is
-        # CI-equivalent, the threshold can shrink to the meaningful
-        # signal range.
+        # Threshold tightened from 100% (a 2x slowdown passed) to 25%.
+        # The baseline JSON is recaptured against the GH-hosted runner
+        # perf profile so the comparison is apples-to-apples; a 25%
+        # slowdown is the smallest regression we want to gate against.
+        # The previous 100% threshold was a placeholder set when the
+        # gate first landed (local vs CI runner perf delta was
+        # unknown); now that the baseline is CI-equivalent, the
+        # threshold can shrink to the meaningful signal range.
         run: python3 scripts/check_bench_regression.py --threshold 25
 
   semver:
@@ -286,11 +284,10 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - run: python3 scripts/check_docs_consistency.py
       - run: python3 scripts/check_version_sync.py
-      # Gate (audit S7): cross-Cargo.lock dependency-version drift on
-      # security-critical (rustls, tokio, h2, reqwest, hyper) and
-      # SDK-owned (thetadatadx, tdbe) deps. A workspace bump must
-      # land in every binding lockfile or the wheel / npm package
-      # ships a stale runtime.
+      # Cross-Cargo.lock dependency-version drift on security-critical
+      # (rustls, tokio, h2, reqwest, hyper) and SDK-owned (thetadatadx,
+      # tdbe) deps. A workspace bump must land in every binding
+      # lockfile or the wheel / npm package ships a stale runtime.
       - run: python3 scripts/check_lockfile_drift.py
       - run: python3 scripts/validate_agreement_test.py
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check

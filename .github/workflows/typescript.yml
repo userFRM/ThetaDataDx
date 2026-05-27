@@ -94,8 +94,7 @@ jobs:
       # the gate is wired so future TS doc examples are exercised
       # automatically once the napi-rs emitter starts forwarding them.
       #
-      # C3 closure: the cross-language Gate 3 scope is now scoped
-      # narrowly to:
+      # The cross-language Gate 3 scope is now scoped narrowly to:
       #   - Rust:     `cargo test --doc --workspace` (active, runs)
       #   - Python:   stubtest (active — verifies stub <-> runtime)
       #   - TS:       `tsx`-based extractor below (wired, no examples

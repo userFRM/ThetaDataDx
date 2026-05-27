@@ -159,15 +159,15 @@ pub struct MockBehaviour {
     /// Tests pair this with a `tokio::time::timeout(secs, notify.
     /// notified()).await` to deterministically wait for "first call
     /// reached the wire" instead of using a fixed `tokio::time::
-    /// sleep(...)` barrier (audit closure — fixed-sleep barriers).
+    /// sleep(...)` barrier (avoids fixed-sleep barriers).
     pub on_request_drained: Option<Arc<Notify>>,
     /// When `Some((notify, n))`, the mock's PING-driver task (active
     /// when `inject_ping = Some(_)`) signals `notify` after `n`
     /// successful PING/PONG round-trips. Tests pair this with a
     /// `tokio::time::timeout(secs, notify.notified()).await` to
     /// deterministically wait for keep-alive evidence instead of
-    /// sleeping for several PING intervals (audit closure —
-    /// fixed-sleep barriers).
+    /// sleeping for several PING intervals (avoids fixed-sleep
+    /// barriers).
     pub ping_pong_signal: Option<(Arc<Notify>, u32)>,
 }
 
@@ -286,7 +286,7 @@ pub async fn serve_one_connection(
     // successful round-trips and signals `notify` after `n` PONGs
     // have come back. Tests use this to wait deterministically for
     // keep-alive evidence instead of sleeping for several PING
-    // intervals (audit closure — fixed-sleep barriers).
+    // intervals (avoids fixed-sleep barriers).
     let _ping_driver = behaviour.inject_ping.map(|interval| {
         let mut ping_pong = connection
             .ping_pong()
@@ -528,8 +528,8 @@ async fn respond_partial_then_drop(
     // response-head emission and the client sees an IO error rather
     // than a clean GOAWAY.
     //
-    // The prior fixed `sleep(50ms)` here was a wall-clock barrier
-    // (audit closure — fixed-sleep barriers). The replacement is
+    // The prior fixed `sleep(50ms)` here was a wall-clock barrier;
+    // it is replaced with a cooperative yield. The replacement is
     // cooperative: yielding to the runtime hands control back to the
     // h2 connection driver task spawned by `serve_one_connection`,
     // which drains the SendStream's outbound buffer and pushes the
@@ -1061,8 +1061,8 @@ async fn channel_pool_routes_around_saturated_channel() {
     // the request body, which is the same moment the client's
     // in-flight counter advances. The 5s timeout is a runaway
     // protector; the notify normally fires inside a few ms. This
-    // replaces a fixed `sleep(150ms)` barrier (audit closure —
-    // fixed-sleep barriers).
+    // replaces a fixed `sleep(150ms)` barrier (avoids fixed-sleep
+    // barriers).
     tokio::time::timeout(Duration::from_secs(5), member_zero_drained.notified())
         .await
         .expect("slow RPC reached the wire within 5s");
@@ -1436,9 +1436,9 @@ async fn channel_pool_burst_dispatch_spreads_across_members() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn channel_pool_concurrent_dispatch_spreads_across_members() {
-    // True-concurrent stress test for the picker's pick/reserve race
-    // (Finding 4, round 2). N independent tokio tasks call
-    // `pool.next()` concurrently; without the CAS commit guard two
+    // True-concurrent stress test for the picker's pick/reserve race.
+    // N independent tokio tasks call `pool.next()` concurrently;
+    // without the CAS commit guard two
     // tasks could both scan, both observe the same least-loaded
     // channel, and both commit reservations — pinning the channel
     // and pushing the rest of the burst to a hot member.
@@ -1645,7 +1645,7 @@ async fn channel_keepalive_survives_server_ping() {
     // The mock's PING driver signals `ping_pongs_done` after 5
     // successful PING/PONG round-trips, so the test waits
     // deterministically on the Notify rather than sleeping for a
-    // wall-clock interval (audit closure — fixed-sleep barriers).
+    // wall-clock interval (avoids fixed-sleep barriers).
     let ping_pongs_done = Arc::new(Notify::new());
     let chunks = vec![make_response_data(&["AAPL"])];
     let mock = MockServer::spawn_with_behaviour(

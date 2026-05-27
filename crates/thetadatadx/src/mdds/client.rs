@@ -113,7 +113,7 @@ impl MddsClient {
         // The Nexus URL itself encodes deployment topology that operators
         // rarely need at `info` — keep the URL behind `trace` verbosity
         // so production deployments do not record it by default. Mirrors
-        // the same downgrade applied to `auth/nexus.rs` for audit S55/S56.
+        // the same downgrade applied to `auth/nexus.rs`.
         tracing::info!("authenticating with Nexus API");
         tracing::trace!(nexus_url = %config.auth.nexus_url, "Nexus auth URL");
         let auth_resp = auth::authenticate_at(&config.auth.nexus_url, creds).await?;

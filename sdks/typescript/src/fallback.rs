@@ -566,7 +566,7 @@ impl Config {
         })
     }
 
-    // ── RetryPolicy field setters/getters (BL-10) ─────────────────
+    // ── RetryPolicy field setters/getters ─────────────────────────
 
     /// Set the initial backoff delay (ms) for the historical-channel retry policy.
     /// Default `250n`. Subsequent retries double from here, capped at
@@ -680,7 +680,7 @@ impl Config {
         Ok(guard.retry.jitter)
     }
 
-    // ── FlatFilesConfig field setters/getters (BL-8) ──────────────
+    // ── FlatFilesConfig field setters/getters ─────────────────────
 
     /// Set the total attempt budget for the flatfile driver retry
     /// loop. `1` disables retry (single call only); higher values

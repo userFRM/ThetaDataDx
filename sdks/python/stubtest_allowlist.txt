@@ -79,8 +79,8 @@ thetadatadx\.EventCallback
 # user-visible default is keyword-only, the runtime is permissive.
 thetadatadx\.Contract\.option
 
-# P4 closure: `FpssParseError` is the stub-side rename for the
-# FPSS-event payload class whose runtime name is `Error`. The
+# `FpssParseError` is the stub-side rename for the FPSS-event
+# payload class whose runtime name is `Error`. The
 # runtime exposes a single `Error` class (the typed FPSS-parse
 # error variant); the stub uses `FpssParseError` to avoid colliding
 # with the generic `Error` exception type that is also exposed as

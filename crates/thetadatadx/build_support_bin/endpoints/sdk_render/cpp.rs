@@ -216,8 +216,8 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint) -> String {
     }
     out.push_str("    detail::FfiEndpointRequestOptions ffi_options(options);\n");
     // Clear any stale FFI error before the call so check_string_array /
-    // check_tick_array can disambiguate "success-empty" from "failure-with-
-    // empty-sentinel" (e.g. timeout). W3 round-2 fix — see
+    // check_tick_array can disambiguate "success-empty" from
+    // "failure-with-empty-sentinel" (e.g. timeout). See
     // ffi/src/lib.rs::tdx_clear_error.
     out.push_str("    tdx_clear_error();\n");
 

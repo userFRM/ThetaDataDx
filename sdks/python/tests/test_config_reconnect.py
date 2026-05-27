@@ -178,7 +178,7 @@ def test_reconnect_setter_state_survives_interleaved_calls():
     assert cfg.reconnect_policy == "auto"
 
 
-# ─── ReconnectConfig.wait_ms / wait_rate_limited_ms (BL-11) ────────
+# ─── ReconnectConfig.wait_ms / wait_rate_limited_ms ────────────────
 
 
 def test_reconnect_wait_ms_defaults_to_wire_constants() -> None:
@@ -218,7 +218,7 @@ def test_reconnect_wait_ms_rejects_above_u64() -> None:
         cfg.reconnect_wait_rate_limited_ms = 1 << 65
 
 
-# ─── RuntimeConfig.tokio_worker_threads (BL-9) ─────────────────────
+# ─── RuntimeConfig.tokio_worker_threads ────────────────────────────
 
 
 def test_tokio_worker_threads_default_is_none() -> None:
@@ -244,7 +244,7 @@ def test_tokio_worker_threads_round_trips_some_zero() -> None:
     assert cfg.tokio_worker_threads is None
 
 
-# ─── RetryPolicy field setters/getters (BL-10) ─────────────────────
+# ─── RetryPolicy field setters/getters ─────────────────────────────
 
 
 def test_retry_policy_defaults() -> None:

@@ -977,8 +977,8 @@ fn render_greeks_eod(ticks: &[tdbe::types::tick::GreeksEodTick], fmt: &OutputFor
     // `ask_condition`). The pretty table renders a representative subset
     // for terminal readability; the raw-headers row is the full 39-column
     // wire shape so `--format raw` / Arrow / JSON callers see every
-    // field. Wave-6 BLOCKER closure -- the previous `GreeksAllTick`
-    // routing silently dropped the 12 EOD columns.
+    // field. The v10 `GreeksAllTick` routing dropped 12 EOD columns;
+    // this path preserves them.
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",
@@ -1611,10 +1611,10 @@ fn render_index_price_at_time(
 ) {
     // Trade-shaped row published by `index_at_time_price` (10 wire
     // columns: `timestamp`, `sequence`, `ext_condition1..4`,
-    // `condition`, `size`, `exchange`, `price`). Wave-6 SERIOUS
-    // closure -- the previous `PriceTick` routing silently dropped the
-    // seven trade-side execution columns including the SIP-exchange
-    // attribution field.
+    // `condition`, `size`, `exchange`, `price`). The v10 `PriceTick`
+    // routing dropped the seven trade-side execution columns
+    // including the SIP-exchange attribution field; this path
+    // preserves them.
     let mut td = TabularData::new(vec![
         "date",
         "ms_of_day",

@@ -230,11 +230,10 @@ macro_rules! require_symbol_array {
 /// must produce an `Err` instead.
 ///
 /// Centralises the `if is_null() { return; }; unsafe { &mut *config }`
-/// pattern that audit S23/S24 found repeated 30+ times across
-/// `ffi/src/auth.rs` and `ffi/src/fallback.rs`. The SAFETY block
-/// names the actual invariant (pointer returned by `tdx_*_new`, not
-/// yet freed) once, instead of paraphrasing it inline at every
-/// setter.
+/// pattern that was repeated 30+ times across `ffi/src/auth.rs` and
+/// `ffi/src/fallback.rs`. The SAFETY block names the actual invariant
+/// (pointer returned by `tdx_*_new`, not yet freed) once, instead of
+/// paraphrasing it inline at every setter.
 macro_rules! require_config_mut {
     ($config:ident) => {{
         if $config.is_null() {
@@ -246,9 +245,9 @@ macro_rules! require_config_mut {
 }
 
 // `require_config_ref!` macro will be wired in alongside the C ABI
-// getter additions per audit S32-S36 (Config readback parity for the
-// C++ test suite). Deferred to that follow-up so this commit stays
-// scoped to the mutation-side cleanup.
+// getter additions for Config readback parity with the C++ test
+// suite. Deferred to that follow-up so this commit stays scoped to
+// the mutation-side cleanup.
 
 #[cfg(test)]
 mod tests {

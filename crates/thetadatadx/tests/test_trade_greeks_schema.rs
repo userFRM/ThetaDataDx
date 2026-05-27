@@ -1,18 +1,18 @@
-//! `option_history_trade_greeks_*` regression tests (BL-14).
+//! `option_history_trade_greeks_*` regression tests.
 //!
 //! Five fixtures replay the verified-live wire shape (terminal jar build
 //! `202605221`) for the five `option_history_trade_greeks_*` endpoints
-//! and assert that the new sibling tick types preserve every column the
+//! and assert that the sibling tick types preserve every column the
 //! server publishes -- specifically the nine trade-side execution
 //! columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
-//! `exchange`, `price`) that the v10 line silently dropped by routing
-//! these endpoints through the interval-sampled `Greeks*Tick` parsers.
+//! `exchange`, `price`) that the v10 line dropped by routing these
+//! endpoints through the interval-sampled `Greeks*Tick` parsers.
 //!
-//! These tests would have caught BL-14 the moment the silent reroute
-//! landed: the old parsers either errored on the missing `bid`/`ask`
-//! columns or zero-filled them while dropping every trade column -- the
-//! `expected_headers` assert and the typed first-row asserts here pin
-//! both shapes.
+//! Any future regression that reverts the routing surfaces here: the
+//! old parsers either errored on the missing `bid`/`ask` columns or
+//! zero-filled them while dropping every trade column. The
+//! `expected_headers` assert and the typed first-row asserts pin both
+//! shapes.
 
 use std::fs;
 

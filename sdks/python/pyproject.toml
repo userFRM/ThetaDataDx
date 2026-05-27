@@ -34,11 +34,11 @@ Discord = "https://discord.thetadata.us/"
 python-source = "python"
 # Stable ABI: one wheel per platform covers every CPython 3.9+ release.
 #
-# N14 closure: the `abi3-py39` feature is unconditionally enabled
-# here even on the free-threaded `3.13t` / `3.14t` build matrix
-# entries — PyO3 emits a benign warning at build time for those
-# entries ("free-threaded build ignores abi3"), but the wheel
-# selection is correct either way: maturin's
+# The `abi3-py39` feature is unconditionally enabled here even on
+# the free-threaded `3.13t` / `3.14t` build matrix entries — PyO3
+# emits a benign warning at build time for those entries
+# ("free-threaded build ignores abi3"), but the wheel selection is
+# correct either way: maturin's
 # `--interpreter python3.13t` flag overrides the abi3 emission and
 # tags the wheel `cp313-cp313t-*` (PEP 703 free-threaded ABI, not
 # abi3). The abi3 feature is then a no-op on those builds. Documented

@@ -358,7 +358,7 @@ pub unsafe extern "C" fn tdx_config_get_tokio_worker_threads(
     })
 }
 
-// ── RetryPolicy (BL-10) ────────────────────────────────────────────
+// ── RetryPolicy ────────────────────────────────────────────────────
 //
 // Per-field setters/getters on `DirectConfig.retry`. The two
 // `Duration` fields (`initial_delay`, `max_delay`) cross the ABI as
@@ -517,7 +517,7 @@ pub unsafe extern "C" fn tdx_config_set_derive_ohlcvc(config: *mut TdxConfig, en
     })
 }
 
-// ── FlatFilesConfig (BL-8) ─────────────────────────────────────────
+// ── FlatFilesConfig ────────────────────────────────────────────────
 //
 // Per-field setters/getters on `DirectConfig.flatfiles` mirror the
 // `RetryPolicy` shape: `max_attempts` is `u32`, the two `Duration`
@@ -842,7 +842,7 @@ pub unsafe extern "C" fn tdx_config_set_decode_queue_depth(
     unsafe { tdx_config_set_decode_queue_depth_explicit(config, has_value, n) }
 }
 
-// ── Getters (BLOCKER closure: pin the round-trip across C++) ───────
+// ── Getters: round-trip parity with C++ ────────────────────────────
 
 /// Read the current `decode_threads` setting.
 ///

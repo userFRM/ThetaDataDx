@@ -1,25 +1,25 @@
-//! Wave-6 audit closure regression tests.
+//! EOD-Greek and index-price schema regression tests.
 //!
 //! Two fixtures replay the verified-live wire shapes (terminal jar build
 //! `202605221`) for:
 //!
-//!   * `option_history_greeks_eod` (BLOCKER) -- the bare `GreeksAllTick`
-//!     (28 columns) silently dropped the twelve EOD trade/quote columns
+//!   * `option_history_greeks_eod` -- the v10 `GreeksAllTick` routing
+//!     (28 columns) dropped the twelve EOD trade/quote columns
 //!     (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`,
 //!     `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`,
 //!     `ask_condition`) from the 39-column EOD response. The new
 //!     `GreeksEodTick` carries the full wire shape end-to-end.
 //!
-//!   * `index_at_time_price` (SERIOUS) -- the bare `PriceTick` (3
-//!     columns) silently dropped the seven trade-side execution columns
-//!     (`sequence`, `ext_condition1..4`, `condition`, `size`,
-//!     `exchange`) including the SIP-exchange attribution field. The new
+//!   * `index_at_time_price` -- the v10 `PriceTick` routing (3 columns)
+//!     dropped the seven trade-side execution columns (`sequence`,
+//!     `ext_condition1..4`, `condition`, `size`, `exchange`) including
+//!     the SIP-exchange attribution field. The new
 //!     `IndexPriceAtTimeTick` carries the full trade-shaped wire row.
 //!
-//! These tests would have caught both regressions at PR time: the
-//! `expected_headers` assert pins the upstream column list and the
+//! The `expected_headers` assert pins the upstream column list and the
 //! typed first-row asserts pin the twelve EOD / seven trade-side
-//! columns that the silent-routing dropped.
+//! columns that the v10 routing dropped, so any regression that
+//! reverts to the narrower tick shape surfaces here.
 
 use std::fs;
 
@@ -97,7 +97,7 @@ fn assert_f64_eq(field: &str, got: f64, expected: f64) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// BLOCKER: option_history_greeks_eod -> GreeksEodTick
+// option_history_greeks_eod -> GreeksEodTick
 // ────────────────────────────────────────────────────────────────────────
 
 #[test]
@@ -117,8 +117,8 @@ fn decode_greeks_eod_carries_twelve_eod_columns_and_every_greek() {
     let first = ticks.first().expect("non-empty");
 
     // Twelve EOD trade/quote columns -- the data the bare `GreeksAllTick`
-    // silently dropped. Pinning all twelve here catches any regression
-    // that routes `option_history_greeks_eod` back through the
+    // dropped. Pinning all twelve here catches any regression that
+    // routes `option_history_greeks_eod` back through the
     // interval-sampled `GreeksAllTicks` collection.
     assert_f64_eq("open", first.open, meta_float(&meta, "first_row_open"));
     assert_f64_eq("high", first.high, meta_float(&meta, "first_row_high"));
@@ -195,7 +195,7 @@ fn decode_greeks_eod_carries_twelve_eod_columns_and_every_greek() {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// SERIOUS: index_at_time_price -> IndexPriceAtTimeTick
+// index_at_time_price -> IndexPriceAtTimeTick
 // ────────────────────────────────────────────────────────────────────────
 
 #[test]
@@ -215,7 +215,7 @@ fn decode_index_at_time_price_carries_seven_trade_side_columns() {
     let first = ticks.first().expect("non-empty");
 
     // Seven trade-side execution columns -- the data the bare
-    // `PriceTick` silently dropped. Pinning all seven here catches any
+    // `PriceTick` dropped. Pinning all seven here catches any
     // regression that routes `index_at_time_price` back through the
     // bare `PriceTicks` collection. `exchange = 5` is the SIP source
     // code (CBOE), the per-row attribution field that was lost.

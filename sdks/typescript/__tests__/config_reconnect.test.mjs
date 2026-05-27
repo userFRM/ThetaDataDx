@@ -181,7 +181,7 @@ describe('Config.setTokioWorkerThreadsExplicit', () => {
   });
 });
 
-describe('Config.setRetry* — RetryPolicy field setters (BL-10)', () => {
+describe('Config.setRetry* — RetryPolicy field setters', () => {
   it('expose the four RetryPolicy field defaults', () => {
     const cfg = Config.production();
     assert.equal(cfg.retryInitialDelayMs, 250n);

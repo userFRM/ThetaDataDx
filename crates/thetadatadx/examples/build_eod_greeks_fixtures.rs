@@ -1,4 +1,5 @@
-//! Build verified-live fixtures for the wave-6 audit closure:
+//! Build verified-live fixtures for the EOD-Greek and index-price
+//! parser regression tests:
 //!   * `option_history_greeks_eod` -> `GreeksEodTick`
 //!   * `index_at_time_price`        -> `IndexPriceAtTimeTick`
 //!
@@ -12,7 +13,7 @@
 //! the live server uses (Number for ints/dates, Price for prices/floats,
 //! Timestamp for timestamps).
 //!
-//! Run with: `cargo run -p thetadatadx --example build_wave6_fixtures`
+//! Run with: `cargo run -p thetadatadx --example build_eod_greeks_fixtures`
 //! Writes:
 //!   - `crates/thetadatadx/tests/fixtures/captures/option_history_greeks_eod.pb.zst`
 //!   - `crates/thetadatadx/tests/fixtures/captures/index_at_time_price.pb.zst`
@@ -164,8 +165,9 @@ fn build_greeks_eod_row() -> proto::DataValueList {
 // Index prints carry sequence=0 (no SIP sequence assigned), ext_conditions
 // at the wildcard sentinel 255, condition=0, size=0; only `exchange=5`
 // (the SIP exchange code) and `price=5414.14` are meaningful per row.
-// Wave-6 SERIOUS closure: those nine trade-side columns were silently
-// dropped when the endpoint routed through `PriceTick` (3 columns).
+// The v10 routing dropped those nine trade-side columns when the
+// endpoint routed through `PriceTick` (3 columns); v11 restores the
+// full schema.
 
 /// 10:30:00.000 EDT on 2024-06-14 -> epoch_ms.
 const INDEX_TS_MS: u64 = 1_718_375_400_000;

@@ -98,11 +98,11 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     "start_streaming_iter",
     "streaming",
     "streaming_iter",
-    // P2 closure: `streaming_async()` was added by PR #559 (async
-    // FD-readiness surface) and the unified pyclass exposes it
-    // hand-written in `streaming_async_session.rs`. Reaching for it
-    // through `MddsClient` would open the FPSS surface bound to the
-    // hidden inner unified client, so block at the proxy layer.
+    // `streaming_async()` was added by PR #559 (async FD-readiness
+    // surface) and the unified pyclass exposes it hand-written in
+    // `streaming_async_session.rs`. Reaching for it through
+    // `MddsClient` would open the FPSS surface bound to the hidden
+    // inner unified client, so block at the proxy layer.
     "streaming_async",
 ];
 
@@ -209,10 +209,10 @@ impl MddsClient {
     /// Loads credentials from a two-line file and connects with the
     /// supplied `config`, defaulting to `Config.production()`.
     ///
-    /// P6 closure: the `config` kwarg is optional. The historical
-    /// behaviour (no kwarg = production endpoint) is preserved; tests
-    /// and dev / stage environments now reach a single-arg constructor
-    /// shape via `MddsClient.from_file("creds.txt", config=Config.dev())`.
+    /// The `config` kwarg is optional. The historical behaviour
+    /// (no kwarg = production endpoint) is preserved; tests and
+    /// dev / stage environments reach a single-arg constructor shape
+    /// via `MddsClient.from_file("creds.txt", config=Config.dev())`.
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]
     fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
