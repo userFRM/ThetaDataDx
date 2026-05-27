@@ -94,16 +94,13 @@ reconnect-event metric (`thetadatadx.grpc.channel.reconnects_total`)
 should increment as connections rotate without any RPC failing
 upward to the caller.
 
-## Future narrowing
+## Public surface narrowing
 
-The crate-level `pub mod grpc` re-export currently exposes the
-channel, channel pool, codec, and decoder-pool surface. The wide
-surface is acceptable for the v10.x line so embedded callers can
-build custom transports while the API stabilises. v11 will narrow
-this to `pub(crate)` plus a curated `pub use` allowlist; embedded
-callers that need a public symbol that doesn't survive the narrowing
-should open an issue against the v11 milestone so the allowlist
-captures the call site before the bump lands.
+The `pub mod grpc` re-export was narrowed to `pub(crate)` plus a
+curated `pub use` allowlist in v11. Transport-layer errors continue
+to reach consumers via `impl From<grpc::ChannelError> for Error` at
+the crate boundary; integration tests that need the wider surface
+opt in via the private `__test-helpers` feature.
 
 ### Gate 14 KPI footnote
 
