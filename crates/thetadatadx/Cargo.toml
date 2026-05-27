@@ -408,6 +408,16 @@ name = "grpc_mock_server"
 path = "tests/grpc_mock_server.rs"
 required-features = ["__test-helpers"]
 
+# Pins endpoint-to-parser routing for the seven `option_history_*` /
+# `index_at_time_price` endpoints whose silent mis-routing was the
+# audit closure payload of Wave-5 BL-14 + Wave-6 BLOCKER/SERIOUS.
+# Gated on `__test-helpers` for `MddsClient::for_fallback_test` and
+# the `grpc::{Channel, ChannelPool}` re-export.
+[[test]]
+name = "test_endpoint_routing"
+path = "tests/test_endpoint_routing.rs"
+required-features = ["__test-helpers"]
+
 [[bin]]
 name = "generate_sdk_surfaces"
 path = "src/bin/generate_sdk_surfaces.rs"

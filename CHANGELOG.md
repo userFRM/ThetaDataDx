@@ -83,6 +83,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Tdx{GreeksEod,IndexPriceAtTime}TickArray` + Python pyclass +
   TypeScript napi `{GreeksEod,IndexPriceAtTime}Tick` + C++
   `tdx::{GreeksEod,IndexPriceAtTime}Tick`).
+- `tests/test_endpoint_routing.rs` pins endpoint-to-parser routing
+  end-to-end for the seven endpoints that exhibited the silent-mis-
+  routing class (`option_history_greeks_eod`, `index_at_time_price`,
+  and the five `option_history_trade_greeks_*` siblings). Each test
+  spins up the existing `grpc_mock_server` mock, serves the captured
+  fixture as a single `ResponseData` chunk, calls the real
+  `MddsClient::<endpoint>` builder via the `__test-helpers`-gated
+  `for_fallback_test` constructor, and asserts (a) the returned
+  `Vec<X>` carries the concrete tick type at compile time and (b)
+  the trade-side / EOD trade-quote columns the silent reroute
+  dropped are populated on the first row. The prior per-parser
+  regression suites (`test_wave6_schema.rs`,
+  `test_trade_greeks_schema.rs`) proved parser correctness in
+  isolation -- routing through `MddsClient::<endpoint>` was not
+  covered, so a future drift in the dispatch heuristic could revert
+  silently. This suite pins routing + parsing in one assertion.
 
 #### Audit closure wave 5
 
