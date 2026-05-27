@@ -249,7 +249,7 @@ In your binary's `Cargo.toml`:
 
 ```toml
 [dependencies]
-thetadatadx = { version = "10", features = ["mimalloc-allocator"] }
+thetadatadx = { version = "11", features = ["mimalloc-allocator"] }
 ```
 
 In your binary's `main.rs`:

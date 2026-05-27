@@ -297,7 +297,7 @@ pub mod utils {
 ///
 /// ```toml
 /// [dependencies]
-/// thetadatadx = { version = "10", features = ["mimalloc-allocator"] }
+/// thetadatadx = { version = "11", features = ["mimalloc-allocator"] }
 /// ```
 ///
 /// Mimalloc trades a small fixed overhead per process (~64 KB of
