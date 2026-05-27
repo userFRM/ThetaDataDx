@@ -475,9 +475,12 @@ impl Contract {
     ///
     /// # Panics
     ///
-    /// Panics if the root exceeds 16 bytes. Callers must call
-    /// [`Contract::validate`] first or originate the contract from a
-    /// validated source.
+    /// Debug builds panic via `debug_assert!` if [`Contract::validate`]
+    /// fails. Release builds emit a wire-malformed encoding without
+    /// panicking unless the root exceeds 255 bytes, at which point
+    /// `encode_unchecked` panics on the `u8::try_from(root_bytes.len())`
+    /// conversion. Callers must call [`Contract::validate`] first or
+    /// originate the contract from a validated source.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         debug_assert!(
