@@ -32,10 +32,14 @@ use tdbe::types::tick::{
 /// but the `interest_rate/history/eod` endpoint emits an ISO `"YYYY-MM-DD"`
 /// string under the header `created`; accepting `Text` here keeps every
 /// `date`-typed parser tolerant of either wire shape with no per-parser
-/// branching. `Number` carries the date already in YYYYMMDD form;
-/// `Timestamp` is converted to an Eastern-Time YYYYMMDD integer; `Text`
-/// flows through [`parse_iso_date`]. `NullValue` yields `Ok(None)`; any
-/// other type yields `Err(TypeMismatch)`.
+/// branching. `Number` carries the date already in YYYYMMDD form and is
+/// routed through the canonical [`tdbe::time::is_valid_yyyymmdd`] check so
+/// calendar-impossible payloads like `20260230` (Feb 30) or `20261301`
+/// (month 13) raise [`DecodeError::InvalidDate`] instead of flowing
+/// through; `Timestamp` is converted to an Eastern-Time YYYYMMDD integer;
+/// `Text` flows through [`parse_iso_date`] which applies the same
+/// validator. `NullValue` yields `Ok(None)`; any other type yields
+/// `Err(TypeMismatch)`.
 ///
 /// # Errors
 ///
@@ -44,7 +48,9 @@ use tdbe::types::tick::{
 /// `DataValue` arrived with its `data_type` oneof unset (`observed:
 /// "Unset"`), which is a wire-protocol anomaly we fail loud on. Returns
 /// [`DecodeError::MissingCell`] only when the row has fewer cells than `idx`
-/// (index out of bounds).
+/// (index out of bounds). Returns [`DecodeError::InvalidDate`] when a
+/// `Number` cell carries a value that does not decompose into a real
+/// Gregorian date under [`tdbe::time::is_valid_yyyymmdd`].
 // Reason: number values from protobuf fit in i32 for date/integer fields.
 #[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<i32>, DecodeError> {
@@ -52,7 +58,20 @@ pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<
         return Err(DecodeError::MissingCell { column: idx });
     };
     match dv.data_type.as_ref() {
-        Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as i32)),
+        Some(proto::data_value::DataType::Number(n)) => {
+            // Round-1 hardening of `parse_iso_date` only covered the `Text`
+            // arm, but real MDDS payloads carry YYYYMMDD dates as
+            // `Number(n)` — `Number(20260230)` was previously cast straight
+            // through to i32 without any calendar-range check. Route every
+            // numeric date arm through the canonical Gregorian validator
+            // so the same calendar-impossible cell raises the same typed
+            // `InvalidDate` error regardless of wire encoding.
+            let n32 = *n as i32;
+            if !tdbe::time::is_valid_yyyymmdd(n32) {
+                return Err(DecodeError::InvalidDate { raw: n.to_string() });
+            }
+            Ok(Some(n32))
+        }
         Some(proto::data_value::DataType::Timestamp(ts)) => {
             Ok(Some(tdbe::time::timestamp_to_date(ts.epoch_ms)))
         }

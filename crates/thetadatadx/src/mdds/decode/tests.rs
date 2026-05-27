@@ -3,7 +3,7 @@
 //! home in `tdbe::time`.
 
 use super::cell::{
-    row_number, row_number_i64, row_price_f64, row_price_type, row_price_value, row_text,
+    row_date, row_number, row_number_i64, row_price_f64, row_price_type, row_price_value, row_text,
 };
 use super::dual_type_columns::{
     parse_calendar_days_v3, parse_iso_date, parse_option_contracts_v3, parse_time_text,
@@ -1484,4 +1484,155 @@ fn parse_option_contracts_v3_errors_on_invalid_expiration_text() {
             raw: "not-a-date".into(),
         }
     );
+}
+
+// ───── Wave-7: numeric YYYYMMDD wire arms route through is_valid_yyyymmdd ─────
+//
+// Round-1 hardening of `parse_iso_date` only covered the Text arm, but
+// real v3 MDDS payloads carry packed YYYYMMDD dates as `Number(n)` on
+// `row_date`, `parse_option_contracts_v3::expiration`, and
+// `parse_calendar_days_v3::date`. Pre-Wave-7 those numeric arms cast
+// straight to i32 with no calendar check, so `Number(20260230)` (Feb 30)
+// and `Number(20261301)` (month 13) decoded silently. Each numeric arm
+// now routes through `tdbe::time::is_valid_yyyymmdd` and surfaces
+// `DecodeError::InvalidDate` with the raw integer attached.
+
+#[test]
+fn row_date_rejects_number_feb_30() {
+    let row = row_of(vec![dv_number(20_260_230)]);
+    assert_eq!(
+        row_date(&row, 0),
+        Err(DecodeError::InvalidDate {
+            raw: "20260230".into(),
+        })
+    );
+}
+
+#[test]
+fn row_date_rejects_number_month_13() {
+    let row = row_of(vec![dv_number(20_261_301)]);
+    assert_eq!(
+        row_date(&row, 0),
+        Err(DecodeError::InvalidDate {
+            raw: "20261301".into(),
+        })
+    );
+}
+
+#[test]
+fn row_date_accepts_number_real_leap_day() {
+    // 2024 is a leap year — Feb 29 is real and must round-trip through
+    // the validator unchanged.
+    let row = row_of(vec![dv_number(20_240_229)]);
+    assert_eq!(row_date(&row, 0).unwrap(), Some(20_240_229));
+}
+
+#[test]
+fn row_date_rejects_number_feb_29_non_leap() {
+    // 2025 % 4 != 0 — Feb 29 is calendar-impossible.
+    let row = row_of(vec![dv_number(20_250_229)]);
+    assert_eq!(
+        row_date(&row, 0),
+        Err(DecodeError::InvalidDate {
+            raw: "20250229".into(),
+        })
+    );
+}
+
+#[test]
+fn row_date_rejects_number_zero() {
+    // The `00000000` sentinel must not flow through to downstream
+    // timestamp arithmetic — `is_valid_yyyymmdd(0)` is false.
+    let row = row_of(vec![dv_number(0)]);
+    assert_eq!(
+        row_date(&row, 0),
+        Err(DecodeError::InvalidDate { raw: "0".into() })
+    );
+}
+
+#[test]
+fn row_date_accepts_real_date_unchanged() {
+    // Sanity: a real Gregorian date round-trips with no error.
+    let row = row_of(vec![dv_number(20_260_413)]);
+    assert_eq!(row_date(&row, 0).unwrap(), Some(20_260_413));
+}
+
+#[test]
+fn parse_option_contracts_v3_rejects_numeric_expiration_feb_30() {
+    let table = proto::DataTable {
+        headers: vec!["root".into(), "expiration".into()],
+        data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(20_260_230)])],
+    };
+    assert_eq!(
+        parse_option_contracts_v3(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "20260230".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_option_contracts_v3_rejects_numeric_expiration_month_13() {
+    let table = proto::DataTable {
+        headers: vec!["root".into(), "expiration".into()],
+        data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(20_261_301)])],
+    };
+    assert_eq!(
+        parse_option_contracts_v3(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "20261301".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_option_contracts_v3_accepts_numeric_expiration_real_date() {
+    // Sanity check the numeric arm still produces a valid contract for
+    // a real Gregorian expiration.
+    let table = proto::DataTable {
+        headers: vec!["root".into(), "expiration".into()],
+        data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(20_240_229)])],
+    };
+    let contracts = parse_option_contracts_v3(&table).unwrap();
+    assert_eq!(contracts.len(), 1);
+    assert_eq!(contracts[0].expiration, 20_240_229);
+}
+
+#[test]
+fn parse_calendar_days_v3_rejects_numeric_date_feb_30() {
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into()],
+        data_table: vec![row_of(vec![dv_number(20_260_230), dv_text("open")])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "20260230".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_calendar_days_v3_rejects_numeric_date_month_13() {
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into()],
+        data_table: vec![row_of(vec![dv_number(20_261_301), dv_text("open")])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "20261301".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_calendar_days_v3_accepts_numeric_date_real_leap_day() {
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into()],
+        data_table: vec![row_of(vec![dv_number(20_240_229), dv_text("open")])],
+    };
+    let days = parse_calendar_days_v3(&table).unwrap();
+    assert_eq!(days.len(), 1);
+    assert_eq!(days[0].date, 20_240_229);
 }

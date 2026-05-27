@@ -1,11 +1,26 @@
     // EOD date fields may arrive as Price, Number, or Timestamp cells.
+    // Numeric arms (Number and Price.value) carry a packed YYYYMMDD that
+    // must round-trip through the canonical Gregorian validator —
+    // calendar-impossible payloads like 20260230 raise `InvalidDate`
+    // instead of casting straight through as they did pre-round-2.
     fn eod_date(row: &crate::proto::DataValueList, idx: usize) -> Result<i32, DecodeError> {
         let Some(dv) = row.values.get(idx) else {
             return Err(DecodeError::MissingCell { column: idx });
         };
         match dv.data_type.as_ref() {
-            Some(crate::proto::data_value::DataType::Number(n)) => Ok(*n as i32),
-            Some(crate::proto::data_value::DataType::Price(p)) => Ok(p.value),
+            Some(crate::proto::data_value::DataType::Number(n)) => {
+                let n32 = *n as i32;
+                if !tdbe::time::is_valid_yyyymmdd(n32) {
+                    return Err(DecodeError::InvalidDate { raw: n.to_string() });
+                }
+                Ok(n32)
+            }
+            Some(crate::proto::data_value::DataType::Price(p)) => {
+                if !tdbe::time::is_valid_yyyymmdd(p.value) {
+                    return Err(DecodeError::InvalidDate { raw: p.value.to_string() });
+                }
+                Ok(p.value)
+            }
             Some(crate::proto::data_value::DataType::Timestamp(ts)) => Ok(tdbe::time::timestamp_to_date(ts.epoch_ms)),
             Some(crate::proto::data_value::DataType::NullValue(_)) => Ok(0),
             None => Err(DecodeError::TypeMismatch {
