@@ -117,8 +117,7 @@ int main() {
 
 ## What's new in v11.0.0
 
-The v11 cut absorbs 30 major + 1 minor breaking changes versus v10
-plus the late-cycle full-repo audit closure. Highlights:
+The v11 cut absorbs a set of breaking changes versus v10. Highlights:
 
 - **In-house h2 gRPC client** replaces `tonic` on the historical
   request path. Channel pool gains involuntary-disconnect recovery
