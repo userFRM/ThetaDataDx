@@ -523,7 +523,7 @@ fn run_stage2_worker(
         let outcome = std::panic::catch_unwind(AssertUnwindSafe(move || {
             // Honour the max_message_size ceiling at the prost
             // boundary even though stage-1 already validated it
-            // during decompress — defence in depth against
+            // during decompress — a redundant guard against
             // synthetic payloads constructed by replay tooling.
             if payload_bytes.len() > max_message_size {
                 return Err(Error::decompress_message_too_large(

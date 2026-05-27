@@ -78,13 +78,12 @@ SDK_OWNED = {
 # against different pyo3-ffi headers, arrow buffers laid out by
 # different arrow-schema versions, napi shims compiled against
 # divergent napi cores, gRPC envelopes encoded by divergent prost /
-# tonic schemas). Found during the late-cycle codex full-repo audit:
-# the default-mode drift check was passing while `--strict` flagged
-# `pyo3 0.28.2 vs 0.28.3` and `arrow-ipc / arrow-select 58.2.0 vs
-# 58.3.0` between workspace root and sdks/python Cargo.lock. Adding
-# them here keeps the default gate strict enough to catch the
-# binding-ABI class of drift without burning operators on
-# legitimately-divergent leaf transitives.
+# tonic schemas). The default-mode drift check used to pass while
+# `--strict` flagged `pyo3 0.28.2 vs 0.28.3` and `arrow-ipc /
+# arrow-select 58.2.0 vs 58.3.0` between workspace root and
+# sdks/python Cargo.lock. Pinning these in the default set keeps the
+# gate strict enough to catch the binding-ABI class of drift without
+# burning operators on legitimately-divergent leaf transitives.
 BINDING_CRITICAL = {
     "pyo3",
     "pyo3-build-config",

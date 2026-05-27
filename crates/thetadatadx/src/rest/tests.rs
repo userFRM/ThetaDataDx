@@ -10,10 +10,10 @@ use super::client::{
     decode_greeks_first_order_csv, decode_iv_csv, decode_quote_csv, decode_trade_quote_csv,
 };
 
-/// Defense-in-depth: `decode_quote_csv` must accept a subset NBBO
-/// column layout (6 columns of the canonical 11) and zero-fill the
-/// absent exchange / condition columns, matching the gRPC decoder's
-/// `opt_number(row, None) -> 0` contract.
+/// Subset-layout tolerance: `decode_quote_csv` must accept a subset
+/// NBBO column layout (6 columns of the canonical 11) and zero-fill
+/// the absent exchange / condition columns, matching the gRPC
+/// decoder's `opt_number(row, None) -> 0` contract.
 #[test]
 fn decode_quote_csv_handles_six_column_subset_layout() {
     let body = "\

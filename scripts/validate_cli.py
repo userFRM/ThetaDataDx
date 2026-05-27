@@ -281,9 +281,9 @@ def _canonicalize(value):
     """Light producer-side canonicalization for first_row values:
     lowercase dict keys, round floats to 6 decimals, recurse into dicts
     and lists. The validator consumer (scripts/validate_agreement.py)
-    is the authoritative enforcer, so this is defense in depth; the
-    consumer also handles sentinels (date==0, ms<0, strike==0, right="")
-    and NaN/Inf, plus omit-equivalence stripping.
+    is the authoritative enforcer, so this is a redundant guard; the
+    consumer also handles sentinels (date==0, ms<0, strike==0,
+    right="") and NaN/Inf, plus omit-equivalence stripping.
     """
     if isinstance(value, dict):
         return {str(k).lower(): _canonicalize(v) for k, v in value.items()}

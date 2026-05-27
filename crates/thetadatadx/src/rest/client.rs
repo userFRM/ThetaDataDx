@@ -216,9 +216,9 @@ pub(crate) async fn fetch_csv(
 //
 // Each decoder mirrors the gRPC `parse_<tick>_ticks` function: resolve
 // every column index up front, then iterate rows. Absent columns
-// zero-fill via `cell_i32_or_zero` / `cell_f64_or_zero` for
-// defense-in-depth against subset NBBO layouts the upstream may
-// emit for older storage tiers.
+// zero-fill via `cell_i32_or_zero` / `cell_f64_or_zero` so the
+// decoder tolerates subset NBBO layouts the upstream may emit for
+// older storage tiers.
 
 /// Decode the `option_history_quote` CSV body into `Vec<QuoteTick>`.
 ///

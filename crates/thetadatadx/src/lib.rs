@@ -116,7 +116,7 @@ pub mod frames;
 // the [`__test-helpers`] feature notes in `Cargo.toml` for the
 // double-underscore convention.
 //
-// Closes BL-1 (whole-repo audit wave 3) — `pub mod grpc` SemVer rope.
+// Narrows the `pub mod grpc` SemVer commitment to crate-internal use.
 #[cfg(not(feature = "__test-helpers"))]
 pub(crate) mod grpc;
 #[cfg(feature = "__test-helpers")]
@@ -126,11 +126,11 @@ pub(crate) mod observability;
 pub mod rest;
 pub mod util;
 
-// Wave 3 layout: macros, registry, validate, wire_semantics, and the
-// shared endpoint runtime (`endpoint_args`) all live under `mdds/`.
-// The macro_rules in `mdds/macros.rs` are made textually visible to
-// the sibling `mdds/endpoints` module via `#[macro_use]` on the
-// `macros` declaration inside `mdds/mod.rs`.
+// `mdds/` holds the macros, registry, validate, wire_semantics, and the
+// shared endpoint runtime (`endpoint_args`). The macro_rules in
+// `mdds/macros.rs` are made textually visible to the sibling
+// `mdds/endpoints` module via `#[macro_use]` on the `macros`
+// declaration inside `mdds/mod.rs`.
 pub mod mdds;
 
 /// Shared endpoint runtime (`EndpointArgs`, `EndpointError`,
@@ -139,8 +139,8 @@ pub mod mdds;
 pub use mdds::endpoint_args as endpoint;
 
 // `decode` is re-exported from `mdds::decode` to preserve the public surface
-// (`thetadatadx::decode::*`). Wave 2 split the original decode.rs god-file
-// into `mdds/decode/{error, headers, transport, extract, cell, v3}`; the
+// (`thetadatadx::decode::*`). The decode pipeline is split into
+// `mdds/decode/{error, headers, transport, extract, cell, v3}`; the
 // re-export keeps existing consumer paths unchanged.
 pub use mdds::decode;
 

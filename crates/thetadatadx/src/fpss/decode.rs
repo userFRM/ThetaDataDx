@@ -754,8 +754,7 @@ mod tests {
 
     /// Drive `decode_frame` with a synthetic FIT-encoded `Trade` frame
     /// and assert on the resulting `FpssEvent::Data(FpssData::Trade{..})`.
-    /// Replaces the prior hand-mapped `decode_tick` driver per BL-17:
-    /// asserting on the production decode-entry point pins the
+    /// Asserting on the production decode-entry point pins the
     /// integration contract (FIT decode + tick-buffer -> field
     /// extraction + Arc<Contract> resolution + Price reassembly) rather
     /// than re-implementing the mapping inside the test body.
@@ -857,7 +856,7 @@ mod tests {
     /// FIT decode + every field on the public `FpssData::Trade` variant
     /// (including the extended-condition + flag fields the 8-field
     /// layout zeroes out) is asserted against the real decode path
-    /// rather than a hand-copied mapping. BL-17 fix.
+    /// rather than a hand-copied mapping.
     #[test]
     fn decode_frame_16field_trade_emits_trade_data_with_extended_fields() {
         // 16-field trade layout (production format):

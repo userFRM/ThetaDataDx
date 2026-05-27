@@ -394,8 +394,8 @@ impl Channel {
     /// fails.
     ///
     /// Reachable only when the `__test-helpers` private feature is
-    /// enabled (see BL-1 narrowing); production callers use the
-    /// `_with_max_message_size` variant exclusively.
+    /// enabled; production callers use the `_with_max_message_size`
+    /// variant exclusively.
     #[cfg(feature = "__test-helpers")]
     pub async fn connect_h2c(host: &str, port: u16) -> Result<Self, ChannelError> {
         Self::connect_h2c_with_max_message_size(host, port, super::codec::DEFAULT_MAX_MESSAGE_SIZE)
@@ -439,8 +439,8 @@ impl Channel {
     /// or h2 handshake fails.
     ///
     /// Reachable only when the `__test-helpers` private feature is
-    /// enabled (see BL-1 narrowing); production callers use the
-    /// `_with_max_message_size` variant exclusively.
+    /// enabled; production callers use the `_with_max_message_size`
+    /// variant exclusively.
     #[cfg(feature = "__test-helpers")]
     pub async fn connect_tls(
         host: &str,

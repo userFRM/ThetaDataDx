@@ -1248,11 +1248,11 @@ fn parse_greeks_third_order_ticks_decodes_third_order_subset() {
 // ─────────── Subset NBBO header set: decoder must zero-fill absent
 // ─────────── exchange/condition columns
 //
-// Defense-in-depth: a `DataTable` whose header set is a subset of
-// the canonical NBBO schema (six of eleven columns present, with
-// `bid_exchange`, `bid_condition`, `ask_exchange`, `ask_condition`
-// absent) must decode without error and zero-fill the absent
-// columns. The subset layout
+// Subset-layout tolerance: a `DataTable` whose header set is a
+// subset of the canonical NBBO schema (six of eleven columns
+// present, with `bid_exchange`, `bid_condition`, `ask_exchange`,
+// `ask_condition` absent) must decode without error and zero-fill
+// the absent columns. The subset layout
 // `[ms_of_day, bid_size, bid, ask_size, ask, date]` is the
 // canonical shape these tests exercise.
 //

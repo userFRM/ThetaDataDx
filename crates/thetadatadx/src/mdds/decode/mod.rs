@@ -1,6 +1,6 @@
 //! `ResponseData` → `DataTable` → tick decoders.
 //!
-//! Wave 2 split of the original `crates/thetadatadx/src/decode.rs` god-file:
+//! Split of the original `crates/thetadatadx/src/decode.rs` god-file:
 //!
 //! | Submodule    | Concern                                                       |
 //! |--------------|---------------------------------------------------------------|

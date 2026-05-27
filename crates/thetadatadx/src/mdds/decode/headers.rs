@@ -71,8 +71,8 @@ pub(crate) const HEADER_ALIASES: &[(&str, &str)] = &[
 /// `QuoteTick` schema declares `bid_exchange`, `bid_condition`,
 /// `ask_exchange`, `ask_condition` as optional columns — when the
 /// wire response omits them the generator-emitted
-/// `opt_number(row, None)` arm defaults them to `0`. Defense-in-depth
-/// against subset NBBO layouts the upstream may emit for older
+/// `opt_number(row, None)` arm defaults them to `0`. The lookup
+/// tolerates subset NBBO layouts the upstream may emit for older
 /// storage tiers; the regression test
 /// `tests::quote_tick_decodes_legacy_six_field_shape_with_zero_fill`
 /// in this module pins that behaviour.

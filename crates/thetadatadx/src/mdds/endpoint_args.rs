@@ -566,10 +566,10 @@ mod tests {
         assert_eq!(args.timeout_ms(), None);
     }
 
-    /// `timeout_ms == 0` is sentinel for "no deadline" (W3 round-2 fix).
-    /// Storing `Some(0)` would wrap the dispatch in
-    /// `tokio::time::timeout(Duration::ZERO, ...)`, which fires on the first
-    /// poll and prevents any call from completing.
+    /// `timeout_ms == 0` is the sentinel for "no deadline" and is
+    /// normalised to `None`. Storing `Some(0)` would wrap the dispatch
+    /// in `tokio::time::timeout(Duration::ZERO, ...)`, which fires on
+    /// the first poll and prevents any call from completing.
     #[test]
     fn with_timeout_ms_zero_means_no_deadline() {
         let args = EndpointArgs::new().with_timeout_ms(0);

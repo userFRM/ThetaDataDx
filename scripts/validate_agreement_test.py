@@ -404,7 +404,7 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("685.870000", err)
 
     def test_date_zero_sentinel_normalizes_to_null(self) -> None:
-        # CLI emits `date: 0` verbatim under the round-3 json-raw contract
+        # CLI emits `date: 0` verbatim under the json-raw contract
         # (tools/cli/src/main.rs `raw_date`), while another producer might
         # serialize the same "no date" cell as JSON null. Both shapes must
         # canonicalize to None so they compare equal. Rationale: trading
@@ -510,12 +510,12 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("volume", _diff_section(err))
 
     # ------------------------------------------------------------------
-    # Round 4 -- omit-vs-null-vs-sentinel-value equivalence (Codex r4).
+    # Omit-vs-null-vs-sentinel-value equivalence.
     # Producers diverge on contract-id field shape:
     #   - Python emits `expiration: 0` always
     #   - Go's `omitempty` strips zero-valued fields from JSON
     #   - Server's `insert_contract_id_fields` skips when expiration==0
-    #   - CLI raw helpers emit `expiration: 0` verbatim (round-3 fix)
+    #   - CLI raw helpers emit `expiration: 0` verbatim
     # All four shapes must canonicalize to the same thing.
     # ------------------------------------------------------------------
 
@@ -664,19 +664,19 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("right", _diff_section(err))
 
     # ------------------------------------------------------------------
-    # Round 5 -- nested empty-container handling (Codex r5 finding).
-    # Earlier rounds elided stripped-empty containers and made
-    # `{"meta": {}}` false-pass against `{}`. Fix: `_canonicalize_row`
-    # strips only LEAF sentinels; sub-dicts and sub-lists are preserved
-    # even when they become empty via stripping. `_flatten` re-emits
-    # empty containers with their path as a marker.
+    # Nested empty-container handling. Earlier behaviour elided
+    # stripped-empty containers and made `{"meta": {}}` false-pass
+    # against `{}`. Fix: `_canonicalize_row` strips only LEAF
+    # sentinels; sub-dicts and sub-lists are preserved even when they
+    # become empty via stripping. `_flatten` re-emits empty
+    # containers with their path as a marker.
     # ------------------------------------------------------------------
 
     def test_originally_empty_container_does_not_false_pass(self) -> None:
-        # `{"meta": {}}` (producer intentionally emitted an empty meta
-        # sub-dict as a real data point) must DISAGREE with `{}` (meta
-        # is completely absent). Earlier rounds silently elided both to
-        # empty flat-maps and false-passed -- Codex r5 caught this.
+        # `{"meta": {}}` (producer intentionally emitted an empty
+        # meta sub-dict as a real data point) must DISAGREE with `{}`
+        # (meta is completely absent). Earlier behaviour silently
+        # elided both to empty flat-maps and false-passed.
         _write_artifact(
             self.artifacts,
             "python",

@@ -87,8 +87,7 @@ pub mod decoder_pool;
 // `bench_support` helpers used exclusively by the gRPC benches and
 // the `grpc_stock_list_symbols` integration test. Production RPCs go
 // through the macro-generated `crate::mdds::*` endpoints directly.
-// Gating on `__test-helpers` keeps the example out of the default rlib
-// (BL-1 narrowing — whole-repo audit wave 3).
+// Gating on `__test-helpers` keeps the example out of the default rlib.
 #[cfg(feature = "__test-helpers")]
 pub mod endpoints;
 pub mod pool;

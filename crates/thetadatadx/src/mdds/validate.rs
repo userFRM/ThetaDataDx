@@ -10,10 +10,10 @@
 //! TOML surface spec and proto schema — a fundamentally different
 //! domain — so they remain separate.
 //!
-//! Wave 3 merged the previous top-level `crate::validate` and the
-//! single-arg `crate::mdds::validate` adapter into this module. The
-//! two-argument canonical validators sit at the top; the single-arg
-//! adapters used by the generated builder macros sit below.
+//! This module merges the previous top-level `crate::validate` and the
+//! single-arg `crate::mdds::validate` adapter. The two-argument
+//! canonical validators sit at the top; the single-arg adapters used
+//! by the generated builder macros sit below.
 
 use crate::error::Error;
 use crate::mdds::endpoint_args::EndpointError;
@@ -268,8 +268,8 @@ mod tests {
 
     #[test]
     fn validate_date_required_rejects_impossible_calendar_dates() {
-        // The exact garbage shapes the H3 codex finding called out:
-        // shape-only validation used to silently accept these.
+        // The exact garbage shapes that shape-only validation used to
+        // silently accept:
         assert!(validate_date_required("00000000").is_err());
         assert!(validate_date_required("20260230").is_err()); // Feb 30
         assert!(validate_date_required("19990431").is_err()); // Apr 31

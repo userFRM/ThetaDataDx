@@ -20,9 +20,9 @@
 //!    maintaining a small parser here is lower than the long-term cost
 //!    of an extra crate in the lockfile.
 //!
-//! The decoder is **lenient on absent columns** -- defense-in-depth
-//! against subset NBBO layouts the upstream may emit for older
-//! storage tiers (`ms_of_day, bid_size, bid, ask_size, ask, date`
+//! The decoder is **lenient on absent columns** -- it tolerates
+//! subset NBBO layouts the upstream may emit for older storage
+//! tiers (`ms_of_day, bid_size, bid, ask_size, ask, date`
 //! without the exchange / condition columns). When the four
 //! exchange / condition columns are absent from the header, the
 //! table's `column_index` lookup returns `None` and the downstream

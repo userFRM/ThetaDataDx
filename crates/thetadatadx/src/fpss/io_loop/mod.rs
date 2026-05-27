@@ -747,11 +747,10 @@ pub(in crate::fpss) fn io_loop(args: IoLoopArgs) {
                     break 'session;
                 }
                 // Honour caller-tuned `wait_ms` /
-                // `wait_rate_limited_ms` from `ReconnectConfig`
-                // (BL-11). The permanent-reason check above already
-                // short-circuited the `None` case via
-                // `class_for(reason).is_none()`, so this lookup is a
-                // belt-and-braces guard.
+                // `wait_rate_limited_ms` from `ReconnectConfig`. The
+                // permanent-reason check above already short-circuited
+                // the `None` case via `class_for(reason).is_none()`,
+                // so this lookup is a belt-and-braces guard.
                 let Some(ms) = reconnect_delay_for(reason, wait_ms, wait_rate_limited_ms) else {
                     tracing::error!(reason = ?reason, "permanent disconnect -- not reconnecting");
                     break 'session;

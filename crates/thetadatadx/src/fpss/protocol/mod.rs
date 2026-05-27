@@ -44,7 +44,7 @@ pub mod subscription;
 // Wire-internal payload builders / parsers — these construct the bytes
 // for outbound FPSS frames and decode response codes. Not a supported
 // public API; the SDK's high-level methods (`subscribe`, `start_streaming`,
-// etc.) are the supported surface. Closes BL-2.
+// etc.) are the supported surface.
 //
 // The module stays accessible inside the crate (and under the private
 // `__test-helpers` feature for integration-test fixture builders) but
@@ -57,7 +57,7 @@ pub use self::subscription::{FullSubscriptionKind, SecTypeExt, Subscription, Sub
 
 // Crate-internal re-exports — keep the historical `protocol::build_*`
 // paths working for in-crate callers while removing the symbols from
-// the published surface. Closes BL-2.
+// the published surface.
 pub(crate) use self::wire::{
     build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,
     build_stop_payload, build_subscribe_payload, parse_contract_message, parse_disconnect_reason,

@@ -294,7 +294,7 @@ mod tests {
         // the unreachable URL (and fails), the second task's lock
         // re-check sees the bumped version and returns Ok WITHOUT
         // issuing its own network attempt. Counter must end at <= 1
-        // because we observe at most the first task's call. BL-16.
+        // because we observe at most the first task's call.
         //
         // (A real-server mock was tried first — see git history — but
         // reqwest 0.13's response decoder rejected the hand-written

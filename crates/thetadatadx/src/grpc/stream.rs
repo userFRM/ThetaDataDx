@@ -445,7 +445,7 @@ where
                             }
                         }
                         Poll::Ready(Ok(None)) => {
-                            // Defense-in-depth: a trailers-only response
+                            // Redundant guard: a trailers-only response
                             // is normally caught at the channel layer
                             // (where we still have the response head).
                             // If we reach this branch, the body closed

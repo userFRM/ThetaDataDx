@@ -280,7 +280,7 @@ harness = false
 [[bench]]
 # Uses the test-only `protocol::test_wire` re-exports for FPSS payload
 # builders — gated on `__test-helpers` so the wire helpers stay out of
-# the default rlib (BL-2 narrowing).
+# the default rlib.
 name = "bench_protocol"
 harness = false
 required-features = ["__test-helpers"]
@@ -304,7 +304,7 @@ harness = false
 [[bench]]
 # Drives the raw `Channel` / `ChannelPool` / `endpoints::bench_support`
 # surface against a mock h2c server; gated on `__test-helpers` so the
-# `grpc` module re-export stays out of the default rlib (BL-1 narrowing).
+# `grpc` module re-export stays out of the default rlib.
 name = "grpc_channel"
 harness = false
 required-features = ["__test-helpers"]
@@ -312,7 +312,7 @@ required-features = ["__test-helpers"]
 [[bench]]
 # Drives `default_decoder_thread_count` + `Channel` + `ChannelPool` +
 # `DecoderPool` under concurrent burst load; gated on `__test-helpers`
-# for the same reason as `grpc_channel` (BL-1 narrowing).
+# for the same reason as `grpc_channel`.
 name = "grpc_concurrent_burst"
 harness = false
 required-features = ["__test-helpers"]
@@ -335,7 +335,7 @@ harness = false
 
 [[bench]]
 # Drives `DecoderPool` directly to measure prost-decode throughput;
-# gated on `__test-helpers` for the `grpc` re-export (BL-1 narrowing).
+# gated on `__test-helpers` for the `grpc` re-export.
 name = "bench_decoder_pool"
 harness = false
 required-features = ["__test-helpers"]
@@ -347,7 +347,7 @@ harness = false
 [[bench]]
 # Drives `Stage2Pool` + `DecodedPayload` head-to-head against the
 # single-stage decoder; gated on `__test-helpers` for the `grpc`
-# re-export (BL-1 narrowing).
+# re-export.
 name = "bench_stage_pipeline"
 harness = false
 required-features = ["__test-helpers"]
@@ -363,7 +363,7 @@ required-features = ["__test-helpers"]
 # Integration tests that drive `fpss::__test_internals` to exercise the
 # `read_frame_into → decode_frame → FpssEvent` pipeline against synthetic
 # fixture bytes. Each entry gates on `__test-helpers` so the helper
-# module stays out of the default rlib (BL-4 narrowing).
+# module stays out of the default rlib.
 [[test]]
 name = "reconnect_storm"
 path = "tests/reconnect_storm.rs"
@@ -392,7 +392,7 @@ required-features = ["__test-helpers"]
 # Integration tests that drive the raw `grpc::{Channel, ChannelPool,
 # DecoderPool, ChannelError, Status}` surface against a mock h2c server.
 # Gated on `__test-helpers` so the `grpc` module re-export stays out
-# of the default rlib (BL-1 narrowing — whole-repo audit wave 3).
+# of the default rlib.
 [[test]]
 name = "grpc_stock_list_symbols"
 path = "tests/grpc_stock_list_symbols.rs"
@@ -409,10 +409,9 @@ path = "tests/grpc_mock_server.rs"
 required-features = ["__test-helpers"]
 
 # Pins endpoint-to-parser routing for the seven `option_history_*` /
-# `index_at_time_price` endpoints whose silent mis-routing was the
-# audit closure payload of Wave-5 BL-14 + Wave-6 BLOCKER/SERIOUS.
-# Gated on `__test-helpers` for `MddsClient::for_fallback_test` and
-# the `grpc::{Channel, ChannelPool}` re-export.
+# `index_at_time_price` endpoints. Gated on `__test-helpers` for
+# `MddsClient::for_fallback_test` and the `grpc::{Channel, ChannelPool}`
+# re-export.
 [[test]]
 name = "test_endpoint_routing"
 path = "tests/test_endpoint_routing.rs"
