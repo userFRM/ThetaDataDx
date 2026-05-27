@@ -163,26 +163,68 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
         SecType::Option | SecType::Index => {
             // Index payload (when supported by the vendor) follows the
             // option layout — root_len, root, exp, right, strike, date.
+            //
+            // Every field here participates in the public contract key
+            // for every row sourced from this block (CSV, JSON, Arrow,
+            // decoded tick). A corrupt or drifted blob that the wire
+            // layer accepted (e.g. truncated upload, codec mismatch)
+            // must fail loud at this boundary instead of silently
+            // rewriting symbol, expiration, right, or strike on every
+            // downstream row. Validate each field against its
+            // documented invariants and surface typed `decode_codec`
+            // errors that operators can grep in upstream logs.
             let root_len = read_u8(&mut e)? as usize;
             let mut root_bytes = vec![0u8; root_len];
             e.read_exact(&mut root_bytes)?;
-            let root = String::from_utf8_lossy(&root_bytes).into_owned();
+            let root = String::from_utf8(root_bytes).map_err(|err| {
+                Error::decode_codec(format!(
+                    "flatfiles INDEX: non-UTF-8 root bytes {:?}",
+                    err.as_bytes()
+                ))
+            })?;
             let exp = read_i32(&mut e)?;
+            if !tdbe::time::is_valid_yyyymmdd(exp) {
+                return Err(Error::decode_codec(format!(
+                    "flatfiles INDEX: invalid expiration YYYYMMDD {exp}"
+                )));
+            }
             let right_byte = read_u8(&mut e)?;
+            if !matches!(right_byte, b'C' | b'P') {
+                return Err(Error::decode_codec(format!(
+                    "flatfiles INDEX: invalid right byte {right_byte} (expected b'C' or b'P')"
+                )));
+            }
             let right = right_byte as char;
             let strike = read_i32(&mut e)?;
             // The trailing i32 is the contract's trading date; the row's
             // own DATE column carries the per-tick date and supersedes
             // it for CSV emission, so we consume but don't store.
-            let _date = read_i32(&mut e)?;
+            // Still validate it so a drifted blob fails loud at the I/O
+            // boundary even when the value is dropped downstream.
+            let date = read_i32(&mut e)?;
+            if !tdbe::time::is_valid_yyyymmdd(date) {
+                return Err(Error::decode_codec(format!(
+                    "flatfiles INDEX: invalid trading-date YYYYMMDD {date}"
+                )));
+            }
             (root, Some(exp), Some(strike), Some(right))
         }
         SecType::Stock => {
             let root_len = read_u8(&mut e)? as usize;
             let mut root_bytes = vec![0u8; root_len];
             e.read_exact(&mut root_bytes)?;
-            let root = String::from_utf8_lossy(&root_bytes).into_owned();
-            let _date = read_i32(&mut e)?;
+            let root = String::from_utf8(root_bytes).map_err(|err| {
+                Error::decode_codec(format!(
+                    "flatfiles INDEX: non-UTF-8 root bytes {:?}",
+                    err.as_bytes()
+                ))
+            })?;
+            let date = read_i32(&mut e)?;
+            if !tdbe::time::is_valid_yyyymmdd(date) {
+                return Err(Error::decode_codec(format!(
+                    "flatfiles INDEX: invalid trading-date YYYYMMDD {date}"
+                )));
+            }
             (root, None, None, None)
         }
     };
@@ -337,5 +379,164 @@ mod tests {
         assert_eq!(entry.right, None);
         assert_eq!(entry.block_start, 0);
         assert_eq!(entry.block_end, 100);
+    }
+
+    // ─────────── INDEX contract metadata validation ───────────
+    //
+    // The INDEX block carries the public contract key for every row
+    // sourced from a flatfile (CSV, JSON, Arrow, decoded tick). Before
+    // these guards landed, the parser used `String::from_utf8_lossy`
+    // for the root, accepted any `right` byte, and skipped Gregorian
+    // checks on `exp` / `date` — a drifted or corrupt blob would
+    // silently rewrite symbol, expiration, and right on every
+    // downstream row instead of failing loud at the I/O boundary.
+
+    /// Helper: build the INDEX byte stream for one option entry with
+    /// caller-provided (root_bytes, exp, right_byte, strike, date).
+    /// Used by the strict-decode tests below to drive each individual
+    /// failure mode without copy-pasting the framing.
+    fn build_option_index(
+        root_bytes: &[u8],
+        exp: i32,
+        right_byte: u8,
+        strike: i32,
+        date: i32,
+    ) -> Vec<u8> {
+        let mut e = Vec::new();
+        e.push(root_bytes.len() as u8);
+        e.extend_from_slice(root_bytes);
+        e.extend_from_slice(&exp.to_be_bytes());
+        e.push(right_byte);
+        e.extend_from_slice(&strike.to_be_bytes());
+        e.extend_from_slice(&date.to_be_bytes());
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&(e.len() as u16).to_be_bytes());
+        buf.extend_from_slice(&e);
+        buf.extend_from_slice(&42i32.to_be_bytes());
+        buf.extend_from_slice(&1000i64.to_be_bytes());
+        buf.extend_from_slice(&1500i64.to_be_bytes());
+        buf
+    }
+
+    #[test]
+    fn option_index_rejects_non_utf8_root() {
+        // 0xFF 0xFE 0xFD is invalid UTF-8 in any encoding; before the
+        // guard the parser substituted U+FFFD replacement chars and
+        // shipped a garbage symbol downstream.
+        let buf = build_option_index(&[0xFF, 0xFE, 0xFD], 20_260_117, b'C', 200_000, 20_260_428);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("non-UTF-8 root bytes"),
+            "expected non-UTF-8 root error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_rejects_invalid_expiration() {
+        // 99991301 — month 13. The Gregorian validator rejects it
+        // even though the integer fits in i32.
+        let buf = build_option_index(b"AAPL", 99_991_301, b'C', 200_000, 20_260_428);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("invalid expiration YYYYMMDD 99991301"),
+            "expected invalid-expiration error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_rejects_invalid_right_byte() {
+        // b'X' is neither b'C' nor b'P'. Before the guard this cast
+        // straight to a char and silently became the contract right.
+        let buf = build_option_index(b"AAPL", 20_260_117, b'X', 200_000, 20_260_428);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("invalid right byte 88"),
+            "expected invalid-right error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_rejects_non_leap_feb_29_date() {
+        // 2025 % 4 != 0 — Feb 29 is calendar-impossible. The date
+        // field is consumed but not stored; still must fail loud
+        // because the blob is structurally wrong.
+        let buf = build_option_index(b"AAPL", 20_260_117, b'C', 200_000, 20_250_229);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("invalid trading-date YYYYMMDD 20250229"),
+            "expected invalid-date error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn option_index_accepts_well_formed_contract() {
+        // Positive smoke test — every guard above must be satisfied
+        // by a clean payload so the new validators don't over-reject.
+        let buf = build_option_index(b"AAPL", 20_260_117, b'P', 200_000, 20_260_428);
+        let mut iter = IndexIter::new(&buf, SecType::Option);
+        let entry = iter.next().unwrap().unwrap();
+        assert_eq!(entry.symbol, "AAPL");
+        assert_eq!(entry.expiration, Some(20_260_117));
+        assert_eq!(entry.right, Some('P'));
+        assert_eq!(entry.strike, Some(200_000));
+        assert_eq!(entry.block_start, 1000);
+        assert_eq!(entry.block_end, 1500);
+    }
+
+    #[test]
+    fn stock_index_rejects_non_utf8_root() {
+        // Same UTF-8 guard applies to the stock layout.
+        let mut e = Vec::new();
+        e.push(3u8);
+        e.extend_from_slice(&[0xFF, 0xFE, 0xFD]);
+        e.extend_from_slice(&20_260_428i32.to_be_bytes());
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&(e.len() as u16).to_be_bytes());
+        buf.extend_from_slice(&e);
+        buf.extend_from_slice(&0i32.to_be_bytes());
+        buf.extend_from_slice(&0i64.to_be_bytes());
+        buf.extend_from_slice(&100i64.to_be_bytes());
+
+        let mut iter = IndexIter::new(&buf, SecType::Stock);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("non-UTF-8 root bytes"),
+            "expected non-UTF-8 root error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn stock_index_rejects_invalid_date() {
+        // Stock layout also validates the trading date.
+        let mut e = Vec::new();
+        e.push(3u8);
+        e.extend_from_slice(b"SPY");
+        e.extend_from_slice(&20_251_301i32.to_be_bytes()); // month 13
+
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&(e.len() as u16).to_be_bytes());
+        buf.extend_from_slice(&e);
+        buf.extend_from_slice(&0i32.to_be_bytes());
+        buf.extend_from_slice(&0i64.to_be_bytes());
+        buf.extend_from_slice(&100i64.to_be_bytes());
+
+        let mut iter = IndexIter::new(&buf, SecType::Stock);
+        let err = iter.next().unwrap().unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("invalid trading-date YYYYMMDD 20251301"),
+            "expected invalid-date error, got: {msg}"
+        );
     }
 }
