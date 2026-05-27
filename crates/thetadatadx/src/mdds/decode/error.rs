@@ -99,6 +99,22 @@ pub enum DecodeError {
         /// captured verbatim from the wire for diagnostics.
         raw: String,
     },
+    /// A `Price` cell carried a `price_type` outside the documented
+    /// `0..=MAX_PRICE_TYPE` (= `0..=19`) range. Used by the strict
+    /// price-cell decoders ([`crate::mdds::decode::row_price_f64`],
+    /// [`crate::mdds::decode::row_number_i64`]) so an upstream
+    /// out-of-range value surfaces as a typed wire-protocol error
+    /// instead of silently saturating to `19` and producing
+    /// wrong-magnitude downstream prices. Mirrors `tdbe::types::price::
+    /// PriceError::PriceTypeOutOfRange` on the public-surface side of
+    /// the decode boundary.
+    #[error("invalid price_type {raw} (expected 0..=19)")]
+    InvalidPriceType {
+        /// The exact `price_type` value the wire payload carried,
+        /// captured verbatim for diagnostics so operators can grep
+        /// the failing magnitude in upstream logs.
+        raw: i32,
+    },
 }
 
 /// Name the `DataType` variant for error messages. `None` is treated as a

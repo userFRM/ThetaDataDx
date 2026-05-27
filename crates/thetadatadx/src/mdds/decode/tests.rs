@@ -348,21 +348,70 @@ fn row_number_i64_matches_row_price_f64_at_type_19() {
     assert!((as_float - 42_000_000_000.0_f64).abs() < 1.0);
 }
 
-/// `price_type=20` is out-of-range; both decoders must clamp to 19
-/// (matching `Price::new`). A `type=20` cell and a `type=19` cell with
-/// the same value must therefore decode to the same i64.
+/// `price_type=20` is out-of-range; both decoders must surface a
+/// typed `InvalidPriceType` error rather than silently saturating to
+/// `19` (which previously produced wrong-magnitude downstream
+/// prices). Boundary check at `MAX_PRICE_TYPE + 1`.
 #[test]
-fn row_number_i64_clamps_price_type_above_19() {
-    let row_clamped = row_of(vec![dv_price(7, 20)]);
-    let row_in_range = row_of(vec![dv_price(7, 19)]);
+fn row_number_i64_rejects_price_type_above_max() {
+    let row = row_of(vec![dv_price(7, 20)]);
     assert_eq!(
-        row_number_i64(&row_clamped, 0).unwrap(),
-        row_number_i64(&row_in_range, 0).unwrap(),
+        row_number_i64(&row, 0).unwrap_err(),
+        DecodeError::InvalidPriceType { raw: 20 },
     );
-    // Pin the absolute value too: 7 * 10^9 = 7_000_000_000.
+}
+
+/// Companion check for `row_price_f64` so the two decoders share the
+/// same wire-protocol contract on out-of-range `price_type`. Same
+/// boundary cell as `row_number_i64_rejects_price_type_above_max`.
+#[test]
+fn row_price_f64_rejects_price_type_above_max() {
+    let row = row_of(vec![dv_price(7, 20)]);
     assert_eq!(
-        row_number_i64(&row_clamped, 0).unwrap(),
-        Some(7_000_000_000_i64)
+        row_price_f64(&row, 0).unwrap_err(),
+        DecodeError::InvalidPriceType { raw: 20 },
+    );
+}
+
+/// `price_type=21` — one past the boundary, still rejected.
+#[test]
+fn row_number_i64_rejects_price_type_21() {
+    let row = row_of(vec![dv_price(7, 21)]);
+    assert_eq!(
+        row_number_i64(&row, 0).unwrap_err(),
+        DecodeError::InvalidPriceType { raw: 21 },
+    );
+}
+
+/// `price_type=100` — well outside the documented vendor range.
+#[test]
+fn row_number_i64_rejects_price_type_100() {
+    let row = row_of(vec![dv_price(7, 100)]);
+    assert_eq!(
+        row_number_i64(&row, 0).unwrap_err(),
+        DecodeError::InvalidPriceType { raw: 100 },
+    );
+}
+
+/// `price_type=i32::MAX` — pathological upper extreme; the wire-
+/// protocol error must still surface verbatim.
+#[test]
+fn row_number_i64_rejects_price_type_i32_max() {
+    let row = row_of(vec![dv_price(7, i32::MAX)]);
+    assert_eq!(
+        row_number_i64(&row, 0).unwrap_err(),
+        DecodeError::InvalidPriceType { raw: i32::MAX },
+    );
+}
+
+/// `price_type=-1` — negative wire payload also rejected (matches
+/// `Price::with_value_and_type`'s `0..=19` contract).
+#[test]
+fn row_number_i64_rejects_negative_price_type() {
+    let row = row_of(vec![dv_price(7, -1)]);
+    assert_eq!(
+        row_number_i64(&row, 0).unwrap_err(),
+        DecodeError::InvalidPriceType { raw: -1 },
     );
 }
 

@@ -164,9 +164,18 @@ pub(crate) fn row_price_type(
 /// sends whole-dollar quantities as plain `Number` cells where the schema
 /// would otherwise expect `Price`. `NullValue` returns `Ok(None)`.
 ///
+/// `price_type` is range-checked against `tdbe::types::price::MAX_PRICE_TYPE`
+/// (= 19) through [`tdbe::types::price::Price::with_value_and_type`]; an
+/// out-of-range wire value surfaces as
+/// [`DecodeError::InvalidPriceType`] rather than silently saturating to 19
+/// (which previously produced wrong-magnitude downstream prices any time
+/// the upstream payload drifted).
+///
 /// # Errors
 ///
-/// Errors on any other cell type or missing cell.
+/// Errors on any other cell type or missing cell, and on
+/// [`DecodeError::InvalidPriceType`] when the wire `price_type` is outside
+/// the documented `0..=19` range.
 // Reason: protocol-defined integer widths from Java FPSS specification.
 #[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_price_f64(
@@ -177,9 +186,11 @@ pub(crate) fn row_price_f64(
         return Err(DecodeError::MissingCell { column: idx });
     };
     match dv.data_type.as_ref() {
-        Some(proto::data_value::DataType::Price(p)) => Ok(Some(
-            tdbe::types::price::Price::new(p.value, p.r#type).to_f64(),
-        )),
+        Some(proto::data_value::DataType::Price(p)) => {
+            let price = tdbe::types::price::Price::with_value_and_type(p.value, p.r#type)
+                .map_err(|_| DecodeError::InvalidPriceType { raw: p.r#type })?;
+            Ok(Some(price.to_f64()))
+        }
         Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as f64)),
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
@@ -225,16 +236,21 @@ pub(crate) fn row_text(
 /// with the EodTick `volume`/`count` widening (where on high-volume
 /// symbols the values exceed `i32::MAX`).
 ///
-/// `price_type` is clamped to `0..=19` to match
-/// [`tdbe::types::price::Price::new`], so the same wire cell decodes
-/// identically through this function and [`row_price_f64`].
+/// `price_type` is range-checked against the documented `0..=19`
+/// contract (matching [`tdbe::types::price::MAX_PRICE_TYPE`]); a wire
+/// value outside that range surfaces as
+/// [`DecodeError::InvalidPriceType`], mirroring [`row_price_f64`]'s
+/// strict-decode behaviour so the same upstream cell raises the same
+/// typed error through either decoder.
 ///
 /// # Errors
 ///
 /// Returns `DecodeError::TypeMismatch` for any other cell variant. Returns
-/// `DecodeError::MissingCell` for an out-of-bounds column index. Under the
-/// clamped `0..=19` price-type contract, scale-up cannot overflow `i64`
-/// (max product is `i32::MAX * 10^9 ≈ 2.15e18`, well under `i64::MAX`).
+/// `DecodeError::MissingCell` for an out-of-bounds column index. Returns
+/// `DecodeError::InvalidPriceType` when the wire `price_type` falls
+/// outside `0..=19`. Inside the validated contract, scale-up cannot
+/// overflow `i64` (max product is `i32::MAX * 10^9 ≈ 2.15e18`, well
+/// under `i64::MAX`).
 pub(crate) fn row_number_i64(
     row: &proto::DataValueList,
     idx: usize,
@@ -246,20 +262,26 @@ pub(crate) fn row_number_i64(
         Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n)),
         Some(proto::data_value::DataType::Price(p)) => {
             // Vendor convention: real_value = value * 10^(type - 10).
-            // Clamp `type` to 0..=19 to match `tdbe::Price::new`, so the
-            // same wire cell decodes identically through `row_price_f64`
-            // and `row_number_i64`. Positive exp scales up; negative exp
-            // scales down. v == 0 short-circuits to 0 so a zero price
+            // Range-check `type` against tdbe's MAX_PRICE_TYPE so the
+            // same wire cell raises the same `InvalidPriceType` error
+            // through this function and `row_price_f64` — neither
+            // silently saturates to 19 anymore, which was producing
+            // wrong-magnitude downstream prices on drifted upstream
+            // payloads. v == 0 short-circuits to 0 so a zero price
             // never trips the scale-up overflow guard.
             let v = i64::from(p.value);
             if v == 0 {
                 return Ok(Some(0));
             }
-            let price_type = p.r#type.clamp(0, 19);
+            if !(0..=tdbe::types::price::MAX_PRICE_TYPE).contains(&p.r#type) {
+                return Err(DecodeError::InvalidPriceType { raw: p.r#type });
+            }
+            let price_type = p.r#type;
             let exp = price_type - 10;
-            // After clamping, exp ∈ [-10, 9]. Scale-up: i32::MAX * 10^9
-            // ≈ 2.147e18 < i64::MAX (≈ 9.22e18), so checked_mul cannot
-            // overflow. checked_mul preserves the contract anyway.
+            // After the range check, exp ∈ [-10, 9]. Scale-up:
+            // i32::MAX * 10^9 ≈ 2.147e18 < i64::MAX (≈ 9.22e18), so
+            // checked_mul cannot overflow. checked_mul preserves the
+            // contract anyway.
             let scaled = if exp >= 0 {
                 10i64
                     .checked_pow(exp.unsigned_abs())
