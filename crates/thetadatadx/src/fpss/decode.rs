@@ -143,15 +143,11 @@ pub fn decode_frame(
 ) -> (Option<FpssEventInternal>, Option<FpssEventInternal>) {
     // Capture wall-clock timestamp once per frame for all data variants.
     //
-    // M1 fix: previously a `SystemTime::now()` failure (clock jumped
-    // before UNIX epoch — extremely rare, but possible on a misconfigured
-    // host or a virtualised guest with a buggy paravirtual clock) silently
-    // produced `received_at_ns = 0`, which downstream consumers cannot
-    // distinguish from a legitimate epoch-zero timestamp. The fix logs a
-    // rate-limited warning so operators see the clock-skew condition,
-    // and falls back to a monotonic-derived approximation rather than
-    // sentinelling on `0`. `Instant`-based fallback uses the program's
-    // approximate epoch alignment captured at first call.
+    // On clock skew (`SystemTime::now()` before UNIX_EPOCH — possible on
+    // a misconfigured host or virtualised guest with a buggy paravirtual
+    // clock) we surface `received_at_ns = 0` and emit a rate-limited
+    // warning. Consumers distinguishing a genuine epoch-zero timestamp
+    // from the skew sentinel must cross-check the warn log.
     let received_at_ns = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         // u128 → u64 saturates past 2554-07-21T23:34:33Z (when ns since
         // UNIX_EPOCH first exceeds 2^64). `as u64` would wrap to a
