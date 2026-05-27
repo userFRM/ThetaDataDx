@@ -188,7 +188,7 @@
     /// Get calendar information for a specific date.
     std::vector<CalendarDay> calendar_on_date(const std::string& date, const EndpointRequestOptions& options = {}) const;
 
-    /// Get calendar information for an entire year.
+    /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
     std::vector<CalendarDay> calendar_year(const std::string& year, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch end-of-day interest rate history.

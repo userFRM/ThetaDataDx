@@ -1814,7 +1814,7 @@ use = "required_date"
 [[endpoints]]
 name = "calendar_year"
 template = "calendar_query"
-description = "Get calendar information for an entire year."
+description = "Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day)."
 vendor_docstring = """
 - Retrieves equity market holidays for a given year
 - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year

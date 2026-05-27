@@ -3316,7 +3316,7 @@ pub unsafe extern "C" fn tdx_calendar_on_date_with_options(
     })
 }
 
-/// Get calendar information for an entire year.
+/// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]

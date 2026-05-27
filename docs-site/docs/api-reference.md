@@ -1905,7 +1905,11 @@ auto info = client.calendar_on_date("20240315");
 
 ### calendar_year
 
-Calendar information for an entire year.
+Equity market holidays and early-close days for an entire year. The
+upstream contract is the vendor `year_holidays` endpoint: only
+non-standard days (holidays, early closes) are returned — normal
+trading days are omitted. See the per-endpoint page for the full
+behaviour.
 
 ::: code-group
 ```rust [Rust]
@@ -1926,7 +1930,7 @@ auto cal = client.calendar_year("2024");
 |-----------|------|----------|-------------|
 | `year` | string | Yes | 4-digit year (e.g. `"2024"`) |
 
-**Returns:** Array of CalendarDay records with calendar info for every trading day.
+**Returns:** Array of CalendarDay records covering only non-standard days in the year (holidays + early closes). Normal trading days are omitted.
 
 ---
 
