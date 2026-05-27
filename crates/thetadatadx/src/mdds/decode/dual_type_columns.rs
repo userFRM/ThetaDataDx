@@ -122,9 +122,37 @@ pub fn parse_option_contracts_v3(
             // (which previously masked wire-schema drift). `NullValue`
             // is still a legit null and coalesces to 0. An unset oneof
             // is a wire anomaly → TypeMismatch.
+            //
+            // Round-3 hardened the text arm but the numeric arm still
+            // cast `Number(n)` to `i32` and stored arbitrary values.
+            // `DataValue.number` is wire-typed `int64`, so `Number(81)`
+            // and overflowing payloads silently became contract rights.
+            // Bounds-check against `i32` first, then accept only the
+            // canonical ASCII bytes 67 (`'C'`) and 80 (`'P'`) — anything
+            // else surfaces `UnknownEnumVariant` with the raw value
+            // captured for diagnostics.
             let right = match right_idx {
                 Some(i) => match cell_type(row, i)? {
-                    Some(proto::data_value::DataType::Number(n)) => *n as i32,
+                    Some(proto::data_value::DataType::Number(n)) => {
+                        let n32 = match i32::try_from(*n) {
+                            Ok(v) => v,
+                            Err(_) => {
+                                return Err(DecodeError::UnknownEnumVariant {
+                                    field: "right",
+                                    raw: n.to_string(),
+                                });
+                            }
+                        };
+                        match n32 {
+                            67 | 80 => n32,
+                            _ => {
+                                return Err(DecodeError::UnknownEnumVariant {
+                                    field: "right",
+                                    raw: n32.to_string(),
+                                });
+                            }
+                        }
+                    }
                     Some(proto::data_value::DataType::Text(s)) => match s.as_str() {
                         "CALL" | "C" => 67, // ASCII 'C'
                         "PUT" | "P" => 80,  // ASCII 'P'

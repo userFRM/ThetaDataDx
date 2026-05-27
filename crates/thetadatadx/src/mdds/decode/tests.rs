@@ -1900,3 +1900,126 @@ fn parse_calendar_days_v3_rejects_numeric_date_overflowing_i32() {
         }
     );
 }
+
+// ─────────── Numeric right arm: canonical CALL/PUT byte guard ───────────
+//
+// Round-3 fixed only the text arm of the `right` field. The numeric arm
+// in both the contract_right generator template and
+// `parse_option_contracts_v3` still cast `Number(n) as i32` and stored
+// arbitrary values — `Number(81)`, `Number(0)`, and any overflowing
+// int64 silently became contract rights across every wildcard parser
+// with `contract_id = true` plus the hand-written option-contracts
+// surface. Both numeric arms now accept only the canonical ASCII bytes
+// 67 (`'C'`) and 80 (`'P'`); anything else (including int64 overflow)
+// raises `UnknownEnumVariant` with the raw value captured verbatim.
+
+#[test]
+fn parse_option_contracts_v3_rejects_numeric_right_81() {
+    // 81 is one off from `'P'` (80) — a plausible drift on an upstream
+    // server that reshuffles its right enum, and exactly the failure
+    // mode the silent cast was masking.
+    let table = proto::DataTable {
+        headers: vec!["root".into(), "right".into()],
+        data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(81)])],
+    };
+    assert_eq!(
+        parse_option_contracts_v3(&table).unwrap_err(),
+        DecodeError::UnknownEnumVariant {
+            field: "right",
+            raw: "81".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_option_contracts_v3_rejects_numeric_right_zero() {
+    // 0 was the silent-coalesce sentinel before the strict-decode
+    // policy landed; verify it now raises loud.
+    let table = proto::DataTable {
+        headers: vec!["root".into(), "right".into()],
+        data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(0)])],
+    };
+    assert_eq!(
+        parse_option_contracts_v3(&table).unwrap_err(),
+        DecodeError::UnknownEnumVariant {
+            field: "right",
+            raw: "0".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_option_contracts_v3_accepts_numeric_right_call_byte() {
+    // 67 == ASCII 'C' — the canonical CALL wire byte. Must round-trip
+    // unchanged so the new bounds check does not over-reject the
+    // documented payload shape.
+    let table = proto::DataTable {
+        headers: vec!["root".into(), "right".into()],
+        data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(67)])],
+    };
+    let contracts = parse_option_contracts_v3(&table).unwrap();
+    assert_eq!(contracts.len(), 1);
+    assert_eq!(contracts[0].right, 67);
+}
+
+#[test]
+fn parse_option_contracts_v3_accepts_numeric_right_put_byte() {
+    // 80 == ASCII 'P' — the canonical PUT wire byte.
+    let table = proto::DataTable {
+        headers: vec!["root".into(), "right".into()],
+        data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(80)])],
+    };
+    let contracts = parse_option_contracts_v3(&table).unwrap();
+    assert_eq!(contracts.len(), 1);
+    assert_eq!(contracts[0].right, 80);
+}
+
+#[test]
+fn parse_trade_ticks_rejects_numeric_right_81() {
+    // Generator-emitted contract_id right arm. Same sibling-arm miss as
+    // `parse_option_contracts_v3` — pin the canonical strict-decode
+    // policy on the generator surface too.
+    let table = proto::DataTable {
+        headers: vec!["ms_of_day".into(), "price".into(), "right".into()],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_price(15_000, 10),
+            dv_number(81),
+        ])],
+    };
+    assert_eq!(
+        parse_trade_ticks(&table).unwrap_err(),
+        DecodeError::UnknownEnumVariant {
+            field: "right",
+            raw: "81".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_quote_ticks_rejects_numeric_right_overflowing_i32() {
+    // int64 overflow on the generator-emitted right arm — without the
+    // try_from guard the wrap would silently produce some i32 value
+    // and store it. The raw int64 must be captured verbatim instead.
+    let table = proto::DataTable {
+        headers: vec![
+            "ms_of_day".into(),
+            "bid".into(),
+            "ask".into(),
+            "right".into(),
+        ],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_price(15_000, 10),
+            dv_price(15_100, 10),
+            dv_number(i64::MAX),
+        ])],
+    };
+    assert_eq!(
+        parse_quote_ticks(&table).unwrap_err(),
+        DecodeError::UnknownEnumVariant {
+            field: "right",
+            raw: i64::MAX.to_string(),
+        }
+    );
+}
