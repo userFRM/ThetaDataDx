@@ -63,20 +63,10 @@ pub fn parse_option_contracts_v3(
         .map(|row| {
             let symbol = row_text(row, symbol_idx)?.unwrap_or_default();
 
-            // Expiration: `Number` carries YYYYMMDD directly; `Text` carries
-            // an ISO "2026-04-13" that we parse here — malformed text
-            // propagates as `DecodeError::InvalidDate` rather than
-            // silently coalescing to 0. `NullValue` → 0 (legit null).
-            // An unset oneof is a wire anomaly → TypeMismatch.
-            //
-            // `Number(n)` is the canonical v3 MDDS encoding for
-            // expirations. Round-3 wrapped `*n as i32` in
-            // `is_valid_yyyymmdd`, but `DataValue.number` is wire-typed
-            // `int64`, so `Number(2_147_483_648)` (i32::MAX + 1) silently
-            // wrapped into a passing shape. Bounds-check the wire integer
-            // against `i32` before validation so any payload outside the
-            // YYYYMMDD width surfaces as `InvalidDate` instead of
-            // low-32-bit-truncating into a real-looking date.
+            // Expiration: `Number` carries YYYYMMDD directly; `Text`
+            // carries an ISO "YYYY-MM-DD". Both pass through
+            // `is_valid_yyyymmdd` after the wire `int64` is bounds-
+            // checked against `i32`. `NullValue` -> 0.
             let expiration = match exp_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Number(n)) => {
@@ -117,20 +107,9 @@ pub fn parse_option_contracts_v3(
             };
 
             // Right: `Number` carries the ASCII code directly; `Text`
-            // carries "PUT"/"CALL"/"P"/"C". Unknown text →
-            // `UnknownEnumVariant` rather than silent coalesce to 0
-            // (which previously masked wire-schema drift). `NullValue`
-            // is still a legit null and coalesces to 0. An unset oneof
-            // is a wire anomaly → TypeMismatch.
-            //
-            // Round-3 hardened the text arm but the numeric arm still
-            // cast `Number(n)` to `i32` and stored arbitrary values.
-            // `DataValue.number` is wire-typed `int64`, so `Number(81)`
-            // and overflowing payloads silently became contract rights.
-            // Bounds-check against `i32` first, then accept only the
-            // canonical ASCII bytes 67 (`'C'`) and 80 (`'P'`) — anything
-            // else surfaces `UnknownEnumVariant` with the raw value
-            // captured for diagnostics.
+            // carries "PUT"/"CALL"/"P"/"C". Numeric arms accept only
+            // the canonical bytes 67 (`'C'`) and 80 (`'P'`); any other
+            // value surfaces as `UnknownEnumVariant`. `NullValue` -> 0.
             let right = match right_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Number(n)) => {
@@ -192,45 +171,27 @@ pub fn parse_option_contracts_v3(
         .collect()
 }
 
-/// Parse an ISO date string "2026-04-13" to YYYYMMDD integer 20260413.
+/// Parse an ISO date string to a YYYYMMDD integer.
 ///
-/// Accepts:
-/// - Compact `YYYYMMDD` (already-numeric) — e.g. `"20260413"`.
-/// - ISO `YYYY-MM-DD` — e.g. `"2026-04-13"` — which is the v3 wire
-///   shape on `interest_rate_history_eod.created` and the v3 calendar
-///   `date` column.
-///
-/// Both shapes are then run through the canonical Gregorian
-/// validator [`tdbe::time::is_valid_gregorian_date`] so calendar-impossible
-/// inputs (Feb 30, month 13, non-leap Feb 29, year outside
-/// `1900..=2100`, …) are rejected even when the textual shape is
-/// well-formed. Anything else returns [`DecodeError::InvalidDate`]
-/// with the raw text captured for diagnostics. Previously this
-/// function returned `0` on parse failure (and silently accepted
-/// calendar-impossible dates post-Wave-5), which corrupted downstream
-/// timestamps when the upstream schema drifted.
+/// Accepts both compact `YYYYMMDD` (e.g. `"20260413"`) and ISO
+/// `YYYY-MM-DD` (e.g. `"2026-04-13"`). Both shapes are validated
+/// through [`tdbe::time::is_valid_yyyymmdd`] /
+/// [`tdbe::time::is_valid_gregorian_date`].
 ///
 /// # Errors
 ///
 /// Returns [`DecodeError::InvalidDate`] when the input matches neither
-/// of the documented shapes, or when the parsed `(year, month, day)`
-/// triple is not a real Gregorian date.
+/// documented shape, or when the parsed `(year, month, day)` triple is
+/// not a real Gregorian date.
 // Reason: date parsing with known-safe integer ranges.
 #[allow(clippy::cast_possible_truncation, clippy::missing_panics_doc)]
 pub(crate) fn parse_iso_date(s: &str) -> Result<i32, DecodeError> {
-    // Fast path: already numeric (YYYYMMDD). Validate calendar
-    // correctness through the canonical tdbe Gregorian check so
-    // shape-valid impossibilities like `20260230` cannot slip through.
     if let Ok(n) = s.parse::<i32>() {
         if tdbe::time::is_valid_yyyymmdd(n) {
             return Ok(n);
         }
         return Err(DecodeError::InvalidDate { raw: s.to_string() });
     }
-    // ISO format: YYYY-MM-DD. Parse the three components, then route
-    // them through `is_valid_gregorian_date` so `2026-13-01`,
-    // `2026-02-29`, etc. are rejected before they hit downstream
-    // timestamp arithmetic.
     let parts: Vec<&str> = s.split('-').collect();
     if parts.len() == 3 {
         if let (Ok(y), Ok(m), Ok(d)) = (
@@ -246,24 +207,16 @@ pub(crate) fn parse_iso_date(s: &str) -> Result<i32, DecodeError> {
     Err(DecodeError::InvalidDate { raw: s.to_string() })
 }
 
-/// Parse a time string "HH:MM:SS" to milliseconds from midnight.
+/// Parse a time string `"HH:MM:SS"` to milliseconds from midnight.
 ///
 /// Used on the v3 calendar `open` / `close` columns. Components are
-/// validated against the clock ranges `0..=23` / `0..=59` / `0..=59`
-/// (matching the documented vendor surface; a 24-hour day with no
-/// leap seconds on the wire). Anything that does not match the
-/// documented `HH:MM:SS` shape — including out-of-range or negative
-/// components — returns [`DecodeError::InvalidTime`] with the raw
-/// text captured for diagnostics. Previously this function returned
-/// `0` on parse failure (and silently accepted clock-impossible
-/// inputs like `25:61:61` post-Wave-5), silently corrupting
-/// trading-session timestamps in downstream consumers.
+/// validated against `0..=23` / `0..=59` / `0..=59`.
 ///
 /// # Errors
 ///
 /// Returns [`DecodeError::InvalidTime`] when the input does not split
 /// into three colon-delimited integer components, or when any
-/// component is outside its documented clock range.
+/// component is outside its clock range.
 pub(crate) fn parse_time_text(s: &str) -> Result<i32, DecodeError> {
     let parts: Vec<&str> = s.split(':').collect();
     if parts.len() == 3 {
@@ -364,17 +317,10 @@ pub fn parse_calendar_days_v3(
         .data_table
         .iter()
         .map(|row| {
-            // date: Number carries YYYYMMDD, Timestamp converts to ET date,
-            // Text "2025-01-01" parses to YYYYMMDD. `NullValue` → 0 (legit
-            // null). Unset oneof is a wire anomaly → TypeMismatch.
-            //
-            // `Number(n)` is the canonical v3 MDDS encoding for calendar
-            // dates. Round-3 wrapped `*n as i32` in `is_valid_yyyymmdd`,
-            // but `DataValue.number` is wire-typed `int64`, so any value
-            // outside the i32 width silently wrapped into a passing shape.
-            // Bounds-check via `i32::try_from` first so out-of-range
-            // payloads raise `InvalidDate` with the raw int64 captured
-            // verbatim.
+            // date: Number carries YYYYMMDD (bounds-checked against i32
+            // then validated as a Gregorian date), Timestamp converts to
+            // ET date, Text "YYYY-MM-DD" parses to YYYYMMDD. `NullValue`
+            // -> 0.
             let date = match date_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Number(n)) => {
@@ -412,22 +358,9 @@ pub fn parse_calendar_days_v3(
                 None => 0,
             };
 
-            // type: Text "open"/"full_close"/"early_close"/"weekend";
-            // `NullValue` → (0, 0). Unset oneof or any other variant
-            // (including the previously-tolerated `Number` arm) is a wire
-            // anomaly → TypeMismatch.
-            //
-            // The canonical v3 calendar wire shape publishes `type` as Text
-            // (see `/calendar/today`, `/calendar/on_date`,
-            // `/calendar/year_holidays` in `scripts/upstream_openapi.yaml`),
-            // never Number. The previous numeric arm narrowed `*n as i32`
-            // and then mapped any nonzero truncated value to `is_open = 1`
-            // with the truncated value as `status` — schema drift silently
-            // produced a plausible-looking flag for any int64 payload. Drop
-            // the numeric fallback so a future server-side regression to
-            // numeric encoding surfaces as `TypeMismatch` with the raw
-            // variant name captured for diagnostics, matching the
-            // strict-decode policy on every other enum-typed column.
+            // type: Text "open"/"full_close"/"early_close"/"weekend"
+            // (the documented v3 wire shape). `NullValue` -> (0, 0).
+            // Any other variant -> TypeMismatch.
             let (is_open, status) = match type_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s)?,
@@ -464,21 +397,19 @@ pub fn parse_calendar_days_v3(
         .collect()
 }
 
-/// Decode a calendar `open`/`close` column. `Text "HH:MM:SS"` → ms-of-day;
-/// `Number(ms_of_day)` kept as future-proofing for numeric-time wire shapes.
-/// `NullValue` / absent column → 0. An unset oneof is a wire anomaly →
-/// [`DecodeError::TypeMismatch`].
+/// Decode a calendar `open`/`close` column to ms-of-day.
 ///
-/// The `Number` arm is bounds-checked against the destination `i32` range
-/// via [`i32::try_from`] and then range-checked against the documented
-/// `0..=86_400_000` ms-of-day window. `DataValue.number` is wire-typed
-/// `int64`, so the previous `*n as i32` narrowing silently accepted
-/// `i64::MAX` and other out-of-range payloads as legitimate session
-/// timestamps. Out-of-range numeric payloads now surface as
-/// [`DecodeError::NumericOverflow`] (when the wire `int64` does not fit
-/// `i32`) or [`DecodeError::InvalidTime`] (when the `i32` value falls
-/// outside the ms-of-day window), with the raw value captured verbatim
-/// for diagnostics.
+/// `Text "HH:MM:SS"` flows through [`parse_time_text`]. `Number`
+/// carries ms-of-day directly; the wire `int64` is bounds-checked
+/// against `i32` and the resulting value against `0..=86_400_000`.
+/// `NullValue` / absent column -> `0`.
+///
+/// # Errors
+///
+/// Returns [`DecodeError::NumericOverflow`] when the wire `int64`
+/// exceeds `i32`, [`DecodeError::InvalidTime`] when the value is
+/// outside the ms-of-day window, and [`DecodeError::TypeMismatch`]
+/// for any other cell variant.
 fn decode_calendar_time(
     row: &proto::DataValueList,
     idx: Option<usize>,

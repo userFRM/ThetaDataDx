@@ -74,24 +74,13 @@ pub(crate) fn price_type_for_row(row: &[i32], price_type_idx: Option<usize>) -> 
 
 /// Convert a wire `(value, price_type)` pair to its real f64 price
 /// using the canonical [`tdbe::types::price::Price`] semantics. Returns
-/// 0.0 for `price_type == 0` (vendor sentinel for "no price").
-///
-/// `price_type` is validated against
-/// [`tdbe::types::price::MAX_PRICE_TYPE`] (= 19) through
-/// [`tdbe::types::price::Price::with_value_and_type`]; a wire value
-/// outside the documented `0..=19` range surfaces as
-/// `Error::decode_codec(..)` rather than silently saturating to 19 via
-/// the clamping `Price::new` constructor (which previously fabricated
-/// price magnitudes in CSV, JSONL, and the in-memory decoded API
-/// whenever a flatfile blob's `PRICE_TYPE` column drifted past the
-/// vendor ceiling).
+/// `0.0` for `price_type == 0` (vendor sentinel for "no price").
 ///
 /// # Errors
 ///
-/// Returns `Error::decode_codec(..)` when `price_type` is outside the
-/// documented `0..=MAX_PRICE_TYPE` window. The raw wire value is
-/// captured in the message so operators can grep the failing
-/// magnitude in the surfacing log line.
+/// Returns `Error::decode_codec(..)` when `price_type` is outside
+/// `0..=tdbe::types::price::MAX_PRICE_TYPE`. The raw wire value is
+/// captured in the message.
 pub(crate) fn decode_price(integer: i32, price_type: i32) -> Result<f64, Error> {
     tdbe::types::price::Price::with_value_and_type(integer, price_type)
         .map(|p| p.to_f64())
@@ -103,15 +92,13 @@ pub(crate) fn decode_price(integer: i32, price_type: i32) -> Result<f64, Error> 
         })
 }
 
-/// Render the decoded price using Rust's default `f64` Display, which
-/// preserves the full IEEE-754 precision the wire decoder produced. For
-/// micro-priced contracts (sub-cent options) this is the only viable
-/// representation — fixed-point rendering rounds those to zero.
+/// Render the decoded price into `buf` using `f64` Display, which
+/// preserves full IEEE-754 precision. Required for sub-cent options,
+/// where fixed-point rendering rounds to zero.
 ///
 /// # Errors
 ///
-/// Propagates `Error::decode_codec(..)` from [`decode_price`] when the
-/// row's `price_type` is outside the documented `0..=19` range.
+/// Propagates `Error::decode_codec(..)` from [`decode_price`].
 pub(crate) fn fmt_price_into(buf: &mut String, integer: i32, price_type: i32) -> Result<(), Error> {
     use std::fmt::Write;
     let v = decode_price(integer, price_type)?;
@@ -328,12 +315,6 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    /// Unique scratch path inside the OS temp dir for sink-driving
-    /// tests. `tempfile` is not a dev-dependency in this crate, so the
-    /// tests build their own short-lived paths from a process-local
-    /// counter; the file is overwritten by `File::create` on
-    /// `CsvSink::new` / `JsonlSink::new`, so a stale path from a
-    /// previous run never leaks back into the assertions.
     fn scratch_path() -> PathBuf {
         static COUNTER: AtomicU64 = AtomicU64::new(0);
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -391,27 +372,8 @@ mod tests {
         assert_ne!(s, "0.0000");
     }
 
-    // ─── Round-6: out-of-range PRICE_TYPE rejection in flatfile sinks ───
-    //
-    // Round 2 hardened the MDDS row decoders + column extractors and
-    // round 6 closed the EOD parser template + FPSS streaming
-    // decoder, but the flatfile decoder still routed every row's
-    // PRICE_TYPE column through `Price::new`, so CSV, JSONL, and the
-    // in-memory `flatfile_request_decoded()` API surface all
-    // silently rendered fabricated magnitudes when a blob carried a
-    // `price_type` above `MAX_PRICE_TYPE`. The strict
-    // `with_value_and_type` path now raises `Error::decode_codec(..)`
-    // and the failure cascades through every writer surface; the
-    // tests below pin the contract on each surface so a regression
-    // in any one path fails the build before it can fabricate a
-    // public price.
-
     #[test]
     fn decode_price_rejects_price_type_above_max() {
-        // `price_type = 20` is one past the documented `0..=19`
-        // ceiling. Previously clamped silently to 19 via
-        // `Price::new`; the strict helper now surfaces the raw wire
-        // value verbatim through the `decode_codec` error variant.
         let err = decode_price(15_025, 20).unwrap_err();
         let msg = err.to_string();
         assert!(
@@ -422,9 +384,6 @@ mod tests {
 
     #[test]
     fn decode_price_rejects_negative_price_type() {
-        // Negative wire payloads previously coalesced to `0` through
-        // the clamping constructor; the strict path rejects them
-        // verbatim.
         let err = decode_price(99, -1).unwrap_err();
         let msg = err.to_string();
         assert!(
@@ -435,8 +394,6 @@ mod tests {
 
     #[test]
     fn decode_price_rejects_price_type_i32_max() {
-        // Pathological upper extreme: `i32::MAX` must surface
-        // verbatim instead of clamping to 19.
         let err = decode_price(1, i32::MAX).unwrap_err();
         let msg = err.to_string();
         assert!(
@@ -447,31 +404,15 @@ mod tests {
 
     #[test]
     fn fmt_price_into_propagates_invalid_price_type() {
-        // The CSV sink renders prices through `fmt_price_into`; a
-        // bad PRICE_TYPE must surface as `Err` instead of writing a
-        // clamped magnitude into the line buffer. Verifies the
-        // cascade from `decode_price` -> `fmt_price_into` ->
-        // `CsvSink::write_row`.
         let mut buf = String::from("preamble,");
         let res = fmt_price_into(&mut buf, 15_025, 20);
-        assert!(
-            res.is_err(),
-            "fmt_price_into must propagate the codec error"
-        );
-        // Defence-in-depth: the buffer must NOT carry a partially
-        // written clamped magnitude when the error escapes.
-        assert_eq!(
-            buf, "preamble,",
-            "fmt_price_into must not append a fabricated magnitude before erroring"
-        );
+        assert!(res.is_err());
+        // Reason: buffer must not retain a partial render after the error.
+        assert_eq!(buf, "preamble,");
     }
 
     #[test]
     fn csv_sink_write_row_rejects_invalid_price_type() {
-        // Drive the CSV sink end-to-end with a row whose PRICE_TYPE
-        // column is out of range. The CSV byte stream must NOT
-        // contain a clamped magnitude; the call must surface
-        // `Err(Error::decode_codec(..))`.
         let tmp = scratch_path();
         let fmt = vec![
             DataType::MsOfDay,
@@ -489,23 +430,16 @@ mod tests {
             block_start: 0,
             block_end: 0,
         };
-        // PRICE_TYPE column carries `20` — one past the ceiling.
         let row = [34_200_000_i32, 15_025, 20, 20_250_428];
         let res = sink.write_row(RowView {
             entry: &entry,
             data: &row,
         });
-        assert!(
-            res.is_err(),
-            "CsvSink::write_row must reject out-of-range PRICE_TYPE"
-        );
+        assert!(res.is_err());
     }
 
     #[test]
     fn jsonl_sink_write_row_rejects_invalid_price_type() {
-        // Same contract as the CSV sink: a malformed PRICE_TYPE
-        // column must surface as `Err` rather than emitting a JSON
-        // object with a clamped magnitude on the Bid field.
         let tmp = scratch_path();
         let fmt = vec![
             DataType::MsOfDay,
@@ -528,19 +462,11 @@ mod tests {
             entry: &entry,
             data: &row,
         });
-        assert!(
-            res.is_err(),
-            "JsonlSink::write_row must reject out-of-range PRICE_TYPE"
-        );
+        assert!(res.is_err());
     }
 
     #[test]
     fn flatfile_row_from_decoded_rejects_invalid_price_type() {
-        // The in-memory `flatfile_request_decoded()` surface builds
-        // every row through `FlatFileRow::from_decoded`; an
-        // out-of-range PRICE_TYPE must propagate as
-        // `Error::decode_codec(..)` rather than fabricating a
-        // `FlatFileValue::Price` cell on the public struct.
         use crate::flatfiles::decoded_row::FlatFileRow;
         let fmt = vec![
             DataType::MsOfDay,
@@ -548,23 +474,15 @@ mod tests {
             DataType::PriceType,
             DataType::Date,
         ];
-        let data_idx = vec![0_usize, 1, 3]; // skip the PRICE_TYPE column
+        let data_idx = vec![0_usize, 1, 3];
         let row = [34_200_000_i32, 15_025, 20, 20_250_428];
         let res =
             FlatFileRow::from_decoded("AAPL", None, None, None, &fmt, &row, &data_idx, Some(20));
-        assert!(
-            res.is_err(),
-            "FlatFileRow::from_decoded must reject out-of-range PRICE_TYPE"
-        );
+        assert!(res.is_err());
     }
 
     #[test]
     fn csv_sink_write_row_smoke_with_in_range_price_type() {
-        // Positive regression sentinel: an in-range `PRICE_TYPE = 8`
-        // must still serialize bit-exact through the strict helper.
-        // Pins the migration from `Price::new` to
-        // `Price::with_value_and_type` against silent magnitude
-        // drift on the validated path.
         let tmp = scratch_path();
         let fmt = vec![
             DataType::MsOfDay,
@@ -588,13 +506,8 @@ mod tests {
             data: &row,
         })
         .expect("in-range PRICE_TYPE row must serialize");
-        // Finish the sink before reading the file back so the
-        // BufWriter contents land on disk.
         Box::new(sink).finish().expect("finish");
         let contents = std::fs::read_to_string(&tmp).expect("read_to_string");
-        assert!(
-            contents.contains("150.25"),
-            "CSV must carry the in-range magnitude verbatim (got {contents:?})"
-        );
+        assert!(contents.contains("150.25"));
     }
 }

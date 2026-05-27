@@ -99,39 +99,20 @@ pub enum DecodeError {
         /// captured verbatim from the wire for diagnostics.
         raw: String,
     },
-    /// A `Price` cell carried a `price_type` outside the documented
-    /// `0..=MAX_PRICE_TYPE` (= `0..=19`) range. Used by the strict
-    /// price-cell decoders ([`crate::mdds::decode::row_price_f64`],
-    /// [`crate::mdds::decode::row_number_i64`]) so an upstream
-    /// out-of-range value surfaces as a typed wire-protocol error
-    /// instead of silently saturating to `19` and producing
-    /// wrong-magnitude downstream prices. Mirrors `tdbe::types::price::
-    /// PriceError::PriceTypeOutOfRange` on the public-surface side of
-    /// the decode boundary.
+    /// A `Price` cell carried a `price_type` outside
+    /// `0..=tdbe::types::price::MAX_PRICE_TYPE`. Mirrors
+    /// `tdbe::types::price::PriceError::PriceTypeOutOfRange` on the
+    /// decode boundary.
     #[error("invalid price_type {raw} (expected 0..=19)")]
     InvalidPriceType {
-        /// The exact `price_type` value the wire payload carried,
-        /// captured verbatim for diagnostics so operators can grep
-        /// the failing magnitude in upstream logs.
+        /// The wire `price_type` value, captured verbatim.
         raw: i32,
     },
     /// A wire `Number` cell carried an `int64` value outside the
-    /// `i32` range expected by the destination field. Used by the
-    /// generic `row_number` decoder and the `eod_num` generator
-    /// helper for integer columns whose schema width is 32-bit
-    /// (`ms_of_day`, `sequence`, `size`, `exchange`, bid/ask sizes
-    /// and conditions, `open_interest`, `underlying_ms_of_day`, EOD
-    /// integer fields). Previously the wire integer was narrowed via
-    /// `*n as i32`, so a payload like `(1 << 32) + 34_200_000`
-    /// truncated to a plausible-looking value and silently corrupted
-    /// the destination field; surfacing the overflow keeps schema
-    /// drift loud at the decode boundary instead of letting it
-    /// propagate into downstream consumers.
+    /// `i32` range expected by the destination field.
     #[error("integer overflow: int64 {raw} does not fit i32")]
     NumericOverflow {
-        /// The exact `int64` value the wire payload carried,
-        /// captured verbatim for diagnostics so operators can grep
-        /// the failing magnitude in upstream logs.
+        /// The wire `int64` value, captured verbatim.
         raw: String,
     },
 }

@@ -258,16 +258,8 @@ jobs:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: ./.github/actions/install-protoc
-      # Gate 9: `cargo-semver-checks` baseline anchored at `v11.0.0`.
-      #
-      # The v10→v11 candidate window intentionally broke several
-      # public Rust surfaces (`GrpcStatusKind` repr change,
-      # `Error::Transport` variant shape change, `ReconnectPolicy::Auto`
-      # shape change, `SubscriptionInfo` non-exhaustive, the
-      # `_with_fallback` surface). Those breaks are now baked into the
-      # released v11.0.0 baseline, so the gate hard-fails on any
-      # accidental Rust API break landing on the v11.x line —
-      # `continue-on-error` is OFF.
+      # cargo-semver-checks anchored at v11.0.0; hard-fail on any
+      # public Rust API break on the v11.x line.
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         continue-on-error: false
         with:

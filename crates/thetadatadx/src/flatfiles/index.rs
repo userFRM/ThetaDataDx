@@ -162,17 +162,7 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
     let (root, exp, strike, right) = match sec {
         SecType::Option | SecType::Index => {
             // Index payload (when supported by the vendor) follows the
-            // option layout — root_len, root, exp, right, strike, date.
-            //
-            // Every field here participates in the public contract key
-            // for every row sourced from this block (CSV, JSON, Arrow,
-            // decoded tick). A corrupt or drifted blob that the wire
-            // layer accepted (e.g. truncated upload, codec mismatch)
-            // must fail loud at this boundary instead of silently
-            // rewriting symbol, expiration, right, or strike on every
-            // downstream row. Validate each field against its
-            // documented invariants and surface typed `decode_codec`
-            // errors that operators can grep in upstream logs.
+            // option layout: root_len, root, exp, right, strike, date.
             let root_len = read_u8(&mut e)? as usize;
             let mut root_bytes = vec![0u8; root_len];
             e.read_exact(&mut root_bytes)?;
@@ -196,11 +186,8 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
             }
             let right = right_byte as char;
             let strike = read_i32(&mut e)?;
-            // The trailing i32 is the contract's trading date; the row's
-            // own DATE column carries the per-tick date and supersedes
-            // it for CSV emission, so we consume but don't store.
-            // Still validate it so a drifted blob fails loud at the I/O
-            // boundary even when the value is dropped downstream.
+            // Per-row DATE supersedes the entry-level trading date for
+            // CSV emission; validate and discard.
             let date = read_i32(&mut e)?;
             if !tdbe::time::is_valid_yyyymmdd(date) {
                 return Err(Error::decode_codec(format!(
@@ -381,20 +368,7 @@ mod tests {
         assert_eq!(entry.block_end, 100);
     }
 
-    // ─────────── INDEX contract metadata validation ───────────
-    //
-    // The INDEX block carries the public contract key for every row
-    // sourced from a flatfile (CSV, JSON, Arrow, decoded tick). Before
-    // these guards landed, the parser used `String::from_utf8_lossy`
-    // for the root, accepted any `right` byte, and skipped Gregorian
-    // checks on `exp` / `date` — a drifted or corrupt blob would
-    // silently rewrite symbol, expiration, and right on every
-    // downstream row instead of failing loud at the I/O boundary.
-
-    /// Helper: build the INDEX byte stream for one option entry with
-    /// caller-provided (root_bytes, exp, right_byte, strike, date).
-    /// Used by the strict-decode tests below to drive each individual
-    /// failure mode without copy-pasting the framing.
+    /// Build an INDEX byte stream for one option entry.
     fn build_option_index(
         root_bytes: &[u8],
         exp: i32,
@@ -421,9 +395,6 @@ mod tests {
 
     #[test]
     fn option_index_rejects_non_utf8_root() {
-        // 0xFF 0xFE 0xFD is invalid UTF-8 in any encoding; before the
-        // guard the parser substituted U+FFFD replacement chars and
-        // shipped a garbage symbol downstream.
         let buf = build_option_index(&[0xFF, 0xFE, 0xFD], 20_260_117, b'C', 200_000, 20_260_428);
         let mut iter = IndexIter::new(&buf, SecType::Option);
         let err = iter.next().unwrap().unwrap_err();
@@ -436,8 +407,7 @@ mod tests {
 
     #[test]
     fn option_index_rejects_invalid_expiration() {
-        // 99991301 — month 13. The Gregorian validator rejects it
-        // even though the integer fits in i32.
+        // 99991301 carries month 13.
         let buf = build_option_index(b"AAPL", 99_991_301, b'C', 200_000, 20_260_428);
         let mut iter = IndexIter::new(&buf, SecType::Option);
         let err = iter.next().unwrap().unwrap_err();
@@ -450,8 +420,6 @@ mod tests {
 
     #[test]
     fn option_index_rejects_invalid_right_byte() {
-        // b'X' is neither b'C' nor b'P'. Before the guard this cast
-        // straight to a char and silently became the contract right.
         let buf = build_option_index(b"AAPL", 20_260_117, b'X', 200_000, 20_260_428);
         let mut iter = IndexIter::new(&buf, SecType::Option);
         let err = iter.next().unwrap().unwrap_err();
@@ -464,9 +432,7 @@ mod tests {
 
     #[test]
     fn option_index_rejects_non_leap_feb_29_date() {
-        // 2025 % 4 != 0 — Feb 29 is calendar-impossible. The date
-        // field is consumed but not stored; still must fail loud
-        // because the blob is structurally wrong.
+        // 2025 is not a leap year.
         let buf = build_option_index(b"AAPL", 20_260_117, b'C', 200_000, 20_250_229);
         let mut iter = IndexIter::new(&buf, SecType::Option);
         let err = iter.next().unwrap().unwrap_err();
@@ -479,8 +445,6 @@ mod tests {
 
     #[test]
     fn option_index_accepts_well_formed_contract() {
-        // Positive smoke test — every guard above must be satisfied
-        // by a clean payload so the new validators don't over-reject.
         let buf = build_option_index(b"AAPL", 20_260_117, b'P', 200_000, 20_260_428);
         let mut iter = IndexIter::new(&buf, SecType::Option);
         let entry = iter.next().unwrap().unwrap();
@@ -494,7 +458,6 @@ mod tests {
 
     #[test]
     fn stock_index_rejects_non_utf8_root() {
-        // Same UTF-8 guard applies to the stock layout.
         let mut e = Vec::new();
         e.push(3u8);
         e.extend_from_slice(&[0xFF, 0xFE, 0xFD]);
@@ -518,11 +481,10 @@ mod tests {
 
     #[test]
     fn stock_index_rejects_invalid_date() {
-        // Stock layout also validates the trading date.
         let mut e = Vec::new();
         e.push(3u8);
         e.extend_from_slice(b"SPY");
-        e.extend_from_slice(&20_251_301i32.to_be_bytes()); // month 13
+        e.extend_from_slice(&20_251_301i32.to_be_bytes());
 
         let mut buf = Vec::new();
         buf.extend_from_slice(&(e.len() as u16).to_be_bytes());

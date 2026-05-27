@@ -2,32 +2,20 @@
 //! whole-universe CSV for the same `(sec, req, date)`.
 //!
 //! The vendor reference files used here were produced by the legacy
-//! ThetaTerminal jar at `~/ThetaData/ThetaTerminal/downloads/`. CI's
-//! steady state does not check those fixtures into the repo (they're
-//! gigabyte-scale option-day CSVs), so the test gates the whole
-//! byte-match contract on a single env var:
+//! ThetaTerminal jar at `~/ThetaData/ThetaTerminal/downloads/`. CI does
+//! not check the fixtures into the repo (they are gigabyte-scale
+//! option-day CSVs); the test gates on a single env var:
 //!
 //! - Set `THETADATADX_FLATFILE_FIXTURES_PATH` to a directory containing
 //!   `OPTION-OPEN_INTEREST-20260428.csv` and `OPTION-EOD-20260428.csv`
 //!   to run the full byte-match.
 //! - Leave it unset, or point it at a path that doesn't exist, to skip
-//!   (test passes as skipped). One `eprintln!` documents the skip so
-//!   CI operators can find the contract on demand.
+//!   (the test passes as skipped).
 //!
-//! Opt-in contract semantics (round-2 hardening): once the operator
-//! has set [`FIXTURES_PATH_ENV`] to an existing directory, every named
+//! Once the env var points at an existing directory, every named
 //! fixture inside must exist — a missing CSV at that point is a hard
-//! test failure, not a soft skip. Pre-round-2 the helper printed
-//! `skipping` and passed when an opt-in directory was missing one of
-//! the named CSVs, letting CI show green byte-match while validating
-//! nothing. The opt-in contract is now: "you opted in, you provision
-//! all fixtures."
-//!
-//! This is the load-bearing decoder regression: when fixtures are
-//! provisioned, byte-matching our CSV against the vendor's output for
-//! every contract on a 1.8 M-row whole-universe day verifies row-by-
-//! row decode end-to-end. The JSONL sink re-encodes the same logical
-//! rows and is row-count smoke-tested.
+//! failure. The JSONL sink re-encodes the same logical rows and is
+//! row-count smoke-tested.
 
 // Test gate sits on each #[test] via `cfg_attr(not(feature="live-tests"),
 // ignore)`. Without `--features live-tests`, the live-MDDS integration
@@ -48,48 +36,23 @@ const REFERENCE_EOD_CSV_FILENAME: &str = "OPTION-EOD-20260428.csv";
 const TEST_DATE: &str = "20260428";
 
 /// Result of resolving a named fixture under [`FIXTURES_PATH_ENV`].
-///
-/// `Skipped` means the operator has not opted in — the env var is
-/// unset or points at a non-existent directory — so the test passes as
-/// skipped (the existing CI steady state).
-///
-/// `Provisioned` carries the absolute path to a fixture that exists on
-/// disk inside an opt-in directory.
-///
-/// `MissingInOptInDir` is the hard-failure case round-2 introduced:
-/// the operator set the env var to an existing directory but the
-/// named CSV is absent. Pre-round-2 this collapsed to `Skipped`,
-/// silently turning a green test into a no-op. Callers must now
-/// surface this as a panic so the byte-match contract cannot quietly
-/// erode under CI.
 #[derive(Debug, PartialEq, Eq)]
 enum FixtureResolution {
-    /// Operator opted out — env var unset or directory absent.
-    /// Carries a human-readable reason for the skip diagnostic.
+    /// Env var unset or directory absent — test passes as skipped.
     Skipped(String),
-    /// Opt-in dir exists and the named fixture is present at that path.
+    /// Opt-in dir exists and the named fixture is present.
     Provisioned(PathBuf),
-    /// Opt-in dir exists but the named fixture is missing inside.
-    /// Hard failure: operators opted in, so all named fixtures must
-    /// exist.
+    /// Opt-in dir exists but the named fixture is missing inside —
+    /// hard failure.
     MissingInOptInDir {
-        /// Directory the operator pointed `FIXTURES_PATH_ENV` at.
         dir: PathBuf,
-        /// Absolute path to the missing fixture inside `dir`.
         missing: PathBuf,
-        /// Verbatim env var name, included in the panic message so the
-        /// CI failure tells operators which variable they opted in via.
         env_var: &'static str,
     },
 }
 
-/// Locate a named fixture under [`FIXTURES_PATH_ENV`] and report the
-/// resolution as a structured value.
-///
-/// This is the testable helper that backs [`resolve_fixture`] — kept
-/// pure (no panics, no eprintln) so the round-2 regression tests can
-/// drive every branch through `std::env::set_var` without spawning a
-/// subprocess.
+/// Locate a named fixture under [`FIXTURES_PATH_ENV`]. Pure (no panic,
+/// no `eprintln`) so the regression tests can drive every branch.
 fn resolve_fixture_inner(filename: &str, env_var: &'static str) -> FixtureResolution {
     let Ok(dir) = std::env::var(env_var) else {
         return FixtureResolution::Skipped(format!(
@@ -116,11 +79,9 @@ fn resolve_fixture_inner(filename: &str, env_var: &'static str) -> FixtureResolu
     FixtureResolution::Provisioned(fixture)
 }
 
-/// Drive a [`FixtureResolution`] through the canonical wrapper
-/// semantics: `Skipped` → `None` + diagnostic, `Provisioned` →
-/// `Some(path)`, `MissingInOptInDir` → panic. Pure on its input so
-/// regression tests can drive the panic branch without racing the
-/// production env var.
+/// Convert a [`FixtureResolution`] to the caller-facing
+/// `Option<PathBuf>`. Panics when the operator opted in but a named
+/// fixture is missing inside the opt-in directory.
 fn resolution_to_option(result: FixtureResolution) -> Option<PathBuf> {
     match result {
         FixtureResolution::Skipped(reason) => {
@@ -133,14 +94,9 @@ fn resolution_to_option(result: FixtureResolution) -> Option<PathBuf> {
             missing,
             env_var,
         } => {
-            // Operator opted in by setting the env var to a real
-            // directory; a missing fixture inside is a hard failure
-            // because pre-round-2 this silently collapsed to a skip
-            // (green CI, zero validation).
             panic!(
                 "flatfile_byte_match: opt-in fixture {} is missing from {env_var}={} — \
-                 provision it or unset {env_var} to skip (opt-in contract requires all \
-                 named fixtures to exist)",
+                 provision it or unset {env_var} to skip",
                 missing.display(),
                 Path::new(&dir).display(),
             );
@@ -148,16 +104,8 @@ fn resolution_to_option(result: FixtureResolution) -> Option<PathBuf> {
     }
 }
 
-/// Resolved reference fixture for one of the byte-match tests.
-///
-/// Returns `None` (and prints a single skip diagnostic) when
-/// [`FIXTURES_PATH_ENV`] is unset or the directory doesn't exist.
-///
-/// **Panics** when the operator has opted in (env var set to an
-/// existing directory) but the named fixture is absent — that is a
-/// hard CI failure under the opt-in contract, not a soft skip. The
-/// panic message names the missing path and the env var so operators
-/// can locate the gap without grepping test output.
+/// Resolve a fixture, mapping `Skipped` -> `None` and panicking on a
+/// missing fixture inside an opt-in directory.
 fn resolve_fixture(filename: &str) -> Option<PathBuf> {
     resolution_to_option(resolve_fixture_inner(filename, FIXTURES_PATH_ENV))
 }
@@ -365,19 +313,8 @@ async fn option_eod_csv_byte_matches_vendor() {
     let _ = std::fs::remove_file(&raw);
 }
 
-// ───── Round-2 hardening: opt-in contract for fixture resolution ─────
-//
-// Pre-round-2, `resolve_fixture` printed "skipping" and passed when
-// `THETADATADX_FLATFILE_FIXTURES_PATH` was set to a real directory
-// but the named CSV was absent inside. That collapsed an opt-in
-// failure case into a soft skip and let CI report a green byte-match
-// while validating nothing. Round-2 splits the resolution into a
-// structured `FixtureResolution` so the opt-in-but-missing path is a
-// distinct hard-failure variant the wrapper panics on.
-//
-// Each test uses a unique env var name (not the production
-// `FIXTURES_PATH_ENV`) so parallel test execution and the live
-// byte-match tests above can't see one another's state.
+// Fixture resolution unit tests. Each uses a unique env var name so
+// parallel runs do not see one another's state.
 
 #[cfg(test)]
 mod fixture_resolution_tests {
@@ -416,10 +353,7 @@ mod fixture_resolution_tests {
 
     #[test]
     fn opt_in_with_missing_fixture_is_hard_failure_variant() {
-        // Core round-2 regression: env var SET to an existing
-        // directory, but the named CSV is missing inside. Pre-round-2
-        // this collapsed to `Skipped` (silent green CI); the strict
-        // variant now surfaces the gap.
+        // Env var set to an existing directory, fixture missing inside.
         const ENV: &str = "THETADATADX_TEST_FIXTURES_OPTED_IN_003";
         let tmp = std::env::temp_dir().join("thetadatadx-byte-match-opt-in-test-003");
         std::fs::create_dir_all(&tmp).expect("create temp dir");

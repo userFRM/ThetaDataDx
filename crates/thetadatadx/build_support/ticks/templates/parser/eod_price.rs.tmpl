@@ -1,12 +1,6 @@
     // EOD price field: decode to f64 from Price or Number cell.
-    //
-    // `price_type` is range-checked through
-    // `tdbe::types::price::Price::with_value_and_type`; a wire value
-    // outside the documented `0..=MAX_PRICE_TYPE` (= 19) contract
-    // surfaces as `DecodeError::InvalidPriceType` rather than silently
-    // saturating to 19 via the clamping `Price::new` constructor (which
-    // previously fabricated open/high/low/close/bid/ask magnitudes any
-    // time the upstream payload drifted).
+    // Out-of-range `price_type` surfaces as
+    // `DecodeError::InvalidPriceType`.
     fn eod_price(row: &crate::proto::DataValueList, idx: usize) -> Result<f64, DecodeError> {
         let Some(dv) = row.values.get(idx) else {
             return Err(DecodeError::MissingCell { column: idx });

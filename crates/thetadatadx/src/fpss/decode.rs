@@ -55,23 +55,6 @@ static FPSS_OI_DECODE_FAILURES: LazyLock<Counter> = LazyLock::new(
 static FPSS_OHLCVC_DECODE_FAILURES: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.decode_failures", "kind" => "ohlcvc"));
 
-// Round-6 audit fix: every FPSS data frame the streaming decoder
-// reassembles (Quote bid/ask, Trade price, Ohlcvc open/high/low/close)
-// pulls a wire `price_type` out of the delta-decoded field buffer and
-// reconstructs the public f64 magnitude via `tdbe::types::price::
-// Price::new`. The clamping constructor silently coerces any
-// `price_type` outside the documented `0..=MAX_PRICE_TYPE` (= 19)
-// contract to 19, which leaked plausible-looking but wholly fabricated
-// prices into the public event stream on drifted upstream payloads
-// (the same class of bug round 1-2 closed in the MDDS row helpers and
-// column extractors). The strict helper below validates via
-// `Price::with_value_and_type` and any frame carrying an invalid
-// `price_type` is routed through the existing decode-failure path
-// (`FpssEventInternal::Unparseable`), with one of the per-kind
-// counters below accounted on the public metrics surface and a
-// rate-limited `tracing::warn!` so operators see schema drift instead
-// of silently corrupted ticks.
-
 static FPSS_INVALID_PRICE_TYPE_QUOTE: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.invalid_price_type", "kind" => "quote"));
 static FPSS_INVALID_PRICE_TYPE_TRADE: LazyLock<Counter> =
@@ -79,14 +62,8 @@ static FPSS_INVALID_PRICE_TYPE_TRADE: LazyLock<Counter> =
 static FPSS_INVALID_PRICE_TYPE_OHLCVC: LazyLock<Counter> =
     LazyLock::new(|| metrics::counter!("thetadatadx.fpss.invalid_price_type", "kind" => "ohlcvc"));
 
-/// Strict reassembly of an FPSS wire `Price` cell. Returns `None`
-/// when the wire `price_type` falls outside the documented
-/// `tdbe::types::price::MAX_PRICE_TYPE` (= 19) contract; on a hit it
-/// returns the reassembled f64 magnitude bit-exact with the legacy
-/// `Price::new(value, price_type).to_f64()` path for in-range
-/// payloads (the clamping constructor is identity on the validated
-/// `0..=19` window — the only behavioural change is rejection of the
-/// previously-clamped boundary).
+/// Reassemble an FPSS wire `Price` cell. Returns `None` when
+/// `price_type` is outside `0..=tdbe::types::price::MAX_PRICE_TYPE`.
 #[inline]
 fn strict_fpss_price(value: i32, price_type: i32) -> Option<f64> {
     Price::with_value_and_type(value, price_type)
@@ -94,14 +71,8 @@ fn strict_fpss_price(value: i32, price_type: i32) -> Option<f64> {
         .map(|p| p.to_f64())
 }
 
-/// Emit a rate-limited `tracing::warn!` (every 1024th occurrence,
-/// matching the existing slow-callback / clock-skew / unknown-
-/// contract cadence used elsewhere in this module) when the
-/// streaming decoder drops a frame because its wire `price_type`
-/// fell outside the documented `0..=MAX_PRICE_TYPE` window. The
-/// per-kind `FPSS_INVALID_PRICE_TYPE_*` counter is incremented
-/// unconditionally; the warn is rate-limited so a sustained
-/// upstream-schema drift does not flood the operator log.
+/// Increment the per-kind invalid-price-type counter and emit a
+/// rate-limited warning (one in every 1024 occurrences).
 fn warn_invalid_price_type(kind: &'static str, contract_id: i32, price_type: i32) {
     static INVALID_COUNT: AtomicU64 = AtomicU64::new(0);
     let prev = INVALID_COUNT.fetch_add(1, Ordering::Relaxed);
@@ -112,11 +83,7 @@ fn warn_invalid_price_type(kind: &'static str, contract_id: i32, price_type: i32
             contract_id,
             price_type,
             invalid_count = prev + 1,
-            "dropping FPSS frame: wire price_type outside 0..=19 — \
-             upstream schema drift; surfacing as Unparseable instead of \
-             clamping to 19 and fabricating a downstream price \
-             magnitude (1 of every 1024 emitted across all FpssClients \
-             in this process)"
+            "dropping FPSS frame: wire price_type outside 0..=MAX_PRICE_TYPE"
         );
     }
 }
@@ -312,15 +279,6 @@ pub fn decode_frame(
                 Some((contract_id, _n)) => {
                     warn_unknown_contract(contract_id, "quote", delta_state, local_contracts);
                     let pt = buf[9];
-                    // Both legs of a Quote share the wire `price_type`;
-                    // validate once and drop the whole frame if either
-                    // leg would have clamped via `Price::new`. Routing
-                    // the frame through `Unparseable` here is the same
-                    // failure mode the decoder already surfaces for a
-                    // truncated FIT payload, so downstream consumers
-                    // observe schema drift through the existing
-                    // decode-failure counter + the kind-tagged
-                    // `invalid_price_type` counter.
                     let (Some(bid_f64), Some(ask_f64)) =
                         (strict_fpss_price(buf[3], pt), strict_fpss_price(buf[7], pt))
                     else {
@@ -377,15 +335,6 @@ pub fn decode_frame(
 
                     // 8-field: [ms_of_day, sequence, size, condition, price, exchange, price_type, date]
                     // 16-field: [ms_of_day, sequence, ext1..ext4, condition, size, exchange, price, cond_flags, price_flags, vol_type, records_back, price_type, date]
-                    //
-                    // Both shapes carry one Price cell + one price_type
-                    // index; validate via `strict_fpss_price` up front so
-                    // a clamped price never reaches the public event or
-                    // the derived-OHLCVC accumulator. Failure drops the
-                    // whole frame via `Unparseable` (mirroring the
-                    // truncated-payload path) and accounts on the
-                    // `invalid_price_type` counter for operator
-                    // visibility into upstream schema drift.
                     let (price_idx, pt_idx) = if n_data <= 8 { (4, 6) } else { (9, 14) };
                     let pt = buf[pt_idx];
                     let Some(price_f64) = strict_fpss_price(buf[price_idx], pt) else {
@@ -439,34 +388,15 @@ pub fn decode_frame(
                         })
                     };
 
-                    // Extract for OHLCVC derivation (format-aware). `pt`
-                    // is already validated against the strict contract
-                    // above, so the accumulator never observes a clamped
-                    // price_type — the only mutation path into
-                    // `acc.price_type` from a Trade frame is the
-                    // `acc.process_trade` call below, and the OHLCVC
-                    // arm independently validates server-seeded
-                    // accumulator state on init.
+                    // Extract for OHLCVC derivation (format-aware).
                     let (ms_of_day, size, price, price_type, date) = if n_data <= 8 {
                         (buf[0], buf[2], buf[4], buf[6], buf[7])
                     } else {
                         (buf[0], buf[7], buf[9], buf[14], buf[15])
                     };
 
-                    // Derive OHLCVC from trade (OHLCVC.processTrade).
-                    // Only if enabled AND the server has already seeded a bar.
-                    // When derive_ohlcvc is false, skip entirely — zero overhead.
-                    //
-                    // Both `price_type` (from the trade frame, already
-                    // strict-validated above) and `apt = acc.price_type`
-                    // (seeded by the OHLCVC arm under the same strict
-                    // check) are guaranteed in-range here. The
-                    // `strict_fpss_price` re-check on the accumulator's
-                    // open / high / low / close is a defence-in-depth
-                    // guard — if any future change weakens the seeding
-                    // invariant the derived OHLCVC frame routes through
-                    // `Unparseable` instead of fabricating a clamped
-                    // magnitude.
+                    // Derive OHLCVC from trade only if enabled and the
+                    // server has already seeded a bar.
                     let ohlcvc_event = if derive_ohlcvc {
                         if let Some(acc) = delta_state.ohlcvc.get_mut(&contract_id) {
                             if acc.initialized {
@@ -555,11 +485,6 @@ pub fn decode_frame(
                 Some((contract_id, _n)) => {
                     warn_unknown_contract(contract_id, "ohlcvc", delta_state, local_contracts);
                     let pt = buf[7];
-                    // All four OHLCVC legs share the wire `price_type`;
-                    // validate every magnitude before seeding the
-                    // accumulator so a clamped price_type cannot poison
-                    // subsequent trade-derived OHLCVC frames (whose
-                    // accumulator state is re-read by the Trade arm).
                     let (Some(o), Some(h), Some(l), Some(c)) = (
                         strict_fpss_price(buf[1], pt),
                         strict_fpss_price(buf[2], pt),
@@ -1417,31 +1342,12 @@ mod tests {
         }
     }
 
-    // ─── Round-6: out-of-range price_type in streamed Price cells ───
-    //
-    // The FPSS streaming decoder previously fed raw wire `price_type`
-    // values through `Price::new`, the clamping constructor — any
-    // upstream payload whose `price_type` drifted past
-    // `MAX_PRICE_TYPE` (= 19) silently saturated to 19 and emitted
-    // plausible-looking but wholly fabricated prices on the public
-    // event stream. The strict path now routes those frames through
-    // `FpssEventInternal::Unparseable` (the same escape used for a
-    // truncated FIT payload) so downstream consumers observe schema
-    // drift via the decode-failure counter instead of a corrupted
-    // tick.
-
     #[test]
     fn decode_frame_quote_invalid_price_type_drops_to_unparseable() {
         // 11-field quote layout (FIT prefix: contract_id):
         //   [contract_id, ms_of_day, bid_size, bid_exchange, bid,
         //    bid_condition, ask_size, ask_exchange, ask, ask_condition,
         //    price_type, date]
-        //   = 1 contract_id + 11 data fields = 12 FIT fields total.
-        // `price_type = 20` is one past the documented `0..=19`
-        // ceiling. Driving the full `decode_frame` pipeline pins the
-        // streaming-decoder contract: schema drift surfaces as
-        // `Unparseable`, never as a clamped price on the public
-        // surface.
         let fit_payload = encode_fit_row(&[
             300, 34_200_000, 10, 4, 15_025, 0, 12, 4, 15_030, 0, 20, 20_250_428,
         ]);
@@ -1473,8 +1379,6 @@ mod tests {
         // 8-field trade layout:
         //   [contract_id, ms_of_day, sequence, size, condition,
         //    price, exchange, price_type, date]
-        //   = 1 contract_id + 8 data fields = 9 FIT fields total.
-        // `price_type = 21` is two past the documented ceiling.
         let fit_payload = encode_fit_row(&[
             400, 34_200_000, 12_345, 50, 6, 5_500_000, 57, 21, 20_250_428,
         ]);
@@ -1503,12 +1407,10 @@ mod tests {
 
     #[test]
     fn decode_frame_16field_trade_invalid_price_type_drops_to_unparseable() {
-        // 16-field trade layout (production format):
+        // 16-field trade layout:
         //   [contract_id, ms_of_day, sequence, ext1, ext2, ext3, ext4,
         //    condition, size, exchange, price, cond_flags,
         //    price_flags, vol_type, records_back, price_type, date]
-        //   = 1 contract_id + 16 data fields = 17 FIT fields total.
-        // `price_type = i32::MAX` pins the pathological upper extreme.
         let fit_payload = encode_fit_row(&[
             500,
             34_200_000,
@@ -1554,10 +1456,6 @@ mod tests {
         // 9-field OHLCVC layout (server-seeded bar):
         //   [contract_id, ms_of_day, open, high, low, close, volume,
         //    count, price_type, date]
-        //   = 1 contract_id + 9 data fields = 10 FIT fields total.
-        // `price_type = -1` is below the documented `0..=19` floor
-        // and previously clamped to `0` via `Price::new` — now the
-        // whole bar drops via `Unparseable`.
         let fit_payload = encode_fit_row(&[
             600, 34_200_000, 15_025, 15_100, 14_950, 15_080, 1_000, 10, -1, 20_250_428,
         ]);
@@ -1582,10 +1480,6 @@ mod tests {
                 panic!("expected Unparseable for negative Ohlcvc price_type, got {other:?}")
             }
         }
-        // Belt-and-braces: the corrupt bar must NOT have seeded the
-        // OHLCVC accumulator. A subsequent Trade frame would otherwise
-        // observe `acc.initialized = true` against fabricated baseline
-        // prices.
         assert!(
             !delta_state
                 .ohlcvc
@@ -1598,13 +1492,6 @@ mod tests {
 
     #[test]
     fn decode_frame_quote_in_range_price_type_still_emits_data() {
-        // Positive smoke regression: an in-range `price_type = 8`
-        // (the documented baseline) must continue to emit a normal
-        // `FpssData::Quote` event with bid/ask reassembled bit-exact
-        // through `strict_fpss_price` (which is identity on the
-        // `0..=19` window). Pins the migration from `Price::new` to
-        // `Price::with_value_and_type` against silent magnitude drift
-        // on the validated path.
         let fit_payload = encode_fit_row(&[
             700, 34_200_000, 10, 4, 15_025, 0, 12, 4, 15_030, 0, 8, 20_250_428,
         ]);
@@ -1625,14 +1512,8 @@ mod tests {
         let evt = primary.expect("in-range Quote frame must emit a primary event");
         match expect_public(&evt) {
             FpssEvent::Data(FpssData::Quote { bid, ask, .. }) => {
-                assert!(
-                    (*bid - Price::new(15_025, 8).to_f64()).abs() < f64::EPSILON,
-                    "bid magnitude must round-trip bit-exact via the strict helper on in-range price_type"
-                );
-                assert!(
-                    (*ask - Price::new(15_030, 8).to_f64()).abs() < f64::EPSILON,
-                    "ask magnitude must round-trip bit-exact via the strict helper on in-range price_type"
-                );
+                assert!((*bid - Price::new(15_025, 8).to_f64()).abs() < f64::EPSILON);
+                assert!((*ask - Price::new(15_030, 8).to_f64()).abs() < f64::EPSILON);
             }
             other => panic!("expected Data(Quote) for in-range price_type, got {other:?}"),
         }

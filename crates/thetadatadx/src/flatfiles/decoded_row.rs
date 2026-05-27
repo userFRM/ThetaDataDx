@@ -53,12 +53,8 @@ impl FlatFileRow {
     /// # Errors
     ///
     /// Propagates `Error::decode_codec(..)` from
-    /// [`crate::flatfiles::writer::decode_price`] when a row's
-    /// `price_type` is outside the documented `0..=19` range.
-    /// Surfacing this is the only way to prevent silent
-    /// magnitude-fabrication on the in-memory decoded API surface (CSV
-    /// and JSONL pick up the same guard via their respective sink
-    /// `write_row` paths).
+    /// [`crate::flatfiles::writer::decode_price`] when `price_type` is
+    /// outside `0..=tdbe::types::price::MAX_PRICE_TYPE`.
     pub(crate) fn from_decoded(
         symbol: &str,
         expiration: Option<i32>,

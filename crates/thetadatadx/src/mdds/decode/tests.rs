@@ -348,10 +348,8 @@ fn row_number_i64_matches_row_price_f64_at_type_19() {
     assert!((as_float - 42_000_000_000.0_f64).abs() < 1.0);
 }
 
-/// `price_type=20` is out-of-range; both decoders must surface a
-/// typed `InvalidPriceType` error rather than silently saturating to
-/// `19` (which previously produced wrong-magnitude downstream
-/// prices). Boundary check at `MAX_PRICE_TYPE + 1`.
+/// `price_type=20` is out of range; both decoders must surface
+/// `InvalidPriceType` at the `MAX_PRICE_TYPE + 1` boundary.
 #[test]
 fn row_number_i64_rejects_price_type_above_max() {
     let row = row_of(vec![dv_price(7, 20)]);
@@ -521,10 +519,6 @@ fn parse_time_text_valid() {
 
 #[test]
 fn parse_time_text_invalid_errors_with_raw_capture() {
-    // SERIOUS #2 closure: malformed text time used to coalesce to 0,
-    // silently corrupting downstream session timestamps. The strict
-    // path surfaces the wire payload verbatim so operators can grep
-    // for the failing value in upstream logs.
     assert_eq!(
         parse_time_text("invalid"),
         Err(DecodeError::InvalidTime {
@@ -541,10 +535,6 @@ fn parse_time_text_invalid_errors_with_raw_capture() {
 fn parse_iso_date_yyyymmdd_passthrough_and_iso_split() {
     assert_eq!(parse_iso_date("20260413").unwrap(), 20260413);
     assert_eq!(parse_iso_date("2026-04-13").unwrap(), 20260413);
-    // SERIOUS #2 closure: malformed text date used to coalesce to 0;
-    // the strict path surfaces the raw payload as `InvalidDate` so
-    // downstream timestamp consumers cannot silently mis-classify a
-    // schema-drift case as the epoch.
     assert_eq!(
         parse_iso_date("not-a-date"),
         Err(DecodeError::InvalidDate {
@@ -553,22 +543,8 @@ fn parse_iso_date_yyyymmdd_passthrough_and_iso_split() {
     );
 }
 
-// ─────── Wave-6: calendar-range rejection on parse_iso_date / parse_time_text ───────
-//
-// Wave-5 closed the "coalesce to 0 on parse failure" hole but left
-// the calendar-range hole open: shape-valid impossibilities like
-// `20260230` (Feb 30) or `2026-13-01` (month 13) still slipped
-// through because the parser only checked that the digits split into
-// the right number of integer components. Wave-6 routes both shapes
-// through `tdbe::time::is_valid_gregorian_date` so the strict-decode
-// contract matches the v3 vendor reality: the wire only ever
-// publishes real Gregorian dates, and anything else is upstream
-// drift the operator needs to see.
-
 #[test]
 fn parse_iso_date_rejects_compact_feb_30() {
-    // Feb 30 never exists in any year — the most flagged shape in
-    // the codex revalidation.
     assert_eq!(
         parse_iso_date("20260230"),
         Err(DecodeError::InvalidDate {
@@ -678,8 +654,7 @@ fn parse_time_text_rejects_negative_hour() {
 
 #[test]
 fn parse_trade_ticks_propagates_type_mismatch() {
-    // A Text cell in an i32 column is a schema violation — the parser
-    // must surface it, not silently coerce to 0.
+    // Text in an i32 column must surface as TypeMismatch.
     let table = proto::DataTable {
         headers: vec!["ms_of_day".into(), "price".into()],
         data_table: vec![row_of(vec![dv_text("not-a-number"), dv_price(15000, 10)])],
@@ -842,11 +817,7 @@ fn parse_greeks_all_ticks_decodes_price_encoded_greeks() {
     // Regression: an earlier strict decode rejected Price cells for Greek
     // columns, but the v3 MDDS server sends Greeks as Price-encoded
     // values (mirroring Java's `dataValue2Object` -> BigDecimal path).
-    // Live run #24520486541 on main surfaced this as
-    //   "column 13: expected Number, got Price"
-    // on `option_snapshot_greeks_first_order::bulk_chain` and peers.
-    // Pin Price-cell decoding for both IV and a Greek so a future
-    // strict-Number tightening can't re-break it silently.
+    // Pins Price-cell decoding for both IV and a Greek.
     let table = proto::DataTable {
         headers: vec![
             "ms_of_day".into(),
@@ -867,19 +838,10 @@ fn parse_greeks_all_ticks_decodes_price_encoded_greeks() {
     assert!((ticks[0].delta - 0.5).abs() < 1e-10);
 }
 
-/// Pin the `implied_vol → implied_volatility` and `underlying_timestamp
-/// → underlying_ms_of_day` aliases in `HEADER_ALIASES` by decoding a wire
-/// payload whose headers use ONLY the v3 server-side names. If either
-/// alias entry is dropped or mistyped, the matching schema field
-/// silently zero-defaults via `opt_float` / `opt_number` (see the
-/// generated `parse_greeks_all_ticks` body), and this test catches that
-/// regression.
-///
-/// The companion fixture-driven test
-/// `crates/thetadatadx/tests/test_decode_captures.rs::greeks_all_*`
-/// can't catch a broken `implied_vol` alias on its own because the
-/// captured fixture's `first_row_implied_volatility` is `0.0` — a
-/// missing alias and a real zero IV are indistinguishable there.
+/// Pin the `implied_vol -> implied_volatility` and
+/// `underlying_timestamp -> underlying_ms_of_day` aliases in
+/// `HEADER_ALIASES` by decoding a wire payload whose headers use only
+/// the v3 server-side names.
 #[test]
 fn parse_greeks_all_ticks_resolves_implied_vol_and_underlying_timestamp_aliases() {
     // Headers use the v3 server-side names. Schema names
@@ -1395,11 +1357,8 @@ fn quote_tick_decodes_current_eleven_field_shape_unchanged() {
 
 // ─────────────────── SERIOUS #2: invalid-text propagation ───────────────────
 //
-// The v3 wire path used to coalesce malformed date / time text to `0`.
-// That silently corrupted downstream timestamps when the upstream
-// schema drifted; the strict path now surfaces it as
-// `DecodeError::InvalidDate { raw }` / `DecodeError::InvalidTime { raw }`
-// so operators can grep for the failing payload in their logs.
+// Malformed date / time text surfaces as `DecodeError::InvalidDate`
+// or `DecodeError::InvalidTime` with the raw payload captured.
 
 #[test]
 fn parse_calendar_days_v3_errors_on_invalid_date_text() {
@@ -1415,14 +1374,9 @@ fn parse_calendar_days_v3_errors_on_invalid_date_text() {
     );
 }
 
-// ─────────────────── SERIOUS #3: unknown-enum-text propagation ───────────────────
-//
-// The v3 wire path used to fall through to `0` (right) or
-// `CALENDAR_STATUS_UNKNOWN` (calendar type) on text values outside the
-// documented vocabulary. That silently masked upstream schema drift;
-// the strict path now surfaces it as
-// `DecodeError::UnknownEnumVariant { field, raw }` so operators can
-// grep for the unrecognised payload in their logs.
+// Text values outside the documented enum vocabulary on `right` /
+// `calendar.type` surface as `DecodeError::UnknownEnumVariant` with
+// the raw payload captured.
 
 #[test]
 fn parse_option_contracts_v3_errors_on_unknown_right_text() {
@@ -1486,16 +1440,9 @@ fn parse_option_contracts_v3_errors_on_invalid_expiration_text() {
     );
 }
 
-// ───── Wave-7: numeric YYYYMMDD wire arms route through is_valid_yyyymmdd ─────
-//
-// Round-1 hardening of `parse_iso_date` only covered the Text arm, but
-// real v3 MDDS payloads carry packed YYYYMMDD dates as `Number(n)` on
-// `row_date`, `parse_option_contracts_v3::expiration`, and
-// `parse_calendar_days_v3::date`. Pre-Wave-7 those numeric arms cast
-// straight to i32 with no calendar check, so `Number(20260230)` (Feb 30)
-// and `Number(20261301)` (month 13) decoded silently. Each numeric arm
-// now routes through `tdbe::time::is_valid_yyyymmdd` and surfaces
-// `DecodeError::InvalidDate` with the raw integer attached.
+// Numeric YYYYMMDD wire arms validate via
+// `tdbe::time::is_valid_yyyymmdd`; calendar-impossible payloads
+// surface as `DecodeError::InvalidDate`.
 
 #[test]
 fn row_date_rejects_number_feb_30() {
@@ -1639,25 +1586,14 @@ fn parse_calendar_days_v3_accepts_numeric_date_real_leap_day() {
 
 // ─────────── Generator-emitted contract_id expiration arm ───────────
 //
-// Round-2 hardened `eod_date`, `row_date`, and `parse_iso_date` so the
-// hand-written numeric date paths reject calendar-impossible payloads.
-// The generator template that inlines `expiration` into every parser
-// with `contract_id = true` was missed — `Number(n) -> *n as i32` still
-// cast straight through. That affected 18 public parsers including
-// `parse_trade_ticks`, `parse_quote_ticks`, `parse_eod_ticks`, and
-// every greeks variant. These tests pin the canonical `InvalidDate`
-// behaviour across a representative sample of the affected surface
-// (one of each: i32-style, quote-style, eod-style, greeks-style) on
-// Feb-30, month-13, non-leap Feb-29, and the valid leap-day shapes.
+// Calendar-impossible numeric expirations on the generator-emitted
+// `contract_id` expiration template surface as
+// `DecodeError::InvalidDate`. Sample covers a Feb-30, month-13,
+// non-leap Feb-29, and the valid leap-day shape across one parser of
+// each tick family.
 
 #[test]
 fn parse_trade_ticks_rejects_numeric_expiration_feb_30() {
-    // `parse_trade_ticks` injects the contract_id arm when an
-    // `expiration` header is present in the server payload. Number
-    // arms used to cast straight to i32 with no Gregorian check;
-    // `Number(20260230)` (Feb 30) must now raise the canonical
-    // `InvalidDate { raw: "20260230" }` instead of propagating
-    // through to downstream timestamp arithmetic.
     let table = proto::DataTable {
         headers: vec!["ms_of_day".into(), "price".into(), "expiration".into()],
         data_table: vec![row_of(vec![
@@ -1676,8 +1612,6 @@ fn parse_trade_ticks_rejects_numeric_expiration_feb_30() {
 
 #[test]
 fn parse_quote_ticks_rejects_numeric_expiration_month_13() {
-    // Quote surface — same generator template, different parser. The
-    // month-13 payload tests the high-half of the YYYYMMDD validator.
     let table = proto::DataTable {
         headers: vec![
             "ms_of_day".into(),
@@ -1702,9 +1636,6 @@ fn parse_quote_ticks_rejects_numeric_expiration_month_13() {
 
 #[test]
 fn parse_eod_ticks_accepts_numeric_expiration_real_leap_day() {
-    // 2024 is a leap year — Feb 29 is a real Gregorian date and must
-    // round-trip unchanged. Sanity check that the new validator does
-    // not over-reject legitimate expirations on the eod surface.
     let table = proto::DataTable {
         headers: vec!["timestamp".into(), "open".into(), "expiration".into()],
         data_table: vec![row_of(vec![
@@ -1720,11 +1651,6 @@ fn parse_eod_ticks_accepts_numeric_expiration_real_leap_day() {
 
 #[test]
 fn parse_greeks_all_ticks_rejects_numeric_expiration_non_leap_feb_29() {
-    // 2025 % 4 != 0 — Feb 29 is calendar-impossible. The non-leap
-    // boundary is the failure mode most likely to slip through a
-    // naive "month/day in range" check; the Gregorian validator
-    // catches it. Greeks surface confirms the same template applies
-    // across every contract_id tick type.
     let table = proto::DataTable {
         headers: vec![
             "ms_of_day".into(),
@@ -1749,14 +1675,8 @@ fn parse_greeks_all_ticks_rejects_numeric_expiration_non_leap_feb_29() {
     );
 }
 
-// ─────────── Generator-emitted contract_id right arm ───────────
-//
-// Sibling-arm cleanup: the hand-written `parse_option_contracts_v3`
-// right-text arm surfaces unknown text as `UnknownEnumVariant`, but
-// the generator template silently coalesced unknown right strings to
-// `0`. A future server change (e.g. introducing a new option style)
-// would have masked schema drift. Mirror the canonical strict-decode
-// policy on the generator surface too.
+// Unknown right text on the generator-emitted contract_id arm
+// surfaces as `DecodeError::UnknownEnumVariant`.
 
 #[test]
 fn parse_trade_ticks_rejects_unknown_right_text() {
@@ -1777,23 +1697,13 @@ fn parse_trade_ticks_rejects_unknown_right_text() {
     );
 }
 
-// ─────────── Numeric date arms: int64 overflow guards ───────────
-//
-// Round-3 wrapped the numeric date arms in `is_valid_yyyymmdd`, but the
-// validator ran on `*n as i32` and `DataValue.number` is wire-typed
-// `int64`. A drifted or hostile payload like `4_315_207_525` (==
-// `(1 << 32) + 20_240_229`) truncates cleanly to `20_240_229` and slips
-// past the Gregorian check. Every numeric date arm — `row_date`,
-// `parse_option_contracts_v3` expiration, `parse_calendar_days_v3` date,
-// the generator-emitted contract_id expiration template, the eod_date
-// template — now goes through `i32::try_from` first and raises
-// `DecodeError::InvalidDate` with the raw int64 captured verbatim.
+// Numeric date arms bounds-check the wire `int64` against `i32`
+// before the Gregorian validator runs; out-of-range values surface
+// as `DecodeError::InvalidDate` with the raw int64 captured.
 
 #[test]
 fn row_date_rejects_number_overflowing_i32_low_bits_look_valid() {
-    // 4_315_207_525 == (1 << 32) + 20_240_229. As i64 it's well outside
-    // i32 range; the low 32 bits decode to a real leap-day date that
-    // would otherwise pass the Gregorian check.
+    // 4_315_207_525 == (1 << 32) + 20_240_229.
     let row = row_of(vec![dv_number(4_315_207_525)]);
     assert_eq!(
         row_date(&row, 0),
@@ -1816,9 +1726,6 @@ fn row_date_rejects_number_i64_max() {
 
 #[test]
 fn row_date_rejects_negative_one() {
-    // -1 fits in i32 (`as i32` keeps -1) but the Gregorian validator
-    // rejects negative years. The raw int captured for diagnostics is
-    // the original int64.
     let row = row_of(vec![dv_number(-1)]);
     assert_eq!(
         row_date(&row, 0),
@@ -1846,10 +1753,8 @@ fn parse_option_contracts_v3_rejects_numeric_expiration_overflowing_i32() {
 
 #[test]
 fn parse_trade_ticks_rejects_numeric_expiration_overflowing_i32() {
-    // Generator-emitted contract_id expiration arm. 4_315_207_525 ==
-    // (1 << 32) + 20_240_229 — the low 32 bits look like a real leap
-    // day, which is exactly the failure mode the validator could not
-    // catch when fed `*n as i32`.
+    // 4_315_207_525 == (1 << 32) + 20_240_229 — low 32 bits decode to
+    // a valid leap day.
     let table = proto::DataTable {
         headers: vec!["ms_of_day".into(), "price".into(), "expiration".into()],
         data_table: vec![row_of(vec![
@@ -1868,9 +1773,6 @@ fn parse_trade_ticks_rejects_numeric_expiration_overflowing_i32() {
 
 #[test]
 fn parse_eod_ticks_rejects_numeric_date_overflowing_i32() {
-    // The eod_date helper template is the second canonical date path
-    // emitted by the generator. Drive an overflow through the EOD
-    // surface via the `date` column so the eod_date Number arm runs.
     let table = proto::DataTable {
         headers: vec!["date".into(), "open".into()],
         data_table: vec![row_of(vec![dv_number(i64::MAX), dv_number(15_000)])],
@@ -1885,10 +1787,6 @@ fn parse_eod_ticks_rejects_numeric_date_overflowing_i32() {
 
 #[test]
 fn parse_calendar_days_v3_rejects_numeric_date_overflowing_i32() {
-    // `parse_calendar_days_v3` shares the same numeric-date pattern as
-    // `parse_option_contracts_v3` and was a sibling-arm miss in the
-    // round-3 sweep. The int64 overflow surfaces with the raw value
-    // captured verbatim.
     let table = proto::DataTable {
         headers: vec!["date".into(), "type".into()],
         data_table: vec![row_of(vec![dv_number(4_315_207_525), dv_text("open")])],
@@ -1901,23 +1799,13 @@ fn parse_calendar_days_v3_rejects_numeric_date_overflowing_i32() {
     );
 }
 
-// ─────────── Numeric right arm: canonical CALL/PUT byte guard ───────────
-//
-// Round-3 fixed only the text arm of the `right` field. The numeric arm
-// in both the contract_right generator template and
-// `parse_option_contracts_v3` still cast `Number(n) as i32` and stored
-// arbitrary values — `Number(81)`, `Number(0)`, and any overflowing
-// int64 silently became contract rights across every wildcard parser
-// with `contract_id = true` plus the hand-written option-contracts
-// surface. Both numeric arms now accept only the canonical ASCII bytes
-// 67 (`'C'`) and 80 (`'P'`); anything else (including int64 overflow)
-// raises `UnknownEnumVariant` with the raw value captured verbatim.
+// Numeric `right` arms accept only the canonical ASCII bytes 67
+// (`'C'`) and 80 (`'P'`); anything else surfaces as
+// `DecodeError::UnknownEnumVariant`.
 
 #[test]
 fn parse_option_contracts_v3_rejects_numeric_right_81() {
-    // 81 is one off from `'P'` (80) — a plausible drift on an upstream
-    // server that reshuffles its right enum, and exactly the failure
-    // mode the silent cast was masking.
+    // 81 is one off from `'P'` (80).
     let table = proto::DataTable {
         headers: vec!["root".into(), "right".into()],
         data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(81)])],
@@ -1933,8 +1821,6 @@ fn parse_option_contracts_v3_rejects_numeric_right_81() {
 
 #[test]
 fn parse_option_contracts_v3_rejects_numeric_right_zero() {
-    // 0 was the silent-coalesce sentinel before the strict-decode
-    // policy landed; verify it now raises loud.
     let table = proto::DataTable {
         headers: vec!["root".into(), "right".into()],
         data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(0)])],
@@ -1950,9 +1836,7 @@ fn parse_option_contracts_v3_rejects_numeric_right_zero() {
 
 #[test]
 fn parse_option_contracts_v3_accepts_numeric_right_call_byte() {
-    // 67 == ASCII 'C' — the canonical CALL wire byte. Must round-trip
-    // unchanged so the new bounds check does not over-reject the
-    // documented payload shape.
+    // 67 == ASCII 'C'.
     let table = proto::DataTable {
         headers: vec!["root".into(), "right".into()],
         data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(67)])],
@@ -1964,7 +1848,7 @@ fn parse_option_contracts_v3_accepts_numeric_right_call_byte() {
 
 #[test]
 fn parse_option_contracts_v3_accepts_numeric_right_put_byte() {
-    // 80 == ASCII 'P' — the canonical PUT wire byte.
+    // 80 == ASCII 'P'.
     let table = proto::DataTable {
         headers: vec!["root".into(), "right".into()],
         data_table: vec![row_of(vec![dv_text("AAPL"), dv_number(80)])],
@@ -1976,9 +1860,6 @@ fn parse_option_contracts_v3_accepts_numeric_right_put_byte() {
 
 #[test]
 fn parse_trade_ticks_rejects_numeric_right_81() {
-    // Generator-emitted contract_id right arm. Same sibling-arm miss as
-    // `parse_option_contracts_v3` — pin the canonical strict-decode
-    // policy on the generator surface too.
     let table = proto::DataTable {
         headers: vec!["ms_of_day".into(), "price".into(), "right".into()],
         data_table: vec![row_of(vec![
@@ -1998,9 +1879,6 @@ fn parse_trade_ticks_rejects_numeric_right_81() {
 
 #[test]
 fn parse_quote_ticks_rejects_numeric_right_overflowing_i32() {
-    // int64 overflow on the generator-emitted right arm — without the
-    // try_from guard the wrap would silently produce some i32 value
-    // and store it. The raw int64 must be captured verbatim instead.
     let table = proto::DataTable {
         headers: vec![
             "ms_of_day".into(),
@@ -2024,25 +1902,13 @@ fn parse_quote_ticks_rejects_numeric_right_overflowing_i32() {
     );
 }
 
-// ─────────── Generic integer wire arms: int64 overflow guards ───────────
-//
-// Round-4 hardened the date and right surface against `*n as i32` narrowing
-// but the generic `row_number` helper plus the `eod_num` generator template
-// still cast wire `int64` payloads through `as i32` with no width check.
-// `DataValue.number` is wire-typed `int64`, so a payload like
-// `4_329_167_296` (== `(1 << 32) + 34_200_000`) truncated cleanly into a
-// plausible-looking `ms_of_day` / `sequence` / `size` / `exchange` / bid/ask
-// size / EOD integer value and silently corrupted the destination field
-// across the whole non-EOD generator surface (via `opt_number`) plus every
-// `eod_num` column. Both helpers now route through `i32::try_from` first
-// and raise `DecodeError::NumericOverflow` with the raw `int64` captured
-// verbatim.
+// Generic integer wire arms (`row_number`, `eod_num`) bounds-check
+// the wire `int64` against `i32`; out-of-range payloads surface as
+// `DecodeError::NumericOverflow` with the raw value captured.
 
 #[test]
 fn row_number_rejects_int64_above_i32_range() {
-    // 4_294_967_296 == (1 << 32). Outside i32 range; the low 32 bits decode
-    // to 0, which would silently zero out the destination field if the wire
-    // value reached the parser narrowed via `*n as i32`.
+    // 4_294_967_296 == (1 << 32).
     let row = row_of(vec![dv_number(4_294_967_296)]);
     assert_eq!(
         row_number(&row, 0),
@@ -2065,16 +1931,12 @@ fn row_number_rejects_int64_max() {
 
 #[test]
 fn row_number_accepts_value_inside_i32_range() {
-    // Regression smoke: a real `ms_of_day` value at 09:30:00 ET must
-    // still decode bit-exact after the bounds check lands.
     let row = row_of(vec![dv_number(34_200_000)]);
     assert_eq!(row_number(&row, 0).unwrap(), Some(34_200_000));
 }
 
 #[test]
 fn row_number_accepts_i32_max_and_min() {
-    // The i32 boundary values themselves must round-trip — the
-    // bounds check is inclusive on both ends.
     let max_row = row_of(vec![dv_number(i64::from(i32::MAX))]);
     assert_eq!(row_number(&max_row, 0).unwrap(), Some(i32::MAX));
     let min_row = row_of(vec![dv_number(i64::from(i32::MIN))]);
@@ -2083,11 +1945,7 @@ fn row_number_accepts_i32_max_and_min() {
 
 #[test]
 fn parse_trade_ticks_rejects_overflowing_ms_of_day() {
-    // The `ms_of_day` column flows through `row_number` via the required
-    // arm of the generated `parse_trade_ticks`. A wire payload like
-    // `(1 << 32) + 34_200_000` previously truncated to a real-looking
-    // `34_200_000` and corrupted every trade in the response; the bounds
-    // check now surfaces the raw `int64` verbatim.
+    // (1 << 32) + 34_200_000.
     let table = proto::DataTable {
         headers: vec!["ms_of_day".into(), "price".into()],
         data_table: vec![row_of(vec![dv_number(4_329_167_296), dv_price(15_000, 10)])],
@@ -2102,9 +1960,6 @@ fn parse_trade_ticks_rejects_overflowing_ms_of_day() {
 
 #[test]
 fn parse_trade_ticks_rejects_overflowing_sequence() {
-    // `sequence` is an optional column that flows through `opt_number`
-    // and from there through `row_number`. `i64::MAX` exercises the
-    // far-end of the wire-int64 range against the same code path.
     let table = proto::DataTable {
         headers: vec!["ms_of_day".into(), "sequence".into(), "price".into()],
         data_table: vec![row_of(vec![
@@ -2123,10 +1978,6 @@ fn parse_trade_ticks_rejects_overflowing_sequence() {
 
 #[test]
 fn parse_quote_ticks_rejects_overflowing_bid_size() {
-    // `bid_size` is an `i32` column on `QuoteTick`. A trillion-share
-    // payload is the canonical "wire drifted to int64" failure mode —
-    // without the bounds check it would silently truncate via the
-    // `opt_number -> row_number` path and ship a fabricated size.
     let table = proto::DataTable {
         headers: vec![
             "ms_of_day".into(),
@@ -2151,10 +2002,6 @@ fn parse_quote_ticks_rejects_overflowing_bid_size() {
 
 #[test]
 fn parse_eod_ticks_rejects_overflowing_numeric_field() {
-    // The `eod_num` generator helper covers every i32 EOD column
-    // (ms_of_day, ms_of_day2, bid/ask sizes, bid/ask exchanges,
-    // bid/ask conditions). Drive an overflow through `ms_of_day` so
-    // the eod_num Number arm runs against the bounds check.
     let table = proto::DataTable {
         headers: vec!["ms_of_day".into(), "open".into()],
         data_table: vec![row_of(vec![dv_number(4_329_167_296), dv_number(15_000)])],
@@ -2169,9 +2016,6 @@ fn parse_eod_ticks_rejects_overflowing_numeric_field() {
 
 #[test]
 fn parse_trade_ticks_smoke_with_in_range_integers() {
-    // Positive smoke: every i32 column inside the supported range
-    // must still decode unchanged after the bounds check lands. This
-    // is the regression sentinel for the generic Number arm.
     let table = proto::DataTable {
         headers: vec![
             "ms_of_day".into(),
@@ -2200,27 +2044,12 @@ fn parse_trade_ticks_smoke_with_in_range_integers() {
     assert_eq!(t.date, 20_240_301);
 }
 
-// ─────────── parse_calendar_days_v3 numeric type / time arms ───────────
-//
-// The hand-written `parse_calendar_days_v3` accepted `Number` for the
-// `type` column and `open`/`close` time columns and cast `*n as i32` with
-// no validation. The canonical v3 wire shape publishes `type` as Text and
-// `open` / `close` as `HH:MM:SS` text (see `/calendar/today`,
-// `/calendar/on_date`, `/calendar/year_holidays` in
-// `scripts/upstream_openapi.yaml`). The numeric `type` arm is now removed
-// — any future numeric payload raises `TypeMismatch` with the variant
-// name captured for diagnostics, matching the strict-decode policy on
-// every other enum-typed column. The numeric arm of `decode_calendar_time`
-// is retained as a future-proofing path but bounds-checked: wire `int64`
-// goes through `i32::try_from` and the resulting `i32` is range-checked
-// against the documented `0..=86_400_000` ms-of-day window.
+// `parse_calendar_days_v3` rejects `Number` cells on the `type`
+// column (Text only) and bounds-checks numeric `open`/`close`
+// against `0..=86_400_000`.
 
 #[test]
 fn parse_calendar_days_v3_rejects_numeric_type_99() {
-    // 99 used to silently truncate via `*n as i32` and map to
-    // `is_open = 1, status = 99`. The numeric arm is now removed
-    // entirely; a `Number` cell on the `type` column raises
-    // `TypeMismatch` with the variant name captured.
     let table = proto::DataTable {
         headers: vec!["date".into(), "type".into()],
         data_table: vec![row_of(vec![dv_number(20_260_413), dv_number(99)])],
@@ -2237,10 +2066,6 @@ fn parse_calendar_days_v3_rejects_numeric_type_99() {
 
 #[test]
 fn parse_calendar_days_v3_rejects_numeric_type_i64_max() {
-    // The previous numeric arm cast `i64::MAX as i32` to `-1` and
-    // stored that as `status` with `is_open = 1` — a fabricated
-    // session flag from a wire-protocol anomaly. The removed arm
-    // now surfaces the variant directly.
     let table = proto::DataTable {
         headers: vec!["date".into(), "type".into()],
         data_table: vec![row_of(vec![dv_number(20_260_413), dv_number(i64::MAX)])],
@@ -2257,9 +2082,7 @@ fn parse_calendar_days_v3_rejects_numeric_type_i64_max() {
 
 #[test]
 fn parse_calendar_days_v3_rejects_numeric_open_past_day_end() {
-    // 86_400_001 = one ms past the end of the documented ms-of-day
-    // window. Without the range check this stored as a real-looking
-    // `open_time` and corrupted downstream session arithmetic.
+    // 86_400_001 = one ms past the ms-of-day window.
     let table = proto::DataTable {
         headers: vec!["date".into(), "type".into(), "open".into()],
         data_table: vec![row_of(vec![
@@ -2278,10 +2101,6 @@ fn parse_calendar_days_v3_rejects_numeric_open_past_day_end() {
 
 #[test]
 fn parse_calendar_days_v3_rejects_numeric_open_negative() {
-    // Negative ms-of-day is outside the documented window; the
-    // previous arm narrowed `-1 as i32` to `-1` and stored it as a
-    // session timestamp, which then corrupted any consumer doing
-    // ms-since-midnight arithmetic on the value.
     let table = proto::DataTable {
         headers: vec!["date".into(), "type".into(), "open".into()],
         data_table: vec![row_of(vec![
@@ -2298,10 +2117,6 @@ fn parse_calendar_days_v3_rejects_numeric_open_negative() {
 
 #[test]
 fn parse_calendar_days_v3_rejects_numeric_close_overflowing_i32() {
-    // i64::MAX on `close` exercises the int64 overflow guard ahead
-    // of the range check — without `i32::try_from` the value wrapped
-    // to a low-bits `i32` that fell back inside the ms-of-day window
-    // by chance and stored a fabricated session close.
     let table = proto::DataTable {
         headers: vec!["date".into(), "type".into(), "open".into(), "close".into()],
         data_table: vec![row_of(vec![
@@ -2321,9 +2136,7 @@ fn parse_calendar_days_v3_rejects_numeric_close_overflowing_i32() {
 
 #[test]
 fn parse_calendar_days_v3_accepts_numeric_open_at_session_start() {
-    // 34_200_000 == 09:30:00 ET (the documented equity session open).
-    // The range check is inclusive on both ends; this is the
-    // canonical in-range payload and must round-trip unchanged.
+    // 34_200_000 == 09:30:00 ET.
     let table = proto::DataTable {
         headers: vec!["date".into(), "type".into(), "open".into()],
         data_table: vec![row_of(vec![
@@ -2337,26 +2150,12 @@ fn parse_calendar_days_v3_accepts_numeric_open_at_session_start() {
     assert_eq!(days[0].open_time, 34_200_000);
 }
 
-// ─────────── eod_price out-of-range price_type rejection ───────────
-//
-// Round 2 hardened the MDDS row decoders (`row_price_f64`,
-// `row_number_i64`) and the column extractors against silent
-// `price_type` clamping via `tdbe::types::price::Price::new`. The
-// generator-emitted `eod_price` helper, used by every EOD wildcard
-// parser column (`open`, `high`, `low`, `close`, `bid`, `ask`), was
-// missed in that sweep and still funnelled wire `Price` cells through
-// the clamping constructor. The template now routes through
-// `Price::with_value_and_type` and surfaces
-// `DecodeError::InvalidPriceType` with the raw wire `price_type`
-// captured for diagnostics, mirroring the row-level decoders so the
-// same drifted upstream cell raises the same typed error through
-// either decode path.
+// `eod_price` surfaces out-of-range `price_type` as
+// `DecodeError::InvalidPriceType` across every wildcard EOD price
+// column.
 
 #[test]
 fn parse_eod_ticks_rejects_price_type_above_max() {
-    // `price_type = 20` is one past the documented `0..=19` clamp
-    // boundary. Drive it through the `open` column so the EOD
-    // wildcard `eod_price` helper runs.
     let table = proto::DataTable {
         headers: vec!["open".into()],
         data_table: vec![row_of(vec![dv_price(100, 20)])],
@@ -2369,9 +2168,6 @@ fn parse_eod_ticks_rejects_price_type_above_max() {
 
 #[test]
 fn parse_eod_ticks_rejects_price_type_21() {
-    // Boundary stress: `price_type = 21` is two past the documented
-    // ceiling. The strict path must surface the raw wire value
-    // verbatim so operators can grep the failing magnitude.
     let table = proto::DataTable {
         headers: vec!["high".into()],
         data_table: vec![row_of(vec![dv_price(250, 21)])],
@@ -2384,10 +2180,6 @@ fn parse_eod_ticks_rejects_price_type_21() {
 
 #[test]
 fn parse_eod_ticks_rejects_negative_price_type() {
-    // Negative wire payloads previously clamped to `0` through
-    // `Price::new`; the strict `with_value_and_type` constructor
-    // rejects them and the generator helper now propagates the
-    // failure rather than fabricating a near-zero magnitude.
     let table = proto::DataTable {
         headers: vec!["low".into()],
         data_table: vec![row_of(vec![dv_price(99, -1)])],
@@ -2400,9 +2192,6 @@ fn parse_eod_ticks_rejects_negative_price_type() {
 
 #[test]
 fn parse_eod_ticks_rejects_price_type_i32_max() {
-    // Pathological upper extreme: `i32::MAX` must still surface
-    // verbatim instead of saturating to 19 (which previously
-    // fabricated a `2.15e18`-magnitude `close`).
     let table = proto::DataTable {
         headers: vec!["close".into()],
         data_table: vec![row_of(vec![dv_price(1, i32::MAX)])],
@@ -2415,12 +2204,6 @@ fn parse_eod_ticks_rejects_price_type_i32_max() {
 
 #[test]
 fn parse_eod_ticks_smoke_with_in_range_price_type() {
-    // Positive regression sentinel: an in-range `price_type = 10`
-    // (the documented "value as-is" baseline) must continue to
-    // decode bit-exact under the strict helper. Pins every wildcard
-    // EOD price column (open / high / low / close / bid / ask)
-    // against the in-range path so the `Price::with_value_and_type`
-    // migration does not silently change the canonical magnitudes.
     let table = proto::DataTable {
         headers: vec![
             "open".into(),
