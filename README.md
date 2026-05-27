@@ -1,6 +1,9 @@
 # ThetaDataDx
 
-Rust SDK for ThetaData market data — single Rust core, four language surfaces (Rust, Python, TypeScript, C++).
+Native Rust SDK for [ThetaData](https://thetadata.us) market data.
+Single Rust core, four language surfaces (Rust, Python, TypeScript,
+C++), three transports (gRPC historical, TCP streaming, daily blobs).
+No JVM, no subprocess, no IPC serialization.
 
 [![build](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
@@ -10,34 +13,25 @@ Rust SDK for ThetaData market data — single Rust core, four language surfaces 
 [![Docs](https://img.shields.io/docsrs/thetadatadx)](https://docs.rs/thetadatadx)
 [![Discord](https://img.shields.io/badge/Discord-community-5865F2.svg?logo=discord&logoColor=white)](https://discord.thetadata.us/)
 
-`thetadatadx` is a native Rust SDK for [ThetaData](https://thetadata.us) market data. It connects directly to ThetaData's three public surfaces — MDDS (historical request/response over gRPC), FPSS (real-time streaming over TCP), and FLATFILES (whole-universe daily blobs over the legacy MDDS port) — decodes ticks in-process, and exposes a typed API across Rust, Python, TypeScript, and C++ from a single Rust core. No JVM, no subprocess, no IPC serialization. Third-party C consumers can integrate against the unchanged C ABI in [`ffi/`](ffi/) — header at [`sdks/cpp/include/thetadx.h`](sdks/cpp/include/thetadx.h), all FFI types and free functions exported as `tdx_*` symbols.
-
 > [!IMPORTANT]
-> A valid [ThetaData](https://thetadata.us) subscription is required. The SDK authenticates against ThetaData's Nexus API using your account credentials.
+> A valid [ThetaData](https://thetadata.us) subscription is required.
+> The SDK authenticates against ThetaData's Nexus API using your account
+> credentials.
 
 ## Requirements
 
-- Rust 1.88 or newer. Declared as `rust-version = "1.88"` on every
-  workspace `[package]`; the Linux Lint job in CI is pinned to this
-  floor so dependency bumps that raise the rustc requirement surface
-  before release.
+- Rust 1.88 or newer (declared on every workspace `[package]`; CI lint
+  pinned to this floor).
 - A valid [ThetaData](https://thetadata.us) subscription for the live
   endpoints.
-
-## Highlights
-
-- **Typed everywhere.** 61 ThetaData endpoints exposed as typed methods across all four SDKs; no raw JSON or protobuf on the public surface.
-- **Arrow-backed DataFrames.** Python `to_arrow()` / `to_pandas()` / `to_polars()` pipe through shared Arrow buffers.
-- **SPKI-pinned FPSS TLS.** Public-key pinning on the FPSS streaming handshake.
-- **FIT decoder + SPSC ring buffer** on the FPSS path. Decode cost is measured in the benchmarks under `crates/thetadatadx/benches/`.
-- **Shared FFI layer.** C++ and Node.js go through the same `extern "C"` layer; the Python wheel uses PyO3 ABI3 directly. The C ABI is also the supported integration path for any third-party C / C++ consumer.
-- **Covers all three public surfaces.** MDDS gRPC endpoints, FPSS wire format with reconnect semantics, and the FLATFILES daily-blob protocol — every transport speaks directly to ThetaData's production servers from a single client. See the [vendor flat-file reference](https://http-docs.thetadata.us/operations/get-v2-flat-file-getting-started.html).
-- **FLATFILES daily blobs.** Pull whole-universe `(sec_type, req_type, date)` blobs over the legacy MDDS port; decode to vendor-byte CSV, JSONL, or a typed `Vec<FlatFileRow>` in memory. Cross-language coverage is tracked under the binding issues; the Rust core is shipped today.
 
 ## Quick start
 
 > [!TIP]
-> Credentials can be supplied as a `creds.txt` file (email on line 1, password on line 2), inline via `Credentials::new("email", "password")`, or through the `THETADATA_EMAIL` / `THETADATA_PASSWORD` environment variables.
+> Credentials can be supplied as a `creds.txt` file (email on line 1,
+> password on line 2), inline via `Credentials::new("email", "password")`,
+> or through the `THETADATA_EMAIL` / `THETADATA_PASSWORD` environment
+> variables.
 
 ### Rust
 
@@ -54,16 +48,15 @@ use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
 async fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
     let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
-    let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
-    for tick in &eod {
-        println!("{}: O={} H={} L={} C={} V={}",
-            tick.date, tick.open, tick.high, tick.low, tick.close, tick.volume);
+    for tick in &tdx.stock_history_quote("AAPL", "20240101", "20240301").await? {
+        println!("{}: bid={} ask={}", tick.ms_of_day, tick.bid, tick.ask);
     }
     Ok(())
 }
 ```
 
-Opt into chainable DataFrame ergonomics by enabling the `polars` and/or `arrow` features. Both stay out of the default dep graph:
+Opt into chainable DataFrame ergonomics with the `polars` and/or
+`arrow` features. Both stay out of the default dep graph:
 
 ```toml
 [dependencies]
@@ -77,8 +70,6 @@ let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 let df = eod.as_slice().to_polars()?;
 ```
 
-The `arrow` feature exposes a `TicksArrowExt::to_arrow` that materialises an `arrow_array::RecordBatch` with the same schema the Python `.to_polars()` / `.to_arrow()` terminal produces. `features = ["frames"]` pulls both in.
-
 ### Python
 
 ```sh
@@ -89,9 +80,8 @@ pip install thetadatadx
 from thetadatadx import Credentials, Config, ThetaDataDxClient
 
 tdx = ThetaDataDxClient(Credentials.from_file("creds.txt"), Config.production())
-for tick in tdx.stock_history_eod("AAPL", "20240101", "20240301"):
-    print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
-          f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
+for tick in tdx.stock_history_quote("AAPL", "20240101", "20240301"):
+    print(f"{tick.ms_of_day}: bid={tick.bid:.2f} ask={tick.ask:.2f}")
 ```
 
 ### TypeScript / Node.js
@@ -104,8 +94,8 @@ npm install thetadatadx
 import { ThetaDataDxClient } from 'thetadatadx';
 
 const tdx = await ThetaDataDxClient.connectFromFile('creds.txt');
-for (const t of tdx.stockHistoryEOD('AAPL', '20240101', '20240301')) {
-    console.log(`${t.date}: O=${t.open} H=${t.high} L=${t.low} C=${t.close} V=${t.volume}`);
+for (const t of tdx.stockHistoryQuote('AAPL', '20240101', '20240301')) {
+    console.log(`${t.msOfDay}: bid=${t.bid} ask=${t.ask}`);
 }
 ```
 
@@ -119,16 +109,60 @@ int main() {
     auto creds  = tdx::Credentials::from_file("creds.txt");
     auto config = tdx::Config::production();
     auto client = tdx::Client::connect(creds, config);
-    for (const auto& t : client.stock_history_eod("AAPL", "20240101", "20240301")) {
-        std::printf("%d: O=%.2f H=%.2f L=%.2f C=%.2f V=%lld\n",
-            t.date, t.open, t.high, t.low, t.close, (long long)t.volume);
+    for (const auto& t : client.stock_history_quote("AAPL", "20240101", "20240301")) {
+        std::printf("%d: bid=%.2f ask=%.2f\n", t.ms_of_day, t.bid, t.ask);
     }
 }
 ```
 
+## What's new in v11.0.0
+
+The v11 cut absorbs 30 major + 1 minor breaking changes versus v10
+plus the late-cycle full-repo audit closure. Highlights:
+
+- **In-house h2 gRPC client** replaces `tonic` on the historical
+  request path. Channel pool gains involuntary-disconnect recovery
+  (GOAWAY / IO failure / peer shutdown / open-phase drop trigger
+  single-flight reconnect with bounded backoff).
+- **Two-stage decode pipeline** (transport ring → decode workers →
+  typed tick slices). Tier-clamped concurrency for the decode worker
+  pool.
+- **Five new `TradeGreeks*Tick` types** carry the nine trade-side
+  execution columns the v10 routing silently dropped from
+  `option_history_trade_greeks_*` endpoints.
+- **`GreeksEodTick`** carries the twelve EOD trade/quote columns
+  (`open` / `high` / `low` / `close` / `volume` / `count` / bid + ask
+  size, exchange, condition) on `option_history_greeks_eod`; bare
+  `GreeksAllTick` no longer used there.
+- **`IndexPriceAtTimeTick`** carries the seven trade-side execution
+  columns (including SIP-exchange attribution) on `index_at_time_price`.
+- **`FlatFilesConfig` retry knobs** (`max_attempts`,
+  `initial_backoff_secs`, `max_backoff_secs`) bound across every
+  language binding.
+- **Strict decode propagation**: malformed text dates / times surface
+  as `DecodeError::InvalidDate` / `InvalidTime`; unknown text on
+  `right` / calendar `type` enum columns surfaces as
+  `UnknownEnumVariant`. Previously coalesced silently to `0`.
+- **Flatfile concurrent-write fix**: server route writes each request
+  to a per-request UUID scratch path then atomic-renames onto the
+  deterministic final path so concurrent identical requests can never
+  truncate bytes out from under an in-flight reader.
+- **Vendor-neutral public docs**: bare `FPSS` / `MDDS` / `LMAX Disruptor`
+  removed from user-facing pages in favour of "streaming" / "historical
+  channel" / "ring buffer". Methodology citations (Black-Scholes,
+  Lee-Ready, VIX) stay.
+- **Internal modules narrowed**: `grpc`, `fpss::protocol::wire`,
+  `observability`, and friends moved from `pub mod` to `pub(crate) mod`
+  in the default build; semver surface tightened accordingly.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full release notes.
+
 ## Streaming
 
-One connection, one auth. Historical queries are available immediately; streaming connects lazily on first subscription. The client auto-reconnects and re-subscribes all active contracts on involuntary disconnect.
+One connection, one auth. Historical queries are available immediately;
+streaming connects lazily on first subscription. The client
+auto-reconnects and re-subscribes all active contracts on involuntary
+disconnect.
 
 The primary streaming surface is the **fluent contract-first API** —
 `Contract::stock("AAPL").quote()` returns a typed `Subscription` value
@@ -152,18 +186,11 @@ tdx.start_streaming(|event: &FpssEvent| {
 
 let stock  = Contract::stock("AAPL");
 let option = Contract::option("SPY", "20260620", "550", "C")?;
-
 tdx.subscribe(stock.quote())?;
 tdx.subscribe(option.trade())?;
-tdx.subscribe(SecType::Option.full_open_interest())?;
-
-// Bulk install:
-tdx.subscribe_many(vec![stock.quote(), option.quote()])?;
 ```
 
-All prices (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are `f64`, decoded during parsing.
-
-### Choosing buffered vs streaming for historical pulls
+### Buffered vs streaming for historical pulls
 
 Every historical builder (`option_history_*`, `stock_history_*`,
 `index_history_*`, `interest_rate_history_*`) supports two terminals:
@@ -171,7 +198,6 @@ Every historical builder (`option_history_*`, `stock_history_*`,
 | Workload | Use |
 |---|---|
 | Single day / one-shot ad-hoc query | `.await` |
-| Single day, deterministic small response | `.await` |
 | Bulk / multi-day backfill | `.stream(handler)` |
 | Tick-interval responses | `.stream(handler)` |
 | Greeks responses across a long horizon | `.stream(handler)` |
@@ -180,34 +206,65 @@ Buffered `.await` collects the full response into `Vec<Tick>` before
 returning. On a 2.4 M-tick day this consumes ~5 GiB of RSS before any
 caller code runs. `.stream(handler)` yields chunks via
 `handler(&[Tick])` and drops each chunk before the next is fetched —
-peak RSS stays at ~150 MiB regardless of response size.
+peak RSS stays at ~150 MiB regardless of response size. The buffered
+path emits a single `tracing::warn!` when the estimated response size
+crosses `MddsConfig::warn_on_buffered_threshold_bytes` (default 100
+MiB; set to `0` to disable).
 
-When the buffered path returns a response whose estimated size exceeds
-`MddsConfig::warn_on_buffered_threshold_bytes` (default 100 MiB), the
-SDK emits a single `tracing::warn!` event suggesting `.stream(handler)`
-for the workload (`endpoint`, `row_count`, `bytes_est` fields). Set the
-threshold to `0` to disable.
+## Endpoint coverage
 
-## API coverage
-
-61 registry/REST endpoints plus 4 SDK-only historical stream variants, FPSS real-time streaming, and a full Black-Scholes Greeks calculator.
+61 typed endpoints across stock, option, index, calendar, and interest
+rate surfaces, plus FPSS real-time streaming and a local
+Black-Scholes Greeks calculator.
 
 | Category | Endpoints | Examples |
 |----------|-----------|----------|
 | Stock | 14 | EOD, OHLC, trades, quotes, snapshots, at-time |
 | Option | 34 | Same as stock + 5 Greeks tiers, open interest, contracts |
 | Index | 9 | EOD, OHLC, price, snapshots |
-| Calendar | 3 | Market open/close, holiday schedule |
+| Calendar | 3 | Market open/close, holidays + early closes |
 | Interest Rate | 1 | EOD rate history |
 
-All endpoints return fully typed data in every language. See the [API Reference](docs/api-reference.md) for the complete method list.
+See the [API Reference](docs/api-reference.md) for the complete method
+list across all four languages.
 
-**Additional surfaces** (not REST/gRPC endpoints): FPSS real-time streaming (7 subscribe/unsubscribe methods per contract and per full-stream type) and a local Greeks calculator (22 Black-Scholes Greeks plus an IV solver, callable individually or batched).
+**Additional surfaces** (not REST/gRPC endpoints): real-time streaming
+(7 subscribe/unsubscribe methods per contract and per full-stream
+type) and a local Greeks calculator (22 Black-Scholes Greeks plus an
+IV solver, callable individually or batched).
 
-### Coverage notes
+## Performance + observability
 
-* **Long-running gRPC channel pool**: every transport-level fault (GOAWAY, IO failure, peer shutdown, open-phase drop) triggers an in-place reconnect of the channel's underlying h2 session (single-flight, bounded backoff). Long-lived clients survive server-side connection rotation, network blips, and tokio runtime hiccups transparently. See [`docs-site/docs/channel-pool-design.md`](docs-site/docs/channel-pool-design.md) for the contract.
-* **REST transport (`crate::rest::RestClient`)** is wired in as an alternative transport reachable via `FallbackPolicy::RestAlways` for callers who explicitly want every historical-quote call routed through a locally-running Terminal's REST surface (e.g. when network policy disallows direct MDDS access).
+The historical request path is a two-stage pipeline — transport ring
+buffer fed by an in-house h2 gRPC client, drained by a tier-clamped
+pool of decode workers that emit typed tick slices into the caller's
+buffer. The streaming path is a single-producer single-consumer ring
+buffer between the wire reader and the callback dispatcher. Channel
+recovery uses bounded exponential backoff with single-flight
+reconnect; a long-lived client survives server-side rotation, network
+blips, and runtime hiccups without restarting.
+
+## CI gates
+
+14 gates run on every PR. Each one fails the build on a distinct
+class of regression:
+
+| Gate | What it catches |
+|------|-----------------|
+| Lint (fmt + clippy `-D warnings`) | Formatting drift, clippy diagnostics |
+| Workspace tests (`__test-helpers`) | Functional regressions |
+| C ABI completeness | Missing `tdx_*` exports vs the C header |
+| Cross-binding parity (Gate 2) | Per-field / per-setter asymmetry across SDKs |
+| Wire schema drift | gRPC proto / tick layout / FPSS event snapshots vs regenerated output |
+| Binding parity selftest | Hermetic cases for the parity gate itself |
+| Semver-checks | API surface drift vs the v10 baseline |
+| Banned-vocab | User-facing prose hygiene |
+| Tier badges | Docs-site `<TierBadge>` consistency |
+| Docs consistency | Cross-doc literal-string drift |
+| Lockfile drift | Binding-critical crates (`pyo3`, `arrow`, `tonic`, `napi`) pinned across all five Cargo.lock files |
+| Version sync | Every `Cargo.toml` / `package.json` / `CMakeLists.txt` matches canonical |
+| SDK surfaces regen | `generate_sdk_surfaces --check` clean |
+| Safety-comment boilerplate | Every `unsafe { ... }` block carries a `// SAFETY:` comment |
 
 ## Architecture
 
@@ -215,8 +272,8 @@ All endpoints return fully typed data in every language. See the [API Reference]
 flowchart TB
     subgraph core["Rust core"]
         direction TB
-        thetadatadx["<b>thetadatadx</b><br/>auth · MDDS gRPC · FPSS TCP · decode"]
-        tdbe["<b>tdbe</b><br/>types · FIT / FIE codec · Greeks · Price"]
+        thetadatadx["<b>thetadatadx</b><br/>auth · historical · streaming · decode"]
+        tdbe["<b>tdbe</b><br/>types · codec · Greeks · Price"]
         thetadatadx --> tdbe
     end
 
@@ -226,7 +283,7 @@ flowchart TB
     core -->|PyO3 / maturin| python["Python SDK<br/>(pyo3 · Arrow)"]
     ffi -->|napi-rs| ts["TypeScript SDK<br/>(N-API · BigInt)"]
     ffi -->|extern C| cpp["C++ SDK<br/>(RAII header-only)"]
-    core -->|in-house gRPC| rust["Rust consumer<br/>(direct crate)"]
+    core -->|direct crate| rust["Rust consumer"]
 
     classDef coreStyle fill:#1e3a8a,stroke:#0c1e5c,color:#fff
     classDef ffiStyle fill:#7c2d12,stroke:#450a0a,color:#fff
@@ -238,34 +295,32 @@ flowchart TB
 
 | Layer | Crate / package | Purpose |
 |-------|-----------------|---------|
-| Encoding / types | [`crates/tdbe`](crates/tdbe/) | Tick structs, FIT/FIE codecs, Greeks, Price |
-| Core SDK | [`crates/thetadatadx`](crates/thetadatadx/) | MDDS gRPC client, FPSS streaming, auth |
-| C FFI | [`ffi/`](ffi/) | Stable `extern "C"` layer consumed by C++, Node.js, and any third-party C / C++ consumer |
-| Python | [`sdks/python`](sdks/python/) | PyO3 / maturin wheel with Arrow DataFrame adapter |
+| Encoding / types | [`crates/tdbe`](crates/tdbe/) | Tick structs, codecs, Greeks, Price |
+| Core SDK | [`crates/thetadatadx`](crates/thetadatadx/) | Historical gRPC, streaming TCP, auth |
+| C FFI | [`ffi/`](ffi/) | Stable `extern "C"` layer |
+| Python | [`sdks/python`](sdks/python/) | PyO3 / maturin wheel with Arrow adapter |
 | TypeScript | [`sdks/typescript`](sdks/typescript/) | napi-rs prebuilt binary |
 | C++ | [`sdks/cpp`](sdks/cpp/) | RAII header-only wrapper |
-| CLI | [`tools/cli`](tools/cli/) | `tdx` CLI — every generated historical endpoint from the command line |
+| CLI | [`tools/cli`](tools/cli/) | `tdx` CLI |
 | MCP | [`tools/mcp`](tools/mcp/) | MCP server - gives clients access to every generated historical endpoint plus offline tools over JSON-RPC |
-| Server | [`tools/server`](tools/server/) | REST + WebSocket server exposing the `/v3/*` route surface |
-| Docs | [`docs/`](docs/) | API reference, architecture, attribution |
-| Website | [`docs-site/`](docs-site/) | VitePress documentation site (deployed to GitHub Pages) |
-| Notebooks | [`notebooks/`](notebooks/) | 7 Jupyter notebooks (101-107) |
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [API Reference](docs/api-reference.md) | All typed methods, streaming builders, generated tick types, and configuration options |
-| [Architecture](docs/architecture.md) | System design, wire protocols, TOML codegen pipeline |
-| [Endpoint Schema](docs/endpoint-schema.md) | TOML codegen format for adding new types/columns |
-| [Proto Maintenance](crates/thetadatadx/proto/MAINTENANCE.md) | Guide for updating proto files |
-| [Roadmap](docs/ROADMAP.md) | Per-binding coverage status |
-| [Changelog](CHANGELOG.md) | Release notes with breaking changes, features, and fixes |
+| Server | [`tools/server`](tools/server/) | REST + WebSocket terminal replacement |
+| Website | [`docs-site`](docs-site/) | VitePress documentation site (deployed to GitHub Pages) |
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, pre-commit checks, and pull-request process. Community discussion happens on the [ThetaData Discord](https://discord.thetadata.us/).
+Contributions are welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for development setup, pre-commit
+checks, and pull-request process. Community discussion happens on the
+[ThetaData Discord](https://discord.thetadata.us/).
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](./LICENSE).
+Licensed under the Apache License, Version 2.0. See
+[LICENSE](./LICENSE).
+
+## Support
+
+- [API Reference](docs/api-reference.md)
+- [Architecture](docs/architecture.md)
+- [Changelog](CHANGELOG.md)
+- [ThetaData Discord](https://discord.thetadata.us/)
