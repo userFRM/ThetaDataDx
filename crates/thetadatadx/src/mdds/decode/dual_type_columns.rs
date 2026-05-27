@@ -64,12 +64,14 @@ pub fn parse_option_contracts_v3(
             let symbol = row_text(row, symbol_idx)?.unwrap_or_default();
 
             // Expiration: `Number` carries YYYYMMDD directly; `Text` carries
-            // an ISO "2026-04-13" that we parse here. `NullValue` → 0 (legit
-            // null, coalesce). An unset oneof is a wire anomaly → TypeMismatch.
+            // an ISO "2026-04-13" that we parse here — malformed text
+            // propagates as `DecodeError::InvalidDate` rather than
+            // silently coalescing to 0. `NullValue` → 0 (legit null).
+            // An unset oneof is a wire anomaly → TypeMismatch.
             let expiration = match exp_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Number(n)) => *n as i32,
-                    Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s),
+                    Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s)?,
                     Some(proto::data_value::DataType::NullValue(_)) => 0,
                     None => {
                         return Err(DecodeError::TypeMismatch {
@@ -135,12 +137,28 @@ pub fn parse_option_contracts_v3(
 }
 
 /// Parse an ISO date string "2026-04-13" to YYYYMMDD integer 20260413.
+///
+/// Accepts:
+/// - Compact `YYYYMMDD` (already-numeric) — e.g. `"20260413"`.
+/// - ISO `YYYY-MM-DD` — e.g. `"2026-04-13"` — which is the v3 wire
+///   shape on `interest_rate_history_eod.created` and the v3 calendar
+///   `date` column.
+///
+/// Anything else returns [`DecodeError::InvalidDate`] with the raw
+/// text captured for diagnostics. Previously this function returned
+/// `0` on parse failure, which silently corrupted downstream
+/// timestamps when the upstream schema drifted.
+///
+/// # Errors
+///
+/// Returns [`DecodeError::InvalidDate`] when the input matches neither
+/// of the documented shapes.
 // Reason: date parsing with known-safe integer ranges.
 #[allow(clippy::cast_possible_truncation, clippy::missing_panics_doc)]
-pub(crate) fn parse_iso_date(s: &str) -> i32 {
+pub(crate) fn parse_iso_date(s: &str) -> Result<i32, DecodeError> {
     // Fast path: already numeric (YYYYMMDD)
     if let Ok(n) = s.parse::<i32>() {
-        return n;
+        return Ok(n);
     }
     // ISO format: YYYY-MM-DD
     let parts: Vec<&str> = s.split('-').collect();
@@ -150,14 +168,26 @@ pub(crate) fn parse_iso_date(s: &str) -> i32 {
             parts[1].parse::<i32>(),
             parts[2].parse::<i32>(),
         ) {
-            return y * 10_000 + m * 100 + d;
+            return Ok(y * 10_000 + m * 100 + d);
         }
     }
-    0
+    Err(DecodeError::InvalidDate { raw: s.to_string() })
 }
 
 /// Parse a time string "HH:MM:SS" to milliseconds from midnight.
-pub(crate) fn parse_time_text(s: &str) -> i32 {
+///
+/// Used on the v3 calendar `open` / `close` columns. Anything that
+/// does not match the documented `HH:MM:SS` shape returns
+/// [`DecodeError::InvalidTime`] with the raw text captured for
+/// diagnostics. Previously this function returned `0` on parse
+/// failure, silently corrupting trading-session timestamps in
+/// downstream consumers.
+///
+/// # Errors
+///
+/// Returns [`DecodeError::InvalidTime`] when the input does not split
+/// into three colon-delimited integer components.
+pub(crate) fn parse_time_text(s: &str) -> Result<i32, DecodeError> {
     let parts: Vec<&str> = s.split(':').collect();
     if parts.len() == 3 {
         if let (Ok(h), Ok(m), Ok(sec)) = (
@@ -165,10 +195,10 @@ pub(crate) fn parse_time_text(s: &str) -> i32 {
             parts[1].parse::<i32>(),
             parts[2].parse::<i32>(),
         ) {
-            return (h * 3_600 + m * 60 + sec) * 1_000;
+            return Ok((h * 3_600 + m * 60 + sec) * 1_000);
         }
     }
-    0
+    Err(DecodeError::InvalidTime { raw: s.to_string() })
 }
 
 /// Calendar day status constants.
@@ -248,7 +278,7 @@ pub fn parse_calendar_days_v3(
                     Some(proto::data_value::DataType::Timestamp(ts)) => {
                         tdbe::time::timestamp_to_date(ts.epoch_ms)
                     }
-                    Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s),
+                    Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s)?,
                     Some(proto::data_value::DataType::NullValue(_)) => 0,
                     None => {
                         return Err(DecodeError::TypeMismatch {
@@ -322,7 +352,7 @@ fn decode_calendar_time(
         return Ok(0);
     };
     match cell_type(row, i)? {
-        Some(proto::data_value::DataType::Text(s)) => Ok(parse_time_text(s)),
+        Some(proto::data_value::DataType::Text(s)) => parse_time_text(s),
         Some(proto::data_value::DataType::Number(n)) => Ok(*n as i32),
         Some(proto::data_value::DataType::NullValue(_)) => Ok(0),
         None => Err(DecodeError::TypeMismatch {

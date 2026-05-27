@@ -58,6 +58,31 @@ pub enum DecodeError {
         first: String,
         chunk: String,
     },
+    /// A `Text` cell in a date-typed column did not match the documented
+    /// ISO `YYYY-MM-DD` or compact `YYYYMMDD` shapes. The v3 wire path
+    /// publishes some date columns (notably `interest_rate_history_eod.created`,
+    /// `calendar_day.date`, and `OptionContract.expiration`) as text;
+    /// previously a malformed value coalesced silently to `0`. Surfacing
+    /// this as an error mirrors the strict-decode policy on every other
+    /// column type and prevents silent corruption of downstream
+    /// timestamps.
+    #[error("invalid date text {raw:?} (expected YYYY-MM-DD or YYYYMMDD)")]
+    InvalidDate {
+        /// The exact text that failed to parse, captured verbatim from
+        /// the wire for diagnostics.
+        raw: String,
+    },
+    /// A `Text` cell in a time-typed column did not match the documented
+    /// `HH:MM:SS` shape. Used on the v3 calendar `open` / `close`
+    /// columns. Previously a malformed value coalesced silently to `0`;
+    /// surfacing this prevents silent corruption of trading-session
+    /// timestamps in downstream consumers.
+    #[error("invalid time text {raw:?} (expected HH:MM:SS)")]
+    InvalidTime {
+        /// The exact text that failed to parse, captured verbatim from
+        /// the wire for diagnostics.
+        raw: String,
+    },
 }
 
 /// Name the `DataType` variant for error messages. `None` is treated as a

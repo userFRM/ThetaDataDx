@@ -464,23 +464,44 @@ fn parse_calendar_v3_weekend() {
 
 #[test]
 fn parse_time_text_valid() {
-    assert_eq!(parse_time_text("09:30:00"), 34_200_000);
-    assert_eq!(parse_time_text("16:00:00"), 57_600_000);
-    assert_eq!(parse_time_text("13:00:00"), 46_800_000);
-    assert_eq!(parse_time_text("00:00:00"), 0);
+    assert_eq!(parse_time_text("09:30:00").unwrap(), 34_200_000);
+    assert_eq!(parse_time_text("16:00:00").unwrap(), 57_600_000);
+    assert_eq!(parse_time_text("13:00:00").unwrap(), 46_800_000);
+    assert_eq!(parse_time_text("00:00:00").unwrap(), 0);
 }
 
 #[test]
-fn parse_time_text_invalid_returns_zero() {
-    assert_eq!(parse_time_text("invalid"), 0);
-    assert_eq!(parse_time_text(""), 0);
+fn parse_time_text_invalid_errors_with_raw_capture() {
+    // SERIOUS #2 closure: malformed text time used to coalesce to 0,
+    // silently corrupting downstream session timestamps. The strict
+    // path surfaces the wire payload verbatim so operators can grep
+    // for the failing value in upstream logs.
+    assert_eq!(
+        parse_time_text("invalid"),
+        Err(DecodeError::InvalidTime {
+            raw: "invalid".into()
+        })
+    );
+    assert_eq!(
+        parse_time_text(""),
+        Err(DecodeError::InvalidTime { raw: "".into() })
+    );
 }
 
 #[test]
 fn parse_iso_date_yyyymmdd_passthrough_and_iso_split() {
-    assert_eq!(parse_iso_date("20260413"), 20260413);
-    assert_eq!(parse_iso_date("2026-04-13"), 20260413);
-    assert_eq!(parse_iso_date("not-a-date"), 0);
+    assert_eq!(parse_iso_date("20260413").unwrap(), 20260413);
+    assert_eq!(parse_iso_date("2026-04-13").unwrap(), 20260413);
+    // SERIOUS #2 closure: malformed text date used to coalesce to 0;
+    // the strict path surfaces the raw payload as `InvalidDate` so
+    // downstream timestamp consumers cannot silently mis-classify a
+    // schema-drift case as the epoch.
+    assert_eq!(
+        parse_iso_date("not-a-date"),
+        Err(DecodeError::InvalidDate {
+            raw: "not-a-date".into()
+        })
+    );
 }
 
 #[test]
@@ -1198,4 +1219,58 @@ fn quote_tick_decodes_current_eleven_field_shape_unchanged() {
     assert!((t.ask - 1.5041).abs() < 1e-9);
     assert_eq!(t.ask_condition, 2);
     assert_eq!(t.date, 20_240_605);
+}
+
+// ─────────────────── SERIOUS #2: invalid-text propagation ───────────────────
+//
+// The v3 wire path used to coalesce malformed date / time text to `0`.
+// That silently corrupted downstream timestamps when the upstream
+// schema drifted; the strict path now surfaces it as
+// `DecodeError::InvalidDate { raw }` / `DecodeError::InvalidTime { raw }`
+// so operators can grep for the failing payload in their logs.
+
+#[test]
+fn parse_calendar_days_v3_errors_on_invalid_date_text() {
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into()],
+        data_table: vec![row_of(vec![dv_text("not-a-date"), dv_text("open")])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "not-a-date".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_calendar_days_v3_errors_on_invalid_open_time_text() {
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into(), "open".into()],
+        data_table: vec![row_of(vec![
+            dv_number(20_260_413),
+            dv_text("open"),
+            dv_text("invalid"),
+        ])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::InvalidTime {
+            raw: "invalid".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_option_contracts_v3_errors_on_invalid_expiration_text() {
+    let table = proto::DataTable {
+        headers: vec!["root".into(), "expiration".into()],
+        data_table: vec![row_of(vec![dv_text("AAPL"), dv_text("not-a-date")])],
+    };
+    assert_eq!(
+        parse_option_contracts_v3(&table).unwrap_err(),
+        DecodeError::InvalidDate {
+            raw: "not-a-date".into(),
+        }
+    );
 }

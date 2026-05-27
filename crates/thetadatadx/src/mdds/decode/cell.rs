@@ -56,7 +56,7 @@ pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<
         Some(proto::data_value::DataType::Timestamp(ts)) => {
             Ok(Some(tdbe::time::timestamp_to_date(ts.epoch_ms)))
         }
-        Some(proto::data_value::DataType::Text(s)) => Ok(Some(parse_iso_date(s))),
+        Some(proto::data_value::DataType::Text(s)) => Ok(Some(parse_iso_date(s)?)),
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
             column: idx,
