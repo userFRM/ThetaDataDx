@@ -94,7 +94,7 @@ The WebSocket endpoint supports a single concurrent client connection. If a seco
 
 ## Security Hardening
 
-The REST and WebSocket routers share the same defence-in-depth stack
+The REST and WebSocket routers share the same hardening stack
 (see `tools/server/src/router.rs::build()` and
 `tools/server/src/ws.rs::router()`):
 

@@ -107,15 +107,14 @@ captures the call site before the bump lands.
 
 ### Gate 14 KPI footnote
 
-A round-3 audit cycle observed Gate 14's distinct SAFETY-comment
-signature count rise from 91 to 105 between releases. The delta is
-structurally correct: every new signature names a real per-site
+Gate 14 enforces a minimum number of distinct SAFETY-comment
+signatures across the FFI surface; the current threshold is 105
+verbatim-distinct signatures. The gate's intent is no-stamp, not
+no-grow — `scripts/check_safety_comment_boilerplate.py` flags
+verbatim duplicates whose text mentions no invariant, not the total
+distinct-signature count. Every signature names a real per-site
 invariant (an identifier in backticks, a layout property, a non-null
-contract returned by the matching factory). The gate's intent is
-no-stamp, not no-grow — `scripts/check_safety_comment_boilerplate.py`
-flags verbatim duplicates whose text mentions no invariant, not the
-total distinct-signature count. Invariants that can be hoisted into
-a typed helper (the `error::last_error_message` helper landed in the
-same audit cycle is the recent example) collapse many sites into
-one; invariants that genuinely differ per site stay separate by
-design.
+contract returned by the matching factory). Invariants that can be
+hoisted into a typed helper (the `error::last_error_message` helper
+is the canonical example) collapse many sites into one; invariants
+that genuinely differ per site stay separate by design.
