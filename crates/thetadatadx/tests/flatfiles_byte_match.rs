@@ -14,12 +14,14 @@
 //!   (test passes as skipped). One `eprintln!` documents the skip so
 //!   CI operators can find the contract on demand.
 //!
-//! Wave-6 closure: the prior gate panicked when the default fixture
-//! filename was absent under `--features live-tests`, which is the CI
-//! steady state — the test was therefore a hard failure rather than a
-//! conditional gate. The single-env-var path now makes the contract
-//! consistent: either provide fixtures and validate end-to-end, or
-//! skip.
+//! Opt-in contract semantics (round-2 hardening): once the operator
+//! has set [`FIXTURES_PATH_ENV`] to an existing directory, every named
+//! fixture inside must exist — a missing CSV at that point is a hard
+//! test failure, not a soft skip. Pre-round-2 the helper printed
+//! `skipping` and passed when an opt-in directory was missing one of
+//! the named CSVs, letting CI show green byte-match while validating
+//! nothing. The opt-in contract is now: "you opted in, you provision
+//! all fixtures."
 //!
 //! This is the load-bearing decoder regression: when fixtures are
 //! provisioned, byte-matching our CSV against the vendor's output for
@@ -31,7 +33,7 @@
 // ignore)`. Without `--features live-tests`, the live-MDDS integration
 // case shows up as `ignored` in `cargo test` output instead of running.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
 use thetadatadx::Credentials;
@@ -45,42 +47,119 @@ const REFERENCE_CSV_FILENAME: &str = "OPTION-OPEN_INTEREST-20260428.csv";
 const REFERENCE_EOD_CSV_FILENAME: &str = "OPTION-EOD-20260428.csv";
 const TEST_DATE: &str = "20260428";
 
-/// Resolved reference fixture for one of the byte-match tests.
+/// Result of resolving a named fixture under [`FIXTURES_PATH_ENV`].
 ///
-/// Returns `None` (and prints a single skip diagnostic) when
-/// [`FIXTURES_PATH_ENV`] is unset, the directory doesn't exist, or the
-/// expected fixture filename is absent inside it. Callers treat a
-/// `None` result as the test passing as skipped.
-fn resolve_fixture(filename: &str) -> Option<PathBuf> {
-    let dir = match std::env::var(FIXTURES_PATH_ENV) {
-        Ok(v) => v,
-        Err(_) => {
-            eprintln!(
-                "skipping flatfile_byte_match: {FIXTURES_PATH_ENV} unset \
-                 (set it to a directory containing {REFERENCE_CSV_FILENAME} / \
-                 {REFERENCE_EOD_CSV_FILENAME} to enable byte-match validation)"
-            );
-            return None;
-        }
+/// `Skipped` means the operator has not opted in — the env var is
+/// unset or points at a non-existent directory — so the test passes as
+/// skipped (the existing CI steady state).
+///
+/// `Provisioned` carries the absolute path to a fixture that exists on
+/// disk inside an opt-in directory.
+///
+/// `MissingInOptInDir` is the hard-failure case round-2 introduced:
+/// the operator set the env var to an existing directory but the
+/// named CSV is absent. Pre-round-2 this collapsed to `Skipped`,
+/// silently turning a green test into a no-op. Callers must now
+/// surface this as a panic so the byte-match contract cannot quietly
+/// erode under CI.
+#[derive(Debug, PartialEq, Eq)]
+enum FixtureResolution {
+    /// Operator opted out — env var unset or directory absent.
+    /// Carries a human-readable reason for the skip diagnostic.
+    Skipped(String),
+    /// Opt-in dir exists and the named fixture is present at that path.
+    Provisioned(PathBuf),
+    /// Opt-in dir exists but the named fixture is missing inside.
+    /// Hard failure: operators opted in, so all named fixtures must
+    /// exist.
+    MissingInOptInDir {
+        /// Directory the operator pointed `FIXTURES_PATH_ENV` at.
+        dir: PathBuf,
+        /// Absolute path to the missing fixture inside `dir`.
+        missing: PathBuf,
+        /// Verbatim env var name, included in the panic message so the
+        /// CI failure tells operators which variable they opted in via.
+        env_var: &'static str,
+    },
+}
+
+/// Locate a named fixture under [`FIXTURES_PATH_ENV`] and report the
+/// resolution as a structured value.
+///
+/// This is the testable helper that backs [`resolve_fixture`] — kept
+/// pure (no panics, no eprintln) so the round-2 regression tests can
+/// drive every branch through `std::env::set_var` without spawning a
+/// subprocess.
+fn resolve_fixture_inner(filename: &str, env_var: &'static str) -> FixtureResolution {
+    let Ok(dir) = std::env::var(env_var) else {
+        return FixtureResolution::Skipped(format!(
+            "{env_var} unset (set it to a directory containing \
+             {REFERENCE_CSV_FILENAME} / {REFERENCE_EOD_CSV_FILENAME} \
+             to enable byte-match validation)",
+        ));
     };
     let dir_path = PathBuf::from(&dir);
     if !dir_path.exists() {
-        eprintln!(
-            "skipping flatfile_byte_match: {FIXTURES_PATH_ENV}={dir} does not exist on disk \
-             (provision the vendor fixtures and rerun to enable byte-match validation)"
-        );
-        return None;
+        return FixtureResolution::Skipped(format!(
+            "{env_var}={dir} does not exist on disk \
+             (provision the vendor fixtures and rerun to enable byte-match validation)",
+        ));
     }
     let fixture = dir_path.join(filename);
     if !fixture.exists() {
-        eprintln!(
-            "skipping flatfile_byte_match: fixture {} missing from {FIXTURES_PATH_ENV}={dir} \
-             (provision it to enable byte-match validation)",
-            fixture.display(),
-        );
-        return None;
+        return FixtureResolution::MissingInOptInDir {
+            dir: dir_path,
+            missing: fixture,
+            env_var,
+        };
     }
-    Some(fixture)
+    FixtureResolution::Provisioned(fixture)
+}
+
+/// Drive a [`FixtureResolution`] through the canonical wrapper
+/// semantics: `Skipped` → `None` + diagnostic, `Provisioned` →
+/// `Some(path)`, `MissingInOptInDir` → panic. Pure on its input so
+/// regression tests can drive the panic branch without racing the
+/// production env var.
+fn resolution_to_option(result: FixtureResolution) -> Option<PathBuf> {
+    match result {
+        FixtureResolution::Skipped(reason) => {
+            eprintln!("skipping flatfile_byte_match: {reason}");
+            None
+        }
+        FixtureResolution::Provisioned(path) => Some(path),
+        FixtureResolution::MissingInOptInDir {
+            dir,
+            missing,
+            env_var,
+        } => {
+            // Operator opted in by setting the env var to a real
+            // directory; a missing fixture inside is a hard failure
+            // because pre-round-2 this silently collapsed to a skip
+            // (green CI, zero validation).
+            panic!(
+                "flatfile_byte_match: opt-in fixture {} is missing from {env_var}={} — \
+                 provision it or unset {env_var} to skip (opt-in contract requires all \
+                 named fixtures to exist)",
+                missing.display(),
+                Path::new(&dir).display(),
+            );
+        }
+    }
+}
+
+/// Resolved reference fixture for one of the byte-match tests.
+///
+/// Returns `None` (and prints a single skip diagnostic) when
+/// [`FIXTURES_PATH_ENV`] is unset or the directory doesn't exist.
+///
+/// **Panics** when the operator has opted in (env var set to an
+/// existing directory) but the named fixture is absent — that is a
+/// hard CI failure under the opt-in contract, not a soft skip. The
+/// panic message names the missing path and the env var so operators
+/// can locate the gap without grepping test output.
+fn resolve_fixture(filename: &str) -> Option<PathBuf> {
+    resolution_to_option(resolve_fixture_inner(filename, FIXTURES_PATH_ENV))
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -284,4 +363,160 @@ async fn option_eod_csv_byte_matches_vendor() {
 
     // Cleanup raw blob — it's large.
     let _ = std::fs::remove_file(&raw);
+}
+
+// ───── Round-2 hardening: opt-in contract for fixture resolution ─────
+//
+// Pre-round-2, `resolve_fixture` printed "skipping" and passed when
+// `THETADATADX_FLATFILE_FIXTURES_PATH` was set to a real directory
+// but the named CSV was absent inside. That collapsed an opt-in
+// failure case into a soft skip and let CI report a green byte-match
+// while validating nothing. Round-2 splits the resolution into a
+// structured `FixtureResolution` so the opt-in-but-missing path is a
+// distinct hard-failure variant the wrapper panics on.
+//
+// Each test uses a unique env var name (not the production
+// `FIXTURES_PATH_ENV`) so parallel test execution and the live
+// byte-match tests above can't see one another's state.
+
+#[cfg(test)]
+mod fixture_resolution_tests {
+    use super::{resolve_fixture_inner, FixtureResolution};
+    use std::path::PathBuf;
+
+    #[test]
+    fn unset_env_var_is_skipped() {
+        // Per-test env var name — never set, so the helper sees the
+        // unset branch unconditionally.
+        const ENV: &str = "THETADATADX_TEST_FIXTURES_UNSET_001";
+        // Make sure no prior test polluted it.
+        std::env::remove_var(ENV);
+        let result = resolve_fixture_inner("any.csv", ENV);
+        match result {
+            FixtureResolution::Skipped(_) => {}
+            other => panic!("expected Skipped on unset env var, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn nonexistent_directory_is_skipped() {
+        const ENV: &str = "THETADATADX_TEST_FIXTURES_NONEXISTENT_002";
+        // Pick a path guaranteed not to exist.
+        std::env::set_var(
+            ENV,
+            "/nonexistent-path-for-thetadatadx-byte-match-test-c52f1e",
+        );
+        let result = resolve_fixture_inner("any.csv", ENV);
+        std::env::remove_var(ENV);
+        match result {
+            FixtureResolution::Skipped(_) => {}
+            other => panic!("expected Skipped on missing directory, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn opt_in_with_missing_fixture_is_hard_failure_variant() {
+        // Core round-2 regression: env var SET to an existing
+        // directory, but the named CSV is missing inside. Pre-round-2
+        // this collapsed to `Skipped` (silent green CI); the strict
+        // variant now surfaces the gap.
+        const ENV: &str = "THETADATADX_TEST_FIXTURES_OPTED_IN_003";
+        let tmp = std::env::temp_dir().join("thetadatadx-byte-match-opt-in-test-003");
+        std::fs::create_dir_all(&tmp).expect("create temp dir");
+        // Sanity: directory exists but the named CSV does not.
+        std::env::set_var(ENV, &tmp);
+        let result = resolve_fixture_inner("missing-fixture.csv", ENV);
+        std::env::remove_var(ENV);
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        match result {
+            FixtureResolution::MissingInOptInDir {
+                dir,
+                missing,
+                env_var,
+            } => {
+                assert_eq!(dir, tmp);
+                assert_eq!(missing, tmp.join("missing-fixture.csv"));
+                assert_eq!(env_var, ENV);
+            }
+            other => {
+                panic!("expected MissingInOptInDir on opt-in dir without fixture, got {other:?}")
+            }
+        }
+    }
+
+    #[test]
+    fn opt_in_with_present_fixture_is_provisioned() {
+        const ENV: &str = "THETADATADX_TEST_FIXTURES_OPTED_IN_004";
+        let tmp = std::env::temp_dir().join("thetadatadx-byte-match-opt-in-test-004");
+        std::fs::create_dir_all(&tmp).expect("create temp dir");
+        let fixture_path = tmp.join("provisioned.csv");
+        std::fs::write(&fixture_path, b"header\n").expect("write stub fixture");
+        std::env::set_var(ENV, &tmp);
+        let result = resolve_fixture_inner("provisioned.csv", ENV);
+        std::env::remove_var(ENV);
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        match result {
+            FixtureResolution::Provisioned(path) => {
+                assert_eq!(path, fixture_path);
+            }
+            other => panic!("expected Provisioned when fixture exists, got {other:?}"),
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "opt-in fixture")]
+    fn resolution_to_option_panics_on_missing_in_opt_in_dir() {
+        // Drive the wrapper's panic branch via a stubbed
+        // `MissingInOptInDir` value rather than touching the
+        // production env var. Set_var-on-production races other
+        // tests that read it; the structured-resolution split lets
+        // us cover the panic path deterministically.
+        let missing = PathBuf::from("/opt-in-dir/missing-fixture.csv");
+        let dir = PathBuf::from("/opt-in-dir");
+        let stubbed = FixtureResolution::MissingInOptInDir {
+            dir,
+            missing,
+            env_var: "THETADATADX_TEST_FIXTURES_PANIC_005",
+        };
+        let _ = super::resolution_to_option(stubbed);
+    }
+
+    #[test]
+    fn resolution_to_option_returns_none_on_skipped() {
+        let result = super::resolution_to_option(FixtureResolution::Skipped("unset".to_string()));
+        assert!(
+            result.is_none(),
+            "resolution_to_option must return None on Skipped"
+        );
+    }
+
+    #[test]
+    fn resolution_to_option_returns_some_on_provisioned() {
+        let path = PathBuf::from("/some/fixture.csv");
+        let result = super::resolution_to_option(FixtureResolution::Provisioned(path.clone()));
+        assert_eq!(result, Some(path));
+    }
+
+    #[test]
+    fn nonexistent_directory_skip_reason_names_the_directory() {
+        // Sanity: the diagnostic captures the offending dir so an
+        // operator chasing CI output can grep it back to the env var
+        // they set.
+        const ENV: &str = "THETADATADX_TEST_FIXTURES_NONEXISTENT_006";
+        let bad = PathBuf::from("/nope-thetadatadx-006");
+        std::env::set_var(ENV, &bad);
+        let result = resolve_fixture_inner("x.csv", ENV);
+        std::env::remove_var(ENV);
+
+        if let FixtureResolution::Skipped(reason) = result {
+            assert!(
+                reason.contains("/nope-thetadatadx-006"),
+                "skip reason should mention the offending dir, got {reason:?}"
+            );
+        } else {
+            panic!("expected Skipped variant, got {result:?}");
+        }
+    }
 }
