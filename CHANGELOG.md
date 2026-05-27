@@ -229,6 +229,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `scripts/test_check_binding_parity.py` drives 12 synthetic-source
   cases via tempdir. Both are wired into CI ahead of the production
   invocation. Closes #595.
+- `tests/common/capture_loader.rs` hoists the dual-format capture-
+  fixture loader out of three hand-copied integration-test inlines
+  (`test_decode_captures.rs`, `test_wave6_schema.rs`,
+  `test_trade_greeks_schema.rs`) into a shared `#[path = ...]` module
+  that the new `test_endpoint_routing.rs` also consumes. The newer
+  copies carried a zstd-frame-magic sniff (legacy outer-zstd vs raw
+  outer `ResponseData` proto) that the original `test_decode_captures`
+  copy did not; the shared module unifies on the dual-format path so
+  every suite picks up future fixture-format changes from one
+  source-of-truth. Exposes `load_response_data` (raw
+  `proto::ResponseData` -- needed by the mock-driven routing suite)
+  and `load_data_table` (composed with the production
+  `decode::decode_data_table` for direct-parser asserts).
 - Gate 2 scope widened to include `AuthConfig` (`nexus_url`,
   `client_type`) + `MetricsConfig` (`port`). The three operator-tuning
   fields are exposed on Rust via `DirectConfig::with_nexus_url` /

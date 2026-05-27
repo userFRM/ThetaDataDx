@@ -22,43 +22,15 @@
 //! columns that the silent-routing dropped.
 
 use std::fs;
-use std::io::Read;
-use std::path::{Path, PathBuf};
 
-use prost::Message;
 use thetadatadx::decode;
 use thetadatadx::wire as proto;
 use thetadatadx::{GreeksEodTick, IndexPriceAtTimeTick};
 
-fn fixtures_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("fixtures")
-        .join("captures")
-}
+#[path = "common/capture_loader.rs"]
+mod capture_loader;
 
-fn load_response(endpoint: &str) -> proto::ResponseData {
-    let path = fixtures_dir().join(format!("{endpoint}.pb.zst"));
-    let bytes = fs::read(&path).unwrap_or_else(|e| panic!("read fixture {}: {e}", path.display()));
-    // Older fixtures are zstd-wrapped at the file level; newer fixtures
-    // (PR #605 onwards, and these wave-6 fixtures) carry the raw
-    // `ResponseData` proto bytes with the zstd payload on the inner
-    // `compressed_data` field. Sniff the zstd frame magic to pick the
-    // right path.
-    if bytes.starts_with(&[0x28, 0xb5, 0x2f, 0xfd]) {
-        let mut decoder = zstd::Decoder::new(&bytes[..])
-            .unwrap_or_else(|e| panic!("zstd::Decoder::new({}): {e}", path.display()));
-        let mut inner = Vec::new();
-        decoder
-            .read_to_end(&mut inner)
-            .unwrap_or_else(|e| panic!("zstd read_to_end {}: {e}", path.display()));
-        proto::ResponseData::decode(inner.as_slice())
-            .unwrap_or_else(|e| panic!("proto::ResponseData::decode {}: {e}", path.display()))
-    } else {
-        proto::ResponseData::decode(bytes.as_slice())
-            .unwrap_or_else(|e| panic!("proto::ResponseData::decode {}: {e}", path.display()))
-    }
-}
+use capture_loader::{fixtures_dir, load_response_data as load_response};
 
 fn load_meta(endpoint: &str) -> toml::Value {
     let path = fixtures_dir().join(format!("{endpoint}.meta.toml"));

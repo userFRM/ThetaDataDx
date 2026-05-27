@@ -35,12 +35,8 @@
 
 #![cfg(feature = "__test-helpers")]
 
-use std::fs;
-use std::io::Read;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use prost::Message;
 use tdbe::types::tick::{
     GreeksEodTick, IndexPriceAtTimeTick, TradeGreeksAllTick, TradeGreeksFirstOrderTick,
     TradeGreeksImpliedVolatilityTick, TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
@@ -55,35 +51,10 @@ use thetadatadx::DirectConfig;
 #[path = "grpc_mock_server.rs"]
 mod mock;
 
-fn fixtures_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("fixtures")
-        .join("captures")
-}
+#[path = "common/capture_loader.rs"]
+mod capture_loader;
 
-/// Load a capture fixture as a `proto::ResponseData`. Mirrors the
-/// dual-format sniff used by the sibling parser suites: older
-/// fixtures are zstd-wrapped at the file level (the `.pb.zst` suffix
-/// is literal), newer fixtures carry raw `ResponseData` proto bytes
-/// with the zstd payload on the inner `compressed_data` field.
-fn load_response(endpoint: &str) -> proto::ResponseData {
-    let path = fixtures_dir().join(format!("{endpoint}.pb.zst"));
-    let bytes = fs::read(&path).unwrap_or_else(|e| panic!("read fixture {}: {e}", path.display()));
-    if bytes.starts_with(&[0x28, 0xb5, 0x2f, 0xfd]) {
-        let mut decoder = zstd::Decoder::new(&bytes[..])
-            .unwrap_or_else(|e| panic!("zstd::Decoder::new({}): {e}", path.display()));
-        let mut inner = Vec::new();
-        decoder
-            .read_to_end(&mut inner)
-            .unwrap_or_else(|e| panic!("zstd read_to_end {}: {e}", path.display()));
-        proto::ResponseData::decode(inner.as_slice())
-            .unwrap_or_else(|e| panic!("proto::ResponseData::decode {}: {e}", path.display()))
-    } else {
-        proto::ResponseData::decode(bytes.as_slice())
-            .unwrap_or_else(|e| panic!("proto::ResponseData::decode {}: {e}", path.display()))
-    }
-}
+use capture_loader::load_response_data as load_response;
 
 /// Stand up an in-process gRPC mock that serves one
 /// `proto::ResponseData` chunk and a clean `grpc-status: 0`, then

@@ -15,10 +15,7 @@
 //! both shapes.
 
 use std::fs;
-use std::io::Read;
-use std::path::{Path, PathBuf};
 
-use prost::Message;
 use thetadatadx::decode;
 use thetadatadx::wire as proto;
 use thetadatadx::{
@@ -26,40 +23,10 @@ use thetadatadx::{
     TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
 };
 
-fn fixtures_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("fixtures")
-        .join("captures")
-}
+#[path = "common/capture_loader.rs"]
+mod capture_loader;
 
-fn load_response(endpoint: &str) -> proto::ResponseData {
-    let path = fixtures_dir().join(format!("{endpoint}.pb.zst"));
-    let bytes = fs::read(&path).unwrap_or_else(|e| panic!("read fixture {}: {e}", path.display()));
-    // The fixture is the outer ResponseData proto -- not zstd-wrapped at
-    // the file level. The inner `compressed_data` IS zstd-wrapped and
-    // the decode pipeline handles that. The `.pb.zst` suffix is
-    // historical (the existing fixtures predate the dual-purpose
-    // naming).
-    if bytes.starts_with(&[0x28, 0xb5, 0x2f, 0xfd]) {
-        // Outer zstd frame magic -- legacy fixture format. Round-trip
-        // through zstd decompress first, then prost-decode the inner
-        // ResponseData.
-        let mut decoder = zstd::Decoder::new(&bytes[..])
-            .unwrap_or_else(|e| panic!("zstd::Decoder::new({}): {e}", path.display()));
-        let mut inner = Vec::new();
-        decoder
-            .read_to_end(&mut inner)
-            .unwrap_or_else(|e| panic!("zstd read_to_end {}: {e}", path.display()));
-        proto::ResponseData::decode(inner.as_slice())
-            .unwrap_or_else(|e| panic!("proto::ResponseData::decode {}: {e}", path.display()))
-    } else {
-        // New fixture format -- raw `ResponseData` proto bytes; the
-        // zstd payload is on the inner `compressed_data` field.
-        proto::ResponseData::decode(bytes.as_slice())
-            .unwrap_or_else(|e| panic!("proto::ResponseData::decode {}: {e}", path.display()))
-    }
-}
+use capture_loader::{fixtures_dir, load_response_data as load_response};
 
 fn load_meta(endpoint: &str) -> toml::Value {
     let path = fixtures_dir().join(format!("{endpoint}.meta.toml"));
