@@ -5,12 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [11.0.0] - 2026-05-27
 
 > **Release line note**: this train accumulates 30 major + 1 minor breaking
-> changes versus v10.0.0. The next release tag MUST be v11.0.0, not a
-> v10.0.x patch. Owner-greenlight gated on this audit returning zero
-> actionable findings. Wave-6 of the audit-fix loop closes the last two
+> changes versus v10.0.0. The v11.0.0 cut absorbs the full audit-fix loop
+> plus the late-cycle codex full-repo audit closure (flatfile concurrent-
+> write race fix, strict-decode propagation on malformed text dates /
+> times / enums). Wave-6 of the audit-fix loop closes the last two
 > silent-data-loss issues uncovered by the cross-binding wire audit:
 > `option_history_greeks_eod` (BLOCKER) was re-routed from the bare
 > `GreeksAllTick` (28 columns) onto a new `GreeksEodTick` (39 columns)

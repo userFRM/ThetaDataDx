@@ -119,13 +119,13 @@ def check_static_docs() -> None:
         "Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.",
     )
     # Version strings in getting-started docs must match the workspace
-    # major. Bumped from "9" → "10" alongside the v10.0.0 release wave
-    # (U5 audit closure); the matching version-sync gate
+    # major. Bumped from "10" → "11" alongside the v11.0.0 release wave;
+    # the matching version-sync gate
     # (`scripts/check_version_sync.py`) enforces this against
     # `crates/thetadatadx/Cargo.toml` canonically.
     expect_contains(
         ROOT / "docs-site/docs/getting-started/installation.md",
-        'thetadatadx = "10"',
+        'thetadatadx = "11"',
     )
     expect_contains(
         ROOT / "docs-site/docs/tools/mcp.md",

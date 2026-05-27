@@ -43,7 +43,7 @@ Rust SDK for ThetaData market data — single Rust core, four language surfaces 
 
 ```toml
 [dependencies]
-thetadatadx = "10"
+thetadatadx = "11"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -67,7 +67,7 @@ Opt into chainable DataFrame ergonomics by enabling the `polars` and/or `arrow` 
 
 ```toml
 [dependencies]
-thetadatadx = { version = "10", features = ["polars"] }
+thetadatadx = { version = "11", features = ["polars"] }
 ```
 
 ```rust

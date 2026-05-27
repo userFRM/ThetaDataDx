@@ -13,7 +13,7 @@ One page covering all four SDKs (Rust, Python, TypeScript / Node.js, C++). Each 
 ```bash [Rust]
 # Cargo.toml
 # [dependencies]
-# thetadatadx = "10"
+# thetadatadx = "11"
 # tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 cargo add thetadatadx tokio --features tokio/rt-multi-thread,tokio/macros
