@@ -96,16 +96,24 @@ pub fn parse_option_contracts_v3(
                 None => 0.0,
             };
 
-            // Right: `Number` carries the ASCII code directly; `Text` carries
-            // "PUT"/"CALL"/"P"/"C". `NullValue` / unknown text → 0. An unset
-            // oneof is a wire anomaly → TypeMismatch.
+            // Right: `Number` carries the ASCII code directly; `Text`
+            // carries "PUT"/"CALL"/"P"/"C". Unknown text →
+            // `UnknownEnumVariant` rather than silent coalesce to 0
+            // (which previously masked wire-schema drift). `NullValue`
+            // is still a legit null and coalesces to 0. An unset oneof
+            // is a wire anomaly → TypeMismatch.
             let right = match right_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Number(n)) => *n as i32,
                     Some(proto::data_value::DataType::Text(s)) => match s.as_str() {
                         "CALL" | "C" => 67, // ASCII 'C'
                         "PUT" | "P" => 80,  // ASCII 'P'
-                        _ => 0,
+                        other => {
+                            return Err(DecodeError::UnknownEnumVariant {
+                                field: "right",
+                                raw: other.to_string(),
+                            });
+                        }
                     },
                     Some(proto::data_value::DataType::NullValue(_)) => 0,
                     None => {
@@ -212,7 +220,13 @@ pub(crate) fn parse_time_text(s: &str) -> Result<i32, DecodeError> {
 /// | `"early_close"`| `1`      | Early close (e.g. day after Thanksgiving) |
 /// | `"full_close"` | `2`      | Market closed (holiday)           |
 /// | `"weekend"`    | `3`      | Weekend                           |
-/// | (unknown)      | `-1`     | Unrecognized status text          |
+///
+/// The `CALENDAR_STATUS_UNKNOWN` sentinel is retained for downstream
+/// consumers that need to label data they synthesise locally (e.g.
+/// gap-fill for missing dates) but the wire decoder no longer maps
+/// unknown server text to it — unknown text now surfaces as
+/// [`DecodeError::UnknownEnumVariant`] so schema drift is loud, not
+/// silent.
 pub const CALENDAR_STATUS_OPEN: i32 = 0;
 pub const CALENDAR_STATUS_EARLY_CLOSE: i32 = 1;
 pub const CALENDAR_STATUS_FULL_CLOSE: i32 = 2;
@@ -220,13 +234,23 @@ pub const CALENDAR_STATUS_WEEKEND: i32 = 3;
 pub const CALENDAR_STATUS_UNKNOWN: i32 = -1;
 
 /// Map a v3 calendar `type` text to `(is_open, status)`.
-fn calendar_type_text(s: &str) -> (i32, i32) {
+///
+/// Returns [`DecodeError::UnknownEnumVariant`] when the text falls
+/// outside the documented vendor vocabulary (`open` / `early_close` /
+/// `full_close` / `weekend`). Previously this swallowed the unknown
+/// case to `(0, CALENDAR_STATUS_UNKNOWN)` which silently mis-classified
+/// a future schema change as "market closed, unknown reason" — losing
+/// the diagnostic context downstream consumers need to alert on.
+fn calendar_type_text(s: &str) -> Result<(i32, i32), DecodeError> {
     match s {
-        "open" => (1, CALENDAR_STATUS_OPEN),
-        "early_close" => (1, CALENDAR_STATUS_EARLY_CLOSE),
-        "full_close" => (0, CALENDAR_STATUS_FULL_CLOSE),
-        "weekend" => (0, CALENDAR_STATUS_WEEKEND),
-        _ => (0, CALENDAR_STATUS_UNKNOWN),
+        "open" => Ok((1, CALENDAR_STATUS_OPEN)),
+        "early_close" => Ok((1, CALENDAR_STATUS_EARLY_CLOSE)),
+        "full_close" => Ok((0, CALENDAR_STATUS_FULL_CLOSE)),
+        "weekend" => Ok((0, CALENDAR_STATUS_WEEKEND)),
+        other => Err(DecodeError::UnknownEnumVariant {
+            field: "calendar.type",
+            raw: other.to_string(),
+        }),
     }
 }
 
@@ -303,7 +327,7 @@ pub fn parse_calendar_days_v3(
             // oneof is a wire anomaly → TypeMismatch.
             let (is_open, status) = match type_idx {
                 Some(i) => match cell_type(row, i)? {
-                    Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s),
+                    Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s)?,
                     Some(proto::data_value::DataType::Number(n)) => {
                         let n = *n as i32;
                         (i32::from(n != 0), n)

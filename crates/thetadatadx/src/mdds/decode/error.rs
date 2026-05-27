@@ -83,6 +83,22 @@ pub enum DecodeError {
         /// the wire for diagnostics.
         raw: String,
     },
+    /// A `Text` cell in an enum-typed column carried a value outside the
+    /// documented vendor vocabulary. Used on the v3 `right` (option
+    /// CALL/PUT) and calendar `type` (open / early_close / full_close /
+    /// weekend) columns. Previously an unknown variant fell through to
+    /// `0` (right) or `CALENDAR_STATUS_UNKNOWN` (calendar), masking
+    /// schema drift from upstream. Surfacing this as an error matches
+    /// the strict-decode policy on every other typed column.
+    #[error("unknown enum variant {raw:?} on field `{field}`")]
+    UnknownEnumVariant {
+        /// Static name of the wire column (`right`, `calendar.type`,
+        /// etc.) so the error is greppable in operator logs.
+        field: &'static str,
+        /// The exact text that failed to map to a known variant,
+        /// captured verbatim from the wire for diagnostics.
+        raw: String,
+    },
 }
 
 /// Name the `DataType` variant for error messages. `None` is treated as a

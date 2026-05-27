@@ -1243,6 +1243,45 @@ fn parse_calendar_days_v3_errors_on_invalid_date_text() {
     );
 }
 
+// ─────────────────── SERIOUS #3: unknown-enum-text propagation ───────────────────
+//
+// The v3 wire path used to fall through to `0` (right) or
+// `CALENDAR_STATUS_UNKNOWN` (calendar type) on text values outside the
+// documented vocabulary. That silently masked upstream schema drift;
+// the strict path now surfaces it as
+// `DecodeError::UnknownEnumVariant { field, raw }` so operators can
+// grep for the unrecognised payload in their logs.
+
+#[test]
+fn parse_option_contracts_v3_errors_on_unknown_right_text() {
+    let table = proto::DataTable {
+        headers: vec!["root".into(), "right".into()],
+        data_table: vec![row_of(vec![dv_text("AAPL"), dv_text("Q")])],
+    };
+    assert_eq!(
+        parse_option_contracts_v3(&table).unwrap_err(),
+        DecodeError::UnknownEnumVariant {
+            field: "right",
+            raw: "Q".into(),
+        }
+    );
+}
+
+#[test]
+fn parse_calendar_days_v3_errors_on_unknown_type_text() {
+    let table = proto::DataTable {
+        headers: vec!["date".into(), "type".into()],
+        data_table: vec![row_of(vec![dv_number(20_260_413), dv_text("partial")])],
+    };
+    assert_eq!(
+        parse_calendar_days_v3(&table).unwrap_err(),
+        DecodeError::UnknownEnumVariant {
+            field: "calendar.type",
+            raw: "partial".into(),
+        }
+    );
+}
+
 #[test]
 fn parse_calendar_days_v3_errors_on_invalid_open_time_text() {
     let table = proto::DataTable {
