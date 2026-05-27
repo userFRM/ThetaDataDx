@@ -73,7 +73,34 @@ SDK_OWNED = {
     "thetadatadx-ffi",
 }
 
-WATCHED = SECURITY_CRITICAL | SDK_OWNED
+# Binding-critical infrastructure crates. Drift here means two SDK
+# bindings ship with different ABI assumptions (pyo3 macros expanding
+# against different pyo3-ffi headers, arrow buffers laid out by
+# different arrow-schema versions, napi shims compiled against
+# divergent napi cores, gRPC envelopes encoded by divergent prost /
+# tonic schemas). Found during the late-cycle codex full-repo audit:
+# the default-mode drift check was passing while `--strict` flagged
+# `pyo3 0.28.2 vs 0.28.3` and `arrow-ipc / arrow-select 58.2.0 vs
+# 58.3.0` between workspace root and sdks/python Cargo.lock. Adding
+# them here keeps the default gate strict enough to catch the
+# binding-ABI class of drift without burning operators on
+# legitimately-divergent leaf transitives.
+BINDING_CRITICAL = {
+    "pyo3",
+    "pyo3-build-config",
+    "pyo3-ffi",
+    "pyo3-macros",
+    "arrow-ipc",
+    "arrow-select",
+    "arrow-array",
+    "arrow-buffer",
+    "arrow-schema",
+    "tonic",
+    "napi",
+    "napi-derive",
+}
+
+WATCHED = SECURITY_CRITICAL | SDK_OWNED | BINDING_CRITICAL
 
 
 def lockfile_versions(path: Path) -> dict[str, set[str]]:
