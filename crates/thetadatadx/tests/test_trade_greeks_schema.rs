@@ -19,12 +19,12 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use prost::Message;
-use tdbe::types::tick::{
+use thetadatadx::decode;
+use thetadatadx::wire as proto;
+use thetadatadx::{
     TradeGreeksAllTick, TradeGreeksFirstOrderTick, TradeGreeksImpliedVolatilityTick,
     TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
 };
-use thetadatadx::decode;
-use thetadatadx::wire as proto;
 
 fn fixtures_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

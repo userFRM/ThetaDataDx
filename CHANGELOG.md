@@ -99,6 +99,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   isolation -- routing through `MddsClient::<endpoint>` was not
   covered, so a future drift in the dispatch heuristic could revert
   silently. This suite pins routing + parsing in one assertion.
+- Wave-6 + Wave-5 tick types re-exported at the `thetadatadx` crate
+  root so consumers naming return types of `MddsClient::*` methods do
+  not need a second `tdbe` dependency in their `Cargo.toml`. New
+  surface: `thetadatadx::{GreeksEodTick, IndexPriceAtTimeTick,
+  TradeGreeksAllTick, TradeGreeksFirstOrderTick,
+  TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
+  TradeGreeksImpliedVolatilityTick}`. Mirrors the same single-dep
+  policy applied to `GreeksAllTick`, `EodTick`, etc. in earlier waves.
 
 #### Audit closure wave 5
 

@@ -26,9 +26,9 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use prost::Message;
-use tdbe::types::tick::{GreeksEodTick, IndexPriceAtTimeTick};
 use thetadatadx::decode;
 use thetadatadx::wire as proto;
+use thetadatadx::{GreeksEodTick, IndexPriceAtTimeTick};
 
 fn fixtures_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
