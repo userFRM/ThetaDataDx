@@ -205,6 +205,8 @@ STRUCT_TO_PREFIX: dict[str, str] = {
     "ReconnectConfig": "reconnect_",
     "RuntimeConfig": "",
     "RetryPolicy": "retry_",
+    "AuthConfig": "",
+    "MetricsConfig": "metrics_",
 }
 
 
@@ -383,6 +385,8 @@ SCOPED_STRUCTS: tuple[str, ...] = (
     "ReconnectConfig",
     "RuntimeConfig",
     "RetryPolicy",
+    "AuthConfig",
+    "MetricsConfig",
 )
 
 
@@ -965,6 +969,50 @@ def _run_selftest() -> int:
     _case("negative — rust_only with binding=true trips", _case_negative_rust_only_with_binding_true)
     _case("orphan — undocumented Rust pub field trips", _case_orphan_rust_field_trips)
     _case("positive — `_explicit` widened-ABI suffix accepted", _case_explicit_widened_abi_accepted)
+
+    def _case_authconfig_metricsconfig_prefixes_resolve() -> None:
+        """`AuthConfig` + `MetricsConfig` are in scope (issue #608).
+        Dotted rows on these structs must resolve through the prefix
+        table — not skip with `prefix is None` — so a future binding
+        sweep can flip the rows from `rust_only = true` to fully-bound
+        and the gate catches missing setters.
+        """
+        # Confirm both structs resolve to a known prefix (empty string
+        # for `AuthConfig`, `metrics_` for `MetricsConfig`).
+        assert STRUCT_TO_PREFIX.get("AuthConfig") is not None, (
+            "AuthConfig must be in STRUCT_TO_PREFIX after #608"
+        )
+        assert STRUCT_TO_PREFIX.get("MetricsConfig") is not None, (
+            "MetricsConfig must be in STRUCT_TO_PREFIX after #608"
+        )
+        # A rust_only row resolves cleanly through the new prefix.
+        rows = [
+            {
+                "name": "AuthConfig.nexus_url",
+                "python": False,
+                "typescript": False,
+                "cpp": False,
+                "rust_only": True,
+                "issue": "#608",
+            },
+            {
+                "name": "MetricsConfig.port",
+                "python": False,
+                "typescript": False,
+                "cpp": False,
+                "rust_only": True,
+                "issue": "#608",
+            },
+        ]
+        errors = _check_dotted_rows(rows, set(), set(), set(), set())
+        assert errors == [], (
+            f"AuthConfig + MetricsConfig rust_only rows must be silent; got {errors!r}"
+        )
+
+    _case(
+        "positive — AuthConfig + MetricsConfig dotted rows resolve through new prefixes",
+        _case_authconfig_metricsconfig_prefixes_resolve,
+    )
 
     print(f"check_binding_parity --selftest: {n_pass} passed, {n_fail} failed")
     return 0 if n_fail == 0 else 1

@@ -229,6 +229,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `scripts/test_check_binding_parity.py` drives 12 synthetic-source
   cases via tempdir. Both are wired into CI ahead of the production
   invocation. Closes #595.
+- Gate 2 scope widened to include `AuthConfig` (`nexus_url`,
+  `client_type`) + `MetricsConfig` (`port`). The three operator-tuning
+  fields are exposed on Rust via `DirectConfig::with_nexus_url` /
+  `with_client_type` / `with_metrics_port` builders and absent from
+  every higher-level binding; the prior Gate 2 scope omitted both
+  structs, so a future Python-only setter would not surface as a
+  parity mismatch. New `STRUCT_TO_PREFIX` entries (`AuthConfig: ""`,
+  `MetricsConfig: "metrics_"`), new `SCOPED_STRUCTS` rows, and three
+  `[[class]]` rows in `sdks/parity.toml` (`AuthConfig.nexus_url`,
+  `AuthConfig.client_type`, `MetricsConfig.port`) pin the current
+  Rust-only contract under `issue = "#608"`. A new selftest case
+  asserts the prefixes resolve through `_check_dotted_rows`. Closes
+  the scope hole; the cross-binding sweep itself tracked under #608.
 
 ### Changed (vendor-neutral docs)
 

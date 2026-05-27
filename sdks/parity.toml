@@ -592,3 +592,37 @@ name = "FpssConfig.derive_ohlcvc"
 python = true
 typescript = false
 cpp = true
+
+# ─── AuthConfig / MetricsConfig Rust-only knobs (Gate 2 scope close / #608) ──
+#
+# Operator-tuning knobs on `DirectConfig.auth` + `DirectConfig.metrics`.
+# Each is exposed on Rust via a fluent `DirectConfig::with_*` builder
+# (`with_nexus_url`, `with_client_type`, `with_metrics_port`) and
+# absent from every higher-level binding. The bind sweep is tracked
+# under #608; until then the cross-binding contract is "Rust-only"
+# and these rows pin that explicitly so a future Python-only
+# setter would surface as a parity mismatch.
+
+[[class]]
+name = "AuthConfig.nexus_url"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#608"
+
+[[class]]
+name = "AuthConfig.client_type"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#608"
+
+[[class]]
+name = "MetricsConfig.port"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#608"
