@@ -83,6 +83,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Tdx{GreeksEod,IndexPriceAtTime}TickArray` + Python pyclass +
   TypeScript napi `{GreeksEod,IndexPriceAtTime}Tick` + C++
   `tdx::{GreeksEod,IndexPriceAtTime}Tick`).
+- `tests/test_endpoint_routing.rs` pins endpoint-to-parser routing
+  end-to-end for the seven endpoints that exhibited the silent-mis-
+  routing class (`option_history_greeks_eod`, `index_at_time_price`,
+  and the five `option_history_trade_greeks_*` siblings). Each test
+  spins up the existing `grpc_mock_server` mock, serves the captured
+  fixture as a single `ResponseData` chunk, calls the real
+  `MddsClient::<endpoint>` builder via the `__test-helpers`-gated
+  `for_fallback_test` constructor, and asserts (a) the returned
+  `Vec<X>` carries the concrete tick type at compile time and (b)
+  the trade-side / EOD trade-quote columns the silent reroute
+  dropped are populated on the first row. The prior per-parser
+  regression suites (`test_wave6_schema.rs`,
+  `test_trade_greeks_schema.rs`) proved parser correctness in
+  isolation -- routing through `MddsClient::<endpoint>` was not
+  covered, so a future drift in the dispatch heuristic could revert
+  silently. This suite pins routing + parsing in one assertion.
+- Wave-6 + Wave-5 tick types re-exported at the `thetadatadx` crate
+  root so consumers naming return types of `MddsClient::*` methods do
+  not need a second `tdbe` dependency in their `Cargo.toml`. New
+  surface: `thetadatadx::{GreeksEodTick, IndexPriceAtTimeTick,
+  TradeGreeksAllTick, TradeGreeksFirstOrderTick,
+  TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
+  TradeGreeksImpliedVolatilityTick}`. Mirrors the same single-dep
+  policy applied to `GreeksAllTick`, `EodTick`, etc. in earlier waves.
 
 #### Audit closure wave 5
 
@@ -205,6 +229,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `scripts/test_check_binding_parity.py` drives 12 synthetic-source
   cases via tempdir. Both are wired into CI ahead of the production
   invocation. Closes #595.
+- `tests/common/capture_loader.rs` hoists the dual-format capture-
+  fixture loader out of three hand-copied integration-test inlines
+  (`test_decode_captures.rs`, `test_wave6_schema.rs`,
+  `test_trade_greeks_schema.rs`) into a shared `#[path = ...]` module
+  that the new `test_endpoint_routing.rs` also consumes. The newer
+  copies carried a zstd-frame-magic sniff (legacy outer-zstd vs raw
+  outer `ResponseData` proto) that the original `test_decode_captures`
+  copy did not; the shared module unifies on the dual-format path so
+  every suite picks up future fixture-format changes from one
+  source-of-truth. Exposes `load_response_data` (raw
+  `proto::ResponseData` -- needed by the mock-driven routing suite)
+  and `load_data_table` (composed with the production
+  `decode::decode_data_table` for direct-parser asserts).
+- `tests/grpc_mock_server.rs` replaces three fixed-sleep barriers
+  (50 ms / 150 ms / 250 ms) with `tokio::sync::Notify` synchronisation
+  signaled from the mock-server request handler and PING driver. The
+  mock now exposes two new behaviour knobs: `on_request_drained`
+  (signaled the instant the inbound request body has been fully
+  drained -- replaces the 150 ms "let the slow RPC land on the wire"
+  sleep in `channel_pool_routes_around_saturated_channel`) and
+  `ping_pong_signal` (signaled after N successful PING/PONG
+  round-trips -- replaces the 250 ms "idle for several PING intervals"
+  sleep in `channel_keepalive_survives_server_ping`). Both tests now
+  await the Notify under a 5 s runaway-protector timeout. The 50 ms
+  "give h2 a tick to flush" sleep in `respond_partial_then_drop` is
+  replaced with three cooperative `tokio::task::yield_now()` calls;
+  the test (`channel_classifies_goaway_distinctly_from_reset`)
+  already accepts both early- and mid-stream error surfaces, so the
+  deterministic yield-based flush preserves the original semantics
+  without a wall-clock bias. Verified clean across 10 sequential
+  `cargo test --features __test-helpers --test grpc_mock_server`
+  runs.
+- Gate 2 scope widened to include `AuthConfig` (`nexus_url`,
+  `client_type`) + `MetricsConfig` (`port`). The three operator-tuning
+  fields are exposed on Rust via `DirectConfig::with_nexus_url` /
+  `with_client_type` / `with_metrics_port` builders and absent from
+  every higher-level binding; the prior Gate 2 scope omitted both
+  structs, so a future Python-only setter would not surface as a
+  parity mismatch. New `STRUCT_TO_PREFIX` entries (`AuthConfig: ""`,
+  `MetricsConfig: "metrics_"`), new `SCOPED_STRUCTS` rows, and three
+  `[[class]]` rows in `sdks/parity.toml` (`AuthConfig.nexus_url`,
+  `AuthConfig.client_type`, `MetricsConfig.port`) pin the current
+  Rust-only contract under `issue = "#608"`. A new selftest case
+  asserts the prefixes resolve through `_check_dotted_rows`. Closes
+  the scope hole; the cross-binding sweep itself tracked under #608.
 
 ### Changed (vendor-neutral docs)
 
