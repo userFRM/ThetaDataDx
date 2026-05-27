@@ -2336,3 +2336,116 @@ fn parse_calendar_days_v3_accepts_numeric_open_at_session_start() {
     assert_eq!(days.len(), 1);
     assert_eq!(days[0].open_time, 34_200_000);
 }
+
+// ─────────── eod_price out-of-range price_type rejection ───────────
+//
+// Round 2 hardened the MDDS row decoders (`row_price_f64`,
+// `row_number_i64`) and the column extractors against silent
+// `price_type` clamping via `tdbe::types::price::Price::new`. The
+// generator-emitted `eod_price` helper, used by every EOD wildcard
+// parser column (`open`, `high`, `low`, `close`, `bid`, `ask`), was
+// missed in that sweep and still funnelled wire `Price` cells through
+// the clamping constructor. The template now routes through
+// `Price::with_value_and_type` and surfaces
+// `DecodeError::InvalidPriceType` with the raw wire `price_type`
+// captured for diagnostics, mirroring the row-level decoders so the
+// same drifted upstream cell raises the same typed error through
+// either decode path.
+
+#[test]
+fn parse_eod_ticks_rejects_price_type_above_max() {
+    // `price_type = 20` is one past the documented `0..=19` clamp
+    // boundary. Drive it through the `open` column so the EOD
+    // wildcard `eod_price` helper runs.
+    let table = proto::DataTable {
+        headers: vec!["open".into()],
+        data_table: vec![row_of(vec![dv_price(100, 20)])],
+    };
+    assert_eq!(
+        parse_eod_ticks(&table).unwrap_err(),
+        DecodeError::InvalidPriceType { raw: 20 },
+    );
+}
+
+#[test]
+fn parse_eod_ticks_rejects_price_type_21() {
+    // Boundary stress: `price_type = 21` is two past the documented
+    // ceiling. The strict path must surface the raw wire value
+    // verbatim so operators can grep the failing magnitude.
+    let table = proto::DataTable {
+        headers: vec!["high".into()],
+        data_table: vec![row_of(vec![dv_price(250, 21)])],
+    };
+    assert_eq!(
+        parse_eod_ticks(&table).unwrap_err(),
+        DecodeError::InvalidPriceType { raw: 21 },
+    );
+}
+
+#[test]
+fn parse_eod_ticks_rejects_negative_price_type() {
+    // Negative wire payloads previously clamped to `0` through
+    // `Price::new`; the strict `with_value_and_type` constructor
+    // rejects them and the generator helper now propagates the
+    // failure rather than fabricating a near-zero magnitude.
+    let table = proto::DataTable {
+        headers: vec!["low".into()],
+        data_table: vec![row_of(vec![dv_price(99, -1)])],
+    };
+    assert_eq!(
+        parse_eod_ticks(&table).unwrap_err(),
+        DecodeError::InvalidPriceType { raw: -1 },
+    );
+}
+
+#[test]
+fn parse_eod_ticks_rejects_price_type_i32_max() {
+    // Pathological upper extreme: `i32::MAX` must still surface
+    // verbatim instead of saturating to 19 (which previously
+    // fabricated a `2.15e18`-magnitude `close`).
+    let table = proto::DataTable {
+        headers: vec!["close".into()],
+        data_table: vec![row_of(vec![dv_price(1, i32::MAX)])],
+    };
+    assert_eq!(
+        parse_eod_ticks(&table).unwrap_err(),
+        DecodeError::InvalidPriceType { raw: i32::MAX },
+    );
+}
+
+#[test]
+fn parse_eod_ticks_smoke_with_in_range_price_type() {
+    // Positive regression sentinel: an in-range `price_type = 10`
+    // (the documented "value as-is" baseline) must continue to
+    // decode bit-exact under the strict helper. Pins every wildcard
+    // EOD price column (open / high / low / close / bid / ask)
+    // against the in-range path so the `Price::with_value_and_type`
+    // migration does not silently change the canonical magnitudes.
+    let table = proto::DataTable {
+        headers: vec![
+            "open".into(),
+            "high".into(),
+            "low".into(),
+            "close".into(),
+            "bid".into(),
+            "ask".into(),
+        ],
+        data_table: vec![row_of(vec![
+            dv_price(15_000, 10),
+            dv_price(15_500, 10),
+            dv_price(14_800, 10),
+            dv_price(15_200, 10),
+            dv_price(15_100, 10),
+            dv_price(15_300, 10),
+        ])],
+    };
+    let ticks = parse_eod_ticks(&table).unwrap();
+    assert_eq!(ticks.len(), 1);
+    let t = &ticks[0];
+    assert!((t.open - 15_000.0).abs() < 1e-10);
+    assert!((t.high - 15_500.0).abs() < 1e-10);
+    assert!((t.low - 14_800.0).abs() < 1e-10);
+    assert!((t.close - 15_200.0).abs() < 1e-10);
+    assert!((t.bid - 15_100.0).abs() < 1e-10);
+    assert!((t.ask - 15_300.0).abs() < 1e-10);
+}
