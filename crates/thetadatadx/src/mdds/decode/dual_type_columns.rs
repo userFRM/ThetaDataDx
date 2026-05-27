@@ -152,31 +152,47 @@ pub fn parse_option_contracts_v3(
 ///   shape on `interest_rate_history_eod.created` and the v3 calendar
 ///   `date` column.
 ///
-/// Anything else returns [`DecodeError::InvalidDate`] with the raw
-/// text captured for diagnostics. Previously this function returned
-/// `0` on parse failure, which silently corrupted downstream
+/// Both shapes are then run through the canonical Gregorian
+/// validator [`tdbe::time::is_valid_gregorian_date`] so calendar-impossible
+/// inputs (Feb 30, month 13, non-leap Feb 29, year outside
+/// `1900..=2100`, …) are rejected even when the textual shape is
+/// well-formed. Anything else returns [`DecodeError::InvalidDate`]
+/// with the raw text captured for diagnostics. Previously this
+/// function returned `0` on parse failure (and silently accepted
+/// calendar-impossible dates post-Wave-5), which corrupted downstream
 /// timestamps when the upstream schema drifted.
 ///
 /// # Errors
 ///
 /// Returns [`DecodeError::InvalidDate`] when the input matches neither
-/// of the documented shapes.
+/// of the documented shapes, or when the parsed `(year, month, day)`
+/// triple is not a real Gregorian date.
 // Reason: date parsing with known-safe integer ranges.
 #[allow(clippy::cast_possible_truncation, clippy::missing_panics_doc)]
 pub(crate) fn parse_iso_date(s: &str) -> Result<i32, DecodeError> {
-    // Fast path: already numeric (YYYYMMDD)
+    // Fast path: already numeric (YYYYMMDD). Validate calendar
+    // correctness through the canonical tdbe Gregorian check so
+    // shape-valid impossibilities like `20260230` cannot slip through.
     if let Ok(n) = s.parse::<i32>() {
-        return Ok(n);
+        if tdbe::time::is_valid_yyyymmdd(n) {
+            return Ok(n);
+        }
+        return Err(DecodeError::InvalidDate { raw: s.to_string() });
     }
-    // ISO format: YYYY-MM-DD
+    // ISO format: YYYY-MM-DD. Parse the three components, then route
+    // them through `is_valid_gregorian_date` so `2026-13-01`,
+    // `2026-02-29`, etc. are rejected before they hit downstream
+    // timestamp arithmetic.
     let parts: Vec<&str> = s.split('-').collect();
     if parts.len() == 3 {
         if let (Ok(y), Ok(m), Ok(d)) = (
             parts[0].parse::<i32>(),
-            parts[1].parse::<i32>(),
-            parts[2].parse::<i32>(),
+            parts[1].parse::<u32>(),
+            parts[2].parse::<u32>(),
         ) {
-            return Ok(y * 10_000 + m * 100 + d);
+            if tdbe::time::is_valid_gregorian_date(y, m, d) {
+                return Ok(y * 10_000 + (m as i32) * 100 + (d as i32));
+            }
         }
     }
     Err(DecodeError::InvalidDate { raw: s.to_string() })
@@ -184,17 +200,22 @@ pub(crate) fn parse_iso_date(s: &str) -> Result<i32, DecodeError> {
 
 /// Parse a time string "HH:MM:SS" to milliseconds from midnight.
 ///
-/// Used on the v3 calendar `open` / `close` columns. Anything that
-/// does not match the documented `HH:MM:SS` shape returns
-/// [`DecodeError::InvalidTime`] with the raw text captured for
-/// diagnostics. Previously this function returned `0` on parse
-/// failure, silently corrupting trading-session timestamps in
-/// downstream consumers.
+/// Used on the v3 calendar `open` / `close` columns. Components are
+/// validated against the clock ranges `0..=23` / `0..=59` / `0..=59`
+/// (matching the documented vendor surface; a 24-hour day with no
+/// leap seconds on the wire). Anything that does not match the
+/// documented `HH:MM:SS` shape — including out-of-range or negative
+/// components — returns [`DecodeError::InvalidTime`] with the raw
+/// text captured for diagnostics. Previously this function returned
+/// `0` on parse failure (and silently accepted clock-impossible
+/// inputs like `25:61:61` post-Wave-5), silently corrupting
+/// trading-session timestamps in downstream consumers.
 ///
 /// # Errors
 ///
 /// Returns [`DecodeError::InvalidTime`] when the input does not split
-/// into three colon-delimited integer components.
+/// into three colon-delimited integer components, or when any
+/// component is outside its documented clock range.
 pub(crate) fn parse_time_text(s: &str) -> Result<i32, DecodeError> {
     let parts: Vec<&str> = s.split(':').collect();
     if parts.len() == 3 {
@@ -203,7 +224,9 @@ pub(crate) fn parse_time_text(s: &str) -> Result<i32, DecodeError> {
             parts[1].parse::<i32>(),
             parts[2].parse::<i32>(),
         ) {
-            return Ok((h * 3_600 + m * 60 + sec) * 1_000);
+            if (0..=23).contains(&h) && (0..=59).contains(&m) && (0..=59).contains(&sec) {
+                return Ok((h * 3_600 + m * 60 + sec) * 1_000);
+            }
         }
     }
     Err(DecodeError::InvalidTime { raw: s.to_string() })

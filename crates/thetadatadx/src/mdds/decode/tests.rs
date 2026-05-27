@@ -504,6 +504,129 @@ fn parse_iso_date_yyyymmdd_passthrough_and_iso_split() {
     );
 }
 
+// ─────── Wave-6: calendar-range rejection on parse_iso_date / parse_time_text ───────
+//
+// Wave-5 closed the "coalesce to 0 on parse failure" hole but left
+// the calendar-range hole open: shape-valid impossibilities like
+// `20260230` (Feb 30) or `2026-13-01` (month 13) still slipped
+// through because the parser only checked that the digits split into
+// the right number of integer components. Wave-6 routes both shapes
+// through `tdbe::time::is_valid_gregorian_date` so the strict-decode
+// contract matches the v3 vendor reality: the wire only ever
+// publishes real Gregorian dates, and anything else is upstream
+// drift the operator needs to see.
+
+#[test]
+fn parse_iso_date_rejects_compact_feb_30() {
+    // Feb 30 never exists in any year — the most flagged shape in
+    // the codex revalidation.
+    assert_eq!(
+        parse_iso_date("20260230"),
+        Err(DecodeError::InvalidDate {
+            raw: "20260230".into(),
+        }),
+    );
+}
+
+#[test]
+fn parse_iso_date_rejects_iso_month_13() {
+    // Month component exceeds 12 — out-of-range under the canonical
+    // Gregorian validator.
+    assert_eq!(
+        parse_iso_date("2026-13-01"),
+        Err(DecodeError::InvalidDate {
+            raw: "2026-13-01".into(),
+        }),
+    );
+}
+
+#[test]
+fn parse_iso_date_rejects_iso_feb_29_non_leap() {
+    // 2026 % 4 != 0 — not a leap year, so Feb 29 is invalid.
+    assert_eq!(
+        parse_iso_date("2026-02-29"),
+        Err(DecodeError::InvalidDate {
+            raw: "2026-02-29".into(),
+        }),
+    );
+}
+
+#[test]
+fn parse_iso_date_accepts_iso_feb_29_real_leap() {
+    // 2024 is a leap year — Feb 29 is real and must round-trip
+    // through the validator.
+    assert_eq!(parse_iso_date("2024-02-29").unwrap(), 20240229);
+}
+
+#[test]
+fn parse_iso_date_rejects_compact_year_zero() {
+    // The `00000000` sentinel must not flow through to downstream
+    // timestamp arithmetic.
+    assert_eq!(
+        parse_iso_date("00000000"),
+        Err(DecodeError::InvalidDate {
+            raw: "00000000".into(),
+        }),
+    );
+}
+
+#[test]
+fn parse_time_text_rejects_hour_25() {
+    // Hour component exceeds the 0..=23 clock range.
+    assert_eq!(
+        parse_time_text("25:00:00"),
+        Err(DecodeError::InvalidTime {
+            raw: "25:00:00".into(),
+        }),
+    );
+}
+
+#[test]
+fn parse_time_text_rejects_minute_61() {
+    // Minute component exceeds the 0..=59 clock range.
+    assert_eq!(
+        parse_time_text("12:61:00"),
+        Err(DecodeError::InvalidTime {
+            raw: "12:61:00".into(),
+        }),
+    );
+}
+
+#[test]
+fn parse_time_text_rejects_second_61() {
+    // Second component exceeds the 0..=59 clock range (no leap
+    // seconds on the wire).
+    assert_eq!(
+        parse_time_text("12:00:61"),
+        Err(DecodeError::InvalidTime {
+            raw: "12:00:61".into(),
+        }),
+    );
+}
+
+#[test]
+fn parse_time_text_rejects_all_three_out_of_range() {
+    // Pathological "25:61:61" — every component outside its range.
+    assert_eq!(
+        parse_time_text("25:61:61"),
+        Err(DecodeError::InvalidTime {
+            raw: "25:61:61".into(),
+        }),
+    );
+}
+
+#[test]
+fn parse_time_text_rejects_negative_hour() {
+    // Negative hour is a wire-protocol anomaly the strict path
+    // must surface verbatim.
+    assert_eq!(
+        parse_time_text("-1:00:00"),
+        Err(DecodeError::InvalidTime {
+            raw: "-1:00:00".into(),
+        }),
+    );
+}
+
 #[test]
 fn parse_trade_ticks_propagates_type_mismatch() {
     // A Text cell in an i32 column is a schema violation — the parser
