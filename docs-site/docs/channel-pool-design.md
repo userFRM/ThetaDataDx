@@ -96,11 +96,11 @@ upward to the caller.
 
 ## Public surface narrowing
 
-The `pub mod grpc` re-export was narrowed to `pub(crate)` plus a
-curated `pub use` allowlist in v11. Transport-layer errors continue
-to reach consumers via `impl From<grpc::ChannelError> for Error` at
-the crate boundary; integration tests that need the wider surface
-opt in via the private `__test-helpers` feature.
+The `pub mod grpc` re-export was narrowed to `pub(crate)` in v11.
+Transport-layer errors continue to reach consumers via
+`impl From<grpc::ChannelError> for Error` at the crate boundary;
+integration tests that need the wider surface opt in via the
+private `__test-helpers` feature.
 
 ### Gate 14 KPI footnote
 
