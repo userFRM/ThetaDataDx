@@ -34,10 +34,11 @@ use tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 use thetadatadx::fpss::__test_internals::{
     decode_frame, read_frame_into, DeltaState, FrameReadState, MAX_PAYLOAD_LEN,
 };
-use thetadatadx::fpss::protocol::{
+use thetadatadx::fpss::protocol::test_wire::{
     build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,
-    build_subscribe_payload, Contract,
+    build_subscribe_payload,
 };
+use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{FpssControl, FpssEvent};
 
 // ---------------------------------------------------------------------------

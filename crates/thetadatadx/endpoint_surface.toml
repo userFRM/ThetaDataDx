@@ -1487,6 +1487,7 @@ vendor_docstring = """
 """
 rest_path = "/v3/option/history/quote"
 returns = "QuoteTicks"
+transport = "both"
 
 [[endpoints]]
 name = "option_history_trade_quote"
@@ -1500,6 +1501,7 @@ vendor_docstring = """
 """
 rest_path = "/v3/option/history/trade_quote"
 returns = "TradeQuoteTicks"
+transport = "both"
 
 [[endpoints]]
 name = "option_history_open_interest"
@@ -1518,12 +1520,12 @@ name = "option_history_greeks_eod"
 template = "option_history_greeks_eod"
 description = "Fetch end-of-day Greeks history for an option contract."
 vendor_docstring = """
-- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Returns the data for all contracts that share the same provided symbol and expiration.
 - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
 - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
 """
 rest_path = "/v3/option/history/greeks/eod"
-returns = "GreeksAllTicks"
+returns = "GreeksEodTicks"
 
 [[endpoints]]
 name = "option_history_greeks_all"
@@ -1549,7 +1551,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/all"
-returns = "GreeksAllTicks"
+returns = "TradeGreeksAllTicks"
 
 [[endpoints]]
 name = "option_history_greeks_first_order"
@@ -1563,6 +1565,7 @@ vendor_docstring = """
 """
 rest_path = "/v3/option/history/greeks/first_order"
 returns = "GreeksFirstOrderTicks"
+transport = "both"
 
 [[endpoints]]
 name = "option_history_trade_greeks_first_order"
@@ -1575,7 +1578,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/first_order"
-returns = "GreeksFirstOrderTicks"
+returns = "TradeGreeksFirstOrderTicks"
 
 [[endpoints]]
 name = "option_history_greeks_second_order"
@@ -1601,7 +1604,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/second_order"
-returns = "GreeksSecondOrderTicks"
+returns = "TradeGreeksSecondOrderTicks"
 
 [[endpoints]]
 name = "option_history_greeks_third_order"
@@ -1627,7 +1630,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/third_order"
-returns = "GreeksThirdOrderTicks"
+returns = "TradeGreeksThirdOrderTicks"
 
 [[endpoints]]
 name = "option_history_greeks_implied_volatility"
@@ -1640,6 +1643,7 @@ vendor_docstring = """
 """
 rest_path = "/v3/option/history/greeks/implied_volatility"
 returns = "IvTicks"
+transport = "both"
 
 [[endpoints]]
 name = "option_history_trade_greeks_implied_volatility"
@@ -1651,7 +1655,7 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/implied_volatility"
-returns = "IvTicks"
+returns = "TradeGreeksImpliedVolatilityTicks"
 
 [[endpoints]]
 name = "option_at_time_trade"
@@ -1777,7 +1781,7 @@ vendor_docstring = """
 - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
 """
 rest_path = "/v3/index/at_time/price"
-returns = "PriceTicks"
+returns = "IndexPriceAtTimeTicks"
 
 [[endpoints]]
 name = "calendar_open_today"
@@ -1810,7 +1814,7 @@ use = "required_date"
 [[endpoints]]
 name = "calendar_year"
 template = "calendar_query"
-description = "Get calendar information for an entire year."
+description = "Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day)."
 vendor_docstring = """
 - Retrieves equity market holidays for a given year
 - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
@@ -1829,6 +1833,10 @@ template = "rate_history_eod"
 description = "Fetch end-of-day interest rate history."
 vendor_docstring = """
 - Returns the interest rate reported. Depending on the rate, reports can occur in the morning or the afternoon.
+- Valid `symbol` values per upstream `RateType` enum:
+  `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`,
+  `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`,
+  `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
 """
 rest_path = "/v3/rate/history/eod"
 returns = "InterestRateTicks"
@@ -1937,7 +1945,7 @@ use_market_value = "true"
 underlyer_use_nbbo = "true"
 
 [test_fixtures.mode_overrides.concrete_iso]
-# ISO-dashed expiration acceptance is scoped to `Expiration` params (PR #284).
+# ISO-dashed expiration acceptance is scoped to `Expiration` params.
 expiration = "2025-03-21"
 
 [test_fixtures.mode_overrides.all_strikes_one_exp]

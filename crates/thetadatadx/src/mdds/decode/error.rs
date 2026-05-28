@@ -58,6 +58,63 @@ pub enum DecodeError {
         first: String,
         chunk: String,
     },
+    /// A `Text` cell in a date-typed column did not match the documented
+    /// ISO `YYYY-MM-DD` or compact `YYYYMMDD` shapes. The v3 wire path
+    /// publishes some date columns (notably `interest_rate_history_eod.created`,
+    /// `calendar_day.date`, and `OptionContract.expiration`) as text;
+    /// previously a malformed value coalesced silently to `0`. Surfacing
+    /// this as an error mirrors the strict-decode policy on every other
+    /// column type and prevents silent corruption of downstream
+    /// timestamps.
+    #[error("invalid date text {raw:?} (expected YYYY-MM-DD or YYYYMMDD)")]
+    InvalidDate {
+        /// The exact text that failed to parse, captured verbatim from
+        /// the wire for diagnostics.
+        raw: String,
+    },
+    /// A `Text` cell in a time-typed column did not match the documented
+    /// `HH:MM:SS` shape. Used on the v3 calendar `open` / `close`
+    /// columns. Previously a malformed value coalesced silently to `0`;
+    /// surfacing this prevents silent corruption of trading-session
+    /// timestamps in downstream consumers.
+    #[error("invalid time text {raw:?} (expected HH:MM:SS)")]
+    InvalidTime {
+        /// The exact text that failed to parse, captured verbatim from
+        /// the wire for diagnostics.
+        raw: String,
+    },
+    /// A `Text` cell in an enum-typed column carried a value outside the
+    /// documented vendor vocabulary. Used on the v3 `right` (option
+    /// CALL/PUT) and calendar `type` (open / early_close / full_close /
+    /// weekend) columns. Previously an unknown variant fell through to
+    /// `0` (right) or `CALENDAR_STATUS_UNKNOWN` (calendar), masking
+    /// schema drift from upstream. Surfacing this as an error matches
+    /// the strict-decode policy on every other typed column.
+    #[error("unknown enum variant {raw:?} on field `{field}`")]
+    UnknownEnumVariant {
+        /// Static name of the wire column (`right`, `calendar.type`,
+        /// etc.) so the error is greppable in operator logs.
+        field: &'static str,
+        /// The exact text that failed to map to a known variant,
+        /// captured verbatim from the wire for diagnostics.
+        raw: String,
+    },
+    /// A `Price` cell carried a `price_type` outside
+    /// `0..=tdbe::types::price::MAX_PRICE_TYPE`. Mirrors
+    /// `tdbe::types::price::PriceError::PriceTypeOutOfRange` on the
+    /// decode boundary.
+    #[error("invalid price_type {raw} (expected 0..=19)")]
+    InvalidPriceType {
+        /// The wire `price_type` value, captured verbatim.
+        raw: i32,
+    },
+    /// A wire `Number` cell carried an `int64` value outside the
+    /// `i32` range expected by the destination field.
+    #[error("integer overflow: int64 {raw} does not fit i32")]
+    NumericOverflow {
+        /// The wire `int64` value, captured verbatim.
+        raw: String,
+    },
 }
 
 /// Name the `DataType` variant for error messages. `None` is treated as a

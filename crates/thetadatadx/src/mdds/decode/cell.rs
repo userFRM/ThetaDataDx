@@ -17,40 +17,58 @@ use super::error::DecodeError;
 use super::headers::find_header;
 use crate::proto;
 use tdbe::types::tick::{
-    CalendarDay, EodTick, GreeksAllTick, GreeksFirstOrderTick, GreeksSecondOrderTick,
-    GreeksThirdOrderTick, InterestRateTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick,
-    OptionContract, PriceTick, QuoteTick, TradeQuoteTick, TradeTick,
+    CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
+    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
+    MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,
+    TradeGreeksAllTick, TradeGreeksFirstOrderTick, TradeGreeksImpliedVolatilityTick,
+    TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
 };
 
-/// Extract a date (YYYYMMDD) from a `Number` or `Timestamp` cell, strictly.
+/// Extract a date (YYYYMMDD) from a `Number`, `Timestamp`, or `Text` cell,
+/// strictly.
 ///
-/// Used by generated parsers when the `date` field maps to a `timestamp` column.
-/// `Number` carries the date already in YYYYMMDD form; `Timestamp` is converted
-/// to an Eastern-Time YYYYMMDD integer. `NullValue` yields `Ok(None)`; any
-/// other type yields `Err(TypeMismatch)`.
+/// Used by generated parsers when the schema declares a `date` field. The
+/// v3 MDDS server is consistent about Number/Timestamp for most date columns
+/// but the `interest_rate/history/eod` endpoint emits an ISO `"YYYY-MM-DD"`
+/// string under the header `created`; accepting `Text` here keeps every
+/// `date`-typed parser tolerant of either wire shape with no per-parser
+/// branching. `Number` carries the date already in YYYYMMDD form and is
+/// validated via [`tdbe::time::is_valid_yyyymmdd`]; `Timestamp` is
+/// converted to an Eastern-Time YYYYMMDD integer; `Text` flows through
+/// [`parse_iso_date`]. `NullValue` yields `Ok(None)`; any other type
+/// yields `Err(TypeMismatch)`.
 ///
 /// # Errors
 ///
-/// Returns [`DecodeError::TypeMismatch`] if the cell is neither a `Number`,
-/// `Timestamp`, nor `NullValue` — including the case where the `DataValue`
-/// arrived with its `data_type` oneof unset (`observed: "Unset"`), which is a
-/// wire-protocol anomaly we fail loud on. Returns [`DecodeError::MissingCell`]
-/// only when the row has fewer cells than `idx` (index out of bounds).
-// Reason: number values from protobuf fit in i32 for date/integer fields.
-#[allow(clippy::cast_possible_truncation)]
+/// Returns [`DecodeError::TypeMismatch`] when the cell is not one of
+/// `Number`, `Timestamp`, `Text`, or `NullValue` (including the
+/// `data_type` oneof being unset). Returns [`DecodeError::MissingCell`]
+/// when the row has fewer cells than `idx`. Returns
+/// [`DecodeError::InvalidDate`] when a `Number` cell does not fit `i32`
+/// or fails [`tdbe::time::is_valid_yyyymmdd`].
 pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<i32>, DecodeError> {
     let Some(dv) = row.values.get(idx) else {
         return Err(DecodeError::MissingCell { column: idx });
     };
     match dv.data_type.as_ref() {
-        Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as i32)),
+        Some(proto::data_value::DataType::Number(n)) => {
+            let n32 = match i32::try_from(*n) {
+                Ok(v) => v,
+                Err(_) => return Err(DecodeError::InvalidDate { raw: n.to_string() }),
+            };
+            if !tdbe::time::is_valid_yyyymmdd(n32) {
+                return Err(DecodeError::InvalidDate { raw: n.to_string() });
+            }
+            Ok(Some(n32))
+        }
         Some(proto::data_value::DataType::Timestamp(ts)) => {
             Ok(Some(tdbe::time::timestamp_to_date(ts.epoch_ms)))
         }
+        Some(proto::data_value::DataType::Text(s)) => Ok(Some(parse_iso_date(s)?)),
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
             column: idx,
-            expected: "Number|Timestamp",
+            expected: "Number|Timestamp|Text",
             observed: observed_name(other),
         }),
     }
@@ -59,7 +77,8 @@ pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<
 /// Decode an `i32`-valued cell with Java-matching strict semantics.
 ///
 /// Accepts:
-/// - `Number(n)` → `Ok(Some(n as i32))`.
+/// - `Number(n)` → `Ok(Some(n))` after bounds-checking the wire `int64`
+///   against the destination `i32` range.
 /// - `Timestamp(ts)` → `Ok(Some(ms_of_day))` — v3 MDDS sends time columns as
 ///   proto `Timestamp`; the parser expects milliseconds-of-day in Eastern Time.
 /// - `NullValue` → `Ok(None)`, matching Java `null` return.
@@ -71,9 +90,10 @@ pub(crate) fn row_date(row: &proto::DataValueList, idx: usize) -> Result<Option<
 ///
 /// # Errors
 ///
-/// See variant list above.
-// Reason: protocol-defined integer widths from Java FPSS specification.
-#[allow(clippy::cast_possible_truncation)]
+/// Returns [`DecodeError::NumericOverflow`] when the wire `int64` value
+/// does not fit `i32`. See the [`DecodeError::TypeMismatch`] /
+/// [`DecodeError::MissingCell`] variants for the remaining error modes
+/// above.
 pub(crate) fn row_number(
     row: &proto::DataValueList,
     idx: usize,
@@ -82,7 +102,11 @@ pub(crate) fn row_number(
         return Err(DecodeError::MissingCell { column: idx });
     };
     match dv.data_type.as_ref() {
-        Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as i32)),
+        Some(proto::data_value::DataType::Number(n)) => {
+            let n32 = i32::try_from(*n)
+                .map_err(|_| DecodeError::NumericOverflow { raw: n.to_string() })?;
+            Ok(Some(n32))
+        }
         Some(proto::data_value::DataType::Timestamp(ts)) => {
             Ok(Some(tdbe::time::timestamp_to_ms_of_day(ts.epoch_ms)))
         }
@@ -156,7 +180,10 @@ pub(crate) fn row_price_type(
 ///
 /// # Errors
 ///
-/// Errors on any other cell type or missing cell.
+/// Returns [`DecodeError::TypeMismatch`] on any other cell type and
+/// [`DecodeError::MissingCell`] on a missing cell. Returns
+/// [`DecodeError::InvalidPriceType`] when the wire `price_type` falls
+/// outside `0..=tdbe::types::price::MAX_PRICE_TYPE`.
 // Reason: protocol-defined integer widths from Java FPSS specification.
 #[allow(clippy::cast_possible_truncation)]
 pub(crate) fn row_price_f64(
@@ -167,9 +194,11 @@ pub(crate) fn row_price_f64(
         return Err(DecodeError::MissingCell { column: idx });
     };
     match dv.data_type.as_ref() {
-        Some(proto::data_value::DataType::Price(p)) => Ok(Some(
-            tdbe::types::price::Price::new(p.value, p.r#type).to_f64(),
-        )),
+        Some(proto::data_value::DataType::Price(p)) => {
+            let price = tdbe::types::price::Price::with_value_and_type(p.value, p.r#type)
+                .map_err(|_| DecodeError::InvalidPriceType { raw: p.r#type })?;
+            Ok(Some(price.to_f64()))
+        }
         Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as f64)),
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
@@ -215,16 +244,12 @@ pub(crate) fn row_text(
 /// with the EodTick `volume`/`count` widening (where on high-volume
 /// symbols the values exceed `i32::MAX`).
 ///
-/// `price_type` is clamped to `0..=19` to match
-/// [`tdbe::types::price::Price::new`], so the same wire cell decodes
-/// identically through this function and [`row_price_f64`].
-///
 /// # Errors
 ///
-/// Returns `DecodeError::TypeMismatch` for any other cell variant. Returns
-/// `DecodeError::MissingCell` for an out-of-bounds column index. Under the
-/// clamped `0..=19` price-type contract, scale-up cannot overflow `i64`
-/// (max product is `i32::MAX * 10^9 ≈ 2.15e18`, well under `i64::MAX`).
+/// Returns [`DecodeError::TypeMismatch`] for any other cell variant.
+/// Returns [`DecodeError::MissingCell`] for an out-of-bounds column
+/// index. Returns [`DecodeError::InvalidPriceType`] when `price_type`
+/// is outside `0..=tdbe::types::price::MAX_PRICE_TYPE`.
 pub(crate) fn row_number_i64(
     row: &proto::DataValueList,
     idx: usize,
@@ -236,20 +261,17 @@ pub(crate) fn row_number_i64(
         Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n)),
         Some(proto::data_value::DataType::Price(p)) => {
             // Vendor convention: real_value = value * 10^(type - 10).
-            // Clamp `type` to 0..=19 to match `tdbe::Price::new`, so the
-            // same wire cell decodes identically through `row_price_f64`
-            // and `row_number_i64`. Positive exp scales up; negative exp
-            // scales down. v == 0 short-circuits to 0 so a zero price
-            // never trips the scale-up overflow guard.
             let v = i64::from(p.value);
             if v == 0 {
                 return Ok(Some(0));
             }
-            let price_type = p.r#type.clamp(0, 19);
+            if !(0..=tdbe::types::price::MAX_PRICE_TYPE).contains(&p.r#type) {
+                return Err(DecodeError::InvalidPriceType { raw: p.r#type });
+            }
+            let price_type = p.r#type;
             let exp = price_type - 10;
-            // After clamping, exp ∈ [-10, 9]. Scale-up: i32::MAX * 10^9
-            // ≈ 2.147e18 < i64::MAX (≈ 9.22e18), so checked_mul cannot
-            // overflow. checked_mul preserves the contract anyway.
+            // exp ∈ [-10, 9] after the range check; scale-up tops out
+            // at i32::MAX * 10^9 ≈ 2.15e18 < i64::MAX.
             let scaled = if exp >= 0 {
                 10i64
                     .checked_pow(exp.unsigned_abs())

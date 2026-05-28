@@ -246,7 +246,7 @@ mod tests {
     fn subscribe_payload_with_stock() {
         let contract = Contract::stock("MSFT");
         let payload = build_subscribe_payload(42, &contract).expect("valid root");
-        // req_id(4) + contract(1+1+4+1 = 7) = 11
+        // req_id + contract header (frame is 11 bytes).
         assert_eq!(payload.len(), 11);
         let req_id = i32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
         assert_eq!(req_id, 42);

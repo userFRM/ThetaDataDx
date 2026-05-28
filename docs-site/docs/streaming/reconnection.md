@@ -1,6 +1,6 @@
 ---
 title: Reconnection & Error Handling
-description: Handle FPSS disconnects, implement reconnection logic with reconnect_streaming() or reconnect(), and manage streaming errors.
+description: Handle streaming disconnects, implement reconnection logic with reconnect_streaming() or reconnect(), and manage streaming errors.
 ---
 
 # Reconnection & Error Handling
@@ -14,7 +14,7 @@ Python, TypeScript/Node.js, and C++ expose `reconnect()` on their public streami
 
 The unified `ThetaDataDxClient` client provides `reconnect_streaming()` which handles the full reconnection cycle automatically:
 
-1. Saves all active per-contract and firehose subscriptions
+1. Saves all active per-contract and full-stream subscriptions
 2. Stops the current streaming connection
 3. Starts a new streaming connection with your handler
 4. Re-subscribes everything that was previously active
@@ -105,7 +105,7 @@ let new_client = fpss::reconnect(
     previous_subs,             // Vec<(SubscriptionKind, Contract)>
     previous_full_subs,        // Vec<(SubscriptionKind, SecType)>
     delay_ms,                  // reconnection delay
-    config.fpss_ring_size,     // Disruptor ring size
+    config.fpss_ring_size,     // ring buffer size
     config.fpss_flush_mode,    // Batched or Immediate
     handler,                   // FnMut(&FpssEvent)
 )?;

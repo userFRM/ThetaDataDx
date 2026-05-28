@@ -212,7 +212,7 @@ const RECIPES: Recipe[] = [
     id: 'option_flow_scanner',
     icon: SVG_ICONS.flowArrows,
     title: 'Option Flow Scanner',
-    description: 'Full option trade firehose — flag unusual premium',
+    description: 'Full option trade stream — flag unusual premium',
     category: 'realtime',
     params: ['min_size'],
   },
@@ -930,7 +930,7 @@ with client.streaming_iter() as it:
 
     case 'option_flow_scanner': return `${h}
 
-# Subscribe to the option-trade firehose; the contract on each event
+# Subscribe to the full option-trade stream; the contract on each event
 # carries symbol / expiration / strike / is_call directly.
 client.subscribe(SecType.Option.full_trades())
 

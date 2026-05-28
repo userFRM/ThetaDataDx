@@ -7,15 +7,18 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
+// CI build step is mandatory before `npm test`; fail loud if the addon
+// is missing so a broken build does not appear green.
+let mod;
+try {
+  mod = await import('../index.js');
+} catch {
+  console.error('FAIL: native addon not built; run `npm run build` first');
+  process.exit(1);
+}
+
 describe('Util cross-language helpers (#424)', () => {
-  it('exposes the Util namespace and condition / exchange lookups', async () => {
-    let mod;
-    try {
-      mod = await import('../index.js');
-    } catch {
-      console.log('SKIP: native addon not built (run `npm run build` first)');
-      return;
-    }
+  it('exposes the Util namespace and condition / exchange lookups', () => {
     assert.ok(mod.Util, 'Util namespace should be exported');
 
     // Trade conditions — values from crates/tdbe/src/conditions/mod.rs tests.
@@ -44,14 +47,7 @@ describe('Util cross-language helpers (#424)', () => {
     }
   });
 
-  it('rejects BigInt inputs outside the wire range instead of silent coercion', async () => {
-    let mod;
-    try {
-      mod = await import('../index.js');
-    } catch {
-      console.log('SKIP: native addon not built');
-      return;
-    }
+  it('rejects BigInt inputs outside the wire range instead of silent coercion', () => {
     // i32::MAX + 1 — out of wire range.
     assert.throws(
       () => mod.Util.sequenceSignedToUnsigned(2147483648n),

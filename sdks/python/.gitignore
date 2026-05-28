@@ -1,0 +1,7 @@
+# Build artefacts in the mixed Rust + Python layout. The hand-written
+# `python/thetadatadx/__init__.py`, `__init__.pyi`, and `py.typed` files
+# are committed; everything maturin develop puts here at build time is
+# ignored.
+python/thetadatadx/__pycache__/
+python/thetadatadx/*.so
+python/thetadatadx/*.pyd

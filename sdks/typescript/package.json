@@ -1,6 +1,6 @@
 {
   "name": "thetadatadx",
-  "version": "10.0.0",
+  "version": "11.0.0",
   "description": "Native ThetaData SDK for Node.js — powered by Rust via napi-rs",
   "license": "Apache-2.0",
   "repository": {
@@ -21,18 +21,18 @@
     }
   },
   "scripts": {
-    "build": "napi build --platform --release",
-    "build:debug": "napi build --platform",
-    "test": "node --test __tests__/basic.test.mjs __tests__/dropped_events.test.mjs __tests__/asyncdispose.test.mjs __tests__/util_helpers.test.mjs __tests__/iter_mode.test.mjs __tests__/fpss_control_variants.test.mjs",
+    "build": "napi build --platform --release && node scripts/postbuild_alias_contract.mjs",
+    "build:debug": "napi build --platform && node scripts/postbuild_alias_contract.mjs",
+    "test": "node scripts/run_tests.mjs",
     "version": "napi version"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.6.2"
   },
   "optionalDependencies": {
-    "thetadatadx-linux-x64-gnu": "10.0.0",
-    "thetadatadx-darwin-arm64": "10.0.0",
-    "thetadatadx-win32-x64-msvc": "10.0.0"
+    "thetadatadx-linux-x64-gnu": "11.0.0",
+    "thetadatadx-darwin-arm64": "11.0.0",
+    "thetadatadx-win32-x64-msvc": "11.0.0"
   },
   "engines": {
     "node": ">= 20"

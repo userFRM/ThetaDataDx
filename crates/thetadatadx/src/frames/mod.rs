@@ -1,46 +1,22 @@
-//! DataFrame ergonomics for Rust consumers — `.to_polars()` /
-//! `.to_arrow()` extension traits on slices of tick rows.
+//! DataFrame extension traits — `.to_polars()` / `.to_arrow()` on
+//! `&[Tick]`.
 //!
-//! Python users have chainable `.to_polars()` / `.to_arrow()` /
-//! `.to_pandas()` terminals on every `<TickName>List` returned by the
-//! historical endpoints. Rust users return `Vec<Tick>` — ergonomic for
-//! iteration, awkward for DataFrame workflows. This module closes the
-//! gap behind opt-in Cargo features:
+//! Feature-gated: `polars`, `arrow`, or `frames` (both). Schemas are
+//! generated from the same `tick_schema.toml` SSOT as the Python
+//! slice_arrow emitter (`build_support/ticks/python_arrow.rs`), so
+//! Python and Rust sides return columns in the same order.
 //!
-//! * `polars` — enable [`TicksPolarsExt::to_polars`].
-//! * `arrow` — enable [`TicksArrowExt::to_arrow`].
-//! * `frames` — convenience alias for `polars,arrow`.
+//! # Examples
 //!
-//! Neither `polars` nor `arrow` is pulled into the default dependency
-//! graph. Opt in from Cargo.toml:
-//!
-//! ```toml
-//! [dependencies]
-//! thetadatadx = { version = "9", features = ["polars"] }
-//! ```
-//!
-//! Then chain off the decoder-owned `Vec<Tick>`:
-//!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # #[cfg(feature = "polars")]
+//! # fn doc() {
 //! use thetadatadx::frames::TicksPolarsExt;
-//!
-//! let ticks: Vec<tdbe::types::tick::EodTick> = tdx
-//!     .stock_history_eod("AAPL", "20240101", "20240301")
-//!     .await?;
-//! let df = ticks.as_slice().to_polars()?;
+//! use tdbe::types::tick::EodTick;
+//! let ticks: Vec<EodTick> = Vec::new();
+//! let _df = ticks.as_slice().to_polars().expect("empty frame is valid");
+//! # }
 //! ```
-//!
-//! # SSOT
-//!
-//! The column-shape decisions (column names, Arrow data types,
-//! `OptionContract.right` projection, the contract-id tail
-//! `expiration` / `strike` / `right`, the `QuoteTick.midpoint` virtual
-//! column) are identical to the Python slice_arrow emitter in
-//! `build_support/ticks/python_arrow.rs`. Both generators read from the
-//! same `tick_schema.toml` and emit matching schemas, so
-//! `tdx.stock_history_eod(...).to_polars()` on the Python side and
-//! `ticks.as_slice().to_polars()?` on the Rust side produce the same
-//! DataFrame columns in the same order.
 
 /// Convert a slice of tick rows into a [`polars::prelude::DataFrame`].
 ///

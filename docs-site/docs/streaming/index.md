@@ -1,22 +1,22 @@
 ---
 title: Real-Time Streaming
-description: Overview of ThetaDataDx real-time streaming via FPSS - architecture, SDK models, and getting started.
+description: Overview of ThetaDataDx real-time streaming - architecture, SDK models, and getting started.
 ---
 
 # Real-Time Streaming
 
-Real-time market data is delivered via ThetaData's FPSS (Feed Processing Streaming Server) over persistent TLS/TCP connections. FPSS delivers live quotes, trades, open interest, and OHLCVC bars as typed, zero-copy events.
+Real-time market data is delivered over a persistent TLS/TCP streaming channel into the SDK. The streaming channel carries live quotes, trades, open interest, and OHLCVC bars as typed, zero-copy events.
 
 ## Architecture
 
 ```mermaid
 graph LR
-    A["Exchange<br/>(NYSE/NASDAQ)"] --> B["ThetaData FPSS<br/>(4 NJ hosts)"]
+    A["Exchange<br/>(NYSE/NASDAQ)"] --> B["ThetaData streaming<br/>servers (4 NJ hosts)"]
     B -->|"TLS/TCP"| C["SDK I/O Thread<br/>(FIT decode)"]
-    C -->|"Disruptor<br/>ring buffer"| D["Your Application<br/>(callback / poll)"]
+    C -->|"SPSC<br/>ring buffer"| D["Your Application<br/>(callback / poll)"]
 ```
 
-Events are decoded from the FIT wire format and delta-decompressed on an I/O thread, then dispatched through an LMAX Disruptor ring buffer to your callback (Rust) or polling queue (Python/TypeScript/C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
+Events are decoded from the FIT wire format and delta-decompressed on an I/O thread, then dispatched through a ring buffer to your callback (Rust) or polling queue (Python/TypeScript/C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
 
 ## Client Model
 
@@ -56,8 +56,12 @@ C++ receives typed `#[repr(C)]` structs directly from Rust -- not JSON. All fiel
 | Trades | `Trade` | Individual trade executions (16 fields + `received_at_ns`) |
 | Open Interest | `OpenInterest` | Current open interest for options (3 fields + `received_at_ns`) |
 | OHLCVC | `Ohlcvc` | Aggregated OHLC bars with volume (`i64`) and count (`i64`) |
-| Full Trades | `Trade` | All trades for an entire security type (firehose) |
-| Full OI | `OpenInterest` | All open interest for an entire security type (firehose) |
+| Full Trades | `Trade` | All trades for an entire security type (full-stream subscription) |
+| Full OI | `OpenInterest` | All open interest for an entire security type (full-stream subscription) |
+
+::: tip Full-stream subscriptions are Stock and Option only
+The full-stream subscription (`full_trades` / `full_open_interest`) is broadcast for the Stock and Option security types only. Indices and rates have no full-stream broadcast upstream — subscribe to them per-contract instead, e.g. `Contract::index("VIX").trade()`. A full-stream subscription on any other security type is rejected with a configuration error when you call `subscribe`.
+:::
 
 ## Event Categories
 
@@ -175,13 +179,13 @@ int main() {
 
 ## Server Environments
 
-| Config | FPSS Ports | Purpose |
+| Config | Streaming Ports | Purpose |
 |--------|-----------|---------|
 | `DirectConfig::production()` | 20000, 20001 | Live production data |
 | `DirectConfig::dev()` | 20200, 20201 | Historical day replay at max speed (markets closed testing) |
 | `DirectConfig::stage()` | 20100, 20101 | Staging/testing (frequent reboots, unstable) |
 
-FPSS hosts are configurable -- not hardcoded. Override `fpss_hosts` on `DirectConfig` or use a TOML config file.
+Streaming hosts are configurable -- not hardcoded. Override `fpss_hosts` on `DirectConfig` or use a TOML config file.
 
 ## Next Steps
 

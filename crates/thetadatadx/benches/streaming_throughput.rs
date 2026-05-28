@@ -2,7 +2,7 @@
 //!
 //! `streaming_channels.rs` already pins down the Disruptor pipeline cost
 //! with a no-op user callback. This bench extends the methodology to
-//! the callback shapes that matter for institutional integrators: a
+//! the callback shapes that matter for production integrators: a
 //! Rust closure that actually retains the event, a lock-free queue
 //! push, an FFI-style indirection, and the two recommended Python
 //! handover patterns (`collections.deque.append` and
@@ -247,6 +247,10 @@ extern "C" fn ffi_trampoline(ctx: *mut c_void, event_ptr: *const c_void) {
     // `drive_publish` call). `event_ptr` is a `*const FpssEvent` cast
     // to `*const c_void` by the caller.
     let ctx = unsafe { &*(ctx as *const FfiCtx) };
+    // SAFETY: `event_ptr` is a `*const FpssEvent` produced by the bench
+    // harness one stack frame above; the referent lives until
+    // `drive_publish` returns, which is strictly after this callback
+    // ends. No aliasing — the consumer is the sole reader.
     let evt = unsafe { &*(event_ptr as *const FpssEvent) };
     // Touch the event so the read is not elided. Match-arm chosen for
     // its uniqueness so the optimiser cannot collapse the load.
@@ -394,6 +398,10 @@ struct BenchPyEvent {
 // is `Send + Sync` (`Arc<Contract>` + scalars). The bench mirrors the
 // SDK's contract here exactly.
 unsafe impl Send for BenchPyEvent {}
+// SAFETY: same argument as the `Send` impl above — every field access
+// is gated by an `Acquire` load on `valid`, so a thread that observes a
+// live `BenchPyEvent` reads a non-stale `FpssEvent` reference. The
+// `FpssEvent` graph itself is `Sync`.
 unsafe impl Sync for BenchPyEvent {}
 
 impl BenchPyEvent {
@@ -603,7 +611,7 @@ fn run_pyo3_iter_next_drain(contract: Arc<Contract>) -> (u64, Duration) {
 
     let start = Instant::now();
     // Single GIL acquire across the entire drain — this is the
-    // institutional point of pull-iter delivery on the Python
+    // canonical pull-iter delivery path on the Python
     // binding. `for event in iter:` holds the GIL across every pop
     // until the loop exits.
     Python::attach(|py| {

@@ -15,16 +15,20 @@ import assert from 'node:assert/strict';
 
 const wrapperImportPath = '../streaming-session.js';
 
+// CI build step is mandatory before `npm test`; fail loud if the wrapper
+// (which depends on the napi addon) cannot be loaded so a broken build
+// does not appear green.
+let mod;
+try {
+  const imported = await import(wrapperImportPath);
+  mod = imported.default ?? imported;
+} catch {
+  console.error('FAIL: native addon not built; run `npm run build` first');
+  process.exit(1);
+}
+
 describe('pull-iter EventIterator wrapper', () => {
-  it('exposes EventIterator on the package surface', async () => {
-    let mod;
-    try {
-      const imported = await import(wrapperImportPath);
-      mod = imported.default ?? imported;
-    } catch {
-      console.log('SKIP: native addon not built (run `npm run build` first)');
-      return;
-    }
+  it('exposes EventIterator on the package surface', () => {
     assert.equal(
       typeof mod.EventIterator,
       'function',
@@ -37,15 +41,7 @@ describe('pull-iter EventIterator wrapper', () => {
     );
   });
 
-  it('attaches Symbol.asyncIterator to EventIterator prototype', async () => {
-    let mod;
-    try {
-      const imported = await import(wrapperImportPath);
-      mod = imported.default ?? imported;
-    } catch {
-      console.log('SKIP: native addon not built');
-      return;
-    }
+  it('attaches Symbol.asyncIterator to EventIterator prototype', () => {
     assert.equal(
       typeof mod.EventIterator.prototype[Symbol.asyncIterator],
       'function',
@@ -65,14 +61,6 @@ describe('pull-iter EventIterator wrapper', () => {
     // resolves to `null` to mimic the Closed signal — the actual
     // Rust-side disambiguation is covered by the soak tests in
     // `crates/thetadatadx/src/fpss/streaming_soak_tests.rs`.
-    let mod;
-    try {
-      const imported = await import(wrapperImportPath);
-      mod = imported.default ?? imported;
-    } catch {
-      console.log('SKIP: native addon not built');
-      return;
-    }
     const fakeIter = {
       async next() {
         return null;
@@ -95,14 +83,6 @@ describe('pull-iter EventIterator wrapper', () => {
   });
 
   it('Symbol.asyncIterator return() closes the underlying iterator', async () => {
-    let mod;
-    try {
-      const imported = await import(wrapperImportPath);
-      mod = imported.default ?? imported;
-    } catch {
-      console.log('SKIP: native addon not built');
-      return;
-    }
     // Construct a stand-in object that exposes the `next` / `close`
     // contract the JS-side `[Symbol.asyncIterator]` uses, without
     // standing up a real FPSS connection. The shim's protocol shape

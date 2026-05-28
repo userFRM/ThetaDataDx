@@ -154,10 +154,17 @@ impl AuthUser {
     /// - STANDARD = 2 -> 4 concurrent requests
     /// - PROFESSIONAL/PRO = 3 -> 8 concurrent requests
     ///
-    /// Bound: `2^subscription_tier`.
+    /// Routed through [`crate::mdds::SubscriptionTier::from_wire`] so a
+    /// hostile / experimental wire byte (negative, > 3) folds to the
+    /// conservative Free=1 default rather than panicking on a raw shift
+    /// (`1usize << 64` is UB in release, panic in debug). Unknown
+    /// values emit a `warn` so operators can spot upstream-tier drift
+    /// without crashing the auth path.
     #[must_use]
     pub fn max_concurrent_requests(&self) -> usize {
-        let tier = [
+        use crate::mdds::SubscriptionTier;
+
+        let tier_wire = [
             self.stock_subscription,
             self.options_subscription,
             self.indices_subscription,
@@ -167,8 +174,17 @@ impl AuthUser {
         .filter_map(|s| *s)
         .max()
         .unwrap_or(0);
-        let tier = usize::try_from(tier).unwrap_or(0);
-        1usize << tier // 2^tier: 1, 2, 4, 8
+
+        match SubscriptionTier::from_wire(tier_wire) {
+            Some(tier) => tier.max_concurrent_requests(),
+            None => {
+                tracing::warn!(
+                    tier_wire,
+                    "Nexus auth reported unknown subscription tier; defaulting to Free=1 concurrent request",
+                );
+                SubscriptionTier::Free.max_concurrent_requests()
+            }
+        }
     }
 }
 
@@ -258,12 +274,14 @@ pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthRespo
     // structured logs / crash reports are recoverable PII even when the
     // password is zeroized. The prefix is enough for operators to
     // correlate a request with a tenant without exposing the full
-    // address.
+    // address. The Nexus URL itself includes routing topology that
+    // operators rarely need at `debug` — keep that field at `trace`
+    // verbosity so production deployments do not record it by default.
     tracing::debug!(
         email_prefix = %redacted_email_prefix(&creds.email),
-        url = url,
         "authenticating against Nexus API"
     );
+    tracing::trace!(url = url, "Nexus auth URL");
 
     // Retry loop for transient network errors (connection refused, timeout, DNS).
     // Auth failures (wrong password, 401/404) are NOT retried.
@@ -349,10 +367,7 @@ pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthRespo
         ),
     })?;
 
-    tracing::debug!(
-        session_id_prefix = %&auth.session_id[..8.min(auth.session_id.len())],
-        "authenticated successfully (session_id redacted)"
-    );
+    tracing::debug!("authenticated successfully (session_id redacted)");
 
     metrics::histogram!("thetadatadx.auth.latency_ms")
         .record(auth_start.elapsed().as_secs_f64() * 1_000.0);
@@ -473,5 +488,64 @@ mod tests {
         assert_eq!(redacted_email_prefix("@missing-local"), "<redacted>");
         assert_eq!(redacted_email_prefix("missing-domain@"), "<redacted>");
         assert_eq!(redacted_email_prefix(""), "<redacted>");
+    }
+
+    /// Hostile wire bytes for the subscription tier must NOT panic the
+    /// `max_concurrent_requests` arithmetic. The old `1usize << tier`
+    /// path panicked in debug (and was UB in release) for `tier > 63`;
+    /// the typed `SubscriptionTier::from_wire` fold caps it at Free=1
+    /// for any unknown value.
+    #[test]
+    fn max_concurrent_requests_clamps_hostile_wire_byte() {
+        for bad in [-1, 4, 99, i32::MAX, i32::MIN] {
+            let user = AuthUser {
+                email: None,
+                stock_subscription: Some(bad),
+                options_subscription: None,
+                indices_subscription: None,
+                interest_rate_subscription: None,
+            };
+            // Must not panic and must fall back to Free=1.
+            assert_eq!(
+                user.max_concurrent_requests(),
+                1,
+                "hostile tier {bad} must fall back to Free=1"
+            );
+        }
+    }
+
+    /// Valid wire bytes (0..=3) round-trip through the typed
+    /// `SubscriptionTier::max_concurrent_requests` ladder: 1, 2, 4, 8.
+    #[test]
+    fn max_concurrent_requests_matches_tier_ladder() {
+        for (wire, expected) in [(0, 1), (1, 2), (2, 4), (3, 8)] {
+            let user = AuthUser {
+                email: None,
+                stock_subscription: Some(wire),
+                options_subscription: None,
+                indices_subscription: None,
+                interest_rate_subscription: None,
+            };
+            assert_eq!(
+                user.max_concurrent_requests(),
+                expected,
+                "tier wire {wire} must map to {expected} concurrent requests"
+            );
+        }
+    }
+
+    /// The highest tier across all asset classes wins — pin the
+    /// behaviour so a regression that walks only `stock_subscription`
+    /// is caught.
+    #[test]
+    fn max_concurrent_requests_picks_highest_tier() {
+        let user = AuthUser {
+            email: None,
+            stock_subscription: Some(0),
+            options_subscription: Some(3),
+            indices_subscription: Some(1),
+            interest_rate_subscription: None,
+        };
+        assert_eq!(user.max_concurrent_requests(), 8);
     }
 }

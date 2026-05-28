@@ -21,6 +21,7 @@ use pyo3::exceptions::PyRuntimeWarning;
 use pyo3::prelude::*;
 
 use crate::event_iterator::EventIterator;
+use crate::streaming_session::StreamableHandle;
 
 /// Drain timeout applied on `with`-block exit. Same 5 s budget as
 /// `streaming_session.rs` so the two context managers' teardown
@@ -29,8 +30,8 @@ const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
 
 /// Context manager returned by `ThetaDataDxClient.streaming_iter()`.
 ///
-/// Holds a strong reference to the `ThetaDataDxClient`. `__enter__`
-/// calls `start_streaming_iter()` on the wrapped client and returns
+/// Holds a strong reference to the streaming pyclass. `__enter__`
+/// calls `start_streaming_iter()` on the wrapped pyclass and returns
 /// the resulting [`EventIterator`]; `__exit__` calls `close()` on the
 /// iterator, then `stop_streaming()` + `await_drain()` on the client
 /// so the consumer thread has finished pushing the residual queue
@@ -41,7 +42,10 @@ const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
 /// lifetime.
 #[pyclass(module = "thetadatadx", name = "StreamingIterSession")]
 pub(crate) struct StreamingIterSession {
-    pub(crate) tdx: Py<crate::ThetaDataDxClient>,
+    /// Typed handle to the streaming pyclass — closed sum of the two
+    /// transports the session knows how to drive (replaces the
+    /// duck-typed `Py<PyAny>` slot the field previously carried).
+    pub(crate) tdx: StreamableHandle,
     /// Captured at `__enter__` so `__exit__` can close it without
     /// going through the wrapped client. `None` before `__enter__`
     /// and after `__exit__` to make repeated lifecycle errors loud.
@@ -61,9 +65,8 @@ impl StreamingIterSession {
                 "StreamingIterSession is already entered -- one session enters at most once",
             ));
         }
-        let bound = slf.tdx.bind(py);
-        let iterator_obj: Py<PyAny> = bound.call_method0("start_streaming_iter")?.unbind();
-        let iterator: Py<EventIterator> = iterator_obj.extract(py)?;
+        let iter_value = slf.tdx.start_streaming_iter(py)?;
+        let iterator: Py<EventIterator> = Py::new(py, iter_value)?;
         slf.iterator = Some(iterator.clone_ref(py));
         Ok(iterator)
     }
@@ -91,10 +94,8 @@ impl StreamingIterSession {
             let _ = bound.call_method0("close");
         }
 
-        let bound = self.tdx.bind(py);
-        bound.call_method0("stop_streaming")?;
-        let drained_obj = bound.call_method1("await_drain", (EXIT_DRAIN_TIMEOUT_MS,))?;
-        let drained: bool = drained_obj.extract()?;
+        self.tdx.stop_streaming(py);
+        let drained = self.tdx.await_drain(py, EXIT_DRAIN_TIMEOUT_MS);
         if !drained {
             // Mirror the `StreamingSession` warning so operators see
             // the same drain-timeout message regardless of delivery
@@ -103,10 +104,9 @@ impl StreamingIterSession {
             // propagates.
             let warnings = py.import("warnings")?;
             let msg = format!(
-                "ThetaDataDxClient streaming iter drain timed out after \
+                "streaming iter drain timed out after \
                  {EXIT_DRAIN_TIMEOUT_MS}ms; the consumer thread may still be pushing \
-                 events into the queue. The iterator will keep yielding until the \
-                 consumer exits."
+                 events into the queue."
             );
             let kwargs = pyo3::types::PyDict::new(py);
             kwargs.set_item("stacklevel", 2_u32)?;
@@ -119,15 +119,14 @@ impl StreamingIterSession {
         Ok(false)
     }
 
-    /// Forward unknown attribute access to the wrapped
-    /// `ThetaDataDxClient` so subscribe / unsubscribe / metric getters
-    /// are reachable through `session.subscribe(...)` etc., matching
-    /// the push-callback `StreamingSession` proxying. Methods owned by
+    /// Forward unknown attribute access to the wrapped streaming
+    /// pyclass so subscribe / unsubscribe / metric getters are
+    /// reachable through `session.subscribe(...)` etc., matching the
+    /// push-callback `StreamingSession` proxying. Methods owned by
     /// this class (`__enter__`, `__exit__`, `tdx`, `iterator`) take
     /// precedence — PyO3 only invokes `__getattr__` on lookup miss.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
-        let bound = self.tdx.bind(py);
-        Ok(bound.getattr(name)?.unbind())
+        Ok(self.tdx.bind_any(py).getattr(name)?.unbind())
     }
 }
 
@@ -147,7 +146,7 @@ impl crate::ThetaDataDxClient {
     /// Raises `RuntimeError` when streaming is already running on
     /// this client. Pull and push are mutually exclusive on a given
     /// `ThetaDataDxClient`; switch by calling `stop_streaming()` first.
-    fn start_streaming_iter(&self) -> PyResult<EventIterator> {
+    pub(crate) fn start_streaming_iter(&self) -> PyResult<EventIterator> {
         let inner = self
             .tdx
             .start_streaming_iter()
@@ -167,7 +166,7 @@ impl crate::ThetaDataDxClient {
         Py::new(
             py,
             StreamingIterSession {
-                tdx: slf,
+                tdx: StreamableHandle::Tdx(slf),
                 iterator: None,
             },
         )

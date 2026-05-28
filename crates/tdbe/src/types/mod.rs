@@ -10,5 +10,5 @@ pub mod tick;
 mod generated;
 
 pub use enums::*;
-pub use price::Price;
+pub use price::{Price, PriceError, MAX_PRICE_TYPE};
 pub use tick::*;

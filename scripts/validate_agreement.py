@@ -83,8 +83,8 @@ Consumer-side canonicalization (`_canonicalize_row`) handles:
    `_time`): negative value -> `None`. Same reasoning -- every SDK
    emits negative-ms sentinels as raw ints.
 
-Empty-container rule (Codex r5)
--------------------------------
+Empty-container rule
+--------------------
 
 Sentinel stripping applies only to LEAF values (scalars whose field
 name puts them in the sentinel set). Sub-dicts and sub-lists are never
@@ -97,9 +97,8 @@ elided from their parent, even if all their children get stripped:
 The flatten phase then emits `contract: {}` as a distinct field path,
 so a producer that legitimately emits an empty container (e.g.
 `{"meta": {}}`) still differs from one that omits the key entirely
-(`{}` emits `<root>: {}`). This was the Codex round-5 finding: earlier
-rounds elided stripped-empty containers and caused `{"meta": {}}` to
-false-pass against `{}`.
+(`{}` emits `<root>: {}`). Earlier behaviour elided stripped-empty
+containers and caused `{"meta": {}}` to false-pass against `{}`.
 
 Downstream consequence: `{"contract": {"expiration": 0}}` and `{}`
 DISAGREE post-canonicalization. That's intentional -- real producers
@@ -108,10 +107,10 @@ so any nested structure is hypothetical, and surfacing divergence is
 safer than silently eliding "producer A emitted an empty container
 here; producer B didn't".
 
-Defense in depth: producers SHOULD canonicalize too, but the consumer
-is the authoritative enforcer. A producer bug (mixed-case key, stray
-NaN, float precision regression, sentinel mapped to `null` vs raw int)
-won't silently turn into a false disagreement.
+Redundant validation: producers SHOULD canonicalize too, but the
+consumer is the authoritative enforcer. A producer bug (mixed-case
+key, stray NaN, float precision regression, sentinel mapped to
+`null` vs raw int) won't silently turn into a false disagreement.
 
 Refs: #287, #290, #291, #292, #293.
 """
@@ -321,7 +320,7 @@ def _canonicalize_row(value: Any, key: str = "") -> Any:
         whose name is in `_SENTINEL_SHAPED_FIELDS`. This makes producer
         divergence on omit-vs-null-vs-sentinel-value invisible to the
         diff engine (server skips them in `tools/server/src/format.rs:89`;
-        Python emits raw `0`/`""`; CLI emits raw `0`/`""` after round-3).
+        Python emits raw `0`/`""`; CLI emits raw `0`/`""`).
         All three shapes converge to "field absent from the dict" post-
         canonicalization.
 
