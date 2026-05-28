@@ -65,6 +65,10 @@ impl SecType {
     }
 
     /// Full-stream Trade subscription for this security type.
+    /// `SecType.stock()` and `SecType.option()` install one
+    /// security-type-wide subscription; `SecType.index()` transparently
+    /// expands on the unified client to one per-contract trade subscription
+    /// per index root enumerated at connect.
     #[napi(js_name = "fullTrades")]
     pub fn full_trades(&self) -> Subscription {
         Subscription {
@@ -73,6 +77,10 @@ impl SecType {
     }
 
     /// Full-stream OpenInterest subscription for this security type.
+    /// `SecType.stock()` and `SecType.option()` install one
+    /// security-type-wide subscription; `SecType.index()` transparently
+    /// expands on the unified client to one per-contract open-interest
+    /// subscription per index root enumerated at connect.
     #[napi(js_name = "fullOpenInterest")]
     pub fn full_open_interest(&self) -> Subscription {
         Subscription {

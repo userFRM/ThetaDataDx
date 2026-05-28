@@ -59,8 +59,8 @@ C++ receives typed `#[repr(C)]` structs directly from Rust -- not JSON. All fiel
 | Full Trades | `Trade` | All trades for an entire security type (full-stream subscription) |
 | Full OI | `OpenInterest` | All open interest for an entire security type (full-stream subscription) |
 
-::: tip Full-stream subscriptions are Stock and Option only
-The full-stream subscription (`full_trades` / `full_open_interest`) is broadcast for the Stock and Option security types only. Indices and rates have no full-stream broadcast upstream — subscribe to them per-contract instead, e.g. `Contract::index("VIX").trade()`. A full-stream subscription on any other security type is rejected with a configuration error when you call `subscribe`.
+::: tip Full-stream subscriptions across security types
+Stocks and options are delivered as a single security-type-wide broadcast, so `SecType::Stock.full_trades()` and `SecType::Option.full_trades()` install one full-stream subscription. Indices have no such broadcast: `SecType::Index.full_trades()` / `SecType::Index.full_open_interest()` on the unified `ThetaDataDxClient` transparently expand to one per-contract subscription per index root, enumerated at connect, so the index tape arrives with the same ergonomics. Rates have no full-stream broadcast either and must be subscribed to per-contract (for example `Contract::rate("SOFR").trade()`); a rate full-stream subscription is rejected with a configuration error when you call `subscribe`.
 :::
 
 ## Event Categories

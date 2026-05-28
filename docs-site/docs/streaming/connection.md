@@ -268,6 +268,9 @@ client.subscribe(SecType::Stock.full_trades())?;
 
 // All open interest for a security type (full-stream subscription)
 client.subscribe(SecType::Option.full_open_interest())?;
+
+// Every index trade — expands transparently to per-contract subscriptions
+client.subscribe(SecType::Index.full_trades())?;
 ```
 ```python [Python]
 client.subscribe(Contract.stock("AAPL").quote())
@@ -310,7 +313,7 @@ client.subscribe(SecType.Option.fullOpenInterest());
 ```
 :::
 
-The full-stream subscription (`full_trades` / `full_open_interest`) is available for the Stock and Option security types only; indices and rates have no full-stream broadcast upstream and must be subscribed to per-contract (for example `Contract::index("VIX").trade()`). A full-stream subscription on any other security type is rejected with a configuration error at `subscribe` time.
+Stocks and options are delivered as a single security-type-wide broadcast, so `SecType::Stock.full_trades()` / `SecType::Option.full_trades()` install one full-stream subscription. Indices have no such broadcast, so `SecType::Index.full_trades()` / `SecType::Index.full_open_interest()` on the unified `ThetaDataDxClient` transparently expand to one per-contract subscription for every index root, enumerated once at connect — you get the complete index tape with the same ergonomics, without naming roots by hand, and the expanded subscriptions ride the normal reconnect-replay path. Rates have no full-stream broadcast and must be subscribed to per-contract (for example `Contract::rate("SOFR").trade()`); a rate full-stream subscription is rejected with a configuration error at `subscribe` time.
 
 ## Typed Contract on Data Events
 

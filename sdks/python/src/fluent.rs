@@ -69,7 +69,10 @@ impl PySecType {
     }
 
     /// Full-stream Trade subscription for this security type. Pair with
-    /// `client.subscribe(sec_type.full_trades())`.
+    /// `client.subscribe(sec_type.full_trades())`. `SecType.STOCK` and
+    /// `SecType.OPTION` install one security-type-wide subscription;
+    /// `SecType.INDEX` transparently expands on the unified client to one
+    /// per-contract trade subscription per index root enumerated at connect.
     fn full_trades(&self) -> PySubscription {
         PySubscription {
             inner: self.inner.full_trades(),
@@ -77,6 +80,10 @@ impl PySecType {
     }
 
     /// Full-stream OpenInterest subscription for this security type.
+    /// `SecType.STOCK` and `SecType.OPTION` install one security-type-wide
+    /// subscription; `SecType.INDEX` transparently expands on the unified
+    /// client to one per-contract open-interest subscription per index root
+    /// enumerated at connect.
     fn full_open_interest(&self) -> PySubscription {
         PySubscription {
             inner: self.inner.full_open_interest(),

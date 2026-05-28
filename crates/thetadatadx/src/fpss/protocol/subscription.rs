@@ -127,15 +127,21 @@ impl Subscription {
 
     /// Construct a full-stream subscription.
     ///
-    /// Only [`SecType::Stock`] and [`SecType::Option`] are accepted: those
-    /// are the only security types delivered as a full-stream broadcast
-    /// upstream. Constructing the value is infallible, but passing a
-    /// subscription with any other `sec_type` to
-    /// [`crate::ThetaDataDxClient::subscribe`] returns an [`Error::Config`]
-    /// at subscribe time, because the server has no full broadcast for it —
-    /// it would answer `Subscribed` and then never stream a tick. Subscribe
-    /// to indices and rates per-contract instead (for example
-    /// `Contract::index("VIX").trade()`).
+    /// [`SecType::Stock`] and [`SecType::Option`] are delivered as a single
+    /// security-type-wide broadcast upstream and install one full-stream
+    /// subscription. [`SecType::Index`] has no such broadcast, so passing it
+    /// to [`crate::ThetaDataDxClient::subscribe`] transparently expands to one
+    /// per-contract subscription per root in the index universe enumerated at
+    /// connect — the caller gets the complete index tape with the same
+    /// ergonomics. Any other security type (for example [`SecType::Rate`])
+    /// returns an [`Error::Config`] at subscribe time: the server would answer
+    /// `Subscribed` and then never stream a tick. Subscribe to rates
+    /// per-contract instead (for example `Contract::rate("SOFR").trade()`).
+    ///
+    /// The index expansion is performed by the unified
+    /// [`crate::ThetaDataDxClient`]. The standalone streaming client has no
+    /// enumeration half and rejects every security type other than Stock and
+    /// Option.
     ///
     /// [`Error::Config`]: crate::error::Error::Config
     #[must_use]
@@ -202,23 +208,25 @@ impl Contract {
 pub trait SecTypeExt: Copy {
     /// Full-stream Trade subscription for this security type.
     ///
-    /// Constructing the value is infallible, but only [`SecType::Stock`] and
-    /// [`SecType::Option`] have an upstream full-stream broadcast: passing a
-    /// subscription for any other security type to
-    /// [`crate::ThetaDataDxClient::subscribe`] returns an [`Error::Config`]
-    /// at subscribe time. Subscribe to indices and rates per-contract
-    /// instead (for example `Contract::index("VIX").trade()`).
+    /// [`SecType::Stock`] and [`SecType::Option`] install one
+    /// security-type-wide full-stream subscription. [`SecType::Index`]
+    /// transparently expands on [`crate::ThetaDataDxClient::subscribe`] to one
+    /// per-contract trade subscription per root in the index universe
+    /// enumerated at connect. [`SecType::Rate`] returns an [`Error::Config`]
+    /// at subscribe time; subscribe per-contract instead (for example
+    /// `Contract::rate("SOFR").trade()`).
     ///
     /// [`Error::Config`]: crate::error::Error::Config
     fn full_trades(self) -> Subscription;
     /// Full-stream OpenInterest subscription for this security type.
     ///
-    /// Constructing the value is infallible, but only [`SecType::Stock`] and
-    /// [`SecType::Option`] have an upstream full-stream broadcast: passing a
-    /// subscription for any other security type to
-    /// [`crate::ThetaDataDxClient::subscribe`] returns an [`Error::Config`]
-    /// at subscribe time. Subscribe to indices and rates per-contract
-    /// instead (for example `Contract::index("VIX").open_interest()`).
+    /// [`SecType::Stock`] and [`SecType::Option`] install one
+    /// security-type-wide full-stream subscription. [`SecType::Index`]
+    /// transparently expands on [`crate::ThetaDataDxClient::subscribe`] to one
+    /// per-contract open-interest subscription per root in the index universe
+    /// enumerated at connect. [`SecType::Rate`] returns an [`Error::Config`]
+    /// at subscribe time; subscribe per-contract instead (for example
+    /// `Contract::rate("SOFR").open_interest()`).
     ///
     /// [`Error::Config`]: crate::error::Error::Config
     fn full_open_interest(self) -> Subscription;

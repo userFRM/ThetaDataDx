@@ -128,9 +128,15 @@ pub(in crate::fpss) fn wire_req_id(counter_value: i64) -> i32 {
 /// Full-stream subscriptions are only broadcast for [`SecType::Stock`] and
 /// [`SecType::Option`]. The server accepts a full-stream subscribe frame for
 /// other security types and answers with a `Subscribed` response, but never
-/// streams a tick, so the subscribe boundary rejects them up front rather than
-/// leaving the caller waiting on a feed that will never arrive. Indices and
-/// rates are addressed per-contract instead
+/// streams a tick, so the standalone streaming client rejects them up front
+/// rather than leaving the caller waiting on a feed that will never arrive.
+///
+/// This predicate guards the standalone [`FpssClient`], which has no symbol
+/// enumeration half. The unified [`crate::ThetaDataDxClient`] enumerates the
+/// index universe at connect and expands a `SecType::Index` full-stream
+/// subscription into per-contract subscriptions before it reaches this path,
+/// so the index experience is symmetric with stocks and options there. On the
+/// standalone client, indices and rates are addressed per-contract instead
 /// (for example `Contract::index("VIX").trade()`).
 #[must_use]
 pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
