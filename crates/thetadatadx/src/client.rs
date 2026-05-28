@@ -185,26 +185,27 @@ pub struct ThetaDataDxClient {
     stop_generation: AtomicU64,
 }
 
-/// Expand an index universe into one per-contract [`Subscription`] per
-/// root for the given full-stream tick kind.
+/// Expand an index universe into one per-contract trade [`Subscription`]
+/// per root.
 ///
-/// A `FullSubscriptionKind::Trades` request maps each root to a
-/// per-contract trade subscription; `FullSubscriptionKind::OpenInterest`
-/// maps each root to a per-contract open-interest subscription. An empty
-/// universe yields an empty vector. This is the pure core of the
-/// `SecType::Index` full-stream expansion; [`ThetaDataDxClient::subscribe`]
-/// applies each resulting subscription against the live streaming session.
-fn expand_index_universe(roots: &[String], kind: FullSubscriptionKind) -> Vec<Subscription> {
+/// Index price reports arrive on the trade channel, so each root maps to
+/// a per-contract trade subscription. An empty universe yields an empty
+/// vector. This is the pure core of the `SecType::Index` full-stream
+/// expansion; [`ThetaDataDxClient::subscribe`] applies each resulting
+/// subscription against the live streaming session.
+fn expand_index_universe(roots: &[String]) -> Vec<Subscription> {
     roots
         .iter()
-        .map(|root| {
-            let contract = Contract::index(root);
-            match kind {
-                FullSubscriptionKind::Trades => contract.trade(),
-                FullSubscriptionKind::OpenInterest => contract.open_interest(),
-            }
-        })
+        .map(|root| Contract::index(root).trade())
         .collect()
+}
+
+/// Whether a full-stream kind has a per-contract index equivalent. Index
+/// price reports arrive on the trade channel and indices carry no
+/// open-interest stream, so only [`FullSubscriptionKind::Trades`]
+/// expands to per-contract index subscriptions.
+fn index_full_stream_kind_supported(kind: FullSubscriptionKind) -> bool {
+    matches!(kind, FullSubscriptionKind::Trades)
 }
 
 impl ThetaDataDxClient {
@@ -817,18 +818,22 @@ impl ThetaDataDxClient {
     /// security-type-wide broadcast, so `SecType::Stock.full_trades()` /
     /// `SecType::Option.full_trades()` install one full-stream
     /// subscription. The index feed has no such broadcast, so
-    /// `SecType::Index.full_trades()` / `SecType::Index.full_open_interest()`
-    /// expand here to one per-contract subscription for every root in the
-    /// index universe enumerated at connect — the caller gets the complete
-    /// index tape with the same ergonomics, without enumerating roots by
-    /// hand. The expanded per-contract subscriptions ride the normal
+    /// `SecType::Index.full_trades()` expands here to one per-contract
+    /// subscription for every root in the index universe enumerated at
+    /// connect — the caller gets the complete index price tape with the
+    /// same ergonomics, without enumerating roots by hand. Index price
+    /// reports arrive on the trade channel; indices carry no
+    /// open-interest stream, so `SecType::Index.full_open_interest()` is
+    /// rejected. The expanded per-contract subscriptions ride the normal
     /// reconnect-replay path.
     ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
     /// A `SecType::Index` full-stream subscription returns [`Error::Config`]
-    /// when the index universe could not be enumerated at connect.
+    /// when the open-interest kind is requested (indices have no
+    /// open-interest stream) or when the index universe could not be
+    /// enumerated at connect.
     pub fn subscribe(&self, sub: Subscription) -> Result<(), Error> {
         if let Subscription::Full {
             sec_type: SecType::Index,
@@ -909,6 +914,13 @@ impl ThetaDataDxClient {
         kind: FullSubscriptionKind,
         unsubscribe: bool,
     ) -> Result<(), Error> {
+        if !index_full_stream_kind_supported(kind) {
+            return Err(Error::config_invalid(
+                "Subscription::full",
+                "indices have no open-interest stream; use SecType::Index.full_trades() \
+                 to capture the index price tape",
+            ));
+        }
         if self.index_universe.is_empty() {
             return Err(Error::config_invalid(
                 "Subscription::full",
@@ -917,7 +929,7 @@ impl ThetaDataDxClient {
                  Contract::index(root)",
             ));
         }
-        for sub in expand_index_universe(&self.index_universe, kind) {
+        for sub in expand_index_universe(&self.index_universe) {
             if unsubscribe {
                 self.with_streaming(|s| s.unsubscribe(sub.clone()))?;
             } else {
@@ -2011,9 +2023,9 @@ mod tests {
     // harness and the streaming integration tests.
 
     #[test]
-    fn expand_index_universe_maps_trades_to_per_contract_trade_subs() {
+    fn expand_index_universe_maps_each_root_to_per_contract_trade_sub() {
         let roots = vec!["SPX".to_string(), "VIX".to_string(), "NDX".to_string()];
-        let subs = expand_index_universe(&roots, FullSubscriptionKind::Trades);
+        let subs = expand_index_universe(&roots);
         assert_eq!(subs.len(), roots.len());
         for (sub, root) in subs.iter().zip(roots.iter()) {
             match sub {
@@ -2028,26 +2040,18 @@ mod tests {
     }
 
     #[test]
-    fn expand_index_universe_maps_open_interest_to_per_contract_oi_subs() {
-        let roots = vec!["SPX".to_string(), "RUT".to_string()];
-        let subs = expand_index_universe(&roots, FullSubscriptionKind::OpenInterest);
-        assert_eq!(subs.len(), roots.len());
-        for (sub, root) in subs.iter().zip(roots.iter()) {
-            match sub {
-                Subscription::Contract { contract, kind } => {
-                    assert_eq!(contract.symbol, *root);
-                    assert_eq!(contract.sec_type, SecType::Index);
-                    assert_eq!(*kind, SubscriptionKind::OpenInterest);
-                }
-                other => panic!("expected per-contract index subscription, got {other:?}"),
-            }
-        }
+    fn index_full_stream_kind_supports_trades_only() {
+        assert!(index_full_stream_kind_supported(
+            FullSubscriptionKind::Trades
+        ));
+        assert!(!index_full_stream_kind_supported(
+            FullSubscriptionKind::OpenInterest
+        ));
     }
 
     #[test]
     fn expand_index_universe_empty_universe_yields_no_subscriptions() {
         let roots: Vec<String> = Vec::new();
-        assert!(expand_index_universe(&roots, FullSubscriptionKind::Trades).is_empty());
-        assert!(expand_index_universe(&roots, FullSubscriptionKind::OpenInterest).is_empty());
+        assert!(expand_index_universe(&roots).is_empty());
     }
 }
