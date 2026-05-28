@@ -56,8 +56,12 @@ C++ receives typed `#[repr(C)]` structs directly from Rust -- not JSON. All fiel
 | Trades | `Trade` | Individual trade executions (16 fields + `received_at_ns`) |
 | Open Interest | `OpenInterest` | Current open interest for options (3 fields + `received_at_ns`) |
 | OHLCVC | `Ohlcvc` | Aggregated OHLC bars with volume (`i64`) and count (`i64`) |
-| Full Trades | `Trade` | All trades for an entire security type (firehose) |
-| Full OI | `OpenInterest` | All open interest for an entire security type (firehose) |
+| Full Trades | `Trade` | All trades for an entire security type (full-stream subscription) |
+| Full OI | `OpenInterest` | All open interest for an entire security type (full-stream subscription) |
+
+::: tip Full-stream subscriptions are Stock and Option only
+The full-stream subscription (`full_trades` / `full_open_interest`) is broadcast for the Stock and Option security types only. Indices and rates have no full-stream broadcast upstream — subscribe to them per-contract instead, e.g. `Contract::index("VIX").trade()`. A full-stream subscription on any other security type is rejected with a configuration error when you call `subscribe`.
+:::
 
 ## Event Categories
 

@@ -14,7 +14,7 @@ Python, TypeScript/Node.js, and C++ expose `reconnect()` on their public streami
 
 The unified `ThetaDataDxClient` client provides `reconnect_streaming()` which handles the full reconnection cycle automatically:
 
-1. Saves all active per-contract and firehose subscriptions
+1. Saves all active per-contract and full-stream subscriptions
 2. Stops the current streaming connection
 3. Starts a new streaming connection with your handler
 4. Re-subscribes everything that was previously active

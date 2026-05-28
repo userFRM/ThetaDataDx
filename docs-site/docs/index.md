@@ -24,7 +24,7 @@ features:
   - icon:
       src: /icons/bolt.svg
     title: "Real-time streaming"
-    details: "FPSS client with SPKI certificate pinning, SPSC ring buffer (131,072 slots), configurable reconnect policy. Subscribes to quotes, trades, open interest, and full-stream firehoses."
+    details: "FPSS client with SPKI certificate pinning, SPSC ring buffer (131,072 slots), configurable reconnect policy. Subscribes to quotes, trades, open interest, and full-stream subscriptions."
   - icon:
       src: /icons/chart.svg
     title: "Local Greeks"

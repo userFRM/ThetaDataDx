@@ -263,10 +263,10 @@ client.subscribe(opt.quote())?;
 // Open interest
 client.subscribe(Contract::stock("AAPL").open_interest())?;
 
-// All trades for a security type (firehose)
+// All trades for a security type (full-stream subscription)
 client.subscribe(SecType::Stock.full_trades())?;
 
-// All open interest for a security type (firehose)
+// All open interest for a security type (full-stream subscription)
 client.subscribe(SecType::Option.full_open_interest())?;
 ```
 ```python [Python]
@@ -286,7 +286,7 @@ client.subscribe(tdx::Contract::stock("MSFT").trade());
 // Open interest
 client.subscribe(tdx::Contract::stock("AAPL").open_interest());
 
-// All trades for a security type (firehose)
+// All trades for a security type (full-stream subscription)
 client.subscribe(tdx::SecType::Stock.full_trades());
 
 // All open interest for a security type
@@ -302,13 +302,15 @@ client.subscribe(Contract.stock('MSFT').trade());
 // Open interest
 client.subscribe(Contract.stock('AAPL').openInterest());
 
-// All trades for a security type (firehose)
+// All trades for a security type (full-stream subscription)
 client.subscribe(SecType.Stock.fullTrades());
 
 // All open interest for a security type
 client.subscribe(SecType.Option.fullOpenInterest());
 ```
 :::
+
+The full-stream subscription (`full_trades` / `full_open_interest`) is available for the Stock and Option security types only; indices and rates have no full-stream broadcast upstream and must be subscribed to per-contract (for example `Contract::index("VIX").trade()`). A full-stream subscription on any other security type is rejected with a configuration error at `subscribe` time.
 
 ## Typed Contract on Data Events
 

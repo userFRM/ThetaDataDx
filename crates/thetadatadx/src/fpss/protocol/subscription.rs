@@ -126,6 +126,18 @@ impl Subscription {
     }
 
     /// Construct a full-stream subscription.
+    ///
+    /// Only [`SecType::Stock`] and [`SecType::Option`] are accepted: those
+    /// are the only security types delivered as a full-stream broadcast
+    /// upstream. Constructing the value is infallible, but passing a
+    /// subscription with any other `sec_type` to
+    /// [`crate::ThetaDataDxClient::subscribe`] returns an [`Error::Config`]
+    /// at subscribe time, because the server has no full broadcast for it —
+    /// it would answer `Subscribed` and then never stream a tick. Subscribe
+    /// to indices and rates per-contract instead (for example
+    /// `Contract::index("VIX").trade()`).
+    ///
+    /// [`Error::Config`]: crate::error::Error::Config
     #[must_use]
     pub fn full(sec_type: SecType, kind: FullSubscriptionKind) -> Self {
         Self::Full { sec_type, kind }
@@ -189,8 +201,26 @@ impl Contract {
 /// `use thetadatadx::fpss::protocol::SecTypeExt`.
 pub trait SecTypeExt: Copy {
     /// Full-stream Trade subscription for this security type.
+    ///
+    /// Constructing the value is infallible, but only [`SecType::Stock`] and
+    /// [`SecType::Option`] have an upstream full-stream broadcast: passing a
+    /// subscription for any other security type to
+    /// [`crate::ThetaDataDxClient::subscribe`] returns an [`Error::Config`]
+    /// at subscribe time. Subscribe to indices and rates per-contract
+    /// instead (for example `Contract::index("VIX").trade()`).
+    ///
+    /// [`Error::Config`]: crate::error::Error::Config
     fn full_trades(self) -> Subscription;
     /// Full-stream OpenInterest subscription for this security type.
+    ///
+    /// Constructing the value is infallible, but only [`SecType::Stock`] and
+    /// [`SecType::Option`] have an upstream full-stream broadcast: passing a
+    /// subscription for any other security type to
+    /// [`crate::ThetaDataDxClient::subscribe`] returns an [`Error::Config`]
+    /// at subscribe time. Subscribe to indices and rates per-contract
+    /// instead (for example `Contract::index("VIX").open_interest()`).
+    ///
+    /// [`Error::Config`]: crate::error::Error::Config
     fn full_open_interest(self) -> Subscription;
 }
 
