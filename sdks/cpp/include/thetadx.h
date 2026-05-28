@@ -956,6 +956,63 @@ void tdx_config_set_flatfiles_max_backoff_secs(TdxConfig* config, uint64_t secs)
 /** Read flatfiles.max_backoff (seconds). */
 int32_t tdx_config_get_flatfiles_max_backoff_secs(const TdxConfig* config, uint64_t* out_secs);
 
+/* ── AuthConfig field setters/getters ── */
+
+/**
+ * Set the Nexus auth URL on a config handle. `url` must be a non-null,
+ * NUL-terminated, valid-UTF-8 C string. Returns 0 on success, -1 if
+ * `config` is null or `url` is null / not valid UTF-8 (check
+ * tdx_last_error()).
+ */
+int32_t tdx_config_set_nexus_url(TdxConfig* config, const char* url);
+
+/**
+ * Read auth.nexus_url. Returns a heap-owned NUL-terminated C string
+ * the caller MUST release with tdx_string_free, or null on a null
+ * handle / interior-NUL value (check tdx_last_error()).
+ */
+char* tdx_config_get_nexus_url(const TdxConfig* config);
+
+/**
+ * Set the QueryInfo.client_type identifier on a config handle.
+ * `client_type` must be a non-null, NUL-terminated, valid-UTF-8 C
+ * string. Returns 0 on success, -1 if `config` is null or
+ * `client_type` is null / not valid UTF-8 (check tdx_last_error()).
+ */
+int32_t tdx_config_set_client_type(TdxConfig* config, const char* client_type);
+
+/**
+ * Read auth.client_type. Returns a heap-owned NUL-terminated C string
+ * the caller MUST release with tdx_string_free, or null on a null
+ * handle / interior-NUL value (check tdx_last_error()).
+ */
+char* tdx_config_get_client_type(const TdxConfig* config);
+
+/* ── MetricsConfig field setter/getter ── */
+
+/**
+ * Set the Prometheus exporter port on a config handle. Uses the
+ * widened (has_value, port) shape mirroring tdx_config_get_decode_threads:
+ *
+ *   has_value=false: encodes `None` (exporter disabled). `port` ignored.
+ *   has_value=true:  encodes `Some(port)`. The exporter binds an HTTP
+ *     listener on 0.0.0.0:<port> when the metrics-prometheus feature
+ *     is compiled in.
+ *
+ * Returns 0 on success, -1 if `config` is null.
+ */
+int32_t tdx_config_set_metrics_port(TdxConfig* config, bool has_value, uint16_t port);
+
+/**
+ * Read metrics.port. Same (has_value, port) shape:
+ *
+ *   *out_has_value=false: config holds `None` (disabled). *out_port=0.
+ *   *out_has_value=true:  config holds `Some(*out_port)`.
+ *
+ * Returns 0 on success, -1 if any pointer is null.
+ */
+int32_t tdx_config_get_metrics_port(const TdxConfig* config, bool* out_has_value, uint16_t* out_port);
+
 /**
  * Set streaming flush mode on a config handle.
  *   mode=0: Batched (default) -- flush only on PING every 100ms.

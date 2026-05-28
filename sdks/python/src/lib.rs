@@ -470,6 +470,77 @@ impl Config {
         guard.flatfiles.max_backoff.as_secs()
     }
 
+    // ── AuthConfig field setters/getters ──────────────────────────────
+    //
+    // Per-field access on ``DirectConfig.auth``. Both fields are
+    // ``str``. Defaults: the upstream production Nexus URL and the
+    // canonical ``"rust-thetadatadx"`` client type.
+
+    /// Set the Nexus auth URL. Default matches the upstream production
+    /// endpoint; override to redirect at a staging cluster.
+    #[setter]
+    fn set_nexus_url(&self, url: String) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.auth.nexus_url = url;
+    }
+
+    /// Current ``auth.nexus_url`` value.
+    #[getter]
+    fn get_nexus_url(&self) -> String {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.auth.nexus_url.clone()
+    }
+
+    /// Set the ``QueryInfo.client_type`` identifier. Default is
+    /// ``"rust-thetadatadx"``; override to identify a deployment fleet
+    /// in server-side dashboards.
+    #[setter]
+    fn set_client_type(&self, client_type: String) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.auth.client_type = client_type;
+    }
+
+    /// Current ``auth.client_type`` value.
+    #[getter]
+    fn get_client_type(&self) -> String {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.auth.client_type.clone()
+    }
+
+    // ── MetricsConfig field setter/getter ─────────────────────────────
+    //
+    // ``DirectConfig.metrics.port`` is ``Optional[int]``. ``None``
+    // (the default) leaves the Prometheus exporter disabled even when
+    // the ``metrics-prometheus`` cargo feature is compiled in; an
+    // ``int`` binds the exporter on ``0.0.0.0:<port>``.
+
+    /// Set the Prometheus exporter port. ``None`` (the default) keeps
+    /// the exporter disabled; an ``int`` binds an HTTP listener whose
+    /// ``/metrics`` endpoint exposes every counter and histogram.
+    ///
+    /// Raises ``ValueError`` if the value is outside the ``u16`` range
+    /// (``0..=65535``).
+    #[setter]
+    fn set_metrics_port(&self, port: Option<u32>) -> PyResult<()> {
+        let resolved = match port {
+            Some(v) => Some(u16::try_from(v).map_err(|_| {
+                PyValueError::new_err(format!("metrics_port must be in 0..=65535; got {v}"))
+            })?),
+            None => None,
+        };
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.metrics.port = resolved;
+        Ok(())
+    }
+
+    /// Current ``metrics.port`` setting. ``None`` means the exporter is
+    /// disabled; an ``int`` is the bound port.
+    #[getter]
+    fn get_metrics_port(&self) -> Option<u16> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.metrics.port
+    }
+
     /// Set whether to derive OHLCVC bars locally from trade events.
     ///
     /// When ``False``, only server-sent OHLCVC frames are emitted,

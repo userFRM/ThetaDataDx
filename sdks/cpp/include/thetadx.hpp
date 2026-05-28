@@ -647,6 +647,101 @@ public:
         return tdx_config_get_flatfiles_max_backoff_secs(handle_.get(), out_secs);
     }
 
+    // ── AuthConfig field setters/getters ──
+
+    /**
+     * Set the Nexus auth URL. Default is the upstream production
+     * endpoint; redirect at a staging cluster for testing.
+     *
+     * Throws @c std::runtime_error if the FFI rejects the value
+     * (null handle or non-UTF-8 input).
+     */
+    void set_nexus_url(const std::string& url) {
+        const int32_t rc = tdx_config_set_nexus_url(handle_.get(), url.c_str());
+        if (rc != 0) {
+            const char* err = tdx_last_error();
+            throw std::runtime_error(
+                std::string("tdx_config_set_nexus_url failed: ") +
+                (err == nullptr ? "(null config handle)" : err));
+        }
+    }
+
+    /** Current @c auth.nexus_url. Returns an empty string if the FFI
+     *  getter returns null (null handle or interior-NUL value). */
+    std::string get_nexus_url() const {
+        detail::FfiString s(tdx_config_get_nexus_url(handle_.get()));
+        return s.str();
+    }
+
+    /**
+     * Set the QueryInfo.client_type identifier. Default is
+     * @c "rust-thetadatadx"; override to identify a deployment fleet
+     * in server-side dashboards.
+     *
+     * Throws @c std::runtime_error if the FFI rejects the value
+     * (null handle or non-UTF-8 input).
+     */
+    void set_client_type(const std::string& client_type) {
+        const int32_t rc = tdx_config_set_client_type(handle_.get(), client_type.c_str());
+        if (rc != 0) {
+            const char* err = tdx_last_error();
+            throw std::runtime_error(
+                std::string("tdx_config_set_client_type failed: ") +
+                (err == nullptr ? "(null config handle)" : err));
+        }
+    }
+
+    /** Current @c auth.client_type. Returns an empty string if the FFI
+     *  getter returns null (null handle or interior-NUL value). */
+    std::string get_client_type() const {
+        detail::FfiString s(tdx_config_get_client_type(handle_.get()));
+        return s.str();
+    }
+
+    // ── MetricsConfig field setter/getter ──
+
+    /**
+     * Set the Prometheus exporter port. Pass @c std::nullopt to leave
+     * the exporter disabled (the @c None default); pass an explicit
+     * @c std::uint16_t to bind an HTTP listener on @c 0.0.0.0:<port>
+     * when the @c metrics-prometheus feature is compiled in.
+     *
+     * Throws @c std::runtime_error on null-handle FFI failure.
+     */
+    void set_metrics_port(std::optional<std::uint16_t> port) {
+        const bool has_value = port.has_value();
+        const std::uint16_t arg = port.value_or(0);
+        const int32_t rc =
+            tdx_config_set_metrics_port(handle_.get(), has_value, arg);
+        if (rc != 0) {
+            const char* err = tdx_last_error();
+            throw std::runtime_error(
+                std::string("tdx_config_set_metrics_port failed: ") +
+                (err == nullptr ? "(null config handle)" : err));
+        }
+    }
+
+    /**
+     * Read the current @c metrics.port setting. Returns
+     * @c std::nullopt for the disabled (`None`) sentinel; returns the
+     * wrapped @c std::uint16_t when an explicit port is pinned.
+     *
+     * Throws @c std::runtime_error on null-handle FFI failure.
+     */
+    std::optional<std::uint16_t> get_metrics_port() const {
+        bool has_value = false;
+        std::uint16_t port = 0;
+        const int32_t rc =
+            tdx_config_get_metrics_port(handle_.get(), &has_value, &port);
+        if (rc != 0) {
+            const char* err = tdx_last_error();
+            throw std::runtime_error(
+                std::string("tdx_config_get_metrics_port failed: ") +
+                (err == nullptr ? "(null config handle)" : err));
+        }
+        return has_value ? std::optional<std::uint16_t>{port} : std::nullopt;
+    }
+
     /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. */
     void set_flush_mode(int mode) { tdx_config_set_flush_mode(handle_.get(), mode); }
 

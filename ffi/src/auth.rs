@@ -643,6 +643,212 @@ pub unsafe extern "C" fn tdx_config_get_flatfiles_max_backoff_secs(
     })
 }
 
+// ── AuthConfig ─────────────────────────────────────────────────────
+//
+// Per-field setters/getters on `DirectConfig.auth`. Both fields are
+// `String`, so the setter takes a `*const c_char` (validated non-null
+// + UTF-8, rejected with an error code on bad input) and the getter
+// returns a heap-owned `*mut c_char` the caller must release with
+// `tdx_string_free` — the same lifetime convention every other owned
+// C string returned by this library follows.
+
+/// Set the Nexus auth URL on a config handle.
+///
+/// `url` must be a non-null, NUL-terminated, valid-UTF-8 C string.
+/// Returns `0` on success, `-1` if `config` is null or `url` is
+/// null / not valid UTF-8 (the diagnostic is written to thread-local
+/// storage retrievable via `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_nexus_url(
+    config: *mut TdxConfig,
+    url: *const c_char,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let url = match unsafe { cstr_to_str(url) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("nexus_url is null");
+                return -1;
+            }
+            Err(e) => {
+                set_error(&format!("nexus_url is not valid UTF-8: {e}"));
+                return -1;
+            }
+        };
+        // SAFETY: config is a non-null pointer returned by
+        // tdx_config_production / tdx_config_dev / tdx_config_stage
+        // and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.auth.nexus_url = url.to_string();
+        0
+    })
+}
+
+/// Read the current `auth.nexus_url` setting.
+///
+/// On success, returns a heap-owned NUL-terminated C string the
+/// caller MUST release with `tdx_string_free`. Returns null if
+/// `config` is null or the stored value contains an interior NUL
+/// (the diagnostic is written to `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_nexus_url(config: *const TdxConfig) -> *mut c_char {
+    ffi_boundary!(ptr::null_mut(), {
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        match std::ffi::CString::new(config.inner.auth.nexus_url.as_str()) {
+            Ok(c) => c.into_raw(),
+            Err(e) => {
+                set_error(&format!("nexus_url contains an interior NUL: {e}"));
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Set the `QueryInfo.client_type` identifier on a config handle.
+///
+/// `client_type` must be a non-null, NUL-terminated, valid-UTF-8 C
+/// string. Returns `0` on success, `-1` if `config` is null or
+/// `client_type` is null / not valid UTF-8 (the diagnostic is written
+/// to thread-local storage retrievable via `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_client_type(
+    config: *mut TdxConfig,
+    client_type: *const c_char,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let client_type = match unsafe { cstr_to_str(client_type) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("client_type is null");
+                return -1;
+            }
+            Err(e) => {
+                set_error(&format!("client_type is not valid UTF-8: {e}"));
+                return -1;
+            }
+        };
+        // SAFETY: config is a non-null pointer returned by
+        // tdx_config_production / tdx_config_dev / tdx_config_stage
+        // and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.auth.client_type = client_type.to_string();
+        0
+    })
+}
+
+/// Read the current `auth.client_type` setting.
+///
+/// On success, returns a heap-owned NUL-terminated C string the
+/// caller MUST release with `tdx_string_free`. Returns null if
+/// `config` is null or the stored value contains an interior NUL
+/// (the diagnostic is written to `tdx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_client_type(config: *const TdxConfig) -> *mut c_char {
+    ffi_boundary!(ptr::null_mut(), {
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        match std::ffi::CString::new(config.inner.auth.client_type.as_str()) {
+            Ok(c) => c.into_raw(),
+            Err(e) => {
+                set_error(&format!("client_type contains an interior NUL: {e}"));
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+// ── MetricsConfig ──────────────────────────────────────────────────
+//
+// `MetricsConfig.port` is `Option<u16>`. The widened
+// `(has_value: bool, port: u16)` ABI shape mirrors the `Option`
+// fields already on the C surface (`decode_threads`,
+// `tokio_worker_threads`): `has_value = false` encodes the `None`
+// (exporter disabled) sentinel; `has_value = true` encodes
+// `Some(port)`.
+
+/// Set the Prometheus exporter port on a config handle.
+///
+/// * `has_value = false` encodes `None`: the exporter stays disabled
+///   even when the `metrics-prometheus` cargo feature is compiled in.
+///   `port` is ignored.
+/// * `has_value = true` encodes `Some(port)`: the exporter binds an
+///   HTTP listener on `0.0.0.0:<port>` whose `/metrics` endpoint
+///   exposes every counter and histogram recorded through the
+///   `metrics` crate.
+///
+/// Returns `0` on success, `-1` if `config` is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_set_metrics_port(
+    config: *mut TdxConfig,
+    has_value: bool,
+    port: u16,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null pointer returned by
+        // tdx_config_production / tdx_config_dev / tdx_config_stage
+        // and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.metrics.port = if has_value { Some(port) } else { None };
+        0
+    })
+}
+
+/// Read the current `metrics.port` setting.
+///
+/// * `*out_has_value = false` → the config holds `None` (exporter
+///   disabled). `*out_port` is left as `0`.
+/// * `*out_has_value = true` → the config holds `Some(*out_port)`.
+///
+/// Returns `0` on success, `-1` if any pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn tdx_config_get_metrics_port(
+    config: *const TdxConfig,
+    out_has_value: *mut bool,
+    out_port: *mut u16,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_has_value.is_null() || out_port.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const TdxConfig` returned by `tdx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let (has_value, port) = match config.inner.metrics.port {
+            Some(v) => (true, v),
+            None => (false, 0),
+        };
+        // SAFETY: out_has_value / out_port null-checked above; caller pins the storage they point at for the call duration.
+        unsafe {
+            *out_has_value = has_value;
+            *out_port = port;
+        }
+        0
+    })
+}
+
 // ── MDDS pool sizing ───────────────────────────────────────────────
 
 /// Set the number of concurrent in-flight gRPC requests on a config
@@ -1895,6 +2101,171 @@ mod flatfiles_setter_tests {
             assert_eq!(ff.initial_backoff, std::time::Duration::from_secs(2));
             assert_eq!(ff.max_backoff, std::time::Duration::from_secs(30));
             super::tdx_config_free(cfg);
+        }
+    }
+}
+
+#[cfg(test)]
+mod auth_metrics_setter_tests {
+    //! Offline tests for the `AuthConfig` (`nexus_url` / `client_type`)
+    //! and `MetricsConfig` (`port`) field setters/getters on the FFI
+    //! surface — cross-binding parity with Python / TypeScript / C++.
+    //!
+    //! The two `AuthConfig` fields are `String` (setter takes a
+    //! `*const c_char`, getter returns a heap-owned `*mut c_char` the
+    //! caller frees with `tdx_string_free`); `MetricsConfig.port` is
+    //! `Option<u16>` carried as the widened `(has_value, port)` shape.
+
+    use crate::types::tdx_string_free;
+    use std::ffi::{CStr, CString};
+
+    /// Read a `*mut c_char` getter result into an owned `String` and
+    /// release the heap allocation via `tdx_string_free`.
+    fn take_owned(p: *mut std::os::raw::c_char) -> Option<String> {
+        if p.is_null() {
+            return None;
+        }
+        // SAFETY: `p` is a non-null pointer just returned by a
+        // `tdx_config_get_*` getter (produced by CString::into_raw);
+        // it is read once and then handed back to tdx_string_free.
+        let owned = unsafe { CStr::from_ptr(p) }.to_string_lossy().into_owned();
+        // SAFETY: `p` was produced by CString::into_raw; tdx_string_free
+        // reclaims it via CString::from_raw exactly once.
+        unsafe { tdx_string_free(p) };
+        Some(owned)
+    }
+
+    #[test]
+    fn nexus_url_round_trips_via_getter() {
+        let cfg = super::tdx_config_production();
+        assert!(!cfg.is_null());
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            // Default seeded from AuthConfig::production_defaults().
+            let got = take_owned(super::tdx_config_get_nexus_url(cfg));
+            assert_eq!(
+                got.as_deref(),
+                Some("https://nexus-api.thetadata.us/identity/terminal/auth_user"),
+            );
+            let url = CString::new("https://staging.example.invalid/auth").unwrap();
+            assert_eq!(super::tdx_config_set_nexus_url(cfg, url.as_ptr()), 0);
+            assert_eq!(
+                (*cfg).inner.auth.nexus_url,
+                "https://staging.example.invalid/auth"
+            );
+            let got = take_owned(super::tdx_config_get_nexus_url(cfg));
+            assert_eq!(got.as_deref(), Some("https://staging.example.invalid/auth"));
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn client_type_round_trips_via_getter() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            // Default seeded from AuthConfig::production_defaults().
+            let got = take_owned(super::tdx_config_get_client_type(cfg));
+            assert_eq!(got.as_deref(), Some("rust-thetadatadx"));
+            let ct = CString::new("fleet-east-1").unwrap();
+            assert_eq!(super::tdx_config_set_client_type(cfg, ct.as_ptr()), 0);
+            assert_eq!((*cfg).inner.auth.client_type, "fleet-east-1");
+            let got = take_owned(super::tdx_config_get_client_type(cfg));
+            assert_eq!(got.as_deref(), Some("fleet-east-1"));
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn nexus_url_rejects_null_and_leaves_config_unchanged() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        let baseline = unsafe { (*cfg).inner.auth.nexus_url.clone() };
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            assert_eq!(
+                super::tdx_config_set_nexus_url(cfg, std::ptr::null()),
+                -1,
+                "null url must be rejected with -1",
+            );
+            assert_eq!((*cfg).inner.auth.nexus_url, baseline);
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn auth_string_setters_null_handle_returns_minus_one() {
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — string setters return -1, string getters null.
+        unsafe {
+            let url = CString::new("x").unwrap();
+            assert_eq!(
+                super::tdx_config_set_nexus_url(std::ptr::null_mut(), url.as_ptr()),
+                -1
+            );
+            assert_eq!(
+                super::tdx_config_set_client_type(std::ptr::null_mut(), url.as_ptr()),
+                -1
+            );
+            assert!(super::tdx_config_get_nexus_url(std::ptr::null()).is_null());
+            assert!(super::tdx_config_get_client_type(std::ptr::null()).is_null());
+        }
+    }
+
+    #[test]
+    fn metrics_port_round_trips_via_getter() {
+        let cfg = super::tdx_config_production();
+        // SAFETY: handle just returned by tdx_config_production.
+        unsafe {
+            // Default seeded from MetricsConfig::default() — None.
+            let mut got_has = true;
+            let mut got_port: u16 = 99;
+            assert_eq!(
+                super::tdx_config_get_metrics_port(cfg, &mut got_has, &mut got_port),
+                0
+            );
+            assert!(!got_has, "default metrics.port must be None");
+            assert_eq!(got_port, 0);
+
+            for port in [0u16, 1, 9090, 9100, u16::MAX] {
+                assert_eq!(super::tdx_config_set_metrics_port(cfg, true, port), 0);
+                assert_eq!((*cfg).inner.metrics.port, Some(port));
+                assert_eq!(
+                    super::tdx_config_get_metrics_port(cfg, &mut got_has, &mut got_port),
+                    0
+                );
+                assert!(got_has);
+                assert_eq!(got_port, port);
+            }
+
+            // Reset to None.
+            assert_eq!(super::tdx_config_set_metrics_port(cfg, false, 9090), 0);
+            assert_eq!((*cfg).inner.metrics.port, None);
+            assert_eq!(
+                super::tdx_config_get_metrics_port(cfg, &mut got_has, &mut got_port),
+                0
+            );
+            assert!(!got_has);
+            assert_eq!(got_port, 0);
+            super::tdx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn metrics_port_null_handle_returns_minus_one() {
+        // SAFETY: passing null to tdx_config_* is the documented FFI
+        // contract — getter returns sentinel, setter returns -1.
+        unsafe {
+            assert_eq!(
+                super::tdx_config_set_metrics_port(std::ptr::null_mut(), true, 9090),
+                -1
+            );
+            let mut got_has = false;
+            let mut got_port: u16 = 0;
+            assert_eq!(
+                super::tdx_config_get_metrics_port(std::ptr::null(), &mut got_has, &mut got_port),
+                -1
+            );
         }
     }
 }

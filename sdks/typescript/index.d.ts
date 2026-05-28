@@ -237,6 +237,34 @@ export declare class Config {
   setFlatFilesMaxBackoffSecs(secs: bigint): void
   /** Current `flatfiles.max_backoff` value (seconds, returned as BigInt). */
   get flatFilesMaxBackoffSecs(): bigint
+  /**
+   * Set the Nexus auth URL. Default matches the upstream production
+   * endpoint; override to redirect at a staging cluster for testing.
+   */
+  setNexusUrl(url: string): void
+  /** Current `auth.nexus_url` value. */
+  get nexusUrl(): string
+  /**
+   * Set the `QueryInfo.client_type` identifier. Default is
+   * `"rust-thetadatadx"`; override to identify a deployment fleet in
+   * server-side dashboards.
+   */
+  setClientType(clientType: string): void
+  /** Current `auth.client_type` value. */
+  get clientType(): string
+  /**
+   * Set the Prometheus exporter port. Pass `null` or `undefined` to
+   * leave the exporter disabled (the `None` default); pass a `number`
+   * to bind an HTTP listener on `0.0.0.0:<port>` when the
+   * `metrics-prometheus` feature is compiled in. Rejects values
+   * outside the `u16` range (`0..=65535`).
+   */
+  setMetricsPort(port?: number | undefined | null): void
+  /**
+   * Current `metrics.port` setting. `null` means the exporter is
+   * disabled; a `number` is the bound port.
+   */
+  get metricsPort(): number | null
 }
 
 /**

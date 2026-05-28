@@ -112,6 +112,17 @@ class Config:
     flatfiles_max_attempts: int
     flatfiles_initial_backoff_secs: int
     flatfiles_max_backoff_secs: int
+    # AuthConfig fields — per-field access on `DirectConfig.auth`.
+    # `nexus_url` defaults to the upstream production endpoint;
+    # `client_type` defaults to `"rust-thetadatadx"`.
+    nexus_url: str
+    client_type: str
+    # MetricsConfig field — Prometheus exporter port on
+    # `DirectConfig.metrics`. `None` (the default) leaves the exporter
+    # disabled even when the `metrics-prometheus` feature is compiled
+    # in; an `int` binds an HTTP listener on `0.0.0.0:<port>`. The
+    # setter raises ValueError for values outside `0..=65535`.
+    metrics_port: Optional[int]
     # FPSS tunables.
     derive_ohlcvc: bool
     # REST-routing variant. Read-only -- write via

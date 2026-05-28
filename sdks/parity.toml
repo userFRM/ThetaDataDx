@@ -592,36 +592,36 @@ python = true
 typescript = false
 cpp = true
 
-# ─── AuthConfig / MetricsConfig Rust-only knobs (Gate 2 scope close / #608) ──
+# ─── AuthConfig / MetricsConfig cross-binding setters ──────────────────
 #
 # Operator-tuning knobs on `DirectConfig.auth` + `DirectConfig.metrics`.
-# Each is exposed on Rust via a fluent `DirectConfig::with_*` builder
-# (`with_nexus_url`, `with_client_type`, `with_metrics_port`) and
-# absent from every higher-level binding. The bind sweep is tracked
-# under #608; until then the cross-binding contract is "Rust-only"
-# and these rows pin that explicitly so a future Python-only
-# setter would surface as a parity mismatch.
+# Bound on every binding: Python via `Config.nexus_url` /
+# `Config.client_type` / `Config.metrics_port` setters/getters,
+# TypeScript via `Config.setNexusUrl` / `setClientType` /
+# `setMetricsPort`, C++ via `tdx::Config::set_nexus_url` /
+# `set_client_type` / `set_metrics_port` (which forward to the FFI
+# `tdx_config_set_nexus_url` / `_client_type` / `_metrics_port`
+# symbols). The two `AuthConfig` fields are `String` — the FFI
+# setter takes a `*const c_char` (validated UTF-8) and the getter
+# returns a heap-owned `*mut c_char` released via `tdx_string_free`.
+# `MetricsConfig.port` is `Option<u16>`, carried across the C ABI as
+# the widened `(has_value, port)` shape so the disabled-exporter
+# `None` sentinel survives the boundary.
 
 [[class]]
 name = "AuthConfig.nexus_url"
-python = false
-typescript = false
-cpp = false
-rust_only = true
-issue = "#608"
+python = true
+typescript = true
+cpp = true
 
 [[class]]
 name = "AuthConfig.client_type"
-python = false
-typescript = false
-cpp = false
-rust_only = true
-issue = "#608"
+python = true
+typescript = true
+cpp = true
 
 [[class]]
 name = "MetricsConfig.port"
-python = false
-typescript = false
-cpp = false
-rust_only = true
-issue = "#608"
+python = true
+typescript = true
+cpp = true

@@ -782,6 +782,89 @@ impl Config {
         ))
     }
 
+    // ── AuthConfig field setters/getters ──────────────────────────
+
+    /// Set the Nexus auth URL. Default matches the upstream
+    /// production endpoint; override to redirect at a staging
+    /// cluster for testing.
+    #[napi(js_name = "setNexusUrl")]
+    pub fn set_nexus_url(&self, url: String) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.auth.nexus_url = url;
+        Ok(())
+    }
+
+    /// Current `auth.nexus_url` value.
+    #[napi(getter, js_name = "nexusUrl")]
+    pub fn nexus_url(&self) -> napi::Result<String> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.auth.nexus_url.clone())
+    }
+
+    /// Set the `QueryInfo.client_type` identifier. Default is
+    /// `"rust-thetadatadx"`; override to identify a deployment fleet
+    /// in server-side dashboards.
+    #[napi(js_name = "setClientType")]
+    pub fn set_client_type(&self, client_type: String) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.auth.client_type = client_type;
+        Ok(())
+    }
+
+    /// Current `auth.client_type` value.
+    #[napi(getter, js_name = "clientType")]
+    pub fn client_type(&self) -> napi::Result<String> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.auth.client_type.clone())
+    }
+
+    // ── MetricsConfig field setter/getter ─────────────────────────
+
+    /// Set the Prometheus exporter port. Pass `null` or `undefined`
+    /// to leave the exporter disabled (the `None` default); pass a
+    /// `number` to bind an HTTP listener on `0.0.0.0:<port>` when the
+    /// `metrics-prometheus` feature is compiled in.
+    ///
+    /// Rejects values outside the `u16` range (`0..=65535`).
+    #[napi(js_name = "setMetricsPort")]
+    pub fn set_metrics_port(&self, port: Option<u32>) -> napi::Result<()> {
+        let resolved = match port {
+            Some(v) => Some(u16::try_from(v).map_err(|_| {
+                napi::Error::from_reason(format!("setMetricsPort: port must be in 0..=65535; got {v}"))
+            })?),
+            None => None,
+        };
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.metrics.port = resolved;
+        Ok(())
+    }
+
+    /// Current `metrics.port` setting. `null` means the exporter is
+    /// disabled; a `number` is the bound port.
+    #[napi(getter, js_name = "metricsPort")]
+    pub fn metrics_port(&self) -> napi::Result<Option<u32>> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.metrics.port.map(u32::from))
+    }
+
     /// Take a snapshot of the underlying [`thetadatadx::DirectConfig`]
     /// for use by `ThetaDataDxClient.connectWithConfig`. Returns a
     /// fresh `DirectConfig` clone -- the napi `Config` remains usable
