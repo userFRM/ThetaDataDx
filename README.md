@@ -285,9 +285,9 @@ flowchart TB
 | TypeScript | [`sdks/typescript`](sdks/typescript/) | napi-rs prebuilt binary |
 | C++ | [`sdks/cpp`](sdks/cpp/) | RAII header-only wrapper |
 | CLI | [`tools/cli`](tools/cli/) | `tdx` CLI |
-| MCP | [`tools/mcp`](tools/mcp/) | MCP server over JSON-RPC |
+| MCP | [`tools/mcp`](tools/mcp/) | MCP server - gives clients access to every generated historical endpoint plus offline tools over JSON-RPC |
 | Server | [`tools/server`](tools/server/) | REST + WebSocket terminal replacement |
-| Docs site | [`docs-site`](docs-site/) | VitePress documentation (deployed to GitHub Pages) |
+| Docs site | [`docs-site`](docs-site/) | VitePress documentation site (deployed to GitHub Pages) |
 
 ## Documentation
 
