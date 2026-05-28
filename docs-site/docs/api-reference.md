@@ -2169,7 +2169,7 @@ int req_id = client.subscribe(tdx::SecType::Stock.full_trades());
 | `contract.quote()` | Real-time NBBO quote updates for the contract |
 | `contract.trade()` | Real-time trade prints for the contract |
 | `contract.open_interest()` | Open-interest updates for the contract |
-| `sec_type.full_trades()` | Every trade for a security type (full firehose) |
+| `sec_type.full_trades()` | Every trade for a security type (full-stream subscription) |
 | `sec_type.full_open_interest()` | Every open-interest update for a security type |
 
 All `subscribe()` calls return a request ID. The server confirms via a `ReqResponse` control event. To unsubscribe, pass the same spec to `unsubscribe()`.

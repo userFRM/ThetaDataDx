@@ -87,7 +87,7 @@ use std::time::Duration;
 use crate::auth::Credentials;
 use crate::config::{FpssFlushMode, ReconnectPolicy};
 use crate::error::Error;
-use tdbe::types::enums::{RemoveReason, StreamMsgType};
+use tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
 use self::protocol::{
     build_credentials_payload, build_subscribe_payload, Contract, SubscriptionKind,
@@ -121,6 +121,20 @@ use self::protocol::{
 #[inline]
 pub(in crate::fpss) fn wire_req_id(counter_value: i64) -> i32 {
     (counter_value & 0x7FFF_FFFF) as i32
+}
+
+/// Whether a security type has an upstream full-stream broadcast.
+///
+/// Full-stream subscriptions are only broadcast for [`SecType::Stock`] and
+/// [`SecType::Option`]. The server accepts a full-stream subscribe frame for
+/// other security types and answers with a `Subscribed` response, but never
+/// streams a tick, so the subscribe boundary rejects them up front rather than
+/// leaving the caller waiting on a feed that will never arrive. Indices and
+/// rates are addressed per-contract instead
+/// (for example `Contract::index("VIX").trade()`).
+#[must_use]
+pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
+    matches!(sec_type, SecType::Stock | SecType::Option)
 }
 
 // ---------------------------------------------------------------------------
@@ -1022,6 +1036,25 @@ impl FpssClient {
         unsubscribe: bool,
     ) -> Result<(), Error> {
         self.check_connected()?;
+        // Reject security types with no upstream full-stream broadcast before
+        // allocating a req_id, emitting a frame, or tracking the subscription
+        // for reconnect replay. Stock and Option are the only security types
+        // with a full-stream broadcast; an index or rate full-stream subscribe
+        // is accepted on the wire and answered `Subscribed`, then never streams
+        // a tick — so it is rejected here at the subscribe boundary instead.
+        if !full_stream_sec_type_supported(sec_type) {
+            return Err(Error::Config {
+                kind: crate::error::ConfigErrorKind::InvalidValue {
+                    field: "Subscription::full".to_string(),
+                    message: format!(
+                        "full-stream subscriptions are supported only for Stock and Option; \
+                         {sec_type:?} has no full broadcast upstream — subscribe per-contract \
+                         instead (for example Contract::index(\"VIX\").trade())"
+                    ),
+                },
+                message: "unsupported full-stream security type".to_string(),
+            });
+        }
         let req_id = wire_req_id(self.next_req_id.fetch_add(1, Ordering::Relaxed));
         let payload = protocol::build_full_type_subscribe_payload(req_id, sec_type);
         // Wire codes for full-stream subscribe / unsubscribe: code 22
@@ -1814,5 +1847,64 @@ mod connect_args_tests {
             args.wait_rate_limited_ms,
             cfg.reconnect.wait_rate_limited_ms
         );
+    }
+}
+
+#[cfg(test)]
+mod full_stream_guard_tests {
+    use super::{full_stream_sec_type_supported, FpssClient, HarnessPublishMode};
+    use crate::error::{ConfigErrorKind, Error};
+    use crate::fpss::protocol::SecTypeExt;
+    use tdbe::types::enums::SecType;
+
+    /// The full-stream broadcast is only delivered upstream for Stock and
+    /// Option. The subscribe boundary uses this predicate to reject any
+    /// other security type before emitting a frame or tracking the
+    /// subscription for reconnect replay, so a caller is told up front
+    /// rather than waiting on a feed that will never arrive.
+    #[test]
+    fn full_stream_supported_only_for_stock_and_option() {
+        assert!(full_stream_sec_type_supported(SecType::Stock));
+        assert!(full_stream_sec_type_supported(SecType::Option));
+        assert!(!full_stream_sec_type_supported(SecType::Index));
+        assert!(!full_stream_sec_type_supported(SecType::Rate));
+        assert!(!full_stream_sec_type_supported(SecType::Unknown));
+    }
+
+    /// End-to-end: a full-stream subscription on an index is rejected at the
+    /// `subscribe` boundary with a configuration error, and the rejected
+    /// subscription is never tracked — so the reconnect path has nothing to
+    /// replay. Uses the test-only authenticated harness so the guard (which
+    /// runs after `check_connected`) is exercised on the real subscribe path.
+    #[test]
+    fn subscribe_rejects_full_index_and_does_not_track_it() {
+        let client = FpssClient::for_self_join_test(
+            0,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+
+        let err = match client.subscribe(SecType::Index.full_trades()) {
+            Ok(()) => panic!("full-stream Index subscribe must be rejected"),
+            Err(e) => e,
+        };
+        match err {
+            Error::Config {
+                kind: ConfigErrorKind::InvalidValue { ref field, .. },
+                ..
+            } => assert_eq!(field, "Subscription::full"),
+            other => panic!("expected Error::Config InvalidValue, got {other:?}"),
+        }
+
+        // Rejected before the tracking push, so the reconnect-replay list is
+        // still empty — the io_loop reconnect path will never re-send it.
+        assert!(
+            client.active_full_subscriptions().is_empty(),
+            "rejected full-stream subscription must not be tracked"
+        );
+
+        client.shutdown();
     }
 }
