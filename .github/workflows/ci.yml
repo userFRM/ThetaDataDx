@@ -256,13 +256,17 @@ jobs:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: ./.github/actions/install-protoc
-      # cargo-semver-checks anchored at v11.0.0; hard-fail on any
-      # public Rust API break on the v11.x line.
+      # cargo-semver-checks anchored at the last published release
+      # (v10.0.0); hard-fail on any public Rust API break the crate
+      # version does not account for. The v11.0.0 major bump permits the
+      # intentional v10 -> v11 breaks. Advance the baseline to v11.0.0
+      # once that tag is published so the v11.x patch line is guarded
+      # against accidental breaks.
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         continue-on-error: false
         with:
           package: thetadatadx
-          baseline-rev: v11.0.0
+          baseline-rev: v10.0.0
 
   surfaces:
     name: Extended Surfaces
