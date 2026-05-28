@@ -306,7 +306,9 @@ impl fmt::Display for Price {
 
         let is_neg = self.value < 0;
         let abs_str = if is_neg {
-            format!("{}", i64::from(-self.value))
+            // Widen to i64 before negating so `i32::MIN` (no positive
+            // i32 counterpart) does not overflow.
+            format!("{}", -i64::from(self.value))
         } else {
             format!("{}", self.value)
         };
@@ -341,6 +343,15 @@ mod tests {
         assert_eq!(Price::new(5, 12).to_string(), "500.0");
         assert_eq!(Price::new(-15025, 8).to_string(), "-150.25");
         assert_eq!(Price::new(5, 7).to_string(), "0.005");
+    }
+
+    #[test]
+    fn test_price_display_i32_min_does_not_overflow() {
+        // `i32::MIN` has no positive i32 counterpart; the formatter must
+        // widen to i64 before negating rather than negating the i32.
+        assert_eq!(Price::new(i32::MIN, 8).to_string(), "-21474836.48");
+        assert_eq!(Price::new(i32::MIN, 10).to_string(), "-2147483648.0");
+        assert_eq!(Price::new(i32::MIN, 7).to_string(), "-2147483.648");
     }
 
     #[test]
