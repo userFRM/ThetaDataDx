@@ -25,7 +25,7 @@ pip install thetadatadx[polars]    # polars
 pip install thetadatadx[arrow]     # pyarrow only
 pip install thetadatadx[all]       # all three
 
-# Requires Python 3.9+. Pre-built abi3 wheels — no Rust toolchain required.
+# Requires Python 3.12+. Pre-built abi3 wheels — no Rust toolchain required.
 ```
 ```bash [TypeScript]
 npm install thetadatadx
@@ -57,7 +57,7 @@ make
 
 ## Python abi3 wheels
 
-The Python SDK ships a single `abi3` wheel per OS. One wheel built against Python 3.12 works on Python 3.9 → 3.14 without a per-version recompile, which is why the Rust toolchain is never needed on supported platforms.
+The Python SDK ships a single `abi3` wheel per OS. One wheel built against Python 3.12 works on Python 3.12 → 3.14 without a per-version recompile, which is why the Rust toolchain is never needed on supported platforms.
 
 | Platform | Wheel |
 |----------|-------|

@@ -28,8 +28,8 @@ tdbe = { version = "0.13.1", path = "../../crates/tdbe" }
 prost = "=0.14.3"
 
 # PyO3 bindings. We target the stable ABI so one wheel per platform supports
-# every Python version from 3.9 upward.
-pyo3 = { version = "=0.28.3", features = ["abi3-py39", "multiple-pymethods"] }
+# every Python version from 3.12 upward.
+pyo3 = { version = "=0.28.3", features = ["abi3-py312", "multiple-pymethods"] }
 
 # Bridge between pyo3 and tokio so generated `*_async` methods return real
 # awaitables backed by the shared runtime singleton (no second runtime is

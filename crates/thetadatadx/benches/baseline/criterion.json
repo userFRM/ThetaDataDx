@@ -3,10 +3,7 @@
         "comment": "Gate 10 (#553) baseline. Calibrated against the GitHub-hosted runner perf profile (PR #566, 2026-05-21). Threshold stays at 25% so a real regression past this baseline trips CI. The loader in `scripts/check_bench_regression.py` ignores `_meta` and the per-entry `_captured_on` field; only `criterion_path` + `p50_ns` are gated."
     },
     "_captured_on": "2026-05-21",
-    "stock_list_symbols/in_house": {
-        "p50_ns": 148653.7,
-        "criterion_path": "stock_list_symbols/in_house"
-    },
+    "_meta_ungated": "stock_list_symbols/in_house is a gRPC round-trip dominated by network / shared-runner I/O variance; it is run for information but excluded from the hard regression gate. See issue #614. CPU microbenches remain gated.",
     "streaming_channels/direct_callback/100k_events": {
         "p50_ns": 807151.3,
         "criterion_path": "streaming_channels_direct_callback/100k_events"

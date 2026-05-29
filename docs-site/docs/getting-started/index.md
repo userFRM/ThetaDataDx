@@ -24,7 +24,7 @@ ThetaDataDx is a Rust SDK for ThetaData's MDDS (historical, gRPC) and FPSS (real
 |-------------|---------|
 | ThetaData account | Email and password from [thetadata.us](https://thetadata.us) |
 | Rust toolchain | Required for the C++ SDK (builds the FFI library); not required for Rust/Python/TypeScript on supported platforms |
-| Python 3.9+ | For the Python SDK; pre-built `abi3` wheels provided |
+| Python 3.12+ | For the Python SDK; pre-built `abi3` wheels provided |
 | Node.js 18+ | For the TypeScript/Node.js SDK |
 | C++17 compiler + CMake 3.16+ | For the C++ SDK |
 
