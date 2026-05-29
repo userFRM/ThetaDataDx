@@ -1673,6 +1673,59 @@ fn poller_run_receives_events_in_order_then_returns() {
     assert_eq!(*got, expected, "run must preserve publish order");
 }
 
+/// A handler that panics mid-batch must not lose the unread tail of that
+/// batch. The Disruptor `EventGuard` advances the consumer cursor to the
+/// end of the available batch on drop regardless of how many events were
+/// read, so an unwind across the drain loop would silently skip the
+/// remaining events. `poll_batch` isolates each handler call under
+/// `catch_unwind`, so the panicking event is the only one dropped and the
+/// rest of the batch is still delivered.
+#[test]
+fn poller_poll_batch_isolates_handler_panic_and_keeps_batch_tail() {
+    use super::events::FpssControl;
+    use super::{FpssEventPoller, PollOutcome};
+    use disruptor::Producer;
+
+    let (mut producer, poller) = super::io_loop::build_poller_producer(256);
+    let mut poller = FpssEventPoller::for_test(poller);
+
+    // Publish a 5-event batch BEFORE polling so a single `poll_batch`
+    // call drains all five under one `EventGuard`.
+    for i in 0..5i32 {
+        let msg = i.to_string();
+        producer.publish(|slot| {
+            slot.event = super::events::FpssEventInternal::Control(FpssControl::ServerError {
+                message: msg,
+            });
+        });
+    }
+
+    let mut received: Vec<i32> = Vec::new();
+    let outcome = poller.poll_batch(|evt| {
+        if let FpssEvent::Control(FpssControl::ServerError { message }) = evt {
+            let seq: i32 = message.parse().expect("sequence message must parse");
+            // Panic on the middle event of the batch.
+            assert_ne!(seq, 2, "handler panics on event 2");
+            received.push(seq);
+        }
+    });
+
+    // The four non-panicking events were delivered; only event 2 was lost.
+    assert_eq!(
+        received,
+        vec![0, 1, 3, 4],
+        "tail after the panic must survive"
+    );
+    assert_eq!(
+        outcome,
+        PollOutcome::Drained(4),
+        "drained count excludes the panicking event"
+    );
+    assert_eq!(poller.panic_count(), 1, "one caught handler panic");
+
+    drop(producer);
+}
+
 /// `run` returns promptly once the producer is dropped on another
 /// thread mid-stream, after draining the in-flight tail. Guards against
 /// a `run` loop that hangs when the producer goes away.

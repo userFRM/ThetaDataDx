@@ -1074,7 +1074,10 @@ impl FpssClient {
             slow_callback_count,
             next_req_id,
         })?;
-        let event_poller = FpssEventPoller { poller };
+        let event_poller = FpssEventPoller {
+            poller,
+            panic_count: 0,
+        };
         Ok((client, Some(event_poller)))
     }
 
@@ -2036,6 +2039,12 @@ pub struct FpssEventPoller {
     /// single source of truth for the EOF-drain guarantee, with no
     /// separate flag that could race ahead of the in-flight tail.
     poller: EventPoller<RingEvent, SingleProducerBarrier>,
+    /// Count of caught panics from the user handler. The drain isolates
+    /// each `on_event` call under `catch_unwind` (mirroring the managed
+    /// consumer), so a panicking handler skips its own event and the
+    /// drain continues — the unread tail of the in-flight batch is never
+    /// lost. Surfaced via [`FpssEventPoller::panic_count`].
+    panic_count: u64,
 }
 
 // Note (no `unsafe` here): `EventPoller` is `Send` because its
@@ -2115,8 +2124,31 @@ impl FpssEventPoller {
                 // frees the slots for the producer to reuse.
                 for ring_event in &mut guard {
                     if let Some(evt) = ring_event.event.as_public() {
-                        on_event(evt);
-                        delivered += 1;
+                        // Isolate each handler call under `catch_unwind`,
+                        // mirroring the managed consumer. The guard's drop
+                        // advances the cursor to the end of the batch
+                        // unconditionally, so a panic that unwound across
+                        // the loop would commit — and silently skip — the
+                        // unread tail. Catching here keeps the drain going
+                        // so every event in the batch is delivered or
+                        // accounted; a panicking handler loses only its
+                        // own event and bumps `panic_count`.
+                        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            on_event(evt);
+                        }))
+                        .is_err()
+                        {
+                            self.panic_count += 1;
+                            if self.panic_count == 1 || self.panic_count.is_multiple_of(1024) {
+                                tracing::warn!(
+                                    target: "thetadatadx::fpss::poller",
+                                    panic_count = self.panic_count,
+                                    "user poller handler panicked; event skipped, drain continuing"
+                                );
+                            }
+                        } else {
+                            delivered += 1;
+                        }
                     }
                 }
                 PollOutcome::Drained(delivered)
@@ -2136,6 +2168,15 @@ impl FpssEventPoller {
         }
     }
 
+    /// Number of user-handler panics caught and isolated during draining.
+    /// Mirrors [`FpssClient::panic_count`] for the direct-consumer mode:
+    /// each panic skips its own event without aborting the drain or
+    /// losing the rest of the in-flight batch.
+    #[must_use]
+    pub fn panic_count(&self) -> u64 {
+        self.panic_count
+    }
+
     /// Test-only constructor that wraps an [`EventPoller`] built directly
     /// from [`io_loop::build_poller_producer`], bypassing the TLS +
     /// I/O-thread plumbing of [`FpssClient::connect_consumer`]. Soak /
@@ -2145,7 +2186,10 @@ impl FpssEventPoller {
     #[cfg(test)]
     #[doc(hidden)]
     pub(in crate::fpss) fn for_test(poller: EventPoller<RingEvent, SingleProducerBarrier>) -> Self {
-        Self { poller }
+        Self {
+            poller,
+            panic_count: 0,
+        }
     }
 }
 
