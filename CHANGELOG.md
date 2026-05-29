@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `FpssClient::connect_consumer` returns the client paired with an `FpssEventPoller` whose `run` loop drives the streaming ring on the caller's own thread. No consumer thread is spawned and no intermediate queue is allocated, so an embedded Rust consumer drains the single SDK ring directly with a zero-copy borrow per event. `FpssEventPoller::poll_batch` adds a non-blocking single-batch drain returning a `PollOutcome` for callers that integrate the drive into their own loop. The existing push-callback (`connect`) and pull-iterator (`connect_iter`) delivery modes are unchanged; the I/O reader, reconnect, and re-subscribe paths are shared across all three. Rust-only surface.
+
 ## [11.0.0] - 2026-05-27
 
 ### Breaking changes

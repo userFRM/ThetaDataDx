@@ -48,6 +48,45 @@ If you are porting code between SDKs: anywhere a Rust example calls `client.subs
 C++ receives typed `#[repr(C)]` structs directly from Rust -- not JSON. All field access is zero-copy struct member access.
 :::
 
+## Direct-consumer mode (embedded Rust)
+
+For an embedded Rust consumer that owns its own dispatch loop, the Rust SDK offers a third delivery shape: **drive the ring on your own thread, with no intermediate queue.**
+
+`FpssClient::connect_consumer` returns the client paired with an `FpssEventPoller`. Instead of the SDK spawning a consumer thread (push-callback mode) or cloning each event into a bounded queue (pull-iterator mode), *your* thread becomes the ring consumer — the streaming ring is the only buffer between the wire reader and your code, and each event is a zero-copy borrow into the ring slot, valid for the duration of your handler call.
+
+```rust [Rust]
+use thetadatadx::fpss::{FpssClient, FpssConnectArgs, FpssEvent, FpssData};
+use thetadatadx::fpss::protocol::Contract;
+use thetadatadx::auth::Credentials;
+
+fn main() -> Result<(), thetadatadx::Error> {
+    let creds = Credentials::from_file("creds.txt")?;
+    let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
+    let args = FpssConnectArgs::new(&creds, &hosts);
+
+    // No consumer thread is spawned; this thread will drive the ring.
+    let (client, poller) = FpssClient::connect_consumer(args)?;
+    client.subscribe(Contract::stock("AAPL").quote())?;
+
+    // `run` blocks this thread, draining every event until the session
+    // shuts down and the ring is fully drained.
+    poller.run(|event: &FpssEvent| {
+        if let FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) = event {
+            println!("Quote: {} bid={bid:.2} ask={ask:.2}", contract.symbol);
+        }
+    });
+    Ok(())
+}
+```
+
+To interleave the drain with your own loop, use the non-blocking `poller.poll_batch(|event| ...)`, which drains the currently-available batch and returns a `PollOutcome` (`Drained(n)` or `Shutdown`) so you decide when to re-poll. Calling `client.shutdown()` (or dropping the client) makes `run` return and `poll_batch` report `Shutdown` — but only after every event already in the ring has been delivered, so no in-flight events are lost.
+
+The `FpssEventPoller` is the single consumer of the ring: drive it from exactly one thread. It is `Send`, so you can build it on one thread and move it to the thread that owns the drain loop.
+
+::: tip When to use which mode
+Use **push-callback** (`start_streaming`) for the simplest integration, **pull-iterator** (`start_streaming_iter`) when you want a `for event in iter` loop or cross-language parity, and **direct-consumer** (`connect_consumer`) when you are embedding the Rust SDK and want the lowest-overhead path with no extra thread or queue on the hot path.
+:::
+
 ## Available Data Streams
 
 | Stream | Event Type | Description |

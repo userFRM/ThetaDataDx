@@ -554,6 +554,32 @@ pub(crate) enum Delivery {
     },
 }
 
+/// Consumer-side selector chosen at connect time.
+///
+/// Threaded through [`super::connection::ConnectWithStreamArgs`] so the
+/// shared `connect_with_stream` wiring can build the right ring
+/// producer:
+///
+/// * [`StreamConsumer::Managed`] — the SDK spawns a Disruptor consumer
+///   thread that runs the wrapped [`Delivery`] dispatch
+///   (`Callback` push or `Queue` pull-iter). This is the path
+///   [`super::FpssClient::connect`] / [`super::FpssClient::connect_iter`]
+///   take.
+/// * [`StreamConsumer::Poller`] — no consumer thread is spawned; the ring
+///   is built with an event poller and the caller drives it on its own
+///   thread via [`super::FpssEventPoller`]. This is the path
+///   [`super::FpssClient::connect_consumer`] takes.
+///
+/// Keeping the selector crate-private preserves the public surface: a
+/// caller never names this type, only the `connect*` entry points.
+pub(crate) enum StreamConsumer {
+    /// SDK-managed consumer thread running the [`Delivery`] dispatch.
+    Managed(Delivery),
+    /// Caller-driven event poller; the ring is the only buffer between
+    /// the wire reader and the caller's thread.
+    Poller,
+}
+
 // ---------------------------------------------------------------------------
 // Command channel -- FpssClient -> I/O thread
 // ---------------------------------------------------------------------------
