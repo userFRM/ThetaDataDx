@@ -33,8 +33,9 @@ use super::stage_pipeline::{
 /// by tens to hundreds of microseconds of network IO. A pure spin
 /// would keep N cores at 100% during the idle window between
 /// bursts; this strategy spins for `spin_iters` cycles, yields for
-/// `yield_iters` iterations, then falls back to a `spin_loop` hint
-/// that lets the OS multiplex other work onto the core.
+/// `yield_iters` iterations, then sleeps for `idle_sleep_micros`
+/// microseconds so a sustained-idle decoder relinquishes its core
+/// to the scheduler instead of re-polling in a tight loop.
 ///
 /// Tuning targets:
 /// - `spin_iters = 16`: ~50 ns at ~3 ns/cycle. Covers the
@@ -43,12 +44,20 @@ use super::stage_pipeline::{
 /// - `yield_iters = 4`: ~4–40 µs depending on OS scheduler. Covers
 ///   inter-burst gaps without holding the core hostile to other
 ///   tokio workers on the same CPU.
-/// - Final `spin_loop` hint: stays cooperatively idle indefinitely
-///   while still reading the publisher sequence.
+/// - `idle_sleep_micros = 30`: terminal backoff floor. The disruptor
+///   consumer re-invokes `wait_for` on every poll while waiting for
+///   the next sequence, so once the spin and yield phases elapse
+///   without a publish the consumer parks for this long before
+///   re-polling. A `std::hint::spin_loop` hint does not yield the
+///   core — the thread stays `RUNNABLE` and pins a CPU at 100% — so
+///   a real sleep is required to drop a sustained-idle decoder to
+///   ~0% CPU. Negligible against the inter-burst network-IO gap, so
+///   active-path decode latency is unchanged.
 #[derive(Copy, Clone)]
 pub struct DecoderWaitStrategy {
     spin_iters: u32,
     yield_iters: u32,
+    idle_sleep_micros: u64,
 }
 
 impl DecoderWaitStrategy {
@@ -56,17 +65,20 @@ impl DecoderWaitStrategy {
     /// hook for exercising boundary behaviour; the production
     /// constructor is [`Self::mdds_default`].
     #[must_use]
-    pub fn new(spin_iters: u32, yield_iters: u32) -> Self {
+    pub fn new(spin_iters: u32, yield_iters: u32, idle_sleep_micros: u64) -> Self {
         Self {
             spin_iters,
             yield_iters,
+            idle_sleep_micros,
         }
     }
 
-    /// Production-tuned defaults: 16 spins, 4 yields, then hint.
+    /// Production-tuned defaults: 16 spins, 4 yields, then a 30 µs
+    /// idle-sleep floor so an idle decoder thread parks instead of
+    /// busy-spinning a core.
     #[must_use]
     pub fn mdds_default() -> Self {
-        Self::new(16, 4)
+        Self::new(16, 4, 30)
     }
 }
 
@@ -79,7 +91,7 @@ impl disruptor::wait_strategies::WaitStrategy for DecoderWaitStrategy {
         for _ in 0..self.yield_iters {
             thread::yield_now();
         }
-        std::hint::spin_loop();
+        thread::sleep(Duration::from_micros(self.idle_sleep_micros));
     }
 }
 
@@ -1198,6 +1210,23 @@ mod tests {
     fn decoder_wait_strategy_is_copy_send() {
         fn assert_copy_send<T: Copy + Send>() {}
         assert_copy_send::<DecoderWaitStrategy>();
+    }
+
+    #[test]
+    fn wait_strategy_idle_branch_parks_instead_of_spinning() {
+        use disruptor::wait_strategies::WaitStrategy;
+        // With spin/yield disabled, `wait_for` must spend its whole
+        // budget in the terminal sleep. A real park elapses on the
+        // order of the configured floor; the pre-fix `spin_loop` hint
+        // returned in tens of nanoseconds and pinned the core at 100%
+        // (#619). 2 ms is comfortably above timer granularity.
+        let ws = DecoderWaitStrategy::new(0, 0, 2_000);
+        let start = std::time::Instant::now();
+        ws.wait_for(0);
+        assert!(
+            start.elapsed() >= Duration::from_millis(1),
+            "idle wait must park, not busy-spin (#619)"
+        );
     }
 
     // ─── Finding 1: panic containment + poison drain ─────────────────
