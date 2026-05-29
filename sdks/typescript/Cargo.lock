@@ -2226,7 +2226,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "11.1.0"
+version = "11.0.1"
 dependencies = [
  "arc-swap",
  "arrow-array",
@@ -2272,7 +2272,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-napi"
-version = "11.1.0"
+version = "11.0.1"
 dependencies = [
  "arrow-array",
  "arrow-ipc",
