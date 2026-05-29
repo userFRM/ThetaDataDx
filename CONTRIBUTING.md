@@ -15,7 +15,7 @@ for the FLATFILES coverage matrix.
 
 - **Rust stable** (see `rust-toolchain.toml` - includes rustfmt and clippy)
 - **protoc** (Protocol Buffers compiler) - only needed if modifying `.proto` files
-- **Python 3.9+** - for the Python SDK
+- **Python 3.12+** - for the Python SDK
 - **maturin** - for building the PyO3 Python bindings (`pip install "maturin>=1.9.4,<2.0"`)
 - **Node.js 18+** - for the TypeScript/Node.js SDK
 

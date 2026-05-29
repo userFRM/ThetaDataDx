@@ -44,7 +44,7 @@ make
 ```
 :::
 
-Python wheels are pre-built (`abi3`, Python 3.9+); no Rust toolchain needed on supported platforms. C++ links against the Rust FFI library built once with `cargo build`.
+Python wheels are pre-built (`abi3`, Python 3.12+); no Rust toolchain needed on supported platforms. C++ links against the Rust FFI library built once with `cargo build`.
 
 ## Authenticate
 

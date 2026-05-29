@@ -58,7 +58,7 @@ The Python SDK uses [PyO3](https://pyo3.rs/) with [Maturin](https://www.maturin.
 
 ## Validation Matrix
 
-- Python: wheel builds and import smoke are validated on Linux x64, macOS arm64 (Apple Silicon), and Windows x64. The package targets the CPython stable ABI (`abi3`) with a minimum version of Python 3.9, so one wheel per platform covers Python 3.9+.
+- Python: wheel builds and import smoke are validated on Linux x64, macOS arm64 (Apple Silicon), and Windows x64. The package targets the CPython stable ABI (`abi3`) with a minimum version of Python 3.12, so one wheel per platform covers Python 3.12+.
 - TypeScript/Node.js: pre-built napi-rs addons are shipped for Linux x64 (glibc), macOS arm64 (Apple Silicon), and Windows x64 (MSVC), on Node.js 18+.
 - C++: validated with CMake builds on Linux, macOS, and Windows against the generated FFI library.
 
@@ -95,7 +95,7 @@ g = all_greeks(spot=150.0, strike=155.0, rate=0.05,
                div_yield=0.015, tte=45/365, option_price=3.50, right="C")
 ```
 
-Requires Python 3.9+. Binary wheels target the CPython stable ABI, so one wheel works across supported Python 3.9+ interpreters on the same platform. See [sdks/python/README.md](python/README.md) for full documentation.
+Requires Python 3.12+. Binary wheels target the CPython stable ABI, so one wheel works across supported Python 3.12+ interpreters on the same platform. See [sdks/python/README.md](python/README.md) for full documentation.
 
 ## TypeScript / Node.js SDK
 

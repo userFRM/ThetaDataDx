@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking changes
+
+- Minimum supported Python raised to 3.12. The abi3 floor and `requires-python` move from 3.9 to 3.12; CPython 3.9 (EOL Oct 2025), 3.10, and 3.11 wheels are no longer published. Free-threaded 3.13t / 3.14t wheels are unaffected.
+
 ### Added
 
 - `FpssClient::connect_consumer` returns the client paired with an `FpssEventPoller` whose `run` loop drives the streaming ring on the caller's own thread. No consumer thread is spawned and no intermediate queue is allocated, so an embedded Rust consumer drains the single SDK ring directly with a zero-copy borrow per event. `FpssEventPoller::poll_batch` adds a non-blocking single-batch drain returning a `PollOutcome` for callers that integrate the drive into their own loop. The existing push-callback (`FpssClient::connect`) and pull-iterator (`FpssClient::connect_iter`) delivery modes are unchanged; the I/O reader, reconnect, and re-subscribe paths are shared across all three. Rust-only surface.

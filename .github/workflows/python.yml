@@ -84,14 +84,14 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && !endsWith(matrix.python, 't')
         uses: PyO3/maturin-action@v1
         with:
-          # `--interpreter python3.9` targets the abi3 floor declared in
-          # `sdks/python/Cargo.toml` (pyo3/abi3-py39). The default
+          # `--interpreter python3.12` targets the abi3 floor declared in
+          # `sdks/python/Cargo.toml` (pyo3/abi3-py312). The default
           # `python` binary inside the manylinux2014 Docker image is
           # Python 2.7, which lacks `sys.implementation` and breaks
-          # maturin's interpreter probe; `python3.9` resolves cleanly
+          # maturin's interpreter probe; `python3.12` resolves cleanly
           # inside the image.
           command: build
-          args: --release -m sdks/python/Cargo.toml -o dist/ --interpreter python3.9
+          args: --release -m sdks/python/Cargo.toml -o dist/ --interpreter python3.12
           manylinux: '2014'
           target: x86_64
           # The manylinux2014 CentOS 7 image ships no `protoc`, which
@@ -299,7 +299,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python: ["3.9", "3.14"]
+        python: ["3.12", "3.14"]
     steps:
       - uses: actions/setup-python@v6
         with:

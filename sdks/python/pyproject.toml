@@ -7,7 +7,7 @@ name = "thetadatadx"
 dynamic = ["version"]
 description = "No-JVM ThetaData Terminal — native Rust SDK for direct market data access (Python bindings)"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 authors = [{ name = "userFRM" }]
 keywords = ["thetadata", "market-data", "options", "streaming", "grpc"]
@@ -15,6 +15,10 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Financial and Insurance Industry",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Free Threading",
     "Programming Language :: Rust",
     "Topic :: Office/Business :: Financial :: Investment",
     "License :: OSI Approved :: Apache Software License",
@@ -32,9 +36,9 @@ Discord = "https://discord.thetadata.us/"
 # merges these into the wheel alongside the compiled `.so` extension
 # emitted from `src/lib.rs`.
 python-source = "python"
-# Stable ABI: one wheel per platform covers every CPython 3.9+ release.
+# Stable ABI: one wheel per platform covers every CPython 3.12+ release.
 #
-# The `abi3-py39` feature is unconditionally enabled here even on
+# The `abi3-py312` feature is unconditionally enabled here even on
 # the free-threaded `3.13t` / `3.14t` build matrix entries — PyO3
 # emits a benign warning at build time for those entries
 # ("free-threaded build ignores abi3"), but the wheel selection is
@@ -45,7 +49,7 @@ python-source = "python"
 # as intended; flipping it on / off per matrix entry would require a
 # maturin overlay file that maintains two source-of-truth feature
 # lists. See the GH Actions log for the documented warning shape.
-features = ["pyo3/abi3-py39"]
+features = ["pyo3/abi3-py312"]
 
 [project.optional-dependencies]
 # Arrow columnar pipeline (feat/arrow-columnar-dataframe):

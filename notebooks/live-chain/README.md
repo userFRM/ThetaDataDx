@@ -40,6 +40,6 @@ Then open `http://localhost:8501` in your browser.
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.12+
 - A ThetaData account with an active market data subscription
 - `thetadatadx` compiled for your platform (see main project README)
