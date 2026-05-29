@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `FpssClient::connect_consumer` returns the client paired with an `FpssEventPoller` whose `run` loop drives the streaming ring on the caller's own thread. No consumer thread is spawned and no intermediate queue is allocated, so an embedded Rust consumer drains the single SDK ring directly with a zero-copy borrow per event. `FpssEventPoller::poll_batch` adds a non-blocking single-batch drain returning a `PollOutcome` for callers that integrate the drive into their own loop. The existing push-callback (`FpssClient::connect`) and pull-iterator (`FpssClient::connect_iter`) delivery modes are unchanged; the I/O reader, reconnect, and re-subscribe paths are shared across all three. Rust-only surface.
 
+### Changed
+
+- The `stock_list_symbols/in_house` benchmark is excluded from the hard bench-regression gate (it is a network-bound gRPC round-trip whose variance exceeds the threshold by construction); it still runs for information. CPU microbenches remain gated. (#614)
+
 ## [11.0.0] - 2026-05-27
 
 ### Breaking changes
