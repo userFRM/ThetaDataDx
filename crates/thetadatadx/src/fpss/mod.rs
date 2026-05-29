@@ -2050,10 +2050,13 @@ impl FpssEventPoller {
     ///
     /// Blocks the calling thread. Each available batch is drained in
     /// order; on a momentarily-empty ring the loop applies the same
-    /// three-phase adaptive wait the SDK's managed consumer uses
-    /// (spin, then yield, then `spin_loop` hint) so an idle pre-market
-    /// stream does not burn a core while an active stream stays
-    /// low-latency.
+    /// three-phase wait the SDK's managed consumer uses (spin, then
+    /// `yield_now`, then a `spin_loop` hint). This keeps an active
+    /// stream low-latency and yields to other runnable threads on a
+    /// quiet stream, but it does NOT park — the loop stays runnable
+    /// rather than idling at zero CPU. A consumer that wants to release
+    /// the core while the stream is idle should drive
+    /// [`Self::poll_batch`] behind its own parking strategy instead.
     ///
     /// Returns once [`FpssClient::shutdown`] (or dropping the
     /// [`FpssClient`]) has fired AND every event already published into
@@ -2066,14 +2069,14 @@ impl FpssEventPoller {
             match self.poll_batch(&mut on_event) {
                 PollOutcome::Shutdown => return,
                 PollOutcome::Drained(0) => {
-                    // Ring momentarily empty. The producer-drop sets the
-                    // ring's shutdown sequence, which `poll_batch`
-                    // surfaces as `Shutdown` on the *next* call once the
-                    // cursor reaches it; the `shutdown` flag is the
-                    // belt-and-braces signal for the idle case. Either
-                    // way, re-poll after one adaptive wait cycle so a
-                    // terminal state is observed promptly without a busy
-                    // spin on a quiet stream.
+                    // Ring momentarily empty. Producer-drop (on client
+                    // shutdown or disconnect) stores the ring's shutdown
+                    // sequence; `poll_batch` surfaces that as `Shutdown`
+                    // once the consumer cursor reaches it. That stored
+                    // sequence is the sole termination signal here — the
+                    // poller holds no separate shutdown flag. Re-poll
+                    // after one wait cycle so a terminal state is observed
+                    // promptly without spinning hard on a quiet stream.
                     waiter.wait_for(0);
                 }
                 PollOutcome::Drained(_) => {

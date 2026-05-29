@@ -84,7 +84,7 @@ To interleave the drain with your own loop, use the non-blocking `poller.poll_ba
 The `FpssEventPoller` is the single consumer of the ring: drive it from exactly one thread. It is `Send`, so you can build it on one thread and move it to the thread that owns the drain loop.
 
 ::: tip When to use which mode
-Use **push-callback** (`start_streaming`) for the simplest integration, **pull-iterator** (`start_streaming_iter`) when you want a `for event in iter` loop or cross-language parity, and **direct-consumer** (`connect_consumer`) when you are embedding the Rust SDK and want the lowest-overhead path with no extra thread or queue on the hot path.
+On the embedded Rust `FpssClient` surface, use **push-callback** (`FpssClient::connect`) for the simplest integration, **pull-iterator** (`FpssClient::connect_iter`) when you want a `for event in iter` loop, and **direct-consumer** (`FpssClient::connect_consumer`) when you want the lowest-overhead path with no extra thread or queue on the hot path. On the unified `ThetaDataDxClient`, the equivalent push and pull entries are `start_streaming` and `start_streaming_iter`.
 :::
 
 ## Available Data Streams
