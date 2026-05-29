@@ -14,7 +14,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 thetadatadx = { path = "../../crates/thetadatadx", features = ["arrow"] }
-tdbe = { version = "0.13.1", path = "../../crates/tdbe" }
+tdbe = { version = "0.14.0", path = "../../crates/tdbe" }
 
 napi = { version = "3.8.5", features = ["async", "tokio_rt", "serde-json", "napi6", "chrono_date"] }
 arrow-array = "58.1.0"

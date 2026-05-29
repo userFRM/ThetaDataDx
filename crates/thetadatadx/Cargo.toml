@@ -67,7 +67,7 @@ __test-helpers = []
 # system allocator pay no compile or link cost.
 mimalloc-allocator = ["dep:mimalloc"]
 [dependencies]
-tdbe = { version = "0.13.1", path = "../tdbe" }
+tdbe = { version = "0.14.0", path = "../tdbe" }
 
 # Protobuf message types for the MDDS wire contract. The in-house
 # gRPC client stack (`src/grpc/`) consumes these directly — no tonic.
@@ -257,7 +257,7 @@ prost-build = "=0.14.3"
 regex = "1.12.3"
 toml = "1.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
-tdbe = { version = "0.13.1", path = "../tdbe" }
+tdbe = { version = "0.14.0", path = "../tdbe" }
 
 # POSIX `pipe2` / `write` / `close` for the asyncio wake-fd bridge used
 # by the Python SDK's `streaming_async()` surface (see

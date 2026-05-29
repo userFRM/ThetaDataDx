@@ -7,19 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Breaking changes
-
-- Minimum supported Python raised to 3.12. The abi3 floor and `requires-python` move from 3.9 to 3.12; CPython 3.9 (EOL Oct 2025), 3.10, and 3.11 wheels are no longer published. Free-threaded 3.13t / 3.14t wheels are unaffected.
-
-### Added
-
-- `FpssClient::connect_consumer` returns the client paired with an `FpssEventPoller` whose `run` loop drives the streaming ring on the caller's own thread. No consumer thread is spawned and no intermediate queue is allocated, so an embedded Rust consumer drains the single SDK ring directly with a zero-copy borrow per event. `FpssEventPoller::poll_batch` adds a non-blocking single-batch drain returning a `PollOutcome` for callers that integrate the drive into their own loop. The existing push-callback (`FpssClient::connect`) and pull-iterator (`FpssClient::connect_iter`) delivery modes are unchanged; the I/O reader, reconnect, and re-subscribe paths are shared across all three. Rust-only surface.
-
-### Changed
-
-- The `stock_list_symbols/in_house` benchmark is excluded from the hard bench-regression gate (it is a network-bound gRPC round-trip whose variance exceeds the threshold by construction); it still runs for information. CPU microbenches remain gated. (#614)
-
-## [11.0.0] - 2026-05-27
+## [11.0.0] - 2026-05-29
 
 ### Breaking changes
 
@@ -46,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ChannelError::UpstreamCascade` folded into the existing `ChannelError::ConnectionClosed` variant. The mid-stream classifier `classify_h2_error_mid_stream` is gone; the open-phase classifier `classify_h2_error` covers both phases via a new `classify_h2_error_ref` thin wrapper.
 - TypeScript `Config.setReconnectStableWindowSecs` accepts `bigint` (was `number`) for true `u64` parity with Python / C++ / FFI. Callers passing `Number` should wrap with `BigInt(60)`; negative or above-`u64::MAX` BigInt inputs are rejected at the boundary with a descriptive error rather than silently truncating.
 - `RestError::CsvDecode` and `RestError::MissingColumn` lift into `Error::Transport { kind: Codec, .. }` instead of `Error::Config { internal, .. }`, matching the gRPC-side `ChannelError::Codec` mapping so retry classifiers dispatch uniformly across both transports.
+- Minimum supported Python raised to 3.12. The abi3 floor and `requires-python` move from 3.9 to 3.12; CPython 3.9 (EOL Oct 2025), 3.10, and 3.11 wheels are no longer published. Free-threaded 3.13t / 3.14t wheels are unaffected.
 
 ### Added
 
@@ -77,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FpssClient::connect` rejects a non-power-of-two `ring_size` with `Error::Config` rather than silently rounding to the next power of two; default configs (`131_072`) are unchanged and still valid.
 - FPSS control events surface as typed-per-variant classes across Python, TypeScript, and the C / C++ FFI surface, mirroring the Rust `FpssControl` enum one-for-one. Python dispatch via `match event: case LoginSuccess(permissions=p): ... case Disconnected(reason=r): ...`; TypeScript via the discriminated union's `kind` field; C consumers via `event->kind` into the matching `event-><variant>` payload; C++ uses re-exported `tdx::Fpss<Variant>` aliases. Schema bumped to version 5 (`crates/thetadatadx/fpss_event_schema.toml`).
 - `MddsConfig.override_tier_clamp` (Rust `bool`, default `false`) bypasses the connect-time clamp of `concurrent_requests` to the resolved subscription-tier cap. Rust-only by design (no binding setters); intended for exercising the over-provisioning path against a stubbed authentication response, not production use.
+- `FpssClient::connect_consumer` returns the client paired with an `FpssEventPoller` whose `run` loop drives the streaming ring on the caller's own thread. No consumer thread is spawned and no intermediate queue is allocated, so an embedded Rust consumer drains the single SDK ring directly with a zero-copy borrow per event. `FpssEventPoller::poll_batch` adds a non-blocking single-batch drain returning a `PollOutcome` for callers that integrate the drive into their own loop. The existing push-callback (`FpssClient::connect`) and pull-iterator (`FpssClient::connect_iter`) delivery modes are unchanged; the I/O reader, reconnect, and re-subscribe paths are shared across all three. Rust-only surface.
 
 ### Changed
 
@@ -108,6 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `MddsClient` REST-fallback shims downgrade per-call `start_date` / `end_date` logging from `tracing::debug!` to `tracing::trace!` so routine operator-visible logs no longer echo request date ranges.
 - `interval` millisecond-shorthand normalization realigned to the upstream preset vocabulary. The `"0"` sentinel now resolves to `"tick"` (every event) instead of the prior silent `"100ms"`, and the `1..=10` ms band resolves to `"10ms"` (previously folded into `"100ms"`). Callers that relied on `"0"` meaning `"100ms"` must pass an explicit preset.
 - Dynamic endpoint invocation (`EndpointArgs`, used by the CLI and MCP surfaces) strictly validates the `interval` argument against the upstream preset set (`tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`) or an all-digit millisecond shorthand. Non-preset strings such as `"1minute"` — previously accepted by the looser alphanumeric check — now surface a typed `EndpointError::InvalidParams` naming the accepted values before any request dispatches.
+- The `stock_list_symbols/in_house` benchmark is excluded from the hard bench-regression gate (it is a network-bound gRPC round-trip whose variance exceeds the threshold by construction); it still runs for information. CPU microbenches remain gated. (#614)
 
 ### Fixed
 

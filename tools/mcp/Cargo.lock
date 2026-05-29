@@ -1895,7 +1895,7 @@ dependencies = [
 
 [[package]]
 name = "tdbe"
-version = "0.13.1"
+version = "0.14.0"
 dependencies = [
  "serde",
  "sonic-rs",
