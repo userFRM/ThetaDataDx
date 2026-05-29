@@ -55,6 +55,13 @@ pub use self::framing::{read_frame, write_frame, Frame};
 use self::io_loop::{io_loop, ping_loop, wait_for_login, LoginResult};
 pub use self::session::{reconnect_delay, reconnect_delay_for};
 
+// Direct-consumer (single-ring) poller plumbing. The third-party
+// `disruptor` poller types are wrapped by `FpssEventPoller` and never
+// appear on the public surface; these imports are crate-internal only.
+use self::ring::RingEvent;
+use disruptor::wait_strategies::WaitStrategy;
+use disruptor::{EventPoller, Polling, SingleProducerBarrier};
+
 /// Hidden test-internals surface for vendor-failure-mode resilience tests
 /// in `crates/thetadatadx/tests/`.
 ///
@@ -253,6 +260,45 @@ pub enum HarnessPublishMode {
     /// incrementing the shared `dropped` counter on every rejection
     /// the same way `io_loop` does on the live reader path.
     TryPublishBurst,
+}
+
+/// Argument bundle for [`FpssClient::spawn_io_and_assemble`].
+///
+/// Carries the already-built ring `producer` plus every shared `Arc`,
+/// channel end, and tuning value the I/O + ping threads and the
+/// assembled [`FpssClient`] need. Bundled into one struct so the shared
+/// spawn helper reads linearly rather than as a long positional list,
+/// matching the [`FpssConnectArgs`] convention.
+struct SpawnArgs<'a, P> {
+    producer: P,
+    stream: connection::FpssStream,
+    cmd_rx: std_mpsc::Receiver<IoCommand>,
+    cmd_tx: std_mpsc::Sender<IoCommand>,
+    ping_cmd_tx: std_mpsc::Sender<IoCommand>,
+    ring_size: usize,
+    permissions: String,
+    pending_control: Vec<FpssControl>,
+    server_addr: String,
+    creds: &'a Credentials,
+    hosts: &'a [(String, u16)],
+    derive_ohlcvc: bool,
+    flush_mode: FpssFlushMode,
+    policy: ReconnectPolicy,
+    wait_ms: u64,
+    wait_rate_limited_ms: u64,
+    connect_timeout: Duration,
+    read_timeout: Duration,
+    ping_interval: Duration,
+    shutdown: Arc<AtomicBool>,
+    authenticated: Arc<AtomicBool>,
+    active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract)>>>,
+    active_full_subs: Arc<Mutex<Vec<(SubscriptionKind, tdbe::types::enums::SecType)>>>,
+    dropped: Arc<AtomicU64>,
+    panics: Arc<AtomicU64>,
+    consumer_thread_id: Arc<OnceLock<ThreadId>>,
+    slow_callback_threshold_ns: Arc<AtomicU64>,
+    slow_callback_count: Arc<AtomicU64>,
+    next_req_id: Arc<AtomicI64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -622,6 +668,117 @@ impl FpssClient {
         Ok((client, iterator, wake_arc))
     }
 
+    /// Connect and return the client paired with a single-consumer
+    /// poller. The caller's own thread drives the ring directly via
+    /// [`FpssEventPoller::run`] (or [`FpssEventPoller::poll_batch`]) —
+    /// no Disruptor consumer thread is spawned and no intermediate queue
+    /// is allocated, so the SDK ring is the only buffer between the wire
+    /// reader and the caller.
+    ///
+    /// This is the lowest-overhead delivery mode for an embedded Rust
+    /// consumer that owns its own dispatch loop: an event handed to the
+    /// caller is a borrow into the ring slot itself (zero-copy), valid
+    /// for the duration of the per-event call. Contrast with:
+    ///
+    /// * [`Self::connect`] (push-callback) — the SDK runs your closure
+    ///   on a spawned consumer thread.
+    /// * [`Self::connect_iter`] (pull-iter) — the SDK clones each event
+    ///   into a bounded queue an [`EventIterator`] drains.
+    ///
+    /// Both of those own a second buffer / thread for the consumer;
+    /// `connect_consumer` removes both.
+    ///
+    /// # Thread affinity
+    ///
+    /// The returned [`FpssEventPoller`] is the single consumer of the
+    /// ring: drive it from exactly one thread (the same single-consumer
+    /// contract the pull-iter [`EventIterator`] documents). It is
+    /// `Send`, so it may be moved to the thread that will own the drain
+    /// loop; the `&mut self` / `self` receivers on its drive methods
+    /// enforce the single-consumer invariant at compile time.
+    ///
+    /// # Shutdown
+    ///
+    /// [`Self::shutdown`] (or dropping the [`FpssClient`]) makes
+    /// [`FpssEventPoller::run`] return and
+    /// [`FpssEventPoller::poll_batch`] report
+    /// [`PollOutcome::Shutdown`] — but only after every event already
+    /// published into the ring has been drained, mirroring the
+    /// EOF-drain guarantee the pull-iter path provides.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same set of errors as [`Self::connect`] (TLS, login,
+    /// config validation).
+    pub fn connect_consumer(args: FpssConnectArgs<'_>) -> Result<(Self, FpssEventPoller), Error> {
+        let FpssConnectArgs {
+            creds,
+            hosts,
+            ring_size,
+            flush_mode,
+            policy,
+            wait_ms,
+            wait_rate_limited_ms,
+            derive_ohlcvc,
+            connect_timeout_ms,
+            read_timeout_ms,
+            ping_interval_ms,
+        } = args;
+        let ring_size = ring::check_ring_size(ring_size)
+            .map_err(|e| Error::config_invalid("fpss.ring_size", e.to_string()))?;
+        let to_i64 = |v: u64| i64::try_from(v).unwrap_or(i64::MAX);
+        if !crate::config::fpss_bounds::TIMEOUT_MS.contains(&read_timeout_ms) {
+            return Err(Error::config_out_of_range(
+                "fpss.read_timeout_ms",
+                to_i64(read_timeout_ms),
+                to_i64(*crate::config::fpss_bounds::TIMEOUT_MS.start()),
+                to_i64(*crate::config::fpss_bounds::TIMEOUT_MS.end()),
+            ));
+        }
+        if !crate::config::fpss_bounds::CONNECT_TIMEOUT_MS.contains(&connect_timeout_ms) {
+            return Err(Error::config_out_of_range(
+                "fpss.connect_timeout_ms",
+                to_i64(connect_timeout_ms),
+                to_i64(*crate::config::fpss_bounds::CONNECT_TIMEOUT_MS.start()),
+                to_i64(*crate::config::fpss_bounds::CONNECT_TIMEOUT_MS.end()),
+            ));
+        }
+        if !crate::config::fpss_bounds::PING_INTERVAL_MS.contains(&ping_interval_ms) {
+            return Err(Error::config_out_of_range(
+                "fpss.ping_interval_ms",
+                to_i64(ping_interval_ms),
+                to_i64(*crate::config::fpss_bounds::PING_INTERVAL_MS.start()),
+                to_i64(*crate::config::fpss_bounds::PING_INTERVAL_MS.end()),
+            ));
+        }
+        let borrowed: Vec<(&str, u16)> = hosts.iter().map(|(h, p)| (h.as_str(), *p)).collect();
+        let connect_timeout = Duration::from_millis(connect_timeout_ms);
+        let read_timeout = Duration::from_millis(read_timeout_ms);
+        let (stream, server_addr) =
+            connection::connect_to_servers(&borrowed, connect_timeout, read_timeout)?;
+        let (client, poller) = Self::connect_with_stream(connection::ConnectWithStreamArgs {
+            creds,
+            stream,
+            server_addr,
+            hosts,
+            ring_size,
+            derive_ohlcvc,
+            flush_mode,
+            policy,
+            wait_ms,
+            wait_rate_limited_ms,
+            connect_timeout,
+            read_timeout,
+            ping_interval: Duration::from_millis(ping_interval_ms),
+            consumer: events::StreamConsumer::Poller,
+        })?;
+        let poller = poller.ok_or_else(|| Error::Fpss {
+            kind: crate::error::FpssErrorKind::ConnectionRefused,
+            message: "poller-mode connect did not return an FpssEventPoller".to_string(),
+        })?;
+        Ok((client, poller))
+    }
+
     fn connect_with_delivery(
         args: FpssConnectArgs<'_>,
         delivery: events::Delivery,
@@ -680,7 +837,7 @@ impl FpssClient {
         let read_timeout = Duration::from_millis(read_timeout_ms);
         let (stream, server_addr) =
             connection::connect_to_servers(&borrowed, connect_timeout, read_timeout)?;
-        Self::connect_with_stream(connection::ConnectWithStreamArgs {
+        let (client, _poller) = Self::connect_with_stream(connection::ConnectWithStreamArgs {
             creds,
             stream,
             server_addr,
@@ -694,17 +851,30 @@ impl FpssClient {
             connect_timeout,
             read_timeout,
             ping_interval: Duration::from_millis(ping_interval_ms),
-            delivery,
-        })
+            consumer: events::StreamConsumer::Managed(delivery),
+        })?;
+        // Managed-consumer modes never yield a poller; the SDK spawned a
+        // consumer thread that runs the `Delivery` dispatch.
+        debug_assert!(
+            _poller.is_none(),
+            "managed-consumer connect must not produce an FpssEventPoller",
+        );
+        Ok(client)
     }
 
     /// Connect using a pre-established stream (for testing with mock sockets).
     ///
     /// `hosts` is the full FPSS server list, needed for auto-reconnect to try
     /// all servers. Pass an empty slice to disable reconnection to other servers.
+    ///
+    /// Returns the connected client and, for the direct-consumer
+    /// ([`events::StreamConsumer::Poller`]) path, the
+    /// [`FpssEventPoller`] the caller drives on its own thread. The
+    /// managed-consumer paths (`Callback` / `Queue`) return `None` for
+    /// the poller — the SDK spawned a consumer thread instead.
     pub(crate) fn connect_with_stream(
         args: connection::ConnectWithStreamArgs<'_>,
-    ) -> Result<Self, Error> {
+    ) -> Result<(Self, Option<FpssEventPoller>), Error> {
         let connection::ConnectWithStreamArgs {
             creds,
             mut stream,
@@ -719,7 +889,7 @@ impl FpssClient {
             connect_timeout,
             read_timeout,
             ping_interval,
-            delivery,
+            consumer,
         } = args;
         // Send CREDENTIALS (code 0).
         let cred_payload = build_credentials_payload(&creds.email, &creds.password);
@@ -812,7 +982,148 @@ impl FpssClient {
         // Ping command channel: ping thread -> I/O thread
         let ping_cmd_tx = cmd_tx.clone();
 
-        // Spawn the I/O thread: blocking TLS read + Disruptor publish + command drain.
+        // Build the ring producer for the chosen consumer mode. The
+        // managed path spawns a Disruptor consumer thread that runs the
+        // `Delivery` dispatch; the poller path spawns no consumer thread
+        // and hands the caller an `EventPoller` to drive the ring on its
+        // own thread. Both produce a `Producer<RingEvent>` the io_loop
+        // drives identically via `try_publish`.
+        // Only the poller arm's value escapes this `match`; the managed
+        // arm diverges via `return`, so its arm type is `!` and the
+        // expression type is fixed by the poller arm — a single
+        // `EventPoller<RingEvent, SingleProducerBarrier>`.
+        let (producer, poller) = match consumer {
+            events::StreamConsumer::Managed(delivery) => {
+                let producer = io_loop::build_consumer_producer(io_loop::ConsumerProducerArgs {
+                    ring_size,
+                    delivery,
+                    dropped: Arc::clone(&dropped),
+                    panics: Arc::clone(&panics),
+                    consumer_thread_id: Arc::clone(&consumer_thread_id),
+                    slow_callback_threshold_ns: Arc::clone(&slow_callback_threshold_ns),
+                    slow_callback_count: Arc::clone(&slow_callback_count),
+                });
+                // Spawn the I/O thread + ping thread and assemble the
+                // client. No poller for the managed path.
+                let client = Self::spawn_io_and_assemble(SpawnArgs {
+                    producer,
+                    stream,
+                    cmd_rx,
+                    cmd_tx,
+                    ping_cmd_tx,
+                    ring_size,
+                    permissions,
+                    pending_control,
+                    server_addr,
+                    creds,
+                    hosts,
+                    derive_ohlcvc,
+                    flush_mode,
+                    policy,
+                    wait_ms,
+                    wait_rate_limited_ms,
+                    connect_timeout,
+                    read_timeout,
+                    ping_interval,
+                    shutdown,
+                    authenticated,
+                    active_subs,
+                    active_full_subs,
+                    dropped,
+                    panics,
+                    consumer_thread_id,
+                    slow_callback_threshold_ns,
+                    slow_callback_count,
+                    next_req_id,
+                })?;
+                return Ok((client, None));
+            }
+            events::StreamConsumer::Poller => io_loop::build_poller_producer(ring_size),
+        };
+
+        // Poller path: build the client around the poller-mode producer,
+        // then wrap the `EventPoller` for the caller's own thread.
+        let client = Self::spawn_io_and_assemble(SpawnArgs {
+            producer,
+            stream,
+            cmd_rx,
+            cmd_tx,
+            ping_cmd_tx,
+            ring_size,
+            permissions,
+            pending_control,
+            server_addr,
+            creds,
+            hosts,
+            derive_ohlcvc,
+            flush_mode,
+            policy,
+            wait_ms,
+            wait_rate_limited_ms,
+            connect_timeout,
+            read_timeout,
+            ping_interval,
+            shutdown,
+            authenticated,
+            active_subs,
+            active_full_subs,
+            dropped,
+            panics,
+            consumer_thread_id,
+            slow_callback_threshold_ns,
+            slow_callback_count,
+            next_req_id,
+        })?;
+        let event_poller = FpssEventPoller {
+            poller,
+            panic_count: 0,
+        };
+        Ok((client, Some(event_poller)))
+    }
+
+    /// Spawn the I/O + ping threads for an already-built ring producer
+    /// and assemble the [`FpssClient`] handle. Shared verbatim by the
+    /// managed-consumer and direct-consumer (poller) paths so the
+    /// thread wiring lives in exactly one place — only the producer the
+    /// io_loop drives differs between modes, and that difference is
+    /// fixed before this call.
+    fn spawn_io_and_assemble<P>(args: SpawnArgs<'_, P>) -> Result<Self, Error>
+    where
+        P: io_loop::RingProducer,
+    {
+        let SpawnArgs {
+            producer,
+            stream,
+            cmd_rx,
+            cmd_tx,
+            ping_cmd_tx,
+            ring_size,
+            permissions,
+            pending_control,
+            server_addr,
+            creds,
+            hosts,
+            derive_ohlcvc,
+            flush_mode,
+            policy,
+            wait_ms,
+            wait_rate_limited_ms,
+            connect_timeout,
+            read_timeout,
+            ping_interval,
+            shutdown,
+            authenticated,
+            active_subs,
+            active_full_subs,
+            dropped,
+            panics,
+            consumer_thread_id,
+            slow_callback_threshold_ns,
+            slow_callback_count,
+            next_req_id,
+        } = args;
+
+        // Spawn the I/O thread: blocking TLS read + ring publish + command drain.
         let io_shutdown = Arc::clone(&shutdown);
         let io_authenticated = Arc::clone(&authenticated);
         let io_server_addr = server_addr.clone();
@@ -821,10 +1132,6 @@ impl FpssClient {
         let io_active_subs = Arc::clone(&active_subs);
         let io_active_full_subs = Arc::clone(&active_full_subs);
         let io_dropped = Arc::clone(&dropped);
-        let io_panics = Arc::clone(&panics);
-        let io_consumer_thread_id = Arc::clone(&consumer_thread_id);
-        let io_slow_threshold_ns = Arc::clone(&slow_callback_threshold_ns);
-        let io_slow_count = Arc::clone(&slow_callback_count);
         let io_next_req_id = Arc::clone(&next_req_id);
 
         let io_handle = thread::Builder::new()
@@ -833,7 +1140,7 @@ impl FpssClient {
                 io_loop(io_loop::IoLoopArgs {
                     stream,
                     cmd_rx,
-                    delivery,
+                    producer,
                     ring_size,
                     shutdown: io_shutdown,
                     authenticated: io_authenticated,
@@ -850,10 +1157,6 @@ impl FpssClient {
                     active_subs: io_active_subs,
                     active_full_subs: io_active_full_subs,
                     dropped: io_dropped,
-                    panics: io_panics,
-                    consumer_thread_id: io_consumer_thread_id,
-                    slow_callback_threshold_ns: io_slow_threshold_ns,
-                    slow_callback_count: io_slow_count,
                     connect_timeout,
                     read_timeout,
                     next_req_id: io_next_req_id,
@@ -1657,6 +1960,239 @@ impl Iterator for EventIterator {
     }
 }
 
+// ---------------------------------------------------------------------------
+// FpssEventPoller -- direct-consumer (single-ring) delivery handle
+// ---------------------------------------------------------------------------
+
+/// Outcome of a single non-blocking [`FpssEventPoller::poll_batch`] drain.
+///
+/// Lets a caller integrating the ring drive into its own loop tell
+/// "drained `n` events, more may come" apart from "the session has
+/// terminated and the ring is empty":
+///
+/// * [`PollOutcome::Drained`] — the currently-available batch was
+///   handed to the closure; the wrapped count is how many events were
+///   delivered this call (`0` when the ring was momentarily empty but
+///   the session is still live — re-poll later).
+/// * [`PollOutcome::Shutdown`] — the [`FpssClient`] has shut down AND
+///   every published event has been drained. No further events will
+///   ever arrive; stop polling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PollOutcome {
+    /// The available batch was drained into the closure. Carries the
+    /// number of events delivered on this call (may be `0`).
+    Drained(usize),
+    /// Terminal: the session has shut down and the ring is fully
+    /// drained. Mirrors [`NextEvent::Closed`] on the pull-iter path.
+    Shutdown,
+}
+
+/// Direct-consumer drain handle for a single-ring streaming session.
+///
+/// Returned by [`FpssClient::connect_consumer`]. The caller's own thread
+/// drives the SDK ring through this handle — there is no SDK-spawned
+/// consumer thread and no intermediate queue, so the ring is the only
+/// buffer between the wire reader and the caller.
+///
+/// Two drive shapes are offered:
+///
+/// * [`Self::run`] — block on the calling thread until the session shuts
+///   down and the ring is fully drained, handing each event to a
+///   closure. The simplest shape for a thread dedicated to consumption.
+/// * [`Self::poll_batch`] — non-blocking single drain of the currently
+///   available batch, returning a [`PollOutcome`] so the caller can
+///   interleave the drive with its own work in a bespoke loop.
+///
+/// # Thread affinity
+///
+/// `FpssEventPoller` is the single consumer of the ring — drive it from
+/// exactly one thread, the same single-consumer contract the pull-iter
+/// [`EventIterator`] documents. It is `Send`, so you may build it on the
+/// connect thread and move it to the thread that owns the drain loop.
+/// The single-consumer invariant is enforced by the method receivers:
+/// [`Self::poll_batch`] takes `&mut self` and [`Self::run`] takes `self`
+/// by value, so the borrow checker already prevents two threads driving
+/// the same poller concurrently.
+///
+/// # Zero-copy borrow lifetime
+///
+/// Each `&FpssEvent` handed to the closure is a borrow directly into the
+/// ring slot, valid only for the duration of that call. The wrapped
+/// poller advances the ring's consumer cursor when the per-batch guard
+/// is dropped (at the end of the drain), so the closure must not stash
+/// the reference past its own invocation — clone the event if you need
+/// to retain it. This is enforced by the closure signature
+/// (`FnMut(&FpssEvent)`); the borrow cannot outlive the call.
+pub struct FpssEventPoller {
+    /// The wrapped third-party ring poller. The `disruptor::EventPoller`
+    /// / `EventGuard` / `Polling` types never appear on any public
+    /// signature — this field is private and every method maps the
+    /// poller's output to the SDK's own `FpssEvent` / [`PollOutcome`]
+    /// types.
+    ///
+    /// Terminal shutdown is observed entirely through this poller: when
+    /// the I/O thread exits (on [`FpssClient::shutdown`], a server
+    /// disconnect, or reconnect exhaustion) it drops the ring producer,
+    /// which stores the ring's shutdown sequence. The poller drains
+    /// every event published before that sequence and only then reports
+    /// [`disruptor::Polling::Shutdown`] — so the ring itself is the
+    /// single source of truth for the EOF-drain guarantee, with no
+    /// separate flag that could race ahead of the in-flight tail.
+    poller: EventPoller<RingEvent, SingleProducerBarrier>,
+    /// Count of caught panics from the user handler. The drain isolates
+    /// each `on_event` call under `catch_unwind` (mirroring the managed
+    /// consumer), so a panicking handler skips its own event and the
+    /// drain continues — the unread tail of the in-flight batch is never
+    /// lost. Surfaced via [`FpssEventPoller::panic_count`].
+    panic_count: u64,
+}
+
+// Note (no `unsafe` here): `EventPoller` is `Send` because its
+// `Arc`-held ring buffer and cursors are `Send`, and `RingEvent: Sync`
+// (see `ring.rs`). We do NOT implement `Sync` for `FpssEventPoller`;
+// the single-consumer ring sequencing requires one draining thread,
+// mirroring `EventIterator`.
+
+impl FpssEventPoller {
+    /// Drive the ring on the calling thread until the session shuts down
+    /// and the ring is fully drained, handing each event to `on_event`.
+    ///
+    /// Blocks the calling thread. Each available batch is drained in
+    /// order; on a momentarily-empty ring the loop applies the same
+    /// three-phase wait the SDK's managed consumer uses (spin, then
+    /// `yield_now`, then a `spin_loop` hint). This keeps an active
+    /// stream low-latency and yields to other runnable threads on a
+    /// quiet stream, but it does NOT park — the loop stays runnable
+    /// rather than idling at zero CPU. A consumer that wants to release
+    /// the core while the stream is idle should drive
+    /// [`Self::poll_batch`] behind its own parking strategy instead.
+    ///
+    /// Returns once [`FpssClient::shutdown`] (or dropping the
+    /// [`FpssClient`]) has fired AND every event already published into
+    /// the ring has been delivered — the EOF-drain guarantee. Each
+    /// `&FpssEvent` is a zero-copy borrow into the ring slot, valid only
+    /// for the `on_event` call.
+    pub fn run(mut self, mut on_event: impl FnMut(&FpssEvent)) {
+        let waiter = ring::AdaptiveWaitStrategy::fpss_default();
+        loop {
+            match self.poll_batch(&mut on_event) {
+                PollOutcome::Shutdown => return,
+                PollOutcome::Drained(0) => {
+                    // Ring momentarily empty. Producer-drop (on client
+                    // shutdown or disconnect) stores the ring's shutdown
+                    // sequence; `poll_batch` surfaces that as `Shutdown`
+                    // once the consumer cursor reaches it. That stored
+                    // sequence is the sole termination signal here — the
+                    // poller holds no separate shutdown flag. Re-poll
+                    // after one wait cycle so a terminal state is observed
+                    // promptly without spinning hard on a quiet stream.
+                    waiter.wait_for(0);
+                }
+                PollOutcome::Drained(_) => {
+                    // Delivered a batch; loop straight back to drain any
+                    // events that arrived while this batch was processed.
+                }
+            }
+        }
+    }
+
+    /// Non-blocking drain of the currently-available batch into
+    /// `on_event`. Returns a [`PollOutcome`] so a caller integrating the
+    /// ring drive into its own loop can tell a drained batch (and how
+    /// many events it carried) apart from terminal shutdown.
+    ///
+    /// Does not sleep or spin: if the ring is momentarily empty the call
+    /// returns [`PollOutcome::Drained`]`(0)` immediately and the caller
+    /// decides when to re-poll. Once the [`FpssClient`] has shut down
+    /// and every published event has been drained, returns
+    /// [`PollOutcome::Shutdown`]; subsequent calls keep returning
+    /// `Shutdown`.
+    ///
+    /// Each `&FpssEvent` handed to `on_event` is a zero-copy borrow into
+    /// the ring slot, valid only for that call.
+    pub fn poll_batch(&mut self, mut on_event: impl FnMut(&FpssEvent)) -> PollOutcome {
+        match self.poller.poll() {
+            Ok(mut guard) => {
+                let mut delivered = 0usize;
+                // `&mut EventGuard` is an `Iterator<Item = &RingEvent>`
+                // borrowing the ring slots for the lifetime of the
+                // guard. Reborrow each slot to the public `&FpssEvent`
+                // via `as_public`, filtering the internal-only `Empty` /
+                // `Unparseable` discriminants exactly as the managed
+                // consumer does. The guard is dropped at the end of this
+                // block, which advances the ring's consumer cursor and
+                // frees the slots for the producer to reuse.
+                for ring_event in &mut guard {
+                    if let Some(evt) = ring_event.event.as_public() {
+                        // Isolate each handler call under `catch_unwind`,
+                        // mirroring the managed consumer. The guard's drop
+                        // advances the cursor to the end of the batch
+                        // unconditionally, so a panic that unwound across
+                        // the loop would commit — and silently skip — the
+                        // unread tail. Catching here keeps the drain going
+                        // so every event in the batch is delivered or
+                        // accounted; a panicking handler loses only its
+                        // own event and bumps `panic_count`.
+                        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            on_event(evt);
+                        }))
+                        .is_err()
+                        {
+                            self.panic_count += 1;
+                            if self.panic_count == 1 || self.panic_count.is_multiple_of(1024) {
+                                tracing::warn!(
+                                    target: "thetadatadx::fpss::poller",
+                                    panic_count = self.panic_count,
+                                    "user poller handler panicked; event skipped, drain continuing"
+                                );
+                            }
+                        } else {
+                            delivered += 1;
+                        }
+                    }
+                }
+                PollOutcome::Drained(delivered)
+            }
+            Err(Polling::NoEvents) => {
+                // Ring empty right now. If the client has shut down, the
+                // producer has been (or is being) dropped; the ring's
+                // shutdown sequence will surface as `Polling::Shutdown`
+                // once the cursor reaches it. Until then report a
+                // zero-length drain so a `run` loop waits and re-polls
+                // rather than false-terminating mid-drain. The drained
+                // tail is delivered through the `Ok(guard)` arm on the
+                // poll that follows the last publish.
+                PollOutcome::Drained(0)
+            }
+            Err(Polling::Shutdown) => PollOutcome::Shutdown,
+        }
+    }
+
+    /// Number of user-handler panics caught and isolated during draining.
+    /// Mirrors [`FpssClient::panic_count`] for the direct-consumer mode:
+    /// each panic skips its own event without aborting the drain or
+    /// losing the rest of the in-flight batch.
+    #[must_use]
+    pub fn panic_count(&self) -> u64 {
+        self.panic_count
+    }
+
+    /// Test-only constructor that wraps an [`EventPoller`] built directly
+    /// from [`io_loop::build_poller_producer`], bypassing the TLS +
+    /// I/O-thread plumbing of [`FpssClient::connect_consumer`]. Soak /
+    /// unit tests drive the poller's `run` / `poll_batch` loops against a
+    /// producer they publish into by hand, then drop the producer to
+    /// assert the EOF-drain + terminal-shutdown contract.
+    #[cfg(test)]
+    #[doc(hidden)]
+    pub(in crate::fpss) fn for_test(poller: EventPoller<RingEvent, SingleProducerBarrier>) -> Self {
+        Self {
+            poller,
+            panic_count: 0,
+        }
+    }
+}
+
 impl Drop for FpssClient {
     fn drop(&mut self) {
         // Signal shutdown if not already done.
@@ -1666,11 +2202,14 @@ impl Drop for FpssClient {
 
         // Self-join guard.
         //
-        // The exit path of the I/O thread drops the Disruptor producer
-        // (`crates/thetadatadx/src/fpss/io_loop/mod.rs:640`), and
-        // `disruptor::Producer::drop` joins the consumer thread
-        // (`disruptor` 4.x `single.rs`). So `self.io_handle.join()`
-        // transitively joins the consumer thread.
+        // The exit path of the I/O thread drops the ring producer
+        // (`drop(producer)` at the end of `io_loop`), and in the
+        // managed-consumer modes `disruptor::Producer::drop` joins the
+        // spawned consumer thread (`disruptor` 4.x `single.rs`). So
+        // `self.io_handle.join()` transitively joins that consumer
+        // thread. (In direct-consumer / poller mode there is no spawned
+        // consumer thread, so this guard simply never matches a
+        // consumer id.)
         //
         // If `Drop` is running on either of those threads — the I/O
         // thread itself, or the Disruptor consumer thread (the thread

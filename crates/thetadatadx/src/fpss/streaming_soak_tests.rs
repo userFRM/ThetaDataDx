@@ -1503,3 +1503,326 @@ fn iter_does_not_false_eof_during_drain() {
         "queue fully drained once iterator surfaced Closed"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Direct-consumer (single-ring) poller soak tests
+// ---------------------------------------------------------------------------
+//
+// These drive `FpssEventPoller` against a producer built by
+// `io_loop::build_poller_producer` and published into by hand — no TLS,
+// no I/O thread — so the poller's drain ordering, the EOF-drain
+// guarantee, and the terminal `PollOutcome::Shutdown` contract are
+// pinned without live credentials. Dropping the producer is the test's
+// stand-in for the I/O thread exiting and dropping the ring producer at
+// `io_loop` scope exit, which is what stores the ring's shutdown
+// sequence.
+
+/// `poll_batch` drains the currently-available batch in publish order,
+/// then reports `Shutdown` only after the producer has been dropped AND
+/// every published event has been drained — the EOF-drain guarantee.
+#[test]
+fn poller_poll_batch_drains_then_reports_shutdown() {
+    use super::events::FpssControl;
+    use super::{FpssEventPoller, PollOutcome};
+    use disruptor::Producer;
+
+    let (mut producer, poller) = super::io_loop::build_poller_producer(64);
+    let mut poller = FpssEventPoller::for_test(poller);
+
+    // Publish three control frames the projection surfaces publicly.
+    let kinds = [
+        FpssControl::MarketOpen,
+        FpssControl::MarketClose,
+        FpssControl::Reconnected,
+    ];
+    for k in &kinds {
+        let k = k.clone();
+        producer.publish(|slot| {
+            slot.event = super::events::FpssEventInternal::Control(k);
+        });
+    }
+
+    // Drain the available batch. With a single producer publishing
+    // three events before any poll, the batch should carry all three.
+    let mut seen: Vec<FpssEvent> = Vec::new();
+    let outcome = poller.poll_batch(|evt| seen.push(evt.clone()));
+    assert_eq!(
+        outcome,
+        PollOutcome::Drained(3),
+        "poll_batch must drain the full available batch"
+    );
+    assert!(
+        matches!(
+            seen.as_slice(),
+            [
+                FpssEvent::Control(FpssControl::MarketOpen),
+                FpssEvent::Control(FpssControl::MarketClose),
+                FpssEvent::Control(FpssControl::Reconnected),
+            ]
+        ),
+        "events must arrive in publish order, got {seen:?}"
+    );
+
+    // Empty ring, producer still live → zero-length drain, NOT shutdown.
+    let outcome = poller.poll_batch(|_| panic!("no events expected on empty live ring"));
+    assert_eq!(
+        outcome,
+        PollOutcome::Drained(0),
+        "empty-but-live ring must report Drained(0), not Shutdown"
+    );
+
+    // Drop the producer: this stores the ring's shutdown sequence (no
+    // consumer thread to join in poller mode). The poller now reports
+    // terminal shutdown.
+    drop(producer);
+    let outcome = poller.poll_batch(|_| panic!("no events expected after shutdown"));
+    assert_eq!(
+        outcome,
+        PollOutcome::Shutdown,
+        "poll_batch must report Shutdown once the producer is dropped and the ring is drained"
+    );
+    // Idempotent terminal.
+    assert_eq!(poller.poll_batch(|_| {}), PollOutcome::Shutdown);
+}
+
+/// A tail of events published right before the producer drop must all be
+/// delivered before `poll_batch` reports `Shutdown` — the drain happens
+/// on the poll that follows the last publish, never lost to a premature
+/// terminal.
+#[test]
+fn poller_poll_batch_drains_tail_published_before_drop() {
+    use super::events::FpssControl;
+    use super::{FpssEventPoller, PollOutcome};
+    use disruptor::Producer;
+
+    let (mut producer, poller) = super::io_loop::build_poller_producer(64);
+    let mut poller = FpssEventPoller::for_test(poller);
+
+    const TAIL: usize = 10;
+    for _ in 0..TAIL {
+        producer.publish(|slot| {
+            slot.event = super::events::FpssEventInternal::Control(FpssControl::MarketOpen);
+        });
+    }
+    // Drop BEFORE the first poll: the shutdown sequence is set, but the
+    // tail is still in the ring and must drain first.
+    drop(producer);
+
+    let mut delivered = 0usize;
+    while let PollOutcome::Drained(n) = poller.poll_batch(|_| {}) {
+        delivered += n;
+    }
+    assert_eq!(
+        delivered, TAIL,
+        "every event published before the drop must drain before Shutdown"
+    );
+}
+
+/// `run` blocks the calling thread, drains every event a separate
+/// producer thread publishes (in order), and returns once the producer
+/// is dropped and the ring is empty.
+#[test]
+fn poller_run_receives_events_in_order_then_returns() {
+    use super::events::FpssControl;
+    use super::FpssEventPoller;
+    use disruptor::Producer;
+
+    let (mut producer, poller) = super::io_loop::build_poller_producer(256);
+    let poller = FpssEventPoller::for_test(poller);
+
+    const N: i32 = 500;
+    // Publish on a separate thread; `run` drives the ring on this one.
+    let producer_thread = thread::spawn(move || {
+        for i in 0..N {
+            // Encode the sequence number in `ServerError.message` so the
+            // consumer can assert exact ordering.
+            let msg = i.to_string();
+            producer.publish(|slot| {
+                slot.event = super::events::FpssEventInternal::Control(FpssControl::ServerError {
+                    message: msg,
+                });
+            });
+        }
+        // Drop the producer to set the ring shutdown sequence so `run`
+        // returns after draining.
+        drop(producer);
+    });
+
+    let received: Arc<Mutex<Vec<i32>>> = Arc::new(Mutex::new(Vec::new()));
+    let received_run = Arc::clone(&received);
+    poller.run(move |evt| {
+        if let FpssEvent::Control(FpssControl::ServerError { message }) = evt {
+            received_run
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(message.parse().expect("sequence message must parse"));
+        }
+    });
+
+    producer_thread.join().expect("producer thread must join");
+
+    let got = received
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    assert_eq!(
+        got.len(),
+        N as usize,
+        "run must deliver every published event"
+    );
+    let expected: Vec<i32> = (0..N).collect();
+    assert_eq!(*got, expected, "run must preserve publish order");
+}
+
+/// A handler that panics mid-batch must not lose the unread tail of that
+/// batch. The Disruptor `EventGuard` advances the consumer cursor to the
+/// end of the available batch on drop regardless of how many events were
+/// read, so an unwind across the drain loop would silently skip the
+/// remaining events. `poll_batch` isolates each handler call under
+/// `catch_unwind`, so the panicking event is the only one dropped and the
+/// rest of the batch is still delivered.
+#[test]
+fn poller_poll_batch_isolates_handler_panic_and_keeps_batch_tail() {
+    use super::events::FpssControl;
+    use super::{FpssEventPoller, PollOutcome};
+    use disruptor::Producer;
+
+    let (mut producer, poller) = super::io_loop::build_poller_producer(256);
+    let mut poller = FpssEventPoller::for_test(poller);
+
+    // Publish a 5-event batch BEFORE polling so a single `poll_batch`
+    // call drains all five under one `EventGuard`.
+    for i in 0..5i32 {
+        let msg = i.to_string();
+        producer.publish(|slot| {
+            slot.event = super::events::FpssEventInternal::Control(FpssControl::ServerError {
+                message: msg,
+            });
+        });
+    }
+
+    let mut received: Vec<i32> = Vec::new();
+    let outcome = poller.poll_batch(|evt| {
+        if let FpssEvent::Control(FpssControl::ServerError { message }) = evt {
+            let seq: i32 = message.parse().expect("sequence message must parse");
+            // Panic on the middle event of the batch.
+            assert_ne!(seq, 2, "handler panics on event 2");
+            received.push(seq);
+        }
+    });
+
+    // The four non-panicking events were delivered; only event 2 was lost.
+    assert_eq!(
+        received,
+        vec![0, 1, 3, 4],
+        "tail after the panic must survive"
+    );
+    assert_eq!(
+        outcome,
+        PollOutcome::Drained(4),
+        "drained count excludes the panicking event"
+    );
+    assert_eq!(poller.panic_count(), 1, "one caught handler panic");
+
+    drop(producer);
+}
+
+/// `run` returns promptly once the producer is dropped on another
+/// thread mid-stream, after draining the in-flight tail. Guards against
+/// a `run` loop that hangs when the producer goes away.
+#[test]
+fn poller_run_terminates_when_producer_dropped() {
+    use super::events::FpssControl;
+    use super::FpssEventPoller;
+    use disruptor::Producer;
+
+    let (mut producer, poller) = super::io_loop::build_poller_producer(64);
+    let poller = FpssEventPoller::for_test(poller);
+
+    let producer_thread = thread::spawn(move || {
+        for _ in 0..5 {
+            producer.publish(|slot| {
+                slot.event = super::events::FpssEventInternal::Control(FpssControl::MarketOpen);
+            });
+        }
+        // Hold the producer briefly so `run` observes an idle ring and
+        // exercises its adaptive-wait branch, then drop to terminate.
+        thread::sleep(Duration::from_millis(20));
+        drop(producer);
+    });
+
+    let count = Arc::new(AtomicU64::new(0));
+    let count_run = Arc::clone(&count);
+    let start = Instant::now();
+    poller.run(move |_evt| {
+        count_run.fetch_add(1, Ordering::Relaxed);
+    });
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "run must return promptly after the producer is dropped"
+    );
+    assert_eq!(
+        count.load(Ordering::Relaxed),
+        5,
+        "run must deliver the in-flight events before returning"
+    );
+    producer_thread.join().expect("producer thread must join");
+}
+
+/// The projection filters the internal-only `Empty` / `Unparseable`
+/// ring slots: a published `Unparseable` event is never surfaced to the
+/// poller closure, only `Data` / `Control` reach it. Pins the same
+/// internal/public split the managed consumer enforces, on the poller
+/// drain path.
+#[test]
+fn poller_poll_batch_filters_internal_only_variants() {
+    use super::events::{FpssControl, FpssEventInternal};
+    use super::{FpssEventPoller, PollOutcome};
+    use disruptor::Producer;
+
+    let (mut producer, poller) = super::io_loop::build_poller_producer(64);
+    let mut poller = FpssEventPoller::for_test(poller);
+
+    // Interleave a public Control with an internal-only Unparseable.
+    producer.publish(|slot| {
+        slot.event = FpssEventInternal::Control(FpssControl::MarketOpen);
+    });
+    producer.publish(|slot| {
+        slot.event = FpssEventInternal::Unparseable;
+    });
+    producer.publish(|slot| {
+        slot.event = FpssEventInternal::Control(FpssControl::MarketClose);
+    });
+
+    let mut seen: Vec<FpssEvent> = Vec::new();
+    let outcome = poller.poll_batch(|evt| seen.push(evt.clone()));
+    // Three slots advanced, but only the two public ones are delivered.
+    assert_eq!(
+        outcome,
+        PollOutcome::Drained(2),
+        "Unparseable must not count toward delivered events"
+    );
+    assert!(
+        matches!(
+            seen.as_slice(),
+            [
+                FpssEvent::Control(FpssControl::MarketOpen),
+                FpssEvent::Control(FpssControl::MarketClose),
+            ]
+        ),
+        "internal-only variants must be filtered before the closure, got {seen:?}"
+    );
+}
+
+/// `FpssEventPoller` is `Send` so a caller can build it on the connect
+/// thread and move it to the thread that will own the drain loop.
+/// Single-consumer safety does not rely on `!Sync`: both drive methods
+/// take `&mut self` (`poll_batch`) or `self` (`run`), so the borrow
+/// checker already forbids two threads draining the same poller at once
+/// without unsynchronised aliasing the caller would have to construct
+/// deliberately.
+#[test]
+fn poller_is_send() {
+    use super::FpssEventPoller;
+    fn assert_send<T: Send>() {}
+    assert_send::<FpssEventPoller>();
+}
