@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [11.0.1] - 2026-05-29
+
 ### Fixed
 
 - The historical-channel decode pipeline's stage-1 wait strategy now parks on a 30 µs microsleep floor once its spin and yield phases elapse, instead of ending in a bare `std::hint::spin_loop` hint. That hint is a CPU pause, not a scheduler yield, so an idle decoder thread stayed `RUNNABLE` and re-polled continuously, pinning each idle stage-1 thread at roughly 100% CPU. Idle decoder CPU now drops to about 0% with no measurable change to active-path decode latency. ([#619](https://github.com/userFRM/ThetaDataDx/issues/619))

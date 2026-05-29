@@ -3509,7 +3509,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "11.0.0"
+version = "11.0.1"
 dependencies = [
  "arc-swap",
  "arrow-array",
@@ -3564,7 +3564,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-cli"
-version = "11.0.0"
+version = "11.0.1"
 dependencies = [
  "clap",
  "comfy-table",
@@ -3576,7 +3576,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-ffi"
-version = "11.0.0"
+version = "11.0.1"
 dependencies = [
  "arrow-array",
  "arrow-ipc",
