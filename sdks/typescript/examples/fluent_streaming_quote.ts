@@ -1,20 +1,13 @@
-// Fluent contract-first streaming example — ported from
-// `sdks/python/examples/fluent_streaming_quote.py` for U10.
+// Fluent contract-first streaming example.
 //
-// Demonstrates the primary documented streaming surface on the TS
-// SDK: typed `Contract` / `Subscription` values feeding the
-// polymorphic `client.subscribe(...)` and `client.subscribeMany(...)`
-// paths, plus the async-iterator delivery mode that mirrors the
-// Python `with client.streaming(callback) as session` block.
+// Demonstrates the primary streaming surface on the TS SDK: typed
+// `Contract` / `Subscription` values feeding the polymorphic
+// `client.subscribe(...)` and `client.subscribeMany(...)` paths,
+// plus the push-callback delivery contract.
 //
 // Run with valid `creds.txt` in the working directory:
 //
 //     npx tsx fluent_streaming_quote.ts
-//
-// The TypeScript SDK exposes FPSS events via `[Symbol.asyncIterator]`
-// on the iterator-mode session — the napi-rs binding does not ship a
-// push-callback variant for JS (the `setCallback` semantics in
-// Node.js would block the libuv loop on every event).
 
 import {
   Credentials,
@@ -33,8 +26,26 @@ async function main(): Promise<void> {
   const stock = Contract.stock("AAPL");
   const option = Contract.option("SPY", "20260620", "550", "C");
 
-  // Open the streaming connection.
-  client.startStreamingIter();
+  // Register the per-event callback. The napi-rs binding hands every
+  // FPSS event to the JS callback on the Node main thread via a
+  // `ThreadsafeFunction`, so the libuv loop stays responsive.
+  client.startStreaming((event) => {
+    switch (event.kind) {
+      case "trade":
+        console.log(
+          `[${event.contract.symbol}] TRADE ${event.price.toFixed(2)} x ${event.size}`,
+        );
+        break;
+      case "quote":
+        console.log(
+          `[${event.contract.symbol}] QUOTE bid=${event.bid.toFixed(2)} ask=${event.ask.toFixed(2)}`,
+        );
+        break;
+      default:
+        break;
+    }
+  });
+
   try {
     // One subscription at a time.
     client.subscribe(stock.quote());
@@ -50,30 +61,8 @@ async function main(): Promise<void> {
     // Full-stream — every option trade across the universe.
     client.subscribe(SecType.option().fullTrades());
 
-    // Drain a few events from the async iterator.
-    const iter = client.eventIterator();
-    const deadline = Date.now() + 60_000; // 60 s
-    while (Date.now() < deadline) {
-      const event = iter.tryNext();
-      if (event === null) {
-        await new Promise((r) => setTimeout(r, 10));
-        continue;
-      }
-      switch (event.kind) {
-        case "trade":
-          console.log(
-            `[${event.contract.symbol}] TRADE ${event.price.toFixed(2)} x ${event.size}`,
-          );
-          break;
-        case "quote":
-          console.log(
-            `[${event.contract.symbol}] QUOTE bid=${event.bid.toFixed(2)} ask=${event.ask.toFixed(2)}`,
-          );
-          break;
-        default:
-          break;
-      }
-    }
+    // Let events flow for 60 s.
+    await new Promise((r) => setTimeout(r, 60_000));
   } finally {
     client.stopStreaming();
     client.awaitDrain(5000);

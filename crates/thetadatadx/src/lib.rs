@@ -1,92 +1,74 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
-
-//! # thetadatadx — No-JVM `ThetaData` Terminal
+//! # thetadatadx
 //!
-//! Native Rust SDK that connects directly to `ThetaData`'s upstream servers,
-//! eliminating the Java terminal entirely. No JVM, no subprocess, no local proxy —
-//! just your application speaking the same wire protocol the terminal uses.
+//! Native Rust SDK for [ThetaData](https://thetadata.us) market data.
+//! Historical data via ThetaData's MDDS service, real-time streaming via
+//! ThetaData's FPSS service, and bulk flat-file pulls — all through a single
+//! authenticated client, without a JVM, subprocess, or local proxy.
 //!
-//! ## Data types live in `tdbe`
+//! Requires a valid ThetaData subscription.
 //!
-//! Tick types (`TradeTick`, `EodTick`, ...), `Price`, enums (`SecType`, `DataType`),
-//! the FIT/FIE codecs, and the Greeks calculator have been extracted into the
-//! [`tdbe`](https://crates.io/crates/tdbe) crate. This crate re-exports what it
-//! needs, but if you only want types and offline Greeks, depend on `tdbe` directly.
-//!
-//! ## Architecture
-//!
-//! `ThetaData` exposes two upstream services:
-//!
-//! - **MDDS** (Market Data Distribution Server) — historical data via gRPC at `mdds-01.thetadata.us:443`
-//! - **FPSS** (Feed Processing Streaming Server) — real-time streaming via custom TCP at `nj-a.thetadata.us:20000`
-//!
-//! This crate speaks both protocols natively, handling authentication, request building,
-//! response decompression, and tick parsing entirely in Rust.
-//!
-//! ## Quick Start
-//!
-//! The recommended entry point is [`ThetaDataDxClient`], which authenticates once and
-//! provides both historical and streaming through a single object:
+//! ## Quick start
 //!
 //! ```rust,no_run
 //! use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
-//! use thetadatadx::fpss::{FpssData, FpssEvent};
+//! use thetadatadx::fpss::{FpssEvent, FpssData};
 //! use thetadatadx::fpss::protocol::Contract;
 //!
 //! # async fn doc() -> Result<(), thetadatadx::Error> {
 //! let creds = Credentials::from_file("creds.txt")?;
-//! // Or inline: let creds = Credentials::new("user@example.com", "your-password");
-//!
-//! // Connect -- authenticates once, historical ready immediately
 //! let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 //!
-//! // Historical (MDDS gRPC) -- every generated method via Deref
+//! // Historical — every historical endpoint available via Deref
 //! let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
-//! // Streaming (FPSS TCP) -- connects lazily on first call
+//! // Real-time streaming
 //! tdx.start_streaming(|event: &FpssEvent| {
 //!     if let FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) = event {
 //!         println!("Trade: {} @ {price} x {size}", contract.symbol);
 //!     }
 //! })?;
-//!
 //! tdx.subscribe(Contract::stock("AAPL").quote())?;
-//!
-//! // ... when done:
-//! tdx.stop_streaming();
 //! # Ok(()) }
 //! ```
 //!
-//! For historical-only usage, just skip `start_streaming()` -- every historical
-//! methods are available directly on `ThetaDataDxClient` via `Deref<Target = MddsClient>`:
+//! For streaming-only workloads, build an [`fpss::FpssClient`] directly
+//! and iterate events on the caller's thread:
 //!
 //! ```rust,no_run
-//! use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
+//! use thetadatadx::fpss::{FpssClient, FpssEvent};
+//! use thetadatadx::{Credentials, DirectConfig};
+//! use thetadatadx::fpss::protocol::Contract;
 //!
-//! # async fn doc() -> Result<(), thetadatadx::Error> {
-//! let creds = Credentials::from_file("creds.txt")?;
-//! // Or inline: let creds = Credentials::new("user@example.com", "your-password");
-//! let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
-//! let ticks = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+//! # fn doc() -> Result<(), thetadatadx::fpss::FpssError> {
+//! let creds = Credentials::new("user@example.com", "pw");
+//! let hosts = DirectConfig::production().fpss.hosts;
+//!
+//! let client = FpssClient::builder(&creds, &hosts)
+//!     .ring_size(8192)
+//!     .build()?;
+//!
+//! client.subscribe(Contract::stock("AAPL").quote())?;
+//!
+//! for event in &client {
+//!     let _event: FpssEvent = event?;
+//! }
 //! # Ok(()) }
 //! ```
 //!
-//! ## Wire protocol
+//! `client.next_event()` blocks until the next event or terminal
+//! shutdown; `try_next_event` is the non-blocking variant;
+//! `poll_batch(FnMut)` and `for_each(FnMut)` are the closure-driven
+//! shapes.
 //!
-//! - **Proto definitions**: `crates/thetadatadx/proto/mdds.proto` — single
-//!   `BetaEndpoints` package, 60 RPCs, `BetaThetaTerminal` service.
+//! ## Data delivery
 //!
-//! - **Auth flow**: POST to `https://nexus-api.thetadata.us/identity/terminal/auth_user`
-//!   with header `TD-TERMINAL-KEY` and JSON `{email, password}` → `SessionInfoV3` with UUID.
-//!
-//! - **MDDS**: Standard gRPC server-streaming over TLS. Session UUID embedded in
-//!   `QueryInfo.auth_token` field of every request (in-band, not metadata).
-//!
-//! - **FPSS**: Custom TLS-over-TCP protocol. 1-byte length + 1-byte message code + payload.
-//!   FIT nibble encoding (4-bit variable-length integers) with delta compression for ticks.
-//!
-//! See [`proto/MAINTENANCE.md`](../../crates/thetadatadx/proto/MAINTENANCE.md) for how to
-//! update the proto file and regenerate stubs when ThetaData ships a new version.
+//! Historical data arrives over ThetaData's MDDS service; real-time
+//! ticks arrive over ThetaData's FPSS service. Both are decoded
+//! inside the crate — consumers see typed tick rows on the historical side
+//! and a typed [`fpss::FpssEvent`] stream on the streaming side.
+
+// ─── Internal module tree ────────────────────────────────────────────────────
 
 pub mod auth;
 pub(crate) mod client;
@@ -96,87 +78,100 @@ pub mod flatfiles;
 pub mod fpss;
 #[cfg(any(feature = "polars", feature = "arrow"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "polars", feature = "arrow"))))]
+#[doc(hidden)]
 pub mod frames;
+pub(crate) mod lifecycle;
 
-// The `grpc` module hosts in-house transport infrastructure (Channel,
-// ChannelPool, DecoderPool, Stage2Pool, Codec, Status, ServerStreaming).
-// The user-facing path is `MddsClient::for_each_chunk(ServerStreaming<..>)`;
-// the remainder is consumed by the SDK's own integration tests + benches.
+// The `grpc` module hosts the transport infrastructure (Channel, ChannelPool,
+// DecoderPool, Stage2Pool, Codec, Status, ServerStreaming). The user-facing
+// path is `MddsClient::for_each_chunk(ServerStreaming<..>)`; the remainder is
+// consumed by the SDK's own integration tests and benches.
 //
 // In shipped builds (default features) the module is `pub(crate)` so none
 // of its types appear in the SemVer commitment or in rendered rustdoc.
 // Errors flowing out of the transport layer are converted to the public
-// [`crate::Error`] type via `impl From<grpc::ChannelError> for Error` at
-// the crate boundary — consumers pattern-match on [`crate::Error`] only.
+// [`crate::Error`] type at the crate boundary — consumers pattern-match on
+// [`crate::Error`] only.
 //
-// The `__test-helpers` feature re-opens the module to integration tests
-// and bench harnesses inside this repo that need to drive the raw
-// `Channel` / `Pool` / `DecoderPool` surface against synthetic frames.
-// This feature is private and unsupported for downstream consumers; see
-// the [`__test-helpers`] feature notes in `Cargo.toml` for the
-// double-underscore convention.
-//
-// Narrows the `pub mod grpc` SemVer commitment to crate-internal use.
+// The `__test-helpers` feature re-opens the module to integration tests and
+// bench harnesses that need to drive the raw `Channel` / `Pool` /
+// `DecoderPool` surface against synthetic frames. This feature is private and
+// unsupported for downstream consumers.
 #[cfg(not(feature = "__test-helpers"))]
 pub(crate) mod grpc;
 #[cfg(feature = "__test-helpers")]
 #[doc(hidden)]
 pub mod grpc;
+
 pub(crate) mod observability;
-pub mod rest;
 pub mod util;
 
 // `mdds/` holds the macros, registry, validate, wire_semantics, and the
-// shared endpoint runtime (`endpoint_args`). The macro_rules in
-// `mdds/macros.rs` are made textually visible to the sibling
-// `mdds/endpoints` module via `#[macro_use]` on the `macros`
-// declaration inside `mdds/mod.rs`.
+// shared endpoint runtime (`endpoint_args`).
+//
+// In default-feature builds the module is `pub(crate)` — none of its types
+// appear in the SemVer commitment or in rendered rustdoc. The `__internal`
+// feature re-opens the module to workspace tools (`tools/cli`, `tools/server`,
+// `tools/mcp`) and bindings (`ffi`, `sdks/python`, `sdks/typescript`) that
+// need direct access to the registry, decode pipeline, and endpoint runtime.
+#[cfg(not(feature = "__internal"))]
+pub(crate) mod mdds;
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
 pub mod mdds;
 
-/// Shared endpoint runtime (`EndpointArgs`, `EndpointError`,
-/// `invoke_endpoint`). Re-exported from [`mdds::endpoint_args`] so
-/// existing `thetadatadx::endpoint::*` paths continue to resolve.
+/// Shared endpoint runtime (`EndpointArgs`, `EndpointError`, `invoke_endpoint`).
+/// Re-exported from [`mdds::endpoint_args`] so existing `thetadatadx::endpoint::*`
+/// paths continue to resolve.
+///
+/// Only available when the `__internal` feature is enabled. NOT a stable public
+/// surface — for workspace tools and bindings only.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
 pub use mdds::endpoint_args as endpoint;
 
-// `decode` is re-exported from `mdds::decode` to preserve the public surface
-// (`thetadatadx::decode::*`). The decode pipeline is split into
-// `mdds/decode/{error, headers, transport, extract, cell, v3}`; the
-// re-export keeps existing consumer paths unchanged.
+/// Decode pipeline re-exported from `mdds::decode`.
+///
+/// `pub(crate)` in default builds — internal modules (`grpc/endpoints.rs`,
+/// `mdds/endpoints.rs`, `error.rs`) reference it as `crate::decode`. The
+/// `__internal` feature widens it to `pub` so workspace bindings can import
+/// `thetadatadx::decode::*` directly.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
 pub use mdds::decode;
+#[cfg(not(feature = "__internal"))]
+pub(crate) use mdds::decode;
 
 /// Generated protobuf types from `mdds.proto` (package `BetaEndpoints`).
 ///
-/// Wire-internal: bindings and decode-fixture consumers reach the
-/// gRPC payload shapes via [`crate::wire`], which surfaces only the
-/// types those callers genuinely need. Inside the crate the full
-/// generated module is reachable via `crate::proto`.
+/// Wire-internal: bindings and decode-fixture consumers reach the payload
+/// shapes via [`crate::wire`], which surfaces only the types those callers
+/// genuinely need.
 #[allow(clippy::pedantic)]
 pub(crate) mod proto {
     include!(concat!(env!("OUT_DIR"), "/beta_endpoints.rs"));
 }
 
-/// gRPC wire-payload re-exports for offline-decode callers.
+/// Wire-payload re-exports for offline-decode callers.
 ///
-/// The MDDS gRPC server emits `ResponseData` frames; each frame's body
-/// is a zstd-compressed `DataTable` of `DataValueList` rows. SDK
-/// bindings that recover endpoint outputs from recorded byte streams
-/// (the parity-bench harness in particular) need these three types
-/// plus the `data_value` oneof. The generated `proto` module that
-/// hosts them is otherwise wire-internal — this re-export is the
-/// supported surface for that one use case.
+/// SDK bindings that recover endpoint outputs from recorded byte streams
+/// need the protobuf payload types re-exported here. The generated `proto`
+/// module that hosts them is otherwise wire-internal — this re-export is
+/// the supported surface for that use case.
+///
+/// Only available when the `__internal` feature is enabled. NOT a stable public
+/// surface — for workspace tools and bindings only.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
 pub mod wire {
     pub use super::proto::{
         data_value, CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList,
         Price, ResponseData, TimeZone, ZonedDateTime,
     };
 
-    /// Request proto types re-exported behind the `__test-helpers`
-    /// feature so integration tests can decode captured outbound
-    /// wire bytes and assert field-level content (e.g.
-    /// `option_history_*` requests carry the right `end_date`
-    /// param). Symbol stays `pub(crate)` in shipped builds — the
-    /// re-export only enters the rlib when the private test feature
-    /// is enabled.
+    /// Request proto types re-exported behind the `__test-helpers` feature so
+    /// integration tests can decode captured outbound wire bytes and assert
+    /// field-level content. Symbol stays `pub(crate)` in shipped builds.
     #[cfg(feature = "__test-helpers")]
     #[doc(hidden)]
     pub mod test_requests {
@@ -186,14 +181,153 @@ pub mod wire {
     }
 }
 
+// ─── Doc-hidden internals reachable by tools/bindings ────────────────────────
+//
+// All symbols below are gated on `__internal`. In default-feature builds the
+// `mdds` module is `pub(crate)` so none of these paths are reachable from
+// outside the crate. Enabling `__internal` re-opens the module and these
+// re-exports so workspace tools and bindings can reference the registry,
+// decode pipeline, and endpoint runtime without patching the module tree.
+
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use lifecycle::DispatcherSession;
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use mdds::endpoint_args::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use mdds::registry::{
+    by_category, find, param_type_to_json_type, EndpointMeta, ParamMeta, ParamType, ReturnType,
+    CATEGORIES, ENDPOINTS,
+};
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use mdds::{MddsClient, SubscriptionTier};
+
+// ─── Curated public client surface ───────────────────────────────────────────
+
 pub use auth::Credentials;
 pub use client::{ConnectionStatus, SubscriptionInfo, ThetaDataDxClient};
-pub use fpss::protocol::{
-    Contract, ContractParseError, FullSubscriptionKind, SecTypeExt, Subscription, SubscriptionKind,
+pub use config::{
+    DirectConfig, FlatFilesConfig, FpssFlushMode, ReconnectAttemptClass, ReconnectAttemptLimits,
+    ReconnectPolicy, RetryPolicy, RuntimeConfig,
 };
-pub use fpss::{EventIterator, NextEvent};
+pub use error::{
+    AuthErrorKind, ConfigErrorKind, DecodeErrorKind, DecompressErrorKind, Error, FpssErrorKind,
+    GrpcStatusKind, TransportErrorKind,
+};
 
-/// Convenience prelude for the fluent contract-first API.
+// ─── Real-time streaming (FPSS) ──────────────────────────────────────────────
+
+/// Real-time streaming via ThetaData's FPSS service.
+///
+/// Build a [`fpss::FpssClient`] with [`fpss::FpssClient::builder`], subscribe
+/// to contracts, then drive the event loop with
+/// [`fpss::FpssClient::next_event`], [`fpss::FpssClient::poll_batch`], or the
+/// [`Iterator`] impl.
+///
+/// The `protocol` submodule exposes [`fpss::protocol::Contract`] and the
+/// subscription builder shapes.
+pub use fpss::PollOutcome;
+
+// ─── Flat-file bulk pulls ─────────────────────────────────────────────────────
+
+/// Bulk flat-file downloads from ThetaData's flat-file distribution.
+///
+/// Use [`flatfile_request`] to write directly to disk, or
+/// [`flatfile_request_decoded`] to materialise rows in memory.
+pub mod flatfiles_api {
+    pub use crate::flatfiles::{
+        default_output_filename as flatfile_default_filename, flatfile_request,
+        flatfile_request_decoded, flatfile_request_raw, FlatFileFormat, FlatFileRow, FlatFileValue,
+        FlatFilesUnavailableReason, ReqType as FlatFileReqType, SecType as FlatFileSecType,
+    };
+}
+pub use flatfiles_api::*;
+
+// ─── Tick types ───────────────────────────────────────────────────────────────
+
+pub use tdbe::types::tick::{
+    CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
+    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
+    MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,
+    TradeGreeksAllTick, TradeGreeksFirstOrderTick, TradeGreeksImpliedVolatilityTick,
+    TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
+};
+
+// ─── Enums and price wrapper ──────────────────────────────────────────────────
+
+pub use tdbe::types::enums::{
+    DataType, Interval, RateType, RemoveReason, RequestType, Right, SecType, StreamMsgType,
+    StreamResponseType, Venue, Version,
+};
+pub use tdbe::types::price::Price;
+
+// ─── Offline Black-Scholes (Greeks + implied volatility) ─────────────────────
+
+/// Offline Black-Scholes Greeks and implied-volatility solver.
+///
+/// All calculations follow the standard Black-Scholes-Merton model.
+/// Use [`all_greeks`] to compute the full Greek surface from a quoted option
+/// price, or [`implied_volatility`] for the Newton-Raphson IV solve alone.
+pub mod greeks {
+    pub use tdbe::greeks::{all_greeks, implied_volatility, GreeksResult};
+    pub use tdbe::right::{parse_right, parse_right_strict, ParsedRight};
+}
+pub use greeks::*;
+
+// ─── Utility modules ─────────────────────────────────────────────────────────
+
+/// Auxiliary lookup tables.
+///
+/// - [`utils::conditions`] — condition-code descriptions
+/// - [`utils::exchange`] — exchange-code to name mapping
+/// - [`utils::sequences`] — sequence-number utilities
+pub mod utils {
+    pub use tdbe::{conditions, exchange, sequences};
+}
+
+// ─── DataFrame extension traits (feature-gated) ──────────────────────────────
+
+#[cfg(any(feature = "polars", feature = "arrow"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "polars", feature = "arrow"))))]
+/// DataFrame conversion for tick slices.
+///
+/// Feature-gated on `polars` and/or `arrow`. Each tick type implements the
+/// relevant trait so you can call `.to_polars()` or `.to_arrow()` on any
+/// `&[TickType]`.
+pub mod frames_api {
+    #[cfg(feature = "arrow")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+    pub use crate::frames::TicksArrowExt;
+
+    #[cfg(feature = "polars")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
+    pub use crate::frames::TicksPolarsExt;
+}
+
+// ─── Optional allocator ───────────────────────────────────────────────────────
+
+#[cfg(feature = "mimalloc-allocator")]
+#[cfg_attr(docsrs, doc(cfg(feature = "mimalloc-allocator")))]
+/// Re-export of `MiMalloc` from the [mimalloc](https://crates.io/crates/mimalloc) crate for use as `#[global_allocator]`.
+///
+/// Library crates cannot set a global allocator — that must live in
+/// the consuming binary. Enable the `mimalloc-allocator` feature and
+/// attach the handle in your binary's `main.rs`:
+///
+/// ```rust,ignore
+/// #[global_allocator]
+/// static GLOBAL: thetadatadx::mimalloc::MiMalloc = thetadatadx::mimalloc::MiMalloc;
+/// ```
+pub mod mimalloc {
+    pub use ::mimalloc::MiMalloc;
+}
+
+// ─── Prelude ──────────────────────────────────────────────────────────────────
+
+/// Convenience re-exports for the contract-first streaming API.
 ///
 /// ```rust,no_run
 /// use thetadatadx::prelude::*;
@@ -201,7 +335,7 @@ pub use fpss::{EventIterator, NextEvent};
 /// let creds  = Credentials::from_file("creds.txt")?;
 /// let client = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
 /// let stock  = Contract::stock("AAPL");
-/// let option = Contract::option("SPY", "20260620", "550", "C")?;
+/// let option = Contract::option("SPX", "20260620", "5400", "C")?;
 /// client.subscribe(stock.quote())?;
 /// client.subscribe(option.trade())?;
 /// client.subscribe(SecType::Option.full_trades())?;
@@ -217,100 +351,22 @@ pub mod prelude {
     };
     pub use tdbe::types::enums::SecType;
 }
-pub use config::{
-    DirectConfig, FallbackPolicy, FlatFilesConfig, FpssFlushMode, ReconnectAttemptClass,
-    ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, DEFAULT_REST_BASE_URL,
-};
-pub use error::{AuthErrorKind, Error, FpssErrorKind};
-pub use flatfiles::{
-    default_output_filename as flatfile_default_filename, flatfile_request,
-    flatfile_request_decoded, flatfile_request_raw, FlatFileFormat, FlatFileRow, FlatFileValue,
-    FlatFilesUnavailableReason, ReqType as FlatFileReqType, SecType as FlatFileSecType,
-};
-pub use mdds::endpoint_args::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
-pub use mdds::registry::{
-    by_category, find, param_type_to_json_type, EndpointMeta, ParamMeta, ParamType, ReturnType,
-    CATEGORIES, ENDPOINTS,
-};
-pub use mdds::{MddsClient, SubscriptionTier};
-pub use tdbe::right::{parse_right, parse_right_strict, ParsedRight};
 
-// Offline Black-Scholes utilities re-exported from `tdbe`. Prefer these at
-// the `thetadatadx` top level so SDK users do not need a separate `tdbe`
-// dependency for the common "compute Greeks from a quoted option price"
-// path. See [`tdbe::greeks`] for the full surface (per-Greek helpers,
-// `GreeksResult` struct, etc.).
-pub use tdbe::greeks::{all_greeks, implied_volatility, GreeksResult};
-
-// Re-export every tick / row type returned by the SDK's network methods.
-// These all live in `tdbe::types::tick`, but consumers of the high-level
-// `ThetaDataDxClient` / `MddsClient` surface should not need a second crate in
-// their `Cargo.toml` just to name a return type. `tdbe` remains a
-// standalone crate for offline use cases (Greeks math, format primitives,
-// no network); customers consuming the SDK get every type they need
-// at the `thetadatadx` crate root, fronting the same structs.
-//
-// Adding a new tick type? Mirror the addition here so `thetadatadx`
-// consumers stay on a single dep. The companion items above
-// (`ParsedRight`, `GreeksResult`, …) follow the same policy.
-pub use tdbe::types::tick::{
-    CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
-    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
-    MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,
-    TradeGreeksAllTick, TradeGreeksFirstOrderTick, TradeGreeksImpliedVolatilityTick,
-    TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
-};
-
-// Enums + the `Price` wrapper appear on SDK method signatures and inside
-// every tick struct, so consumers naming method parameters or unpacking
-// tick fields need them in scope. Re-exported here for the same single-
-// dep reason as the tick types above. `tdbe::Error` is intentionally
-// NOT re-exported to avoid colliding with [`crate::Error`]; the SDK's
-// own `Error` transparently wraps codec failures from `tdbe`.
-pub use tdbe::types::enums::{
-    DataType, Interval, RateType, RemoveReason, RequestType, Right, SecType, StreamMsgType,
-    StreamResponseType, Venue, Version,
-};
-pub use tdbe::types::price::Price;
-
-pub mod utils {
-    pub use tdbe::{conditions, exchange, sequences};
-}
-
-/// Optional [`mimalloc`](https://crates.io/crates/mimalloc) re-export
-/// for consumers that prefer mimalloc over the system allocator.
+/// Install the ring `CryptoProvider` as the process-wide rustls default.
 ///
-/// Library crates cannot install a `#[global_allocator]` — that lives
-/// in the binary. The `mimalloc-allocator` feature pulls the crate
-/// into the dependency graph and re-exports the allocator handle here
-/// so the consuming binary can attach it with one line:
-///
-/// ```rust,ignore
-/// // `ignore` here because `#[global_allocator]` may only appear in
-/// // the consuming binary's compile unit, not in a library doc-test.
-/// // In your binary's `main.rs` (NOT in a library):
-/// #[global_allocator]
-/// static GLOBAL: thetadatadx::mimalloc::MiMalloc = thetadatadx::mimalloc::MiMalloc;
-/// ```
-///
-/// And in the binary's `Cargo.toml`:
-///
-/// ```toml
-/// [dependencies]
-/// thetadatadx = { version = "11", features = ["mimalloc-allocator"] }
-/// ```
-///
-/// Mimalloc trades a small fixed overhead per process (~64 KB of
-/// shared bookkeeping) for materially fewer page faults and lower
-/// fragmentation on the allocation-heavy gRPC decode path. The
-/// per-call savings scale with response size; tabular MDDS responses
-/// past 1 KB consistently show shorter p99 tails on workloads that
-/// fan calls out across many threads.
-///
-/// See `docs-site/docs/configuration.md` (Performance tuning) for the
-/// full integration walk-through.
-#[cfg(feature = "mimalloc-allocator")]
-#[cfg_attr(docsrs, doc(cfg(feature = "mimalloc-allocator")))]
-pub mod mimalloc {
-    pub use ::mimalloc::MiMalloc;
+/// `reqwest`'s `rustls-no-provider` feature drops the bundled aws-lc-rs
+/// pull, but `hyper-rustls` (a transitive of reqwest's `rustls` codepath)
+/// still pulls aws-lc-rs through its own default features. Rustls then
+/// sees two providers compiled in and bails the first handshake with
+/// `Could not automatically determine the process-level CryptoProvider`.
+/// Pinning ring here keeps the workspace single-provider at the call
+/// site. Idempotent — second-and-later calls return `false` and leave
+/// the prior provider intact. Returns `true` on the install pass that
+/// won the race. Full removal of aws-lc-rs from the dep graph is the
+/// proper fix; tracked as a follow-up.
+#[doc(hidden)]
+pub fn __internal_install_ring_crypto_provider() -> bool {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .is_ok()
 }

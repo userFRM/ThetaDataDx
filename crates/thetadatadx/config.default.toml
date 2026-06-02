@@ -46,7 +46,7 @@ reconnect_wait = 2000
 # Reconnect wait after TooManyRequests (ms). ThetaData enforces rate limits.
 reconnect_wait_rate_limited = 130000
 
-# Disruptor ring buffer size (events). Must be a power of two and
+# Event ring buffer size # VOCAB-OK: internal config knob (events). Must be a power of two and
 # >= 64. Larger rings absorb more burst traffic but use more memory.
 # Increase if stream events are being dropped (see `dropped_event_count`).
 ring_size = 131072

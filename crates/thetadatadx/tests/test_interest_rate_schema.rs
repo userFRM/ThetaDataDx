@@ -1,4 +1,4 @@
-//! Regression test for the v11 `InterestRateTick` schema fix.
+//! Regression test for the `InterestRateTick` schema fix.
 //!
 //! Before this PR `tick_schema.toml` declared `InterestRateTick` as 3 fields
 //! (`ms_of_day`/`rate`/`date`) with a `Number` `date` column, but the
@@ -117,7 +117,7 @@ fn parse_interest_rate_ticks_decodes_iso_text_and_number_rate() {
 
 #[test]
 fn parse_interest_rate_ticks_pins_reference_row() {
-    // The headline wire dump in the v11 CHANGELOG is the SOFR
+    // The headline wire dump in the CHANGELOG is the SOFR
     // 2025-04-28 row (`date=20250428`, `rate=4.36`). Pinning the exact
     // values here means any future schema drift fails this test before
     // it ships.

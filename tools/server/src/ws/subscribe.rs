@@ -334,9 +334,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
 
     let tdx = state.tdx();
     if tdx.is_streaming() {
-        use thetadatadx::fpss::protocol::{
-            FullSubscriptionKind, Subscription, SubscriptionKind,
-        };
+        use thetadatadx::fpss::protocol::{FullSubscriptionKind, Subscription, SubscriptionKind};
         let kind = match req_type.as_str() {
             "QUOTE" => Some(SubscriptionKind::Quote),
             "TRADE" => Some(SubscriptionKind::Trade),

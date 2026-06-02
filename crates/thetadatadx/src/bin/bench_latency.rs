@@ -2,7 +2,7 @@
 //!
 //! Measures the time from `received_at_ns` (captured in the I/O thread at
 //! frame decode) to the moment the user's callback sees the event on the
-//! Disruptor consumer thread. This is the floor — no Python, no numpy, no
+//! event-dispatch consumer thread. This is the floor — no Python, no numpy, no
 //! extra FFI hop — so it sets the upper bound on throughput the SDK can
 //! deliver per connection.
 

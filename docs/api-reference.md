@@ -759,7 +759,7 @@ ThetaDataDxClient exposes the full typed historical surface plus 4 `_stream` var
 
 Every historical endpoint is exposed through the `thetadatadx-ffi` C ABI crate. Each method has a corresponding `extern "C"` function (e.g., `thetadatadx_stock_history_eod`). The C++ SDK wraps these FFI functions 1:1; third-party C-interop wrappers (Go via cgo, Swift, Zig, etc.) can do the same against the unchanged ABI.
 
-**No JSON crosses the FFI boundary.** All inputs and outputs use typed `#[repr(C)]` structs -- historical endpoints, streaming events, Greeks, and subscriptions alike. Streaming events are delivered through `tdx_fpss_set_callback` / `tdx_unified_set_callback`: the callback runs on the LMAX Disruptor consumer thread under `catch_unwind`, with ring-overflow drops counted on `tdx_*_dropped_events`. The user-supplied `extern "C" fn(const TdxFpssEvent*, void*)` receives a pointer to a tagged `#[repr(C)]` event struct (per-variant kinds: `quote`, `trade`, `open_interest`, `ohlcvc`, plus one struct per `FpssControl::*` variant including `unknown_frame` for unrecognised wire frames); the pointer is valid only for the duration of the callback.
+**No JSON crosses the FFI boundary.** All inputs and outputs use typed `#[repr(C)]` structs -- historical endpoints, streaming events, Greeks, and subscriptions alike. Streaming events are delivered through `tdx_fpss_set_callback` / `tdx_unified_set_callback`: the callback runs on the event-dispatch consumer thread under `catch_unwind`, with ring-overflow drops counted on `tdx_*_dropped_events`. The user-supplied `extern "C" fn(const TdxFpssEvent*, void*)` receives a pointer to a tagged `#[repr(C)]` event struct (per-variant kinds: `quote`, `trade`, `open_interest`, `ohlcvc`, plus one struct per `FpssControl::*` variant including `unknown_frame` for unrecognised wire frames); the pointer is valid only for the duration of the callback.
 
 - **Bulk snapshot endpoints** (stock/index snapshot OHLC, trade, quote, market value, price) accept `symbols: *const *const c_char, symbols_len: usize` — a C array of C string pointers with a length.
 - **`tdx_all_greeks`** returns `*mut TdxGreeksResult` (22 `f64` fields). Caller frees with `tdx_greeks_result_free`.
@@ -767,11 +767,11 @@ Every historical endpoint is exposed through the `thetadatadx-ffi` C ABI crate. 
 
 ### Python SDK Coverage
 
-Every historical endpoint is available in the Python SDK via PyO3 bindings (e.g., `client.stock_history_eod(...)`). Streaming is available via `client.start_streaming(callback)` (push) or `with client.streaming_iter() as it: for event in it:` (pull, also `client.start_streaming_iter()` for explicit lifecycle control). Every historical endpoint returns a typed `<TickName>List` / `StringList` / `OptionContractList` / `CalendarDayList` wrapper; chain `.to_pandas()` / `.to_polars()` / `.to_arrow()` / `.to_list()` on the returned wrapper for the matching representation. The shared Rust path walks the decoder-owned `Vec<Tick>` into an `arrow::RecordBatch` and hands it to pyarrow via the Arrow C Data Interface (zero-copy at the pyo3 boundary). No free-function or per-client DataFrame surface — one unified typed path. Requires `pip install thetadatadx[pandas]` / `[polars]` / `[arrow]`.
+Every historical endpoint is available in the Python SDK via PyO3 bindings (e.g., `client.stock_history_eod(...)`). Streaming is available via `client.start_streaming(callback)` and the `with client.streaming(callback) as session:` context manager. Every historical endpoint returns a typed `<TickName>List` / `StringList` / `OptionContractList` / `CalendarDayList` wrapper; chain `.to_pandas()` / `.to_polars()` / `.to_arrow()` / `.to_list()` on the returned wrapper for the matching representation. The shared Rust path walks the decoder-owned `Vec<Tick>` into an `arrow::RecordBatch` and hands it to pyarrow via the Arrow C Data Interface (zero-copy at the pyo3 boundary). No free-function or per-client DataFrame surface — one unified typed path. Requires `pip install thetadatadx[pandas]` / `[polars]` / `[arrow]`.
 
 ### TypeScript/Node.js SDK Coverage
 
-Every historical endpoint is available in the TypeScript/Node.js SDK via napi-rs bindings as camelCase methods (e.g., `tdx.stockHistoryEOD(...)`). Streaming is available in two modes: push-callback (`tdx.startStreaming(callback)`) and pull-iter (`for await (const event of tdx.startStreamingIter())`); both return typed objects with the same field shape. Returns columnar objects with typed fields.
+Every historical endpoint is available in the TypeScript/Node.js SDK via napi-rs bindings as camelCase methods (e.g., `tdx.stockHistoryEOD(...)`). Streaming is available via `tdx.startStreaming(callback)` returning typed event objects. Returns columnar objects with typed fields.
 
 ### Python SDK: Streaming
 
@@ -783,34 +783,8 @@ tdx = ThetaDataDxClient(creds, Config.production())
 
 tdx.start_streaming(lambda event: print(event))
 tdx.subscribe(Contract.stock("AAPL").quote())
-# ... callback fires on the Disruptor consumer thread under the GIL ...
+# ... callback fires on the event-dispatch consumer thread under the GIL ...
 tdx.stop_streaming()
-```
-
-#### Python SDK: Streaming (pull-iter)
-
-Sibling of the push-callback path above. The fluent context-manager
-shape `with tdx.streaming_iter() as it: for event in it:` drains a
-per-client bounded queue under one GIL acquire across the whole
-batch — ~4.1× faster than the callback shape on tuple-build /
-deque-append integrators (see the `streaming_throughput` bench for
-the apples-to-apples numbers). `streaming_iter()` returns a
-`StreamingIterSession`; the `EventIterator` it yields inside the
-`with` block is what implements `__iter__` / `__next__`.
-
-```python
-from thetadatadx import Contract, ThetaDataDxClient
-
-# Subscribe on the client BEFORE entering the iter context.
-# `streaming_iter().__enter__` returns the EventIterator, which only
-# exposes iteration / close helpers — subscribe lives on the client.
-tdx.subscribe(Contract.stock("AAPL").quote())
-
-with tdx.streaming_iter() as iterator:
-    for event in iterator:
-        # process event under one GIL acquire across the batch
-        pass
-# `__exit__` calls stop_streaming() + await_drain(5_000)
 ```
 
 ### Python SDK: DataFrame Conversion (Arrow-Backed)
@@ -857,7 +831,7 @@ Install:
 | `tdx_fpss_connect` | `(creds, config) -> *mut TdxFpssHandle` | Connect and authenticate |
 | `tdx_fpss_subscribe` | `(handle, *const TdxSubscriptionRequest) -> i32` | Polymorphic subscribe (per-contract or full-stream) |
 | `tdx_fpss_unsubscribe` | `(handle, *const TdxSubscriptionRequest) -> i32` | Polymorphic unsubscribe |
-| `tdx_fpss_set_callback` | `(handle, fn, ctx) -> i32` | Register callback (Disruptor consumer thread, `catch_unwind`-isolated) |
+| `tdx_fpss_set_callback` | `(handle, fn, ctx) -> i32` | Register callback (event-dispatch consumer thread, `catch_unwind`-isolated) |
 | `tdx_fpss_dropped_events` | `(handle) -> u64` | Cumulative ring-buffer overflow count (`Producer::try_publish` failures) |
 | `tdx_fpss_shutdown` | `(handle) -> void` | Graceful shutdown (asynchronous: pair with `tdx_fpss_await_drain` before freeing the callback `ctx`) |
 | `tdx_fpss_await_drain` | `(handle, timeout_ms) -> i32` | Block until the previously-superseded session's consumer has finished firing the registered callback (`1` = drained, `0` = timeout / nothing to drain) |
@@ -875,45 +849,6 @@ Install:
 | `tdx_unified_reconnect` | `(handle) -> i32` | Reconnect, re-subscribing all previous subscriptions |
 | `tdx_unified_is_streaming` | `(handle) -> i32` | `1` while a `Live` session is wired (does NOT prove the prior consumer has joined; use `_await_drain` for that) |
 | `tdx_unified_free` | `(handle) -> void` | Stop streaming, wait up to 5 s for the consumer to quiesce, then free the handle |
-
-#### Pull-iter Delivery (sibling of `tdx_unified_set_callback`)
-
-| Function | Signature | Description |
-|----------|-----------|-------------|
-| `tdx_unified_start_streaming_iter` | `(handle) -> *mut TdxFpssEventIterator` | Start FPSS in pull-iter mode. Returns an opaque iterator handle; mutually exclusive with `tdx_unified_set_callback` (returns NULL with `"streaming already started"` on overlap). |
-| `tdx_fpss_event_iter_next` | `(it, *mut TdxFpssEvent, timeout_ms: i32) -> i32` | Pop next event with deadline. `0` = event filled, `1` = timeout, `-1` = terminal end-of-stream / call-site error. |
-| `tdx_fpss_event_iter_close` | `(it) -> void` | Mark closed; subsequent `_next` returns `-1` once queue drains. Idempotent. |
-| `tdx_fpss_event_iter_free` | `(it) -> void` | Free the iterator handle. Does not stop the underlying streaming session. |
-
-Borrowed pointer lifetime: the `*const c_char` / `*const u8` fields
-inside `*out_event` reference heap memory owned by the iterator
-handle. They are valid until the next `_next` call OR until `_free`.
-Copy any fields the consumer wants to outlive the next pop.
-
-The pull-iter path mirrors the push-callback path's
-`dropped_event_count` semantics — when the iterator falls behind and
-the queue saturates, the consumer drops the new event and the same
-counter increments.
-
-C++ wrapper: `tdx::EventIterator` (move-only RAII) with `next(timeout)`
-returning `std::optional<TdxFpssEvent>`, `try_next()`, `close()`, and
-range-for adapters (`begin()` / `end()`) for `for (const auto& event :
-iter)` loops with a default 1-second per-pop timeout.
-
-Python: `ThetaDataDxClient.start_streaming_iter()` returns an
-`EventIterator` pyclass; `with tdx.streaming_iter() as it:` is the
-context-managed variant that pairs `stop_streaming` + `await_drain`
-on exit. `for event in iterator:` drains the per-client queue under
-one GIL acquire across the whole batch — `streaming_throughput.rs`
-measures ~4.6 Melem/s for the iter shape vs. ~1.1 Melem/s for the
-equivalent push-callback shape (4.1× win on the same per-event
-Python work).
-
-TypeScript: `ThetaDataDxClient.startStreamingIter()` returns a
-`EventIterator` napi class with `[Symbol.asyncIterator]` patched on
-the prototype; `for await (const event of iter)` drains the queue
-on `tokio::task::spawn_blocking` so the Node main thread stays
-responsive.
 
 #### FPSS Event Types (C)
 
@@ -980,23 +915,17 @@ const tdx = await ThetaDataDxClient.connectFromFile('creds.txt');
 
 tdx.subscribe(Contract.stock('AAPL').quote());
 
-// Pull-iter mode: async iterable over the SPSC queue. Resolves
-// `done: true` once stopStreaming() fires and the queue drains.
-const iter = tdx.startStreamingIter();
-try {
-    for await (const event of iter) {
-        if (event.kind === 'quote') {
-            console.log(`Quote: bid=${event.bid} ask=${event.ask}`);
-        } else if (event.kind === 'trade') {
-            console.log(`Trade: price=${event.price} size=${event.size}`);
-        } else if (event.kind === 'disconnected') {
-            break;
-        }
+tdx.startStreaming((event) => {
+    if (event.kind === 'quote') {
+        console.log(`Quote: bid=${event.bid} ask=${event.ask}`);
+    } else if (event.kind === 'trade') {
+        console.log(`Trade: price=${event.price} size=${event.size}`);
     }
-} finally {
-    tdx.stopStreaming();
-    await tdx.awaitDrain(5000);
-}
+});
+
+// ... when done:
+tdx.stopStreaming();
+await tdx.awaitDrain(5000);
 ```
 
 ### C++ SDK: Streaming
@@ -1005,21 +934,19 @@ try {
 auto client = tdx::UnifiedClient::connect(creds, config);
 
 client.subscribe(tdx::Contract::stock("AAPL").quote());
-auto iter = client.start_streaming_iter();
-while (!iter.ended()) {
-    auto event = iter.next(std::chrono::milliseconds(5000));
-    if (!event) continue;
-    switch (event->kind) {
+client.set_callback([](const TdxFpssEvent& event) {
+    switch (event.kind) {
     case TDX_FPSS_QUOTE:
-        std::cout << "bid=" << event->quote.bid << std::endl;
+        std::cout << "bid=" << event.quote.bid << std::endl;
         break;
     case TDX_FPSS_TRADE:
-        std::cout << "price=" << event->trade.price << std::endl;
+        std::cout << "price=" << event.trade.price << std::endl;
         break;
     }
-}
+});
 
-fpss.shutdown();
+// ... when done:
+client.stop_streaming();
 ```
 
 ---
@@ -1824,7 +1751,7 @@ pub struct DirectConfig {
     // FPSS (TCP)
     pub fpss_hosts: Vec<(String, u16)>,
     pub fpss_timeout_ms: u64,
-    pub fpss_ring_size: usize,                  // disruptor ring buffer slots (power of 2)
+    pub fpss_ring_size: usize,                  // event ring buffer slots (power of 2)
     pub fpss_ping_interval_ms: u64,
     pub fpss_connect_timeout_ms: u64,
     pub fpss_flush_mode: FpssFlushMode,         // Batched (default) or Immediate
@@ -1907,7 +1834,7 @@ pub enum Error {
 }
 ```
 
-All variants implement `Display` and `std::error::Error`. Automatic conversions via `From` are provided for `thetadatadx::grpc::ChannelError`, `thetadatadx::grpc::Status`, `reqwest::Error`, `std::io::Error`, and `rustls::Error`. The in-house gRPC transport (v10) replaces the v9 `tonic` dependency end-to-end; `Error::Transport` now carries a typed `TransportErrorKind` rather than a bare `tonic::transport::Error`.
+All variants implement `Display` and `std::error::Error`. Automatic conversions via `From` are provided for `thetadatadx::grpc::ChannelError`, `thetadatadx::grpc::Status`, `reqwest::Error`, `std::io::Error`, and `rustls::Error`. The in-house HTTP/2 transport carries a typed `TransportErrorKind` on every failure category.
 
 ### Programmatic recovery via `kind`
 
@@ -1936,7 +1863,7 @@ match err {
 }
 ```
 
-`DecodeErrorKind` carries `TruncatedRow { row_idx, expected_columns, actual_columns }`, `ColumnTypeMismatch { row_idx, column_name, expected, actual }`, `Protobuf(String)`, `Codec(String)`, `Arrow(String)`, and `Other(String)`. `DecompressErrorKind` carries `Zstd(String)`, `UnknownAlgorithm { algo: i32 }`, and `Other(String)`. `ConfigErrorKind` carries `OutOfRange`, `MissingField`, `InvalidValue`, `Io`, `TomlParse`, `Internal`, and `Other`. `GrpcStatusKind` mirrors the 17 `tonic::Code` variants one-for-one.
+`DecodeErrorKind` carries `TruncatedRow { row_idx, expected_columns, actual_columns }`, `ColumnTypeMismatch { row_idx, column_name, expected, actual }`, `Protobuf(String)`, `Codec(String)`, `Arrow(String)`, and `Other(String)`. `DecompressErrorKind` carries `Zstd(String)`, `UnknownAlgorithm { algo: i32 }`, and `Other(String)`. `ConfigErrorKind` carries `OutOfRange`, `MissingField`, `InvalidValue`, `Io`, `TomlParse`, `Internal`, and `Other`. `GrpcStatusKind` mirrors the 17 canonical gRPC status codes one-for-one.
 
 ### ThetaData Server Error Codes
 

@@ -20,7 +20,7 @@
 //!      that single `ResponseData` chunk under the gRPC stub path
 //!      the real `MddsClient::<endpoint>` builder dispatches to.
 //!   3. Builds an `MddsClient` against the mock via the
-//!      `__test-helpers`-gated `for_fallback_test` constructor.
+//!      `__test-helpers`-gated `for_endpoint_routing_test` constructor.
 //!   4. Awaits the real builder (`client.<endpoint>(...).await`) and
 //!      asserts the returned `Vec<X>` carries the concrete tick type
 //!      (compile-time type-binding) AND that the trade-side
@@ -59,7 +59,7 @@ use capture_loader::load_response_data as load_response;
 /// Stand up an in-process gRPC mock that serves one
 /// `proto::ResponseData` chunk and a clean `grpc-status: 0`, then
 /// return an `MddsClient` wired to that mock via the
-/// `__test-helpers`-gated `for_fallback_test` constructor. The mock
+/// `__test-helpers`-gated `for_endpoint_routing_test` constructor. The mock
 /// handle stays alive as long as the test owning it.
 async fn client_for_response(response: proto::ResponseData) -> (mock::MockServer, MddsClient) {
     let server = mock::MockServer::spawn(vec![response], 0).await;
@@ -69,7 +69,7 @@ async fn client_for_response(response: proto::ResponseData) -> (mock::MockServer
     let pool = ChannelPool::from_channels(vec![channel]);
     let cfg = DirectConfig::production();
     let sem = Arc::new(Semaphore::new(4));
-    let client = MddsClient::for_fallback_test(cfg, pool, sem);
+    let client = MddsClient::for_endpoint_routing_test(cfg, pool, sem);
     (server, client)
 }
 
@@ -92,7 +92,7 @@ async fn option_history_greeks_eod_routes_to_greeks_eod_parser() {
 
     assert!(!ticks.is_empty(), "mock served a non-empty fixture");
     let first = ticks.first().expect("non-empty ticks");
-    // EOD trade-quote columns the v10 routing dropped. Pin values
+    // EOD trade-quote columns the earlier routing dropped. Pin values
     // from the verified-live capture (terminal jar `202605221`,
     // fixture meta `first_row_*`).
     assert!(
@@ -135,7 +135,7 @@ async fn index_at_time_price_routes_to_index_price_at_time_parser() {
 
     assert!(!ticks.is_empty(), "mock served a non-empty fixture");
     let first = ticks.first().expect("non-empty ticks");
-    // Seven trade-side execution columns the v10 routing dropped,
+    // Seven trade-side execution columns the earlier routing dropped,
     // including the SIP-source `exchange` attribution. Sequencing /
     // sizing fields are tick-shape fingerprints — any non-trade
     // routing zero-fills them.

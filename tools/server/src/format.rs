@@ -341,7 +341,7 @@ pub fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<sonic_rs::Value>
 /// / `bid_exchange` / `bid_condition` / `ask_size` / `ask_exchange` /
 /// `ask_condition`), and the underlying snapshot + contract id triple
 /// -- so downstream MCP-side / REST-side consumers see the full EOD
-/// trade-quote context that the v10 routing dropped; v11 restores the
+/// trade-quote context that the earlier routing dropped; the current schema restores the
 /// full schema.
 pub fn greeks_eod_ticks_to_json(ticks: &[GreeksEodTick]) -> Vec<sonic_rs::Value> {
     ticks
@@ -708,10 +708,8 @@ pub fn price_ticks_to_json(ticks: &[PriceTick]) -> Vec<sonic_rs::Value> {
 /// `ext_condition1..4`, `condition`, `size`, `exchange`) plus
 /// `ms_of_day`, `price`, and `date` -- so downstream MCP-side /
 /// REST-side consumers see the per-row SIP-exchange attribution that
-/// the v10 routing dropped; v11 restores the full schema.
-pub fn index_price_at_time_ticks_to_json(
-    ticks: &[IndexPriceAtTimeTick],
-) -> Vec<sonic_rs::Value> {
+/// the earlier routing dropped; the current schema restores the full schema.
+pub fn index_price_at_time_ticks_to_json(ticks: &[IndexPriceAtTimeTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {

@@ -29,10 +29,7 @@ set(THETADX_CPP_TEST_SOURCES
     history.cpp
     fpss.cpp
     unified_client.cpp
-    streaming_iter.cpp
     error_taxonomy.cpp
-    # REST-fallback policy + Config::withRestFallback wiring tests.
-    fallback.cpp
     # MDDS pool-sizing setters on tdx::Config.
     config_pool_sizing.cpp
     # ReconnectConfig setters on tdx::Config — cross-binding parity

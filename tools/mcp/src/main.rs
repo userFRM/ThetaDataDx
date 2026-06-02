@@ -11,7 +11,7 @@
 //! thetadatadx-mcp (long-running process)
 //!     |  Single ThetaDataDxClient client, authenticated once
 //!     v
-//! ThetaData servers (MDDS gRPC + FPSS TCP)
+//! ThetaData servers (MDDS + FPSS)
 //! ```
 //!
 //! The server authenticates ONCE at startup, keeps the ThetaDataDxClient client alive,
@@ -865,9 +865,7 @@ fn serialize_price_ticks(ticks: &[tdbe::types::tick::PriceTick]) -> Value {
     json!({ "ticks": rows, "count": rows.len() })
 }
 
-fn serialize_index_price_at_time_ticks(
-    ticks: &[tdbe::types::tick::IndexPriceAtTimeTick],
-) -> Value {
+fn serialize_index_price_at_time_ticks(ticks: &[tdbe::types::tick::IndexPriceAtTimeTick]) -> Value {
     let rows: Vec<Value> = ticks
         .iter()
         .map(|t| {

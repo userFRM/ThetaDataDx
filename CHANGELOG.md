@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [12.0.0] - 2026-06-02
+
+### Breaking changes
+
+- `FpssClient::builder(creds, hosts)` is the sole public Rust constructor for FPSS streaming. Fluent setters (`.ring_size().flush_mode().reconnect_policy()...`) replace the struct-literal arg bundle. `FpssConnectArgs` and the legacy `FpssClient::connect(args)` entry are crate-internal.
+- Drain primitives live on `FpssClient` itself: `next_event` (blocking), `try_next_event` (non-blocking), `poll_batch(FnMut)`, `for_each(FnMut)`, and `Iterator for &FpssClient`. The `FpssEventPoller` type is removed.
+- New typed `FpssError` enum (`#[non_exhaustive]`) returned by the builder, polling methods, and iterator. `From<FpssError> for Error` maps each variant losslessly into a distinct umbrella `Error` variant (`Auth`, `Config`, `Io`, tagged `Fpss`). The docstring on `FpssError` lists every row of the table plus the two known sources of information loss (`io::ErrorKind` collapse, `Config.field` regeneration).
+- `ThetaDataDxClient::start_streaming_iter`, `start_streaming_iter_with_wake`, and `start_streaming_iter_with_wake_policy` removed. The push-callback `start_streaming(callback)` is preserved on the unified client; it internally spawns a dedicated `"tdx-fpss-dispatcher"` thread that drives the ring iterator behind a one-shot startup gate so the first delivered event only fires once the streaming slot is fully installed.
+- Python: `EventIterator`, `StreamingIterSession`, `StreamingAsyncSession`, `StreamingAsyncBatchesSession`, and `BackpressurePolicy` pyclasses removed. `streaming_iter()`, `streaming_async()`, and `streaming_async_batches()` on `ThetaDataDxClient` and the standalone `FpssClient` pyclass are gone. The push-callback `start_streaming(cb)` and the `streaming(cb)` context manager remain.
+- TypeScript: `EventIterator` napi class removed. `client.startStreamingIter()` is gone. `client.startStreaming(cb)` is preserved.
+- C ABI: `TdxFpssEventIterator`, `tdx_unified_start_streaming_iter`, `tdx_fpss_event_iter_next`, `tdx_fpss_event_iter_close`, and `tdx_fpss_event_iter_free` removed. `tdx_fpss_set_callback` and `tdx_unified_set_callback` remain. `tdx_fpss_free` and `tdx_unified_free` docstrings document the explicit lifecycle restriction: do not call them from inside the user callback.
+- Crate dep removed: `crossbeam-queue`.
+
+### Streaming
+
+- `Contract.symbol` type changed from `String` to `Arc<str>`. The field derefs to `&str` transparently, so `event.contract.symbol.as_ref()`, `&event.contract.symbol[..]`, `PartialEq<str>`, and `Display` all continue to work without changes at call sites. The Rust decode path interns the symbol bytes inside the per-session contract cache, so a session that streams a sustained subscription set allocates once per unique symbol for the lifetime of the session instead of once per event on the Rust side. Python and TypeScript bindings still copy the string at the language boundary — that copy is unavoidable for the runtime's own string ownership — so SDK-surface `Contract.symbol` types remain `String` and are populated via `.to_string()` on each delivered event.
+
+### Changed
+
+- `io_loop` is structurally simpler: single-producer wiring through `build_poller_producer`. The earlier `build_consumer_producer` (~250 lines) and `push_with_block` queue helper are gone.
+- Connect path validates configuration up front and returns the fully-assembled `FpssClient` directly; the previous tuple return shape is gone.
+- `ThetaDataDxClient::start_streaming` and `reconnect_streaming` serialise through a single-flight `start_lock`. The FFI handle's lifecycle (`tdx_fpss_set_callback` / `_reconnect` / `_shutdown` / `_free`) is fully serialised through a single `install_lock`.
+- `cargo-semver-checks` CI gate stays anchored on the `v11.0.0` baseline; `[package.metadata.docs.rs]` continues to pin the rendered feature list (`arrow`, `polars`, `frames`, `config-file`) so docs.rs never surfaces bench-only or test-only symbols.
+- Generator templates emit `thetadatadx::*` paths so generated SDK code resolves against the single public crate.
+
+### Removed
+
+- REST fallback escape hatch (`Config::with_rest_fallback`, `FallbackPolicy`, `option_history_*_with_fallback`). The library now speaks ThetaData's historical gRPC endpoint, streaming TCP feed, and the native flat-file distribution directly — no HTTP fallback path.
+- The earlier queue-path soak suite. Workspace `cargo test` coverage replaces it.
+
 ## [11.0.1] - 2026-05-29
 
 ### Fixed

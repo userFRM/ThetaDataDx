@@ -58,7 +58,6 @@ thetadatadx\.MddsClient\.__init__
 thetadatadx\.MddsClient\.__new__
 thetadatadx\.MddsClient\.__getattr__
 thetadatadx\.StreamingSession\.__getattr__
-thetadatadx\.StreamingIterSession\.__getattr__
 
 # `__exit__` on pyo3 context managers carries default values for
 # the three positional args at runtime (matching `Optional[...] = None`

@@ -7,9 +7,28 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
-use subtle::ConstantTimeEq;
 use thetadatadx::ThetaDataDxClient;
 use tokio::sync::{mpsc, RwLock};
+
+/// Constant-time byte-slice equality.
+///
+/// Compares every byte regardless of where the first difference sits,
+/// preventing a remote attacker from probing a secret one byte at a time
+/// via response-latency measurements (timing oracle). A length mismatch
+/// returns `false` immediately — this leaks the lengths but not the
+/// contents, which is the same contract `subtle::ConstantTimeEq` provides
+/// for `[u8]`.
+#[inline]
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff: u8 = 0;
+    for (x, y) in a.iter().zip(b) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
 
 /// Per-client channel capacity. Matches the old `broadcast::channel(4096)`.
 ///
@@ -48,7 +67,7 @@ struct Inner {
     /// callback->broadcast handoff (see `ws::start_fpss_bridge`). Mirrors the
     /// FPSS SDK's per-handle `dropped_events()` counter so operators can
     /// scrape one number to detect WS-side back-pressure independent of the
-    /// SDK-side disruptor overrun counter.
+    /// SDK-side event ring overrun counter.
     fpss_broadcast_dropped: AtomicU64,
 }
 
@@ -70,7 +89,7 @@ impl AppState {
     }
 
     /// Increment the FPSS broadcast-drop counter and return the post-increment
-    /// value. Called from the Disruptor callback when the bounded
+    /// value. Called from the event-dispatch callback when the bounded
     /// callback->broadcast channel rejects a `try_send` because the broadcast
     /// task is lagging (back-pressure) or has exited (shutdown).
     pub fn record_fpss_broadcast_drop(&self) -> u64 {
@@ -130,7 +149,7 @@ impl AppState {
     /// the JSON payload is serialized exactly once regardless of client count.
     ///
     /// Async because the broadcast task now runs inside `tokio::spawn`
-    /// (see `ws.rs`). Earlier revisions ran this from the FPSS Disruptor
+    /// (see `ws.rs`). Earlier revisions ran this from the FPSS event ring
     /// `std::thread` and used `blocking_read`, which panics inside a
     /// tokio runtime. Using `read().await` yields the executor while
     /// waiting on the `RwLock`, matching the async context.
@@ -197,15 +216,11 @@ impl AppState {
 
     /// Validate a shutdown token against the one generated at startup.
     ///
-    /// Uses constant-time comparison (`subtle::ConstantTimeEq`) so an
-    /// attacker cannot probe the token byte-by-byte via the response
-    /// latency of `POST /shutdown`. `ct_eq` returns `false` cleanly when
-    /// the lengths differ, so no explicit length check is needed.
+    /// Uses constant-time comparison so an attacker cannot probe the token
+    /// byte-by-byte via the response latency of `POST /shutdown`. A length
+    /// mismatch returns `false` without revealing content.
     pub fn validate_shutdown_token(&self, token: &str) -> bool {
-        let expected = self.inner.shutdown_token.as_bytes();
-        let provided = token.as_bytes();
-        let eq: bool = expected.ct_eq(provided).into();
-        eq
+        ct_eq(self.inner.shutdown_token.as_bytes(), token.as_bytes())
     }
 
     /// Signal graceful server shutdown. Stops FPSS streaming if active.
@@ -217,5 +232,29 @@ impl AppState {
     /// Wait for the shutdown signal.
     pub async fn shutdown_signal(&self) {
         self.inner.shutdown.notified().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ct_eq;
+
+    #[test]
+    fn ct_eq_equal_returns_true() {
+        assert!(ct_eq(b"token", b"token"));
+        assert!(ct_eq(&[], &[]));
+    }
+
+    #[test]
+    fn ct_eq_unequal_returns_false() {
+        assert!(!ct_eq(b"abc", b"xyz"));
+        // Differs only at the last byte — full scan must still happen.
+        assert!(!ct_eq(b"token1", b"token2"));
+    }
+
+    #[test]
+    fn ct_eq_length_mismatch_returns_false() {
+        assert!(!ct_eq(b"token", b"token_long"));
+        assert!(!ct_eq(&[], b"x"));
     }
 }

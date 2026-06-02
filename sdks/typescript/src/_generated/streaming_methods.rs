@@ -4,11 +4,11 @@
 impl ThetaDataDxClient {
     /// Start FPSS streaming and register a JS callback for incoming events.
     ///
-    /// The LMAX Disruptor consumer thread routes every typed
+    /// The dispatcher thread routes every typed
     /// FPSS event through napi-rs `ThreadsafeFunction` to the
     /// Node main thread, where the user's `callback(event)`
     /// runs. The FPSS TLS reader thread itself never touches
-    /// V8: events cross the Disruptor ring first, with the
+    /// V8: events cross the streaming ring first, with the
     /// consumer thread invoking the callback under
     /// `catch_unwind`.
     ///
@@ -16,7 +16,7 @@ impl ThetaDataDxClient {
     /// so `ThreadsafeFunction` (with its internal `uv_async_t`
     /// queue) is the only safe path.
     ///
-    /// Backpressure: a slow callback fills the Disruptor ring
+    /// Backpressure: a slow callback fills the streaming ring
     /// and overflow events are dropped, observable via
     /// `droppedEventCount()`. The FPSS TLS reader is never
     /// blocked — vendor disconnects on slow consumers cannot
@@ -50,12 +50,12 @@ impl ThetaDataDxClient {
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
                 // Convert to the typed `FpssEvent` napi object on the
-                // LMAX Disruptor consumer thread, then hand the value
+                // dispatcher thread, then hand the value
                 // to `ThreadsafeFunction::call`. napi-rs' internal
                 // `uv_async_t` queue routes the call onto the Node
                 // main thread, which is the only thread allowed to
                 // execute V8 (libuv invariant). The FPSS TLS reader
-                // thread itself never touches V8: the Disruptor ring
+                // thread itself never touches V8: the streaming ring
                 // sits between the reader and the consumer that runs
                 // this closure, so a slow JS callback at most fills
                 // the ring and bumps `droppedEventCount()` — it
@@ -63,9 +63,9 @@ impl ThetaDataDxClient {
                 // vendor-side disconnect.
                 let buffered = fpss_event_to_buffered(event);
                 let typed = buffered_event_to_typed(buffered);
-                // `Blocking` so the Disruptor consumer waits if the
+                // `Blocking` so the dispatcher waits if the
                 // napi tsfn queue is full instead of silently
-                // discarding the event. The Disruptor already absorbs
+                // discarding the event. The streaming ring already absorbs
                 // FPSS-side bursts; the only path where the tsfn
                 // queue fills is a stalled Node event loop, and a
                 // bounded blocking back-pressure is preferable to a

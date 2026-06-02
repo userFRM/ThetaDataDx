@@ -1,4 +1,4 @@
-//! FPSS event fan-out: Disruptor callback -> broadcast task -> WS clients.
+//! FPSS event fan-out: event-dispatch callback -> broadcast task -> WS clients.
 
 use std::sync::Arc;
 
@@ -11,7 +11,7 @@ use crate::state::AppState;
 use super::contract_map::lookup_event_contract;
 use super::format::fpss_event_to_ws_json;
 
-/// Bounded capacity for the Disruptor-callback -> broadcast-task channel.
+/// Bounded capacity for the event-dispatch-callback -> broadcast-task channel.
 ///
 /// Sized at 65_536 slots: large enough that the broadcast task's transient
 /// scheduling jitter never spills into a drop under normal load, small enough
@@ -29,7 +29,7 @@ const WARN_EVERY_N: u64 = 1024;
 
 /// Start the FPSS -> WebSocket bridge via `ThetaDataDxClient::start_streaming()`.
 ///
-/// The Disruptor callback runs on a blocking consumer thread and must stay
+/// The event-dispatch callback runs on a blocking consumer thread and must stay
 /// cheap. It only: (1) updates the contract map and connection flags,
 /// (2) peeks the event's current contract under the map lock, and
 /// (3) hands a cloned event + peeked `Arc<Contract>` snapshot to a bounded
@@ -41,7 +41,7 @@ const WARN_EVERY_N: u64 = 1024;
 /// The callback->broadcast channel is bounded to [`FPSS_BROADCAST_CAPACITY`]
 /// so a stalled broadcast task can never accumulate unbounded heap. When the
 /// channel is full, the callback increments [`AppState::record_fpss_broadcast_drop`]
-/// and returns immediately — the Disruptor consumer thread is never blocked.
+/// and returns immediately — the event-dispatch consumer thread is never blocked.
 /// Drops surface to operators through the `fpss_broadcast_dropped()` counter
 /// and a rate-limited `tracing::warn!` (one warning per [`WARN_EVERY_N`]
 /// drops).
@@ -61,10 +61,10 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
     let state_for_cb = state.clone();
     let state_for_task = state.clone();
 
-    // Bounded mpsc keeps the Disruptor callback non-blocking AND caps memory
+    // Bounded mpsc keeps the event-dispatch callback non-blocking AND caps memory
     // on a stalled broadcast task. `try_send` is the only path used on the
     // hot side — a `Full` rejection bumps the dropped counter and returns
-    // immediately, never blocking the Disruptor consumer thread.
+    // immediately, never blocking the event-dispatch consumer thread.
     let (tx, mut rx) =
         tokio::sync::mpsc::channel::<(FpssEvent, Option<Arc<Contract>>)>(FPSS_BROADCAST_CAPACITY);
 
@@ -100,7 +100,7 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
 
         // Bounded handoff with explicit overrun handling. `Full` means the
         // broadcast task is lagging — bump the drop counter and walk away,
-        // never blocking the Disruptor consumer thread. `Closed` means the
+        // never blocking the event-dispatch consumer thread. `Closed` means the
         // task has exited (shutdown / panic / receiver dropped) — log once
         // at the warn level and stop accounting further events as drops to
         // avoid log flood; subsequent events still fail-fast on `try_send`.
@@ -174,6 +174,7 @@ mod tests {
             .build()
             .expect("rt");
         rt.block_on(async {
+            // VOCAB-OK: tokio Runtime::block_on in test
             const CAP: usize = 8;
             let counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
             let (tx, _rx) = mpsc::channel::<u32>(CAP);

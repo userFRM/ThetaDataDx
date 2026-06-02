@@ -137,10 +137,14 @@ SPY,20240315,580000,C,34200100,123.5,20240315
 #[test]
 fn synthetic_blob_decodes_to_pinned_csv() {
     let blob = synthetic_option_blob();
-    let dir = std::env::temp_dir().join(format!(
-        "thetadatadx-flatfiles-synthetic-{}",
-        uuid::Uuid::new_v4().simple()
-    ));
+    let dir = std::env::temp_dir().join(format!("thetadatadx-flatfiles-synthetic-{}", {
+        let bytes: [u8; 16] = rand::random();
+        bytes.iter().fold(String::with_capacity(32), |mut s, b| {
+            use std::fmt::Write;
+            let _ = write!(s, "{b:02x}");
+            s
+        })
+    }));
     std::fs::create_dir_all(&dir).unwrap();
     let raw = dir.join("synthetic.bin");
     let csv = dir.join("synthetic.csv");

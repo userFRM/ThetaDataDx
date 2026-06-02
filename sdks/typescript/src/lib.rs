@@ -81,6 +81,18 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
     }
 }
 
+/// Pin the ring rustls `CryptoProvider` as the process-wide default
+/// when the `.node` module is loaded by Node.js. Without this, the
+/// first `ThetaDataDxClient.connect()` call panics with
+/// "Could not automatically determine the process-level CryptoProvider"
+/// because reqwest's rustls path finds two providers compiled in
+/// (ring + aws-lc-rs) and cannot pick one automatically.
+/// Mirrors the equivalent call in the Python SDK's `#[pymodule]` init.
+#[module_init]
+fn init() {
+    let _ = thetadatadx::__internal_install_ring_crypto_provider();
+}
+
 fn normalize_symbols(symbols: Either<String, Vec<String>>) -> Vec<String> {
     match symbols {
         Either::A(symbol) => vec![symbol],
@@ -113,7 +125,6 @@ fn normalize_optional_time(
 ) -> Option<String> {
     value.map(normalize_time)
 }
-
 
 // Generated string enum exports.
 include!("_generated/enums_generated.rs");
@@ -155,13 +166,8 @@ include!("_generated/buffered_event.rs");
 /// undefined behavior. The dispatcher's drain thread therefore hands
 /// every event to this `ThreadsafeFunction`, which queues it for the
 /// main thread via `napi_call_threadsafe_function`.
-type TsfnCallback = napi::threadsafe_function::ThreadsafeFunction<
-    FpssEvent,
-    (),
-    FpssEvent,
-    napi::Status,
-    false,
->;
+type TsfnCallback =
+    napi::threadsafe_function::ThreadsafeFunction<FpssEvent, (), FpssEvent, napi::Status, false>;
 
 #[napi]
 pub struct ThetaDataDxClient {
@@ -185,7 +191,7 @@ pub struct ThetaDataDxClient {
     /// callback handle. `ThreadsafeFunction` itself does not implement
     /// `Clone` in napi-rs 3.x (its inner `napi_threadsafe_function`
     /// is `Arc`-managed but only exposed through the
-    /// `Arc<ThreadsafeFunctionHandle>` field on the struct), so the
+    /// `Arc<`ThreadsafeFunctionHandle`>` field on the struct), so the
     /// outer `Arc` here is the canonical way to share the handle.
     callback: Mutex<Option<Arc<TsfnCallback>>>,
 }
@@ -201,7 +207,10 @@ impl ThetaDataDxClient {
         let creds = auth::Credentials::new(email, password);
         let config = config::DirectConfig::production();
         let tdx = runtime()
-            .block_on(thetadatadx::ThetaDataDxClient::connect(&creds, config))
+            .block_on(thetadatadx::ThetaDataDxClient::connect(
+                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
+                &creds, config,
+            ))
             .map_err(to_napi_err)?;
         Ok(ThetaDataDxClient {
             tdx: Arc::new(tdx),
@@ -215,7 +224,10 @@ impl ThetaDataDxClient {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
         let config = config::DirectConfig::production();
         let tdx = runtime()
-            .block_on(thetadatadx::ThetaDataDxClient::connect(&creds, config))
+            .block_on(thetadatadx::ThetaDataDxClient::connect(
+                // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
+                &creds, config,
+            ))
             .map_err(to_napi_err)?;
         Ok(ThetaDataDxClient {
             tdx: Arc::new(tdx),
@@ -224,7 +236,7 @@ impl ThetaDataDxClient {
     }
 
     /// Cumulative count of FPSS events the TLS reader could not
-    /// publish into the Disruptor ring because the Disruptor consumer
+    /// publish into the event ring because the event-dispatch consumer
     /// fell behind and the ring was full (`Producer::try_publish`
     /// returned `RingBufferFull`).
     ///
@@ -243,6 +255,66 @@ impl ThetaDataDxClient {
     pub fn dropped_event_count(&self) -> napi::bindgen_prelude::BigInt {
         napi::bindgen_prelude::BigInt::from(self.tdx.dropped_event_count())
     }
+
+    /// Cumulative count of user-callback panics caught by the
+    /// per-invocation `catch_unwind` boundary since the current stream
+    /// started.
+    ///
+    /// A panic in the callback is caught, recorded here, and does not
+    /// stop event delivery — the next event continues normally.
+    /// Forwards to `thetadatadx::ThetaDataDxClient::panic_count` so
+    /// the value matches every other binding (C ABI, Python, C++).
+    ///
+    /// Returned as `bigint` so it can represent the full `u64` range
+    /// (Number would top out at 2^53).
+    #[napi(js_name = "panicCount")]
+    pub fn panic_count(&self) -> napi::bindgen_prelude::BigInt {
+        napi::bindgen_prelude::BigInt::from(self.tdx.panic_count())
+    }
+
+    /// Snapshot of full-stream subscriptions (e.g. `OPTION` /
+    /// `full_trades`, `OPTION` / `full_open_interest`).
+    ///
+    /// Each entry has the same `{ kind, contract }` shape returned by
+    /// `activeSubscriptions()`, where `kind` is one of
+    /// `"full_trades"` / `"full_open_interest"` and `contract` carries
+    /// the wire-level security type (`"OPTION"`, `"STOCK"`, ...).
+    /// Quote is never a valid full-stream kind on the FPSS wire, so
+    /// any such row from the core is dropped from the projection.
+    /// Empty array when streaming has not started.
+    ///
+    /// Mirrors the Python `ThetaDataDxClient.active_full_subscriptions()`
+    /// (`sdks/python/src/lib.rs`) and the C++
+    /// `UnifiedClient::active_full_subscriptions`
+    /// (`sdks/cpp/include/thetadx.hpp`) so every binding reports the
+    /// full-stream subscription set with the same projection shape.
+    #[napi(js_name = "activeFullSubscriptions")]
+    pub fn active_full_subscriptions(&self) -> napi::Result<serde_json::Value> {
+        use thetadatadx::fpss::protocol::SubscriptionKind;
+        self.tdx
+            .active_full_subscriptions()
+            .map(|subs| {
+                serde_json::json!(subs
+                    .into_iter()
+                    .filter_map(|(kind, sec_type)| {
+                        let kind_str = match kind {
+                            SubscriptionKind::Trade => "full_trades",
+                            SubscriptionKind::OpenInterest => "full_open_interest",
+                            // Quote is not a valid full-stream kind on
+                            // the FPSS wire — drop the row to keep the
+                            // projection cross-binding clean.
+                            SubscriptionKind::Quote => return None,
+                            _ => return None,
+                        };
+                        Some(serde_json::json!({
+                            "kind": kind_str,
+                            "contract": format!("{sec_type:?}"),
+                        }))
+                    })
+                    .collect::<Vec<_>>())
+            })
+            .map_err(to_napi_err)
+    }
 }
 
 // Generated historical endpoint methods.
@@ -251,38 +323,18 @@ include!("_generated/historical_methods.rs");
 // Generated streaming/FPSS methods.
 include!("_generated/streaming_methods.rs");
 
-// Pull-iter delivery. Hand-written napi-rs wrapper around
-// `thetadatadx::EventIterator`. Surfaced as
-// `client.startStreamingIter()` returning an `EventIterator` napi
-// class; the JS side wraps it in `for await (const event of iter)`
-// via `Symbol.asyncIterator` declared in the `index.d.ts` companion.
-include!("event_iterator.rs");
+// `startStreaming(cb)` is the sole streaming entry point. Callers that
+// want a for-await shape can wrap a queue inside the callback.
 
-#[napi]
-impl ThetaDataDxClient {
-    /// Start FPSS streaming in pull-iter delivery mode.
-    ///
-    /// Returns an [`EventIterator`] handle whose `next()` resolves
-    /// to the next typed FPSS event or `null` once the streaming
-    /// session has shut down and the residual queue is drained. JS
-    /// callers iterate with `for await (const event of iter)`.
-    ///
-    /// Mutually exclusive with `startStreaming(callback)`. Calling
-    /// either while streaming is already running rejects with
-    /// `"streaming already started"`.
-    #[napi(js_name = "startStreamingIter")]
-    pub fn start_streaming_iter(&self) -> napi::Result<EventIterator> {
-        let inner = self.tdx.start_streaming_iter().map_err(to_napi_err)?;
-        Ok(EventIterator::new(inner))
-    }
-}
+// SDK configuration class. Adds `Config` napi class with
+// `production()` / `dev()` / `stage()` factories plus the full setter
+// surface for MDDS pool sizing, retry policy, reconnect policy, and
+// flat-file backoff.
+mod config_class;
+pub use config_class::{Config, TokioWorkerThreadsSetting};
 
 // Hand-written FLATFILES bindings — dynamic schema, see module docs.
 mod flatfile_methods;
-
-// REST-fallback policy + Config napi classes + `_with_fallback` shims.
-mod fallback;
-pub use fallback::{Config, FallbackPolicy, DEFAULT_REST_BASE_URL};
 
 // Fluent contract-first API. Adds `ContractRef`,
 // `Subscription`, `SecType` napi classes and the polymorphic
@@ -300,201 +352,6 @@ pub use fluent::{ContractRef, SecType, Subscription};
 // under camelCase JS method names.
 mod util_helpers;
 pub use util_helpers::Util;
-
-// ── REST-fallback surface ────────────────────────────────────────────
-//
-// `connectWithConfig` / `connectFromFileWithConfig` build a client with
-// a caller-supplied `Config`, allowing the
-// `Config.withRestFallback(policy)` setting to land on the live client.
-// The four `optionHistory*WithFallback` methods then dispatch through
-// the configured policy per `MddsClient::option_history_*_with_fallback`.
-
-#[napi]
-impl ThetaDataDxClient {
-    /// Connect to ThetaData with a caller-supplied [`Config`]. Lets
-    /// the caller install a [`FallbackPolicy`] (via
-    /// `Config.withRestFallback`) before connecting so the four
-    /// `optionHistory*WithFallback` shims pick it up. Otherwise
-    /// identical to [`connect`](Self::connect).
-    #[napi(factory, js_name = "connectWithConfig")]
-    pub fn connect_with_config(
-        email: String,
-        password: String,
-        config: &fallback::Config,
-    ) -> napi::Result<ThetaDataDxClient> {
-        let creds = auth::Credentials::new(email, password);
-        let direct_config = config.snapshot()?;
-        let tdx = runtime()
-            .block_on(thetadatadx::ThetaDataDxClient::connect(
-                &creds,
-                direct_config,
-            ))
-            .map_err(to_napi_err)?;
-        Ok(ThetaDataDxClient {
-            tdx: Arc::new(tdx),
-            callback: Mutex::new(None),
-        })
-    }
-
-    /// Connect with credentials file + caller-supplied [`Config`].
-    #[napi(factory, js_name = "connectFromFileWithConfig")]
-    pub fn connect_from_file_with_config(
-        path: String,
-        config: &fallback::Config,
-    ) -> napi::Result<ThetaDataDxClient> {
-        let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-        let direct_config = config.snapshot()?;
-        let tdx = runtime()
-            .block_on(thetadatadx::ThetaDataDxClient::connect(
-                &creds,
-                direct_config,
-            ))
-            .map_err(to_napi_err)?;
-        Ok(ThetaDataDxClient {
-            tdx: Arc::new(tdx),
-            callback: Mutex::new(None),
-        })
-    }
-
-    /// Fetch option NBBO history with REST fallback per the
-    /// `FallbackPolicy` on the config the client was built with. See
-    /// [`thetadatadx::mdds::MddsClient::option_history_quote_with_fallback`].
-    #[napi(js_name = "optionHistoryQuoteWithFallback")]
-    #[allow(clippy::too_many_arguments)]
-    pub async fn option_history_quote_with_fallback(
-        &self,
-        symbol: String,
-        expiration: String,
-        start_date: String,
-        end_date: Option<String>,
-        strike: Option<String>,
-        right: Option<String>,
-        interval: Option<String>,
-    ) -> napi::Result<Vec<QuoteTick>> {
-        let tdx = self.tdx.clone();
-        let ticks = tokio::task::spawn_blocking(move || {
-            runtime().block_on(async move {
-                tdx.option_history_quote_with_fallback(
-                    &symbol,
-                    &expiration,
-                    &start_date,
-                    end_date.as_deref(),
-                    strike.as_deref(),
-                    right.as_deref(),
-                    interval.as_deref(),
-                )
-                .await
-            })
-        })
-        .await
-        .map_err(|e| napi::Error::from_reason(format!("spawn_blocking join error: {e}")))?
-        .map_err(fallback::err_from_thetadatadx)?;
-        Ok(quote_ticks_to_class_vec(&ticks))
-    }
-
-    /// Fetch combined trade+quote history with REST fallback per the
-    /// `FallbackPolicy` on the config the client was built with. See
-    /// [`thetadatadx::mdds::MddsClient::option_history_trade_quote_with_fallback`].
-    #[napi(js_name = "optionHistoryTradeQuoteWithFallback")]
-    pub async fn option_history_trade_quote_with_fallback(
-        &self,
-        symbol: String,
-        expiration: String,
-        start_date: String,
-        end_date: Option<String>,
-        strike: Option<String>,
-        right: Option<String>,
-    ) -> napi::Result<Vec<TradeQuoteTick>> {
-        let tdx = self.tdx.clone();
-        let ticks = tokio::task::spawn_blocking(move || {
-            runtime().block_on(async move {
-                tdx.option_history_trade_quote_with_fallback(
-                    &symbol,
-                    &expiration,
-                    &start_date,
-                    end_date.as_deref(),
-                    strike.as_deref(),
-                    right.as_deref(),
-                )
-                .await
-            })
-        })
-        .await
-        .map_err(|e| napi::Error::from_reason(format!("spawn_blocking join error: {e}")))?
-        .map_err(fallback::err_from_thetadatadx)?;
-        Ok(trade_quote_ticks_to_class_vec(&ticks))
-    }
-
-    /// Fetch implied-volatility history with REST fallback. See
-    /// [`thetadatadx::mdds::MddsClient::option_history_greeks_implied_volatility_with_fallback`].
-    #[napi(js_name = "optionHistoryGreeksImpliedVolatilityWithFallback")]
-    #[allow(clippy::too_many_arguments)]
-    pub async fn option_history_greeks_implied_volatility_with_fallback(
-        &self,
-        symbol: String,
-        expiration: String,
-        start_date: String,
-        end_date: Option<String>,
-        strike: Option<String>,
-        right: Option<String>,
-        interval: Option<String>,
-    ) -> napi::Result<Vec<IvTick>> {
-        let tdx = self.tdx.clone();
-        let ticks = tokio::task::spawn_blocking(move || {
-            runtime().block_on(async move {
-                tdx.option_history_greeks_implied_volatility_with_fallback(
-                    &symbol,
-                    &expiration,
-                    &start_date,
-                    end_date.as_deref(),
-                    strike.as_deref(),
-                    right.as_deref(),
-                    interval.as_deref(),
-                )
-                .await
-            })
-        })
-        .await
-        .map_err(|e| napi::Error::from_reason(format!("spawn_blocking join error: {e}")))?
-        .map_err(fallback::err_from_thetadatadx)?;
-        Ok(iv_ticks_to_class_vec(&ticks))
-    }
-
-    /// Fetch first-order Greeks history with REST fallback. See
-    /// [`thetadatadx::mdds::MddsClient::option_history_greeks_first_order_with_fallback`].
-    #[napi(js_name = "optionHistoryGreeksFirstOrderWithFallback")]
-    #[allow(clippy::too_many_arguments)]
-    pub async fn option_history_greeks_first_order_with_fallback(
-        &self,
-        symbol: String,
-        expiration: String,
-        start_date: String,
-        end_date: Option<String>,
-        strike: Option<String>,
-        right: Option<String>,
-        interval: Option<String>,
-    ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
-        let tdx = self.tdx.clone();
-        let ticks = tokio::task::spawn_blocking(move || {
-            runtime().block_on(async move {
-                tdx.option_history_greeks_first_order_with_fallback(
-                    &symbol,
-                    &expiration,
-                    &start_date,
-                    end_date.as_deref(),
-                    strike.as_deref(),
-                    right.as_deref(),
-                    interval.as_deref(),
-                )
-                .await
-            })
-        })
-        .await
-        .map_err(|e| napi::Error::from_reason(format!("spawn_blocking join error: {e}")))?
-        .map_err(fallback::err_from_thetadatadx)?;
-        Ok(greeks_first_order_ticks_to_class_vec(&ticks))
-    }
-}
 
 #[napi]
 impl ThetaDataDxClient {

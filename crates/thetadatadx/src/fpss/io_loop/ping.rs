@@ -24,8 +24,7 @@ use super::super::protocol::build_ping_payload;
 /// After successful login, the client starts a thread that sends:
 /// - Code 10 (PING)
 /// - 1-byte payload: `[0x00]`
-/// - Every `interval` (heartbeat cadence; default `100ms` matches the
-///   Java terminal's `scheduleAtFixedRate`).
+/// - Every `interval` (heartbeat cadence; default `100ms`).
 // Reason: all parameters are moved into this function from a spawned thread closure.
 #[allow(clippy::needless_pass_by_value)]
 pub(in crate::fpss) fn ping_loop(

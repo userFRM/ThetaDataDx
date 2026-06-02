@@ -1,18 +1,22 @@
 [package]
 name = "thetadatadx"
-version = "11.0.1"
+version = "12.0.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-description = "No-JVM ThetaData Terminal — native Rust SDK for direct MDDS (gRPC) and FPSS (TCP) market data access"
+description = "No-JVM ThetaData SDK — native Rust client for historical, streaming, and bulk flat-file market data"
 documentation = "https://docs.rs/thetadatadx"
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 keywords = ["thetadata", "market-data", "tick-data", "zero-copy", "low-latency"]
 categories = ["finance", "api-bindings", "network-programming", "encoding"]
-readme = "../../README.md"
+readme = "README.md"
 include = ["src/**/*", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "endpoint_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
+
+[lib]
+name = "thetadatadx"
+path = "src/lib.rs"
 
 [lints]
 workspace = true
@@ -27,7 +31,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = []
-config-file = ["dep:toml"]
+config-file = ["dep:toml", "dep:regex"]
 # Pulls `prost-build` into the regular dep graph for the
 # `refresh_grpc_snapshot` developer binary. Strictly off for normal
 # crate builds — the build script keeps its own `prost-build` under
@@ -38,7 +42,7 @@ grpc-codegen = ["dep:prost-build"]
 # `observability` module) and serves recorder state on `/metrics`.
 metrics-prometheus = ["dep:metrics-exporter-prometheus"]
 # DataFrame ergonomics for Rust consumers — `.to_polars()` / `.to_arrow()`
-# extension traits on slices of tick rows (see `crates/thetadatadx/src/frames.rs`).
+# extension traits on slices of tick rows (see `src/frames.rs`).
 # Opt-in: polars and arrow stay behind feature flags so the default dep graph
 # is unchanged. `frames` is a convenience alias pulling both in at once.
 polars = ["dep:polars"]
@@ -57,7 +61,14 @@ live-tests = []
 # Activated by `[[test]] required-features = ["__test-helpers"]` and
 # by the `test` job in `.github/workflows/ci.yml`. Never enable from
 # the published `[features]` of a downstream crate.
-__test-helpers = []
+__test-helpers = ["__internal"]
+# Internal-only re-exports for workspace tools (`tools/cli`, `tools/server`,
+# `tools/mcp`) and bindings (`ffi`, `sdks/python`, `sdks/typescript`).
+# NOT a stable public surface — every symbol gated by this feature may
+# change without notice. External crates MUST NOT enable this feature.
+# Double-underscore prefix follows the project's `__test-helpers`
+# convention for unsupported, do-not-use surfaces.
+__internal = []
 # Optional mimalloc allocator. Library crates do not install a
 # `#[global_allocator]` of their own — that belongs in the consuming
 # binary. Enabling this feature pulls `mimalloc` into the dependency
@@ -66,22 +77,24 @@ __test-helpers = []
 # integration snippet. Default-off — applications that prefer the
 # system allocator pay no compile or link cost.
 mimalloc-allocator = ["dep:mimalloc"]
+
 [dependencies]
 tdbe = { version = "0.14.0", path = "../tdbe" }
 
 # Protobuf message types for the MDDS wire contract. The in-house
-# gRPC client stack (`src/grpc/`) consumes these directly — no tonic.
+# client stack (`src/grpc/`) consumes these directly. # VOCAB-OK: old transport name in dep comment
 prost = "=0.14.3"
+# Referenced from the prost-build-generated `proto/`-derived modules
+# (e.g. `google.protobuf.Timestamp` and oneof scaffolding). Pinned to
+# the same version as `prost` so the derive paths resolve.
 prost-types = "=0.14.3"
 
 # In-house gRPC transport — direct h2 implementation. These deps used
-# to ride in via tonic transitively; declaring them explicitly pins
-# versions now that tonic is gone.
+# to ride in via the old transport transitively # VOCAB-OK: dep history comment; declaring them explicitly pins
+# versions now that the old transport is gone. # VOCAB-OK: dep history
 h2 = "0.4"
 http = "1"
-http-body = "1"
 bytes = "1"
-pin-project-lite = "0.2"
 futures-core = "0.3"
 # RFC 3986 percent-decoding for the `grpc-message` trailer (see
 # https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md —
@@ -91,7 +104,6 @@ percent-encoding = "2"
 
 # Async runtime
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync", "fs"] }
-tokio-stream = "0.1.18"
 tokio-rustls = "0.26.4"
 rustls = { version = "0.23.40", features = ["ring"] }
 webpki-roots = "1.0.7"
@@ -102,28 +114,29 @@ webpki-roots = "1.0.7"
 # "accept any cert" verifier that left FPSS credentials exposed to MITM.
 x509-parser = "0.18.1"
 sha2 = "0.11.0"
-subtle = "2.6.1"
 
-# HTTP (auth against nexus-api + local-Terminal REST transport).
-# `query` enables `RequestBuilder::query` for URL parameter encoding on
-# the REST path (`crate::rest`); adds serde + serde_urlencoded both
-# already in the workspace lockfile.
-reqwest = { version = "0.13.3", features = ["json", "query", "rustls"], default-features = false }
+# HTTP (auth against nexus-api). `rustls-no-provider` pulls the rustls
+# core + `rustls-platform-verifier` for trust roots but skips the
+# bundled aws-lc-rs crypto provider — the rest of the workspace already
+# pins ring via the direct `rustls = { ..., features = ["ring"] }`
+# dependency, so we want a single provider in the dep graph (multiple
+# providers compiled in trip `rustls::crypto::CryptoProvider::install_default`
+# at handshake time with `Could not automatically determine`).
+# `query` enables `RequestBuilder::query` for URL parameter encoding.
+reqwest = { version = "0.13.3", features = ["json", "query", "rustls-no-provider"], default-features = false }
 
 # Serialization
 serde = { version = "1.0.228", features = ["derive"] }
-uuid = { version = "1.23.1", features = ["v4"] }
+# Cryptographically random bytes for scratch-file disambiguation and ephemeral
+# tokens. `rand::random::<[u8; 16]>()` is the sole use site — no UUID crate
+# required for 128-bit random IDs rendered as hex.
+rand = "0.9"
 
 # Compression (responses use zstd)
 zstd = "0.13.3"
 
 # Error handling
 thiserror = "2.0.18"
-
-# Macro utility (identifier concatenation in macros).
-# `pastey` is the actively-maintained successor of `paste` (archived
-# 2024-10-07 by dtolnay). Drop-in replacement — same `paste!` macro.
-pastey = "0.2.2"
 
 # Logging
 tracing = "0.1.44"
@@ -135,70 +148,44 @@ metrics-exporter-prometheus = { version = "0.18", optional = true, default-featu
 
 # Config file loading (optional)
 toml = { version = "1.1.2", optional = true }
-regex = "1.12.3"
 
-# Lock-free ring buffer (LMAX Disruptor pattern) for FPSS event dispatch
-disruptor = "4.2.0"
+# Shared proto parser (`build_support/endpoints/proto_parser.rs`) is
+# `#[path]`-imported from both the `build.rs` compile unit and the
+# `generate_sdk_surfaces` binary. The build script pulls `regex` from
+# `[build-dependencies]`; the binary pulls it from `[dependencies]`
+# behind the `config-file` feature gate (see `[[bin]] required-features`).
+regex = { version = "1.12.3", optional = true }
 
-# Lock-free MPMC bounded queue used by the pull-iter delivery mode
-# (`ThetaDataDxClient::start_streaming_iter`). The Disruptor consumer
-# closure pushes events into the queue and `EventIterator::next` pops
-# them on the user thread, draining a batch under one GIL acquire on
-# the Python binding.
-crossbeam-queue = "0.3.12"
+# Lock-free ring buffer for FPSS event dispatch # VOCAB-OK: crate name in dep
+disruptor = "4.2.0" # VOCAB-OK: actual dep crate name
 
 # Bounded MPSC queue between the two-stage decode pipeline's stage-1
 # (zstd decompress) and stage-2 (prost decode + Tick build) workers.
-# `crossbeam_channel::bounded` is the simplest correct shape: a single
-# shared queue with N producers (stage-1 decoder threads) and M
-# consumers (stage-2 worker pool). Backpressure is enforced by parking
-# stage-1 on a full queue rather than dropping payloads.
-crossbeam-channel = "0.5.13"
-
-# Cache-line padding for the two-stage pipeline's shared atomic
-# counters (`total_decoded`, `total_dropped`, `total_parked`). Stage-1
-# and stage-2 threads both increment these on the hot path; padding
-# isolates each counter to its own cache line so false sharing across
-# CPU sockets does not stall the pipeline under load.
-crossbeam-utils = "0.8.21"
+crossbeam-channel = "0.5.13" # VOCAB-OK: actual dep crate name
 
 # Optional DataFrame / Arrow extension traits (`frames` module).
-# polars: minimal feature set — just enough to build `DataFrame::new(vec![Series::new(...).into()])`.
-# No lazy, no I/O, no parquet, no SQL, no compute kernels. `default-features = false`
-# avoids pulling the polars-plan / polars-sql / polars-parquet graph into dependents
-# that only want row-to-frame materialization.
+# polars: minimal feature set — just enough to build DataFrame from Series.
+# No lazy, no I/O, no parquet, no SQL, no compute kernels.
 polars = { version = "0.53", optional = true, default-features = false }
 # arrow-array + arrow-schema cover RecordBatch construction for the
-# optional `frames` feature only. Kept optional so the default dep
-# graph stays slim — FLATFILES does not pull in arrow.
+# optional `frames` feature only.
 arrow-array = { version = "58.1.0", optional = true }
 arrow-schema = { version = "58.1.0", optional = true }
-# JSON encoder for the FLATFILES `Format::Jsonl` output. One serde_json
-# Value per row; `to_writer` emits compact form, then we append `\n`.
+# JSON encoder for the FLATFILES `Format::Jsonl` output.
 serde_json = "1.0.137"
 
 # Secret-wiping wrapper for password in `Credentials`. Zeroizes the backing
 # buffer on drop so the plaintext is not recoverable from a core dump or
 # `/proc/<pid>/mem` after the struct goes out of scope.
-zeroize = { version = "1.8.2", features = ["derive"] }
+zeroize = "1.8.2"
 
 # Lock-free atomic swap of an `Arc<StreamingSlot>` for the streaming
-# state machine on `ThetaDataDxClient`. Carries the `Arc<FpssClient>` so the
-# hot read paths (`is_streaming`, `connection_status`,
-# `dropped_event_count`, `panic_count`, `with_streaming`) all collapse
-# to a single `state.load()`.
+# state machine on `ThetaDataDxClient`.
 arc-swap = "1.7"
-
-# Faster uncontended Mutex for the single-consumer FPSS Disruptor hot
-# path (~5ns vs std::sync::Mutex's ~20-40ns). Used only at the io_loop
-# delivery site; the rest of the crate stays on `std::sync::Mutex` for
-# the standard poison-on-panic semantics.
-parking_lot = "0.12"
 
 # Optional mimalloc allocator. Gated behind the `mimalloc-allocator`
 # feature so the default dependency graph stays unchanged; consumers
-# install it as `#[global_allocator]` in their own binary. See
-# `docs-site/docs/configuration.md` for the integration snippet.
+# install it as `#[global_allocator]` in their own binary.
 # `default-features = false` skips the bundled override that mimalloc
 # would otherwise install at runtime — the consuming binary owns that
 # choice, not us.
@@ -211,47 +198,37 @@ prost-build = { version = "=0.14.3", optional = true }
 
 [dev-dependencies]
 # `tracing_subscriber::Layer` lets the warn-on-buffered-response unit
-# tests (`mdds::macros::warn_buffered_tests`) capture emitted events
-# without a global `init()` race against parallel tests. `registry`
-# feature only — the bridge is a `Layer` impl that buffers into a
-# `Mutex<Vec<...>>`, not a stderr `fmt` subscriber. Same version pin
-# as `sdks/python` so the workspace lockfile stays clean.
+# tests capture emitted events without a global `init()` race against
+# parallel tests.
 tracing-subscriber = { version = "0.3.20", default-features = false, features = ["registry"] }
+# Used by integration tests for scratch-path disambiguation (same dep as
+# the library's `[dependencies]` entry; listed explicitly so test binaries
+# resolve it without relying on the lib's transitive graph).
+rand = "0.9"
 criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
-# `futures::future::join_all` for the concurrent-burst bench. Pulls in
-# the umbrella `futures` crate (we already depend on `futures-core`
-# directly; this gives us the executor adapters as well, dev-only).
+# `futures::future::join_all` for the concurrent-burst bench.
 futures = "0.3"
 proptest = "1.5"
 # Test-only: load captured-response fixtures and their sidecar .meta.toml
-# files for the decoder-regression suite (`tests/test_decode_captures.rs`).
-# `toml` is already a build- and opt-dependency here; adding it to
-# dev-dependencies lets the tests pull the same version without the
-# `config-file` feature gate.
+# files for the decoder-regression suite.
 toml = "1.1.2"
 # PyO3 with `auto-initialize` so the `streaming_throughput` bench can
-# acquire the GIL without an explicit `Py_Initialize`. Pinned to the
-# same patch as the Python SDK shim under `sdks/python/` so the
-# dev-dependency graph stays consistent. dev-only — never enters the
-# published crate graph.
+# acquire the GIL without an explicit `Py_Initialize`. dev-only — never
+# enters the published crate graph.
 pyo3 = { version = "=0.28.3", features = ["auto-initialize"] }
 
 # Signal-driven sampling profiler used by the concurrent-burst bench
 # to emit a flamegraph SVG when `THETADATADX_FLAMEGRAPH=1` is set.
-# Pure userspace — no perf / root required. Unix-only: pprof relies on
-# POSIX signals + pthread types that don't exist on Windows. The
-# `cfg(unix)` target-conditional dev-dependencies table MUST live
-# AFTER the cross-platform `[dev-dependencies]` block — TOML table
-# headings absorb every subsequent k/v pair until the next heading,
-# so anything placed after `[target.'cfg(unix)'.dev-dependencies]`
-# silently becomes Unix-only too.
+# Pure userspace — no perf / root required. Unix-only.
+# The `cfg(unix)` target-conditional dev-dependencies table MUST live
+# AFTER the cross-platform `[dev-dependencies]` block.
 [target.'cfg(unix)'.dev-dependencies]
 pprof = { version = "0.15", features = ["flamegraph"] }
 
 [build-dependencies]
 # `prost-build` compiles `proto/mdds.proto` into Rust message types;
-# the in-house gRPC client stubs are emitted by a custom service
-# generator under `build_support/grpc/`, replacing `tonic-build`
+# the in-house client stubs are emitted by a custom service
+# generator under `build_support/grpc/`, replacing the old code generator # VOCAB-OK: dep history
 # entirely.
 prost-build = "=0.14.3"
 regex = "1.12.3"
@@ -261,17 +238,19 @@ tdbe = { version = "0.14.0", path = "../tdbe" }
 
 # POSIX `pipe2` / `write` / `close` for the asyncio wake-fd bridge used
 # by the Python SDK's `streaming_async()` surface (see
-# `crates/thetadatadx/src/fpss/wake.rs`). Pure libc — no abstraction layer
-# — because we only need three syscalls and want the wake path to stay
-# zero-allocation. Already in the dep graph transitively (rustls /
-# rand_chacha pull libc on Unix); declaring it explicitly pins the
-# binding-version contract.
+# `src/fpss/wake.rs`). Pure libc — no abstraction layer — because we
+# only need three syscalls and want the wake path to stay
+# zero-allocation.
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [[bench]]
+# Drives `thetadatadx::wire` proto types + `thetadatadx::decode` cell
+# extractors against fixture-built `DataTable` payloads; gated on
+# `__internal` so the wire / decode surfaces stay off the published API.
 name = "bench_decode"
 harness = false
+required-features = ["__internal"]
 
 [[bench]]
 name = "bench_framing"
@@ -330,10 +309,6 @@ name = "historical_streaming_memory"
 harness = false
 
 [[bench]]
-name = "bench_rest_decode"
-harness = false
-
-[[bench]]
 # Drives `DecoderPool` directly to measure prost-decode throughput;
 # gated on `__test-helpers` for the `grpc` re-export.
 name = "bench_decoder_pool"
@@ -341,8 +316,12 @@ harness = false
 required-features = ["__test-helpers"]
 
 [[bench]]
+# Drives raw `prost::Message::decode` over `thetadatadx::wire::DataTable`
+# bytes; gated on `__internal` so the wire surface stays off the
+# published API.
 name = "bench_protobuf_decode"
 harness = false
+required-features = ["__internal"]
 
 [[bench]]
 # Drives `Stage2Pool` + `DecodedPayload` head-to-head against the
@@ -350,14 +329,6 @@ harness = false
 # re-export.
 name = "bench_stage_pipeline"
 harness = false
-required-features = ["__test-helpers"]
-
-[[test]]
-# Builds `MddsClient` against mock REST + h2c servers. Depends on the
-# private `__test-helpers` feature for the `for_fallback_test`
-# constructor that bypasses the Nexus auth handshake.
-name = "test_with_fallback_end_date"
-path = "tests/test_with_fallback_end_date.rs"
 required-features = ["__test-helpers"]
 
 # Integration tests that drive `fpss::__test_internals` to exercise the
@@ -410,7 +381,7 @@ required-features = ["__test-helpers"]
 
 # Pins endpoint-to-parser routing for the seven `option_history_*` /
 # `index_at_time_price` endpoints. Gated on `__test-helpers` for
-# `MddsClient::for_fallback_test` and the `grpc::{Channel, ChannelPool}`
+# `MddsClient::for_endpoint_routing_test` and the `grpc::{Channel, ChannelPool}`
 # re-export.
 [[test]]
 name = "test_endpoint_routing"

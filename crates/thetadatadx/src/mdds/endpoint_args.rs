@@ -1,11 +1,29 @@
 //! Shared endpoint invocation runtime for `thetadatadx`.
 //!
-//! This module owns the typed argument model, validation helpers, and
-//! generated endpoint dispatch used by registry-driven projections such as the
-//! CLI, REST server, and MCP server.
+//! Owns the typed argument model, validation helpers, and generated endpoint
+//! dispatch used by registry-driven projections (CLI, MCP server, optional
+//! local HTTP front-end).
 
+// Items in this module are split into two groups:
+//
+// 1. Always-compiled (no feature gate): `EndpointError` and its trait impls.
+//    Used internally by `mdds::validate` and the `From` conversions in
+//    `error.rs` — needed in every build.
+//
+// 2. `#[cfg(feature = "__internal")]`: everything else. The argument bag
+//    (`EndpointArgs`, `EndpointArgValue`), the output enum (`EndpointOutput`),
+//    and the generated dispatch (`invoke_generated_endpoint`,
+//    `invoke_endpoint`, `parse_raw_arg_value`) are only reachable from
+//    workspace tools (`tools/cli`, `tools/server`, `tools/mcp`) and
+//    bindings — never from crate-internal code.
+
+use crate::Error;
+
+#[cfg(feature = "__internal")]
+use crate::mdds::registry::ParamType;
+#[cfg(feature = "__internal")]
 use std::collections::BTreeMap;
-
+#[cfg(feature = "__internal")]
 use tdbe::types::tick::{
     CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
     GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
@@ -14,10 +32,10 @@ use tdbe::types::tick::{
     TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
 };
 
-use crate::mdds::registry::ParamType;
-use crate::Error;
-
 /// Validated scalar argument value accepted by the shared endpoint runtime.
+///
+/// Only present when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
 #[derive(Debug, Clone, PartialEq)]
 pub enum EndpointArgValue {
     /// UTF-8 string value.
@@ -37,12 +55,16 @@ pub enum EndpointArgValue {
 /// per-call deadline can be attached via [`Self::with_timeout_ms`]; the
 /// generated dispatch applies it as `with_deadline` on the matching
 /// builder.
+///
+/// Only present when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EndpointArgs {
     args: BTreeMap<String, EndpointArgValue>,
     timeout_ms: Option<u64>,
 }
 
+#[cfg(feature = "__internal")]
 impl EndpointArgs {
     /// Create an empty endpoint argument bag.
     #[must_use]
@@ -375,6 +397,7 @@ impl From<Error> for EndpointError {
     }
 }
 
+#[doc(hidden)]
 impl From<EndpointError> for Error {
     fn from(value: EndpointError) -> Self {
         match value {
@@ -390,6 +413,9 @@ impl From<EndpointError> for Error {
 }
 
 /// Typed result variants emitted by generated endpoint adapters.
+///
+/// Only present when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
 #[derive(Debug)]
 pub enum EndpointOutput {
     /// `Vec<String>` list result.
@@ -484,6 +510,9 @@ pub enum EndpointOutput {
 /// semaphore and cancelling the in-flight gRPC stream — and the call
 /// returns `EndpointError::Server(Error::Timeout { duration_ms })`.
 /// Subsequent calls on the same `MddsClient` succeed.
+///
+/// Only present when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
 pub async fn invoke_endpoint(
     client: &crate::mdds::MddsClient,
     name: &str,
@@ -502,6 +531,9 @@ pub async fn invoke_endpoint(
 }
 
 /// Parse a raw string value according to registry metadata into a typed endpoint arg.
+///
+/// Only present when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
 pub fn parse_raw_arg_value(
     param_type: ParamType,
     param_name: &str,
@@ -536,14 +568,21 @@ pub fn parse_raw_arg_value(
 }
 
 // Canonical validation — delegates to the shared `mdds::validate` module.
+// Gated on `__internal` because these are only called from within the gated
+// `EndpointArgs` impl block and `parse_raw_arg_value` above.
+#[cfg(feature = "__internal")]
 use crate::mdds::validate::{
     parse_bool, parse_symbols, validate_date, validate_expiration, validate_interval,
     validate_right, validate_strike, validate_symbol, validate_year,
 };
 
+// Generated endpoint dispatch (invoke_generated_endpoint + match arms).
+// Only compiled when `__internal` is enabled because the match arms reference
+// `EndpointArgs`, `EndpointOutput`, and `EndpointError` — all gated above.
+#[cfg(feature = "__internal")]
 include!(concat!(env!("OUT_DIR"), "/endpoint_generated.rs"));
 
-#[cfg(test)]
+#[cfg(all(test, feature = "__internal"))]
 mod tests {
     use super::*;
 

@@ -61,7 +61,7 @@ Volatility surfaces and Greeks visualization. Uses `all_greeks()` to compute IV 
 
 **[`105_realtime_streaming.ipynb`](https://github.com/userFRM/ThetaDataDx/blob/main/notebooks/105_realtime_streaming.ipynb)**
 
-FPSS streaming in a notebook: connecting, subscribing to quotes and trades via `client.subscribe(contract.quote())`, iterating events with `with client.streaming_iter() as it: for event in it:`, and building a live quote table.
+FPSS streaming in a notebook: connecting, subscribing to quotes and trades via `client.subscribe(contract.quote())`, processing events with `client.start_streaming(callback)` (or the `with client.streaming(callback):` context manager), and building a live quote table.
 
 ::: warning
 Real-time streaming notebooks require market hours (9:30 AM - 4:00 PM ET on trading days) to receive live data. Outside market hours, you will only see heartbeat events.

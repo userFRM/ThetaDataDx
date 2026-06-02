@@ -145,7 +145,6 @@ mod tests {
             kind: "parsed".to_string(),
             list_column: None,
             vendor_docstring: None,
-            _transport: super::super::super::model::Transport::Grpc,
         }
     }
 

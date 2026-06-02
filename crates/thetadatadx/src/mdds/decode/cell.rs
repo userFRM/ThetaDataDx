@@ -315,12 +315,42 @@ pub(crate) fn cell_type(
 //   * `crate::decode::{observed_name, parse_iso_date, ...}` for shared helpers
 //   * `tdbe::time::{timestamp_to_ms_of_day, timestamp_to_date}` for ET conversion
 //
-// All of these resolve through the re-exports in `crate::mdds::decode` (which
-// `crate::decode` re-exports at the crate root) so the generator's path
-// assumptions remain intact after the split.
+// The generated `decode_generated.rs` emits `pub fn` for every tick type.
+// Most are called by the always-compiled MDDS endpoint macros, but a few
+// (`parse_calendar_days`, `parse_option_contracts`) are dead in default builds
+// and only consumed by workspace bindings (`sdks/python`).
+//
+// Strategy: compile the generated module unconditionally (to keep the
+// always-needed functions available), but suppress dead-code lints on the
+// module with `#[cfg_attr]`. The `__internal` glob re-export makes the
+// otherwise-unreachable functions visible to workspace bindings.
+// The `#[cfg(not(feature = "__internal"))]` explicit list avoids the dead-code
+// lint on the re-export side; the module-level lint is suppressed by the
+// `allow(dead_code)` on the inner module only (a narrow scope that does NOT
+// apply to the enclosing crate — this is not a crate-wide allowance).
 #[allow(clippy::pedantic)] // Reason: auto-generated parser code, not under our control.
+#[allow(dead_code)] // Reason: generated functions `parse_calendar_days` and
+                    // `parse_option_contracts` have no default-build callers;
+                    // they are consumed by `sdks/python` under `__internal`.
+                    // Scope: this inner module only — not the enclosing crate.
 mod decode_generated {
     use super::*;
     include!(concat!(env!("OUT_DIR"), "/decode_generated.rs"));
 }
+
+// Full glob for workspace bindings that use every generated parser.
+#[cfg(feature = "__internal")]
 pub use decode_generated::*;
+// Explicit subset for default builds: exactly the functions the generated MDDS
+// endpoint macros (`mdds_parsed_endpoints_generated.rs`) call via `decode::parse_*`.
+#[cfg(not(feature = "__internal"))]
+pub use decode_generated::{
+    parse_eod_ticks, parse_greeks_all_ticks, parse_greeks_eod_ticks,
+    parse_greeks_first_order_ticks, parse_greeks_second_order_ticks,
+    parse_greeks_third_order_ticks, parse_index_price_at_time_ticks, parse_interest_rate_ticks,
+    parse_iv_ticks, parse_market_value_ticks, parse_ohlc_ticks, parse_open_interest_ticks,
+    parse_price_ticks, parse_quote_ticks, parse_trade_greeks_all_ticks,
+    parse_trade_greeks_first_order_ticks, parse_trade_greeks_implied_volatility_ticks,
+    parse_trade_greeks_second_order_ticks, parse_trade_greeks_third_order_ticks,
+    parse_trade_quote_ticks, parse_trade_ticks,
+};

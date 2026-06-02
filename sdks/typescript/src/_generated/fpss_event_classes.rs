@@ -303,7 +303,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.kind = "ohlcvc";
             out.ohlcvc = Some(Ohlcvc {
                 contract: Contract {
-                    symbol: contract.symbol.clone(),
+                    symbol: contract.symbol.to_string(),
                     sec_type: contract.sec_type.as_str().to_string(),
                     expiration: contract.expiration,
                     right: contract.right().map(|r| r.as_char().to_string()),
@@ -331,7 +331,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.kind = "open_interest";
             out.open_interest = Some(OpenInterest {
                 contract: Contract {
-                    symbol: contract.symbol.clone(),
+                    symbol: contract.symbol.to_string(),
                     sec_type: contract.sec_type.as_str().to_string(),
                     expiration: contract.expiration,
                     right: contract.right().map(|r| r.as_char().to_string()),
@@ -361,7 +361,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.kind = "quote";
             out.quote = Some(Quote {
                 contract: Contract {
-                    symbol: contract.symbol.clone(),
+                    symbol: contract.symbol.to_string(),
                     sec_type: contract.sec_type.as_str().to_string(),
                     expiration: contract.expiration,
                     right: contract.right().map(|r| r.as_char().to_string()),
@@ -403,7 +403,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.kind = "trade";
             out.trade = Some(Trade {
                 contract: Contract {
-                    symbol: contract.symbol.clone(),
+                    symbol: contract.symbol.to_string(),
                     sec_type: contract.sec_type.as_str().to_string(),
                     expiration: contract.expiration,
                     right: contract.right().map(|r| r.as_char().to_string()),
@@ -440,7 +440,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
             out.contract_assigned = Some(ContractAssigned {
                 id,
                 contract: Contract {
-                    symbol: contract.symbol.clone(),
+                    symbol: contract.symbol.to_string(),
                     sec_type: contract.sec_type.as_str().to_string(),
                     expiration: contract.expiration,
                     right: contract.right().map(|r| r.as_char().to_string()),

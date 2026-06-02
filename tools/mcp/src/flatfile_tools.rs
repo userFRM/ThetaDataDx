@@ -274,6 +274,8 @@ pub(crate) async fn try_execute_flatfile_tool(
             "format": format.extension(),
             "date": date,
         })),
-        Err(e) => Err(ToolError::ServerError(crate::sanitize_error(&e.to_string()))),
+        Err(e) => Err(ToolError::ServerError(crate::sanitize_error(
+            &e.to_string(),
+        ))),
     })
 }

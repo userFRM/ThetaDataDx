@@ -26,9 +26,9 @@ use super::contract::Contract;
 
 /// Returns the `StreamMsgType` code for subscribing to a given data type.
 ///
-/// Source: `PacketStream.addQuote()` uses code 21, `addTrade()` uses 22,
-/// `addOpenInterest()` uses 23.
+/// Wire codes: `Quote` = 21, `Trade` = 22, `OpenInterest` = 23.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SubscriptionKind {
     Quote,
     Trade,
@@ -160,7 +160,7 @@ impl Contract {
     ///
     /// let sub = Contract::stock("AAPL").quote();
     /// if let Subscription::Contract { contract, kind } = sub {
-    ///     assert_eq!(contract.symbol, "AAPL");
+    ///     assert_eq!(&*contract.symbol, "AAPL");
     ///     assert_eq!(kind, SubscriptionKind::Quote);
     /// } else {
     ///     panic!("per-contract Quote subscription must round-trip as `Contract` variant");

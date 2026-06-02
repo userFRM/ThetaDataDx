@@ -15,9 +15,9 @@
 
 use super::DirectConfig;
 
-/// MDDS gRPC host.
+/// MDDS host.
 pub const ENV_MDDS_HOST: &str = "THETADATA_MDDS_HOST";
-/// MDDS gRPC port.
+/// MDDS port.
 pub const ENV_MDDS_PORT: &str = "THETADATA_MDDS_PORT";
 /// Nexus auth base URL override.
 pub const ENV_NEXUS_URL: &str = "THETADATA_NEXUS_URL";

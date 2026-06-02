@@ -3,7 +3,7 @@
 //! Rust 1.81+ aborts when a panic crosses an `extern "C"` boundary; pre-1.81
 //! the behavior is undefined. Both modes crash the host process, which is
 //! unacceptable for a library binding (a typo in a macro arg or an unexpected
-//! invariant violation inside `tokio::runtime::block_on` would take down the
+//! invariant violation inside the tokio runtime executor would take down the
 //! user's entire program). Wrapping the body in `catch_unwind` keeps the
 //! crash contained in the thread and surfaces the reason through the normal
 //! FFI error channel.
@@ -19,7 +19,7 @@
 /// Rust 1.81+ aborts when a panic crosses an `extern "C"` boundary;
 /// pre-1.81 the behavior is undefined. Both modes crash the host process,
 /// which is unacceptable for a library binding (a typo in a macro arg or
-/// an unexpected invariant violation inside `tokio::runtime::block_on`
+/// an unexpected invariant violation inside the tokio runtime executor
 /// would take down the user's entire program). Wrapping the body in
 /// `catch_unwind` keeps the crash contained in the thread and surfaces
 /// the reason through the normal FFI error channel.

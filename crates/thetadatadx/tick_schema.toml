@@ -749,7 +749,7 @@ pyclass = "IvTick"
 # in place of the `bid` / `ask` quote pair carried by the matching
 # interval-sampled `option_history_greeks_*` endpoints.
 #
-# These were silently routed to the bare `Greeks*Tick` types for the v10
+# These were silently routed to the bare `Greeks*Tick` types in the earlier line
 # line, which dropped every trade-side column on decode -- users got the
 # Greeks but lost the per-trade execution context. Verified-live against
 # terminal jar build `202605221` (CSV captures pinned in

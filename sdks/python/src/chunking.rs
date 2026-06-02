@@ -40,6 +40,32 @@ pub enum ChunkError {
     EndBeforeStart { start: String, end: String },
 }
 
+/// Validate a decomposed Gregorian date against the actual calendar.
+///
+/// Rejects impossible combinations — month 0, month > 12, day 0, day > the
+/// month's length, and Feb 29 in non-leap years — returning `false` for any
+/// such input. The leap-year rule is the proleptic Gregorian: divisible by 4,
+/// except centuries, except quadricentennials.
+fn is_valid_ymd(year: i32, month: u32, day: u32) -> bool {
+    if !(1..=12).contains(&month) || day < 1 {
+        return false;
+    }
+    let days_in_month = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+            if leap {
+                29
+            } else {
+                28
+            }
+        }
+        _ => unreachable!(),
+    };
+    day <= days_in_month
+}
+
 /// A single (inclusive) day.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Ymd {
@@ -50,39 +76,37 @@ struct Ymd {
 
 impl Ymd {
     fn from_yyyymmdd(s: &str) -> Result<Self, ChunkError> {
-        // Shape check first so chrono never has to think about non-ASCII
-        // or lengths other than 8 — the error message we produce here is
-        // the one the caller will see on malformed input from the wire.
-        if s.len() != 8 || !s.chars().all(|c| c.is_ascii_digit()) {
+        if s.len() != 8 || !s.bytes().all(|b| b.is_ascii_digit()) {
             return Err(ChunkError::InvalidDate(
                 s.to_string(),
                 "must be 8 ASCII digits".into(),
             ));
         }
-        // Reason: the previous hand-rolled validator accepted
-        // Gregorian-impossible dates like "20230229" (Feb 29 outside a
-        // leap year) and "20240231" (Feb 31). `to_ord` then silently
-        // normalized them, producing wrong chunk boundaries. Delegate
-        // validity to chrono so leap-year + month-length rules are
-        // enforced by the canonical calendar implementation.
-        let parsed = chrono::NaiveDate::parse_from_str(s, "%Y%m%d")
-            .map_err(|e| ChunkError::InvalidDate(s.to_string(), e.to_string()))?;
-        // chrono returns `i32` for `year()` (BC dates are negative). The
-        // YYYYMMDD wire format only expresses 0001..=9999, and the shape
-        // check above already guarantees 4 ASCII digits, so a negative
-        // year cannot reach here. Still, guard against a narrowing cast
-        // explicitly rather than trusting an out-of-band invariant.
-        let year_i32 = chrono::Datelike::year(&parsed);
-        if !(0..=9999).contains(&year_i32) {
+        let year = s[0..4]
+            .parse::<i32>()
+            .map_err(|e| ChunkError::InvalidDate(s.to_string(), format!("year: {e}")))?;
+        let month = s[4..6]
+            .parse::<u32>()
+            .map_err(|e| ChunkError::InvalidDate(s.to_string(), format!("month: {e}")))?;
+        let day = s[6..8]
+            .parse::<u32>()
+            .map_err(|e| ChunkError::InvalidDate(s.to_string(), format!("day: {e}")))?;
+        if !(0..=9999).contains(&year) {
             return Err(ChunkError::InvalidDate(
                 s.to_string(),
-                format!("year {year_i32} out of YYYY range"),
+                format!("year {year} out of YYYY range"),
+            ));
+        }
+        if !is_valid_ymd(year, month, day) {
+            return Err(ChunkError::InvalidDate(
+                s.to_string(),
+                format!("{year:04}-{month:02}-{day:02} is not a valid Gregorian date"),
             ));
         }
         Ok(Ymd {
-            year: year_i32 as u32,
-            month: chrono::Datelike::month(&parsed),
-            day: chrono::Datelike::day(&parsed),
+            year: year as u32,
+            month,
+            day,
         })
     }
 

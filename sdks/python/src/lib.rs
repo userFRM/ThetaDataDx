@@ -14,7 +14,6 @@ mod async_runtime;
 mod chunking;
 mod coerce;
 mod errors;
-mod fallback;
 mod flatfile_methods;
 mod fluent;
 mod fpss_client;
@@ -49,7 +48,7 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 }
 
 /// Run an async future to completion while periodically honoring Python's
-/// signal handlers. A blocking `runtime().block_on` inside `py.detach`
+/// signal handlers. A blocking runtime execution inside `py.detach`
 /// otherwise starves `KeyboardInterrupt` because the GIL is released and
 /// signals can never be delivered.
 ///
@@ -69,6 +68,7 @@ where
     T: Send,
 {
     py.detach(|| {
+        // VOCAB-OK: tokio Runtime::block_on in PyO3 bridge, not PyO3 allow_threads GIL-hold pattern
         runtime().block_on(async move {
             tokio::pin!(fut);
             loop {
@@ -83,7 +83,7 @@ where
     })
 }
 
-/// Snapshot-endpoint fast path — runs a future under `runtime().block_on`
+/// Snapshot-endpoint fast path — runs a future under the runtime
 /// inside `py.detach` with a bounded `tokio::time::timeout`, skipping the
 /// `run_blocking` signal-check polling loop entirely.
 ///
@@ -105,6 +105,7 @@ where
     T: Send,
 {
     py.detach(|| {
+        // VOCAB-OK: tokio Runtime::block_on in PyO3 bridge, not PyO3 allow_threads GIL-hold pattern
         runtime().block_on(async move {
             match tokio::time::timeout(SNAPSHOT_UPPER_BOUND, fut).await {
                 Ok(out) => out.map_err(to_py_err),
@@ -238,6 +239,7 @@ impl Config {
             config::ReconnectPolicy::Auto(_) => "auto",
             config::ReconnectPolicy::Manual => "manual",
             config::ReconnectPolicy::Custom(_) => "custom",
+            _ => "custom",
         }
     }
 
@@ -558,6 +560,40 @@ impl Config {
         guard.fpss.derive_ohlcvc
     }
 
+    /// Set the streaming write-flush policy.
+    ///
+    /// Accepts ``"batched"`` (default, flushes on the PING heartbeat,
+    /// roughly every 100 ms — best throughput) or ``"immediate"``
+    /// (flushes after every wire write — lowest latency, higher
+    /// per-frame syscall cost).
+    #[setter]
+    fn set_flush_mode(&self, mode: &str) -> pyo3::PyResult<()> {
+        let parsed = match mode.to_ascii_lowercase().as_str() {
+            "batched" => config::FpssFlushMode::Batched,
+            "immediate" => config::FpssFlushMode::Immediate,
+            other => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "flush_mode must be \"batched\" or \"immediate\"; got {other:?}"
+                )));
+            }
+        };
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.fpss.flush_mode = parsed;
+        Ok(())
+    }
+
+    /// Current streaming write-flush policy (``"batched"`` or
+    /// ``"immediate"``).
+    #[getter]
+    fn flush_mode(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        match guard.fpss.flush_mode {
+            config::FpssFlushMode::Batched => "batched",
+            config::FpssFlushMode::Immediate => "immediate",
+            _ => "unknown",
+        }
+    }
+
     /// Override the historical gRPC host. Used by structural tests that
     /// need to point the historical channel at a known-refused endpoint
     /// to prove the streaming-only surface never opens it; production
@@ -700,11 +736,11 @@ impl Config {
     /// ``None`` (the default) auto-sizes to
     /// :py:func:`os.process_cpu_count` (the same number
     /// :py:func:`std::thread::available_parallelism` reads on the
-    /// Rust side), matching how Bloomberg / LSEG feed handlers fan
-    /// parsing across every logical core. ``0`` is a legal explicit
-    /// value — the underlying pool clamps it to ``1`` internally so
-    /// stage-1 never deadlocks pushing into a zero-worker pool.
-    /// Explicit values are otherwise retained verbatim.
+    /// Rust side), fanning parse work across every logical core.
+    /// ``0`` is a legal explicit value — the underlying pool clamps
+    /// it to ``1`` internally so stage-1 never deadlocks pushing into
+    /// a zero-worker pool. Explicit values are otherwise retained
+    /// verbatim.
     ///
     /// Raises ``ValueError`` if ``n`` is negative.
     #[setter]
@@ -771,33 +807,6 @@ impl Config {
     fn get_decode_queue_depth(&self) -> Option<usize> {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.mdds.decode_queue_depth
-    }
-
-    /// Install a REST-routing policy for the four historical-quote
-    /// endpoints.
-    ///
-    /// Accepts a [`FallbackPolicy`] built via one of the four named
-    /// static constructors. Defaults to
-    /// [`FallbackPolicy.disabled()`] -- requests always flow over
-    /// gRPC. Mirrors the Rust core
-    /// [`thetadatadx::config::DirectConfig::with_rest_fallback`].
-    ///
-    /// The setter consumes the `FallbackPolicy` (the underlying
-    /// `thetadatadx::config::FallbackPolicy` enum is cloned into the
-    /// `DirectConfig` so subsequent Python-side reuse is independent).
-    fn with_rest_fallback(&self, policy: &fallback::FallbackPolicy) -> PyResult<()> {
-        let p = fallback::validate_policy_argument(policy)?;
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.fallback = p;
-        Ok(())
-    }
-
-    /// Current fallback policy variant as a string. See
-    /// [`FallbackPolicy.variant`] for the four return values.
-    #[getter]
-    fn get_fallback_variant(&self) -> &'static str {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        fallback::variant_label(&guard.fallback)
     }
 
     fn __repr__(&self) -> String {
@@ -876,6 +885,22 @@ struct ThetaDataDxClient {
     /// inner `thetadatadx::ThetaDataDxClient` is not `Clone` — its
     /// streaming mutex and subscription-tier state forbid it — so the
     /// builder cannot hold the value directly without Arc ref-counting.
+    ///
+    /// Shutdown contract: when the pyclass auto-drops while the GIL is
+    /// held, the final `Arc::drop` may trigger the core
+    /// `ThetaDataDxClient::Drop` chain, which joins the FPSS dispatcher
+    /// thread that itself re-acquires the GIL via `Python::attach`.
+    /// Holding the GIL across that join would deadlock. Callers MUST
+    /// invoke `stop_streaming()` (the generated method uses `py.detach`
+    /// around the teardown so the dispatcher exits cleanly) before
+    /// letting the pyclass fall out of scope. The `with tdx.streaming(cb)`
+    /// context manager pairs `start_streaming(cb)` with
+    /// `stop_streaming() + await_drain(5000)` on exit to enforce this
+    /// ordering automatically. The fully-shared `Arc<>` (cloned into
+    /// every fluent builder pyclass) cannot enforce the contract at the
+    /// `Drop` site without restructuring every accessor, so the
+    /// invariant is enforced by documentation plus the explicit
+    /// `stop_streaming(py)` path.
     tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
     /// User-registered Python callable that receives every streaming
     /// event after `start_streaming(callback)` succeeds. The dispatcher's
@@ -900,9 +925,9 @@ impl ThetaDataDxClient {
     ///
     /// Routed through [`run_blocking`] so a hung TLS handshake or slow
     /// auth round-trip stays cancellable via Ctrl+C — a plain
-    /// `runtime().block_on(connect(...))` would swallow `SIGINT` until
+    /// runtime-driven `connect()` would swallow `SIGINT` until
     /// the network returned (signals can't fire while the GIL is
-    /// released inside `block_on`).
+    /// released inside the runtime executor).
     #[new]
     fn new(py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
         // Snapshot the DirectConfig under the mutex — connect() takes
@@ -963,216 +988,6 @@ impl ThetaDataDxClient {
     /// non-zero delta within a single streaming session.
     fn dropped_event_count(&self) -> u64 {
         self.tdx.dropped_event_count()
-    }
-
-    // ── REST-routing surface for the four historical-quote endpoints ──
-    //
-    // Four shims, one per affected endpoint. Each consults the
-    // `FallbackPolicy` configured on the underlying `DirectConfig`
-    // (via `Config.with_rest_fallback`) and dispatches to gRPC or REST
-    // accordingly. The semantics are identical to the Rust core's
-    // `_with_fallback` methods; this is a thin Python-arg-shape
-    // translation.
-
-    /// Fetch option NBBO history with REST fallback per the configured
-    /// [`FallbackPolicy`].
-    ///
-    /// Mirrors the Rust core's
-    /// [`thetadatadx::ThetaDataDxClient::option_history_quote_with_fallback`].
-    /// Returns a typed `QuoteTickList`; chain `.to_polars()` /
-    /// `.to_pandas()` / `.to_arrow()` for columnar consumers.
-    #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (
-        symbol,
-        expiration,
-        start_date,
-        end_date = None,
-        strike = None,
-        right = None,
-        interval = None,
-    ))]
-    fn option_history_quote_with_fallback(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        start_date: &str,
-        end_date: Option<&str>,
-        strike: Option<&str>,
-        right: Option<&str>,
-        interval: Option<&str>,
-    ) -> PyResult<Py<QuoteTickList>> {
-        fallback::validate_yyyymmdd("start_date", start_date)?;
-        if let Some(e) = end_date {
-            fallback::validate_yyyymmdd("end_date", e)?;
-        }
-        let tdx = self.tdx.clone();
-        let symbol = symbol.to_string();
-        let expiration = expiration.to_string();
-        let start_date = start_date.to_string();
-        let end_date = end_date.map(str::to_owned);
-        let strike = strike.map(str::to_owned);
-        let right = right.map(str::to_owned);
-        let interval = interval.map(str::to_owned);
-        let ticks = run_blocking(py, async move {
-            tdx.option_history_quote_with_fallback(
-                &symbol,
-                &expiration,
-                &start_date,
-                end_date.as_deref(),
-                strike.as_deref(),
-                right.as_deref(),
-                interval.as_deref(),
-            )
-            .await
-        })?;
-        quote_ticks_to_pyclass_list(py, ticks)
-    }
-
-    /// Fetch combined trade+quote history with REST fallback per the
-    /// configured [`FallbackPolicy`].
-    #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (
-        symbol,
-        expiration,
-        start_date,
-        end_date = None,
-        strike = None,
-        right = None,
-    ))]
-    fn option_history_trade_quote_with_fallback(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        start_date: &str,
-        end_date: Option<&str>,
-        strike: Option<&str>,
-        right: Option<&str>,
-    ) -> PyResult<Py<TradeQuoteTickList>> {
-        fallback::validate_yyyymmdd("start_date", start_date)?;
-        if let Some(e) = end_date {
-            fallback::validate_yyyymmdd("end_date", e)?;
-        }
-        let tdx = self.tdx.clone();
-        let symbol = symbol.to_string();
-        let expiration = expiration.to_string();
-        let start_date = start_date.to_string();
-        let end_date = end_date.map(str::to_owned);
-        let strike = strike.map(str::to_owned);
-        let right = right.map(str::to_owned);
-        let ticks = run_blocking(py, async move {
-            tdx.option_history_trade_quote_with_fallback(
-                &symbol,
-                &expiration,
-                &start_date,
-                end_date.as_deref(),
-                strike.as_deref(),
-                right.as_deref(),
-            )
-            .await
-        })?;
-        trade_quote_ticks_to_pyclass_list(py, ticks)
-    }
-
-    /// Fetch implied-volatility history with REST fallback per the
-    /// configured [`FallbackPolicy`].
-    #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (
-        symbol,
-        expiration,
-        start_date,
-        end_date = None,
-        strike = None,
-        right = None,
-        interval = None,
-    ))]
-    fn option_history_greeks_implied_volatility_with_fallback(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        start_date: &str,
-        end_date: Option<&str>,
-        strike: Option<&str>,
-        right: Option<&str>,
-        interval: Option<&str>,
-    ) -> PyResult<Py<IvTickList>> {
-        fallback::validate_yyyymmdd("start_date", start_date)?;
-        if let Some(e) = end_date {
-            fallback::validate_yyyymmdd("end_date", e)?;
-        }
-        let tdx = self.tdx.clone();
-        let symbol = symbol.to_string();
-        let expiration = expiration.to_string();
-        let start_date = start_date.to_string();
-        let end_date = end_date.map(str::to_owned);
-        let strike = strike.map(str::to_owned);
-        let right = right.map(str::to_owned);
-        let interval = interval.map(str::to_owned);
-        let ticks = run_blocking(py, async move {
-            tdx.option_history_greeks_implied_volatility_with_fallback(
-                &symbol,
-                &expiration,
-                &start_date,
-                end_date.as_deref(),
-                strike.as_deref(),
-                right.as_deref(),
-                interval.as_deref(),
-            )
-            .await
-        })?;
-        iv_ticks_to_pyclass_list(py, ticks)
-    }
-
-    /// Fetch first-order Greeks history with REST fallback per the
-    /// configured [`FallbackPolicy`].
-    #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (
-        symbol,
-        expiration,
-        start_date,
-        end_date = None,
-        strike = None,
-        right = None,
-        interval = None,
-    ))]
-    fn option_history_greeks_first_order_with_fallback(
-        &self,
-        py: Python<'_>,
-        symbol: &str,
-        expiration: &str,
-        start_date: &str,
-        end_date: Option<&str>,
-        strike: Option<&str>,
-        right: Option<&str>,
-        interval: Option<&str>,
-    ) -> PyResult<Py<GreeksFirstOrderTickList>> {
-        fallback::validate_yyyymmdd("start_date", start_date)?;
-        if let Some(e) = end_date {
-            fallback::validate_yyyymmdd("end_date", e)?;
-        }
-        let tdx = self.tdx.clone();
-        let symbol = symbol.to_string();
-        let expiration = expiration.to_string();
-        let start_date = start_date.to_string();
-        let end_date = end_date.map(str::to_owned);
-        let strike = strike.map(str::to_owned);
-        let right = right.map(str::to_owned);
-        let interval = interval.map(str::to_owned);
-        let ticks = run_blocking(py, async move {
-            tdx.option_history_greeks_first_order_with_fallback(
-                &symbol,
-                &expiration,
-                &start_date,
-                end_date.as_deref(),
-                strike.as_deref(),
-                right.as_deref(),
-                interval.as_deref(),
-            )
-            .await
-        })?;
-        greeks_first_order_ticks_to_pyclass_list(py, ticks)
     }
 }
 
@@ -1243,7 +1058,7 @@ impl ThetaDataDxClient {
 // accidentally call a blocking sync path.
 //
 // The full split (separate codegen pass that emits async-only
-// builders, no sync surface) lands in v9.2.0. Today the wrapper is a
+// builders, no sync surface) lands in future release. Today the wrapper is a
 // disciplined façade — same Rust core, narrower public Python
 // surface.
 
@@ -1283,19 +1098,18 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     "unsubscribe",
     "unsubscribe_many",
     "active_subscriptions",
+    "active_full_subscriptions",
     // Streaming lifecycle.
     "start_streaming",
-    "start_streaming_iter",
     "stop_streaming",
     "shutdown",
     "reconnect",
     "streaming",
-    "streaming_iter",
-    "streaming_async",
     "is_streaming",
     "await_drain",
     // Diagnostics.
     "dropped_event_count",
+    "panic_count",
     // FLATFILES namespace getter.
     "flat_files",
     // NOTE: `session_uuid` / `subscription_info` are NOT on
@@ -1313,11 +1127,8 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
 /// name in `ALLOWED_UNIFIED_PROXY_METHODS` must appear in either this
 /// list or `PYTHON_UNIFIED_FPSS_METHODS`, otherwise the build fails.
 const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
-    // Hand-written streaming-session factories.
-    "start_streaming_iter",
+    // Hand-written streaming-session factory.
     "streaming",
-    "streaming_iter",
-    "streaming_async",
     // FLATFILES namespace getter (lives in `flatfile_methods.rs`).
     "flat_files",
     // Subscription management (hand-written on the unified client to
@@ -1326,11 +1137,13 @@ const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
     "subscribe_many",
     "unsubscribe",
     "unsubscribe_many",
-    // Diagnostic getter — `dropped_event_count` lives directly on
-    // `ThetaDataDxClient` (lib.rs); `panic_count` is on the
-    // session pyclass and intentionally NOT proxied through the
-    // unified client.
+    "active_full_subscriptions",
+    // Diagnostic getters — `dropped_event_count` and `panic_count`
+    // live directly on `ThetaDataDxClient` (lib.rs) and forward to
+    // the core `thetadatadx::ThetaDataDxClient` accessors so the
+    // count matches every other binding.
     "dropped_event_count",
+    "panic_count",
 ];
 
 /// `const fn` byte-equal helper for the compile-time guard below.
@@ -1468,34 +1281,10 @@ include!("_generated/streaming_methods.rs");
 mod streaming_session;
 use streaming_session::StreamingSession;
 
-// Pull-iter delivery mode: hand-written PyO3 wrappers around
-// `thetadatadx::EventIterator`. Two pyclasses — `EventIterator` (the
-// drain handle) and `StreamingIterSession` (context-manager). Both
-// live in a second `#[pymethods] impl ThetaDataDxClient` block.
-mod event_iterator;
-mod streaming_iter_session;
-use event_iterator::EventIterator;
-use streaming_iter_session::StreamingIterSession;
-
-// Shared machinery between the per-tick and Arrow-batched asyncio
-// streaming sessions — the typed `AsyncStreamableHandle` sum that
-// dispatches subscribe / start / stop / drain through the underlying
-// streaming pyclass.
-mod streaming_async_common;
-
-// Asyncio-native streaming surface — sibling of `StreamingSession`
-// (sync callback) and `StreamingIterSession` (sync iterator). Uses a
-// self-pipe write FD as the wake signal so the asyncio loop's
-// `add_reader` wakes the awaiting coroutine without polling. See
-// `streaming_async_session.rs` for the FD-readiness protocol.
-mod streaming_async_session;
-use streaming_async_session::{BackpressurePolicy, StreamingAsyncSession};
-
-// Arrow IPC zero-copy batched streaming — sibling of the per-tick
-// `StreamingAsyncSession` that yields one `pyarrow.RecordBatch` per
-// OS wake instead of `list[FpssEvent]`. Closes #562.
-mod streaming_async_batches;
-use streaming_async_batches::StreamingAsyncBatchesSession;
+// `start_streaming(cb)` plus the `StreamingSession` context manager is
+// the sole streaming surface on the bundled client. Async / Arrow-batched
+// surfaces will return on the unified poller backplane in a future
+// release.
 
 include!("_generated/historical_methods.rs");
 
@@ -1604,6 +1393,11 @@ fn split_date_range(start: &str, end: &str) -> PyResult<Vec<(String, String)>> {
 #[pymodule(gil_used = false)]
 #[pyo3(name = "thetadatadx")]
 fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Pin the ring rustls `CryptoProvider` as the process-wide default
+    // before any TLS handshake. See the docstring on
+    // `__internal_install_ring_crypto_provider` for the rationale.
+    let _ = thetadatadx::__internal_install_ring_crypto_provider();
+
     // Install the tracing → Python logging bridge FIRST so any `tracing`
     // events emitted during the subsequent connect / config setup reach
     // user-configured `logging.getLogger("thetadatadx")` handlers.
@@ -1624,17 +1418,11 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<Credentials>()?;
     m.add_class::<Config>()?;
-    fallback::register(m)?;
     m.add_class::<ThetaDataDxClient>()?;
     m.add_class::<AsyncThetaDataDxClient>()?;
     m.add_class::<fpss_client::FpssClient>()?;
     m.add_class::<mdds_client::MddsClient>()?;
     m.add_class::<StreamingSession>()?;
-    m.add_class::<StreamingIterSession>()?;
-    m.add_class::<StreamingAsyncSession>()?;
-    m.add_class::<StreamingAsyncBatchesSession>()?;
-    m.add_class::<BackpressurePolicy>()?;
-    m.add_class::<EventIterator>()?;
     fluent::register(m)?;
     m.add_class::<flatfile_methods::FlatFilesNamespace>()?;
     m.add_class::<flatfile_methods::FlatFileRowList>()?;

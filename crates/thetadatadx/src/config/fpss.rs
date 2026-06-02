@@ -2,9 +2,10 @@
 
 /// Controls when the FPSS write buffer is flushed.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum FpssFlushMode {
-    /// Flush only on PING frames (every 100ms). Matches Java terminal.
-    /// Lower syscall overhead, up to 100ms additional latency.
+    /// Flush only on PING frames (every 100ms). Lower syscall overhead,
+    /// up to 100ms additional latency.
     #[default]
     Batched,
     /// Flush after every frame write. Lowest latency, higher syscall overhead.
@@ -14,37 +15,37 @@ pub enum FpssFlushMode {
 /// FPSS streaming client tuning.
 ///
 /// All four legacy `*_ms` knobs (`timeout_ms`, `ping_interval_ms`,
-/// `connect_timeout_ms`) and the disruptor `ring_size` are wired into
-/// the runtime: the values flow through [`crate::fpss::FpssConnectArgs`]
-/// into [`crate::fpss::FpssClient::connect`], which threads them to the
-/// connection, framing, and ping layers. [`crate::DirectConfig::validate`]
-/// rejects out-of-range values before the connect attempt.
+/// `connect_timeout_ms`) and the `ring_size` are wired into
+/// the runtime: the values flow through [`crate::fpss::FpssClientBuilder`]
+/// into the connection, framing, and ping layers.
+/// [`crate::DirectConfig::validate`] rejects out-of-range values before
+/// the connect attempt.
 ///
-/// The pre-Disruptor `queue_depth` knob (a separate event channel size)
+/// The pre-rewrite `queue_depth` knob (a separate event channel size)
 /// was removed in 9.1.0: the post-SSOT pipeline has exactly ONE queue
-/// (the Disruptor ring), so `ring_size` is the single source of truth
+/// (the event ring), so `ring_size` is the single source of truth
 /// for the streaming buffer budget.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct FpssConfig {
-    /// FPSS TCP hosts with round-robin failover.
+    /// FPSS hosts with round-robin failover.
     ///
-    /// Source: `FPSS_NJ_HOSTS` in `config_0.properties` — the terminal
-    /// iterates through these on connection failure.
+    /// The connection layer iterates through these on connection failure.
+    /// Default: ThetaData's NJ `FPSS_NJ_HOSTS`.
     pub hosts: Vec<(String, u16)>,
 
     /// FPSS read timeout in milliseconds.
     ///
-    /// Source: `FPSS_TIMEOUT=10000` in `config_0.properties`. Drives
-    /// the per-connection initial socket read timeout, the framing
+    /// Drives the per-connection initial socket read timeout, the framing
     /// layer's mid-frame stall budget, and the I/O loop's overall
     /// "no data received" deadline that triggers
     /// [`tdbe::types::enums::RemoveReason::TimedOut`]. Validated to
     /// the range `[100, 60_000]` ms.
     pub timeout_ms: u64,
 
-    /// FPSS disruptor ring buffer size (slots).
+    /// FPSS event ring buffer size (slots).
     ///
-    /// MUST be a power of two (the Disruptor wraps the index with
+    /// MUST be a power of two (the ring wraps the index with
     /// `i & (cap - 1)`) and at least `64`. `FpssClient::connect`
     /// returns [`crate::error::Error::Config`] on a non-power-of-two
     /// or below-minimum value — silent rounding is rejected so the
@@ -55,10 +56,9 @@ pub struct FpssConfig {
 
     /// FPSS heartbeat ping interval in milliseconds.
     ///
-    /// Default `100` matches the Java terminal's `scheduleAtFixedRate`
-    /// cadence; the FPSS server expects a heartbeat at this rhythm and
-    /// may disconnect if it falls silent. Validated to the range
-    /// `[100, 300_000]` ms — sub-100 ms values are rejected so a
+    /// The FPSS server expects a heartbeat at this cadence and may
+    /// disconnect if it falls silent. Default `100`. Validated to the
+    /// range `[100, 300_000]` ms — sub-100 ms values are rejected so a
     /// misconfiguration does not flood the upstream.
     pub ping_interval_ms: u64,
 
@@ -83,13 +83,11 @@ pub struct FpssConfig {
     /// When `true` (default), the FPSS client emits derived `FpssData::Ohlcvc`
     /// events after each trade. When `false`, only server-sent OHLCVC frames
     /// (wire code 24) are emitted, reducing per-trade throughput overhead.
-    ///
-    /// The Java terminal always derives OHLCVC with no way to disable it.
     pub derive_ohlcvc: bool,
 }
 
 impl FpssConfig {
-    /// Production defaults — extracted from the decompiled Java terminal.
+    /// Production defaults for ThetaData's NJ datacenter.
     #[must_use]
     pub fn production_defaults() -> Self {
         Self {

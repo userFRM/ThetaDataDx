@@ -1529,7 +1529,7 @@ mod tests {
             )
             .await
             .expect("rpc opens");
-        use tokio_stream::StreamExt;
+        use crate::util::stream_ext::StreamNextExt;
         let mut stream = std::pin::pin!(stream);
         while let Some(item) = stream.next().await {
             item.expect("trailers-only OK yields no errors before close");

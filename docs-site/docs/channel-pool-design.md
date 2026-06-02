@@ -10,7 +10,7 @@ the operational guarantees long-running clients can rely on.
 ## Symptom
 
 Long-running clients running 8-concurrent (or any sustained
-concurrency above 1) against MDDS gRPC observed a ConnectionClosed
+concurrency above 1) against MDDS observed a ConnectionClosed
 regression where, after several hours of uptime, every subsequent
 RPC failed with `TransportErrorKind::ConnectionClosed` regardless of
 the date range or endpoint. The pool never recovered without a
@@ -27,7 +27,7 @@ death flag permanently; over enough uptime every pool member
 accumulated a drop and the picker's last-resort fallback routed
 every subsequent RPC through a permanently-dead channel.
 
-The previous transport (tonic) reconnected transparently on
+The previous transport reconnected transparently on
 connection-level faults; the in-house `h2` transport did not carry
 that recycling contract over.
 
@@ -76,8 +76,8 @@ genuinely unreachable.
 
 ## Verifying
 
-The in-tree integration test
-`crates/thetadatadx/tests/test_pool_reconnect.rs` covers:
+An in-tree integration test exercises the pool reconnect behaviour
+end-to-end:
 
 * Force-kill the underlying TCP connection on every pool member
   mid-stream → subsequent RPCs succeed via transparent reconnect.
@@ -96,8 +96,8 @@ upward to the caller.
 
 ## Public surface narrowing
 
-The `pub mod grpc` re-export was narrowed to `pub(crate)` in v11.
-Transport-layer errors continue to reach consumers via
+The `pub mod grpc` re-export is `pub(crate)`. Transport-layer errors
+continue to reach consumers via
 `impl From<grpc::ChannelError> for Error` at the crate boundary;
 integration tests that need the wider surface opt in via the
 private `__test-helpers` feature.

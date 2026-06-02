@@ -953,7 +953,7 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
     // of typed tick instances per gRPC chunk, never the full Vec.
     if !is_snapshot && !is_streaming_kind {
         write_sync_stream_terminal(&mut out, endpoint, &method_params, &builder_params);
-        out.push_str("\n");
+        out.push('\n');
         write_async_stream_terminal(&mut out, endpoint, &method_params, &builder_params);
     }
 

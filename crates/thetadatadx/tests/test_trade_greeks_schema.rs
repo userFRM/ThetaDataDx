@@ -5,7 +5,7 @@
 //! and assert that the sibling tick types preserve every column the
 //! server publishes -- specifically the nine trade-side execution
 //! columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
-//! `exchange`, `price`) that the v10 line dropped by routing these
+//! `exchange`, `price`) that the earlier line dropped by routing these
 //! endpoints through the interval-sampled `Greeks*Tick` parsers.
 //!
 //! Any future regression that reverts the routing surfaces here: the

@@ -132,7 +132,7 @@ Every timeout is configurable through `DirectConfig` / `Config`. Defaults aimed 
 |---------|--------:|-----------------|
 | Nexus HTTP connect | 5,000 ms | `nexus_connect_timeout_ms` |
 | Nexus HTTP request | 10,000 ms | `nexus_request_timeout_ms` |
-| MDDS gRPC keepalive | 30,000 ms | `mdds_keepalive_secs` |
+| MDDS keepalive | 30,000 ms | `mdds_keepalive_secs` |
 | FPSS connect | 2,000 ms | `fpss_connect_timeout_ms` |
 | FPSS read | 10,000 ms | `fpss_timeout_ms` |
 | FPSS ping | 100 ms | `fpss_ping_interval_ms` |

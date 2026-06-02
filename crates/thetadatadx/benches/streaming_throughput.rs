@@ -42,7 +42,6 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use crossbeam_queue::ArrayQueue;
 use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -206,26 +205,6 @@ fn run_rust_vec_push(contract: Arc<Contract>) -> (u64, Duration) {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     black_box(v.len());
-    result
-}
-
-// ─── Variant 3: push to crossbeam_queue::ArrayQueue ───────────────────
-
-fn run_rust_arrayqueue_push(contract: Arc<Contract>) -> (u64, Duration) {
-    // Capacity > EVENTS_PER_ITER so push never fails. ArrayQueue is
-    // bounded MPMC lock-free; we use it single-producer here.
-    let queue: Arc<ArrayQueue<FpssEvent>> = Arc::new(ArrayQueue::new(EVENTS_PER_ITER + 16));
-    let queue_consumer = Arc::clone(&queue);
-    let (producer, delivered) = build_pipeline(move |evt: &FpssEvent| {
-        // ArrayQueue::push returns Err(value) on full; capacity guarantees
-        // success here, but we defensively spin if the assumption ever
-        // breaks rather than panicking on the consumer thread.
-        if queue_consumer.push(evt.clone()).is_err() {
-            std::hint::spin_loop();
-        }
-    });
-    let result = drive_publish(producer, delivered, contract);
-    black_box(queue.len());
     result
 }
 
@@ -541,10 +520,6 @@ fn bench_rust_vec_push(c: &mut Criterion) {
     bench_variant(c, "rust_vec_push", run_rust_vec_push);
 }
 
-fn bench_rust_arrayqueue_push(c: &mut Criterion) {
-    bench_variant(c, "rust_arrayqueue_push", run_rust_arrayqueue_push);
-}
-
 fn bench_ffi_simulated(c: &mut Criterion) {
     bench_variant(c, "ffi_simulated", run_ffi_simulated);
 }
@@ -565,91 +540,13 @@ fn bench_pyo3_zerocopy_class_deque_append(c: &mut Criterion) {
     );
 }
 
-// ─── Variant 8: PyO3 pull-iter drain under one GIL acquire ───
-//
-// Models the v9.1.0 pull-iter delivery shape. Pre-populates a
-// crossbeam ArrayQueue with `EVENTS_PER_ITER` events (the producer
-// side runs UNTIMED — bench owns it deterministically) and then
-// drains the queue from a single Python::attach scope, building a
-// 5-field tuple per event and appending to a deque under that one
-// GIL hold. Compares directly against `pyo3_deque_append` (push-
-// callback) on the same per-event Python work; the only difference is
-// where the GIL acquire boundary sits.
-//
-// Caveat: the producer half is intentionally outside the timed region.
-// That mirrors the live behaviour — under sustained load the
-// Disruptor consumer thread fills the queue independently of the
-// caller's drain cadence, so the integrator's wall-clock cost IS the
-// drain loop. The push-callback variant pays the GIL acquire on every
-// event because the consumer thread itself crosses the binding; the
-// pull-iter variant amortises one acquire across the whole batch.
-fn run_pyo3_iter_next_drain(contract: Arc<Contract>) -> (u64, Duration) {
-    let queue: Arc<ArrayQueue<FpssEvent>> = Arc::new(ArrayQueue::new(EVENTS_PER_ITER + 16));
-    // Producer side — UNTIMED. Pre-populate the queue exactly the way
-    // the live FPSS Disruptor consumer would, but synchronously on the
-    // bench thread so the timed region only measures the pull-iter
-    // drain cost (the push-callback variant times push + drain
-    // together because the user's per-event work runs synchronously
-    // inside the consumer thread).
-    for i in 0..EVENTS_PER_ITER as u64 {
-        let evt = make_event(&contract, i);
-        queue.push(evt).expect("queue capacity > EVENTS_PER_ITER");
-    }
-    let delivered = u64::try_from(queue.len()).unwrap_or(u64::MAX);
-
-    // Acquire the deque target once, before the timed drain. Same
-    // shape as `run_pyo3_deque_append`'s deque so the numbers compare
-    // apples-to-apples.
-    let deque = Python::attach(|py| -> PyResult<Py<PyAny>> {
-        let collections = py.import("collections")?;
-        let deque_cls = collections.getattr("deque")?;
-        let kwargs = PyDict::new(py);
-        kwargs.set_item("maxlen", EVENTS_PER_ITER + 16)?;
-        Ok(deque_cls.call((), Some(&kwargs))?.unbind())
-    })
-    .expect("pyo3 deque construction failed");
-
-    let start = Instant::now();
-    // Single GIL acquire across the entire drain — this is the
-    // canonical pull-iter delivery path on the Python
-    // binding. `for event in iter:` holds the GIL across every pop
-    // until the loop exits.
-    Python::attach(|py| {
-        let bound_deque = deque.bind(py);
-        while let Some(evt) = queue.pop() {
-            if let FpssEvent::Data(FpssData::Trade {
-                ms_of_day,
-                price,
-                size,
-                received_at_ns,
-                ..
-            }) = evt
-            {
-                if let Ok(tup) = (ms_of_day, price, size, received_at_ns).into_pyobject(py) {
-                    let _ = bound_deque.call_method1("append", (tup,));
-                }
-            }
-        }
-    });
-    let elapsed = start.elapsed();
-    let len = Python::attach(|py| deque.bind(py).len().expect("deque len"));
-    black_box(len);
-    (delivered, elapsed)
-}
-
-fn bench_pyo3_iter_next_drain(c: &mut Criterion) {
-    bench_variant(c, "pyo3_iter_next_drain", run_pyo3_iter_next_drain);
-}
-
 criterion_group!(
     streaming_throughput,
     bench_rust_noop,
     bench_rust_vec_push,
-    bench_rust_arrayqueue_push,
     bench_ffi_simulated,
     bench_pyo3_deque_append,
     bench_pyo3_queue_put_nowait,
     bench_pyo3_zerocopy_class_deque_append,
-    bench_pyo3_iter_next_drain,
 );
 criterion_main!(streaming_throughput);

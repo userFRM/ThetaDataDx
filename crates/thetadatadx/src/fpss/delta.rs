@@ -56,13 +56,13 @@ pub struct DeltaState {
     /// format) while production sends 16-field trades (extended format).
     field_counts: HashMap<(u8, i32), usize>,
     /// Timestamp of last STOP (market close) signal. Used to suppress
-    /// "unknown `contract_id`" warnings for 5 seconds after STOP, matching
-    /// Java terminal behavior where stale ticks are expected during teardown.
+    /// "unknown `contract_id`" warnings for 5 seconds after STOP;
+    /// stale ticks are expected during teardown.
     pub(super) last_stop: Option<Instant>,
 }
 
 /// Duration after a STOP signal during which "unknown `contract_id`" warnings
-/// are suppressed. The Java terminal silences these for 5 seconds.
+/// are suppressed (stale ticks are expected during market-close teardown).
 const STOP_SUPPRESS_DURATION: Duration = Duration::from_secs(5);
 
 impl DeltaState {

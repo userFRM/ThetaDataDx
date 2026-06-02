@@ -473,54 +473,52 @@ macro_rules! list_endpoint {
         request: $req:ident;
         query: $query:ident { $($field:ident : $val:expr),* $(,)? };
     ) => {
-        ::pastey::paste! {
-            #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
-            $(#[$meta])*
-            /// # Errors
-            ///
-            /// Returns an error on network, authentication, or parsing failure.
-            pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
-                tracing::debug!(endpoint = stringify!($name), "gRPC request");
-                metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-                let _metrics_start = std::time::Instant::now();
-                let _permit = self.request_semaphore.acquire().await
-                    .map_err(|_| Error::config_internal("request semaphore closed"))?;
-                let policy = self.config().retry;
-                let table: proto::DataTable = $crate::mdds::macros::run_unary_retry_loop(
-                    self.session(),
-                    &policy,
-                    stringify!($name),
-                    |snap| async move {
-                        let qi = self.build_query_info(snap.uuid.clone());
-                        let request = proto::$req {
-                            query_info: Some(qi),
-                            params: Some(proto::$query { $($field : $val),* }),
-                        };
-                        // Bind the lease to a local so it lives across
-                        // the await — the pre-dispatch reservation
-                        // must outlive `server_streaming` for the
-                        // picker fix (Finding 4) to count pending
-                        // opens correctly under burst contention.
-                        // Deref coercion from `&ChannelLease` to
-                        // `&Channel` satisfies the generated stub
-                        // signature.
-                        let lease = self.channel();
-                        let stream = $crate::proto::beta_theta_terminal::$grpc(
-                            &lease,
-                            request,
-                        )
-                        .await
-                        .map_err(|e| -> Error { e.into() })?;
-                        self.collect_stream(stream).await
-                    },
-                ).await?;
-                metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                    .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                Ok(decode::extract_text_column(&table, $col)
-                    .into_iter()
-                    .flatten()
-                    .collect())
-            }
+        #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
+        $(#[$meta])*
+        /// # Errors
+        ///
+        /// Returns an error on network, authentication, or parsing failure.
+        pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
+            tracing::debug!(endpoint = stringify!($name), "gRPC request");
+            metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
+            let _metrics_start = std::time::Instant::now();
+            let _permit = self.request_semaphore.acquire().await
+                .map_err(|_| Error::config_internal("request semaphore closed"))?;
+            let policy = self.config().retry;
+            let table: proto::DataTable = $crate::mdds::macros::run_unary_retry_loop(
+                self.session(),
+                &policy,
+                stringify!($name),
+                |snap| async move {
+                    let qi = self.build_query_info(snap.uuid.clone());
+                    let request = proto::$req {
+                        query_info: Some(qi),
+                        params: Some(proto::$query { $($field : $val),* }),
+                    };
+                    // Bind the lease to a local so it lives across
+                    // the await — the pre-dispatch reservation
+                    // must outlive `server_streaming` for the
+                    // picker fix (Finding 4) to count pending
+                    // opens correctly under burst contention.
+                    // Deref coercion from `&ChannelLease` to
+                    // `&Channel` satisfies the generated stub
+                    // signature.
+                    let lease = self.channel();
+                    let stream = $crate::proto::beta_theta_terminal::$grpc(
+                        &lease,
+                        request,
+                    )
+                    .await
+                    .map_err(|e| -> Error { e.into() })?;
+                    self.collect_stream(stream).await
+                },
+            ).await?;
+            metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
+                .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
+            Ok(decode::extract_text_column(&table, $col)
+                .into_iter()
+                .flatten()
+                .collect())
         }
     };
 }
@@ -1538,7 +1536,7 @@ mod warn_buffered_tests {
     /// Captured snapshot of a single emitted event. Only the fields
     /// we assert on are extracted — message + the three structured
     /// fields the warn helper sets.
-    #[derive(Default, Debug)]
+    #[derive(Default, Debug, Clone)]
     struct CapturedEvent {
         level: Option<Level>,
         message: Option<String>,
@@ -1622,10 +1620,10 @@ mod warn_buffered_tests {
         };
         let subscriber = Registry::default().with(layer);
         with_default(subscriber, body);
-        Arc::try_unwrap(sink)
-            .expect("sink should be uniquely owned after with_default returns")
-            .into_inner()
-            .expect("captured-events mutex must not be poisoned")
+        let guard = sink
+            .lock()
+            .expect("captured-events mutex must not be poisoned");
+        guard.clone()
     }
 
     #[test]

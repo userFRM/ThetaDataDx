@@ -67,3 +67,10 @@ arrow = ["pyarrow>=14.0"]
 pandas = ["pandas>=2.1", "pyarrow>=14.0"]
 polars = ["polars>=0.20", "pyarrow>=14.0"]
 all = ["pandas>=2.1", "polars>=0.20", "pyarrow>=14.0"]
+dev = ["pytest>=9", "pytest-timeout>=2.3"]
+
+[tool.pytest.ini_options]
+# Hard per-test wall-clock cap when pytest-timeout is installed. Live
+# streaming tests enforce their own inner deadlines via `time.monotonic()`
+# polling loops; this global cap is the safety net for a hung network call.
+timeout = 30

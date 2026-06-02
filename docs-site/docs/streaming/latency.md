@@ -93,37 +93,33 @@ import time
 from thetadatadx import ThetaDataDxClient, Credentials, Config, Contract
 
 client = ThetaDataDxClient(Credentials.from_file("creds.txt"), Config.production())
-client.subscribe(Contract.stock("SPY").quote())
 
-# Pull-iter mode: context-managed typed iterator over the SPSC queue.
-with client.streaming_iter() as it:
-    for event in it:
-        if event.kind == "quote":
-            received_ns = event.received_at_ns
-            # received_at_ns is the Rust-side receive time.
-            # The delta to time.time_ns() measures Rust-to-Python bridging
-            # overhead (typically <1ms). True wire latency is best computed
-            # on the Rust side using tdbe::latency::latency_ns().
-            now_ns = time.time_ns()
-            approx_latency_ms = (now_ns - received_ns) / 1_000_000
-            print(f"{event.contract.symbol} {event.bid:.2f}/{event.ask:.2f}  "
-                  f"received_at_ns={received_ns}  "
-                  f"since_receive={approx_latency_ms:.1f}ms")
+def on_event(event):
+    if event.kind == "quote":
+        received_ns = event.received_at_ns
+        # received_at_ns is the Rust-side receive time.
+        # The delta to time.time_ns() measures Rust-to-Python bridging
+        # overhead (typically <1ms). True wire latency is best computed
+        # on the Rust side using tdbe::latency::latency_ns().
+        now_ns = time.time_ns()
+        approx_latency_ms = (now_ns - received_ns) / 1_000_000
+        print(f"{event.contract.symbol} {event.bid:.2f}/{event.ask:.2f}  "
+              f"received_at_ns={received_ns}  "
+              f"since_receive={approx_latency_ms:.1f}ms")
+
+client.start_streaming(on_event)
+client.subscribe(Contract.stock("SPY").quote())
 ```
 ```cpp [C++]
-auto iter = client.start_streaming_iter();
-while (!iter.ended()) {
-    auto event = iter.next(std::chrono::milliseconds(5000));
-    if (!event) continue;
-
-    if (event->kind == TDX_FPSS_QUOTE) {
-        auto& q = event->quote;
+client.set_callback([](const tdx::FpssEvent& event) {
+    if (event.kind == TDX_FPSS_QUOTE) {
+        auto& q = event.quote;
         // bid and ask are already decoded to double (f64).
         // received_at_ns is captured at frame decode time on the Rust side.
         std::cout << "Quote: bid=" << q.bid << " ask=" << q.ask
                   << " rx=" << q.received_at_ns << "ns" << std::endl;
     }
-}
+});
 ```
 :::
 
@@ -139,7 +135,7 @@ For the absolute lowest latency:
 
 2. **Keep the callback fast** -- the ring-buffer callback runs on the consumer thread. Push to your own queue for heavy processing.
 
-3. **Use the Rust SDK directly** -- the ring → SPSC `ArrayQueue` → user-thread iterator path is a single-queue Rust pipeline (no mpsc / FFI hop). The Python / TypeScript / C++ pull-iter handles returned by `start_streaming_iter()` only add the per-binding GIL acquire / event-loop wakeup / FFI marshalling cost at the consumer-side boundary.
+3. **Use the Rust SDK directly** -- the ring-buffer drain is a single in-process pipeline (no mpsc / FFI hop). The Python / TypeScript / C++ bindings only add the per-binding GIL acquire / event-loop wakeup / FFI marshalling cost at the consumer-side boundary.
 
 ## Network Physics: Minimum Achievable Latency
 
@@ -166,7 +162,7 @@ For latency-sensitive applications:
 
 1. **Colocate near NJ** -- AWS us-east-1 (N. Virginia) or any NJ/NYC-area datacenter gets sub-5ms
 2. **`FpssFlushMode::Immediate`** reduces software batching latency by up to 100ms, but cannot beat physics
-3. **Use the Rust SDK directly** -- removes the per-event GIL acquire (Python) / event-loop wakeup (Node) / FFI marshalling (C/C++) on the consumer-side boundary; the underlying ring → SPSC queue path is identical (adds <1ms total at typical wire rates).
+3. **Use the Rust SDK directly** -- removes the per-event GIL acquire (Python) / event-loop wakeup (Node) / FFI marshalling (C/C++) on the consumer-side boundary; the underlying ring-buffer pipeline is identical (adds <1ms total at typical wire rates).
 
 ## Latency Histogram Example
 
@@ -205,26 +201,24 @@ import time
 from thetadatadx import ThetaDataDxClient, Credentials, Config, Contract
 
 client = ThetaDataDxClient(Credentials.from_file("creds.txt"), Config.production())
-client.subscribe(Contract.stock("SPY").quote())
 
 buckets = [0] * 20  # 0-10ms, 10-20ms, ...
 
-deadline = time.time() + 60  # collect for 60 seconds
-with client.streaming_iter() as it:
-    for event in it:
-        if time.time() >= deadline:
-            client.stop_streaming()
-            # Drain residual then break — the iterator raises StopIteration
-            # once the queue empties on a stopped session.
-            continue
-        if event.kind == "quote":
-            # Approximate: time.time_ns() - received_at_ns measures
-            # Rust-to-Python overhead, not true wire latency.
-            now_ns = time.time_ns()
-            lat_ns = max(0, now_ns - event.received_at_ns)
-            lat_ms = lat_ns // 1_000_000
-            bucket = min(lat_ms // 10, 19)
-            buckets[bucket] += 1
+def on_event(event):
+    if event.kind == "quote":
+        # Approximate: time.time_ns() - received_at_ns measures
+        # Rust-to-Python overhead, not true wire latency.
+        now_ns = time.time_ns()
+        lat_ns = max(0, now_ns - event.received_at_ns)
+        lat_ms = lat_ns // 1_000_000
+        bucket = min(lat_ms // 10, 19)
+        buckets[bucket] += 1
+
+client.start_streaming(on_event)
+client.subscribe(Contract.stock("SPY").quote())
+time.sleep(60)
+client.stop_streaming()
+client.await_drain(5_000)
 
 for i, count in enumerate(buckets):
     if count > 0:
@@ -233,44 +227,42 @@ for i, count in enumerate(buckets):
 ```cpp [C++]
 #include "thetadx.hpp"
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
+#include <thread>
 
 int main() {
     auto creds = tdx::Credentials::from_file("creds.txt");
     auto config = tdx::Config::production();
     auto client = tdx::UnifiedClient::connect(creds, config);
 
-    client.subscribe(tdx::Contract::stock("SPY").quote());
+    std::array<std::atomic<uint64_t>, 20> buckets{}; // 0-10ms, 10-20ms, ...
 
-    std::array<uint64_t, 20> buckets{}; // 0-10ms, 10-20ms, ...
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-
-    auto iter = client.start_streaming_iter();
-    while (std::chrono::steady_clock::now() < deadline && !iter.ended()) {
-        auto event = iter.next(std::chrono::milliseconds(5000));
-        if (!event) continue;
-
-        if (event->kind == TDX_FPSS_QUOTE) {
-            auto& q = event->quote;
+    client.set_callback([&buckets](const tdx::FpssEvent& event) {
+        if (event.kind == TDX_FPSS_QUOTE) {
+            auto& q = event.quote;
             // received_at_ns is Rust-side; approximate histogram only
             auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
             int64_t lat_ms = (now_ns - static_cast<int64_t>(q.received_at_ns)) / 1'000'000;
             if (lat_ms < 0) lat_ms = 0;
             size_t bucket = std::min(static_cast<size_t>(lat_ms / 10), size_t{19});
-            buckets[bucket]++;
+            buckets[bucket].fetch_add(1, std::memory_order_relaxed);
         }
-    }
+    });
 
+    client.subscribe(tdx::Contract::stock("SPY").quote());
+    std::this_thread::sleep_for(std::chrono::seconds(60));
     client.stop_streaming();
 
     for (size_t i = 0; i < buckets.size(); ++i) {
-        if (buckets[i] > 0) {
+        auto count = buckets[i].load(std::memory_order_relaxed);
+        if (count > 0) {
             std::cout << std::setw(3) << i*10 << "-"
                       << std::setw(3) << (i+1)*10 << "ms: "
-                      << buckets[i] << " events" << std::endl;
+                      << count << " events" << std::endl;
         }
     }
 }

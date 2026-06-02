@@ -228,6 +228,7 @@ impl PySubscription {
                 SubscriptionKind::Quote => "quote",
                 SubscriptionKind::Trade => "trade",
                 SubscriptionKind::OpenInterest => "open_interest",
+                _ => "unknown",
             },
             protocol::Subscription::Full { kind, .. } => match kind {
                 FullSubscriptionKind::Trades => "full_trades",

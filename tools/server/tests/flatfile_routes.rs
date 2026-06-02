@@ -5,7 +5,7 @@
 // connection and is covered by the integration test suite in
 // `scripts/validate_*.py`.
 //
-// The race-regression suite that closes the BLOCKER #1 concurrent-
+// The race-regression suite that closes the concurrent-
 // write race (unique scratch path per request + atomic rename onto a
 // deterministic final path) lives in `src/flatfile_routes.rs::tests`
 // because `flatfile_paths` is `pub(crate)` and the binary crate has no

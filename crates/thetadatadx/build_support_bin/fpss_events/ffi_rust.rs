@@ -269,7 +269,7 @@ fn render_data_arm(out: &mut String, schema: &Schema, event_name: &str, def: &Ev
 
     if has_contract {
         out.push_str(
-            "            let contract_symbol_cstring = if contract.symbol.is_empty() {\n                None\n            } else {\n                std::ffi::CString::new(contract.symbol.as_str()).ok()\n            };\n            let contract_symbol_ptr = contract_symbol_cstring\n                .as_ref()\n                .map_or(ptr::null(), |cs| cs.as_ptr());\n            let tdx_contract = TdxContract {\n                symbol: contract_symbol_ptr,\n                sec_type: contract.sec_type as i32,\n                has_expiration: contract.expiration.is_some(),\n                expiration: contract.expiration.unwrap_or(0),\n                has_right: contract.is_call.is_some(),\n                right: contract.right().map_or(0, |r| r.as_char() as c_char),\n                has_strike: contract.strike.is_some(),\n                strike: contract.strike.unwrap_or(0),\n            };\n",
+            "            let contract_symbol_cstring = if contract.symbol.is_empty() {\n                None\n            } else {\n                std::ffi::CString::new(&contract.symbol[..]).ok()\n            };\n            let contract_symbol_ptr = contract_symbol_cstring\n                .as_ref()\n                .map_or(ptr::null(), |cs| cs.as_ptr());\n            let tdx_contract = TdxContract {\n                symbol: contract_symbol_ptr,\n                sec_type: contract.sec_type as i32,\n                has_expiration: contract.expiration.is_some(),\n                expiration: contract.expiration.unwrap_or(0),\n                has_right: contract.is_call.is_some(),\n                right: contract.right().map_or(0, |r| r.as_char() as c_char),\n                has_strike: contract.strike.is_some(),\n                strike: contract.strike.unwrap_or(0),\n            };\n",
         );
     }
 
@@ -427,7 +427,7 @@ fn render_control_arm(out: &mut String, schema: &Schema, event_name: &str, def: 
     if let Some(field) = has_contract {
         writeln!(
             out,
-            "                let contract_symbol_cstring = if {field}.symbol.is_empty() {{\n                    None\n                }} else {{\n                    std::ffi::CString::new({field}.symbol.as_str()).ok()\n                }};"
+            "                let contract_symbol_cstring = if {field}.symbol.is_empty() {{\n                    None\n                }} else {{\n                    std::ffi::CString::new(&{field}.symbol[..]).ok()\n                }};"
         )
         .unwrap();
         writeln!(

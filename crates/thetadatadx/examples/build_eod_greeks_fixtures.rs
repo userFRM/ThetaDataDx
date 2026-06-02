@@ -165,8 +165,8 @@ fn build_greeks_eod_row() -> proto::DataValueList {
 // Index prints carry sequence=0 (no SIP sequence assigned), ext_conditions
 // at the wildcard sentinel 255, condition=0, size=0; only `exchange=5`
 // (the SIP exchange code) and `price=5414.14` are meaningful per row.
-// The v10 routing dropped those nine trade-side columns when the
-// endpoint routed through `PriceTick` (3 columns); v11 restores the
+// The earlier routing dropped those nine trade-side columns when the
+// endpoint routed through `PriceTick` (3 columns); the current schema restores the
 // full schema.
 
 /// 10:30:00.000 EDT on 2024-06-14 -> epoch_ms.

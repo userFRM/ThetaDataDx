@@ -41,7 +41,7 @@ impl ContractRef {
 /// `"RATE"` / `"UNKNOWN"`).
 pub(crate) fn from_core(c: &fpss::protocol::Contract) -> Self {
 Self {
-symbol: c.symbol.clone(),
+symbol: c.symbol.to_string(),
 sec_type: c.sec_type.as_str().to_string(),
 expiration: c.expiration,
 right: c.right().map(|r| r.as_char().to_string()),

@@ -16,8 +16,31 @@ use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
-use crossbeam_utils::CachePadded;
 use tokio::sync::oneshot;
+
+// ─── Cache-line padding ─────────────────────────────────────────────
+
+/// Pad `T` to one cache line so concurrent writes to distinct counters
+/// do not false-share. 128 bytes covers both x86_64 (64-byte line) and
+/// heterogeneous ARM cores (up to 128-byte line pairs).
+#[derive(Debug)]
+#[repr(C, align(128))]
+pub(crate) struct CachePadded<T>(T);
+
+impl<T> CachePadded<T> {
+    #[inline]
+    const fn new(value: T) -> Self {
+        Self(value)
+    }
+}
+
+impl<T> std::ops::Deref for CachePadded<T> {
+    type Target = T;
+    #[inline]
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
 
 use crate::error::{Error, TransportErrorKind};
 use crate::proto;
@@ -70,17 +93,17 @@ pub struct Stage2Counters {
     /// Total payloads that stage-2 successfully decoded into a
     /// [`crate::proto::DataTable`]. Incremented after each stage-2
     /// worker returns from `prost::Message::decode`.
-    pub total_decoded: CachePadded<AtomicU64>,
+    pub(crate) total_decoded: CachePadded<AtomicU64>,
     /// Total payloads dropped before stage-2 ran them — currently
     /// only ticks when the oneshot receiver was already closed
     /// (caller cancellation), never on backpressure (which parks
     /// stage-1 instead). Exposed so a regression that re-introduced
     /// drop-on-full would be visible.
-    pub total_dropped: CachePadded<AtomicU64>,
+    pub(crate) total_dropped: CachePadded<AtomicU64>,
     /// Total nanoseconds stage-1 parked waiting for a free queue
     /// slot. Incremented atomically on every backpressure event.
     /// Operators surface this as a histogram bucket.
-    pub total_parked: CachePadded<AtomicU64>,
+    pub(crate) total_parked: CachePadded<AtomicU64>,
 }
 
 impl Default for Stage2Counters {

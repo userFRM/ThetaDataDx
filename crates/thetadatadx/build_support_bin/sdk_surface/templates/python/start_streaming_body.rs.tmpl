@@ -19,19 +19,27 @@
         // a reference-count lifetime aid.
         let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
         let dispatch_cb = Arc::clone(&callback_arc);
+        // Capture a clone of the Rust client so the dispatcher closure can
+        // call `record_panic()` when the Python callback raises an exception.
+        // A `PyErr` is not a Rust panic; it does not unwind through
+        // `catch_unwind`, so the core counter is only bumped here.
+        let panic_recorder = Arc::clone(&self.tdx);
 
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
-                // Acquire the GIL on the LMAX Disruptor consumer thread
+                // Acquire the GIL on the dispatcher thread
                 // to call into Python. The consumer is not the FPSS TLS
                 // reader thread; a slow Python callback at most fills
-                // the Disruptor ring and bumps `dropped_event_count()`,
+                // the streaming ring and bumps `dropped_event_count()`,
                 // it cannot back-pressure the TLS reader and trigger a
                 // vendor-side disconnect. The core SDK wraps the user
-                // callback in `catch_unwind`, so a Python panic is
+                // callback in `catch_unwind`, so a Rust panic is
                 // counted on `panic_count()` and written to
                 // `sys.stderr` via `PyErr::write_unraisable` rather
-                // than killing the consumer.
+                // than killing the consumer. Python exceptions raised by
+                // the callback are caught via `call1` returning `Err`
+                // and are also counted on `panic_count()` via
+                // `panic_recorder.record_panic()` below.
                 Python::attach(|py| {
                     let buffered = fpss_event_to_buffered(event);
                     let typed = match buffered_event_to_typed(py, &buffered) {
@@ -48,12 +56,13 @@
                     };
                     if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                         err.write_unraisable(py, None);
+                        panic_recorder.record_panic();
                     }
                 });
             })
             .map_err(to_py_err)?;
 
-        // The Disruptor consumer closure already captured a clone of
+        // The dispatcher closure already captured a clone of
         // `callback_arc` (via `dispatch_cb`), so the Arc ref-count is
         // guaranteed >=2 by the time we reach this line — `try_unwrap`
         // would always fail. Lift a fresh owned handle under the GIL

@@ -18,16 +18,17 @@
 //! See `docs-site/docs/configuration.md` for the per-binding setter
 //! samples.
 
-/// MDDS gRPC client tuning.
+/// MDDS client tuning.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct MddsConfig {
-    /// MDDS gRPC hostname (v3 path).
+    /// MDDS hostname (v3 path).
     pub host: String,
 
-    /// MDDS gRPC port (443 for TLS in production).
+    /// MDDS port (443 for TLS in production).
     pub port: u16,
 
-    /// Whether to use TLS for the MDDS gRPC connection.
+    /// Whether to use TLS for the MDDS connection.
     /// Always `true` in production (standard gRPC-over-TLS on port 443).
     pub tls: bool,
 
@@ -51,19 +52,19 @@ pub struct MddsConfig {
 
     /// gRPC flow control: initial stream window size in KB.
     ///
-    /// Maps to `tonic::transport::Endpoint::initial_stream_window_size`.
+    /// Maps to the underlying transport's initial_stream_window_size`.
     /// Default 64 KB matches HTTP/2 spec default.
     pub window_size_kb: usize,
 
     /// gRPC flow control: initial connection window size in KB.
     ///
-    /// Maps to `tonic::transport::Endpoint::initial_connection_window_size`.
+    /// Maps to the underlying transport's initial_connection_window_size`.
     /// Default 64 KB. Increase for high-throughput bulk queries.
     pub connection_window_size_kb: usize,
 
-    /// TCP connect timeout for the MDDS gRPC channel, in seconds.
+    /// TCP connect timeout for the MDDS channel, in seconds.
     ///
-    /// Bounds the time the tonic endpoint will spend establishing a TCP +
+    /// Bounds the time the transport will spend establishing a TCP +
     /// TLS handshake before failing fast. Default `10s` matches the upper
     /// bound observed on the wire; production deployments behind NAT / VPN
     /// can raise this to absorb slow handshakes without altering keepalive
@@ -77,9 +78,9 @@ pub struct MddsConfig {
     ///
     /// `None` (the default) sizes the pool to
     /// [`std::thread::available_parallelism`] with a minimum of `1`,
-    /// matching how Bloomberg / LSEG feed handlers fan parsing work
-    /// across every logical core when the workload is parser-bound
-    /// rather than IO-bound. `Some(0)` clamps to `1` (a zero-worker
+    /// fanning parsing work across every logical core when the
+    /// workload is parser-bound rather than IO-bound. `Some(0)` clamps
+    /// to `1` (a zero-worker
     /// pool would deadlock stage-1 on the first push). `Some(n)`
     /// pins the worker count to `n` regardless of the available
     /// core count — useful on shared hosts where

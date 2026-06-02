@@ -15,7 +15,7 @@ Not every `(sec_type, req_type)` combination is supported by ThetaData — see t
 
 ### CSV
 
-Vendor byte-format CSV. Lowercase column headers, comma-separated values, no quoting, Unix line endings. Byte-matches the legacy ThetaData terminal's CSV output. Suitable for archival and for piping into existing CSV-based pipelines.
+Vendor byte-format CSV. Lowercase column headers, comma-separated values, no quoting, Unix line endings. Byte-matches ThetaData's native flat-file CSV format. Suitable for archival and for piping into existing CSV-based pipelines.
 
 ### JSONL
 

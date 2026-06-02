@@ -77,59 +77,55 @@ client.start_streaming(|event: &FpssEvent| {
 std::thread::park();
 ```
 ```python [Python]
-# Pull-iter mode: context-managed typed iterator over the SPSC
-# queue. Every data event carries a typed `event.contract` so user
-# code reads `event.contract.symbol` directly — no contract_id side
-# table required. The iterator raises StopIteration once
-# `stop_streaming()` fires AND the queue is fully drained; the `with`
-# block pairs `stop_streaming()` + `await_drain()` automatically on
-# exit.
+# Push-callback delivery. The dispatcher thread invokes
+# `on_event(event)` for every typed FPSS event under the GIL. Every
+# data event carries a typed `event.contract` so user code reads
+# `event.contract.symbol` directly — no contract_id side table
+# required.
 #
 # Each event is a typed pyclass (Quote / Trade / Ohlcvc /
 # OpenInterest / LoginSuccess / Disconnected / Reconnecting / ...);
 # `event.kind` is a snake_case discriminator string per pyclass.
-with client.streaming_iter() as it:
-    for event in it:
-        if event.kind == "login_success":
-            print(f"Logged in: permissions={event.permissions}")
-            continue
+def on_event(event):
+    if event.kind == "login_success":
+        print(f"Logged in: permissions={event.permissions}")
+        return
 
-        # Data events -- all carry received_at_ns and a typed `contract`.
-        if event.kind == "quote":
-            print(f"Quote: {event.contract.symbol} bid={event.bid} ask={event.ask} "
-                  f"rx={event.received_at_ns}ns")
+    # Data events -- all carry received_at_ns and a typed `contract`.
+    if event.kind == "quote":
+        print(f"Quote: {event.contract.symbol} bid={event.bid} ask={event.ask} "
+              f"rx={event.received_at_ns}ns")
 
-        elif event.kind == "trade":
-            print(f"Trade: {event.contract.symbol} price={event.price} size={event.size} "
-                  f"seq={event.sequence} rx={event.received_at_ns}ns")
+    elif event.kind == "trade":
+        print(f"Trade: {event.contract.symbol} price={event.price} size={event.size} "
+              f"seq={event.sequence} rx={event.received_at_ns}ns")
 
-        elif event.kind == "open_interest":
-            print(f"OI: {event.contract.symbol} oi={event.open_interest}")
+    elif event.kind == "open_interest":
+        print(f"OI: {event.contract.symbol} oi={event.open_interest}")
 
-        elif event.kind == "ohlcvc":
-            print(f"OHLCVC: {event.contract.symbol} "
-                  f"O={event.open} H={event.high} L={event.low} C={event.close} "
-                  f"vol={event.volume} n={event.count}")
+    elif event.kind == "ohlcvc":
+        print(f"OHLCVC: {event.contract.symbol} "
+              f"O={event.open} H={event.high} L={event.low} C={event.close} "
+              f"vol={event.volume} n={event.count}")
 
-        elif event.kind == "disconnected":
-            # `reason` is the RemoveReason discriminant cast to i32.
-            print(f"Disconnected: reason={event.reason}")
-            break
+    elif event.kind == "disconnected":
+        # `reason` is the RemoveReason discriminant cast to i32.
+        print(f"Disconnected: reason={event.reason}")
+
+# `with client.streaming(on_event):` registers the callback on enter
+# and pairs `stop_streaming()` + `await_drain(5_000)` on exit.
+with client.streaming(on_event):
+    client.subscribe(Contract.stock("AAPL").quote())
+    import time
+    time.sleep(60)
 ```
 ```cpp [C++]
-auto iter = client.start_streaming_iter();
-while (!iter.ended()) {
-    auto event = iter.next(std::chrono::milliseconds(5000));
-    if (!event) {
-        continue; // empty-but-live (rc 1) — re-poll
-    }
-
-    switch (event->kind) {
+client.set_callback([](const tdx::FpssEvent& event) {
+    switch (event.kind) {
     case TDX_FPSS_QUOTE: {
-        auto& q = event->quote;
+        auto& q = event.quote;
         // All price fields are f64 (double) -- direct access, no decoding
-        // needed. `q.contract.symbol` carries the resolved symbol; pre-9.x
-        // callers had to look this up via the contract_id side-table.
+        // needed. `q.contract.symbol` carries the resolved symbol.
         std::cout << "Quote: " << q.contract.symbol
                   << " bid=" << q.bid
                   << " ask=" << q.ask
@@ -137,7 +133,7 @@ while (!iter.ended()) {
         break;
     }
     case TDX_FPSS_TRADE: {
-        auto& t = event->trade;
+        auto& t = event.trade;
         std::cout << "Trade: " << t.contract.symbol
                   << " price=" << t.price
                   << " size=" << t.size
@@ -145,13 +141,13 @@ while (!iter.ended()) {
         break;
     }
     case TDX_FPSS_OPEN_INTEREST: {
-        auto& oi = event->open_interest;
+        auto& oi = event.open_interest;
         std::cout << "OI: " << oi.contract.symbol
                   << " oi=" << oi.open_interest << std::endl;
         break;
     }
     case TDX_FPSS_OHLCVC: {
-        auto& o = event->ohlcvc;
+        auto& o = event.ohlcvc;
         std::cout << "OHLCVC: " << o.contract.symbol
                   << " O=" << o.open
                   << " H=" << o.high
@@ -162,38 +158,38 @@ while (!iter.ended()) {
     }
     case TDX_FPSS_LOGIN_SUCCESS: {
         // Typed control variants — one C struct per FpssControl::*
-        // Rust variant. Dispatch on event->kind, read the matching
-        // event-><variant> payload.
-        if (event->login_success.permissions) {
-            std::cout << "LoginSuccess: " << event->login_success.permissions << std::endl;
+        // Rust variant. Dispatch on event.kind, read the matching
+        // event.<variant> payload.
+        if (event.login_success.permissions) {
+            std::cout << "LoginSuccess: " << event.login_success.permissions << std::endl;
         }
         break;
     }
     case TDX_FPSS_CONTRACT_ASSIGNED: {
-        auto& ca = event->contract_assigned;
+        auto& ca = event.contract_assigned;
         std::cout << "ContractAssigned: id=" << ca.id;
         if (ca.contract.symbol) std::cout << " symbol=" << ca.contract.symbol;
         std::cout << std::endl;
         break;
     }
     case TDX_FPSS_DISCONNECTED:
-        std::cout << "Disconnected: reason=" << event->disconnected.reason << std::endl;
+        std::cout << "Disconnected: reason=" << event.disconnected.reason << std::endl;
         break;
     case TDX_FPSS_RECONNECTING: {
-        auto& r = event->reconnecting;
+        auto& r = event.reconnecting;
         std::cout << "Reconnecting: reason=" << r.reason
                   << " attempt=" << r.attempt
                   << " delay_ms=" << r.delay_ms << std::endl;
         break;
     }
     case TDX_FPSS_SERVER_ERROR:
-        if (event->server_error.message) {
-            std::cout << "ServerError: " << event->server_error.message << std::endl;
+        if (event.server_error.message) {
+            std::cout << "ServerError: " << event.server_error.message << std::endl;
         }
         break;
     case TDX_FPSS_ERROR:
-        if (event->error.message) {
-            std::cout << "Error: " << event->error.message << std::endl;
+        if (event.error.message) {
+            std::cout << "Error: " << event.error.message << std::endl;
         }
         break;
     case TDX_FPSS_MARKET_OPEN:
@@ -205,15 +201,17 @@ while (!iter.ended()) {
     // Other typed control variants (Connected / Reconnected /
     // ReconnectedServer / Restart / Ping / UnknownFrame /
     // UnknownControl / ReqResponse) follow the same pattern —
-    // dispatch on event->kind, read event-><variant>.
-    case TDX_FPSS_RAW_DATA: {
-        auto& r = event->raw_data;
-        std::cout << "Raw: code=" << (int)r.code
+    // dispatch on event.kind, read event.<variant>.
+    case TDX_FPSS_UNKNOWN_FRAME: {
+        auto& r = event.unknown_frame;
+        std::cout << "UnknownFrame: code=" << (int)r.code
                   << " len=" << r.payload_len << std::endl;
         break;
     }
+    default:
+        break;
     }
-}
+});
 ```
 :::
 
@@ -362,23 +360,22 @@ valid; sibling fields are zero-filled.
 
 The full enum + struct layout lives in
 `sdks/cpp/include/fpss_event_structs.h.inc` (generated from
-`fpss_event_schema.toml`); see also the migration table at the top
-of `CHANGELOG.md` for the v9.0.x → v9.1.0 old→new field mapping.
+`fpss_event_schema.toml`).
 
 ### C++
 
-The unified `tdx::UnifiedClient` exposes pull-iter directly: `auto iter = client.start_streaming_iter(); auto event = iter.next(timeout);` returns `std::optional<TdxFpssEvent>` (RAII manages the underlying iterator handle). For push-callback dispatch and handler-rebinding reconnects, use the dedicated `tdx::FpssClient` (`set_callback(fn)` + `reconnect()`). Whichever path you use, the typed event payload is the same:
+The unified `tdx::UnifiedClient` accepts a push callback via `client.set_callback([](const tdx::FpssEvent& event) { ... })`. The dispatcher thread invokes the lambda for every typed event under `catch_unwind`. The dedicated `tdx::FpssClient` exposes the same `set_callback(fn)` shape plus `reconnect()` for handler-rebinding reconnects. The typed event payload is the same on both:
 
-- `event->kind` -- `TdxFpssEventKind` enum
-- `event->quote` / `event->trade` / etc. -- direct struct member access
-- `event->quote.contract.symbol` (and `expiration`, `right`, `strike` on options, gated by `has_expiration` / `has_right` / `has_strike`; `right` is the ASCII byte `'C'` / `'P'`) — typed contract resolved before the SDK hands the event to user code
+- `event.kind` -- `TdxFpssEventKind` enum
+- `event.quote` / `event.trade` / etc. -- direct struct member access
+- `event.quote.contract.symbol` (and `expiration`, `right`, `strike` on options, gated by `has_expiration` / `has_right` / `has_strike`; `right` is the ASCII byte `'C'` / `'P'`) — typed contract resolved before the SDK hands the event to user code
 - All price fields are `double` (f64) -- access them directly
 
 ### Python
 
-The unified `ThetaDataDxClient` exposes both delivery modes. Push-callback dispatch via `start_streaming(callback)` invokes the callable on the ring buffer consumer thread; pull-iter via `with client.streaming_iter() as it: for event in it:` (or the lower-level `client.start_streaming_iter()`) hands events to the caller as a typed iterator that raises `StopIteration` on terminal end-of-stream.
+The unified `ThetaDataDxClient` dispatches every event through `start_streaming(callback)` (or the `streaming(callback)` context manager). The callable runs on the dispatcher thread under the GIL, wrapped in `catch_unwind`.
 
-Either way the surfaced event is a typed pyclass — one per `FpssData` variant and one per `FpssControl` variant. Branch on `event.kind` and read the variant's typed payload directly:
+The surfaced event is a typed pyclass — one per `FpssData` variant and one per `FpssControl` variant. Branch on `event.kind` and read the variant's typed payload directly:
 
 - **Data variants** — `Quote`, `Trade`, `OpenInterest`, `Ohlcvc`. `event.kind` is `"quote"`, `"trade"`, `"open_interest"`, `"ohlcvc"`. Each carries a typed `event.contract` with `symbol: str`, `sec_type: str` (`"STOCK"` / `"OPTION"` / `"INDEX"` / `"RATE"`), `expiration: Optional[int]` (YYYYMMDD), `right: Optional[str]` (`"C"` / `"P"`, `None` for non-options), `strike_dollars: Optional[float]` (strike in dollars), and `strike: Optional[int]` (wire integer, thousandths of a dollar). Price fields (`bid`, `ask`, `price`, `open`, `high`, `low`, `close`) are pre-decoded to `float`. All data variants include `received_at_ns: int`.
 - **Control variants** — `LoginSuccess`, `ContractAssigned`, `ReqResponse`, `MarketOpen`, `MarketClose`, `ServerError`, `Disconnected`, `Reconnecting`, `Reconnected`, `Error`, `UnknownFrame`, `UnknownControl`, `Connected`, `Ping`, `ReconnectedServer`, `Restart`. `event.kind` matches the snake_case form (`"login_success"`, `"contract_assigned"`, `"disconnected"`, etc.). Each variant exposes only the fields its Rust counterpart carries — e.g. `LoginSuccess.permissions: str`, `Disconnected.{reason: int, reason_name: str}` (`reason_name` is the `RemoveReason` enum name like `"TooManyRequests"`), `Reconnecting.{reason: int, reason_name: str, attempt: int, delay_ms: int}`, `ContractAssigned.{id: int, contract: Contract}`, `ServerError.message: str`, `UnknownFrame.{code: int, payload: bytes}`. Variants with no payload (`MarketOpen`, `MarketClose`, `Reconnected`, `Connected`, `Restart`, `ReconnectedServer`, `UnknownControl`) carry only `kind`.
@@ -389,8 +386,7 @@ Either way the surfaced event is a typed pyclass — one per `FpssData` variant 
 
 | Method | Description |
 |--------|-------------|
-| `start_streaming(callback)` | Begin streaming with an event callback (push mode; reads `derive_ohlcvc` from config) |
-| `start_streaming_iter()` | Pull-iter mode: returns an `EventIterator` (mutually exclusive with `start_streaming`) |
+| `start_streaming(callback)` | Begin streaming with an event callback (reads `derive_ohlcvc` from config) |
 | `subscribe(spec)` | Polymorphic subscribe — `spec` is `Contract::stock("AAPL").quote()`, `Contract::option(...)?.trade()`, `SecType::Stock.full_trades()`, etc. |
 | `subscribe_many(specs)` | Bulk subscribe over an iterable of specs. |
 | `unsubscribe(spec)` | Polymorphic unsubscribe — same spec shape as `subscribe`. |
@@ -405,9 +401,8 @@ Either way the surfaced event is a typed pyclass — one per `FpssData` variant 
 
 | Method | Description |
 |--------|-------------|
-| `start_streaming(callback)` | Push mode: begin streaming with a callback (reads `derive_ohlcvc` from config) |
-| `start_streaming_iter()` | Pull-iter mode: returns an `EventIterator` over typed events; raises `StopIteration` once `stop_streaming()` fires AND the queue is fully drained |
-| `streaming_iter()` | Context-manager wrapper — `with tdx.streaming_iter() as it:` yields the iterator and pairs `stop_streaming()` + `await_drain()` on exit |
+| `start_streaming(callback)` | Register a callable; the dispatcher thread invokes `callback(event)` under the GIL for every typed FPSS event |
+| `streaming(callback)` | Context-manager wrapper — `with tdx.streaming(callback) as session:` registers the callback on enter and pairs `stop_streaming()` + `await_drain(5_000)` on exit |
 | `subscribe(spec)` | Polymorphic subscribe — `spec` is `Contract.stock("AAPL").quote()`, `Contract.option(...).trade()`, `SecType.Stock.full_trades()`, etc. |
 | `subscribe_many(specs)` | Bulk subscribe over an iterable of specs. |
 | `unsubscribe(spec)` | Polymorphic unsubscribe — same spec shape as `subscribe`. |
@@ -415,6 +410,8 @@ Either way the surfaced event is a typed pyclass — one per `FpssData` variant 
 | `active_subscriptions()` | Get active subscriptions |
 | `reconnect()` | Reconnect streaming and re-subscribe previous subscriptions (callback registered at `start_streaming` is reused) |
 | `await_drain(timeout_ms)` | Block until the previous session's consumer has drained |
+| `is_streaming()` | Check if streaming is active |
+| `dropped_event_count()` | Cumulative count of events the TLS reader could not publish because the consumer fell behind |
 | `stop_streaming()` | Graceful shutdown of streaming |
 
 ### C++ (`tdx::UnifiedClient`)
@@ -422,14 +419,17 @@ Either way the surfaced event is a typed pyclass — one per `FpssData` variant 
 | Method | Signature | Description |
 |--------|-----------|-------------|
 | `connect` (static) | `(creds, config) -> UnifiedClient` | Construct the unified handle |
-| `start_streaming_iter` | `() -> EventIterator` | Pull-iter mode: returns an iterator handle; `next(timeout)` returns `std::optional<TdxFpssEvent>` and `ended()` flips on terminal end-of-stream |
+| `set_callback` | `(std::function<void(const FpssEvent&)>) -> void` | Register the push callback; the dispatcher thread invokes it under `catch_unwind` |
 | `subscribe` | `(FluentSubscription) -> void` | Polymorphic subscribe — `tdx::Contract::stock("AAPL").quote()`, `tdx::Contract::option(...).trade()`, `tdx::SecType::Stock.full_trades()`, etc. |
 | `subscribe_many` | `(initializer_list<FluentSubscription>) -> void` | Bulk subscribe; throws on first error |
 | `unsubscribe` | `(FluentSubscription) -> void` | Polymorphic unsubscribe — same spec shape as `subscribe` |
 | `unsubscribe_many` | `(initializer_list<FluentSubscription>) -> void` | Bulk unsubscribe |
+| `is_streaming` | `() -> bool` | Whether the streaming session is live |
+| `reconnect` | `() -> void` | Reconnect streaming and re-apply every previously active subscription |
+| `stop_streaming` | `() -> void` | Stop streaming; historical access remains available |
 | `flat_files` | `() -> FlatFiles` | Borrow the FLATFILES surface (lifetime bounded by `*this`) |
-| `get` | `() -> const TdxUnified*` | Raw handle for direct C-ABI calls (`tdx_unified_set_callback`, `tdx_fpss_await_drain`, `tdx_unified_shutdown`) |
+| `get` | `() -> const TdxUnified*` | Raw handle for direct C-ABI calls (`tdx_unified_set_callback`, `tdx_fpss_await_drain`, `tdx_unified_stop_streaming`) |
 
-For push-callback dispatch and handler-rebinding reconnects, use the dedicated `tdx::FpssClient` (`set_callback`, `reconnect`, `shutdown`, `dropped_events`, `is_authenticated`, `active_subscriptions`). For `await_drain` and explicit shutdown on the unified handle, drive the C ABI through `client.get()`.
+For handler-rebinding reconnects on the standalone path, use the dedicated `tdx::FpssClient` (`set_callback`, `reconnect`, `shutdown`, `dropped_events`, `is_authenticated`, `active_subscriptions`).
 
-All price fields are `double` (f64) -- access them directly. Data events carry a typed `contract` (with `symbol`, `sec_type`, etc.); read `event->quote.contract.symbol` directly instead of looking up the integer ID.
+All price fields are `double` (f64) -- access them directly. Data events carry a typed `contract` (with `symbol`, `sec_type`, etc.); read `event.quote.contract.symbol` directly instead of looking up the integer ID.

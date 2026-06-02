@@ -22,8 +22,8 @@ pub(crate) const FRAME_HEADER_LEN: usize = 5;
 
 /// Default upper bound on a single decoded frame, in bytes.
 ///
-/// Matches the default tonic decoder ceiling so the in-house path does not
-/// silently accept frames the existing tonic path would reject. Callers can
+/// Matches the gRPC decoder default so the in-house path does not
+/// silently accept frames that a standard decoder would reject. Callers can
 /// override per [`Codec`] instance via [`Codec::with_max_message_size`].
 pub const DEFAULT_MAX_MESSAGE_SIZE: usize = 4 * 1024 * 1024;
 

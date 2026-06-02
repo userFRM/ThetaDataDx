@@ -1,6 +1,6 @@
 //! `MddsClient` struct, connection lifecycle, and session/transport state.
 //!
-//! This module owns the MDDS gRPC client type: its fields (session UUID,
+//! This module owns the MDDS client type: its fields (session UUID,
 //! channel, config, request semaphore, subscription tiers), its
 //! [`connect`](MddsClient::connect) constructor, and the small read-only
 //! getters (`session_uuid`, `config`, `stock_tier`, `options_tier`, `channel`)
@@ -13,7 +13,7 @@
 //! generated endpoint method bodies in [`super::endpoints`].
 
 use std::collections::HashMap;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::auth::{self, Credentials, SessionToken};
@@ -26,7 +26,7 @@ use crate::proto;
 /// Version string sent in `QueryInfo.terminal_version`.
 const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// MDDS gRPC client for `ThetaData` server access.
+/// MDDS client for `ThetaData` server access.
 ///
 /// Connects to MDDS (gRPC, historical data) without requiring the Java
 /// terminal. Authenticates via the Nexus HTTP API, then issues gRPC
@@ -50,7 +50,7 @@ pub struct MddsClient {
     /// Shared, mutable session token. Every request reads the current
     /// UUID via this handle; `Unauthenticated` responses trigger a
     /// single-shot refresh that swaps the UUID in place. See
-    /// [`crate::auth::SessionToken`].
+    /// `crate::auth::SessionToken`.
     session: SessionToken,
     /// Pool of in-house gRPC channels to the MDDS server. Round-robin
     /// dispatch lets workloads exceed the per-connection
@@ -81,15 +81,6 @@ pub struct MddsClient {
     options_tier: Option<SubscriptionTier>,
     indices_tier: Option<SubscriptionTier>,
     interest_rate_tier: Option<SubscriptionTier>,
-    /// Lazily-built [`crate::rest::RestClient`] cache keyed by
-    /// `base_url`. The REST fallback shims (`option_history_*_with_fallback`,
-    /// defined in [`super::fallback`]) previously built a fresh
-    /// `RestClient` per call, dragging the per-call cost up by a
-    /// `reqwest::Client` construction (TLS context + connection pool
-    /// init) on every fallback dispatch. One handle per distinct base
-    /// URL is shared for the lifetime of the [`MddsClient`] -- reuses
-    /// the underlying HTTP/2 connection pool across calls.
-    pub(crate) rest_clients: OnceLock<RwLock<HashMap<String, Arc<crate::rest::RestClient>>>>,
 }
 
 // ── Infrastructure (not generated — these are session/transport methods, not ThetaData endpoints) ──
@@ -127,13 +118,13 @@ impl MddsClient {
         // Step 2: Open the gRPC channel pool to MDDS.
         let host = config.mdds.host.clone();
         let port = config.mdds.port;
-        tracing::debug!(host = %host, port, tls = config.mdds.tls, "connecting to MDDS gRPC");
+        tracing::debug!(host = %host, port, tls = config.mdds.tls, "connecting to MDDS");
 
         let pool_size = effective_pool_size(&config, &auth_resp);
         let channels = open_channel_pool(&host, port, config.mdds.tls, pool_size, &config).await?;
         tracing::info!(
             pool_size,
-            "MDDS gRPC channel pool connected ({} h2 connections)",
+            "MDDS channel pool connected ({} h2 connections)",
             pool_size
         );
 
@@ -190,13 +181,12 @@ impl MddsClient {
             options_tier,
             indices_tier,
             interest_rate_tier,
-            rest_clients: OnceLock::new(),
         })
     }
 
     /// Construct a `QueryInfo` around a caller-supplied UUID. Used by
     /// the retry wrapper to pin an in-flight attempt to the exact UUID
-    /// seen by [`crate::auth::SessionToken::snapshot`] — so when a
+    /// seen by `crate::auth::SessionToken::snapshot` — so when a
     /// concurrent refresh advances the token, we don't accidentally
     /// mix old and new UUIDs on the same request.
     pub(crate) fn build_query_info(&self, uuid: String) -> proto::QueryInfo {
@@ -250,6 +240,7 @@ impl MddsClient {
     /// Stock subscription tier captured at authentication time, decoded
     /// from the Nexus auth response. `None` when the response omits the
     /// stock tier or carries an unknown wire value.
+    #[doc(hidden)]
     #[must_use]
     pub fn stock_tier(&self) -> Option<SubscriptionTier> {
         self.stock_tier
@@ -257,6 +248,7 @@ impl MddsClient {
 
     /// Options subscription tier captured at authentication time. Same
     /// semantics as [`Self::stock_tier`].
+    #[doc(hidden)]
     #[must_use]
     pub fn options_tier(&self) -> Option<SubscriptionTier> {
         self.options_tier
@@ -264,6 +256,7 @@ impl MddsClient {
 
     /// Indices subscription tier captured at authentication time. Same
     /// semantics as [`Self::stock_tier`].
+    #[doc(hidden)]
     #[must_use]
     pub fn indices_tier(&self) -> Option<SubscriptionTier> {
         self.indices_tier
@@ -271,6 +264,7 @@ impl MddsClient {
 
     /// Interest-rate / Treasury curve subscription tier captured at
     /// authentication time. Same semantics as [`Self::stock_tier`].
+    #[doc(hidden)]
     #[must_use]
     pub fn interest_rate_tier(&self) -> Option<SubscriptionTier> {
         self.interest_rate_tier
@@ -280,19 +274,17 @@ impl MddsClient {
     ///
     /// Gated behind the private `__test-helpers` feature flag so the
     /// symbol never enters the published rlib for downstream
-    /// consumers. The integration test at
-    /// `tests/test_with_fallback_end_date.rs` activates the feature
-    /// via its `[[test]] required-features` row in `Cargo.toml`.
+    /// consumers. The integration tests under `tests/` activate the
+    /// feature via their `[[test]] required-features` row in `Cargo.toml`.
     ///
     /// `channels` must be non-empty (panics otherwise via
-    /// `ChannelPool::from_channels`). Callers exercising only the REST
-    /// arm should still supply a usable mock-backed channel so the
-    /// pool's `Drop` order does not trip an unconnected-channel
-    /// assertion.
+    /// `ChannelPool::from_channels`). Supply a usable mock-backed
+    /// channel so the pool's `Drop` order does not trip an
+    /// unconnected-channel assertion.
     #[cfg(any(test, feature = "__test-helpers"))]
     #[doc(hidden)]
     #[must_use]
-    pub fn for_fallback_test(
+    pub fn for_endpoint_routing_test(
         config: DirectConfig,
         channels: ChannelPool,
         request_semaphore: Arc<tokio::sync::Semaphore>,
@@ -317,7 +309,6 @@ impl MddsClient {
             options_tier: None,
             indices_tier: None,
             interest_rate_tier: None,
-            rest_clients: OnceLock::new(),
         }
     }
 }
@@ -551,12 +542,15 @@ fn build_rustls_config() -> Result<Arc<rustls::ClientConfig>, Error> {
 #[cfg(test)]
 mod pool_size_tests {
     use super::effective_pool_size;
-    use crate::auth::nexus::{AuthResponse, AuthUser};
+    use crate::auth::nexus::AuthResponse;
+    #[cfg(feature = "__internal")]
+    use crate::auth::nexus::AuthUser;
     use crate::config::DirectConfig;
 
     /// Build an AuthResponse whose user reports the given subscription
     /// wire bytes. `AuthUser::max_concurrent_requests` maps those into
     /// `2^tier` — the same shape the JVM terminal uses.
+    #[cfg(feature = "__internal")]
     fn auth_with_tier(stock_sub: Option<i32>) -> AuthResponse {
         AuthResponse {
             session_id: "session".to_string(),
@@ -571,6 +565,7 @@ mod pool_size_tests {
         }
     }
 
+    #[cfg(feature = "__internal")]
     #[test]
     fn explicit_below_tier_cap_honoured() {
         // Caller asks for exactly 1 channel; auth response carries a
@@ -583,6 +578,7 @@ mod pool_size_tests {
         assert_eq!(effective_pool_size(&config, &auth), 1);
     }
 
+    #[cfg(feature = "__internal")]
     #[test]
     fn auto_detect_falls_back_to_tier_when_config_is_zero() {
         // Caller signals "auto-detect" with concurrent_requests = 0;
@@ -608,6 +604,7 @@ mod pool_size_tests {
         assert_eq!(effective_pool_size(&config, &auth), 4);
     }
 
+    #[cfg(feature = "__internal")]
     #[test]
     fn explicit_above_tier_cap_clamped() {
         // Caller asks for 32 channels but tier is Free (byte 0 -> 1
@@ -621,6 +618,7 @@ mod pool_size_tests {
         assert_eq!(effective_pool_size(&config, &auth), 1);
     }
 
+    #[cfg(feature = "__internal")]
     #[test]
     fn explicit_above_pro_cap_clamped_to_pro() {
         // Pro tier permits 8. Caller asks for 16. Clamp to 8.
@@ -630,6 +628,7 @@ mod pool_size_tests {
         assert_eq!(effective_pool_size(&config, &auth), 8);
     }
 
+    #[cfg(feature = "__internal")]
     #[test]
     fn override_tier_clamp_bypasses_clamp() {
         // The internal escape hatch lets tests reproduce the

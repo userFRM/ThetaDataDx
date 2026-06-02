@@ -1,12 +1,17 @@
-//! Self-pipe wake-up FD for the pull-iter delivery path.
+//! Self-pipe wake-up FD primitive.
 //!
-//! Bridges the Disruptor consumer to a POSIX event-loop reader
-//! (asyncio / `epoll` / `kqueue`): one byte per non-empty
-//! transition, coalesced by a `signaled` `AtomicBool`. The reader
-//! clears the bool before draining the pipe via [`WakeFd::rearm`].
-//! Write-end FD is closed by [`WakeFd::drop`] when both the iterator
-//! and the consumer closure have been released; read-end is owned
-//! by the caller.
+//! Lets a producer signal an event-loop reader (`epoll` / `kqueue`)
+//! when new work is available, coalesced via a `signaled`
+//! `AtomicBool`: at most one byte is in flight in the pipe at any
+//! time regardless of how many `signal()` calls preceded it. The
+//! reader clears the bool with [`WakeFd::rearm`] before draining
+//! the pipe; on the producer side [`WakeFd::signal`] no-ops if a
+//! byte is already in flight. The write-end FD is closed by
+//! [`WakeFd::drop`]; the read-end is owned by the caller.
+//!
+//! Crate-internal primitive. No public surface depends on it today;
+//! a future async-friendly streaming surface can layer on top
+//! without re-implementing the coalesce + close semantics.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -46,8 +51,7 @@ impl WakeFd {
     /// The caller retains responsibility for the matching read-end FD
     /// (set it on the event loop with `loop.add_reader(read_fd, ...)`).
     /// `write_fd` should be opened with `O_NONBLOCK` so a backed-up
-    /// pipe never blocks the Disruptor consumer thread — see
-    /// [`crate::fpss::FpssClient::connect_iter_with_wake`].
+    /// pipe never blocks the I/O thread that signals it.
     #[must_use]
     pub fn from_raw_write_fd(write_fd: RawFd) -> Self {
         Self {
@@ -60,7 +64,7 @@ impl WakeFd {
     /// event ready. Idempotent under load — at most one wake byte is in
     /// the pipe at any time.
     ///
-    /// Called from the Disruptor consumer thread on every successful
+    /// Called from the event-dispatch consumer thread on every successful
     /// `queue.push`. The first call after an empty pipe writes one
     /// byte; subsequent calls see `signaled == true` and short-circuit
     /// without touching the pipe FD until [`Self::rearm`] clears the
@@ -187,8 +191,8 @@ impl WakeFd {
     /// `write(2)` we can call without dragging a Windows-specific
     /// HANDLE/IOCP abstraction into the core SDK.
     ///
-    /// Callers of `streaming_async()` on non-Unix raise a clear
-    /// runtime error at the Python pyclass entry; this stub exists so
+    /// Callers of the async event-loop bindings on non-Unix raise a
+    /// clear runtime error at the binding entry; this stub exists so
     /// the Rust signatures remain cross-platform.
     #[must_use]
     pub fn from_raw_write_fd(write_fd: i32) -> Self {
@@ -227,9 +231,7 @@ impl WakeFd {
 // `pipe2(2)` + `__errno_location` used by the test helper are
 // Linux-only libc symbols (macOS uses `pipe(2)` + `__error`). The
 // wake-coalesce logic the tests exercise is platform-agnostic, so
-// gating coverage to Linux is sufficient — the production path on
-// macOS uses the dedicated `streaming_async_session::alloc_wake_pipe`
-// fallback which already has its own coverage.
+// gating coverage to Linux is sufficient.
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;

@@ -12,29 +12,6 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-/// Transport(s) on which an endpoint is exposed.
-///
-/// Drives which language renderers emit code for the endpoint:
-/// * `Grpc` — gRPC/MDDS-only (every endpoint defaults here for
-///   back-compat; the bulk of the surface is gRPC-native).
-/// * `Rest` — REST-only (no gRPC counterpart; reserved for the
-///   handful of endpoints the upstream Terminal only ships over HTTP).
-/// * `Both` — gRPC and REST share the wire shape. The REST builder
-///   emitter generates a parallel `<Name>RestBuilder` + `RestClient`
-///   method for these in addition to the gRPC code paths every
-///   endpoint receives.
-///
-/// SSOT: declared in `endpoint_surface.toml` per endpoint as
-/// `transport = "grpc" | "rest" | "both"`; absent means `Grpc`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub(super) enum Transport {
-    #[default]
-    Grpc,
-    Rest,
-    Both,
-}
-
 /// A checked-in endpoint surface specification file.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -181,11 +158,6 @@ pub(super) struct SurfaceTemplate {
     /// (e.g. empty) which endpoints override.
     #[serde(default)]
     pub(super) vendor_docstring: Option<String>,
-    /// Transport(s) the endpoint targets. See [`Transport`].
-    /// Inherited by endpoints that select this template; an endpoint
-    /// may override the template-level value.
-    #[serde(default)]
-    pub(super) transport: Option<Transport>,
     #[serde(default)]
     pub(super) params: Vec<SurfaceParamEntry>,
 }
@@ -219,11 +191,6 @@ pub(super) struct SurfaceEndpoint {
     /// language docs — single SSOT for sync, async, and builder paths.
     #[serde(default)]
     pub(super) vendor_docstring: Option<String>,
-    /// Transport(s) the endpoint targets. See [`Transport`]. Overrides
-    /// any template-level setting. Absent means inherit-or-default to
-    /// `Grpc`.
-    #[serde(default)]
-    pub(super) transport: Option<Transport>,
     #[serde(default)]
     pub(super) params: Vec<SurfaceParamEntry>,
 }
@@ -272,7 +239,6 @@ pub(super) struct ResolvedTemplate {
     pub(super) returns: Option<String>,
     pub(super) list_column: Option<String>,
     pub(super) vendor_docstring: Option<String>,
-    pub(super) transport: Option<Transport>,
     pub(super) params: Vec<SurfaceParam>,
 }
 
@@ -291,10 +257,6 @@ pub(super) struct ResolvedSurfaceEndpoint {
     /// Empty when the endpoint has no vendor counterpart (e.g. streaming
     /// variants DX ships that the vendor SDK doesn't expose).
     pub(super) vendor_docstring: Option<String>,
-    /// Transport(s) the endpoint targets. Resolved by inheriting the
-    /// template's setting unless the endpoint overrides it; absent on
-    /// both sides means `Transport::Grpc`.
-    pub(super) transport: Transport,
     pub(super) params: Vec<SurfaceParam>,
 }
 
@@ -377,13 +339,6 @@ pub(super) struct GeneratedEndpoint {
     /// fluent-builder variants within each) all read from a single
     /// TOML field and can never drift.
     pub(super) vendor_docstring: Option<String>,
-    /// Transport(s) the endpoint targets. Driven by `transport` in
-    /// `endpoint_surface.toml` (per-endpoint, overriding the template
-    /// default; absent means `Grpc`). Only the REST builder renderer
-    /// reads this today; underscore-prefixed so the build-script
-    /// compile unit (which sees this struct via `#[path]` but never
-    /// touches the REST emitter) does not flag it as unread.
-    pub(super) _transport: Transport,
 }
 
 #[derive(Debug, Clone)]

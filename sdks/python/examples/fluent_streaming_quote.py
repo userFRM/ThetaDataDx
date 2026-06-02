@@ -9,7 +9,7 @@ working directory:
 
     python sdks/python/examples/fluent_streaming_quote.py
 
-The callback fires on the LMAX Disruptor consumer thread under the
+The callback fires on the event-dispatch consumer thread under the
 GIL; keep it fast.
 """
 

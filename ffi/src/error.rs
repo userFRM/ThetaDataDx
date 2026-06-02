@@ -100,6 +100,7 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
             FpssErrorKind::ConnectionRefused | FpssErrorKind::Disconnected => TDX_ERR_NETWORK,
             _ => TDX_ERR_STREAM,
         },
+        Error::FlatFilesUnavailable(_) | Error::PartialReconnect { .. } => TDX_ERR_STREAM,
         _ => TDX_ERR_OTHER,
     }
 }
@@ -222,32 +223,29 @@ macro_rules! require_symbol_array {
     };
 }
 
-/// Dereference an opaque `*mut TdxConfig` (or `*mut TdxFallbackPolicy`)
-/// handle into a `&mut` reference. Null is treated as a no-op: every
-/// `tdx_config_set_*` shim silently returns without setting an error
-/// when the caller passes null (matches the historical per-call site
-/// behaviour the macro replaces). Use [`require_client!`] when null
-/// must produce an `Err` instead.
+/// Dereference an opaque `*mut TdxConfig` handle into a `&mut`
+/// reference. Null is treated as a no-op: every `tdx_config_set_*`
+/// shim silently returns without setting an error when the caller
+/// passes null (matches the per-call-site behaviour the macro
+/// replaces). Use [`require_client!`] when null must produce an `Err`
+/// instead.
 ///
 /// Centralises the `if is_null() { return; }; unsafe { &mut *config }`
-/// pattern that was repeated 30+ times across `ffi/src/auth.rs` and
-/// `ffi/src/fallback.rs`. The SAFETY block names the actual invariant
-/// (pointer returned by `tdx_*_new`, not yet freed) once, instead of
-/// paraphrasing it inline at every setter.
+/// pattern across config setter entrypoints. The SAFETY block names
+/// the actual invariant (pointer returned by `tdx_*_new`, not yet
+/// freed) once, instead of paraphrasing it inline at every setter.
 macro_rules! require_config_mut {
     ($config:ident) => {{
         if $config.is_null() {
             return;
         }
-        // SAFETY: caller passes a pointer returned by `tdx_direct_config_new` (or `tdx_fallback_policy_new` etc.) that has not been freed; null was rejected above; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
+        // SAFETY: caller passes a pointer returned by `tdx_direct_config_new` that has not been freed; null was rejected above; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
         unsafe { &mut *$config }
     }};
 }
 
 // `require_config_ref!` macro will be wired in alongside the C ABI
-// getter additions for Config readback parity with the C++ test
-// suite. Deferred to that follow-up so this commit stays scoped to
-// the mutation-side cleanup.
+// getter additions for Config readback parity with the C++ test suite.
 
 #[cfg(test)]
 mod tests {
@@ -352,6 +350,26 @@ mod tests {
         assert_eq!(
             error_code_for(&thetadatadx::Error::config_invalid("ffi", "bad")),
             TDX_ERR_CONFIG
+        );
+    }
+
+    #[test]
+    fn flatfiles_unavailable_routes_to_stream() {
+        assert_eq!(
+            error_code_for(&thetadatadx::Error::FlatFilesUnavailable(
+                thetadatadx::flatfiles::FlatFilesUnavailableReason::RequestRejected {
+                    server_message: "no subscription".into(),
+                },
+            )),
+            TDX_ERR_STREAM
+        );
+    }
+
+    #[test]
+    fn partial_reconnect_routes_to_stream() {
+        assert_eq!(
+            error_code_for(&thetadatadx::Error::PartialReconnect { failed: Vec::new() }),
+            TDX_ERR_STREAM
         );
     }
 

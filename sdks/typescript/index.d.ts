@@ -5,12 +5,10 @@
  *
  * Build a config via one of the three static factories
  * ([`Config::production`] / [`Config::dev`] / [`Config::stage`]),
- * install a [`FallbackPolicy`] via [`Config::withRestFallback`] if
- * needed, then pass to
- * [`ThetaDataDxClient.connectWithConfig`] /
+ * `ThetaDataDxClient.connectWithConfig` /
  * `connectFromFileWithConfig`.
  *
- * Mutating methods (`withRestFallback`, ...) follow JS convention and
+ * Mutating methods follow JS convention and
  * return `void` (chain by calling `cfg.method(...)` then passing
  * `cfg` itself).
  *
@@ -26,19 +24,6 @@ export declare class Config {
   static dev(): Config
   /** Stage streaming config (port 20100, unstable testing servers). */
   static stage(): Config
-  /**
-   * Install a REST-fallback policy. Subsequent
-   * `option_history_*_with_fallback` calls on a client built from
-   * this config will consult the policy. Mirrors
-   * `Python`'s `Config.with_rest_fallback(policy)`.
-   */
-  withRestFallback(policy: FallbackPolicy): void
-  /**
-   * Current REST-fallback policy variant name. Same string ladder
-   * as [`FallbackPolicy::variant`]. Returns `"Disabled"` when no
-   * fallback policy has been installed.
-   */
-  get fallbackVariant(): string
   /**
    * Set the number of concurrent in-flight gRPC requests.
    *
@@ -113,8 +98,8 @@ export declare class Config {
    * Set the streaming reconnect policy.
    *
    * - `"auto"` (default): auto-reconnect with the per-class attempt
-   *   budgets supplied by [`Config::setReconnectMaxAttempts`] and
-   *   [`Config::setReconnectMaxRateLimitedAttempts`].
+   *   budgets supplied by `Config.setReconnectMaxAttempts` and
+   *   `Config.setReconnectMaxRateLimitedAttempts`.
    * - `"manual"`: no auto-reconnect; callers reconnect explicitly.
    */
   setReconnectPolicy(policy: string): void
@@ -267,6 +252,20 @@ export declare class Config {
    * disabled; a `number` is the bound port.
    */
   get metricsPort(): number | null
+  /**
+   * Set the streaming write-flush policy.
+   *
+   * Accepts `"batched"` (default — flushes on the PING heartbeat,
+   * roughly every 100 ms — best throughput) or `"immediate"`
+   * (flushes after every wire write — lowest latency, higher
+   * per-frame syscall cost).
+   */
+  setFlushMode(mode: string): void
+  /**
+   * Current streaming write-flush policy (`"batched"` or
+   * `"immediate"`).
+   */
+  get flushMode(): string
 }
 
 /**
@@ -299,99 +298,6 @@ export declare class ContractRef {
   get expiration(): number | null
   get strike(): number | null
   get right(): string | null
-}
-
-/**
- * Per-client pull-iter handle. Exposed as a napi class with an
- * async `next()` method and a `[Symbol.asyncIterator]` hook so JS
- * code drains it with `for await (const event of iter)`.
- *
- * Returned by [`crate::ThetaDataDxClient::start_streaming_iter`].
- * Mutually exclusive with `startStreaming(callback)` on the same
- * client; switch by calling `stopStreaming()` first.
- */
-export declare class EventIterator {
-  /**
-   * Pop the next typed FPSS event, awaiting until one arrives or
-   * the streaming session shuts down. Resolves to the typed
-   * `FpssEvent` napi object on success or `null` once the queue
-   * is drained on a stopped session.
-   *
-   * Long-lived `for await` loops should prefer the async
-   * iterator (`for await (const event of iter)`); `next()` is
-   * retained for callers that want explicit Promise-based
-   * pulling.
-   */
-  next(): Promise<FpssEvent | null>
-  /**
-   * Try to pop the next event without awaiting. Resolves to
-   * `null` on either an empty-but-live queue OR a terminal
-   * end-of-stream (queue drained on a stopped session). Useful
-   * for non-blocking polling integrations. Callers that need to
-   * distinguish the two cases should use the awaiting `next()`
-   * path, which resolves to `null` only on terminal end-of-stream
-   * after the queue has fully drained.
-   */
-  tryNext(): FpssEvent | null
-  /**
-   * Number of events currently buffered between the Disruptor
-   * consumer and this iterator. Diagnostic only — the value is
-   * racy because the consumer pushes concurrently.
-   */
-  queueLen(): number
-  /**
-   * Mark the iterator closed. Subsequent `next()` calls resolve
-   * to `null` once the queue is drained, without shutting down
-   * the underlying streaming session.
-   */
-  close(): void
-}
-
-/**
- * REST-routing policy. Mirrors [`thetadatadx::config::FallbackPolicy`].
- *
- * Constructed via one of the static factories, then installed on
- * a [`Config`] via [`Config::withRestFallback`]. A `Config` with an
- * installed policy is then passed to
- * [`ThetaDataDxClient.connectWithConfig`] / `connectFromFileWithConfig`
- * to bind the policy to a live client.
- *
- * # Example
- *
- * ```js
- * const { FallbackPolicy, Config, ThetaDataDxClient } = require('@userfrm/thetadatadx');
- *
- * const policy = FallbackPolicy.restAlways('http://127.0.0.1:25503');
- * const cfg = Config.production();
- * cfg.withRestFallback(policy);
- * const tdx = ThetaDataDxClient.connectWithConfig('user@example.com', 'pw', cfg);
- * const ticks = await tdx.optionHistoryQuoteWithFallback({
- *     symbol: 'AAPL', expiration: '20240105', startDate: '20240104',
- * });
- * ```
- */
-export declare class FallbackPolicy {
-  /**
-   * REST routing disabled. Every historical-quote endpoint goes
-   * over gRPC. Default state.
-   */
-  static disabled(): FallbackPolicy
-  /**
-   * Always route the four historical-quote endpoints over REST
-   * regardless of the requested date range.
-   */
-  static restAlways(baseUrl: string): FallbackPolicy
-  /**
-   * Human-readable variant name: `"Disabled"` or `"RestAlways"`.
-   * The Rust enum is `#[non_exhaustive]`, so a future variant
-   * returns `"Unknown"` here until the binding is updated.
-   */
-  get variant(): string
-  /**
-   * Return the REST base URL the policy would target, or `null`
-   * for `disabled()`.
-   */
-  get baseUrl(): string | null
 }
 
 /**
@@ -497,7 +403,7 @@ export declare class ThetaDataDxClient {
   static connectFromFile(path: string): ThetaDataDxClient
   /**
    * Cumulative count of FPSS events the TLS reader could not
-   * publish into the Disruptor ring because the Disruptor consumer
+   * publish into the event ring because the event-dispatch consumer
    * fell behind and the ring was full (`Producer::try_publish`
    * returned `RingBufferFull`).
    *
@@ -514,6 +420,39 @@ export declare class ThetaDataDxClient {
    * (Number would top out at 2^53).
    */
   droppedEventCount(): bigint
+  /**
+   * Cumulative count of user-callback panics caught by the
+   * per-invocation `catch_unwind` boundary since the current stream
+   * started.
+   *
+   * A panic in the callback is caught, recorded here, and does not
+   * stop event delivery — the next event continues normally.
+   * Forwards to `thetadatadx::ThetaDataDxClient::panic_count` so
+   * the value matches every other binding (C ABI, Python, C++).
+   *
+   * Returned as `bigint` so it can represent the full `u64` range
+   * (Number would top out at 2^53).
+   */
+  panicCount(): bigint
+  /**
+   * Snapshot of full-stream subscriptions (e.g. `OPTION` /
+   * `full_trades`, `OPTION` / `full_open_interest`).
+   *
+   * Each entry has the same `{ kind, contract }` shape returned by
+   * `activeSubscriptions()`, where `kind` is one of
+   * `"full_trades"` / `"full_open_interest"` and `contract` carries
+   * the wire-level security type (`"OPTION"`, `"STOCK"`, ...).
+   * Quote is never a valid full-stream kind on the FPSS wire, so
+   * any such row from the core is dropped from the projection.
+   * Empty array when streaming has not started.
+   *
+   * Mirrors the Python `ThetaDataDxClient.active_full_subscriptions()`
+   * (`sdks/python/src/lib.rs`) and the C++
+   * `UnifiedClient::active_full_subscriptions`
+   * (`sdks/cpp/include/thetadx.hpp`) so every binding reports the
+   * full-stream subscription set with the same projection shape.
+   */
+  activeFullSubscriptions(): any
   /**
    * List all available stock ticker symbols.
    *
@@ -1260,11 +1199,11 @@ export declare class ThetaDataDxClient {
   /**
    * Start FPSS streaming and register a JS callback for incoming events.
    *
-   * The LMAX Disruptor consumer thread routes every typed
+   * The dispatcher thread routes every typed
    * FPSS event through napi-rs `ThreadsafeFunction` to the
    * Node main thread, where the user's `callback(event)`
    * runs. The FPSS TLS reader thread itself never touches
-   * V8: events cross the Disruptor ring first, with the
+   * V8: events cross the streaming ring first, with the
    * consumer thread invoking the callback under
    * `catch_unwind`.
    *
@@ -1272,7 +1211,7 @@ export declare class ThetaDataDxClient {
    * so `ThreadsafeFunction` (with its internal `uv_async_t`
    * queue) is the only safe path.
    *
-   * Backpressure: a slow callback fills the Disruptor ring
+   * Backpressure: a slow callback fills the streaming ring
    * and overflow events are dropped, observable via
    * `droppedEventCount()`. The FPSS TLS reader is never
    * blocked — vendor disconnects on slow consumers cannot
@@ -1324,19 +1263,6 @@ export declare class ThetaDataDxClient {
   shutdown(): void
   /** Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise. */
   awaitDrain(timeoutMs: number): Promise<boolean>
-  /**
-   * Start FPSS streaming in pull-iter delivery mode.
-   *
-   * Returns an [`EventIterator`] handle whose `next()` resolves
-   * to the next typed FPSS event or `null` once the streaming
-   * session has shut down and the residual queue is drained. JS
-   * callers iterate with `for await (const event of iter)`.
-   *
-   * Mutually exclusive with `startStreaming(callback)`. Calling
-   * either while streaming is already running rejects with
-   * `"streaming already started"`.
-   */
-  startStreamingIter(): EventIterator
   /** FLATFILES namespace handle. Cheap — clones the inner Arc. */
   get flatFiles(): FlatFilesNamespace
   /**
@@ -1345,38 +1271,6 @@ export declare class ThetaDataDxClient {
    * auto-appended if missing.
    */
   flatFileToPath(secType: string, reqType: string, date: string, path: string, format?: string | undefined | null): string
-  /**
-   * Connect to ThetaData with a caller-supplied [`Config`]. Lets
-   * the caller install a [`FallbackPolicy`] (via
-   * `Config.withRestFallback`) before connecting so the four
-   * `optionHistory*WithFallback` shims pick it up. Otherwise
-   * identical to [`connect`](Self::connect).
-   */
-  static connectWithConfig(email: string, password: string, config: Config): ThetaDataDxClient
-  /** Connect with credentials file + caller-supplied [`Config`]. */
-  static connectFromFileWithConfig(path: string, config: Config): ThetaDataDxClient
-  /**
-   * Fetch option NBBO history with REST fallback per the
-   * `FallbackPolicy` on the config the client was built with. See
-   * [`thetadatadx::mdds::MddsClient::option_history_quote_with_fallback`].
-   */
-  optionHistoryQuoteWithFallback(symbol: string, expiration: string, startDate: string, endDate?: string | undefined | null, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null): Promise<Array<QuoteTick>>
-  /**
-   * Fetch combined trade+quote history with REST fallback per the
-   * `FallbackPolicy` on the config the client was built with. See
-   * [`thetadatadx::mdds::MddsClient::option_history_trade_quote_with_fallback`].
-   */
-  optionHistoryTradeQuoteWithFallback(symbol: string, expiration: string, startDate: string, endDate?: string | undefined | null, strike?: string | undefined | null, right?: string | undefined | null): Promise<Array<TradeQuoteTick>>
-  /**
-   * Fetch implied-volatility history with REST fallback. See
-   * [`thetadatadx::mdds::MddsClient::option_history_greeks_implied_volatility_with_fallback`].
-   */
-  optionHistoryGreeksImpliedVolatilityWithFallback(symbol: string, expiration: string, startDate: string, endDate?: string | undefined | null, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null): Promise<Array<IvTick>>
-  /**
-   * Fetch first-order Greeks history with REST fallback. See
-   * [`thetadatadx::mdds::MddsClient::option_history_greeks_first_order_with_fallback`].
-   */
-  optionHistoryGreeksFirstOrderWithFallback(symbol: string, expiration: string, startDate: string, endDate?: string | undefined | null, strike?: string | undefined | null, right?: string | undefined | null, interval?: string | undefined | null): Promise<Array<GreeksFirstOrderTick>>
   /**
    * Polymorphic subscribe — primary fluent entry point. Accepts the
    * `Subscription` value returned by `Contract.quote()` /
@@ -1470,15 +1364,6 @@ export interface ContractAssigned {
   id: number
   contract: Contract
 }
-
-/**
- * Default base URL for the local Terminal's REST surface. Mirrors
- * [`thetadatadx::config::DEFAULT_REST_BASE_URL`]. Exposed as a module-
- * level constant so callers can write
- * `FallbackPolicy.restAlways(DEFAULT_REST_BASE_URL)`
- * instead of repeating the URL literal.
- */
-export const DEFAULT_REST_BASE_URL: string
 
 /** FPSS server disconnected the client (wire code 12). Mirrors `FpssControl::Disconnected`. `reason` is the `RemoveReason` discriminant cast to `i32`; compare against `tdbe::types::enums::RemoveReason as i32` for symbolic interpretation. */
 export interface Disconnected {

@@ -113,7 +113,7 @@ Send JSON commands to manage subscriptions:
 
 ## Hardening
 
-- **`POST /v3/system/shutdown`** requires a random-UUID `X-Shutdown-Token` header printed once to stderr at startup. Token is compared in constant time (`subtle::ConstantTimeEq`); no env var or CLI flag sets it externally. A route-scoped per-IP limiter caps attempts at roughly 3 per hour.
+- **`POST /v3/system/shutdown`** requires a random-UUID `X-Shutdown-Token` header printed once to stderr at startup. Token is compared in constant time so response latency does not leak the secret one byte at a time; no env var or CLI flag sets it externally. A route-scoped per-IP limiter caps attempts at roughly 3 per hour.
 - **Global per-IP rate limit** via `tower_governor::GovernorLayer` keyed on `PeerIpKeyExtractor` (peer TCP socket, **not** `X-Forwarded-For`): 20 rps burst 40. The server defaults to `127.0.0.1` and runs without a trusted reverse proxy, so forwarded-header extractors would let a local attacker cycle fake IPs.
 - **256 concurrent in-flight requests**, **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
 - **`BoundedQuery<32>` extractor** counts `&`-delimited query-string pairs BEFORE `serde_urlencoded` runs, so a `?a=1&b=2&...` flood is rejected at parse time rather than after HashMap rehashing allocates MB+.
@@ -139,7 +139,7 @@ External apps (Python, Excel, browsers)
     |
 thetadatadx-server (Rust binary)
     |
-    |--- ThetaDataDxClient (MDDS gRPC + FPSS TCP)
+    |--- ThetaDataDxClient (MDDS + FPSS)
     |    historical data + real-time streaming
     |
 ThetaData upstream servers (NJ datacenter)

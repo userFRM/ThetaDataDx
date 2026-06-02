@@ -5,7 +5,7 @@ description: Credentials file, environment variables, Credentials::new() / from_
 
 # Authentication
 
-ThetaDataDx authenticates with ThetaData's Nexus endpoint over HTTPS using your account email and password, then attaches the returned session UUID to every subsequent gRPC (MDDS) and FPSS frame. The Java terminal is not in the loop.
+ThetaDataDx authenticates with ThetaData's Nexus endpoint over HTTPS using your account email and password, then attaches the returned session UUID to every subsequent historical gRPC and streaming TCP frame. No JVM, no subprocess in the auth path.
 
 ## Credentials file
 
