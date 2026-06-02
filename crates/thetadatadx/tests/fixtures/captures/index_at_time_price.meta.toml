@@ -4,10 +4,10 @@
 # Synthesised into a single-row `proto::ResponseData` by the
 # `build_eod_greeks_fixtures` example so the parser regression test
 # can round-trip the exact 10-column wire shape without a live
-# terminal. The v10 `PriceTick` routing dropped the seven trade-side
+# terminal. An earlier `PriceTick` routing dropped the seven trade-side
 # execution columns (`sequence`, `ext_condition1..4`, `condition`,
 # `size`, `exchange`) -- including the SIP-exchange attribution field
-# on `exchange`; v11 restores the full schema.
+# on `exchange`; the current schema restores the full set.
 
 endpoint = "index_at_time_price"
 tick_type = "IndexPriceAtTimeTick"
@@ -32,7 +32,7 @@ first_row_condition = 0
 first_row_size = 0
 
 # `exchange = 5` is the SIP source code for CBOE -- the per-row
-# attribution data the v10 routing dropped. Pinning the literal value
+# attribution data the earlier routing dropped. Pinning the literal value
 # here catches any regression that reverts the endpoint back to the
 # bare `PriceTicks` collection.
 first_row_exchange = 5

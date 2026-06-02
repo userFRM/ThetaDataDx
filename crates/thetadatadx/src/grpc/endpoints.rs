@@ -1,4 +1,4 @@
-//! Endpoint methods routed through [`crate::grpc::Channel`].
+//! Endpoint methods for MDDS historical queries.
 //!
 //! The hand-written `stock_list_symbols` helper here is the
 //! foundation example. The full RPC surface is emitted into
@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 
-use tokio_stream::StreamExt;
+use crate::util::stream_ext::StreamNextExt;
 
 use crate::decode;
 use crate::error::Error;

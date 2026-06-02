@@ -47,7 +47,6 @@ mod client;
 pub mod decode;
 pub mod endpoint_args;
 mod endpoints;
-mod fallback;
 pub(crate) mod registry;
 mod stream;
 mod tier;

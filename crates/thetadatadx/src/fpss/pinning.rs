@@ -15,7 +15,26 @@ use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, WebPkiSuppo
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{CertificateError, DigitallySignedStruct, Error as RustlsError, SignatureScheme};
 use sha2::{Digest, Sha256};
-use subtle::ConstantTimeEq;
+
+/// Constant-time byte-slice equality.
+///
+/// Compares every byte regardless of where the first difference sits,
+/// preventing a remote attacker from probing the content of a secret
+/// one byte at a time via response-latency measurements. A length
+/// mismatch returns `false` immediately — this leaks the lengths but
+/// not the contents, which is the same contract `subtle::ConstantTimeEq`
+/// provides for `[u8]`.
+#[inline]
+pub(crate) fn ct_eq_bytes(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff: u8 = 0;
+    for (x, y) in a.iter().zip(b) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
 
 /// SHA-256 of the `SubjectPublicKeyInfo` presented by every `ThetaData`
 /// FPSS endpoint (prod `nj-a:20000`, `nj-a:20001`, `nj-b:20000`, `nj-b:20001`;
@@ -104,17 +123,15 @@ impl ServerCertVerifier for PinnedVerifier {
         let spki_digest = Sha256::digest(parsed.tbs_certificate.subject_pki.raw);
 
         // Step 4: constant-time equality against the pinned digest.
-        // `ct_eq` returns a `subtle::Choice`; `.into()` converts to bool
-        // without short-circuiting, preventing a timing side channel on
-        // the prefix of the digest.
+        // `ct_eq_bytes` visits every byte regardless of where a difference
+        // first appears, preventing a timing side channel on the prefix.
         //
         // SPKI mismatch is distinct from `NotValidForName` (which we
         // reserve for hostname-allowlist rejections above) — route it
         // through `rustls::Error::General(...)` so the error chain
         // surfaces "SPKI pin mismatch" verbatim instead of the
         // generic "certificate is not valid for the given name".
-        let matches: bool = spki_digest.as_slice().ct_eq(&FPSS_SPKI_SHA256).into();
-        if !matches {
+        if !ct_eq_bytes(spki_digest.as_slice(), &FPSS_SPKI_SHA256) {
             return Err(RustlsError::General(format!(
                 "FPSS SPKI pin mismatch: presented leaf SubjectPublicKeyInfo \
                  did not match the expected ThetaData pin for host {hostname:?}",
@@ -276,5 +293,34 @@ mod tests {
                 "{host} must be in ALLOWED_FPSS_HOSTS"
             );
         }
+    }
+
+    /// Verify the hand-rolled `ct_eq_bytes` helper: equal slices return
+    /// true, different slices return false, different-length slices return false.
+    #[test]
+    fn ct_eq_bytes_equal_returns_true() {
+        assert!(ct_eq_bytes(b"secret", b"secret"));
+        assert!(ct_eq_bytes(&[], &[]));
+        assert!(ct_eq_bytes(&[0u8; 32], &[0u8; 32]));
+    }
+
+    #[test]
+    fn ct_eq_bytes_unequal_returns_false() {
+        assert!(!ct_eq_bytes(b"secret", b"DIFFER"));
+        // Single byte differs at the last position — full scan must still run.
+        let mut a = [0u8; 32];
+        let mut b_arr = [0u8; 32];
+        b_arr[31] = 1;
+        assert!(!ct_eq_bytes(&a, &b_arr));
+        // First byte differs.
+        a[0] = 1;
+        b_arr[0] = 2;
+        assert!(!ct_eq_bytes(&a, &b_arr));
+    }
+
+    #[test]
+    fn ct_eq_bytes_length_mismatch_returns_false() {
+        assert!(!ct_eq_bytes(b"abc", b"abcd"));
+        assert!(!ct_eq_bytes(&[], b"x"));
     }
 }

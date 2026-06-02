@@ -3304,10 +3304,10 @@ components:
     FpssEventKind:
       type: string
       description: |
-        Discriminator for FPSS event variants. This is a literal-union string
-        (not a TypeScript `const enum`). The TypeScript SDK previously emitted
-        `const enum FpssEventKind`, but that was removed in #376 because
-        `isolatedModules: true` breaks on const enums.
+        Discriminator for FPSS event variants. This is a literal-union
+        string, not a TypeScript `const enum`, so the type information
+        stays self-contained under `isolatedModules: true` and works
+        in every toolchain (Vite, esbuild, ts-jest, Next.js).
       enum:
         - ohlcvc
         - open_interest

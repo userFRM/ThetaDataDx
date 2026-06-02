@@ -1,7 +1,7 @@
 //! Endpoint registry -- single source of truth for all `MddsClient` endpoints.
 //!
-//! Used by the CLI and MCP server to auto-generate commands and tool definitions.
-//! When `ThetaData` adds a new proto RPC, the build script parses
+//! Used by the CLI and MCP server to auto-generate commands and tool
+//! definitions. When `ThetaData` adds a new proto RPC, the build script parses
 //! `mdds.proto` and regenerates the registry automatically.
 //!
 //! # Design
@@ -10,7 +10,6 @@
 //! - Method name on `MddsClient` (e.g. `"stock_history_eod"`)
 //! - Human description
 //! - Category / subcategory for grouping
-//! - Canonical REST path for terminal-compatible HTTP routing
 //! - Parameter list with types
 //! - Return type discriminant
 //!
@@ -18,7 +17,20 @@
 //! API (`FnMut(&[T])`) that does not map to CLI/MCP output semantics. They
 //! remain available on `MddsClient` for programmatic use.
 
+// Items in this module are split into two groups:
+//
+// 1. Always-compiled: `ParamType`. Used by `endpoint_args.rs`'s `parse_raw_arg_value`
+//    and `EndpointArgs::insert_raw`, both of which are `#[cfg(feature = "__internal")]`-gated.
+//    `ParamType` must therefore also be `#[cfg(feature = "__internal")]`.
+//
+// 2. `#[cfg(feature = "__internal")]`: everything else. `EndpointMeta`, `ParamMeta`,
+//    `ReturnType`, `ENDPOINTS`, `CATEGORIES`, `find`, `by_category`, and
+//    `param_type_to_json_type` are only reachable from workspace tools.
+
 /// Metadata for a single parameter.
+///
+/// Only present when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
 #[derive(Debug, Clone)]
 pub struct ParamMeta {
     pub name: &'static str,
@@ -28,6 +40,9 @@ pub struct ParamMeta {
 }
 
 /// Metadata for a single endpoint.
+///
+/// Only present when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
 #[derive(Debug, Clone)]
 pub struct EndpointMeta {
     /// Method name on `MddsClient` (e.g. `"stock_history_eod"`).
@@ -39,7 +54,7 @@ pub struct EndpointMeta {
     /// Subcategory: `"list"`, `"snapshot"`, `"history"`, `"at_time"`,
     /// `"snapshot_greeks"`, `"history_greeks"`, etc.
     pub subcategory: &'static str,
-    /// Canonical terminal-compatible REST path (for example `/v3/stock/history/eod`).
+    #[doc(hidden)]
     pub rest_path: &'static str,
     /// Parameters in call order.
     pub params: &'static [ParamMeta],
@@ -49,21 +64,32 @@ pub struct EndpointMeta {
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Generated from mdds.proto by build.rs
+//
+//  Gated on `__internal`: the generated file defines `ParamType`, `ReturnType`,
+//  `ENDPOINTS`, `CATEGORIES`, and `param_type_to_json_type`. All of these are
+//  exclusively for workspace tools — not needed in default crate builds.
 // ═══════════════════════════════════════════════════════════════════════════
 
+#[cfg(feature = "__internal")]
 include!(concat!(env!("OUT_DIR"), "/registry_generated.rs"));
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Lookup helpers
+//  Lookup helpers (only when `__internal` is enabled)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Find an endpoint by its method name.
+///
+/// Only present when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
 #[must_use]
 pub fn find(name: &str) -> Option<&'static EndpointMeta> {
     ENDPOINTS.iter().find(|e| e.name == name)
 }
 
 /// All endpoints in a category.
+///
+/// Only present when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
 #[must_use]
 pub fn by_category(cat: &str) -> Vec<&'static EndpointMeta> {
     ENDPOINTS.iter().filter(|e| e.category == cat).collect()
@@ -73,7 +99,7 @@ pub fn by_category(cat: &str) -> Vec<&'static EndpointMeta> {
 //  Tests
 // ═══════════════════════════════════════════════════════════════════════════
 
-#[cfg(test)]
+#[cfg(all(test, feature = "__internal"))]
 mod tests {
     use super::*;
 

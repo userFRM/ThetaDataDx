@@ -1,8 +1,9 @@
 //! HTTP authentication against the `ThetaData` Nexus API.
 //!
-//! # Protocol (from decompiled Java — `AuthenticationManager.authenticateViaCloud()`)
+//! # Protocol
 //!
-//! The Java terminal authenticates by `POSTing` to the Nexus API:
+//! Authentication issues a POST to the Nexus API carrying the caller's
+//! email and password plus a static terminal-identification header:
 //!
 //! ```text
 //! POST https://nexus-api.thetadata.us/identity/terminal/auth_user
@@ -13,10 +14,8 @@
 //! Body: {"email": "...", "password": "..."}
 //! ```
 //!
-//! The `TD-TERMINAL-KEY` is a hardcoded UUID in the Java terminal that identifies
-//! the terminal application itself (not the user). Found in `AuthenticationManager`
-//! as a static final field. This is NOT a secret — it ships in every copy of the
-//! terminal JAR.
+//! The `TD-TERMINAL-KEY` is a static UUID that identifies the terminal
+//! application (not the user). It is not a user secret.
 //!
 //! # Response
 //!
@@ -32,33 +31,31 @@
 //! }
 //! ```
 //!
-//! The `sessionId` UUID is then embedded in every MDDS gRPC request via
-//! `QueryInfo.auth_token.session_uuid`.
+//! The `sessionId` UUID is attached to every subsequent historical data
+//! request via `QueryInfo.auth_token.session_uuid`.
 
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use super::Credentials;
 use crate::error::Error;
+use crate::util::random_id::validate_uuid_format;
 
-// -- Constants (from decompiled Java) --
+// -- Constants --
 
 /// Nexus API authentication endpoint.
 ///
-/// Source: `AuthenticationManager.CLOUD_AUTH_URL` in decompiled terminal.
+/// Only used by `authenticate()` which is gated on `__internal`.
+#[cfg(feature = "__internal")]
 const NEXUS_AUTH_URL: &str = "https://nexus-api.thetadata.us/identity/terminal/auth_user";
 
-/// Terminal identification key sent in every Nexus API request.
+/// Static terminal-identification key sent in every Nexus API request.
 ///
-/// Source: `AuthenticationManager.TERMINAL_KEY` — hardcoded UUID that identifies
-/// the terminal application. Ships in every copy of the JAR; not a user secret.
+/// Identifies the terminal application (not the user). Not a user secret.
 const TERMINAL_KEY: &str = "cf58ada4-4175-11f0-860f-1e2e95c79e64";
 
-/// Header name for the terminal key.
-///
-/// Source: `AuthenticationManager.authenticateViaCloud()` in decompiled terminal.
+/// Header name for the terminal identification key.
 const TERMINAL_KEY_HEADER: &str = "TD-TERMINAL-KEY";
 
 // -- Request / Response types --
@@ -81,8 +78,9 @@ struct AuthRequest<'a> {
 /// every MDDS request) is never written to logs.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct AuthResponse {
-    /// Session UUID — the primary auth token for MDDS gRPC requests.
+    /// Session UUID — the primary auth token for MDDS requests.
     pub session_id: String,
 
     /// User details (subscription level, etc.).
@@ -108,16 +106,21 @@ impl std::fmt::Debug for AuthResponse {
 
 /// User info returned by the Nexus auth endpoint.
 ///
-/// The Nexus API returns per-asset subscription tiers. The Java terminal uses
-/// these to compute concurrency limits: `2^tier` where FREE=0, VALUE=1,
-/// STANDARD=2, PROFESSIONAL=3.
+/// The Nexus API returns per-asset subscription tiers encoded as integers:
+/// FREE=0, VALUE=1, STANDARD=2, PROFESSIONAL=3. These drive concurrency
+/// limits: `2^tier` concurrent historical requests per asset class.
 ///
 /// `Debug` is implemented manually so `email` never lands in panic
 /// output / tracing diagnostics / FFI `repr()`. The subscription
 /// tiers are safe to print (integers with no PII).
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct AuthUser {
+    // Only materialized when the `__internal` feature is enabled — external
+    // consumers of `AuthUser` (workspace tools) are the only callers that
+    // read this field. The crate itself only uses `max_concurrent_requests`.
+    #[cfg(feature = "__internal")]
     pub email: Option<String>,
     /// Per-asset subscription tiers (integer: 0=FREE, 1=VALUE, 2=STANDARD, 3=PRO).
     #[serde(default)]
@@ -146,7 +149,7 @@ impl std::fmt::Debug for AuthUser {
 }
 
 impl AuthUser {
-    /// Compute the maximum concurrent gRPC requests based on subscription tier.
+    /// Compute the maximum concurrent historical requests based on subscription tier.
     ///
     /// Returns `2^tier` where the tier is the highest across all asset classes:
     /// - FREE = 0 -> 1 concurrent request
@@ -154,11 +157,8 @@ impl AuthUser {
     /// - STANDARD = 2 -> 4 concurrent requests
     /// - PROFESSIONAL/PRO = 3 -> 8 concurrent requests
     ///
-    /// Routed through [`crate::mdds::SubscriptionTier::from_wire`] so a
-    /// hostile / experimental wire byte (negative, > 3) folds to the
-    /// conservative Free=1 default rather than panicking on a raw shift
-    /// (`1usize << 64` is UB in release, panic in debug). Unknown
-    /// values emit a `warn` so operators can spot upstream-tier drift
+    /// Out-of-range wire bytes are folded to the conservative Free=1 default.
+    /// Unknown values emit a `warn` so operators can spot upstream-tier drift
     /// without crashing the auth path.
     #[must_use]
     pub fn max_concurrent_requests(&self) -> usize {
@@ -231,19 +231,21 @@ fn is_transient_network_error(err: &reqwest::Error) -> bool {
 /// # Errors
 ///
 /// Returns an error on network, authentication, or parsing failure.
+///
+/// Only available when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
 pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
     authenticate_at(NEXUS_AUTH_URL, creds).await
 }
 
 /// Authenticate against the Nexus API and return the session info.
 ///
-/// This performs the same HTTP POST as the Java terminal's
-/// `AuthenticationManager.authenticateViaCloud()`, but against a caller-
-/// supplied URL. Used by auto-refresh and by deployments that redirect
-/// auth to a staging cluster via [`crate::config::ENV_NEXUS_URL`].
+/// Identical to [`authenticate`] but accepts a caller-supplied URL.
+/// Used by auto-refresh and by deployments that redirect auth to a
+/// staging cluster via the `THETADX_NEXUS_URL` env variable.
 ///
 /// The returned `AuthResponse.session_id` is a UUID string that must be
-/// embedded in every MDDS gRPC request as `QueryInfo.auth_token.session_uuid`.
+/// embedded in every historical request as `QueryInfo.auth_token.session_uuid`.
 ///
 /// Transient network errors (connection refused, timeout, DNS failure) are
 /// retried up to 3 times with 2-second delays. Auth failures (wrong password,
@@ -359,7 +361,7 @@ pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthRespo
     })?;
 
     // Validate the session UUID is well-formed.
-    let _uuid = Uuid::parse_str(&auth.session_id).map_err(|e| Error::Auth {
+    validate_uuid_format(&auth.session_id).map_err(|e| Error::Auth {
         kind: crate::error::AuthErrorKind::ServerError,
         message: format!(
             "Nexus API returned invalid session UUID '{}': {e}",
@@ -381,8 +383,7 @@ mod tests {
 
     #[test]
     fn terminal_key_is_valid_uuid() {
-        // Sanity check: the hardcoded terminal key should be a valid UUID.
-        Uuid::parse_str(TERMINAL_KEY).expect("TERMINAL_KEY must be a valid UUID");
+        validate_uuid_format(TERMINAL_KEY).expect("TERMINAL_KEY must be a valid UUID");
     }
 
     #[test]
@@ -402,6 +403,7 @@ mod tests {
     /// Before this fix the nested `AuthUser.email` field rendered
     /// in-place, dumping the address into panic output / crash logs /
     /// tracing diagnostics whenever `Debug::fmt(&resp)` ran.
+    #[cfg(feature = "__internal")]
     #[test]
     fn auth_response_debug_redacts_user_email() {
         let resp = AuthResponse {
@@ -430,6 +432,7 @@ mod tests {
     /// the caller's email when rendered standalone (e.g. when the
     /// struct is placed inside a `#[derive(Debug)]` parent elsewhere
     /// in the crate).
+    #[cfg(feature = "__internal")]
     #[test]
     fn auth_user_debug_redacts_email() {
         let user = AuthUser {
@@ -495,6 +498,7 @@ mod tests {
     /// path panicked in debug (and was UB in release) for `tier > 63`;
     /// the typed `SubscriptionTier::from_wire` fold caps it at Free=1
     /// for any unknown value.
+    #[cfg(feature = "__internal")]
     #[test]
     fn max_concurrent_requests_clamps_hostile_wire_byte() {
         for bad in [-1, 4, 99, i32::MAX, i32::MIN] {
@@ -516,6 +520,7 @@ mod tests {
 
     /// Valid wire bytes (0..=3) round-trip through the typed
     /// `SubscriptionTier::max_concurrent_requests` ladder: 1, 2, 4, 8.
+    #[cfg(feature = "__internal")]
     #[test]
     fn max_concurrent_requests_matches_tier_ladder() {
         for (wire, expected) in [(0, 1), (1, 2), (2, 4), (3, 8)] {
@@ -537,6 +542,7 @@ mod tests {
     /// The highest tier across all asset classes wins — pin the
     /// behaviour so a regression that walks only `stock_subscription`
     /// is caught.
+    #[cfg(feature = "__internal")]
     #[test]
     fn max_concurrent_requests_picks_highest_tier() {
         let user = AuthUser {

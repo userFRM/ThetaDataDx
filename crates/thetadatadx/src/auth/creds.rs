@@ -1,8 +1,8 @@
 //! Credential parsing from `creds.txt`.
 //!
-//! # Format (from decompiled Java — `CredentialsManager.loadCredentials()`)
+//! # Format
 //!
-//! The Java terminal reads `creds.txt` from the working directory:
+//! `creds.txt` uses a two-line plaintext format read from the working directory:
 //! - Line 1: email address (lowercased, trimmed)
 //! - Line 2: password (trimmed)
 //!
@@ -17,15 +17,16 @@ use crate::error::Error;
 /// Raw credentials parsed from `creds.txt`.
 ///
 /// These are used for both auth flows:
-/// - **MDDS (gRPC)**: email + password are sent to Nexus API to obtain a session UUID
-/// - **FPSS (TCP)**: email + password are sent directly over the TCP connection
+/// - **Historical channel**: email + password are exchanged with the Nexus API to obtain a session UUID
+/// - **Streaming channel**: email + password are sent in the FPSS login handshake
 ///
 /// The `password` is wrapped in [`zeroize::Zeroizing`] so the backing buffer is
 /// wiped when the struct (or any clone) is dropped, preventing plaintext
 /// recovery from a core dump or `/proc/<pid>/mem`.
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct Credentials {
-    /// Email address, lowercased and trimmed (matches Java `toLowerCase().trim()`).
+    /// Email address, lowercased and trimmed.
     pub email: String,
     /// Password, trimmed. Zeroed on drop.
     pub(crate) password: Zeroizing<String>,
@@ -50,8 +51,7 @@ impl Credentials {
     /// hunter2
     /// ```
     ///
-    /// Matches the Java terminal's `CredentialsManager.loadCredentials()`
-    /// behavior: email is lowercased and trimmed, password is trimmed.
+    /// Email is lowercased and trimmed; password is trimmed.
     ///
     /// # Zeroization pipeline
     ///

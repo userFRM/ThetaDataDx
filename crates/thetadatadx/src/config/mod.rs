@@ -1,35 +1,25 @@
 //! Server configuration for direct `ThetaData` access.
 //!
-//! # Server topology (from decompiled Java + `config_0.properties`)
+//! # Server topology
 //!
 //! `ThetaData` runs two server types in their NJ datacenter:
 //!
-//! ## MDDS — Market Data Distribution Server (gRPC, historical data)
+//! ## MDDS — Market Data Distribution Server (historical data)
 //!
-//! The v1/v2 config listed multiple socket-level hosts:
-//! ```text
-//! MDDS_NJ_HOSTS=nj-a.thetadata.us:12000,nj-a.thetadata.us:12001,
-//!               nj-b.thetadata.us:12000,nj-b.thetadata.us:12001
-//! ```
-//!
-//! But the v3 terminal uses a **single gRPC endpoint** over TLS:
+//! Historical requests connect to a single endpoint over TLS:
 //! ```text
 //! mdds-01.thetadata.us:443
 //! ```
 //!
-//! The v3 code path constructs a gRPC channel to `mdds-01.thetadata.us:443`
-//! with TLS, ignoring the multi-host config entirely.
+//! ## FPSS — Feed Processing Stream Server (real-time streaming)
 //!
-//! ## FPSS — Feed Processing Streaming Server (TCP, real-time streaming)
-//!
-//! FPSS still uses the multi-host config with round-robin failover:
+//! FPSS uses a multi-host config with round-robin failover:
 //! ```text
 //! FPSS_NJ_HOSTS=nj-a.thetadata.us:20000,nj-a.thetadata.us:20001,
 //!               nj-b.thetadata.us:20000,nj-b.thetadata.us:20001
 //! ```
 //!
-//! Source: `FpssConnectionManager` in decompiled terminal — iterates through
-//! hosts on connection failure.
+//! The connection layer iterates through configured hosts on connection failure.
 //!
 //! # Layout
 //!
@@ -40,14 +30,13 @@
 //! | `mdds`          | [`MddsConfig`] — gRPC host/port/TLS/keepalive       |
 //! | `fpss`          | [`FpssConfig`] — TCP hosts, queue/ring, flush mode  |
 //! | `reconnect`     | [`ReconnectConfig`] — wait cadence + policy         |
-//! | `retry`         | [`RetryPolicy`] — exponential backoff for MDDS gRPC |
+//! | `retry`         | [`RetryPolicy`] — exponential backoff for MDDS |
 //! | `auth`          | [`AuthConfig`] — Nexus URL + `client_type`          |
 //! | `metrics`       | [`MetricsConfig`] — Prometheus exporter port        |
 //! | `runtime`       | [`RuntimeConfig`] — tokio worker thread sizing      |
 
 mod auth;
 mod env;
-mod fallback;
 mod flatfiles;
 mod fpss;
 mod mdds;
@@ -62,7 +51,6 @@ pub use auth::{AuthConfig, DEFAULT_CLIENT_TYPE, DEFAULT_NEXUS_URL};
 pub use env::{
     ENV_CLIENT_TYPE, ENV_FPSS_HOST, ENV_FPSS_PORT, ENV_MDDS_HOST, ENV_MDDS_PORT, ENV_NEXUS_URL,
 };
-pub use fallback::{FallbackPolicy, DEFAULT_REST_BASE_URL};
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
 pub use fpss::{bounds as fpss_bounds, FpssConfig, FpssFlushMode};
 pub use mdds::MddsConfig;
@@ -107,8 +95,9 @@ pub use runtime::RuntimeConfig;
 /// with a `tracing::warn!` — the hardcoded default is retained so a typo
 /// in the environment never silently breaks production.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct DirectConfig {
-    /// MDDS gRPC tuning.
+    /// MDDS tuning.
     pub mdds: MddsConfig,
     /// FPSS streaming tuning.
     pub fpss: FpssConfig,
@@ -124,12 +113,6 @@ pub struct DirectConfig {
     pub metrics: MetricsConfig,
     /// Async runtime tuning.
     pub runtime: RuntimeConfig,
-    /// REST-routing policy for the historical-quote endpoints.
-    /// Default is [`FallbackPolicy::Disabled`] -- every request goes
-    /// over gRPC. Set via [`Self::with_rest_fallback`] when the caller
-    /// wants every historical-quote call routed over a locally-running
-    /// Terminal's REST surface.
-    pub fallback: FallbackPolicy,
 }
 
 impl DirectConfig {
@@ -141,10 +124,9 @@ impl DirectConfig {
 
     /// Production configuration for `ThetaData`'s NJ datacenter.
     ///
-    /// All values extracted from the decompiled Java terminal:
-    /// - MDDS: `mdds-01.thetadata.us:443` (gRPC over TLS)
-    /// - FPSS: 4 hosts from `config_0.properties` `FPSS_NJ_HOSTS`
-    /// - Timeouts: from `config_0.properties`
+    /// - MDDS: `mdds-01.thetadata.us:443` (TLS)
+    /// - FPSS: 4 NJ hosts with round-robin failover (`FPSS_NJ_HOSTS`)
+    /// - Timeouts: matched to ThetaData's published connection parameters
     ///
     /// Environment variables listed on [`DirectConfig`] are layered on
     /// top of these defaults.
@@ -171,7 +153,6 @@ impl DirectConfig {
             auth: AuthConfig::production_defaults(),
             metrics: MetricsConfig::default(),
             runtime: RuntimeConfig::default(),
-            fallback: FallbackPolicy::Disabled,
         }
     }
 
@@ -311,9 +292,9 @@ impl DirectConfig {
         Ok(self)
     }
 
-    /// Build the MDDS gRPC endpoint URI.
+    /// Build the MDDS endpoint URI.
     ///
-    /// Returns a URI suitable for `tonic::transport::Channel::from_static()`.
+    /// Returns the gRPC base URI for the historical service.
     #[must_use]
     pub fn mdds_uri(&self) -> String {
         let scheme = if self.mdds.tls { "https" } else { "http" };
@@ -362,30 +343,6 @@ impl DirectConfig {
         self
     }
 
-    /// Configure REST routing for the historical-quote endpoints.
-    ///
-    /// Default is [`FallbackPolicy::Disabled`]; requests always flow
-    /// through gRPC. Set to [`FallbackPolicy::RestAlways`] when the
-    /// caller wants every historical-quote call routed over a
-    /// locally-running Terminal's REST surface (e.g. when network
-    /// policy disallows direct MDDS access or the local Terminal
-    /// exposes column extensions the upstream gRPC service does
-    /// not yet expose).
-    ///
-    /// ```rust,no_run
-    /// use thetadatadx::config::{DirectConfig, FallbackPolicy, DEFAULT_REST_BASE_URL};
-    /// let cfg = DirectConfig::production().with_rest_fallback(
-    ///     FallbackPolicy::RestAlways {
-    ///         base_url: DEFAULT_REST_BASE_URL.to_string(),
-    ///     },
-    /// );
-    /// ```
-    #[must_use]
-    pub fn with_rest_fallback(mut self, policy: FallbackPolicy) -> Self {
-        self.fallback = policy;
-        self
-    }
-
     /// Parse FPSS hosts from a comma-separated `host:port,host:port,...` string.
     ///
     /// This is the format used in `config_0.properties` for `FPSS_NJ_HOSTS`.
@@ -427,12 +384,12 @@ impl DirectConfig {
 // no longer compile and must migrate to the nested form
 // (`config.mdds.host`); see the commit body for the migration table.
 impl DirectConfig {
-    /// MDDS gRPC hostname.
+    /// MDDS hostname.
     #[must_use]
     pub fn mdds_host(&self) -> &str {
         &self.mdds.host
     }
-    /// MDDS gRPC port.
+    /// MDDS port.
     #[must_use]
     pub fn mdds_port(&self) -> u16 {
         self.mdds.port
@@ -488,7 +445,7 @@ impl DirectConfig {
     pub fn fpss_timeout_ms(&self) -> u64 {
         self.fpss.timeout_ms
     }
-    /// FPSS disruptor ring buffer size.
+    /// FPSS event ring buffer size.
     #[must_use]
     pub fn fpss_ring_size(&self) -> usize {
         self.fpss.ring_size
@@ -498,7 +455,7 @@ impl DirectConfig {
     pub fn fpss_ping_interval_ms(&self) -> u64 {
         self.fpss.ping_interval_ms
     }
-    /// FPSS TCP connect timeout, in milliseconds.
+    /// FPSS connect timeout, in milliseconds.
     #[must_use]
     pub fn fpss_connect_timeout_ms(&self) -> u64 {
         self.fpss.connect_timeout_ms

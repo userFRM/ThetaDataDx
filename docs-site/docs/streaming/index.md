@@ -16,20 +16,18 @@ graph LR
     C -->|"SPSC<br/>ring buffer"| D["Your Application<br/>(callback / poll)"]
 ```
 
-Events are decoded from the FIT wire format and delta-decompressed on an I/O thread, then dispatched through a ring buffer to your callback (Rust) or polling queue (Python/TypeScript/C++). Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
+Events are decoded from the FIT wire format and delta-decompressed on an I/O thread, then dispatched through a single-producer single-consumer ring buffer to your callback. Every data event carries a `received_at_ns` nanosecond timestamp captured at frame decode time.
 
 ## Client Model
 
-Streaming is delivered through a **different client surface in each SDK**, by design:
+Streaming is delivered through a unified client in every binding. The surface is identical across languages: one connect call, one `subscribe()` polymorphic over typed subscription specs, one push-callback delivery path backed by the same streaming ring on the Rust side.
 
-| SDK | Streaming client | Notes |
-|-----|------------------|-------|
-| **Rust** | `ThetaDataDxClient` (the main client) | `start_streaming(callback)`, `subscribe(...)`, `stop_streaming` are methods on the unified client. The streaming connection is established lazily. |
-| **Python** | `ThetaDataDxClient` (the main client) | Same unified client. Pick push (`start_streaming(callback)`) or pull (`with client.streaming_iter() as it:`). |
-| **TypeScript/Node.js** | `ThetaDataDxClient` (the main client) | Same unified client. Pick push (`startStreaming(callback)`) or pull (`for await (const event of client.startStreamingIter())`). |
-| **C++** | `tdx::UnifiedClient` (the main client) | Same unified client surface. Push (`start_streaming(lambda)`) and pull (`auto iter = client.start_streaming_iter();`) are both available. |
-
-The unified `ThetaDataDxClient` surface is identical across every binding: one connect call, one `subscribe()` polymorphic over typed subscription specs, two equivalent delivery modes (push callback OR pull iterator) backed by the same SPSC ring on the Rust side.
+| SDK | Streaming client | Entry point |
+|-----|------------------|-------------|
+| **Rust** | `ThetaDataDxClient` (the main client) | `start_streaming(callback)` |
+| **Python** | `ThetaDataDxClient` (the main client) | `start_streaming(callback)` or the `streaming(callback)` context manager |
+| **TypeScript/Node.js** | `ThetaDataDxClient` (the main client) | `startStreaming(callback)` |
+| **C++** | `tdx::UnifiedClient` (the main client) | `set_callback(lambda)` |
 
 ::: tip
 If you are porting code between SDKs: anywhere a Rust example calls `client.subscribe(Contract::stock("AAPL").quote())`, the Python / TypeScript / C++ equivalents call the same polymorphic `subscribe(...)` on the same client type with the same typed subscription spec.
@@ -37,55 +35,49 @@ If you are porting code between SDKs: anywhere a Rust example calls `client.subs
 
 ## SDK Streaming Models
 
-| SDK | Push (callback) | Pull (iterator) | Event shape |
-|-----|-----------------|-----------------|-------------|
-| **Rust** | `client.start_streaming(\|event\| ...)` | `let iter = client.start_streaming_iter()?;` then `for event in iter { ... }` | `&FpssEvent` enum |
-| **Python** | `client.start_streaming(callback)` | `with client.streaming_iter() as it: for event in it:` | typed pyclass — iterator raises `StopIteration` once the queue drains on a stopped session |
-| **TypeScript/Node.js** | `client.startStreaming(callback)` | `for await (const event of client.startStreamingIter())` | JS object — async iterable resolves `done: true` on terminal end-of-stream |
-| **C++** | `client.start_streaming(lambda)` | `client.start_streaming_iter().next(timeout)` | `TdxFpssEvent` — `next(timeout)` returns `std::optional<TdxFpssEvent>`; `ended()` flips on terminal close |
+| SDK | Push (callback) | Event shape |
+|-----|-----------------|-------------|
+| **Rust** | `client.start_streaming(\|event\| ...)` | `&FpssEvent` enum |
+| **Python** | `client.start_streaming(callback)` | typed pyclass per `FpssData` / `FpssControl` variant |
+| **TypeScript/Node.js** | `client.startStreaming(callback)` | JS object discriminated on `event.kind` |
+| **C++** | `client.set_callback(lambda)` | `TdxFpssEvent` — `#[repr(C)]` tagged union |
 
 ::: warning No JSON in FFI
 C++ receives typed `#[repr(C)]` structs directly from Rust -- not JSON. All field access is zero-copy struct member access.
 :::
 
-## Direct-consumer mode (embedded Rust)
+## Embedded Rust iterator
 
-For an embedded Rust consumer that owns its own dispatch loop, the Rust SDK offers a third delivery shape: **drive the ring on your own thread, with no intermediate queue.**
-
-`FpssClient::connect_consumer` returns the client paired with an `FpssEventPoller`. Instead of the SDK spawning a consumer thread (push-callback mode) or cloning each event into a bounded queue (pull-iterator mode), *your* thread becomes the ring consumer — the streaming ring is the only buffer between the wire reader and your code, and each event is a zero-copy borrow into the ring slot, valid for the duration of your handler call.
+The Rust `FpssClient` also implements `Iterator` directly. Build the client with `FpssClient::builder(creds, hosts).build()?` and drive it from your own loop:
 
 ```rust [Rust]
-use thetadatadx::fpss::{FpssClient, FpssConnectArgs, FpssEvent, FpssData};
+use thetadatadx::fpss::{FpssClient, FpssEvent, FpssData};
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::auth::Credentials;
 
 fn main() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
     let hosts = thetadatadx::config::DirectConfig::production().fpss.hosts;
-    let args = FpssConnectArgs::new(&creds, &hosts);
-
-    // No consumer thread is spawned; this thread will drive the ring.
-    let (client, poller) = FpssClient::connect_consumer(args)?;
+    let client = FpssClient::builder(&creds, &hosts).build()?;
     client.subscribe(Contract::stock("AAPL").quote())?;
 
-    // `run` blocks this thread, draining every event until the session
-    // shuts down and the ring is fully drained.
-    poller.run(|event: &FpssEvent| {
-        if let FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. }) = event {
-            println!("Quote: {} bid={bid:.2} ask={ask:.2}", contract.symbol);
+    for event in &client {
+        match event {
+            Ok(FpssEvent::Data(FpssData::Quote { contract, bid, ask, .. })) => {
+                println!("Quote: {} bid={bid:.2} ask={ask:.2}", contract.symbol);
+            }
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("stream error: {e}");
+                break;
+            }
         }
-    });
+    }
     Ok(())
 }
 ```
 
-To interleave the drain with your own loop, use the non-blocking `poller.poll_batch(|event| ...)`, which drains the currently-available batch and returns a `PollOutcome` (`Drained(n)` or `Shutdown`) so you decide when to re-poll. Calling `client.shutdown()` (or dropping the client) makes `run` return and `poll_batch` report `Shutdown` — but only after every event already in the ring has been delivered, so no in-flight events are lost.
-
-The `FpssEventPoller` is the single consumer of the ring: drive it from exactly one thread. It is `Send`, so you can build it on one thread and move it to the thread that owns the drain loop.
-
-::: tip When to use which mode
-On the embedded Rust `FpssClient` surface, use **push-callback** (`FpssClient::connect`) for the simplest integration, **pull-iterator** (`FpssClient::connect_iter`) when you want a `for event in iter` loop, and **direct-consumer** (`FpssClient::connect_consumer`) when you want the lowest-overhead path with no extra thread or queue on the hot path. On the unified `ThetaDataDxClient`, the equivalent push and pull entries are `start_streaming` and `start_streaming_iter`.
-:::
+For non-blocking integrations, drive `client.poll_batch(|event| ...)` from your own scheduler (returns `PollOutcome::Drained(n)` or `PollOutcome::Shutdown`) or block the calling thread on `client.for_each(|event| ...)` until the ring shuts down. `client.next_event() -> Result<Option<FpssEvent>, FpssError>` yields one event at a time when you need explicit per-event control. `client.shutdown()` (or dropping the client) ends every drain path once the ring is fully consumed, so no in-flight events are lost.
 
 ## Available Data Streams
 
@@ -159,23 +151,23 @@ from thetadatadx import Credentials, Config, ThetaDataDxClient, Contract
 creds = Credentials.from_file("creds.txt")
 client = ThetaDataDxClient(creds, Config.production())
 
-client.subscribe(Contract.stock("AAPL").quote())
-client.subscribe(Contract.stock("MSFT").trade())
+# `streaming(callback)` is a context manager that registers the
+# callback on enter and pairs `stop_streaming()` + `await_drain()`
+# on exit. The dispatcher thread invokes `on_event(event)`
+# for every typed FPSS event.
+def on_event(event):
+    if event.kind == "quote":
+        print(f"Quote: {event.contract.symbol} "
+              f"bid={event.bid:.2f} ask={event.ask:.2f}")
+    elif event.kind == "trade":
+        print(f"Trade: {event.contract.symbol} "
+              f"price={event.price:.2f} size={event.size}")
 
-# Pull-iter mode: context-managed typed iterator over the SPSC
-# queue. The iterator raises StopIteration once `stop_streaming()`
-# fires AND the queue is fully drained; the `with` block pairs
-# `stop_streaming()` + `await_drain()` automatically on exit.
-with client.streaming_iter() as it:
-    for event in it:
-        if event.kind == "quote":
-            print(f"Quote: {event.contract.symbol} "
-                  f"bid={event.bid:.2f} ask={event.ask:.2f}")
-        elif event.kind == "trade":
-            print(f"Trade: {event.contract.symbol} "
-                  f"price={event.price:.2f} size={event.size}")
-        elif event.kind == "disconnected":
-            break
+with client.streaming(on_event):
+    client.subscribe(Contract.stock("AAPL").quote())
+    client.subscribe(Contract.stock("MSFT").trade())
+    import time
+    time.sleep(60)
 ```
 ```cpp [C++]
 #include "thetadx.hpp"
@@ -186,31 +178,28 @@ int main() {
     auto config = tdx::Config::production();
     auto client = tdx::UnifiedClient::connect(creds, config);
 
-    client.subscribe(tdx::Contract::stock("AAPL").quote());
-    client.subscribe(tdx::Contract::stock("MSFT").trade());
-
-    auto iter = client.start_streaming_iter();
-    while (!iter.ended()) {
-        auto event = iter.next(std::chrono::milliseconds(5000));
-        if (!event) continue;
-
-        switch (event->kind) {
+    client.set_callback([](const tdx::FpssEvent& event) {
+        switch (event.kind) {
         case TDX_FPSS_QUOTE: {
-            auto& q = event->quote;
+            auto& q = event.quote;
             std::cout << "Quote: " << q.contract.symbol
                       << " bid=" << q.bid << " ask=" << q.ask << std::endl;
             break;
         }
         case TDX_FPSS_TRADE: {
-            auto& t = event->trade;
+            auto& t = event.trade;
             std::cout << "Trade: " << t.contract.symbol
                       << " price=" << t.price << " size=" << t.size << std::endl;
             break;
         }
         default: break;
         }
-    }
+    });
 
+    client.subscribe(tdx::Contract::stock("AAPL").quote());
+    client.subscribe(tdx::Contract::stock("MSFT").trade());
+
+    // ... let the callback run ...
     client.stop_streaming();
 }
 ```

@@ -36,7 +36,7 @@ Multi-language SDKs for ThetaDataDxClient. All are thin bindings over the shared
                     |   Rust Core     |
                     |  thetadatadx    |
                     +-----------------+
-                    | gRPC (tonic)    |
+                    | gRPC (HTTP/2)       |
                     | Protobuf (prost)|
                     | zstd            |
                     | FPSS (TCP)      |

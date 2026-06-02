@@ -54,6 +54,9 @@ fn resolve_column(
 /// Honours the shared `HEADER_ALIASES` table so v3-renamed columns
 /// resolve to the schema-side name. Returns an empty `Vec` when no
 /// column matches (with a `warn` emitted on non-empty tables).
+///
+/// Only compiled under `__internal` — called by workspace bindings only.
+#[cfg(feature = "__internal")]
 #[must_use]
 pub fn extract_number_column(table: &proto::DataTable, header: &str) -> Vec<Option<i64>> {
     let Some(col_idx) = resolve_column(table, header, "Number") else {
@@ -132,6 +135,9 @@ pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option
 /// `Price` cells with `price_type` outside
 /// `0..=tdbe::types::price::MAX_PRICE_TYPE` yield `None` for that row
 /// and emit a `tracing::warn!`.
+///
+/// Only compiled under `__internal` — called by workspace bindings only.
+#[cfg(feature = "__internal")]
 #[must_use]
 pub fn extract_price_column(table: &proto::DataTable, header: &str) -> Vec<Option<tdbe::Price>> {
     let Some(col_idx) = resolve_column(table, header, "Price") else {
@@ -218,23 +224,12 @@ mod tests {
             Vec::<Option<String>>::new()
         );
     }
+}
 
-    /// Number / Price extractors also honour the alias table — a
-    /// regression that only fixed one of the three would slip through.
-    #[test]
-    fn extract_number_column_resolves_via_header_alias() {
-        let table = proto::DataTable {
-            headers: vec!["timestamp".to_string()],
-            data_table: vec![proto::DataValueList {
-                values: vec![proto::DataValue {
-                    data_type: Some(proto::data_value::DataType::Number(123)),
-                }],
-            }],
-        };
-        // Schema-side `ms_of_day` aliases to `timestamp`.
-        let column = extract_number_column(&table, "ms_of_day");
-        assert_eq!(column, vec![Some(123)]);
-    }
+#[cfg(test)]
+#[cfg(feature = "__internal")]
+mod internal_tests {
+    use super::*;
 
     fn price_table(header: &str, cells: &[(i32, i32)]) -> proto::DataTable {
         proto::DataTable {
@@ -251,6 +246,23 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    /// Number / Price extractors also honour the alias table — a
+    /// regression that only fixed one of the three would slip through.
+    #[test]
+    fn extract_number_column_resolves_via_header_alias() {
+        let table = proto::DataTable {
+            headers: vec!["timestamp".to_string()],
+            data_table: vec![proto::DataValueList {
+                values: vec![proto::DataValue {
+                    data_type: Some(proto::data_value::DataType::Number(123)),
+                }],
+            }],
+        };
+        // Schema-side `ms_of_day` aliases to `timestamp`.
+        let column = extract_number_column(&table, "ms_of_day");
+        assert_eq!(column, vec![Some(123)]);
     }
 
     #[test]

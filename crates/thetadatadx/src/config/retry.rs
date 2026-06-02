@@ -6,8 +6,7 @@ use std::time::Duration;
 ///
 /// Only wired on status codes `Unavailable`, `DeadlineExceeded`, and
 /// `ResourceExhausted`. Permission / credential failures route through
-/// the separate auto-refresh path (see the in-crate `MddsClient` wrappers)
-/// and are never retried by this policy.
+/// the separate auto-refresh path and are never retried by this policy.
 ///
 /// # Jitter
 ///
@@ -21,6 +20,7 @@ use std::time::Duration;
 /// `min(max_delay, initial * 2^attempt)`. Useful for tests that
 /// need to assert exact timings.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct RetryPolicy {
     /// Delay used for the first retry (attempt 1). Doubles per attempt.
     pub initial_delay: Duration,

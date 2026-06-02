@@ -95,7 +95,7 @@ jobs:
           manylinux: '2014'
           target: x86_64
           # The manylinux2014 CentOS 7 image ships no `protoc`, which
-          # `tonic-prost-build` needs to compile `proto/mdds.proto`.
+          # `prost-build` needs to compile `proto/mdds.proto`.
           # Install a pinned prebuilt binary before maturin starts.
           before-script-linux: |
             set -euo pipefail

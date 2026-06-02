@@ -1,27 +1,23 @@
-//! Shared validation for Disruptor ring-buffer sizing.
+//! Shared validation for ring-buffer sizing.
 //!
-//! Disruptor ring buffers must be a power of two so the steady-state
-//! index wrap reduces to `i & (cap - 1)` — one AND, branchless. A
-//! non-power-of-two size forces a modulo (~20 cycles on x86_64) on
-//! every consumer iteration, which destroys the instruction-level
-//! parallelism the read path relies on.
+//! Ring buffers must be a power of two so the steady-state index wrap
+//! reduces to `i & (cap - 1)` — one AND, branchless. A non-power-of-
+//! two size forces a modulo (~20 cycles on x86_64) on every consumer
+//! iteration, which destroys the instruction-level parallelism the
+//! read path relies on.
 //!
 //! Silent rounding to the next power of two is rejected because it
 //! rewrites caller intent. Fail closed at construction time with a
 //! diagnostic that names both the offending value and the nearest
 //! valid size so the caller can correct the configuration without
 //! re-reading the source.
-//!
-//! Lifted out of the private `crate::fpss::ring` module so the gRPC
-//! decoder pool can reuse the same validation and FPSS / gRPC stay in
-//! lockstep on the contract.
 
 /// Minimum ring buffer size accepted by [`check_ring_size`].
 ///
-/// 64 slots is the LMAX-recommended floor for SPSC rings — smaller
-/// rings amortise the consumer barrier check across too few events
-/// to amortise the cache-line traffic, and larger producers may
-/// trip the wrap fence on every fourth publish.
+/// 64 slots is the minimum for well-formed single-producer single-
+/// consumer rings — smaller rings amortise the consumer barrier check
+/// across too few events to amortise the cache-line traffic, and
+/// larger producers may trip the wrap fence on every fourth publish.
 pub const MIN_RING_SIZE: usize = 64;
 
 /// Validate that `n` is a power of two no smaller than [`MIN_RING_SIZE`].

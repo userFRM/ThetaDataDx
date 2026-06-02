@@ -16,6 +16,7 @@
         };
         let callback_arc: Arc<Py<PyAny>> = Arc::new(stored);
         let dispatch_cb = Arc::clone(&callback_arc);
+        let panic_recorder = Arc::clone(&self.tdx);
 
         self.tdx
             .reconnect_streaming(move |event: &fpss::FpssEvent| {
@@ -30,6 +31,7 @@
                     };
                     if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                         err.write_unraisable(py, None);
+                        panic_recorder.record_panic();
                     }
                 });
             })
@@ -37,7 +39,7 @@
 
         // Replace the stored callable with a freshly owned handle so
         // the next reconnect / shutdown sees the same state shape.
-        // The Disruptor consumer closure already captured a clone of
+        // The dispatcher closure already captured a clone of
         // `callback_arc` (via `dispatch_cb`); the ref-count is >=2
         // here so `try_unwrap` would always fail.
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());

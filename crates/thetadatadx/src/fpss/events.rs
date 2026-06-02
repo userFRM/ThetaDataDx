@@ -1,7 +1,7 @@
 //! FPSS event types: data, control, and the I/O command channel.
 //!
 //! These are the wire-protocol-agnostic value types that flow from the I/O
-//! thread into the Disruptor ring and out to user callbacks.
+//! thread into the event ring and out to user callbacks.
 
 use std::sync::Arc;
 
@@ -23,9 +23,8 @@ use super::protocol::Contract;
 ///
 /// The I/O thread populates an internal `contract_id -> Arc<Contract>` cache
 /// on [`FpssControl::ContractAssigned`] so each decoded event only pays a
-/// refcount bump — matching the Java terminal's behaviour where each
-/// event listener receives the full `net.thetadata.fpssclient.Contract`
-/// alongside the payload.
+/// refcount bump. Each event carries the fully resolved [`Contract`] alongside
+/// the payload.
 ///
 /// # Unresolved-contract sentinel
 ///
@@ -141,7 +140,7 @@ pub enum FpssControl {
     /// upstream logs the value as `[FPSS] CONNECTED: [host], Bundle: <perms>`
     /// and uses non-null as the `isVerified()` sentinel — that's it.
     ///
-    /// **For feature gating, use [`crate::auth::AuthUser`] instead**.
+    /// **For feature gating, use `crate::auth::AuthUser` instead**.
     /// The Nexus REST endpoint exposes per-asset subscription tiers
     /// (`stock_subscription`, `options_subscription`, `indices_subscription`,
     /// `interest_rate_subscription`, each `0=FREE / 1=VALUE / 2=STANDARD /
@@ -213,7 +212,7 @@ pub enum FpssControl {
 
 /// All FPSS events -- either data or control.
 ///
-/// Subscribers receive these through the Disruptor callback. The enum is
+/// Subscribers receive these through the event-dispatch callback. The enum is
 /// non-exhaustive to allow adding new event types without breaking downstream.
 ///
 /// # Layout
@@ -222,7 +221,7 @@ pub enum FpssControl {
 /// layout is shared with the crate-private `FpssEventInternal`: both
 /// enums encode `Data` at discriminant `0` and `Control` at
 /// discriminant `1`, with identical payload positions. The I/O loop
-/// publishes `FpssEventInternal` into the Disruptor ring (so it can
+/// publishes `FpssEventInternal` into the event ring (so it can
 /// also carry decode-fallback / placeholder variants without surfacing
 /// them publicly), then delivers a `&FpssEvent` reference to the user
 /// callback for `Data` / `Control` slots only via a layout-compatible
@@ -245,7 +244,7 @@ pub(crate) const FPSS_EVENT_TAG_CONTROL: u8 = 1;
 pub(crate) const FPSS_EVENT_TAG_UNPARSEABLE: u8 = 2;
 pub(crate) const FPSS_EVENT_TAG_EMPTY: u8 = 3;
 
-/// Internal event type stored in the Disruptor ring.
+/// Internal event type stored in the event ring.
 ///
 /// **Not part of the supported public API.** Marked `#[doc(hidden)]`
 /// because the SDK exports a `__test_internals` shim that re-exports
@@ -270,7 +269,7 @@ pub(crate) const FPSS_EVENT_TAG_EMPTY: u8 = 3;
 ///   so the consumer closure can avoid the `Option` discriminant test.
 ///
 /// The I/O thread builds `FpssEventInternal` directly from the wire
-/// decoder; the Disruptor consumer reborrows the slot reference to a
+/// decoder; the event-dispatch consumer reborrows the slot reference to a
 /// `&FpssEvent` via [`Self::as_public`] (zero-clone, layout-compatible)
 /// and only invokes the user callback when that reborrow succeeds.
 #[derive(Debug, Clone)]
@@ -408,179 +407,6 @@ impl From<FpssEvent> for FpssEventInternal {
 }
 
 // ---------------------------------------------------------------------------
-// BackpressurePolicy — overflow strategy for the pull-iter queue
-// ---------------------------------------------------------------------------
-
-/// Producer-side strategy when the pull-iter `Delivery::Queue` ring saturates.
-///
-/// Pull-iter delivery routes events through a bounded
-/// [`crossbeam_queue::ArrayQueue`] shared with an [`super::EventIterator`].
-/// When the iterator falls behind, the queue fills. This enum tells the
-/// Disruptor consumer thread how to react.
-///
-/// Default is [`Self::Block`] — preserves every event at the cost of
-/// upstream backpressure into the TLS reader (which can ultimately get
-/// disconnected by the server if the wait runs long). Trading
-/// systems that cannot tolerate dropped ticks should hold the default;
-/// dashboards and cold-consumer tooling that prefer freshness over
-/// completeness should explicitly opt into [`Self::DropOldest`] or
-/// [`Self::DropNewest`].
-///
-/// Mirrors the standard Kafka client `acks` axis (BLOCK / DROP_OLDEST /
-/// DROP_NEWEST) and Bloomberg BLPAPI `eventQueue` overflow modes — same
-/// operator vocabulary across vendors so users coming from kdb+/kx or
-/// BLPAPI carry their mental model over without translation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum BackpressurePolicy {
-    /// The Disruptor consumer parks (with backoff) on a full queue
-    /// until the iterator drains. No events are dropped; the TLS
-    /// reader applies upstream backpressure because the Disruptor
-    /// ring saturates next and `try_publish` starts incrementing the
-    /// `dropped` counter.
-    ///
-    /// This is the safe default — every event the SDK decoded is
-    /// guaranteed to reach the iterator. A sustained slow consumer
-    /// risks the server kicking the session
-    /// (`RemoveReason::TimedOut`) because the TCP read window stops
-    /// advancing, which is the correct failure mode for a
-    /// configuration that has explicitly asked for no drops.
-    #[default]
-    Block,
-    /// Evict the head of the queue before pushing the new event. The
-    /// freshest events stay; the stalest events are dropped. The
-    /// shared [`super::FpssClient::dropped_count`] counter still
-    /// increments per evicted event so operators can graph the drop
-    /// rate.
-    ///
-    /// Recommended for dashboards and visualisers where the user
-    /// cares about "what is the market doing right now" and tolerates
-    /// gaps in stale history.
-    DropOldest,
-    /// Skip the new event when the queue is full. The events already
-    /// in flight are preserved; the new event is dropped, and the
-    /// shared `dropped` counter increments.
-    ///
-    /// Equivalent to the legacy pre-v10.1 behaviour (silent
-    /// best-effort delivery). Recommended when downstream processing
-    /// is strictly causal — once an event is enqueued you want to
-    /// finish processing it before considering a newer one.
-    DropNewest,
-}
-
-// ---------------------------------------------------------------------------
-// Delivery — push (callback) vs pull (iterator queue) selection
-// ---------------------------------------------------------------------------
-
-/// Delivery mode chosen at [`super::FpssClient::connect`] time.
-///
-/// Mutually exclusive on a given client. The Disruptor consumer
-/// closure dispatches on the variant once per event:
-///
-/// * [`Delivery::Callback`] — invoke the user-supplied `FnMut(&FpssEvent)`
-///   closure under `catch_unwind` (push-callback delivery, the default
-///   recommended for low-latency consumption).
-/// * [`Delivery::Queue`] — `force_push` the public [`FpssEvent`] clone
-///   onto a lock-free [`crossbeam_queue::ArrayQueue`] sized at the same
-///   ring capacity, increment a shared `dropped` counter on overflow,
-///   and let an [`super::EventIterator`] drain the queue from the user
-///   thread (pull-iter delivery, equivalent to databento's
-///   `for record in client:` pattern but bypassing their intermediate
-///   `queue.Queue`).
-///
-/// Both modes share the same Disruptor producer + ring + reader, so the
-/// upstream pipeline is identical and the only branch is the per-event
-/// dispatch inside the consumer closure. Switching between modes requires
-/// `stop_streaming()` + a fresh `start_streaming*()`; live mode swap is
-/// not supported because it would require synchronising the consumer
-/// closure mid-flight.
-pub(crate) enum Delivery {
-    /// Push-callback delivery. The captured closure runs on the
-    /// Disruptor consumer thread.
-    Callback(Box<dyn FnMut(&FpssEvent) + Send + 'static>),
-    /// Pull-iter delivery. The closure clones the public event into the
-    /// shared bounded queue; an [`super::EventIterator`] drains it on the
-    /// user thread.
-    Queue {
-        /// Same capacity as the Disruptor ring so backpressure semantics
-        /// match the callback path. Drained by an
-        /// [`super::EventIterator`] on the user thread.
-        queue: std::sync::Arc<crossbeam_queue::ArrayQueue<FpssEvent>>,
-        /// Set to `true` by the Disruptor consumer thread's drop guard
-        /// AFTER the consume loop has exited and all in-flight events
-        /// have been pushed onto `queue`. The [`super::EventIterator`]
-        /// uses this — not the global shutdown flag — as its terminal
-        /// predicate, so a `stop_streaming()` followed by a tail of
-        /// not-yet-consumed events cannot false-EOF the iterator
-        /// mid-drain.
-        ///
-        /// The flag is owned by a `move`-captured drop guard inside the
-        /// consumer closure; when the Disruptor producer is dropped at
-        /// io_loop exit, the consumer thread joins, the closure is
-        /// dropped, the guard's `Drop` runs, and the flag flips. This
-        /// is the only point in the system where "no more pushes will
-        /// happen" is observable, which is why the EventIterator keys
-        /// off it instead of the I/O-thread shutdown signal.
-        iter_closed: std::sync::Arc<std::sync::atomic::AtomicBool>,
-        /// Optional FD-readiness signal for asyncio / select-loop
-        /// consumers. `Some(wake)` is set via
-        /// [`super::FpssClient::connect_iter_with_wake`] — the
-        /// Python SDK's `streaming_async()` surface allocates a
-        /// self-pipe, hands the write-end to the wake, and registers
-        /// the read-end on the asyncio loop via `loop.add_reader`.
-        /// Each successful `queue.push` writes a coalesced single byte
-        /// (via [`super::wake::WakeFd::signal`]) so the reader's
-        /// `epoll` wake fires without polling.
-        ///
-        /// `None` for the synchronous pull-iter path
-        /// (`start_streaming_iter()` / `client.streaming_iter()`),
-        /// which drains via `next_timeout` / `next` and pays the
-        /// 100 µs sleep tick budget instead. Keeping the field
-        /// optional preserves zero-cost on the existing sync path —
-        /// no atomic load, no FD write, no extra Arc clone.
-        wake_fd: Option<std::sync::Arc<super::wake::WakeFd>>,
-        /// Overflow strategy. See [`BackpressurePolicy`]. The default
-        /// [`BackpressurePolicy::Block`] preserves every event at the
-        /// cost of upstream pressure into the TLS reader; the
-        /// `DropOldest` / `DropNewest` variants trade event-loss for
-        /// liveness.
-        ///
-        /// The sync pull-iter path
-        /// ([`super::FpssClient::connect_iter`]) hard-codes
-        /// `DropNewest` to preserve legacy behaviour. The async
-        /// surfaces (`streaming_async()`,
-        /// `streaming_async_batches()`) thread the policy through via
-        /// [`super::FpssClient::connect_iter_with_wake_keep_handle_policy`].
-        policy: BackpressurePolicy,
-    },
-}
-
-/// Consumer-side selector chosen at connect time.
-///
-/// Threaded through [`super::connection::ConnectWithStreamArgs`] so the
-/// shared `connect_with_stream` wiring can build the right ring
-/// producer:
-///
-/// * [`StreamConsumer::Managed`] — the SDK spawns a Disruptor consumer
-///   thread that runs the wrapped [`Delivery`] dispatch
-///   (`Callback` push or `Queue` pull-iter). This is the path
-///   [`super::FpssClient::connect`] / [`super::FpssClient::connect_iter`]
-///   take.
-/// * [`StreamConsumer::Poller`] — no consumer thread is spawned; the ring
-///   is built with an event poller and the caller drives it on its own
-///   thread via [`super::FpssEventPoller`]. This is the path
-///   [`super::FpssClient::connect_consumer`] takes.
-///
-/// Keeping the selector crate-private preserves the public surface: a
-/// caller never names this type, only the `connect*` entry points.
-pub(crate) enum StreamConsumer {
-    /// SDK-managed consumer thread running the [`Delivery`] dispatch.
-    Managed(Delivery),
-    /// Caller-driven event poller; the ring is the only buffer between
-    /// the wire reader and the caller's thread.
-    Poller,
-}
-
-// ---------------------------------------------------------------------------
 // Command channel -- FpssClient -> I/O thread
 // ---------------------------------------------------------------------------
 
@@ -600,34 +426,6 @@ mod tests {
     use super::*;
     use tdbe::types::price::Price;
 
-    /// The default [`BackpressurePolicy`] must be `Block` — the safe
-    /// option that preserves every event. A future contributor
-    /// flipping the default would silently introduce drop-on-overflow
-    /// on every caller of the pull-iter surfaces; pin the contract.
-    #[test]
-    fn backpressure_policy_default_is_block() {
-        assert_eq!(BackpressurePolicy::default(), BackpressurePolicy::Block);
-    }
-
-    /// All three [`BackpressurePolicy`] variants must be distinct,
-    /// Copy, and Eq so callers can store the policy in a `#[pyclass]`
-    /// field without an `Arc` wrapper and compare it cheaply in the
-    /// io_loop hot path's `match`.
-    #[test]
-    fn backpressure_policy_variants_are_distinct() {
-        let block = BackpressurePolicy::Block;
-        let drop_oldest = BackpressurePolicy::DropOldest;
-        let drop_newest = BackpressurePolicy::DropNewest;
-        assert_ne!(block, drop_oldest);
-        assert_ne!(block, drop_newest);
-        assert_ne!(drop_oldest, drop_newest);
-        // Copy: bind through fresh `let`s.
-        let _copy: BackpressurePolicy = block;
-        let _copy: BackpressurePolicy = drop_oldest;
-        let _copy: BackpressurePolicy = drop_newest;
-    }
-
-    /// Pin the layout-compatibility invariant
     /// `FpssEventInternal::as_public` relies on. Any future change that
     /// breaks size, alignment, or discriminant equality between
     /// `FpssEvent` and the public-facing variants of
@@ -845,7 +643,7 @@ mod tests {
             FpssEvent::Data(FpssData::Trade {
                 contract, price, ..
             }) => {
-                assert_eq!(contract.symbol, "AAPL");
+                assert_eq!(&*contract.symbol, "AAPL");
                 // Price round-trips exactly via `Price::new(15_025, 4)`
                 // — `assert_eq!` is the right shape.
                 assert_eq!(*price, 150.25);

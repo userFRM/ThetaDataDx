@@ -4,9 +4,7 @@ C++ SDK for ThetaData market data. Header-only RAII wrappers over the `thetadata
 
 Every call crosses the C ABI boundary into compiled Rust: gRPC communication, protobuf parsing, zstd decompression, and TCP streaming run inside the `thetadatadx` crate.
 
-> **Surface coverage:** the C++ binding exposes all three ThetaData surfaces — MDDS (historical), FPSS (streaming), and FLATFILES (whole-universe daily blobs). Flat files land via `unified.flat_files().*()` with `.to_arrow_ipc()` terminals plus a `flat_files().to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
->
-> **REST routing escape hatch:** `tdx::FallbackPolicy::restAlways` + `Config::withRestFallback` + four `Client::optionHistory*WithFallback` methods route the historical-quote endpoints over a locally-running Terminal's REST surface when the caller wants a single transport for every quote-bearing call. See [channel pool design](../../docs-site/docs/channel-pool-design.md) for the connection-recovery story.
+> **Surface coverage:** the C++ binding exposes all three ThetaData surfaces — historical request/response, real-time streaming, and whole-universe daily blobs. Flat files land via `unified.flat_files().*()` with `.to_arrow_ipc()` terminals plus a `flat_files().to_path(...)` raw-bytes helper — see the [Flat Files](#flat-files) section for the full method list.
 
 ## Prerequisites
 
@@ -311,9 +309,9 @@ int main() {
     // Create a streaming client (separate from the historical Client)
     tdx::FpssClient fpss(creds, config);
 
-    // Register a queued callback. The LMAX Disruptor consumer thread
-    // invokes `fn` for every event under `catch_unwind`; the FPSS
-    // reader thread never blocks on user code.
+    // Register a queued callback. The dispatcher thread invokes `fn`
+    // for every event under `catch_unwind`; the FPSS reader thread
+    // never blocks on user code.
     fpss.set_callback([](const tdx::FpssEvent& event) {
         if (event.kind == TDX_FPSS_QUOTE) {
             std::cout << "quote bid=" << event.quote.bid
@@ -343,51 +341,6 @@ int main() {
 
 All prices in streaming events are `double` (f64) -- decoded during parsing. Access them directly: `event.quote.bid`, `event.trade.price`, etc. No `price_type` decoding needed.
 
-### Pull-iter delivery — `EventIterator` (high-throughput drain)
-
-Push-callback (`fpss.set_callback(fn)` / `unified.set_callback(fn)`
-above) is the recommended default for low-latency single-event
-reaction. Pull-iter is the sibling delivery mode for high-throughput
-batch processing: the user thread drains a per-client bounded queue
-populated by the Disruptor consumer.
-
-```cpp
-#include "thetadx.hpp"
-#include <chrono>
-#include <iostream>
-
-int main() {
-    auto unified = tdx::UnifiedClient::connect(
-        tdx::Credentials::from_file("creds.txt"),
-        tdx::Config::production());
-
-    auto iter = unified.start_streaming_iter();
-    unified.subscribe(tdx::SecType::option().full_trades());
-
-    // Range-for adapter — 1-second per-pop timeout by default.
-    for (const auto& event : iter) {
-        if (event.kind == TDX_FPSS_TRADE) {
-            std::cout << "trade " << event.trade.price
-                      << " x " << event.trade.size << std::endl;
-        }
-    }
-
-    // Or explicit poll with caller-chosen deadline:
-    while (auto event = iter.next(std::chrono::milliseconds(500))) {
-        // ... process *event ...
-    }
-    if (iter.ended()) {
-        // terminal end-of-stream — the streaming session shut down
-        // and the queue is drained.
-    }
-}
-```
-
-`tdx::EventIterator` is move-only; the destructor frees the
-underlying C handle. Mutually exclusive with the push-callback
-methods on the same client; switch by stopping streaming and
-starting again.
-
 ### Fluent contract-first API
 
 | Method | Returns | Description |
@@ -409,7 +362,7 @@ starting again.
 | `FpssClient(creds, config)` | - | Connect to FPSS streaming servers |
 | `is_authenticated()` | `bool` | Check if the client is currently authenticated |
 | `active_subscriptions()` | `vector<Subscription>` | Get active subscriptions as typed structs |
-| `set_callback(std::function<void(const FpssEvent&)>)` | `void` | Disruptor consumer thread invokes `fn` under `catch_unwind`; reader never blocks |
+| `set_callback(std::function<void(const FpssEvent&)>)` | `void` | Dispatcher thread invokes `fn` under `catch_unwind`; reader never blocks |
 | `dropped_events()` | `uint64_t` | Cumulative ring-buffer overflow count (`Producer::try_publish` failures) |
 | `reconnect()` | `void` | Reconnect streaming and restore subscriptions |
 | `shutdown()` | `void` | Shut down the FPSS client |
@@ -492,7 +445,7 @@ libthetadatadx_ffi.so / .a
     |  (Rust FFI crate)
     v
 thetadatadx Rust crate
-    |  (in-house gRPC / tokio TCP)
+    |  (direct HTTP/2 + TCP transport)
     v
 ThetaData servers
 ```

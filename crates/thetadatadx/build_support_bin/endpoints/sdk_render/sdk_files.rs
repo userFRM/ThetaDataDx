@@ -13,9 +13,7 @@ use super::super::fixture_validation::validate_test_fixtures;
 use super::super::parser::load_endpoint_specs;
 use super::super::sdk_helpers::collect_builder_params;
 use super::super::test_fixtures::load_test_fixtures;
-use super::{
-    cli_validate, cpp, cpp_validate, enums, ffi, python, python_validate, rest_builder, typescript,
-};
+use super::{cli_validate, cpp, cpp_validate, enums, ffi, python, python_validate, typescript};
 
 struct GeneratedSourceFile {
     relative_path: &'static str,
@@ -128,10 +126,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "sdks/cpp/examples/validate.cpp",
             contents: cpp_validate::render_cpp_validate(&parsed.endpoints, &fixtures),
-        },
-        GeneratedSourceFile {
-            relative_path: "crates/thetadatadx/src/rest/_generated/rest_endpoints.rs",
-            contents: rest_builder::render_rest_endpoints(&parsed.endpoints),
         },
     ])
 }

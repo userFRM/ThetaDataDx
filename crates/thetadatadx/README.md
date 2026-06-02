@@ -1,106 +1,162 @@
 # thetadatadx
 
-Core Rust crate — direct wire-protocol access to all three of ThetaData's public surfaces: MDDS (request/response history over gRPC), FPSS (real-time streaming over TCP), and FLATFILES (whole-universe daily blobs over the legacy MDDS port).
+Native Rust SDK for ThetaData market data. Speaks ThetaData's wire
+protocols directly — historical gRPC, streaming TCP, and the native
+flat-file distribution for bulk pulls — without a JVM or a local
+proxy. One async client object speaks every transport directly.
 
-This is the engine that powers all ThetaDataDxClient SDKs (Python, TypeScript / Node.js, C++, CLI, MCP, REST server).
+[![Crates.io](https://img.shields.io/crates/v/thetadatadx.svg?logo=rust)](https://crates.io/crates/thetadatadx)
+[![docs.rs](https://img.shields.io/docsrs/thetadatadx?logo=docsdotrs)](https://docs.rs/thetadatadx)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
 
-## Entry Point
+> **Requires a valid [ThetaData](https://thetadata.us) subscription.**
+> The SDK authenticates against the Nexus API with your account
+> credentials.
+
+## Install
+
+```toml
+[dependencies]
+thetadatadx = "12"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+```
+
+Opt-in DataFrame ergonomics:
+
+```toml
+thetadatadx = { version = "12", features = ["polars"] }   # or "arrow"
+```
+
+## Historical
 
 ```rust
 use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
+
+#[tokio::main]
+async fn main() -> Result<(), thetadatadx::Error> {
+    let creds = Credentials::from_file("creds.txt")?;
+    let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+
+    // EOD Greeks for a SPY option chain across Q1.
+    let chain = tdx
+        .option_history_greeks_eod("SPY", "20260619", "20240101", "20240331")
+        .await?;
+
+    for t in chain.iter().take(5) {
+        println!(
+            "{} K={:>6.2} {} delta={:+.4} gamma={:+.4} theta={:+.4} IV={:.4}",
+            t.date, t.strike, t.right, t.delta, t.gamma, t.theta, t.implied_vol,
+        );
+    }
+    Ok(())
+}
+```
+
+61 typed endpoints across stock, option, index, calendar, and
+interest-rate surfaces. Each builder accepts `.await` for a
+buffered `Vec<Tick>` or `.stream(handler)` for chunk-by-chunk
+delivery on multi-day backfills.
+
+## Streaming
+
+Two equivalent shapes. Pick whichever fits the call site.
+
+### Unified — `ThetaDataDxClient`
+
+One auth, one connection. Historical works immediately; streaming
+opens on the first `start_streaming(callback)` call. Subscribe after
+the callback is registered.
+
+```rust
+use thetadatadx::fpss::{FpssData, FpssEvent};
+use thetadatadx::prelude::*;
+
+tdx.start_streaming(|event: &FpssEvent| {
+    if let FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) = event {
+        println!("{} @ {price} x {size}", contract.symbol);
+    }
+})?;
+
+tdx.subscribe(Contract::stock("AAPL").quote())?;
+tdx.subscribe(Contract::option("SPY", "20260620", "550", "C")?.trade())?;
+```
+
+### Standalone — `FpssClient`
+
+Streaming-only workloads. No MDDS / Nexus session, no historical
+surface. Drive the iterator directly:
+
+```rust
+use thetadatadx::auth::Credentials;
+use thetadatadx::config::DirectConfig;
+use thetadatadx::fpss::{FpssClient, FpssEvent};
 use thetadatadx::fpss::protocol::Contract;
 
 let creds = Credentials::from_file("creds.txt")?;
-let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+let hosts = DirectConfig::production().fpss.hosts;
+let client = FpssClient::builder(&creds, &hosts)
+    .ring_size(8192)
+    .build()?;
 
-// Historical - typed endpoints available immediately
-let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+client.subscribe(Contract::stock("AAPL").quote())?;
 
-// Streaming - connects lazily on first call
-tdx.start_streaming(|event| { /* ... */ })?;
-tdx.subscribe(Contract::stock("AAPL").quote())?;
-
-// When done
-tdx.stop_streaming();
-
-// Flat files - per-call TLS to the legacy MDDS port (12000).
-use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
-let csv_path = tdx
-    .flatfile_request(SecType::Option, ReqType::OpenInterest, "20240315", "oi.csv", FlatFileFormat::Csv)
-    .await?;
-
-// Or pull straight into memory for an algorithm:
-let rows = tdx
-    .flatfile_request_decoded(SecType::Option, ReqType::OpenInterest, "20240315")
-    .await?;
+for event in &client {
+    match event? {
+        FpssEvent::Data(data)       => { /* … */ }
+        FpssEvent::Control(control) => { /* … */ }
+    }
+}
 ```
 
-`ThetaDataDxClient::connect()` authenticates once. Historical data (MDDS gRPC) is available immediately via `Deref` to the internal `MddsClient`. Streaming (FPSS TCP) connects lazily when you call `start_streaming()`. Flat-file requests (FLATFILES) open a per-call TLS connection to the legacy MDDS port and are independent of the MDDS gRPC and FPSS sessions — see [vendor docs](https://http-docs.thetadata.us/operations/get-v2-flat-file-getting-started.html) for the full flat-file matrix.
+Drain primitives on `FpssClient`:
 
-## Crate Layout
+- `next_event()` — block until the next event or terminal shutdown.
+- `try_next_event()` — non-blocking single pop.
+- `poll_batch(|event| …)` — non-blocking batch drain.
+- `for_each(|event| …)` — blocking loop until shutdown.
+- `for event in &client { … }` — iterator over `Result<FpssEvent, FpssError>`.
 
-```
-src/
-  lib.rs           - public re-exports (ThetaDataDxClient, Credentials, DirectConfig, Error)
-  unified.rs       - ThetaDataDxClient: single entry point, lazy streaming
-  mdds/            - MddsClient module (client, stream, validate, normalize, endpoints)
-  auth/            - Nexus API authentication, credential parsing
-  fpss/            - FPSS streaming client (sync, LMAX Disruptor ring buffer)
-  codec/           - FIT nibble encoder/decoder, delta compression
-  config.rs        - DirectConfig (server addresses, timeouts, concurrency)
-  decode.rs        - DataTable -> typed tick parsing (generated from TOML)
-  types/           - Tick structs, Price, enums (generated from TOML)
-  greeks.rs        - 22 Black-Scholes Greeks + IV solver
-  registry.rs      - Endpoint metadata (generated from the endpoint surface spec)
-  error.rs         - Error enum
-proto/
-  mdds.proto           - canonical MDDS wire contract from ThetaData
-  MAINTENANCE.md       - endpoint/proto maintenance guide
-tick_schema.toml   - single source of truth for tick type definitions
-endpoint_surface.toml  - explicit endpoint surface spec for registry/mdds/runtime generation
-build.rs               - small build entrypoint
-build_support/
-  mod.rs               - orchestration entry for build-time code generation
-  upstream_openapi.rs  - pinned upstream OpenAPI snapshot loader
-  endpoints/           - endpoint surface parser + render passes for registry, MDDS runtime, REST surface
-  ticks/               - tick-schema parser + Rust / Python / TypeScript render passes
-  fpss_events/         - FPSS event-schema parser + Rust / Python / TypeScript / C render passes
-  sdk_surface/         - SDK surface parser + CLI / MCP / Python / TypeScript / C++ render passes
+Auto-reconnect with subscription replay is on by default; tune via
+`FpssClientBuilder` or `DirectConfig::reconnect`.
+
+## Auth
+
+Three ways to supply credentials:
+
+```rust
+let creds = Credentials::from_file("creds.txt")?;                    // two-line file
+let creds = Credentials::new("user@example.com", "password");        // inline
+// or set THETADATA_EMAIL / THETADATA_PASSWORD and read via env
 ```
 
-## TOML Codegen
+## Errors
 
-All generated tick types and their DataTable parsers are generated at compile time from `tick_schema.toml`. Adding a new column is one line in the TOML. See [docs/endpoint-schema.md](../../docs/endpoint-schema.md).
+Every public method returns `Result<_, thetadatadx::Error>`. The FPSS
+streaming surface adds a typed `FpssError` enum for the polling and
+subscribe paths; the umbrella `Error` is reachable via
+`From<FpssError> for Error` for callers that prefer a single error
+type.
 
-## Endpoint Surface Spec
+## Performance
 
-Endpoint projections are generated from the checked-in `endpoint_surface.toml`
-file, which defines the normalized endpoint surface: names, descriptions,
-parameter semantics, REST paths, return kinds, projection call-shapes, reusable
-parameter groups, and endpoint templates. Templates support inheritance via
-`extends`, so the spec can model repeated endpoint families without copying the
-same parameter blocks across every declaration.
+- Zero-copy decode where the wire format allows (no Vec churn between
+  the codec and the typed tick row).
+- Native HTTP/2 transport with no intermediary layer.
+- Single-producer single-consumer ring on the streaming hot path; the
+  TLS reader never blocks on user code.
+- Optional `polars` / `arrow` features for zero-copy DataFrame
+  conversion against Arrow C Data Interface.
 
-The build pipeline validates that surface spec against `proto/mdds.proto`
-before generating the registry, shared endpoint runtime, and `MddsClient`
-endpoint declarations.
+## More
 
-## Tick Types
+- [Repository, issues, contributing](https://github.com/userFRM/ThetaDataDx)
+- [API reference](https://docs.rs/thetadatadx)
+- [Documentation site](https://userfrm.github.io/ThetaDataDx/) — guides,
+  per-endpoint pages, streaming deep-dive.
+- Python (`pip install thetadatadx`), Node.js (`npm install
+  thetadatadx`), and C++ bindings share the same wire-format and
+  reconnect behaviour.
 
-| Type | Fields | Use |
-|------|--------|-----|
-| `TradeTick` | 16 | Individual trades |
-| `QuoteTick` | 11 | NBBO quotes |
-| `OhlcTick` | 9 | Aggregated OHLC bars |
-| `EodTick` | 18 | End-of-day summary |
-| `TradeQuoteTick` | 26 | Combined trade + quote |
-| `OpenInterestTick` | 3 | Open interest |
-| `MarketValueTick` | 7 | Market cap, shares out, etc. |
-| `GreeksTick` | 25 | All 23 Greeks + ms_of_day + date |
-| `IvTick` | 4 | Implied volatility + error |
-| `PriceTick` | 4 | Index price |
-| `CalendarDay` | 5 | Market open/close schedule |
-| `InterestRateTick` | 3 | Interest rate |
-| `OptionContract` | 5 | Contract definition (root, exp, strike, right) |
+## License
 
-All types except `OptionContract` are `Copy` - pure stack values, zero heap allocation.
+Apache-2.0.

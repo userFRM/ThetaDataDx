@@ -50,7 +50,7 @@ analysis.
 
 ```toml
 [dependencies]
-thetadatadx = "11"
+thetadatadx = "12"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -81,7 +81,7 @@ Opt into chainable DataFrame ergonomics with the `polars` and/or
 `arrow` features (both stay out of the default dep graph):
 
 ```toml
-thetadatadx = { version = "11", features = ["polars"] }
+thetadatadx = { version = "12", features = ["polars"] }
 ```
 
 ```rust
@@ -116,10 +116,10 @@ print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
 
 ### TypeScript / Node.js — live options streaming
 
-The TS binding exposes streaming events via `[Symbol.asyncIterator]`
-on the iterator-mode session (the napi-rs binding does not ship a
-push-callback variant — that would block the libuv loop on every
-event). Compose the typed `Contract` + `Subscription` values directly.
+The TS binding registers a push callback through `startStreaming(callback)`.
+napi-rs `ThreadsafeFunction` routes every event onto the Node main
+thread; the TLS reader never touches V8. Compose the typed `Contract`
++ `Subscription` values directly.
 
 ```sh
 npm install thetadatadx
@@ -133,18 +133,17 @@ const client = new ThetaDataDxClient(
   Config.production(),
 );
 
-client.startStreamingIter();
+client.startStreaming((event) => {
+  if (event.kind === 'trade') {
+    const { contract, price, size } = event.trade;
+    console.log(`${contract.symbol} ${contract.strike}${contract.right} @ ${price} x ${size}`);
+  }
+});
+
 client.subscribeMany([
   Contract.option('SPY', '20260619', '550', 'C').quote(),
   Contract.option('SPY', '20260619', '550', 'C').trade(),
 ]);
-
-for await (const event of client.eventIterator()) {
-  if (event.data?.kind === 'Trade') {
-    const { contract, price, size } = event.data;
-    console.log(`${contract.symbol} ${contract.strike}${contract.right} @ ${price} x ${size}`);
-  }
-}
 ```
 
 ### C++ — low-latency historical decode
@@ -206,6 +205,36 @@ tdx.subscribe(stock.quote())?;
 tdx.subscribe(option.trade())?;
 ```
 
+For streaming-only workloads (no MDDS / Nexus session), build an
+`FpssClient` directly and iterate the ring on the caller's own
+thread:
+
+```rust
+use thetadatadx::auth::Credentials;
+use thetadatadx::config::DirectConfig;
+use thetadatadx::fpss::{FpssClient, FpssEvent};
+use thetadatadx::fpss::protocol::Contract;
+
+let creds = Credentials::from_file("creds.txt")?;
+let hosts = DirectConfig::production().fpss.hosts;
+let client = FpssClient::builder(&creds, &hosts)
+    .ring_size(8192)
+    .build()?;
+
+client.subscribe(Contract::stock("AAPL").quote())?;
+
+for event in &client {
+    match event? {
+        FpssEvent::Data(data)       => { /* … */ }
+        FpssEvent::Control(control) => { /* … */ }
+    }
+}
+```
+
+`next_event` blocks until the next event arrives or the ring shuts
+down. `try_next_event` is the non-blocking cousin. `poll_batch(FnMut)`
+and `for_each(FnMut)` are available for the closure-driven shapes.
+
 ### Buffered vs streaming for historical pulls
 
 Every historical builder (`option_history_*`, `stock_history_*`,
@@ -244,42 +273,39 @@ Greeks calculator.
 The full method list across all four languages lives in the
 [API Reference](docs/api-reference.md).
 
-Additional surfaces beyond REST/gRPC: real-time streaming (subscribe
-and unsubscribe per contract and per full-stream type) plus a local
-Greeks calculator (22 Black-Scholes Greeks plus an IV solver, callable
-individually or batched).
+Additional surfaces beyond historical gRPC: real-time streaming
+(subscribe and unsubscribe per contract and per full-stream type)
+plus a local Greeks calculator (22 Black-Scholes Greeks plus an IV
+solver, callable individually or batched).
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph core["Rust core"]
-        direction TB
-        thetadatadx["<b>thetadatadx</b><br/>auth · historical · streaming · decode"]
-        tdbe["<b>tdbe</b><br/>types · codec · Greeks · Price"]
-        thetadatadx --> tdbe
-    end
+    rust_sdk["<b>thetadatadx</b><br/>Rust SDK"]
+    tdbe["<b>tdbe</b><br/>types · codec · Greeks · Price"]
+    rust_sdk --> tdbe
 
     ffi["<b>ffi</b><br/>stable C ABI · panic boundary"]
-    core --> ffi
+    rust_sdk --> ffi
 
-    core -->|PyO3 / maturin| python["Python SDK<br/>(pyo3 · Arrow)"]
+    rust_sdk -->|PyO3 / maturin| python["Python SDK<br/>(pyo3 · Arrow)"]
     ffi -->|napi-rs| ts["TypeScript SDK<br/>(N-API · BigInt)"]
     ffi -->|extern C| cpp["C++ SDK<br/>(RAII header-only)"]
-    core -->|direct crate| rust["Rust consumer"]
+    rust_sdk -->|cargo add thetadatadx| rust["Rust consumer"]
 
-    classDef coreStyle fill:#1e3a8a,stroke:#0c1e5c,color:#fff
+    classDef sdkCore fill:#1e3a8a,stroke:#0c1e5c,color:#fff
     classDef ffiStyle fill:#7c2d12,stroke:#450a0a,color:#fff
-    classDef sdkStyle fill:#14532d,stroke:#052e16,color:#fff
-    class thetadatadx,tdbe coreStyle
+    classDef sdkBinding fill:#14532d,stroke:#052e16,color:#fff
+    class rust_sdk,tdbe sdkCore
     class ffi ffiStyle
-    class python,ts,cpp,rust sdkStyle
+    class python,ts,cpp,rust sdkBinding
 ```
 
 | Layer | Crate / package | Purpose |
 |---|---|---|
 | Encoding / types | [`crates/tdbe`](crates/tdbe/) | Tick structs, codecs, Greeks, Price |
-| Core SDK | [`crates/thetadatadx`](crates/thetadatadx/) | Historical gRPC, streaming TCP, auth |
+| Rust SDK | [`crates/thetadatadx`](crates/thetadatadx/) | Public Rust API published to crates.io |
 | C FFI | [`ffi/`](ffi/) | Stable `extern "C"` layer |
 | Python | [`sdks/python`](sdks/python/) | PyO3 / maturin wheel with Arrow adapter |
 | TypeScript | [`sdks/typescript`](sdks/typescript/) | napi-rs prebuilt binary |

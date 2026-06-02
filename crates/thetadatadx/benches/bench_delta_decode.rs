@@ -26,7 +26,7 @@ use std::time::Instant;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use tdbe::types::enums::{SecType, StreamMsgType};
+use tdbe::types::enums::StreamMsgType;
 use thetadatadx::fpss::__test_internals::{decode_frame, DeltaState};
 use thetadatadx::fpss::protocol::Contract;
 
@@ -165,13 +165,7 @@ fn bench_delta_decode_zero_alloc(c: &mut Criterion) {
     let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
     local_contracts.insert(
         200,
-        Arc::new(Contract {
-            symbol: "BENCH".to_string(),
-            sec_type: SecType::Option,
-            expiration: Some(20_260_517),
-            is_call: Some(true),
-            strike: Some(500_000),
-        }),
+        Arc::new(Contract::option_raw("BENCH", 20_260_517, true, 500_000)),
     );
     let authenticated = AtomicBool::new(true);
     let shutdown = AtomicBool::new(false);

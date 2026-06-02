@@ -281,7 +281,14 @@ pub(crate) fn flatfile_paths(
         "tdx_server_flatfile_{sec_type}_{}_{date}.{}.{}.partial",
         req_type as u32,
         format.extension(),
-        uuid::Uuid::new_v4().simple(),
+        {
+            let bytes: [u8; 16] = rand::random();
+            bytes.iter().fold(String::with_capacity(32), |mut s, b| {
+                use std::fmt::Write;
+                let _ = write!(s, "{b:02x}");
+                s
+            })
+        },
     ));
     (scratch_path, final_path)
 }
@@ -291,7 +298,7 @@ mod tests {
     use super::*;
 
     // Regression: concurrent identical requests must never share a
-    // scratch path. Before the BLOCKER #1 fix two callers wrote into
+    // scratch path. Before the race fix two callers wrote into
     // the same deterministic temp path, racing `File::create()`
     // against each other while the first reader's open fd still
     // pointed at the old inode's bytes. The fix attaches a UUID4
@@ -355,10 +362,14 @@ mod tests {
         const N: usize = 16;
         const PAYLOAD_LEN: usize = 1 << 16;
 
-        let dir = std::env::temp_dir().join(format!(
-            "tdx_server_flatfile_race_{}",
-            uuid::Uuid::new_v4().simple()
-        ));
+        let dir = std::env::temp_dir().join(format!("tdx_server_flatfile_race_{}", {
+            let bytes: [u8; 16] = rand::random();
+            bytes.iter().fold(String::with_capacity(32), |mut s, b| {
+                use std::fmt::Write;
+                let _ = write!(s, "{b:02x}");
+                s
+            })
+        }));
         std::fs::create_dir_all(&dir).unwrap();
         let final_path = Arc::new(dir.join("artifact.csv"));
 

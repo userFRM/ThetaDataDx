@@ -146,6 +146,16 @@ CPP_ALIASES: dict[str, str] = {
 }
 
 
+def _cpp_class_for(class_name: str) -> str:
+    """Resolve a parity-toml `class` field to its C++ class symbol.
+
+    Honors `CPP_ALIASES` so a row carrying the Python/TS canonical
+    name (`ThetaDataDxClient`) routes to the corresponding C++ class
+    body (`UnifiedClient`).
+    """
+    return CPP_ALIASES.get(class_name, class_name)
+
+
 def cpp_has(symbol: str, cpp: set[str]) -> bool:
     if symbol in cpp:
         return True
@@ -463,6 +473,300 @@ def _rust_field_to_row_suffix(struct: str, field: str) -> str:
     return RUST_FIELD_RENAMES.get((struct, field), field)
 
 
+# ─── Method-level discovery (per-method granularity / unified clients) ───
+
+
+def _camel_to_snake(camel: str) -> str:
+    """`activeFullSubscriptions` -> `active_full_subscriptions`."""
+    return re.sub(r"(?<!^)([A-Z])", r"_\1", camel).lower()
+
+
+def _collect_python_class_methods(py_src: pathlib.Path) -> dict[str, set[str]]:
+    """Return `{pyclass_name: {method, ...}}` for every Python pyclass.
+
+    Parses every `#[pymethods] impl <Path>` block (or `impl <Path>`
+    block participating in `multiple-pymethods`) and harvests the
+    `fn <name>` declarations inside. `<Path>` accepts a bare class
+    name (`impl ThetaDataDxClient`) or a fully-qualified Rust path
+    (`impl crate::ThetaDataDxClient`); the collector normalises both
+    to the bare class name so the parity row can refer to it directly.
+
+    Filters out the lifecycle dunders (`__new__`, `__repr__`,
+    `__getattr__`, `__init__`, `__enter__`, `__exit__`) and the
+    constructor `new` so the matrix tracks user-facing methods only.
+    """
+    out: dict[str, set[str]] = {}
+    if not py_src.is_dir():
+        return out
+    skip_names = {
+        "new",
+        "__new__",
+        "__repr__",
+        "__getattr__",
+        "__init__",
+        "__enter__",
+        "__exit__",
+    }
+    # `impl <Path> {` — `<Path>` may be `Name` or `crate::...::Name`.
+    # Capture the last identifier segment before the opening brace.
+    impl_re = re.compile(
+        r"impl\s+(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Za-z_][A-Za-z0-9_]*)\s*\{"
+    )
+    fn_re = re.compile(r"fn\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*[(<]")
+    for rs in py_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for header in impl_re.finditer(text):
+            class_name = header.group(1)
+            # Walk the impl block with a brace counter to bound the
+            # method scan to a single impl body.
+            body_start = header.end()
+            depth = 1
+            i = body_start
+            while i < len(text) and depth > 0:
+                c = text[i]
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                i += 1
+            body = text[body_start : i - 1]
+            for fm in fn_re.finditer(body):
+                name = fm.group(1)
+                if name in skip_names:
+                    continue
+                out.setdefault(class_name, set()).add(name)
+    return out
+
+
+def _collect_typescript_class_methods(ts_src: pathlib.Path) -> dict[str, set[str]]:
+    """Return `{ts_class_name: {method, ...}}` for every TypeScript
+    napi class.
+
+    Parses every `#[napi]` / `#[napi(js_name = "...")] impl <Name>` block
+    and harvests the JS-visible method names inside. The TS impl blocks
+    live across multiple files (`lib.rs`, `_generated/*.rs`,
+    `config_class.rs`, ...); the collector walks each one and bounds
+    the method scan to the impl body with a brace counter.
+
+    Covers both method-attribute shapes:
+
+    * `#[napi(js_name = "<camelCase>")] fn <snake>` — explicit JS name.
+    * `#[napi] fn <snake>` (or `#[napi(...)]` without `js_name`) —
+      napi-rs auto-camelCases the fn name. Both the snake_case fn
+      name and its camelCase derivation are recorded so a row matches
+      against either spelling.
+
+    The class name is lifted from `impl <Name>` directly (not the
+    `#[napi(js_name = "X")]` on the struct itself), which is the form
+    the cross-binding parity rows use as the canonical class identifier.
+    """
+    out: dict[str, set[str]] = {}
+    if not ts_src.is_dir():
+        return out
+    # `impl <Path> {` — handle bare names and qualified paths
+    # (`impl crate::ThetaDataDxClient`) symmetrically with the Python
+    # collector. The captured class name is always the last path segment.
+    impl_re = re.compile(
+        r"impl\s+(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Za-z_][A-Za-z0-9_]*)\s*\{"
+    )
+    js_name_re = re.compile(
+        r'#\[napi\([^)]*\bjs_name\s*=\s*"([a-zA-Z_][a-zA-Z0-9_]*)"[^)]*\)\]\s*'
+        r'(?:pub\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)\s*[(<]'
+    )
+    bare_napi_re = re.compile(
+        r'#\[napi(?:\((?:(?!js_name)[^)])*\))?\]\s*'
+        r'(?:pub\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)\s*[(<]'
+    )
+    for rs in ts_src.rglob("*.rs"):
+        text = rs.read_text(encoding="utf-8")
+        for header in impl_re.finditer(text):
+            class_name = header.group(1)
+            # Walk the impl block with a brace counter to bound the
+            # method scan to a single impl body.
+            body_start = header.end()
+            depth = 1
+            i = body_start
+            while i < len(text) and depth > 0:
+                c = text[i]
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                i += 1
+            body = text[body_start : i - 1]
+            for m in js_name_re.finditer(body):
+                out.setdefault(class_name, set()).add(m.group(1))
+            for m in bare_napi_re.finditer(body):
+                snake = m.group(1)
+                head, *rest = snake.split("_")
+                camel = head + "".join(p.capitalize() for p in rest)
+                out.setdefault(class_name, set()).add(camel)
+                out.setdefault(class_name, set()).add(snake)
+    return out
+
+
+def _expand_cpp_includes(hpp_text: str, include_dir: pathlib.Path) -> str:
+    """Inline every `#include "<name>.inc"` directive against the
+    matching file under `include_dir`. The `*.inc` files extend a
+    class body with generator-emitted member declarations
+    (`sdks/cpp/include/fpss.hpp.inc` adds `FpssClient` methods that
+    live in `crates/thetadatadx/sdk_surface.toml`), and the parity
+    gate must see those declarations as part of the surrounding
+    class body.
+
+    Falls back to leaving the directive in place when the included
+    file is missing, so a malformed `#include` cannot wedge the gate.
+    """
+    include_re = re.compile(r'#include\s+"([^"]+\.inc)"')
+
+    def _sub(m: re.Match[str]) -> str:
+        rel = m.group(1)
+        target = include_dir / rel
+        if target.is_file():
+            return target.read_text(encoding="utf-8")
+        return m.group(0)
+
+    return include_re.sub(_sub, hpp_text)
+
+
+def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
+    """Return `{class_name: {method, ...}}` for every C++ class.
+
+    Parses each `class X { ... };` body in `thetadx.hpp` and collects
+    every member declaration with a `name(` shape. The first identifier
+    before the `(` is the method name. Bounded brace-counting keeps
+    nested types (e.g. lambdas inside default-arg initializers) from
+    leaking into the outer class's method set.
+
+    Honors `#include "<file>.inc"` inside a class body by inlining the
+    included file's contents before parsing — generator-emitted method
+    declarations (`fpss.hpp.inc`) extend the surrounding class body
+    and must count toward parity.
+    """
+    out: dict[str, set[str]] = {}
+    if not cpp_hpp.is_file():
+        return out
+    text = _expand_cpp_includes(cpp_hpp.read_text(encoding="utf-8"), cpp_hpp.parent)
+    # Limit to class bodies — struct bodies are POD-shaped value types
+    # and irrelevant to the cross-binding method contract.
+    class_header_re = re.compile(r"^class\s+(\w+)\s*(?::[^{]*)?\{", re.MULTILINE)
+    for header in class_header_re.finditer(text):
+        class_name = header.group(1)
+        body_start = header.end()
+        depth = 1
+        i = body_start
+        while i < len(text) and depth > 0:
+            c = text[i]
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+            i += 1
+        body = text[body_start : i - 1]
+        # Match member declarations + definitions. The `name(` pattern is
+        # preceded by whitespace and (optionally) qualifiers / return
+        # type tokens; the first plain identifier immediately before the
+        # opening paren is the method name.
+        for fm in re.finditer(
+            r"(?:^|\s)([a-z_][a-z0-9_]*)\s*\(",
+            body,
+            re.MULTILINE,
+        ):
+            name = fm.group(1)
+            # Filter language keywords that look like method calls.
+            if name in {
+                "if",
+                "while",
+                "for",
+                "switch",
+                "return",
+                "throw",
+                "catch",
+                "sizeof",
+                "operator",
+                "new",
+                "delete",
+                "static_cast",
+                "reinterpret_cast",
+                "const_cast",
+                "dynamic_cast",
+            }:
+                continue
+            out.setdefault(class_name, set()).add(name)
+    return out
+
+
+def _check_method_rows(
+    method_rows: list[dict[str, Any]],
+    py_methods: dict[str, set[str]],
+    ts_methods: dict[str, set[str]],
+    cpp_methods: dict[str, set[str]],
+) -> list[str]:
+    """Per-method cross-binding gate.
+
+    Each `[[method]]` row in `parity.toml` declares a `(class, name)`
+    pair plus the expected presence in each binding. The checker
+    verifies the actual binding state against the declared state and
+    returns a list of human-readable mismatch strings (empty when
+    every row matches).
+    """
+    errors: list[str] = []
+    for row in method_rows:
+        class_name = row.get("class")
+        camel = row.get("name")
+        if not class_name or not camel:
+            errors.append(
+                f"  [[method]] row missing `class` or `name`: {row!r}"
+            )
+            continue
+        snake = _camel_to_snake(camel)
+
+        # Python: snake_case method declared on the pyclass.
+        declared_py = row.get("python", False)
+        actual_py = snake in py_methods.get(class_name, set())
+        if declared_py != actual_py:
+            verb = "missing" if declared_py and not actual_py else "unexpected"
+            errors.append(
+                f"  {class_name}.{camel}.python: declared={declared_py}, "
+                f"actual={actual_py} ({verb} -- expected `fn {snake}` "
+                f"inside `impl {class_name}` on the Python pyclass)"
+            )
+
+        # TypeScript: napi-attributed method declared inside the
+        # matching `impl <ClassName>` block under `sdks/typescript/src/`.
+        # The collector records both the `js_name` and the auto-
+        # camelCased fn-name spelling so a row's `name` can match
+        # against either.
+        declared_ts = row.get("typescript", False)
+        actual_ts = camel in ts_methods.get(class_name, set())
+        if declared_ts != actual_ts:
+            verb = "missing" if declared_ts and not actual_ts else "unexpected"
+            errors.append(
+                f"  {class_name}.{camel}.typescript: declared={declared_ts}, "
+                f"actual={actual_ts} ({verb} -- expected "
+                f'`#[napi(js_name = "{camel}")]` (or bare `#[napi]` on '
+                f"`fn {snake}`) inside `impl {class_name}` under "
+                f"sdks/typescript/src/)"
+            )
+
+        # C++: `<snake>(` member declaration inside the matching
+        # class body in `thetadx.hpp`. C++ alias names route through
+        # `CPP_ALIASES` (`ThetaDataDxClient` -> `UnifiedClient`).
+        declared_cpp = row.get("cpp", False)
+        cpp_class = _cpp_class_for(class_name)
+        actual_cpp = snake in cpp_methods.get(cpp_class, set())
+        if declared_cpp != actual_cpp:
+            verb = "missing" if declared_cpp and not actual_cpp else "unexpected"
+            errors.append(
+                f"  {class_name}.{camel}.cpp: declared={declared_cpp}, "
+                f"actual={actual_cpp} ({verb} -- expected `{snake}(` "
+                f"inside `class {cpp_class}` body in "
+                f"sdks/cpp/include/thetadx.hpp)"
+            )
+
+    return errors
+
+
 # ─── Main gate ──────────────────────────────────────────────────────
 
 
@@ -600,6 +904,7 @@ def main(argv: list[str] | None = None) -> int:
 
     data: dict[str, Any] = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
     rows: list[dict[str, Any]] = data.get("class", [])
+    method_rows: list[dict[str, Any]] = data.get("method", [])
     if not rows:
         print("parity.toml has no [[class]] rows", file=sys.stderr)
         return 1
@@ -614,6 +919,10 @@ def main(argv: list[str] | None = None) -> int:
     ffi_setters = _collect_ffi_setters(FFI_SRC)
 
     rust_fields = _collect_rust_pub_fields(CONFIG_DIR)
+
+    py_class_methods = _collect_python_class_methods(PY_SRC)
+    ts_class_methods = _collect_typescript_class_methods(TS_SRC)
+    cpp_class_methods = _collect_cpp_class_methods(CPP_HPP)
 
     declared_names: set[str] = {row["name"] for row in rows}
 
@@ -640,6 +949,13 @@ def main(argv: list[str] | None = None) -> int:
     # Field-level mismatches (dotted rows / #595).
     field_errors = _check_dotted_rows(
         rows, py_setters, ts_setters, cpp_setters, ffi_setters
+    )
+
+    # Method-level mismatches (per-method `[[method]]` rows on the
+    # load-bearing user-facing classes — `ThetaDataDxClient`,
+    # `FpssClient`, `Credentials`, `Config`).
+    method_errors = _check_method_rows(
+        method_rows, py_class_methods, ts_class_methods, cpp_class_methods
     )
 
     # Orphan Rust pub fields (no parity row).
@@ -675,6 +991,16 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
+    if method_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(method_errors)} method-level "
+            f"mismatch(es) (per-method `[[method]]` granularity):"
+        )
+        for e in method_errors:
+            print(e)
+        print()
+
     if orphan_errors:
         had_errors = True
         print(
@@ -706,9 +1032,11 @@ def main(argv: list[str] | None = None) -> int:
     n_dotted = sum(1 for row in rows if "." in row["name"])
     n_class = len(rows) - n_dotted
     n_fields = sum(len(v) for v in rust_fields.values())
+    n_methods = len(method_rows)
     print(
         f"check_binding_parity: clean "
         f"({n_class} class rows + {n_dotted} field rows + "
+        f"{n_methods} method rows + "
         f"{n_fields} rust pub fields checked; "
         f"py_classes={len(py_classes)} ts_classes={len(ts_classes)} "
         f"cpp_classes={len(cpp_classes)} "
@@ -1013,6 +1341,152 @@ def _run_selftest() -> int:
         "positive — AuthConfig + MetricsConfig dotted rows resolve through new prefixes",
         _case_authconfig_metricsconfig_prefixes_resolve,
     )
+
+    # ── Method-level gate selftests ────────────────────────────────
+
+    def _case_method_positive_all_three() -> None:
+        """Method declared on Python + TS + C++ — gate is silent."""
+        rows = [
+            {
+                "class": "ThetaDataDxClient",
+                "name": "panicCount",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods = {"ThetaDataDxClient": {"panic_count"}}
+        ts_methods = {"ThetaDataDxClient": {"panicCount"}}
+        cpp_methods = {"UnifiedClient": {"panic_count"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], f"method positive case must be silent; got {errors!r}"
+
+    def _case_method_python_missing() -> None:
+        """Declared on Python but not present in source — trips."""
+        rows = [
+            {
+                "class": "ThetaDataDxClient",
+                "name": "panicCount",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods: dict[str, set[str]] = {"ThetaDataDxClient": set()}
+        ts_methods = {"ThetaDataDxClient": {"panicCount"}}
+        cpp_methods = {"UnifiedClient": {"panic_count"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert any("python" in e and "missing" in e for e in errors), (
+            f"missing Python method must trip the gate; got {errors!r}"
+        )
+
+    def _case_method_typescript_missing() -> None:
+        """Declared on TS but no matching `js_name` in source — trips."""
+        rows = [
+            {
+                "class": "ThetaDataDxClient",
+                "name": "activeFullSubscriptions",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods = {"ThetaDataDxClient": {"active_full_subscriptions"}}
+        ts_methods: dict[str, set[str]] = {}
+        cpp_methods = {"UnifiedClient": {"active_full_subscriptions"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert any("typescript" in e and "missing" in e for e in errors), (
+            f"missing TS method must trip the gate; got {errors!r}"
+        )
+
+    def _case_method_cpp_alias_resolves() -> None:
+        """C++ alias (`ThetaDataDxClient` -> `UnifiedClient`) is honoured."""
+        rows = [
+            {
+                "class": "ThetaDataDxClient",
+                "name": "awaitDrain",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods = {"ThetaDataDxClient": {"await_drain"}}
+        ts_methods = {"ThetaDataDxClient": {"awaitDrain"}}
+        # The row says `ThetaDataDxClient` but the C++ class is named
+        # `UnifiedClient` — the alias table must route the lookup.
+        cpp_methods = {"UnifiedClient": {"await_drain"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"C++ alias must resolve to UnifiedClient; got {errors!r}"
+        )
+
+    def _case_method_unexpected_extra() -> None:
+        """Declared `false` but method exists on the source — trips."""
+        rows = [
+            {
+                "class": "ThetaDataDxClient",
+                "name": "panicCount",
+                "python": False,
+                "typescript": False,
+                "cpp": False,
+            }
+        ]
+        py_methods = {"ThetaDataDxClient": {"panic_count"}}
+        ts_methods = {"ThetaDataDxClient": {"panicCount"}}
+        cpp_methods = {"UnifiedClient": {"panic_count"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        # All three columns are stale — every binding now exposes the
+        # method but the row still says `false`.
+        assert any("unexpected" in e for e in errors), (
+            f"stale `false` rows must trip the gate; got {errors!r}"
+        )
+
+    def _case_method_row_missing_class_or_name() -> None:
+        """Malformed row — gate surfaces a clear error."""
+        rows = [
+            {"class": "ThetaDataDxClient", "python": True},
+            {"name": "panicCount", "python": True},
+        ]
+        errors = _check_method_rows(rows, {}, {}, {})
+        assert len(errors) == 2, (
+            f"malformed rows must each trip the gate; got {errors!r}"
+        )
+
+    def _case_method_class_scoping_isolates_classes() -> None:
+        """A method present on ClassA must NOT count for ClassB.
+
+        Previously the TS collector used a single universe set; now
+        every method is scoped to its owning class. This protects
+        against false-positive 'unexpected' verdicts when two classes
+        coincidentally share a method name (`subscribe` on both
+        `ThetaDataDxClient` and `Subscription` etc.).
+        """
+        rows = [
+            {
+                "class": "FpssClient",  # FpssClient not on TS
+                "name": "subscribe",
+                "python": True,
+                "typescript": False,
+                "cpp": True,
+            }
+        ]
+        # `subscribe` exists on `ThetaDataDxClient` (TS) but NOT on
+        # `FpssClient` (TS). Class-scoped lookup must respect that.
+        py_methods = {"FpssClient": {"subscribe"}}
+        ts_methods = {"ThetaDataDxClient": {"subscribe"}}
+        cpp_methods = {"FpssClient": {"subscribe"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"class-scoped TS lookup must not leak across classes; got {errors!r}"
+        )
+
+    _case("method positive — declared and present on all three bindings", _case_method_positive_all_three)
+    _case("method negative — declared Python but missing in source", _case_method_python_missing)
+    _case("method negative — declared TS but missing js_name", _case_method_typescript_missing)
+    _case("method positive — C++ alias routes ThetaDataDxClient -> UnifiedClient", _case_method_cpp_alias_resolves)
+    _case("method negative — stale `false` row with method present", _case_method_unexpected_extra)
+    _case("method negative — malformed row missing class or name", _case_method_row_missing_class_or_name)
+    _case("method positive — class-scoped TS lookup isolates classes", _case_method_class_scoping_isolates_classes)
 
     print(f"check_binding_parity --selftest: {n_pass} passed, {n_fail} failed")
     return 0 if n_fail == 0 else 1

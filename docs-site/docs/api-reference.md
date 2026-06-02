@@ -2197,11 +2197,10 @@ client.unsubscribe(tdx::Contract::stock("AAPL").open_interest());
 
 ### Receiving Events
 
-The unified client surfaces two equivalent delivery modes that share the same typed `FpssEvent` shape: a push-callback path (`start_streaming(callback)`) for low-latency dispatch into user code, and a pull-iter path (`start_streaming_iter()` in Rust/Python/C++, `startStreamingIter()` in TypeScript) for the iterator idiom. Pick one per session — the modes are mutually exclusive on the client.
+The unified client registers a push callback for every typed `FpssEvent`. The dispatcher thread invokes the callable for every event, wrapped in `catch_unwind` so a user-code panic is reported via the dropped-event counter instead of tearing down the consumer.
 
 ::: code-group
 ```rust [Rust]
-// Push: callback-driven dispatch.
 client.start_streaming(|event| {
     if let FpssEvent::Data(FpssData::Trade { contract, price, size, .. }) = event {
         // The typed `Arc<Contract>` field carries `symbol`, `sec_type`,
@@ -2209,41 +2208,15 @@ client.start_streaming(|event| {
         println!("Trade: symbol={}, price={}, size={}", contract.symbol, price, size);
     }
 })?;
-
-// OR pull: typed iterator.
-let iter = client.start_streaming_iter()?;
-for event in iter {
-    println!("{event:?}");
-}
 ```
 ```python [Python]
-# Push:
 client.start_streaming(lambda event: print(event))
-
-# OR pull (context-managed):
-with client.streaming_iter() as it:
-    for event in it:
-        print(event)
 ```
 ```typescript [TypeScript]
-// Push:
 client.startStreaming((event) => console.log(event));
-
-// OR pull (async iterable):
-const iter = client.startStreamingIter();
-for await (const event of iter) {
-    console.log(event);
-}
 ```
 ```cpp [C++]
-// Push:
-client.start_streaming([](const tdx::FpssEvent& event) { /* ... */ });
-
-// OR pull:
-auto iter = client.start_streaming_iter();
-while (auto event = iter.next(std::chrono::milliseconds(5000))) {
-    /* ... */
-}
+client.set_callback([](const tdx::FpssEvent& event) { /* ... */ });
 ```
 :::
 
@@ -2293,7 +2266,7 @@ Events are delivered as one of three categories:
 
 **UnknownFrame** - Unrecognised wire-frame fallback. Surfaced as the `FpssControl::UnknownFrame { code, payload }` typed control variant; carries the raw frame code and undecoded payload bytes.
 
-On the C++ binding the pull-iter `client.start_streaming_iter().next(timeout)` returns `std::optional<TdxFpssEvent>`; the historical `tdx::FpssEventPtr` (`std::unique_ptr<TdxFpssEvent, FpssEventDeleter>`) alias remains for legacy code paths but is not the recommended entry point in v9.1.0.
+On the C++ binding, register a callback via `client.set_callback([](const tdx::FpssEvent& event) { ... })`. The lambda receives a `const tdx::FpssEvent&` borrow valid for the duration of the call; copy any borrowed pointers (`event.quote.contract.symbol`, `event.server_error.message`, ...) before the call returns if you need them afterwards.
 
 ### Reconnection
 
@@ -2642,7 +2615,7 @@ auto creds = tdx::Credentials::from_email("email@example.com", "password");
 ::: code-group
 ```rust [Rust]
 pub enum Error {
-    Transport { kind: TransportErrorKind, message: String },  // in-house gRPC channel errors (v10)
+    Transport { kind: TransportErrorKind, message: String },  // in-house gRPC channel errors
     Grpc { kind: GrpcStatusKind, message: String },           // gRPC status codes
     Decompress { kind: DecompressErrorKind, message: String },// zstd decompression failure
     Decode { kind: DecodeErrorKind, message: String },        // protobuf decode failure

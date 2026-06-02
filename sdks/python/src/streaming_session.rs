@@ -63,8 +63,8 @@ impl StreamableHandle {
     /// Invoke `stop_streaming()` through the typed enum.
     pub(crate) fn stop_streaming(&self, py: Python<'_>) {
         match self {
-            Self::Tdx(handle) => handle.borrow(py).stop_streaming(),
-            Self::Fpss(handle) => handle.borrow(py).stop_streaming(),
+            Self::Tdx(handle) => handle.borrow(py).stop_streaming(py),
+            Self::Fpss(handle) => handle.borrow(py).stop_streaming(py),
         }
     }
 
@@ -76,19 +76,6 @@ impl StreamableHandle {
         match self {
             Self::Tdx(handle) => handle.borrow(py).await_drain(py, timeout_ms),
             Self::Fpss(handle) => handle.borrow(py).await_drain(py, timeout_ms),
-        }
-    }
-
-    /// Open the pull-iter delivery mode and return the resulting
-    /// [`EventIterator`]. Dispatches through the typed enum so neither
-    /// branch goes through Python attribute lookup.
-    pub(crate) fn start_streaming_iter(
-        &self,
-        py: Python<'_>,
-    ) -> PyResult<crate::event_iterator::EventIterator> {
-        match self {
-            Self::Tdx(handle) => handle.borrow(py).start_streaming_iter(),
-            Self::Fpss(handle) => handle.borrow(py).start_streaming_iter(),
         }
     }
 }
@@ -266,6 +253,7 @@ impl crate::ThetaDataDxClient {
                             SubscriptionKind::Trade => FullSubscriptionKind::Trades,
                             SubscriptionKind::OpenInterest => FullSubscriptionKind::OpenInterest,
                             SubscriptionKind::Quote => return None,
+                            _ => return None,
                         };
                         Some(crate::fluent::PySubscription {
                             inner: thetadatadx::fpss::protocol::Subscription::Full {

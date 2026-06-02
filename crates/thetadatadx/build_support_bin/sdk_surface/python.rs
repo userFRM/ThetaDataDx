@@ -114,7 +114,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                 "    ",
                 "Start FPSS streaming and register a Python callback for incoming events.\n\
                  \n\
-                 The LMAX Disruptor consumer thread acquires the GIL\n\
+                 The dispatcher thread acquires the GIL\n\
                  via `Python::attach` to call `callback(event)` for\n\
                  every typed FPSS event, with each invocation wrapped\n\
                  in `catch_unwind`. `callback` must accept exactly one\n\
@@ -130,7 +130,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                  accounted on the `thetadatadx.fpss.decode_failures` metric.\n\
                  \n\
                  Events flow from the FPSS reader thread into the\n\
-                 LMAX Disruptor ring (`Producer::try_publish`) and out\n\
+                 streaming ring (`Producer::try_publish`) and out\n\
                  to the consumer thread that runs `callback`. The\n\
                  reader never blocks on user code; if the callback\n\
                  falls behind, ring-overflow events are dropped and\n\
@@ -340,13 +340,25 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             // `streaming_session.rs` can dispatch through the typed
             // pyclass borrow without going back through Python
             // attribute lookup.
-            writeln!(out, "    pub(crate) fn {}(&self) {{", method.name).unwrap();
+            writeln!(
+                out,
+                "    pub(crate) fn {}(&self, py: Python<'_>) {{",
+                method.name
+            )
+            .unwrap();
             // PR C (#482) replaced the receiver `rx` field with a
             // stored `Py<PyAny>` callback. Drop the callable so the
             // Python reference is released before the streaming side
             // tears down — re-installing via `start_streaming` after
             // stop / shutdown then sees a clean slot.
-            out.push_str("        self.tdx.stop_streaming();\n");
+            //
+            // Detach the GIL while the Rust teardown runs.
+            // `ThetaDataDxClient::stop_streaming` drops the slot `Arc`;
+            // if its refcount reaches zero the `FpssClient` drop joins
+            // the dispatcher thread, which re-acquires the GIL on every
+            // event via `Python::attach`. Holding the GIL across the
+            // join would deadlock.
+            out.push_str("        py.detach(|| self.tdx.stop_streaming());\n");
             out.push_str(
                 "        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",
             );

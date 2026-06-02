@@ -22,9 +22,7 @@ use arrow_ipc::writer::StreamWriter;
 use napi::bindgen_prelude::Buffer;
 use serde_json::{json, Map as JsonMap, Value as JsonValue};
 
-use thetadatadx::flatfiles::{
-    self, FlatFileFormat, FlatFileRow, FlatFileValue, ReqType, SecType,
-};
+use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, FlatFileValue, ReqType, SecType};
 
 use crate::{runtime, to_napi_err};
 
@@ -74,7 +72,7 @@ fn pull_decoded(
     let tdx = Arc::clone(tdx);
     let date = date.to_string();
     runtime()
-        .block_on(async move { tdx.flatfile_request_decoded(sec, req, &date).await })
+        .block_on(async move { tdx.flatfile_request_decoded(sec, req, &date).await }) // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
         .map_err(to_napi_err)
 }
 
@@ -279,9 +277,7 @@ impl ThetaDataDxClient {
         let tdx = Arc::clone(&self.tdx);
         let path_buf = std::path::PathBuf::from(path);
         let final_path = runtime()
-            .block_on(async move {
-                tdx.flatfile_request(sec, req, &date, &path_buf, fmt).await
-            })
+            .block_on(async move { tdx.flatfile_request(sec, req, &date, &path_buf, fmt).await }) // VOCAB-OK: tokio Runtime::block_on in NAPI bridge
             .map_err(to_napi_err)?;
         Ok(final_path.to_string_lossy().into_owned())
     }

@@ -35,7 +35,6 @@ use std::time::Duration;
 use bytes::{BufMut, BytesMut};
 use futures_core::Stream;
 use h2::RecvStream;
-use pin_project_lite::pin_project;
 use tokio::time::{Instant, Sleep};
 
 use super::channel::{classify_h2_error_ref, ChannelError, ReconnectHandle};
@@ -48,57 +47,61 @@ use super::status::Status;
 /// allocation-free.
 type BoxedSleep = Pin<Box<Sleep>>;
 
-pin_project! {
-    /// `Stream<Item = Result<Resp, ChannelError>>` over an h2 response body.
-    ///
-    /// Yields one decoded `Resp` per poll, then `Ok(Status)` translated
-    /// to either stream-end (status OK) or [`ChannelError::Rpc`] (status
-    /// non-OK). After the terminating poll, the stream returns `None`.
-    pub struct ServerStreaming<Resp> {
-        // `Some` for a normal response with an open body; `None` for a
-        // trailers-only OK response (no DATA frames, no trailers HEADERS
-        // frame) where the caller already classified the status from
-        // the initial HEADERS and just needs a stream that yields
-        // nothing. `RecvStream` is `Unpin` (its public `poll_data` /
-        // `poll_trailers` take `&mut self`), so the field itself does
-        // not need pin projection.
-        body: Option<RecvStream>,
-        codec: Codec<(), Resp>,
-        // Accumulator for bytes that have arrived but not yet been
-        // assembled into a full length-prefixed frame.
-        buf: BytesMut,
-        // Once the body has been observed to end, the next poll awaits
-        // and parses the trailers exactly once. `state` keeps that
-        // contract explicit instead of buried in a sentinel field.
-        state: StreamState,
-        // Optional per-call deadline. When `Some`, the boxed `Sleep`
-        // is polled alongside the body each iteration; on elapse, the
-        // stream surfaces `ChannelError::DeadlineExceeded` and closes.
-        // Boxing keeps `ServerStreaming` `Unpin` so callers can drive
-        // it via `StreamExt::next` without manual pinning.
-        deadline: Option<BoxedSleep>,
-        deadline_duration_ms: u64,
-        // Drop guard for the channel's in-flight stream counter. Held
-        // here so the counter decrements exactly when this stream
-        // ends — whether by exhaustion, by an error, or by cancel
-        // (drop). The pool reads the counter to skip saturated
-        // channels.
-        in_flight_token: Option<super::channel::InFlightToken>,
-        // Decoder ring this stream's chunks route through for the
-        // heavy zstd + protobuf decode. Set to the channel's
-        // attached handle at request dispatch; remains `None` for
-        // channels constructed without a decoder pool (unit-test
-        // paths), in which case consumers fall back to inline
-        // decode on the caller's tokio task.
-        decoder: Option<DecoderHandle>,
-        // Reconnect handle on the source channel. When the streaming
-        // poll observes `ChannelError::ConnectionClosed` the handle's
-        // `.trigger()` kicks the channel into a fresh h2 session
-        // (single-flight, bounded backoff). `None` for streams
-        // constructed without a source channel (`already_closed`,
-        // unit-test fixtures); production paths always wire one in.
-        reconnect: Option<ReconnectHandle>,
-    }
+/// `Stream<Item = Result<Resp, ChannelError>>` over an h2 response body.
+///
+/// Yields one decoded `Resp` per poll, then `Ok(Status)` translated
+/// to either stream-end (status OK) or [`ChannelError::Rpc`] (status
+/// non-OK). After the terminating poll, the stream returns `None`.
+///
+/// Every field is `Unpin` (`RecvStream` exposes `&mut self` polls; the
+/// deadline `Sleep` lives behind `Pin<Box<Sleep>>`, which is itself
+/// `Unpin`). The struct is therefore auto-`Unpin` and `poll_next` takes
+/// the inner reference via `Pin::get_mut` rather than a pin-projection
+/// macro.
+pub struct ServerStreaming<Resp> {
+    // `Some` for a normal response with an open body; `None` for a
+    // trailers-only OK response (no DATA frames, no trailers HEADERS
+    // frame) where the caller already classified the status from
+    // the initial HEADERS and just needs a stream that yields
+    // nothing. `RecvStream` is `Unpin` (its public `poll_data` /
+    // `poll_trailers` take `&mut self`), so the field itself does
+    // not need pin projection.
+    body: Option<RecvStream>,
+    codec: Codec<(), Resp>,
+    // Accumulator for bytes that have arrived but not yet been
+    // assembled into a full length-prefixed frame.
+    buf: BytesMut,
+    // Once the body has been observed to end, the next poll awaits
+    // and parses the trailers exactly once. `state` keeps that
+    // contract explicit instead of buried in a sentinel field.
+    state: StreamState,
+    // Optional per-call deadline. When `Some`, the boxed `Sleep`
+    // is polled alongside the body each iteration; on elapse, the
+    // stream surfaces `ChannelError::DeadlineExceeded` and closes.
+    // Boxing keeps `ServerStreaming` `Unpin` so callers can drive
+    // it via `StreamExt::next` without manual pinning.
+    deadline: Option<BoxedSleep>,
+    deadline_duration_ms: u64,
+    // Drop guard for the channel's in-flight stream counter. Held
+    // here so the counter decrements exactly when this stream
+    // ends — whether by exhaustion, by an error, or by cancel
+    // (drop). The pool reads the counter to skip saturated
+    // channels.
+    in_flight_token: Option<super::channel::InFlightToken>,
+    // Decoder ring this stream's chunks route through for the
+    // heavy zstd + protobuf decode. Set to the channel's
+    // attached handle at request dispatch; remains `None` for
+    // channels constructed without a decoder pool (unit-test
+    // paths), in which case consumers fall back to inline
+    // decode on the caller's tokio task.
+    decoder: Option<DecoderHandle>,
+    // Reconnect handle on the source channel. When the streaming
+    // poll observes `ChannelError::ConnectionClosed` the handle's
+    // `.trigger()` kicks the channel into a fresh h2 session
+    // (single-flight, bounded backoff). `None` for streams
+    // constructed without a source channel (`already_closed`,
+    // unit-test fixtures); production paths always wire one in.
+    reconnect: Option<ReconnectHandle>,
 }
 
 /// State machine for [`ServerStreaming::poll_next`].
@@ -298,7 +301,10 @@ where
     type Item = Result<Resp, ChannelError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
+        // SAFETY: every field of `ServerStreaming` is `Unpin` (see the
+        // struct docstring), so the type is auto-`Unpin` and
+        // `Pin::get_mut` is sound — no pin-projection macro needed.
+        let this = self.get_mut();
 
         loop {
             // Drain any frames that already fit in the accumulator
@@ -315,8 +321,8 @@ where
             // the success branch (Bytes::split_to is refcounted, zero-
             // copy), and stays inside the accumulator on the
             // need-more-bytes branch.
-            if *this.state != StreamState::Closed {
-                match peek_frame_length(this.buf, this.codec.max_message_size()) {
+            if this.state != StreamState::Closed {
+                match peek_frame_length(&this.buf, this.codec.max_message_size()) {
                     Ok(Some(frame_len)) => {
                         // Full frame already buffered — detach exactly
                         // `frame_len` bytes (refcount-only, no copy),
@@ -334,7 +340,7 @@ where
                                 // returned `Some` so the codec has the
                                 // bytes it needs. Defensive: surface
                                 // an internal error.
-                                *this.state = StreamState::Closed;
+                                this.state = StreamState::Closed;
                                 return Poll::Ready(Some(Err(ChannelError::Codec(
                                     super::codec::CodecError::Decode(
                                         "internal: codec returned None on a sized frame".into(),
@@ -342,7 +348,7 @@ where
                                 ))));
                             }
                             Err(e) => {
-                                *this.state = StreamState::Closed;
+                                this.state = StreamState::Closed;
                                 return Poll::Ready(Some(Err(e.into())));
                             }
                         }
@@ -351,7 +357,7 @@ where
                         // Need more bytes — fall through to body poll.
                     }
                     Err(e) => {
-                        *this.state = StreamState::Closed;
+                        this.state = StreamState::Closed;
                         return Poll::Ready(Some(Err(e.into())));
                     }
                 }
@@ -361,12 +367,12 @@ where
             // body/trailers state machine. The deadline applies to the
             // entire RPC — request, body, trailers — so we test it
             // once per outer iteration.
-            if *this.state != StreamState::Closed {
+            if this.state != StreamState::Closed {
                 if let Some(sleep) = this.deadline.as_mut() {
                     if sleep.as_mut().poll(cx).is_ready() {
-                        *this.state = StreamState::Closed;
+                        this.state = StreamState::Closed;
                         return Poll::Ready(Some(Err(ChannelError::DeadlineExceeded {
-                            duration_ms: *this.deadline_duration_ms,
+                            duration_ms: this.deadline_duration_ms,
                         })));
                     }
                 }
@@ -379,7 +385,7 @@ where
                 return Poll::Ready(None);
             };
 
-            match *this.state {
+            match this.state {
                 StreamState::Receiving => match body.poll_data(cx) {
                     Poll::Ready(Some(Ok(data))) => {
                         // h2 flow-control accounting — release the
@@ -391,7 +397,7 @@ where
                         continue;
                     }
                     Poll::Ready(Some(Err(e))) => {
-                        *this.state = StreamState::Closed;
+                        this.state = StreamState::Closed;
                         let classified = classify_h2_error_ref(&e);
                         if matches!(classified, ChannelError::ConnectionClosed(_)) {
                             // Connection-level death observed mid-stream.
@@ -412,7 +418,7 @@ where
                         // violation — surface it after the trailer
                         // step so the caller sees the trailer state
                         // even on a short body.
-                        *this.state = StreamState::AwaitingTrailers;
+                        this.state = StreamState::AwaitingTrailers;
                         continue;
                     }
                     Poll::Pending => return Poll::Pending,
@@ -426,7 +432,7 @@ where
                     // always `Closed`.
                     match body.poll_trailers(cx) {
                         Poll::Ready(Ok(Some(trailers))) => {
-                            *this.state = StreamState::Closed;
+                            this.state = StreamState::Closed;
                             // If the accumulator still has bytes, the
                             // server closed mid-frame.
                             if !this.buf.is_empty() {
@@ -453,13 +459,13 @@ where
                             // didn't classify the head — the only
                             // truthful classification we can offer
                             // here is `StatusParse::Missing`.
-                            *this.state = StreamState::Closed;
+                            this.state = StreamState::Closed;
                             return Poll::Ready(Some(Err(ChannelError::StatusParse(
                                 super::status::StatusParseError::Missing,
                             ))));
                         }
                         Poll::Ready(Err(e)) => {
-                            *this.state = StreamState::Closed;
+                            this.state = StreamState::Closed;
                             let classified = classify_h2_error_ref(&e);
                             if matches!(classified, ChannelError::ConnectionClosed(_)) {
                                 // Trailers-phase ConnectionClosed gets

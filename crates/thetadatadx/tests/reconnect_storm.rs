@@ -127,7 +127,7 @@ fn reconnect_storm_preserves_framing_invariants() {
                                 FpssControl::LoginSuccess { .. } => cycle_logins += 1,
                                 FpssControl::Disconnected { .. } => cycle_disconnects += 1,
                                 FpssControl::ContractAssigned { id, contract } => {
-                                    cycle_contracts.push((cycle, contract.symbol.clone()));
+                                    cycle_contracts.push((cycle, contract.symbol.to_string()));
                                     assert_eq!(
                                         *id, 1,
                                         "fixture invariant: contract id is stable across cycles"

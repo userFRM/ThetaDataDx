@@ -5,11 +5,11 @@
 # `build_eod_greeks_fixtures` example so the parser regression test
 # can round-trip the exact 43-column wire shape without a live
 # terminal. The header list, row count, and first-row values are
-# pinned against captured CSV row 1 verbatim. The v10 `GreeksAllTick`
+# pinned against captured CSV row 1 verbatim. An earlier `GreeksAllTick`
 # routing dropped the twelve EOD trade/quote columns (`open`,
 # `high`, `low`, `close`, `volume`, `count`, `bid_size`,
 # `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`,
-# `ask_condition`); v11 restores the full schema.
+# `ask_condition`); the current schema restores the full.
 
 endpoint = "option_history_greeks_eod"
 tick_type = "GreeksEodTick"
@@ -35,7 +35,7 @@ first_row_expiration = 20240621
 first_row_strike = 500.0
 first_row_right = 67  # ASCII 'C'
 
-# Twelve EOD trade/quote columns -- the data the v10 routing dropped.
+# Twelve EOD trade/quote columns -- the data the earlier routing dropped.
 # Pinning each here catches any regression that reverts the endpoint
 # back to the bare `GreeksAllTicks` collection.
 first_row_open = 41.71

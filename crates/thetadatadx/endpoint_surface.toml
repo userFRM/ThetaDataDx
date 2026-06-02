@@ -1487,7 +1487,6 @@ vendor_docstring = """
 """
 rest_path = "/v3/option/history/quote"
 returns = "QuoteTicks"
-transport = "both"
 
 [[endpoints]]
 name = "option_history_trade_quote"
@@ -1501,7 +1500,6 @@ vendor_docstring = """
 """
 rest_path = "/v3/option/history/trade_quote"
 returns = "TradeQuoteTicks"
-transport = "both"
 
 [[endpoints]]
 name = "option_history_open_interest"
@@ -1565,7 +1563,6 @@ vendor_docstring = """
 """
 rest_path = "/v3/option/history/greeks/first_order"
 returns = "GreeksFirstOrderTicks"
-transport = "both"
 
 [[endpoints]]
 name = "option_history_trade_greeks_first_order"
@@ -1643,7 +1640,6 @@ vendor_docstring = """
 """
 rest_path = "/v3/option/history/greeks/implied_volatility"
 returns = "IvTicks"
-transport = "both"
 
 [[endpoints]]
 name = "option_history_trade_greeks_implied_volatility"

@@ -14,8 +14,8 @@
 //!     |
 //! thetadatadx-server (this binary)
 //!     |
-//!     |--- MddsClient (MDDS gRPC) for historical data
-//!     |--- FpssClient (FPSS TCP) for real-time streaming
+//!     |--- MddsClient (MDDS historical) for historical data
+//!     |--- FpssClient (FPSS streaming) for real-time streaming
 //!     |
 //! ThetaData upstream servers
 //! ```
@@ -111,7 +111,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     // Generate a random shutdown token and print it.
-    let shutdown_token = uuid::Uuid::new_v4().to_string();
+    let shutdown_token = {
+        let bytes: [u8; 16] = rand::random();
+        bytes.iter().fold(String::with_capacity(32), |mut s, b| {
+            use std::fmt::Write;
+            let _ = write!(s, "{b:02x}");
+            s
+        })
+    };
 
     // Startup banner matching the Java terminal style.
     let version = env!("CARGO_PKG_VERSION");

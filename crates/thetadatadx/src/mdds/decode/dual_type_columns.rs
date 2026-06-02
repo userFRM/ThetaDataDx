@@ -255,6 +255,11 @@ pub const CALENDAR_STATUS_OPEN: i32 = 0;
 pub const CALENDAR_STATUS_EARLY_CLOSE: i32 = 1;
 pub const CALENDAR_STATUS_FULL_CLOSE: i32 = 2;
 pub const CALENDAR_STATUS_WEEKEND: i32 = 3;
+// `CALENDAR_STATUS_UNKNOWN` is retained for workspace bindings that need to
+// label synthesised / gap-fill data locally; the decoder itself never emits
+// it (unknown text surfaces as `DecodeError::UnknownEnumVariant`). Gate on
+// `__internal` because it has no crate-internal callers.
+#[cfg(feature = "__internal")]
 pub const CALENDAR_STATUS_UNKNOWN: i32 = -1;
 
 /// Map a v3 calendar `type` text to `(is_open, status)`.

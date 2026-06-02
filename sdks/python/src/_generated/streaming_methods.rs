@@ -16,7 +16,7 @@ pub(crate) const PYTHON_UNIFIED_FPSS_METHODS: &[&str] = &[
 impl ThetaDataDxClient {
     /// Start FPSS streaming and register a Python callback for incoming events.
     ///
-    /// The LMAX Disruptor consumer thread acquires the GIL
+    /// The dispatcher thread acquires the GIL
     /// via `Python::attach` to call `callback(event)` for
     /// every typed FPSS event, with each invocation wrapped
     /// in `catch_unwind`. `callback` must accept exactly one
@@ -32,7 +32,7 @@ impl ThetaDataDxClient {
     /// accounted on the `thetadatadx.fpss.decode_failures` metric.
     ///
     /// Events flow from the FPSS reader thread into the
-    /// LMAX Disruptor ring (`Producer::try_publish`) and out
+    /// streaming ring (`Producer::try_publish`) and out
     /// to the consumer thread that runs `callback`. The
     /// reader never blocks on user code; if the callback
     /// falls behind, ring-overflow events are dropped and
@@ -64,19 +64,27 @@ impl ThetaDataDxClient {
         // a reference-count lifetime aid.
         let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
         let dispatch_cb = Arc::clone(&callback_arc);
+        // Capture a clone of the Rust client so the dispatcher closure can
+        // call `record_panic()` when the Python callback raises an exception.
+        // A `PyErr` is not a Rust panic; it does not unwind through
+        // `catch_unwind`, so the core counter is only bumped here.
+        let panic_recorder = Arc::clone(&self.tdx);
 
         self.tdx
             .start_streaming(move |event: &fpss::FpssEvent| {
-                // Acquire the GIL on the LMAX Disruptor consumer thread
+                // Acquire the GIL on the dispatcher thread
                 // to call into Python. The consumer is not the FPSS TLS
                 // reader thread; a slow Python callback at most fills
-                // the Disruptor ring and bumps `dropped_event_count()`,
+                // the streaming ring and bumps `dropped_event_count()`,
                 // it cannot back-pressure the TLS reader and trigger a
                 // vendor-side disconnect. The core SDK wraps the user
-                // callback in `catch_unwind`, so a Python panic is
+                // callback in `catch_unwind`, so a Rust panic is
                 // counted on `panic_count()` and written to
                 // `sys.stderr` via `PyErr::write_unraisable` rather
-                // than killing the consumer.
+                // than killing the consumer. Python exceptions raised by
+                // the callback are caught via `call1` returning `Err`
+                // and are also counted on `panic_count()` via
+                // `panic_recorder.record_panic()` below.
                 Python::attach(|py| {
                     let buffered = fpss_event_to_buffered(event);
                     let typed = match buffered_event_to_typed(py, &buffered) {
@@ -93,12 +101,13 @@ impl ThetaDataDxClient {
                     };
                     if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                         err.write_unraisable(py, None);
+                        panic_recorder.record_panic();
                     }
                 });
             })
             .map_err(to_py_err)?;
 
-        // The Disruptor consumer closure already captured a clone of
+        // The dispatcher closure already captured a clone of
         // `callback_arc` (via `dispatch_cb`), so the Arc ref-count is
         // guaranteed >=2 by the time we reach this line — `try_unwrap`
         // would always fail. Lift a fresh owned handle under the GIL
@@ -170,6 +179,7 @@ impl ThetaDataDxClient {
         };
         let callback_arc: Arc<Py<PyAny>> = Arc::new(stored);
         let dispatch_cb = Arc::clone(&callback_arc);
+        let panic_recorder = Arc::clone(&self.tdx);
 
         self.tdx
             .reconnect_streaming(move |event: &fpss::FpssEvent| {
@@ -184,6 +194,7 @@ impl ThetaDataDxClient {
                     };
                     if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                         err.write_unraisable(py, None);
+                        panic_recorder.record_panic();
                     }
                 });
             })
@@ -191,7 +202,7 @@ impl ThetaDataDxClient {
 
         // Replace the stored callable with a freshly owned handle so
         // the next reconnect / shutdown sees the same state shape.
-        // The Disruptor consumer closure already captured a clone of
+        // The dispatcher closure already captured a clone of
         // `callback_arc` (via `dispatch_cb`); the ref-count is >=2
         // here so `try_unwrap` would always fail.
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
@@ -202,8 +213,8 @@ impl ThetaDataDxClient {
     /// Stop streaming while keeping the historical client usable.
     ///
     /// Clears the registered callback. To resume streaming, call `start_streaming(callback)` again with a freshly bound callable -- `reconnect()` will fail because no callback is held. See the `reconnect` docs for the rationale (explicit-handoff model shared with the C++ RAII wrapper and the Python `with`-block `__exit__`; the unified C API keeps the callback by design, but the high-level bindings clear it deliberately).
-    pub(crate) fn stop_streaming(&self) {
-        self.tdx.stop_streaming();
+    pub(crate) fn stop_streaming(&self, py: Python<'_>) {
+        py.detach(|| self.tdx.stop_streaming());
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
@@ -211,8 +222,8 @@ impl ThetaDataDxClient {
     /// Shut down the FPSS streaming connection.
     ///
     /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as `stop_streaming`); a subsequent `reconnect()` will fail until the caller re-registers via `start_streaming(callback)`. The C++ binding preserves the unified C API's behaviour.
-    pub(crate) fn shutdown(&self) {
-        self.tdx.stop_streaming();
+    pub(crate) fn shutdown(&self, py: Python<'_>) {
+        py.detach(|| self.tdx.stop_streaming());
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }

@@ -18,10 +18,9 @@ use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, WebPkiSuppo
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, SignatureScheme};
 use sha2::{Digest, Sha256};
-use subtle::ConstantTimeEq;
 use x509_parser::prelude::*;
 
-use crate::fpss::pinning::FPSS_SPKI_SHA256;
+use crate::fpss::pinning::{ct_eq_bytes, FPSS_SPKI_SHA256};
 
 /// Hostnames we will connect to for MDDS legacy.
 pub(crate) const ALLOWED_MDDS_HOSTS: &[&str] = &["nj-a.thetadata.us", "nj-b.thetadata.us"];
@@ -79,7 +78,7 @@ impl ServerCertVerifier for MddsSpkiVerifier {
         let spki_der = parsed.tbs_certificate.subject_pki.raw;
         let digest: [u8; 32] = Sha256::digest(spki_der).into();
 
-        if digest.ct_eq(&FPSS_SPKI_SHA256).unwrap_u8() != 1 {
+        if !ct_eq_bytes(&digest, &FPSS_SPKI_SHA256) {
             return Err(rustls::Error::General(
                 "MDDS server SPKI does not match pinned ThetaData keypair".to_string(),
             ));

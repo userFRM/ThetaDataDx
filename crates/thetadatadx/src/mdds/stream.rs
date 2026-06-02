@@ -13,7 +13,7 @@
 //!   Used by the generated streaming builders and public enough for callers
 //!   processing multi-million-row responses.
 
-use tokio_stream::StreamExt;
+use crate::util::stream_ext::StreamNextExt;
 
 use crate::decode;
 use crate::error::Error;

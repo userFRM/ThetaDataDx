@@ -58,6 +58,10 @@ thread_local! {
 /// Returns [`Error::Decompress`] if the compression algorithm is
 /// unknown, `original_size` exceeds the default ceiling, or zstd
 /// decompression fails.
+///
+/// Only compiled under `__internal` — workspace bindings call this
+/// directly. Crate-internal code uses `decompress_response_with_max`.
+#[cfg(feature = "__internal")]
 pub fn decompress_response(response: &mut proto::ResponseData) -> Result<Vec<u8>, Error> {
     decompress_response_with_max(response, crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE)
 }
@@ -153,7 +157,7 @@ pub fn decompress_response_with_max(
 
 /// Decode a `ResponseData` into a `DataTable` (legacy signature;
 /// uses the crate's built-in default per-frame ceiling). Kept on the
-/// public API for backwards compatibility with v10.0.x consumers; new
+/// public API for backwards compatibility with earlier consumers; new
 /// callers should prefer [`decode_data_table_with_max`].
 ///
 /// # Errors
@@ -161,6 +165,10 @@ pub fn decompress_response_with_max(
 /// Returns [`Error::Decompress`] if decompression fails (including
 /// `original_size > DEFAULT_MAX_MESSAGE_SIZE`) or [`Error::Decode`]
 /// if protobuf deserialization fails.
+///
+/// Only compiled under `__internal` — workspace bindings call this
+/// directly. Crate-internal code uses `decode_data_table_with_max`.
+#[cfg(feature = "__internal")]
 pub fn decode_data_table(response: &mut proto::ResponseData) -> Result<proto::DataTable, Error> {
     decode_data_table_with_max(response, crate::grpc::codec::DEFAULT_MAX_MESSAGE_SIZE)
 }
@@ -193,7 +201,7 @@ mod r1_tests {
     use super::*;
     use crate::error::DecompressErrorKind;
 
-    /// R1 [BLOCKER] proof: a hostile `ResponseData.original_size`
+    /// Proof: a hostile `ResponseData.original_size`
     /// larger than `max_message_size` returns a typed
     /// `MessageTooLarge` error BEFORE any allocation runs. Pinned at
     /// 2 GiB advertised vs 4 MiB ceiling — historically this triggered

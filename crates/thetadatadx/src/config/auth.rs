@@ -8,6 +8,7 @@ pub const DEFAULT_CLIENT_TYPE: &str = "rust-thetadatadx";
 
 /// Nexus authentication endpoint + client identifier.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct AuthConfig {
     /// Nexus auth URL. Default matches the upstream production endpoint; set
     /// [`crate::config::ENV_NEXUS_URL`] to redirect at a staging cluster.

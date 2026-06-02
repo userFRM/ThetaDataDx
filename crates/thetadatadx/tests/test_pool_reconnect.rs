@@ -152,7 +152,7 @@ async fn rpc_once(channel: &Channel) -> Result<(), ChannelError> {
         Ok(s) => s,
         Err(e) => return Err(e),
     };
-    use tokio_stream::StreamExt;
+    use futures::StreamExt;
     let mut stream = std::pin::pin!(stream);
     while let Some(item) = stream.next().await {
         item?;

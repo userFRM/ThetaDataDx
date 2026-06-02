@@ -111,7 +111,7 @@ let new_client = fpss::reconnect(
 )?;
 ```
 
-This is the Rust equivalent of Java's `FPSSClient.handleInvoluntaryDisconnect()`. It waits the specified delay, connects to a new server, and re-subscribes all previous subscriptions with `req_id = -1`.
+Waits the specified delay, connects to a new streaming server, and re-subscribes all previous subscriptions with `req_id = -1`.
 
 ## `reconnect_delay()`
 
@@ -143,7 +143,7 @@ Permanent disconnects indicate a problem that will not resolve by retrying:
 - **Code 17, 18** -- Server-side permanent errors
 
 ::: warning
-Unlike the Java terminal (which only treats `AccountAlreadyConnected` as permanent), ThetaDataDx treats all 7 credential/account error codes as permanent. No amount of retrying will fix bad credentials.
+ThetaDataDx treats all 7 credential/account error codes as permanent. No amount of retrying will fix bad credentials.
 :::
 
 ### Rate-Limited Disconnect
@@ -214,26 +214,26 @@ def shutdown_handler(sig, frame):
 
 signal.signal(signal.SIGINT, shutdown_handler)
 
-# Subscribe to multiple streams via the unified contract-first API.
-tdx.subscribe(Contract.stock("AAPL").quote())
-tdx.subscribe(Contract.stock("AAPL").trade())
-tdx.subscribe(Contract.stock("MSFT").quote())
+# Push-callback delivery via the `streaming(callback)` context
+# manager. The `with` block pairs `stop_streaming()` + `await_drain()`
+# on exit so the consumer thread has finished firing `on_event`
+# before the scope returns.
+def on_event(event):
+    if event.kind == "quote":
+        print(f"[QUOTE] {event.contract.symbol}: bid={event.bid} ask={event.ask} "
+              f"rx={event.received_at_ns}ns")
+    elif event.kind == "trade":
+        print(f"[TRADE] {event.contract.symbol}: price={event.price} size={event.size} "
+              f"rx={event.received_at_ns}ns")
+    elif event.kind == "disconnected":
+        print(f"Disconnected: reason={event.reason}")
 
-# Pull-iter mode: context-managed typed iterator over the SPSC
-# queue. The iterator raises StopIteration on terminal end-of-stream
-# so the for-loop exits cleanly when the shutdown handler fires; the
-# `with` block pairs `stop_streaming()` + `await_drain()` on exit.
-with tdx.streaming_iter() as it:
-    for event in it:
-        if event.kind == "quote":
-            print(f"[QUOTE] {event.contract.symbol}: bid={event.bid} ask={event.ask} "
-                  f"rx={event.received_at_ns}ns")
-        elif event.kind == "trade":
-            print(f"[TRADE] {event.contract.symbol}: price={event.price} size={event.size} "
-                  f"rx={event.received_at_ns}ns")
-        elif event.kind == "disconnected":
-            print(f"Disconnected: reason={event.reason}")
-            break
+with tdx.streaming(on_event):
+    tdx.subscribe(Contract.stock("AAPL").quote())
+    tdx.subscribe(Contract.stock("AAPL").trade())
+    tdx.subscribe(Contract.stock("MSFT").quote())
+    import time
+    time.sleep(60)
 ```
 ```cpp [C++]
 #include "thetadx.hpp"
@@ -245,46 +245,39 @@ int main() {
 
     auto client = tdx::UnifiedClient::connect(creds, config);
 
-    // Subscribe via the unified contract-first API.
-    client.subscribe(tdx::Contract::stock("AAPL").quote());
-    client.subscribe(tdx::Contract::stock("AAPL").trade());
-    client.subscribe(tdx::Contract::stock("MSFT").trade());
-
-    // Pull-iter mode: typed iterator over the SPSC queue. `iter.ended()`
-    // flips to true on terminal end-of-stream so the loop exits cleanly.
-    auto iter = client.start_streaming_iter();
-    while (!iter.ended()) {
-        auto event = iter.next(std::chrono::milliseconds(5000));
-        if (!event) {
-            continue;
-        }
-
-        switch (event->kind) {
+    // Typed control variants — one C struct per FpssControl::*
+    // Rust variant. Dispatch on event.kind, read the matching
+    // event.<variant> payload.
+    client.set_callback([](const tdx::FpssEvent& event) {
+        switch (event.kind) {
         case TDX_FPSS_QUOTE: {
-            auto& q = event->quote;
+            auto& q = event.quote;
             std::cout << "[QUOTE] " << q.contract.symbol
                       << " bid=" << q.bid << " ask=" << q.ask
                       << " rx=" << q.received_at_ns << "ns" << std::endl;
             break;
         }
         case TDX_FPSS_TRADE: {
-            auto& t = event->trade;
+            auto& t = event.trade;
             std::cout << "[TRADE] " << t.contract.symbol
                       << " price=" << t.price << " size=" << t.size << std::endl;
             break;
         }
         case TDX_FPSS_DISCONNECTED:
-            // Typed control variants — one C struct per FpssControl::*
-            // Rust variant. Dispatch on event->kind, read the matching
-            // event-><variant> payload.
-            std::cout << "Disconnected: reason=" << event->disconnected.reason
+            std::cout << "Disconnected: reason=" << event.disconnected.reason
                       << std::endl;
             break;
         default:
             break;
         }
-    }
+    });
 
+    // Subscribe via the unified contract-first API.
+    client.subscribe(tdx::Contract::stock("AAPL").quote());
+    client.subscribe(tdx::Contract::stock("AAPL").trade());
+    client.subscribe(tdx::Contract::stock("MSFT").trade());
+
+    // ... let the callback run ...
     client.stop_streaming();
 }
 ```

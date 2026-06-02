@@ -8,12 +8,15 @@ use super::cell::{
 use super::dual_type_columns::{
     parse_calendar_days_v3, parse_iso_date, parse_option_contracts_v3, parse_time_text,
 };
+#[cfg(feature = "__internal")]
 use super::dual_type_columns::{
     CALENDAR_STATUS_EARLY_CLOSE, CALENDAR_STATUS_FULL_CLOSE, CALENDAR_STATUS_OPEN,
     CALENDAR_STATUS_WEEKEND,
 };
+#[cfg(feature = "__internal")]
+use super::extract_number_column;
 use super::{
-    extract_number_column, parse_eod_ticks, parse_greeks_all_ticks, parse_greeks_first_order_ticks,
+    parse_eod_ticks, parse_greeks_all_ticks, parse_greeks_first_order_ticks,
     parse_greeks_second_order_ticks, parse_greeks_third_order_ticks, parse_quote_ticks,
     parse_trade_ticks, DecodeError,
 };
@@ -235,6 +238,7 @@ fn null_cells_dont_corrupt_trade_ticks() {
     assert_eq!(tick.date, 20240301);
 }
 
+#[cfg(feature = "__internal")]
 #[test]
 fn extract_number_column_returns_none_for_null() {
     let table = proto::DataTable {
@@ -426,6 +430,7 @@ fn row_number_i64_max_in_range_price_fits_i64() {
     );
 }
 
+#[cfg(feature = "__internal")]
 #[test]
 fn parse_calendar_v3_holiday() {
     // Simulate calendar_year response for a holiday (full_close).
@@ -449,6 +454,7 @@ fn parse_calendar_v3_holiday() {
     assert_eq!(d.status, CALENDAR_STATUS_FULL_CLOSE);
 }
 
+#[cfg(feature = "__internal")]
 #[test]
 fn parse_calendar_v3_open_day() {
     // Simulate calendar_on_date response for a regular trading day.
@@ -472,6 +478,7 @@ fn parse_calendar_v3_open_day() {
     assert_eq!(d.status, CALENDAR_STATUS_OPEN);
 }
 
+#[cfg(feature = "__internal")]
 #[test]
 fn parse_calendar_v3_early_close() {
     // Simulate an early close day (day after Thanksgiving).
@@ -495,6 +502,7 @@ fn parse_calendar_v3_early_close() {
     assert_eq!(d.status, CALENDAR_STATUS_EARLY_CLOSE);
 }
 
+#[cfg(feature = "__internal")]
 #[test]
 fn parse_calendar_v3_weekend() {
     let table = proto::DataTable {
@@ -1355,7 +1363,7 @@ fn quote_tick_decodes_current_eleven_field_shape_unchanged() {
     assert_eq!(t.date, 20_240_605);
 }
 
-// ─────────────────── SERIOUS #2: invalid-text propagation ───────────────────
+// ─────────────────── Invalid-text propagation ───────────────────
 //
 // Malformed date / time text surfaces as `DecodeError::InvalidDate`
 // or `DecodeError::InvalidTime` with the raw payload captured.

@@ -1,10 +1,10 @@
-//! LMAX Disruptor ring buffer for lock-free FPSS event dispatch.
+//! Pre-allocated ring buffer for lock-free FPSS event dispatch.
 //!
 //! # Architecture
 //!
 //! ```text
 //!  +--------------------+                  +--------------------+
-//!  | Blocking TLS       |  publish()       | Disruptor Ring     |
+//!  | Blocking TLS       |  publish()       | Event Ring         |
 //!  | read thread        |----------------->| (pre-allocated,    |
 //!  | (std::thread)      |                  |  lock-free SPSC)   |
 //!  +--------------------+                  +---------+----------+
@@ -17,10 +17,10 @@
 //!                                          +--------------------+
 //! ```
 //!
-//! Pipeline: blocking TLS `read` -> Disruptor ring -> user's
+//! Pipeline: blocking TLS `read` -> event ring -> user's
 //! `FnMut(&FpssEvent)` callback.
 //!
-//! No tokio, no channels, no async. The blocking read thread IS the Disruptor
+//! No tokio, no channels, no async. The blocking read thread IS the ring
 //! producer. Events are pre-allocated in the ring buffer (zero allocation on
 //! the hot path), and the single-producer barrier uses a plain store (no CAS).
 //!
@@ -37,9 +37,8 @@
 //!
 //! # Wait Strategy
 //!
-//! [`AdaptiveWaitStrategy`] implements a three-phase wait inspired by LMAX Disruptor's
-//! `PhasedBackoffWaitStrategy` and tuned for FPSS tick intervals (~100us during active
-//! trading).
+//! [`AdaptiveWaitStrategy`] implements a three-phase wait tuned for FPSS tick
+//! intervals (~100us during active trading).
 
 use std::hint;
 use std::thread;
@@ -48,7 +47,7 @@ use disruptor::Sequence;
 
 use super::events::FpssEventInternal;
 
-/// Adaptive wait strategy inspired by LMAX Disruptor's `PhasedBackoffWaitStrategy`.
+/// Adaptive wait strategy for the FPSS event ring consumer.
 ///
 /// Three phases:
 /// 1. **Spin** -- busy-wait for `spin_iters` iterations (lowest latency, highest CPU)
@@ -78,9 +77,8 @@ impl AdaptiveWaitStrategy {
 
     /// Tuned for FPSS: 100 spins + 10 yields before falling back to `spin_loop` hint.
     ///
-    /// At ~3ns per spin iteration, 100 spins = ~300ns -- well within the typical
-    /// FPSS tick interval. This matches the Java terminal's Disruptor configuration
-    /// for real-time market data processing.
+    /// At ~3ns per spin iteration, 100 spins = ~300ns — well within the typical
+    /// FPSS tick interval (~100us during active trading).
     #[must_use]
     pub fn fpss_default() -> Self {
         Self::new(100, 10)
@@ -107,7 +105,7 @@ impl disruptor::wait_strategies::WaitStrategy for AdaptiveWaitStrategy {
 // Ring event -- the pre-allocated slot in the disruptor ring buffer
 // ---------------------------------------------------------------------------
 
-/// FPSS event stored in the disruptor ring buffer.
+/// FPSS event stored in the event ring buffer.
 ///
 /// Slots are pre-allocated by the ring buffer and reused. The `event`
 /// field is an [`FpssEventInternal`] — its `Empty` variant marks an
@@ -304,7 +302,7 @@ mod tests {
             FpssEvent::Data(FpssData::Quote {
                 contract, bid, ask, ..
             }) => {
-                assert_eq!(contract.symbol, "AAPL");
+                assert_eq!(&*contract.symbol, "AAPL");
                 // Both sides round-trip exact decimal-ms quotes
                 // (Price::new(15025, 4) and Price::new(15030, 4)) so
                 // an `assert_eq!` is sound and tighter than an

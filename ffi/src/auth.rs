@@ -921,7 +921,7 @@ pub unsafe extern "C" fn tdx_config_set_decoder_ring_size(config: *mut TdxConfig
             return;
         }
         // Same validation as the Rust core's `check_ring_size` plus
-        // the disruptor minimum — surface the rejection here so the
+        // the event ring minimum — surface the rejection here so the
         // FFI caller sees it at the setter rather than at connect.
         if n == 0 || !n.is_power_of_two() {
             set_error(&format!(
@@ -1021,7 +1021,7 @@ pub unsafe extern "C" fn tdx_config_set_decode_queue_depth_explicit(
     })
 }
 
-// ── Legacy n-only ABI (kept for v10 compatibility) ─────────────────
+// ── Legacy n-only ABI (kept for backwards compatibility) ─────────────────
 //
 // `n = 0` maps to `None` (auto-size); `n > 0` maps to `Some(n)`.
 // Callers that need to encode an explicit `Some(0)` should switch

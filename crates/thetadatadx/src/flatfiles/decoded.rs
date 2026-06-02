@@ -21,6 +21,7 @@ use crate::flatfiles::index::{parse_header, IndexIter};
 use crate::flatfiles::request::flatfile_request_raw_with_config;
 use crate::flatfiles::types::{ReqType, SecType};
 use crate::flatfiles::writer::{CsvSink, JsonlSink, RowSink, RowView};
+use crate::util::random_id::random_id_hex;
 
 /// Pull a flat-file blob, decode it, and write the requested format.
 ///
@@ -64,7 +65,7 @@ pub async fn flatfile_request_with_config(
     // Step 2-3: decode + write. The decoder reads + parses the entire
     // blob synchronously and the writer hits the filesystem in tight
     // loops; do that on the blocking pool so we don't stall any other
-    // tokio task (FPSS streaming, MDDS gRPC) on the same runtime.
+    // tokio task (FPSS streaming, MDDS historical) on the same runtime.
     let raw_for_decode = raw_path.clone();
     let final_for_decode = final_path.clone();
     tokio::task::spawn_blocking(move || {
@@ -204,7 +205,7 @@ pub async fn flatfile_request_decoded_with_config(
         sec.as_wire(),
         req_name(req),
         date,
-        uuid::Uuid::new_v4().simple()
+        random_id_hex()
     ));
     flatfile_request_raw_with_config(creds, sec, req, date, &scratch, config).await?;
     let scratch_for_decode = scratch.clone();
