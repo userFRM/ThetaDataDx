@@ -185,7 +185,7 @@ pub struct ThetaDataDxClient {
     /// callback handle. `ThreadsafeFunction` itself does not implement
     /// `Clone` in napi-rs 3.x (its inner `napi_threadsafe_function`
     /// is `Arc`-managed but only exposed through the
-    /// `Arc<ThreadsafeFunctionHandle>` field on the struct), so the
+    /// `Arc<`ThreadsafeFunctionHandle`>` field on the struct), so the
     /// outer `Arc` here is the canonical way to share the handle.
     callback: Mutex<Option<Arc<TsfnCallback>>>,
 }
@@ -251,31 +251,8 @@ include!("_generated/historical_methods.rs");
 // Generated streaming/FPSS methods.
 include!("_generated/streaming_methods.rs");
 
-// Pull-iter delivery. Hand-written napi-rs wrapper around
-// `thetadatadx::EventIterator`. Surfaced as
-// `client.startStreamingIter()` returning an `EventIterator` napi
-// class; the JS side wraps it in `for await (const event of iter)`
-// via `Symbol.asyncIterator` declared in the `index.d.ts` companion.
-include!("event_iterator.rs");
-
-#[napi]
-impl ThetaDataDxClient {
-    /// Start FPSS streaming in pull-iter delivery mode.
-    ///
-    /// Returns an [`EventIterator`] handle whose `next()` resolves
-    /// to the next typed FPSS event or `null` once the streaming
-    /// session has shut down and the residual queue is drained. JS
-    /// callers iterate with `for await (const event of iter)`.
-    ///
-    /// Mutually exclusive with `startStreaming(callback)`. Calling
-    /// either while streaming is already running rejects with
-    /// `"streaming already started"`.
-    #[napi(js_name = "startStreamingIter")]
-    pub fn start_streaming_iter(&self) -> napi::Result<EventIterator> {
-        let inner = self.tdx.start_streaming_iter().map_err(to_napi_err)?;
-        Ok(EventIterator::new(inner))
-    }
-}
+// `startStreaming(cb)` is the sole streaming entry point. Callers that
+// want a for-await shape can wrap a queue inside the callback.
 
 // Hand-written FLATFILES bindings — dynamic schema, see module docs.
 mod flatfile_methods;

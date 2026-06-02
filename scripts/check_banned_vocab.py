@@ -47,6 +47,44 @@ BANNED = [
     "next-generation",
     "next generation",
     "minimum vs complete",
+    # Release-cycle / review-process vocabulary that must not leak
+    # into source comments, docstrings, commit prose, or PR text.
+    # Version numbers in explanatory prose belong only in the
+    # CHANGELOG and release notes (already exempted below).
+    #
+    # Word-boundary matching on the bare tokens catches `v11`,
+    # `v11.0.0`, `(v11)`, `v11-` etc. without needing surrounding
+    # whitespace.
+    "v11",
+    "v12",
+    "codex",
+    "Codex",
+    "CODEX",
+    "BLOCKER",
+    "SERIOUS #",
+    # Cover every round number a future audit cycle might produce
+    # so the gate fires on the next leak without script edits.
+    "round-2",
+    "round-3",
+    "round-4",
+    "round-5",
+    "round-6",
+    "round-7",
+    "round-8",
+    "round-9",
+    "round-10",
+    "round-11",
+    "round-12",
+    # Competitor SDK / vendor names must not appear in client-facing
+    # docs, doc comments, or PR text. Engine-internal source (the
+    # `thetadatadx-engine` crate) is exempted via `EXEMPT_PATHS`
+    # below — engineering benchmarks may reference vendor behaviour
+    # without leaking into the public surface.
+    "databento",
+    "Bloomberg",
+    "blpapi",
+    "Refinitiv",
+    "LSEG",
     # ConnectionClosed regression closure: ban the wrong-cause
     # vocabulary so future PRs cannot reintroduce the misattribution.
     # `cascade` is the noun; `h2-cascade` / `UpstreamCascade` / the
@@ -100,6 +138,9 @@ SCAN_GLOBS = [
     "tools/**/*.toml",
     "tools/**/*.md",
     "docs/**/*.md",
+    "docs-site/**/*.md",
+    "docs-site/**/*.ts",
+    "docs-site/**/*.vue",
     "scripts/**/*.py",
     ".github/**/*.yml",
     "README.md",
@@ -118,6 +159,16 @@ EXEMPT_PATHS = {
     "scripts/check_banned_vocab.py",
     "scripts/__pycache__",
     ".github/release-notes",
+    # The proprietary engine crate (`publish = false`) is internal
+    # source; engineering doc comments inside it may compare against
+    # vendor implementations or quote vendor-named conventions. The
+    # gate fires on the published surface (thin crate, SDK bindings,
+    # READMEs) where those names would leak to consumers.
+    "crates/thetadatadx-engine",
+    # Per-version migration ledgers are append-only artefacts that
+    # name the versions they transition between. They join the
+    # CHANGELOG and release-notes as historical references.
+    "docs-site/docs/migration",
 }
 
 

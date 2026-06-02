@@ -1,7 +1,7 @@
-// Regression coverage for the v11 `InterestRateTick` schema fix.
+// Regression coverage for the `InterestRateTick` schema fix.
 //
 // The upstream v3 server emits 2 columns (`created` as ISO date Text,
-// `rate` as percent Number). The pre-v11 SDK declared 3 fields
+// `rate` as percent Number). The earlier SDK declared 3 fields
 // (`ms_of_day`, `rate`, `date`) and decoded every live response into
 // `column 0: expected Number|Timestamp, got Text`. The fix removed
 // the fictitious `ms_of_day` field and rewired `date` to flow through
@@ -21,7 +21,7 @@
 #include "thetadx.h"
 #include "thetadx.hpp"
 
-TEST_CASE("TdxInterestRateTick has the v11 2-field shape", "[interest_rate][schema][offline]") {
+TEST_CASE("TdxInterestRateTick has the 2-field shape", "[interest_rate][schema][offline]") {
     // The C struct must be 64 bytes total (cache-line aligned) with
     // `date` at offset 0 and `rate` at offset 8. Padding between the
     // i32 and the f64 is 4 bytes; the trailing pad fills to 64.
@@ -41,7 +41,7 @@ TEST_CASE("InterestRateTick wrapper alias resolves to the C ABI struct", "[inter
 }
 
 TEST_CASE("InterestRateTick decodes the SOFR reference row", "[interest_rate][offline]") {
-    // The headline wire dump in the v11 CHANGELOG is the SOFR
+    // The headline wire dump in the CHANGELOG is the SOFR
     // 2025-04-28 row (`date=20250428`, `rate=4.36`). Pin the exact
     // values on a hand-built tick so any future struct-shape drift
     // fails this test before it ships.

@@ -61,7 +61,7 @@ use crate::{Config, Credentials, ThetaDataDxClient};
 /// `FPSS_TOUCHING_METHODS`. Adding a new generator-emitted FPSS method
 /// without also extending this list fails the build, so the block-list
 /// cannot silently fall behind. Hand-written FPSS methods on the unified
-/// pyclass (`subscribe`, `streaming`, `start_streaming_iter`, …) are
+/// pyclass (`subscribe`, `streaming`, …) are
 /// covered by the offline coverage test in
 /// `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`,
 /// which compares the Python-side `BLOCKED_FPSS_METHODS` against the
@@ -95,15 +95,7 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     // `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`
     // pairs every name here with the
     // `mdds_client._blocked_fpss_methods()` introspection helper.
-    "start_streaming_iter",
     "streaming",
-    "streaming_iter",
-    // `streaming_async()` was added by PR #559 (async FD-readiness
-    // surface) and the unified pyclass exposes it hand-written in
-    // `streaming_async_session.rs`. Reaching for it through
-    // `MddsClient` would open the FPSS surface bound to the hidden
-    // inner unified client, so block at the proxy layer.
-    "streaming_async",
 ];
 
 /// `const fn` byte-wise string compare for the compile-time guard

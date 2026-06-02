@@ -71,7 +71,7 @@ client.startStreaming((event) => console.log(event));
 :::
 
 ::: tip
-Every binding offers two equivalent delivery modes on the unified `ThetaDataDxClient`: push (`start_streaming(callback)`) for low-latency dispatch, and pull (`start_streaming_iter()` in Rust/Python/C++, `startStreamingIter()` in TypeScript) for the iterator idiom. Pick one per session — the modes are mutually exclusive on the client.
+Every binding registers a push callback on the unified `ThetaDataDxClient`: `start_streaming(callback)` in Rust/Python, `startStreaming(callback)` in TypeScript, `set_callback(lambda)` in C++. The Disruptor consumer thread invokes the callback for every typed event under `catch_unwind`.
 :::
 
 ## Connect (Dev Server)
@@ -215,7 +215,6 @@ ThetaDataDx uses two different concurrency models for its two data paths:
 |------|---------|-----|
 | `connect()` + all historical methods | **async** (tokio) | gRPC/tonic requires tokio for HTTP/2 multiplexing |
 | `start_streaming()` + callbacks | **sync** (OS threads) | Dedicated I/O thread + ring buffer for lowest latency |
-| TypeScript `EventIterator.next()` | **Promise** (napi-rs) | Returns `Promise<FpssEvent \| null>` (`null` = timeout / drained) so Node's event loop stays unblocked during the read timeout |
 
 **What this means for your code:**
 
@@ -346,23 +345,31 @@ for (kind, contract) in subs {
 }
 ```
 ```python [Python]
-# Pull-iter mode: read `event.contract.symbol` directly off the
-# typed event.
-with client.streaming_iter() as it:
-    for event in it:
-        if event.kind == "quote":
-            print(f"[QUOTE] {event.contract.symbol}: bid={event.bid} ask={event.ask}")
-        elif event.kind == "trade":
-            print(f"[TRADE] {event.contract.symbol}: price={event.price} size={event.size}")
+# Push-callback delivery: read `event.contract.symbol` directly off
+# the typed event.
+def on_event(event):
+    if event.kind == "quote":
+        print(f"[QUOTE] {event.contract.symbol}: bid={event.bid} ask={event.ask}")
+    elif event.kind == "trade":
+        print(f"[TRADE] {event.contract.symbol}: price={event.price} size={event.size}")
+
+client.start_streaming(on_event)
 
 # Snapshot active subscriptions.
 for sub in client.active_subscriptions():
     print(sub)
 ```
 ```cpp [C++]
-// Pull-iter: each event carries event->quote.contract.symbol etc.
-// directly — `has_expiration` / `has_right` / `has_strike` gate
-// the option-only fields.
+// Each event carries event.quote.contract.symbol etc. directly —
+// `has_expiration` / `has_right` / `has_strike` gate the
+// option-only fields. Register a callback on the unified client:
+client.set_callback([](const tdx::FpssEvent& event) {
+    if (event.kind == TDX_FPSS_QUOTE) {
+        auto& q = event.quote;
+        std::cout << "[QUOTE] " << q.contract.symbol
+                  << ": bid=" << q.bid << " ask=" << q.ask << std::endl;
+    }
+});
 
 // Snapshot active subscriptions.
 auto subs = client.active_subscriptions();

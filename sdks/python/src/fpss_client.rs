@@ -23,10 +23,10 @@
 //! # Lifecycle
 //!
 //! 1. `FpssClient(creds, config)` — snapshots the connect parameters.
-//!    The FPSS TLS connection is opened lazily by `start_streaming*`
+//!    The FPSS TLS connection is opened lazily by `start_streaming`
 //!    (matching the FFI's deferred-connect contract).
-//! 2. `start_streaming(callback)` or `start_streaming_iter()` — opens
-//!    the FPSS TLS connection and starts the LMAX Disruptor consumer.
+//! 2. `start_streaming(callback)` — opens the FPSS TLS connection and
+//!    starts the background dispatcher that drives the ring iterator.
 //! 3. `subscribe(...)` / `unsubscribe(...)` — fluent subscription.
 //! 4. `stop_streaming()` / `shutdown()` — atomic stop with drain barrier.
 //! 5. `reconnect()` — re-open under the same callback.
@@ -40,14 +40,12 @@ use std::time::{Duration, Instant};
 use thetadatadx::auth::Credentials as RustCredentials;
 use thetadatadx::config::DirectConfig;
 use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
-use thetadatadx::fpss::{self, FpssClient as RustFpssClient, FpssConnectArgs};
+use thetadatadx::fpss::{self, FpssClient as RustFpssClient};
 
 use crate::buffered_event_to_typed;
 use crate::errors::to_py_err;
-use crate::event_iterator::EventIterator;
 use crate::fluent::{self, PySubscription};
 use crate::fpss_event_to_buffered;
-use crate::streaming_iter_session::StreamingIterSession;
 use crate::streaming_session::{StreamableHandle, StreamingSession};
 use crate::{Config, Credentials};
 
@@ -89,20 +87,17 @@ impl FpssParams {
         }
     }
 
-    fn args(&self) -> FpssConnectArgs<'_> {
-        FpssConnectArgs {
-            creds: &self.creds,
-            hosts: &self.hosts,
-            ring_size: self.ring_size,
-            flush_mode: self.flush_mode,
-            policy: self.policy.clone(),
-            wait_ms: self.wait_ms,
-            wait_rate_limited_ms: self.wait_rate_limited_ms,
-            derive_ohlcvc: self.derive_ohlcvc,
-            connect_timeout_ms: self.connect_timeout_ms,
-            read_timeout_ms: self.read_timeout_ms,
-            ping_interval_ms: self.ping_interval_ms,
-        }
+    fn builder(&self) -> fpss::FpssClientBuilder<'_> {
+        fpss::FpssClientBuilder::new(&self.creds, &self.hosts)
+            .ring_size(self.ring_size)
+            .flush_mode(self.flush_mode)
+            .reconnect_policy(self.policy.clone())
+            .reconnect_wait_ms(self.wait_ms)
+            .reconnect_wait_rate_limited_ms(self.wait_rate_limited_ms)
+            .derive_ohlcvc(self.derive_ohlcvc)
+            .connect_timeout_ms(self.connect_timeout_ms)
+            .read_timeout_ms(self.read_timeout_ms)
+            .ping_interval_ms(self.ping_interval_ms)
     }
 }
 
@@ -140,7 +135,7 @@ pub(crate) struct FpssClient {
     params: FpssParams,
     /// Currently-open inner FPSS client. `None` between construction
     /// and `start_streaming*`, and after `stop_streaming` / `shutdown`.
-    inner: Mutex<Option<RustFpssClient>>,
+    inner: Mutex<Option<Arc<RustFpssClient>>>,
     /// Most recently registered Python callable. Retained across
     /// `start_streaming` so `reconnect()` can re-register the same
     /// handler without the caller having to pass it again. Cleared on
@@ -156,10 +151,57 @@ pub(crate) struct FpssClient {
     /// `await_drain` must wait for all of them before reporting
     /// quiescence.
     prev_drained: Mutex<Vec<Arc<AtomicBool>>>,
+    /// Join handle for the background dispatcher thread that drains
+    /// the FPSS iterator into the registered Python callable. Joined
+    /// inside `stop_streaming` / `Drop` so callers never observe a
+    /// callback firing after quiescence.
+    dispatcher_handle: Mutex<Option<std::thread::JoinHandle<()>>>,
+    /// Flipped to `true` if the dispatcher thread terminated via a
+    /// panic in the Python callable. Read by `is_streaming` and
+    /// `is_authenticated` so the failed state is visible to callers.
+    dispatcher_failed: Arc<AtomicBool>,
+}
+
+impl Drop for FpssClient {
+    /// Release the GIL across the inner drop and join the dispatcher
+    /// thread so a callback in flight does not race destruction.
+    ///
+    /// The dispatcher re-acquires the GIL via `Python::attach` on every
+    /// event, so holding the GIL across the join would deadlock. Take
+    /// the inner Arc and the dispatcher handle out under the binding
+    /// mutexes, signal shutdown so the iterator loop drains and exits,
+    /// then detach to drop them on the dispatcher-friendly path.
+    fn drop(&mut self) {
+        let taken_client = self
+            .inner
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
+        let taken_handle = self
+            .dispatcher_handle
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
+        if taken_client.is_some() || taken_handle.is_some() {
+            Python::attach(|py| {
+                py.detach(move || {
+                    if let Some(ref client) = taken_client {
+                        client.shutdown();
+                    }
+                    drop(taken_client);
+                    if let Some(h) = taken_handle {
+                        if h.thread().id() != std::thread::current().id() {
+                            let _ = h.join();
+                        }
+                    }
+                });
+            });
+        }
+    }
 }
 
 impl FpssClient {
-    fn lock_inner(&self) -> MutexGuard<'_, Option<RustFpssClient>> {
+    fn lock_inner(&self) -> MutexGuard<'_, Option<Arc<RustFpssClient>>> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -176,54 +218,12 @@ impl FpssClient {
         let guard = self.lock_inner();
         let client = guard.as_ref().ok_or_else(|| {
             PyRuntimeError::new_err(
-                "streaming not started -- call start_streaming(callback) or start_streaming_iter() first",
+                "streaming not started -- call start_streaming(callback) first",
             )
         })?;
         f(client).map_err(to_py_err)
     }
 
-    /// Open the FPSS TLS connection in pull-iter delivery mode AND
-    /// wire an asyncio FD-readiness signal into the Disruptor consumer.
-    ///
-    /// Consumed by the [`crate::streaming_async_session::StreamingAsyncSession`]
-    /// pyclass; not exposed directly on the Python surface (the public
-    /// path is `client.streaming_async()`). Returns the raw Rust
-    /// [`thetadatadx::EventIterator`] paired with the shared
-    /// `Arc<WakeFd>` so the asyncio reader thread can call `rearm()`
-    /// from the GIL-attached event handler.
-    ///
-    /// Lives in the inherent impl (not `#[pymethods]`) so the return
-    /// tuple stays a Rust type — neither the iterator nor the
-    /// `Arc<WakeFd>` has a Python representation.
-    ///
-    /// Push-callback / sync pull-iter / async pull-iter are all
-    /// mutually exclusive on a given client.
-    #[cfg(unix)]
-    pub(crate) fn start_streaming_iter_with_wake_internal(
-        &self,
-        write_fd: i32,
-        max_queue_depth: usize,
-        backpressure: thetadatadx::fpss::BackpressurePolicy,
-    ) -> PyResult<(
-        thetadatadx::EventIterator,
-        std::sync::Arc<thetadatadx::fpss::wake::WakeFd>,
-    )> {
-        if self.lock_inner().is_some() {
-            return Err(PyRuntimeError::new_err(
-                "streaming already started -- call stop_streaming() before streaming_async()",
-            ));
-        }
-        let wake = thetadatadx::fpss::wake::WakeFd::from_raw_write_fd(write_fd);
-        let (client, iter, wake_arc) = RustFpssClient::connect_iter_with_wake_keep_handle_policy(
-            self.params.args(),
-            wake,
-            Some(max_queue_depth),
-            backpressure,
-        )
-        .map_err(to_py_err)?;
-        *self.lock_inner() = Some(client);
-        Ok((iter, wake_arc))
-    }
 }
 
 #[pymethods]
@@ -256,6 +256,8 @@ impl FpssClient {
             inner: Mutex::new(None),
             callback: Mutex::new(None),
             prev_drained: Mutex::new(Vec::new()),
+            dispatcher_handle: Mutex::new(None),
+            dispatcher_failed: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -286,7 +288,11 @@ impl FpssClient {
         // Match the bundled `ThetaDataDxClient.__repr__` key/value vocabulary
         // (`streaming=connected` / `streaming=none`) so cross-class repr
         // strings parse the same way.
-        let streaming = if self.lock_inner().is_some() {
+        // Derive the `streaming=` label from the failure-aware
+        // `is_streaming()` gate so a panicked dispatcher reports
+        // `streaming=none` consistently with `is_streaming()` and
+        // `is_authenticated()`.
+        let streaming = if self.is_streaming() {
             "connected"
         } else {
             "none"
@@ -319,56 +325,113 @@ impl FpssClient {
         let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
         let dispatch_cb = Arc::clone(&callback_arc);
 
-        let client = RustFpssClient::connect(self.params.args(), move |event: &fpss::FpssEvent| {
-            Python::attach(|py| {
-                let buffered = fpss_event_to_buffered(event);
-                let typed = match buffered_event_to_typed(py, &buffered) {
-                    Ok(obj) => obj,
-                    Err(err) => {
-                        err.write_unraisable(py, None);
-                        return;
+        let client = self
+            .params
+            .builder()
+            .build()
+            .map_err(|e| to_py_err(thetadatadx::Error::from(e)))?;
+        let client_arc = Arc::new(client);
+
+        self.dispatcher_failed
+            .store(false, std::sync::atomic::Ordering::Release);
+
+        // Publish the client and the stored callback BEFORE spawning
+        // the dispatcher so the first delivered event sees a fully
+        // initialised handle. A re-entrant call from inside the user
+        // callback to `subscribe()` / `with_live()` / `is_streaming()`
+        // would otherwise race the late publish and observe
+        // `inner = None`, raising `RuntimeError("streaming not
+        // started")`.
+        *self.lock_inner() = Some(Arc::clone(&client_arc));
+        *cb_guard = Some(Python::attach(|py| callback_arc.clone_ref(py)));
+        drop(cb_guard);
+
+        let failure_flag = Arc::clone(&self.dispatcher_failed);
+        let dispatcher_client = Arc::clone(&client_arc);
+        let dispatcher = std::thread::Builder::new()
+            .name("tdx-py-fpss-dispatcher".into())
+            .spawn(move || {
+                let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let client_ref: &RustFpssClient = &dispatcher_client;
+                    for event in client_ref {
+                        match event {
+                            Ok(event) => Python::attach(|py| {
+                                let buffered = fpss_event_to_buffered(&event);
+                                let typed = match buffered_event_to_typed(py, &buffered) {
+                                    Ok(obj) => obj,
+                                    Err(err) => {
+                                        err.write_unraisable(py, None);
+                                        return;
+                                    }
+                                };
+                                if let Err(err) = dispatch_cb.call1(py, (typed,)) {
+                                    err.write_unraisable(py, None);
+                                }
+                            }),
+                            Err(_) => break,
+                        }
                     }
-                };
-                if let Err(err) = dispatch_cb.call1(py, (typed,)) {
-                    err.write_unraisable(py, None);
+                }));
+                if outcome.is_err() {
+                    failure_flag.store(true, std::sync::atomic::Ordering::Release);
+                    tracing::error!(
+                        target: "thetadatadx::python",
+                        "tdx-py-fpss-dispatcher panicked; FpssClient transitioning to failed state",
+                    );
                 }
             });
-        })
-        .map_err(to_py_err)?;
+        let dispatcher = match dispatcher {
+            Ok(h) => h,
+            Err(e) => {
+                let taken = self.lock_inner().take();
+                *self.lock_callback() = None;
+                if let Some(client) = taken {
+                    client.shutdown();
+                }
+                return Err(PyRuntimeError::new_err(format!(
+                    "failed to spawn FPSS dispatcher thread: {e}"
+                )));
+            }
+        };
 
-        *self.lock_inner() = Some(client);
-        // The Disruptor consumer closure has already captured a clone
-        // of `callback_arc` (via `dispatch_cb`), so the refcount on
-        // `callback_arc` is guaranteed to be at least 2 by the time
-        // we reach this line — `Arc::try_unwrap` would always fail.
-        // Lift a fresh owned `Py<PyAny>` handle under the GIL for
-        // storage on `cb_guard`; the cost is one refcount bump per
-        // `start_streaming` call, which is the same lifetime
-        // accounting the unified client does.
-        *cb_guard = Some(Python::attach(|py| callback_arc.clone_ref(py)));
+        // Wrap the dispatcher-handle store in `catch_unwind` so a
+        // mutex-acquisition panic between spawn and store does not
+        // leave the dispatcher running with no joinable handle on the
+        // pyclass. On unwind we roll the published `inner` and
+        // `callback` slots back and signal the dispatcher to exit via
+        // the FpssClient's own shutdown path, then re-raise the panic
+        // so the caller sees the same unwind they would have on the
+        // engine side.
+        let store_outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            *self.dispatcher_handle.lock().unwrap_or_else(|e| {
+                self.dispatcher_handle.clear_poison();
+                e.into_inner()
+            }) = Some(dispatcher);
+        }));
+        if let Err(panic_payload) = store_outcome {
+            let taken = self.lock_inner().take();
+            *self.lock_callback() = None;
+            if let Some(client) = taken {
+                client.shutdown();
+            }
+            self.dispatcher_failed
+                .store(true, std::sync::atomic::Ordering::Release);
+            std::panic::resume_unwind(panic_payload);
+        }
         Ok(())
     }
 
-    /// Open the FPSS TLS connection in pull-iter delivery mode and
-    /// return an [`EventIterator`] handle the caller drains on its own
-    /// thread.
-    ///
-    /// Push-callback and pull-iter are mutually exclusive — calling
-    /// this while streaming is already running raises `RuntimeError`.
-    pub(crate) fn start_streaming_iter(&self) -> PyResult<EventIterator> {
-        if self.lock_inner().is_some() {
-            return Err(PyRuntimeError::new_err(
-                "streaming already started -- call stop_streaming() before start_streaming_iter()",
-            ));
-        }
-        let (client, iter) = RustFpssClient::connect_iter(self.params.args()).map_err(to_py_err)?;
-        *self.lock_inner() = Some(client);
-        Ok(EventIterator::new(iter))
-    }
-
     /// Whether the FPSS TLS connection is currently open.
+    ///
+    /// Returns `false` when the dispatcher thread panicked — no events
+    /// are arriving even though the TLS slot is still populated, so
+    /// callers must observe the failed state.
     fn is_streaming(&self) -> bool {
-        self.lock_inner().is_some()
+        let guard = self.lock_inner();
+        guard.as_ref().is_some()
+            && !self
+                .dispatcher_failed
+                .load(std::sync::atomic::Ordering::Acquire)
     }
 
     /// Whether the FPSS session is currently authenticated.
@@ -378,9 +441,18 @@ impl FpssClient {
     /// `is_streaming()`: the TLS slot can hold an `RustFpssClient` whose
     /// `authenticated` flag has been flipped to `false` after a server
     /// disconnect, before the application has issued `reconnect()`.
+    ///
+    /// A panicked dispatcher thread also folds back to `false` here so
+    /// the failed state is uniformly visible across every status reader,
+    /// not just `is_streaming()`.
     fn is_authenticated(&self) -> bool {
         let guard = self.lock_inner();
-        guard.as_ref().is_some_and(|c| c.is_authenticated())
+        guard.as_ref().is_some_and(|c| {
+            c.is_authenticated()
+                && !self
+                    .dispatcher_failed
+                    .load(std::sync::atomic::Ordering::Acquire)
+        })
     }
 
     /// Snapshot of per-contract subscriptions on the live session.
@@ -510,25 +582,54 @@ impl FpssClient {
     /// `start_streaming` / `stop_streaming` interleave on the same
     /// handle. Pinning the ordering here closes that race
     /// proactively.
-    pub(crate) fn stop_streaming(&self) {
-        let mut cb_guard = self.lock_callback();
-        let mut inner_guard = self.lock_inner();
-        if let Some(client) = inner_guard.as_ref() {
+    pub(crate) fn stop_streaming(&self, py: Python<'_>) {
+        // Take the `Arc<RustFpssClient>` out of `inner` and the stored
+        // Python callable out of `callback` under the binding mutexes,
+        // then release both before signalling shutdown so a dispatcher
+        // re-entering any pyclass method via the callback never sees a
+        // lock held.
+        let (taken_client, taken_handle) = {
+            let mut cb_guard = self.lock_callback();
+            let taken = self.lock_inner().take();
+            *cb_guard = None;
+            let handle = self
+                .dispatcher_handle
+                .lock()
+                .unwrap_or_else(|e| {
+                    self.dispatcher_handle.clear_poison();
+                    e.into_inner()
+                })
+                .take();
+            (taken, handle)
+        };
+        if let Some(client) = taken_client {
             self.prev_drained
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .push(client.drained_flag());
             client.shutdown();
+            // Detach the GIL so the dispatcher thread (which re-acquires
+            // the GIL via `Python::attach` on every event) can make
+            // progress while we drop the last Arc and join the
+            // dispatcher.
+            py.detach(move || {
+                drop(client);
+                if let Some(h) = taken_handle {
+                    if h.thread().id() != std::thread::current().id() {
+                        let _ = h.join();
+                    }
+                }
+            });
         }
-        *inner_guard = None;
-        *cb_guard = None;
+        self.dispatcher_failed
+            .store(false, std::sync::atomic::Ordering::Release);
     }
 
     /// Alias for `stop_streaming`. Mirrors the unified client's split
     /// surface where `shutdown` is documented as the terminal stop —
     /// on the standalone client both names are equivalent.
-    fn shutdown(&self) {
-        self.stop_streaming();
+    fn shutdown(&self, py: Python<'_>) {
+        self.stop_streaming(py);
     }
 
     /// Re-open the FPSS connection and re-register the previously
@@ -546,7 +647,7 @@ impl FpssClient {
     /// caller observing a transient disconnect would lose every
     /// subscription, breaking parity with the unified client and the
     /// C ABI (`tdx_fpss_reconnect`).
-    fn reconnect(&self) -> PyResult<()> {
+    fn reconnect(&self, py: Python<'_>) -> PyResult<()> {
         let stored = {
             let guard = self.lock_callback();
             match guard.as_ref() {
@@ -571,7 +672,7 @@ impl FpssClient {
         //    repopulates `self.callback` with a freshly owned handle
         //    so subsequent `reconnect()` calls find the same state
         //    shape.
-        self.stop_streaming();
+        self.stop_streaming(py);
         self.start_streaming(stored)?;
 
         // 3. Re-apply every saved subscription against the freshly
@@ -687,19 +788,4 @@ impl FpssClient {
         )
     }
 
-    /// Open a context-managed pull-iter streaming session.
-    ///
-    /// `with fpss.streaming_iter() as it: for event in it: ...`
-    /// opens the FPSS connection in pull-iter mode on enter, drains
-    /// the iterator inside the body, and pairs `stop_streaming()` +
-    /// `await_drain(5000)` on exit.
-    fn streaming_iter(slf: Py<Self>, py: Python<'_>) -> PyResult<Py<StreamingIterSession>> {
-        Py::new(
-            py,
-            StreamingIterSession {
-                tdx: StreamableHandle::Fpss(slf),
-                iterator: None,
-            },
-        )
-    }
 }

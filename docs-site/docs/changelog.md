@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [12.0.0] - 2026-06-02
+
+### Breaking changes
+
+- `FpssClient::builder(creds, hosts)` is the sole public Rust
+  constructor for FPSS streaming. Fluent setters
+  (`.ring_size().flush_mode().reconnect_policy()...`) replace the
+  struct-literal arg bundle. `FpssConnectArgs` and the legacy
+  `FpssClient::connect(args)` entry are crate-internal.
+- Drain primitives live on `FpssClient` itself: `next_event` (blocking),
+  `try_next_event` (non-blocking), `poll_batch(FnMut)`,
+  `for_each(FnMut)`, and `Iterator for &FpssClient`. The
+  `FpssEventPoller` type is removed.
+- New typed `FpssError` enum (`#[non_exhaustive]`) returned by the
+  builder, polling methods, and iterator. `From<FpssError> for Error`
+  maps each variant losslessly into a distinct umbrella `Error`
+  variant (`Auth`, `Config`, `Io`, tagged `Fpss`). The docstring on
+  `FpssError` lists every row of the table plus the two known
+  sources of information loss (`io::ErrorKind` collapse,
+  `Config.field` regeneration).
+- `ThetaDataDxClient::start_streaming_iter`,
+  `start_streaming_iter_with_wake`, and
+  `start_streaming_iter_with_wake_policy` removed. The push-callback
+  `start_streaming(callback)` is preserved on the unified client; it
+  internally spawns a dedicated `"tdx-fpss-dispatcher"` thread that
+  drives the ring iterator behind a one-shot startup gate so the
+  first delivered event only fires once the streaming slot is fully
+  installed.
+- Python: `EventIterator`, `StreamingIterSession`,
+  `StreamingAsyncSession`, `StreamingAsyncBatchesSession`, and
+  `BackpressurePolicy` pyclasses removed. `streaming_iter()`,
+  `streaming_async()`, and `streaming_async_batches()` on
+  `ThetaDataDxClient` and the standalone `FpssClient` pyclass are
+  gone. The push-callback `start_streaming(cb)` and the
+  `streaming(cb)` context manager remain.
+- TypeScript: `EventIterator` napi class removed.
+  `client.startStreamingIter()` is gone. `client.startStreaming(cb)`
+  is preserved.
+- C ABI: `TdxFpssEventIterator`, `tdx_unified_start_streaming_iter`,
+  `tdx_fpss_event_iter_next`, `tdx_fpss_event_iter_close`, and
+  `tdx_fpss_event_iter_free` removed. `tdx_fpss_set_callback` and
+  `tdx_unified_set_callback` remain. `tdx_fpss_free` and
+  `tdx_unified_free` docstrings document the explicit lifecycle
+  restriction: do not call them from inside the user callback.
+- Crate dep removed: `crossbeam-queue`.
+
+### Changed
+
+- Implementation moved into the new `thetadatadx-engine` crate
+  (`publish = false`, lib name `thetadatadx_engine`). The public
+  `thetadatadx` crate is a thin `pub use thetadatadx_engine::*;`
+  re-export so downstream consumers see a stability-pinned facade
+  and the engine source never reaches a public registry.
+- Internal: single producer wiring in `io_loop`. Earlier
+  `build_consumer_producer` (~250 lines) and `push_with_block`
+  helper are gone; `build_poller_producer` is the sole producer.
+- Internal: the connect path validates configuration up front and
+  returns the assembled `FpssClient` directly; the previous tuple
+  return shape is gone.
+- `ThetaDataDxClient::start_streaming` and `reconnect_streaming`
+  serialise through a single-flight `start_lock`. The FFI handle's
+  lifecycle (`tdx_fpss_set_callback` / `_reconnect` / `_shutdown` /
+  `_free`) is fully serialised through a single `install_lock`.
+- `.github/workflows/ci.yml` targets `-p thetadatadx-engine` for the
+  generator, gRPC codegen, doc, and bench runs. Generator templates
+  emit `thetadatadx::*` (the thin public path).
+
+### Removed
+
+- The earlier queue-path soak suite. Workspace `cargo test` coverage
+  replaces it.
+
 ## [11.0.1] - 2026-05-29
 
 ### Fixed

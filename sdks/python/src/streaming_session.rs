@@ -63,8 +63,8 @@ impl StreamableHandle {
     /// Invoke `stop_streaming()` through the typed enum.
     pub(crate) fn stop_streaming(&self, py: Python<'_>) {
         match self {
-            Self::Tdx(handle) => handle.borrow(py).stop_streaming(),
-            Self::Fpss(handle) => handle.borrow(py).stop_streaming(),
+            Self::Tdx(handle) => handle.borrow(py).stop_streaming(py),
+            Self::Fpss(handle) => handle.borrow(py).stop_streaming(py),
         }
     }
 
@@ -79,18 +79,6 @@ impl StreamableHandle {
         }
     }
 
-    /// Open the pull-iter delivery mode and return the resulting
-    /// [`EventIterator`]. Dispatches through the typed enum so neither
-    /// branch goes through Python attribute lookup.
-    pub(crate) fn start_streaming_iter(
-        &self,
-        py: Python<'_>,
-    ) -> PyResult<crate::event_iterator::EventIterator> {
-        match self {
-            Self::Tdx(handle) => handle.borrow(py).start_streaming_iter(),
-            Self::Fpss(handle) => handle.borrow(py).start_streaming_iter(),
-        }
-    }
 }
 
 /// Context manager returned by `ThetaDataDxClient.streaming(callback)`.

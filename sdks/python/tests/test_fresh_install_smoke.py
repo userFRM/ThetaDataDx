@@ -34,8 +34,6 @@ PUBLIC_CLASSES = [
     "MddsClient",
     # Streaming sessions
     "StreamingSession",
-    "StreamingIterSession",
-    "EventIterator",
     # Fluent surface
     "Contract",
     "Subscription",

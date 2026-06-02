@@ -30,9 +30,9 @@ pub struct TokioWorkerThreadsSetting {
 /// REST-routing policy. Mirrors [`thetadatadx::config::FallbackPolicy`].
 ///
 /// Constructed via one of the static factories, then installed on
-/// a [`Config`] via [`Config::withRestFallback`]. A `Config` with an
+/// a [`Config`] via `Config.withRestFallback`. A `Config` with an
 /// installed policy is then passed to
-/// [`ThetaDataDxClient.connectWithConfig`] / `connectFromFileWithConfig`
+/// `ThetaDataDxClient.connectWithConfig` / `connectFromFileWithConfig`
 /// to bind the policy to a live client.
 ///
 /// # Example
@@ -98,9 +98,9 @@ impl FallbackPolicy {
 ///
 /// Build a config via one of the three static factories
 /// ([`Config::production`] / [`Config::dev`] / [`Config::stage`]),
-/// install a [`FallbackPolicy`] via [`Config::withRestFallback`] if
+/// install a [`FallbackPolicy`] via `Config.withRestFallback` if
 /// needed, then pass to
-/// [`ThetaDataDxClient.connectWithConfig`] /
+/// `ThetaDataDxClient.connectWithConfig` /
 /// `connectFromFileWithConfig`.
 ///
 /// Mutating methods (`withRestFallback`, ...) follow JS convention and
@@ -365,8 +365,8 @@ impl Config {
     /// Set the streaming reconnect policy.
     ///
     /// - `"auto"` (default): auto-reconnect with the per-class attempt
-    ///   budgets supplied by [`Config::setReconnectMaxAttempts`] and
-    ///   [`Config::setReconnectMaxRateLimitedAttempts`].
+    ///   budgets supplied by `Config.setReconnectMaxAttempts` and
+    ///   `Config.setReconnectMaxRateLimitedAttempts`.
     /// - `"manual"`: no auto-reconnect; callers reconnect explicitly.
     #[napi(js_name = "setReconnectPolicy")]
     pub fn set_reconnect_policy(&self, policy: String) -> napi::Result<()> {

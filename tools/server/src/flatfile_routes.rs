@@ -291,7 +291,7 @@ mod tests {
     use super::*;
 
     // Regression: concurrent identical requests must never share a
-    // scratch path. Before the BLOCKER #1 fix two callers wrote into
+    // scratch path. Before the race fix two callers wrote into
     // the same deterministic temp path, racing `File::create()`
     // against each other while the first reader's open fd still
     // pointed at the old inode's bytes. The fix attaches a UUID4

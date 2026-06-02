@@ -1,0 +1,432 @@
+[package]
+name = "thetadatadx-engine"
+version = "12.0.0"
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "ThetaDataDx engine — proprietary streaming + historical implementation. Not published to crates.io; consumed by the thin `thetadatadx` crate via re-export."
+documentation = "https://docs.rs/thetadatadx"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+keywords = ["thetadata", "market-data", "tick-data", "zero-copy", "low-latency"]
+categories = ["finance", "api-bindings", "network-programming", "encoding"]
+readme = "../../README.md"
+include = ["src/**/*", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "endpoint_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
+
+[lib]
+name = "thetadatadx_engine"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+# Explicit feature list mirroring the CI rustdoc job
+# (`cargo doc --no-deps -p thetadatadx --features arrow,polars,frames,config-file`).
+# Never use `all-features = true` here — it would re-enable any internal
+# bench-only feature flag and surface non-public symbols on docs.rs.
+features = ["arrow", "polars", "frames", "config-file"]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = []
+config-file = ["dep:toml"]
+# Pulls `prost-build` into the regular dep graph for the
+# `refresh_grpc_snapshot` developer binary. Strictly off for normal
+# crate builds — the build script keeps its own `prost-build` under
+# `[build-dependencies]`.
+grpc-codegen = ["dep:prost-build"]
+# Optional Prometheus exporter. When enabled, a `metrics-exporter-prometheus`
+# HTTP listener binds to `DirectConfig::metrics_port` (see the
+# `observability` module) and serves recorder state on `/metrics`.
+metrics-prometheus = ["dep:metrics-exporter-prometheus"]
+# DataFrame ergonomics for Rust consumers — `.to_polars()` / `.to_arrow()`
+# extension traits on slices of tick rows (see `crates/thetadatadx/src/frames.rs`).
+# Opt-in: polars and arrow stay behind feature flags so the default dep graph
+# is unchanged. `frames` is a convenience alias pulling both in at once.
+polars = ["dep:polars"]
+arrow = ["dep:arrow-array", "dep:arrow-schema"]
+frames = ["polars", "arrow"]
+# Opt-in gate for tests that hit live MDDS / FPSS endpoints. Default-off
+# so `cargo test` never burns a live call without the user asking for it.
+live-tests = []
+# Private, unstable feature gating a handful of `pub(crate)`-shape
+# constructors that exist solely so integration tests under `tests/`
+# can build a `MddsClient` against a mock REST server without paying
+# for a real Nexus auth handshake. Double-underscore prefix marks it
+# as unsupported: callers outside this repository must not enable it,
+# and the API stability contract does not apply.
+#
+# Activated by `[[test]] required-features = ["__test-helpers"]` and
+# by the `test` job in `.github/workflows/ci.yml`. Never enable from
+# the published `[features]` of a downstream crate.
+__test-helpers = []
+# Optional mimalloc allocator. Library crates do not install a
+# `#[global_allocator]` of their own — that belongs in the consuming
+# binary. Enabling this feature pulls `mimalloc` into the dependency
+# graph so the binary can register it with one extra line; see
+# `docs-site/docs/configuration.md` ("Performance tuning") for the
+# integration snippet. Default-off — applications that prefer the
+# system allocator pay no compile or link cost.
+mimalloc-allocator = ["dep:mimalloc"]
+[dependencies]
+tdbe = { version = "0.14.0", path = "../tdbe" }
+
+# Protobuf message types for the MDDS wire contract. The in-house
+# gRPC client stack (`src/grpc/`) consumes these directly — no tonic.
+prost = "=0.14.3"
+prost-types = "=0.14.3"
+
+# In-house gRPC transport — direct h2 implementation. These deps used
+# to ride in via tonic transitively; declaring them explicitly pins
+# versions now that tonic is gone.
+h2 = "0.4"
+http = "1"
+http-body = "1"
+bytes = "1"
+pin-project-lite = "0.2"
+futures-core = "0.3"
+# RFC 3986 percent-decoding for the `grpc-message` trailer (see
+# https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md —
+# the spec mandates `%HH` decoding and forbids a malformed message
+# from invalidating an otherwise-valid `grpc-status`).
+percent-encoding = "2"
+
+# Async runtime
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync", "fs"] }
+tokio-stream = "0.1.18"
+tokio-rustls = "0.26.4"
+rustls = { version = "0.23.40", features = ["ring"] }
+webpki-roots = "1.0.7"
+
+# FPSS SPKI certificate pinning (see `fpss::pinning`). We parse the leaf
+# DER to extract the SubjectPublicKeyInfo, SHA-256 it, and constant-time
+# compare against a hard-coded digest. This replaces the previous
+# "accept any cert" verifier that left FPSS credentials exposed to MITM.
+x509-parser = "0.18.1"
+sha2 = "0.11.0"
+subtle = "2.6.1"
+
+# HTTP (auth against nexus-api + local-Terminal REST transport).
+# `query` enables `RequestBuilder::query` for URL parameter encoding on
+# the REST path (`crate::rest`); adds serde + serde_urlencoded both
+# already in the workspace lockfile.
+reqwest = { version = "0.13.3", features = ["json", "query", "rustls"], default-features = false }
+
+# Serialization
+serde = { version = "1.0.228", features = ["derive"] }
+uuid = { version = "1.23.1", features = ["v4"] }
+
+# Compression (responses use zstd)
+zstd = "0.13.3"
+
+# Error handling
+thiserror = "2.0.18"
+
+# Macro utility (identifier concatenation in macros).
+# `pastey` is the actively-maintained successor of `paste` (archived
+# 2024-10-07 by dtolnay). Drop-in replacement — same `paste!` macro.
+pastey = "0.2.2"
+
+# Logging
+tracing = "0.1.44"
+
+# Metrics
+metrics = "0.24.5"
+# Optional Prometheus exporter (enabled by the `metrics-prometheus` feature).
+metrics-exporter-prometheus = { version = "0.18", optional = true, default-features = false, features = ["http-listener"] }
+
+# Config file loading (optional)
+toml = { version = "1.1.2", optional = true }
+regex = "1.12.3"
+
+# Lock-free ring buffer (LMAX Disruptor pattern) for FPSS event dispatch
+disruptor = "4.2.0"
+
+# Lock-free MPMC bounded queue used by the pull-iter delivery mode
+# (`ThetaDataDxClient::start_streaming_iter`). The Disruptor consumer
+# closure pushes events into the queue and `EventIterator::next` pops
+# them on the user thread, draining a batch under one GIL acquire on
+# the Python binding.
+
+# Bounded MPSC queue between the two-stage decode pipeline's stage-1
+# (zstd decompress) and stage-2 (prost decode + Tick build) workers.
+# `crossbeam_channel::bounded` is the simplest correct shape: a single
+# shared queue with N producers (stage-1 decoder threads) and M
+# consumers (stage-2 worker pool). Backpressure is enforced by parking
+# stage-1 on a full queue rather than dropping payloads.
+crossbeam-channel = "0.5.13"
+
+# Cache-line padding for the two-stage pipeline's shared atomic
+# counters (`total_decoded`, `total_dropped`, `total_parked`). Stage-1
+# and stage-2 threads both increment these on the hot path; padding
+# isolates each counter to its own cache line so false sharing across
+# CPU sockets does not stall the pipeline under load.
+crossbeam-utils = "0.8.21"
+
+# Optional DataFrame / Arrow extension traits (`frames` module).
+# polars: minimal feature set — just enough to build `DataFrame::new(vec![Series::new(...).into()])`.
+# No lazy, no I/O, no parquet, no SQL, no compute kernels. `default-features = false`
+# avoids pulling the polars-plan / polars-sql / polars-parquet graph into dependents
+# that only want row-to-frame materialization.
+polars = { version = "0.53", optional = true, default-features = false }
+# arrow-array + arrow-schema cover RecordBatch construction for the
+# optional `frames` feature only. Kept optional so the default dep
+# graph stays slim — FLATFILES does not pull in arrow.
+arrow-array = { version = "58.1.0", optional = true }
+arrow-schema = { version = "58.1.0", optional = true }
+# JSON encoder for the FLATFILES `Format::Jsonl` output. One serde_json
+# Value per row; `to_writer` emits compact form, then we append `\n`.
+serde_json = "1.0.137"
+
+# Secret-wiping wrapper for password in `Credentials`. Zeroizes the backing
+# buffer on drop so the plaintext is not recoverable from a core dump or
+# `/proc/<pid>/mem` after the struct goes out of scope.
+zeroize = { version = "1.8.2", features = ["derive"] }
+
+# Lock-free atomic swap of an `Arc<StreamingSlot>` for the streaming
+# state machine on `ThetaDataDxClient`. Carries the `Arc<FpssClient>` so the
+# hot read paths (`is_streaming`, `connection_status`,
+# `dropped_event_count`, `panic_count`, `with_streaming`) all collapse
+# to a single `state.load()`.
+arc-swap = "1.7"
+
+# Faster uncontended Mutex for the single-consumer FPSS Disruptor hot
+# path (~5ns vs std::sync::Mutex's ~20-40ns). Used only at the io_loop
+# delivery site; the rest of the crate stays on `std::sync::Mutex` for
+# the standard poison-on-panic semantics.
+parking_lot = "0.12"
+
+# Optional mimalloc allocator. Gated behind the `mimalloc-allocator`
+# feature so the default dependency graph stays unchanged; consumers
+# install it as `#[global_allocator]` in their own binary. See
+# `docs-site/docs/configuration.md` for the integration snippet.
+# `default-features = false` skips the bundled override that mimalloc
+# would otherwise install at runtime — the consuming binary owns that
+# choice, not us.
+mimalloc = { version = "0.1", default-features = false, optional = true }
+
+# Optional prost-build for the `refresh_grpc_snapshot` developer
+# binary. Stays out of the default dep graph (the build script keeps
+# its own copy under `[build-dependencies]`).
+prost-build = { version = "=0.14.3", optional = true }
+
+[dev-dependencies]
+# `tracing_subscriber::Layer` lets the warn-on-buffered-response unit
+# tests (`mdds::macros::warn_buffered_tests`) capture emitted events
+# without a global `init()` race against parallel tests. `registry`
+# feature only — the bridge is a `Layer` impl that buffers into a
+# `Mutex<Vec<...>>`, not a stderr `fmt` subscriber. Same version pin
+# as `sdks/python` so the workspace lockfile stays clean.
+tracing-subscriber = { version = "0.3.20", default-features = false, features = ["registry"] }
+criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
+# `futures::future::join_all` for the concurrent-burst bench. Pulls in
+# the umbrella `futures` crate (we already depend on `futures-core`
+# directly; this gives us the executor adapters as well, dev-only).
+futures = "0.3"
+proptest = "1.5"
+# Test-only: load captured-response fixtures and their sidecar .meta.toml
+# files for the decoder-regression suite (`tests/test_decode_captures.rs`).
+# `toml` is already a build- and opt-dependency here; adding it to
+# dev-dependencies lets the tests pull the same version without the
+# `config-file` feature gate.
+toml = "1.1.2"
+# PyO3 with `auto-initialize` so the `streaming_throughput` bench can
+# acquire the GIL without an explicit `Py_Initialize`. Pinned to the
+# same patch as the Python SDK shim under `sdks/python/` so the
+# dev-dependency graph stays consistent. dev-only — never enters the
+# published crate graph.
+pyo3 = { version = "=0.28.3", features = ["auto-initialize"] }
+
+# Signal-driven sampling profiler used by the concurrent-burst bench
+# to emit a flamegraph SVG when `THETADATADX_FLAMEGRAPH=1` is set.
+# Pure userspace — no perf / root required. Unix-only: pprof relies on
+# POSIX signals + pthread types that don't exist on Windows. The
+# `cfg(unix)` target-conditional dev-dependencies table MUST live
+# AFTER the cross-platform `[dev-dependencies]` block — TOML table
+# headings absorb every subsequent k/v pair until the next heading,
+# so anything placed after `[target.'cfg(unix)'.dev-dependencies]`
+# silently becomes Unix-only too.
+[target.'cfg(unix)'.dev-dependencies]
+pprof = { version = "0.15", features = ["flamegraph"] }
+
+[build-dependencies]
+# `prost-build` compiles `proto/mdds.proto` into Rust message types;
+# the in-house gRPC client stubs are emitted by a custom service
+# generator under `build_support/grpc/`, replacing `tonic-build`
+# entirely.
+prost-build = "=0.14.3"
+regex = "1.12.3"
+toml = "1.1.2"
+serde = { version = "1.0.228", features = ["derive"] }
+tdbe = { version = "0.14.0", path = "../tdbe" }
+
+# POSIX `pipe2` / `write` / `close` for the asyncio wake-fd bridge used
+# by the Python SDK's `streaming_async()` surface (see
+# `crates/thetadatadx/src/fpss/wake.rs`). Pure libc — no abstraction layer
+# — because we only need three syscalls and want the wake path to stay
+# zero-allocation. Already in the dep graph transitively (rustls /
+# rand_chacha pull libc on Unix); declaring it explicitly pins the
+# binding-version contract.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[[bench]]
+name = "bench_decode"
+harness = false
+
+[[bench]]
+name = "bench_framing"
+harness = false
+
+[[bench]]
+# Uses the test-only `protocol::test_wire` re-exports for FPSS payload
+# builders — gated on `__test-helpers` so the wire helpers stay out of
+# the default rlib.
+name = "bench_protocol"
+harness = false
+required-features = ["__test-helpers"]
+
+[[bench]]
+name = "bench_auth"
+harness = false
+
+[[bench]]
+name = "bench_fpss_event"
+harness = false
+
+[[bench]]
+name = "streaming_channels"
+harness = false
+
+[[bench]]
+name = "streaming_throughput"
+harness = false
+
+[[bench]]
+# Drives the raw `Channel` / `ChannelPool` / `endpoints::bench_support`
+# surface against a mock h2c server; gated on `__test-helpers` so the
+# `grpc` module re-export stays out of the default rlib.
+name = "grpc_channel"
+harness = false
+required-features = ["__test-helpers"]
+
+[[bench]]
+# Drives `default_decoder_thread_count` + `Channel` + `ChannelPool` +
+# `DecoderPool` under concurrent burst load; gated on `__test-helpers`
+# for the same reason as `grpc_channel`.
+name = "grpc_concurrent_burst"
+harness = false
+required-features = ["__test-helpers"]
+
+[[bench]]
+# Drives `fpss::__test_internals::{decode_frame, DeltaState}` against
+# synthetic frame bytes; gated on `__test-helpers` so the helper module
+# stays out of the default rlib.
+name = "bench_delta_decode"
+harness = false
+required-features = ["__test-helpers"]
+
+[[bench]]
+name = "historical_streaming_memory"
+harness = false
+
+[[bench]]
+name = "bench_rest_decode"
+harness = false
+
+[[bench]]
+# Drives `DecoderPool` directly to measure prost-decode throughput;
+# gated on `__test-helpers` for the `grpc` re-export.
+name = "bench_decoder_pool"
+harness = false
+required-features = ["__test-helpers"]
+
+[[bench]]
+name = "bench_protobuf_decode"
+harness = false
+
+[[bench]]
+# Drives `Stage2Pool` + `DecodedPayload` head-to-head against the
+# single-stage decoder; gated on `__test-helpers` for the `grpc`
+# re-export.
+name = "bench_stage_pipeline"
+harness = false
+required-features = ["__test-helpers"]
+
+[[test]]
+# Builds `MddsClient` against mock REST + h2c servers. Depends on the
+# private `__test-helpers` feature for the `for_fallback_test`
+# constructor that bypasses the Nexus auth handshake.
+name = "test_with_fallback_end_date"
+path = "tests/test_with_fallback_end_date.rs"
+required-features = ["__test-helpers"]
+
+# Integration tests that drive `fpss::__test_internals` to exercise the
+# `read_frame_into → decode_frame → FpssEvent` pipeline against synthetic
+# fixture bytes. Each entry gates on `__test-helpers` so the helper
+# module stays out of the default rlib.
+[[test]]
+name = "reconnect_storm"
+path = "tests/reconnect_storm.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "replay_capture"
+path = "tests/replay_capture.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "vendor_schema_drift"
+path = "tests/vendor_schema_drift.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "decode_fuzz_property"
+path = "tests/decode_fuzz_property.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "midframe_disconnect"
+path = "tests/midframe_disconnect.rs"
+required-features = ["__test-helpers"]
+
+# Integration tests that drive the raw `grpc::{Channel, ChannelPool,
+# DecoderPool, ChannelError, Status}` surface against a mock h2c server.
+# Gated on `__test-helpers` so the `grpc` module re-export stays out
+# of the default rlib.
+[[test]]
+name = "grpc_stock_list_symbols"
+path = "tests/grpc_stock_list_symbols.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "test_pool_reconnect"
+path = "tests/test_pool_reconnect.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "grpc_mock_server"
+path = "tests/grpc_mock_server.rs"
+required-features = ["__test-helpers"]
+
+# Pins endpoint-to-parser routing for the seven `option_history_*` /
+# `index_at_time_price` endpoints. Gated on `__test-helpers` for
+# `MddsClient::for_fallback_test` and the `grpc::{Channel, ChannelPool}`
+# re-export.
+[[test]]
+name = "test_endpoint_routing"
+path = "tests/test_endpoint_routing.rs"
+required-features = ["__test-helpers"]
+
+[[bin]]
+name = "generate_sdk_surfaces"
+path = "src/bin/generate_sdk_surfaces.rs"
+required-features = ["config-file"]
+
+[[bin]]
+name = "refresh_grpc_snapshot"
+path = "src/bin/refresh_grpc_snapshot.rs"
+required-features = ["grpc-codegen"]

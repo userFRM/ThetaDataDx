@@ -29,7 +29,6 @@ set(THETADX_CPP_TEST_SOURCES
     history.cpp
     fpss.cpp
     unified_client.cpp
-    streaming_iter.cpp
     error_taxonomy.cpp
     # REST-fallback policy + Config::withRestFallback wiring tests.
     fallback.cpp

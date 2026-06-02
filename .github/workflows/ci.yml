@@ -81,13 +81,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-rust-deps
-      - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
-      - run: cargo run -p thetadatadx --features grpc-codegen --bin refresh_grpc_snapshot --locked
+      - run: cargo run -p thetadatadx-engine --features config-file --bin generate_sdk_surfaces --locked -- --check
+      - run: cargo run -p thetadatadx-engine --features grpc-codegen --bin refresh_grpc_snapshot --locked
       - name: Assert no tracked file changed
         shell: bash
         run: |
           if ! git diff --exit-code; then
-            echo "::error::Wire schema regeneration produced uncommitted changes. Run \`cargo run -p thetadatadx --bin refresh_grpc_snapshot --features grpc-codegen\` and \`cargo run -p thetadatadx --bin generate_sdk_surfaces --features config-file\` locally and commit the diff." >&2
+            echo "::error::Wire schema regeneration produced uncommitted changes. Run \`cargo run -p thetadatadx-engine --bin refresh_grpc_snapshot --features grpc-codegen\` and \`cargo run -p thetadatadx-engine --bin generate_sdk_surfaces --features config-file\` locally and commit the diff." >&2
             exit 1
           fi
 
@@ -167,7 +167,7 @@ jobs:
       # `test_with_fallback_end_date` has `required-features` matching;
       # without the flag here the test silently skips and the
       # `_with_fallback` shims lose their regression coverage.
-      - run: cargo test --workspace --locked --features thetadatadx/__test-helpers
+      - run: cargo test --workspace --locked --features thetadatadx-engine/__test-helpers
       # Gate 3 (#546) - Rust side: doctests run as part of `cargo test
       # --workspace` above, but invoking `--doc` explicitly verifies
       # the FFI crate's `extern "C"` doc examples compile + run on
@@ -198,7 +198,7 @@ jobs:
       # doc invocation. docs.rs builds with `all-features = true`, so
       # CI must mirror that contract or a broken link will land on
       # docs.rs but pass CI.
-      - run: cargo doc --no-deps -p thetadatadx --features "arrow polars frames config-file" --locked
+      - run: cargo doc --no-deps -p thetadatadx-engine --features "arrow polars frames config-file" --locked
 
   bench:
     name: Bench regression gate
@@ -210,13 +210,13 @@ jobs:
       - uses: ./.github/actions/setup-rust-deps
       - name: Run tracked benches (mock-backed, no live creds)
         run: |
-          cargo bench -p thetadatadx --features __test-helpers --bench grpc_channel --locked -- \
+          cargo bench -p thetadatadx-engine --features __test-helpers --bench grpc_channel --locked -- \
               "stock_list_symbols/in_house" --quick
-          cargo bench -p thetadatadx --bench streaming_channels --locked -- \
+          cargo bench -p thetadatadx-engine --bench streaming_channels --locked -- \
               "streaming_channels/direct_callback/100k_events" --quick
-          cargo bench -p thetadatadx --bench streaming_channels --locked -- \
+          cargo bench -p thetadatadx-engine --bench streaming_channels --locked -- \
               "streaming_channels/disruptor_consumer_panic_isolated/100k_events" --quick
-          cargo bench -p thetadatadx --bench streaming_channels --locked -- \
+          cargo bench -p thetadatadx-engine --bench streaming_channels --locked -- \
               "streaming_channels/disruptor_cross_thread/100k_events" --quick
           # Gate 10 (#553) expansion: FPSS event clone + match dispatch
           # benches. The bench files already exist
@@ -226,7 +226,7 @@ jobs:
           # a first sample lands on `main` — the baseline JSON is
           # captured locally and we do not bless a value against the
           # GitHub-hosted runner without one observed sample.
-          cargo bench -p thetadatadx --bench bench_fpss_event --locked -- --quick
+          cargo bench -p thetadatadx-engine --bench bench_fpss_event --locked -- --quick
       - name: Compare against checked-in baseline
         # Threshold tightened from 100% (a 2x slowdown passed) to 25%.
         # The baseline JSON is recaptured against the GH-hosted runner
@@ -256,12 +256,11 @@ jobs:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: ./.github/actions/install-protoc
-      # cargo-semver-checks anchored at the last published release
-      # (v10.0.0); hard-fail on any public Rust API break the crate
-      # version does not account for. The v11.0.0 major bump permits the
-      # intentional v10 -> v11 breaks. Advance the baseline to v11.0.0
-      # once that tag is published so the v11.x patch line is guarded
-      # against accidental breaks.
+      # cargo-semver-checks anchored at the last published release;
+      # hard-fail on any public Rust API break the crate version does
+      # not account for. Advance the baseline tag at every published
+      # major bump so the patch line is guarded against accidental
+      # breaks.
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         continue-on-error: false
         with:
@@ -294,7 +293,7 @@ jobs:
       # lockfile or the wheel / npm package ships a stale runtime.
       - run: python3 scripts/check_lockfile_drift.py
       - run: python3 scripts/validate_agreement_test.py
-      - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
+      - run: cargo run -p thetadatadx-engine --features config-file --bin generate_sdk_surfaces --locked -- --check
       - run: cargo check --manifest-path tools/mcp/Cargo.toml --locked
       - run: cargo clippy --manifest-path tools/mcp/Cargo.toml --locked -- -D warnings
       - run: cargo test --manifest-path tools/mcp/Cargo.toml --locked

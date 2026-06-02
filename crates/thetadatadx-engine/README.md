@@ -1,0 +1,106 @@
+# thetadatadx
+
+Core Rust crate — direct wire-protocol access to all three of ThetaData's public surfaces: MDDS (request/response history over gRPC), FPSS (real-time streaming over TCP), and FLATFILES (whole-universe daily blobs over the legacy MDDS port).
+
+This is the engine that powers all ThetaDataDxClient SDKs (Python, TypeScript / Node.js, C++, CLI, MCP, REST server).
+
+## Entry Point
+
+```rust
+use thetadatadx::{ThetaDataDxClient, Credentials, DirectConfig};
+use thetadatadx::fpss::protocol::Contract;
+
+let creds = Credentials::from_file("creds.txt")?;
+let tdx = ThetaDataDxClient::connect(&creds, DirectConfig::production()).await?;
+
+// Historical - typed endpoints available immediately
+let eod = tdx.stock_history_eod("AAPL", "20240101", "20240301").await?;
+
+// Streaming - connects lazily on first call
+tdx.start_streaming(|event| { /* ... */ })?;
+tdx.subscribe(Contract::stock("AAPL").quote())?;
+
+// When done
+tdx.stop_streaming();
+
+// Flat files - per-call TLS to the legacy MDDS port (12000).
+use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
+let csv_path = tdx
+    .flatfile_request(SecType::Option, ReqType::OpenInterest, "20240315", "oi.csv", FlatFileFormat::Csv)
+    .await?;
+
+// Or pull straight into memory for an algorithm:
+let rows = tdx
+    .flatfile_request_decoded(SecType::Option, ReqType::OpenInterest, "20240315")
+    .await?;
+```
+
+`ThetaDataDxClient::connect()` authenticates once. Historical data (MDDS gRPC) is available immediately via `Deref` to the internal `MddsClient`. Streaming (FPSS TCP) connects lazily when you call `start_streaming()`. Flat-file requests (FLATFILES) open a per-call TLS connection to the legacy MDDS port and are independent of the MDDS gRPC and FPSS sessions — see [vendor docs](https://http-docs.thetadata.us/operations/get-v2-flat-file-getting-started.html) for the full flat-file matrix.
+
+## Crate Layout
+
+```
+src/
+  lib.rs           - public re-exports (ThetaDataDxClient, Credentials, DirectConfig, Error)
+  unified.rs       - ThetaDataDxClient: single entry point, lazy streaming
+  mdds/            - MddsClient module (client, stream, validate, normalize, endpoints)
+  auth/            - Nexus API authentication, credential parsing
+  fpss/            - FPSS streaming client (sync, LMAX Disruptor ring buffer)
+  codec/           - FIT nibble encoder/decoder, delta compression
+  config.rs        - DirectConfig (server addresses, timeouts, concurrency)
+  decode.rs        - DataTable -> typed tick parsing (generated from TOML)
+  types/           - Tick structs, Price, enums (generated from TOML)
+  greeks.rs        - 22 Black-Scholes Greeks + IV solver
+  registry.rs      - Endpoint metadata (generated from the endpoint surface spec)
+  error.rs         - Error enum
+proto/
+  mdds.proto           - canonical MDDS wire contract from ThetaData
+  MAINTENANCE.md       - endpoint/proto maintenance guide
+tick_schema.toml   - single source of truth for tick type definitions
+endpoint_surface.toml  - explicit endpoint surface spec for registry/mdds/runtime generation
+build.rs               - small build entrypoint
+build_support/
+  mod.rs               - orchestration entry for build-time code generation
+  upstream_openapi.rs  - pinned upstream OpenAPI snapshot loader
+  endpoints/           - endpoint surface parser + render passes for registry, MDDS runtime, REST surface
+  ticks/               - tick-schema parser + Rust / Python / TypeScript render passes
+  fpss_events/         - FPSS event-schema parser + Rust / Python / TypeScript / C render passes
+  sdk_surface/         - SDK surface parser + CLI / MCP / Python / TypeScript / C++ render passes
+```
+
+## TOML Codegen
+
+All generated tick types and their DataTable parsers are generated at compile time from `tick_schema.toml`. Adding a new column is one line in the TOML. See [docs/endpoint-schema.md](../../docs/endpoint-schema.md).
+
+## Endpoint Surface Spec
+
+Endpoint projections are generated from the checked-in `endpoint_surface.toml`
+file, which defines the normalized endpoint surface: names, descriptions,
+parameter semantics, REST paths, return kinds, projection call-shapes, reusable
+parameter groups, and endpoint templates. Templates support inheritance via
+`extends`, so the spec can model repeated endpoint families without copying the
+same parameter blocks across every declaration.
+
+The build pipeline validates that surface spec against `proto/mdds.proto`
+before generating the registry, shared endpoint runtime, and `MddsClient`
+endpoint declarations.
+
+## Tick Types
+
+| Type | Fields | Use |
+|------|--------|-----|
+| `TradeTick` | 16 | Individual trades |
+| `QuoteTick` | 11 | NBBO quotes |
+| `OhlcTick` | 9 | Aggregated OHLC bars |
+| `EodTick` | 18 | End-of-day summary |
+| `TradeQuoteTick` | 26 | Combined trade + quote |
+| `OpenInterestTick` | 3 | Open interest |
+| `MarketValueTick` | 7 | Market cap, shares out, etc. |
+| `GreeksTick` | 25 | All 23 Greeks + ms_of_day + date |
+| `IvTick` | 4 | Implied volatility + error |
+| `PriceTick` | 4 | Index price |
+| `CalendarDay` | 5 | Market open/close schedule |
+| `InterestRateTick` | 3 | Interest rate |
+| `OptionContract` | 5 | Contract definition (root, exp, strike, right) |
+
+All types except `OptionContract` are `Copy` - pure stack values, zero heap allocation.

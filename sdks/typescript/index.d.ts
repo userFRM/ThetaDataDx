@@ -5,9 +5,9 @@
  *
  * Build a config via one of the three static factories
  * ([`Config::production`] / [`Config::dev`] / [`Config::stage`]),
- * install a [`FallbackPolicy`] via [`Config::withRestFallback`] if
+ * install a [`FallbackPolicy`] via `Config.withRestFallback` if
  * needed, then pass to
- * [`ThetaDataDxClient.connectWithConfig`] /
+ * `ThetaDataDxClient.connectWithConfig` /
  * `connectFromFileWithConfig`.
  *
  * Mutating methods (`withRestFallback`, ...) follow JS convention and
@@ -113,8 +113,8 @@ export declare class Config {
    * Set the streaming reconnect policy.
    *
    * - `"auto"` (default): auto-reconnect with the per-class attempt
-   *   budgets supplied by [`Config::setReconnectMaxAttempts`] and
-   *   [`Config::setReconnectMaxRateLimitedAttempts`].
+   *   budgets supplied by `Config.setReconnectMaxAttempts` and
+   *   `Config.setReconnectMaxRateLimitedAttempts`.
    * - `"manual"`: no auto-reconnect; callers reconnect explicitly.
    */
   setReconnectPolicy(policy: string): void
@@ -302,58 +302,12 @@ export declare class ContractRef {
 }
 
 /**
- * Per-client pull-iter handle. Exposed as a napi class with an
- * async `next()` method and a `[Symbol.asyncIterator]` hook so JS
- * code drains it with `for await (const event of iter)`.
- *
- * Returned by [`crate::ThetaDataDxClient::start_streaming_iter`].
- * Mutually exclusive with `startStreaming(callback)` on the same
- * client; switch by calling `stopStreaming()` first.
- */
-export declare class EventIterator {
-  /**
-   * Pop the next typed FPSS event, awaiting until one arrives or
-   * the streaming session shuts down. Resolves to the typed
-   * `FpssEvent` napi object on success or `null` once the queue
-   * is drained on a stopped session.
-   *
-   * Long-lived `for await` loops should prefer the async
-   * iterator (`for await (const event of iter)`); `next()` is
-   * retained for callers that want explicit Promise-based
-   * pulling.
-   */
-  next(): Promise<FpssEvent | null>
-  /**
-   * Try to pop the next event without awaiting. Resolves to
-   * `null` on either an empty-but-live queue OR a terminal
-   * end-of-stream (queue drained on a stopped session). Useful
-   * for non-blocking polling integrations. Callers that need to
-   * distinguish the two cases should use the awaiting `next()`
-   * path, which resolves to `null` only on terminal end-of-stream
-   * after the queue has fully drained.
-   */
-  tryNext(): FpssEvent | null
-  /**
-   * Number of events currently buffered between the Disruptor
-   * consumer and this iterator. Diagnostic only — the value is
-   * racy because the consumer pushes concurrently.
-   */
-  queueLen(): number
-  /**
-   * Mark the iterator closed. Subsequent `next()` calls resolve
-   * to `null` once the queue is drained, without shutting down
-   * the underlying streaming session.
-   */
-  close(): void
-}
-
-/**
  * REST-routing policy. Mirrors [`thetadatadx::config::FallbackPolicy`].
  *
  * Constructed via one of the static factories, then installed on
- * a [`Config`] via [`Config::withRestFallback`]. A `Config` with an
+ * a [`Config`] via `Config.withRestFallback`. A `Config` with an
  * installed policy is then passed to
- * [`ThetaDataDxClient.connectWithConfig`] / `connectFromFileWithConfig`
+ * `ThetaDataDxClient.connectWithConfig` / `connectFromFileWithConfig`
  * to bind the policy to a live client.
  *
  * # Example
@@ -1324,19 +1278,6 @@ export declare class ThetaDataDxClient {
   shutdown(): void
   /** Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise. */
   awaitDrain(timeoutMs: number): Promise<boolean>
-  /**
-   * Start FPSS streaming in pull-iter delivery mode.
-   *
-   * Returns an [`EventIterator`] handle whose `next()` resolves
-   * to the next typed FPSS event or `null` once the streaming
-   * session has shut down and the residual queue is drained. JS
-   * callers iterate with `for await (const event of iter)`.
-   *
-   * Mutually exclusive with `startStreaming(callback)`. Calling
-   * either while streaming is already running rejects with
-   * `"streaming already started"`.
-   */
-  startStreamingIter(): EventIterator
   /** FLATFILES namespace handle. Cheap — clones the inner Arc. */
   get flatFiles(): FlatFilesNamespace
   /**

@@ -76,8 +76,8 @@ genuinely unreachable.
 
 ## Verifying
 
-The in-tree integration test
-`crates/thetadatadx/tests/test_pool_reconnect.rs` covers:
+An in-tree integration test exercises the pool reconnect behaviour
+end-to-end:
 
 * Force-kill the underlying TCP connection on every pool member
   mid-stream → subsequent RPCs succeed via transparent reconnect.
@@ -96,8 +96,8 @@ upward to the caller.
 
 ## Public surface narrowing
 
-The `pub mod grpc` re-export was narrowed to `pub(crate)` in v11.
-Transport-layer errors continue to reach consumers via
+The `pub mod grpc` re-export is `pub(crate)`. Transport-layer errors
+continue to reach consumers via
 `impl From<grpc::ChannelError> for Error` at the crate boundary;
 integration tests that need the wider surface opt in via the
 private `__test-helpers` feature.

@@ -39,7 +39,7 @@ Every historical endpoint is available as `tdx_stock_*`, `tdx_option_*`, `tdx_in
 
 | Function | Description |
 |----------|-------------|
-| `tdx_unified_set_callback` | Register the push-mode user callback on the unified handle. Mutually exclusive with `tdx_unified_start_streaming_iter`. |
+| `tdx_unified_set_callback` | Register the user callback on the unified handle. The Disruptor consumer thread invokes it for every typed FPSS event under `catch_unwind`. |
 | `tdx_unified_subscribe` | Polymorphic subscribe — takes `TdxSubscriptionRequest` (per-contract or full-stream) |
 | `tdx_unified_unsubscribe` | Polymorphic unsubscribe — takes `TdxSubscriptionRequest` |
 | `tdx_unified_is_streaming` | Check if FPSS connection is live |
@@ -49,21 +49,12 @@ Every historical endpoint is available as `tdx_stock_*`, `tdx_option_*`, `tdx_in
 | `tdx_unified_stop_streaming` | Stop streaming, historical stays alive |
 | `tdx_unified_free` | Free the unified handle |
 
-#### Pull-iter delivery (sibling of `tdx_unified_set_callback`)
-
-| Function | Description |
-|----------|-------------|
-| `tdx_unified_start_streaming_iter` | Start FPSS in pull-iter mode; returns an opaque `TdxFpssEventIterator*`. Mutually exclusive with `tdx_unified_set_callback`. |
-| `tdx_fpss_event_iter_next` | Pop next event with timeout (`0`=poll, positive ms=block-with-deadline). Returns `0`=event filled / `1`=timeout / `-1`=terminal end-of-stream. |
-| `tdx_fpss_event_iter_close` | Mark iterator closed; subsequent `_next` returns `-1` once queue drains. |
-| `tdx_fpss_event_iter_free` | Free the iterator handle. |
-
 ### Streaming (via TdxFpssHandle, standalone)
 
 | Function | Description |
 |----------|-------------|
 | `tdx_fpss_connect` | Connect standalone FPSS client |
-| `tdx_fpss_set_callback` | Register the push-mode user callback |
+| `tdx_fpss_set_callback` | Register the user callback. The Disruptor consumer thread invokes it for every typed FPSS event under `catch_unwind`. |
 | `tdx_fpss_subscribe` | Polymorphic subscribe — takes `TdxSubscriptionRequest` |
 | `tdx_fpss_unsubscribe` | Polymorphic unsubscribe — takes `TdxSubscriptionRequest` |
 | `tdx_fpss_is_authenticated` | Check if FPSS is authenticated |

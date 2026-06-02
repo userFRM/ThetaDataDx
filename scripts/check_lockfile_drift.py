@@ -49,7 +49,7 @@ except ImportError:
         return toml.loads(p.read_text())
 
 
-# Deps where cross-lockfile drift is a release blocker.
+# Deps where cross-lockfile drift breaks the release.
 SECURITY_CRITICAL = {
     "rustls",
     "webpki-roots",

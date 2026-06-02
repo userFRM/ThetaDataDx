@@ -13,7 +13,7 @@ One page covering all four SDKs (Rust, Python, TypeScript / Node.js, C++). Each 
 ```bash [Rust]
 # Cargo.toml
 # [dependencies]
-# thetadatadx = "11"
+# thetadatadx = "12"
 # tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 cargo add thetadatadx tokio --features tokio/rt-multi-thread,tokio/macros
@@ -196,49 +196,43 @@ from thetadatadx import Credentials, Config, ThetaDataDxClient, Contract
 creds = Credentials.from_file("creds.txt")
 client = ThetaDataDxClient(creds, Config.production())
 
-client.subscribe(Contract.stock("AAPL").quote())
-client.subscribe(Contract.stock("MSFT").trade())
+def on_event(event):
+    if event.kind == "quote":
+        print(f"Quote: {event.contract.symbol} "
+              f"{event.bid:.2f}/{event.ask:.2f}")
+    elif event.kind == "trade":
+        print(f"Trade: {event.contract.symbol} "
+              f"{event.price:.2f} x {event.size}")
 
-# Pull-iter mode: context-managed typed iterator over the SPSC
-# queue. The iterator raises StopIteration once `stop_streaming()`
-# fires AND the queue is fully drained; the `with` block pairs
-# `stop_streaming()` + `await_drain()` automatically on exit.
-with client.streaming_iter() as it:
-    for event in it:
-        if event.kind == "quote":
-            print(f"Quote: {event.contract.symbol} "
-                  f"{event.bid:.2f}/{event.ask:.2f}")
-        elif event.kind == "trade":
-            print(f"Trade: {event.contract.symbol} "
-                  f"{event.price:.2f} x {event.size}")
-        elif event.kind == "disconnected":
-            break
+# `streaming(callback)` registers `on_event` on enter and pairs
+# `stop_streaming()` + `await_drain()` on exit.
+with client.streaming(on_event):
+    client.subscribe(Contract.stock("AAPL").quote())
+    client.subscribe(Contract.stock("MSFT").trade())
+    import time
+    time.sleep(60)
 ```
 ```typescript [TypeScript]
 import { ThetaDataDxClient, Contract } from 'thetadatadx';
 
 const client = await ThetaDataDxClient.connectFromFile('creds.txt');
 
+client.startStreaming((event) => {
+    if (event.kind === 'quote') {
+        const q = event.quote;
+        console.log(`Quote: ${q.contract.symbol} ${q.bid.toFixed(2)}/${q.ask.toFixed(2)}`);
+    } else if (event.kind === 'trade') {
+        const t = event.trade;
+        console.log(`Trade: ${t.contract.symbol} ${t.price.toFixed(2)} x ${t.size}`);
+    }
+});
+
 client.subscribe(Contract.stock('AAPL').quote());
 client.subscribe(Contract.stock('MSFT').trade());
 
-// Pull-iter mode: async iterable over the SPSC queue. The
-// iterator resolves `done: true` once `client.stopStreaming()`
-// fires AND the queue is fully drained.
-const iter = client.startStreamingIter();
-try {
-    for await (const event of iter) {
-        if (event.kind === 'quote') {
-            console.log(`Quote: ${event.contract.symbol} ${event.bid.toFixed(2)}/${event.ask.toFixed(2)}`);
-        } else if (event.kind === 'trade') {
-            console.log(`Trade: ${event.contract.symbol} ${event.price.toFixed(2)} x ${event.size}`);
-        } else if (event.kind === 'simple' && event.eventType === 'disconnected') {
-            break;
-        }
-    }
-} finally {
-    client.stopStreaming();
-}
+// ... let the callback run ...
+client.stopStreaming();
+await client.awaitDrain(5000);
 ```
 ```cpp [C++]
 #include "thetadx.hpp"
@@ -249,45 +243,42 @@ int main() {
     auto config = tdx::Config::production();
     auto client = tdx::UnifiedClient::connect(creds, config);
 
-    // Fluent contract-first subscribe — same shape as the Rust /
-    // Python / TypeScript bindings.
-    client.subscribe(tdx::Contract::stock("AAPL").quote());
-    client.subscribe(tdx::Contract::stock("MSFT").trade());
-
-    auto iter = client.start_streaming_iter();
-    while (!iter.ended()) {
-        auto event = iter.next(std::chrono::milliseconds(1000));
-        if (!event) continue;
-
-        switch (event->kind) {
+    client.set_callback([](const tdx::FpssEvent& event) {
+        switch (event.kind) {
         case TDX_FPSS_QUOTE: {
-            const auto& q = event->quote;
+            const auto& q = event.quote;
             std::cout << "Quote: " << q.contract.symbol
                       << " " << q.bid << "/" << q.ask << std::endl;
             break;
         }
         case TDX_FPSS_TRADE: {
-            const auto& t = event->trade;
+            const auto& t = event.trade;
             std::cout << "Trade: " << t.contract.symbol
                       << " " << t.price << " x " << t.size << std::endl;
             break;
         }
         default: break;
         }
-    }
+    });
 
-    fpss.shutdown();
+    // Fluent contract-first subscribe — same shape as the Rust /
+    // Python / TypeScript bindings.
+    client.subscribe(tdx::Contract::stock("AAPL").quote());
+    client.subscribe(tdx::Contract::stock("MSFT").trade());
+
+    // ... let the callback run ...
+    client.stop_streaming();
 }
 ```
 :::
 
-Streaming is real-time FPSS — no polling the historical REST endpoints. See [Streaming (FPSS)](./streaming) for the callback / polling model, reconnect policy, and latency tracking.
+Streaming is real-time FPSS — no polling the historical REST endpoints. See [Streaming (FPSS)](./streaming) for the callback dispatch model, reconnect policy, and latency tracking.
 
 ## Where to next
 
 - [Authentication](./authentication) — credentials file, environment variables, token lifecycle
 - [First query](./first-query) — deeper dive on a single historical call
 - [DataFrames](./dataframes) — Arrow / Polars / Pandas output with the zero-copy scope
-- [Streaming (FPSS)](./streaming) — SPKI pinning, callback / polling models, lock-free ring, reconnect policy
+- [Streaming (FPSS)](./streaming) — SPKI pinning, callback dispatch, lock-free ring, reconnect policy
 - [Error handling](./errors) — `ThetaDataError` hierarchy, retry policy, session refresh
 - [Historical endpoints](../historical/) — complete generated historical surface, with per-language examples on each

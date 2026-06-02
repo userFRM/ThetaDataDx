@@ -260,8 +260,8 @@ class Subscription:
 # FPSS event classes — emitted to the streaming callback
 #
 # Every field below was extracted from the `#[pyo3(get)]` declarations
-# on the generated `_generated/fpss_event_classes.rs` at v10.0.0 plus
-# the post-v10 surface additions. Updating this stub without touching
+# on the generated `_generated/fpss_event_classes.rs` plus
+# subsequent surface additions. Updating this stub without touching
 # the matching pyclass attribute (or vice versa) is caught by
 # `python -m mypy.stubtest thetadatadx --ignore-missing-stub`.
 # ─────────────────────────────────────────────────────────────────────
@@ -575,7 +575,6 @@ class ThetaDataDxClient:
 
     # Streaming lifecycle.
     def start_streaming(self, callback: EventCallback) -> None: ...
-    def start_streaming_iter(self) -> EventIterator: ...
     def is_streaming(self) -> bool: ...
     def stop_streaming(self) -> None: ...
     def shutdown(self) -> None: ...
@@ -689,19 +688,6 @@ class ThetaDataDxClient:
 
     # Context managers.
     def streaming(self, callback: EventCallback) -> StreamingSession: ...
-    def streaming_iter(self) -> StreamingIterSession: ...
-    def streaming_async(
-        self,
-        *,
-        max_queue_depth: int = ...,
-        backpressure: BackpressurePolicy = ...,
-    ) -> StreamingAsyncSession: ...
-    def streaming_async_batches(
-        self,
-        *,
-        max_queue_depth: int = ...,
-        backpressure: BackpressurePolicy = ...,
-    ) -> StreamingAsyncBatchesSession: ...
 
     # FLATFILES namespace getter.
     @property
@@ -723,9 +709,9 @@ class AsyncThetaDataDxClient:
       - ``*_async`` historical methods → 60+ generator-emitted async
         terminals on the inner unified client.
       - Streaming lifecycle (``start_streaming`` / ``stop_streaming``
-        / ``streaming_async`` / ``subscribe`` etc) → reaches the
-        sync surface on the inner client; documented via
-        :data:`ALLOWED_UNIFIED_PROXY_METHODS` in the binding source.
+        / ``subscribe`` etc) → reaches the sync surface on the inner
+        client; documented via :data:`ALLOWED_UNIFIED_PROXY_METHODS`
+        in the binding source.
 
     The per-class ``__getattr__`` stub below is retained
     intentionally: hand-stubbing every proxied attribute would
@@ -761,7 +747,6 @@ class FpssClient:
     ) -> FpssClient: ...
 
     def start_streaming(self, callback: EventCallback) -> None: ...
-    def start_streaming_iter(self) -> EventIterator: ...
     def is_streaming(self) -> bool: ...
     def is_authenticated(self) -> bool: ...
     def stop_streaming(self) -> None: ...
@@ -780,19 +765,6 @@ class FpssClient:
     def panic_count(self) -> int: ...
 
     def streaming(self, callback: EventCallback) -> StreamingSession: ...
-    def streaming_iter(self) -> StreamingIterSession: ...
-    def streaming_async(
-        self,
-        *,
-        max_queue_depth: int = ...,
-        backpressure: BackpressurePolicy = ...,
-    ) -> StreamingAsyncSession: ...
-    def streaming_async_batches(
-        self,
-        *,
-        max_queue_depth: int = ...,
-        backpressure: BackpressurePolicy = ...,
-    ) -> StreamingAsyncBatchesSession: ...
 
     def __repr__(self) -> str: ...
 
@@ -858,46 +830,7 @@ class StreamingSession:
 
 
 @final
-class StreamingIterSession:
-    """Context manager for pull-iter FPSS streaming.
-
-    Like :class:`StreamingSession`, this is a PURE PROXY class with
-    only the context-manager dunders + ``__getattr__`` physically on
-    the pyclass; subscription / lifecycle methods proxy through to
-    the bound client.
-    """
-
-    def __enter__(self) -> EventIterator: ...
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[Any],
-    ) -> bool: ...
-    def __getattr__(self, name: str) -> Any: ...
-
-
 @final
-class EventIterator:
-    """Iterator over FPSS events in pull-iter delivery mode."""
-
-    def __iter__(self) -> EventIterator: ...
-    def __next__(self) -> Any: ...
-    def close(self) -> None: ...
-    def __enter__(self) -> EventIterator: ...
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[Any],
-    ) -> bool: ...
-
-
-# ─────────────────────────────────────────────────────────────────────
-# FLATFILES surface
-# ─────────────────────────────────────────────────────────────────────
-
-
 @final
 class FlatFileRowList:
     """Typed list of FLATFILES rows. One row per `(symbol, date, ...)`."""
@@ -932,147 +865,8 @@ class FlatFilesNamespace:
 
 
 @final
-class StreamingAsyncSession:
-    """Asyncio-native context manager for FPSS streaming.
-
-    Bridges the Disruptor consumer thread to the asyncio event loop via
-    FD-readiness signalling — the consumer writes a coalesced byte to a
-    self-pipe on every successful queue push, and the loop's
-    ``add_reader`` wakes the awaiting coroutine. No polling, no 100µs
-    tick budget.
-
-    Usage::
-
-        async with client.streaming_async() as session:
-            await session.subscribe(Contract.stock("QQQ").quote())
-            async for batch in session:
-                for ev in batch:
-                    handle(ev)
-    """
-
-    def __aenter__(self) -> Awaitable[StreamingAsyncSession]: ...
-    def __aexit__(
-        self,
-        exc_type: Optional[Type[BaseException]] = None,
-        exc_value: Optional[BaseException] = None,
-        traceback: Optional[Any] = None,
-    ) -> Awaitable[None]: ...
-
-    # Async iteration — yields ``list[FpssEvent]`` per OS wake.
-    def __aiter__(self) -> AsyncIterator[List[Any]]: ...
-    def __anext__(self) -> Awaitable[List[Any]]: ...
-
-    # Awaitable subscription management. Resolves once the FPSS-protocol
-    # round-trip lands.
-    def subscribe(self, sub: Subscription) -> Awaitable[None]: ...
-    def subscribe_many(self, subs: List[Subscription]) -> Awaitable[None]: ...
-    def unsubscribe(self, sub: Subscription) -> Awaitable[None]: ...
-    def unsubscribe_many(self, subs: List[Subscription]) -> Awaitable[None]: ...
-
-    # Backpressure-aware drain. ``callback`` may be sync or
-    # ``async def``; ``async def`` callbacks are awaited before the next
-    # batch is drained so a slow consumer throttles upstream.
-    def streaming_async_for_each(
-        self, callback: Callable[[List[Any]], Any]
-    ) -> Awaitable[None]: ...
-
-    # Diagnostic — instantaneous queue depth between the Disruptor
-    # consumer and this session.
-    def queue_len(self) -> int: ...
-    def queue_depth(self) -> int: ...
-    def dropped_event_count(self) -> int: ...
-
-    # Echoed-back configuration.
-    @property
-    def max_queue_depth(self) -> int: ...
-    @property
-    def backpressure(self) -> BackpressurePolicy: ...
-
-
 @final
-class StreamingAsyncBatchesSession:
-    """Arrow IPC zero-copy batched streaming context manager.
-
-    Sibling of :class:`StreamingAsyncSession` that yields one
-    ``pyarrow.RecordBatch`` per OS wake instead of ``list[FpssEvent]``.
-    Same wake-FD plumbing, same backpressure semantics — different
-    drain shape optimised for vectorised downstream processing
-    (pandas / polars / datafusion).
-
-    Usage::
-
-        async with client.streaming_async_batches() as session:
-            await session.subscribe(Contract.stock("QQQ").quote())
-            async for batch in session:
-                df = batch.to_pandas()
-                # ... vectorised processing ...
-
-    The emitted schema is a union of every ``FpssData`` variant's
-    columns plus a ``kind`` discriminator (``"Quote"`` / ``"Trade"``
-    / ``"OpenInterest"`` / ``"Ohlcvc"``). Variant-specific columns
-    are nullable and null-filled on rows that do not populate them.
-    """
-
-    def __aenter__(self) -> Awaitable[StreamingAsyncBatchesSession]: ...
-    def __aexit__(
-        self,
-        exc_type: Optional[Type[BaseException]] = None,
-        exc_value: Optional[BaseException] = None,
-        traceback: Optional[Any] = None,
-    ) -> Awaitable[None]: ...
-
-    # Async iteration — yields ``pyarrow.RecordBatch`` per OS wake.
-    # Annotated as ``Any`` because the pyarrow dep is optional at
-    # install time; consumers gate on the extras (``pip install
-    # thetadatadx[arrow]``).
-    def __aiter__(self) -> AsyncIterator[Any]: ...
-    def __anext__(self) -> Awaitable[Any]: ...
-
-    def subscribe(self, sub: Subscription) -> Awaitable[None]: ...
-    def subscribe_many(self, subs: List[Subscription]) -> Awaitable[None]: ...
-    def unsubscribe(self, sub: Subscription) -> Awaitable[None]: ...
-    def unsubscribe_many(self, subs: List[Subscription]) -> Awaitable[None]: ...
-
-    def queue_len(self) -> int: ...
-    def queue_depth(self) -> int: ...
-    def dropped_event_count(self) -> int: ...
-    def schema(self) -> Any: ...
-
-    @property
-    def max_queue_depth(self) -> int: ...
-    @property
-    def backpressure(self) -> BackpressurePolicy: ...
-
-
 @final
-class BackpressurePolicy:
-    """Producer-side overflow strategy on the pull-iter queue.
-
-    Mirrors the core ``thetadatadx::fpss::BackpressurePolicy`` enum.
-    Pass one of the variants as the ``backpressure`` kwarg on
-    ``streaming_async(...)``.
-
-    * ``Block`` — preserve every event; producer parks when the queue
-      saturates. Default.
-    * ``DropOldest`` — evict queue head on full insert; preserve
-      recency. Increments ``dropped_event_count`` per eviction.
-    * ``DropNewest`` — skip new event on full insert; preserve
-      in-flight history. Increments ``dropped_event_count`` per skip.
-    """
-
-    Block: BackpressurePolicy
-    DropOldest: BackpressurePolicy
-    DropNewest: BackpressurePolicy
-
-    def __repr__(self) -> str: ...
-    def __eq__(self, other: object) -> bool: ...
-
-
-# ─────────────────────────────────────────────────────────────────────
-# Exception hierarchy
-# ─────────────────────────────────────────────────────────────────────
-
-
 class ThetaDataError(Exception):
     """Base exception for every typed error this binding raises."""
 
@@ -1166,8 +960,7 @@ class AllGreeks:
 #
 # This catch-all is scoped to MODULE-LEVEL attribute lookup ONLY.
 # Every load-bearing pyclass (`ThetaDataDxClient`, `FpssClient`,
-# `MddsClient`, `AsyncThetaDataDxClient`, `StreamingSession`,
-# `StreamingIterSession`, `StreamingAsyncSession`, `EventIterator`)
+# `MddsClient`, `AsyncThetaDataDxClient`, `StreamingSession`)
 # explicitly omits a per-class `__getattr__` fallback so stubtest
 # catches method-level drift on those classes. Adding a new public
 # method to any of them is a stubtest failure until the matching stub

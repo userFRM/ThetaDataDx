@@ -1,0 +1,40 @@
+# Verified-live wire shape captured via the terminal jar build `202605221`:
+#   curl 'http://127.0.0.1:25503/v3/index/at_time/price?symbol=SPX&\
+#     start_date=20240614&end_date=20240614&time_of_day=10:30:00'
+# Synthesised into a single-row `proto::ResponseData` by the
+# `build_eod_greeks_fixtures` example so the parser regression test
+# can round-trip the exact 10-column wire shape without a live
+# terminal. An earlier `PriceTick` routing dropped the seven trade-side
+# execution columns (`sequence`, `ext_condition1..4`, `condition`,
+# `size`, `exchange`) -- including the SIP-exchange attribution field
+# on `exchange`; the current schema restores the full set.
+
+endpoint = "index_at_time_price"
+tick_type = "IndexPriceAtTimeTick"
+expected_rows = 1
+expected_headers = [
+    "timestamp", "sequence",
+    "ext_condition1", "ext_condition2", "ext_condition3", "ext_condition4",
+    "condition", "size", "exchange", "price",
+]
+
+# 10:30:00.000 EDT on 2024-06-14 = 10 * 3_600_000 + 30 * 60_000 =
+#   37_800_000 ms past 00:00 New York. The wire `Timestamp` is converted
+# to ms-of-day by `row_number`'s timestamp arm; the same column also
+# populates `date` via the alias `(date, "timestamp")` row.
+first_row_ms_of_day = 37800000
+first_row_sequence = 0
+first_row_ext_condition1 = 255
+first_row_ext_condition2 = 255
+first_row_ext_condition3 = 255
+first_row_ext_condition4 = 255
+first_row_condition = 0
+first_row_size = 0
+
+# `exchange = 5` is the SIP source code for CBOE -- the per-row
+# attribution data the earlier routing dropped. Pinning the literal value
+# here catches any regression that reverts the endpoint back to the
+# bare `PriceTicks` collection.
+first_row_exchange = 5
+first_row_price = 5414.14
+first_row_date = 20240614

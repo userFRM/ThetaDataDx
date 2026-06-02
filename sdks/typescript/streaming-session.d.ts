@@ -12,7 +12,7 @@
 
 /* eslint-disable */
 
-import type { ThetaDataDxClient, FpssEvent, ContractRef, EventIterator } from './index';
+import type { ThetaDataDxClient, FpssEvent, ContractRef } from './index';
 
 export * from './index';
 
@@ -78,31 +78,6 @@ export declare const StreamingSession: {
   prototype: StreamingSession;
 };
 
-/**
- * Pull-iter context-managed streaming session returned by
- * `tdx.streamingIter()`. Drives the FPSS pull-iter delivery path:
- * `for await (const event of session) { ... }` drains the per-client
- * bounded queue, and the `[Symbol.asyncDispose]` hook pairs
- * `close()` + `stopStreaming()` + `awaitDrain(5000)` on scope exit.
- *
- * The runtime forwarding is `Proxy`-based: every method on the
- * underlying `EventIterator` (e.g. `tryNext`, `close`) AND every
- * method on the parent `ThetaDataDxClient` (e.g. `subscribe`,
- * `activeSubscriptions`) is reachable on the session.
- */
-export interface StreamingIterSession extends EventIterator {
-  [Symbol.asyncIterator](): AsyncIterableIterator<FpssEvent>;
-  [Symbol.asyncDispose](): Promise<void>;
-}
-
-export declare const StreamingIterSession: {
-  new (
-    tdx: ThetaDataDxClient,
-    iter: EventIterator,
-  ): StreamingIterSession;
-  prototype: StreamingIterSession;
-};
-
 declare module './index' {
   interface ThetaDataDxClient {
     /**
@@ -116,21 +91,5 @@ declare module './index' {
      * normally so any error from the body is not masked.
      */
     streaming(callback: FpssEventCallback): Promise<StreamingSession>;
-
-    /**
-     * Open a context-managed pull-iter streaming session.
-     *
-     * `await using session = await tdx.streamingIter()` opens the FPSS
-     * connection in pull-iter mode and pairs `stopStreaming()` +
-     * `awaitDrain(5000)` on scope exit. Drain timeouts emit
-     * `console.warn`. Iterate inside the body with
-     * `for await (const event of session)` — the async iterator
-     * yields typed `FpssEvent` values and terminates cleanly on
-     * upstream shutdown.
-     *
-     * Mutually exclusive with `streaming(callback)` on the same
-     * client; switch by stopping the active session first.
-     */
-    streamingIter(): Promise<StreamingIterSession>;
   }
 }

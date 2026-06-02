@@ -343,51 +343,6 @@ int main() {
 
 All prices in streaming events are `double` (f64) -- decoded during parsing. Access them directly: `event.quote.bid`, `event.trade.price`, etc. No `price_type` decoding needed.
 
-### Pull-iter delivery — `EventIterator` (high-throughput drain)
-
-Push-callback (`fpss.set_callback(fn)` / `unified.set_callback(fn)`
-above) is the recommended default for low-latency single-event
-reaction. Pull-iter is the sibling delivery mode for high-throughput
-batch processing: the user thread drains a per-client bounded queue
-populated by the Disruptor consumer.
-
-```cpp
-#include "thetadx.hpp"
-#include <chrono>
-#include <iostream>
-
-int main() {
-    auto unified = tdx::UnifiedClient::connect(
-        tdx::Credentials::from_file("creds.txt"),
-        tdx::Config::production());
-
-    auto iter = unified.start_streaming_iter();
-    unified.subscribe(tdx::SecType::option().full_trades());
-
-    // Range-for adapter — 1-second per-pop timeout by default.
-    for (const auto& event : iter) {
-        if (event.kind == TDX_FPSS_TRADE) {
-            std::cout << "trade " << event.trade.price
-                      << " x " << event.trade.size << std::endl;
-        }
-    }
-
-    // Or explicit poll with caller-chosen deadline:
-    while (auto event = iter.next(std::chrono::milliseconds(500))) {
-        // ... process *event ...
-    }
-    if (iter.ended()) {
-        // terminal end-of-stream — the streaming session shut down
-        // and the queue is drained.
-    }
-}
-```
-
-`tdx::EventIterator` is move-only; the destructor frees the
-underlying C handle. Mutually exclusive with the push-callback
-methods on the same client; switch by stopping streaming and
-starting again.
-
 ### Fluent contract-first API
 
 | Method | Returns | Description |

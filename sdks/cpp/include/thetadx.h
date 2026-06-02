@@ -1541,60 +1541,6 @@ uint64_t tdx_unified_dropped_events(const TdxUnified* handle);
  *  free immediately on return. */
 void tdx_unified_free(TdxUnified* handle);
 
-/* ── Pull-iter delivery ─────────────────────────────────────
- *
- * Sibling of the push-callback path. `tdx_unified_set_callback` sends
- * each event through a user `extern "C" fn` invoked on the streaming
- * consumer thread; the iterator instead drains a per-client bounded
- * queue from the caller's own thread, so the consumer thread is
- * decoupled from any per-event GIL / event-loop costs the binding
- * pays. Mutually exclusive with the callback path on the same
- * `TdxUnified*`; switch by stopping streaming and starting again.
- */
-
-/** Opaque pull-iter handle returned by tdx_unified_start_streaming_iter. */
-typedef struct TdxFpssEventIterator TdxFpssEventIterator;
-
-/** Start real-time streaming on the unified client in pull-iter mode.
- *
- *  Returns a freshly allocated `TdxFpssEventIterator*` on success.
- *  Mutually exclusive with `tdx_unified_set_callback` — calling
- *  either while streaming is already running returns NULL with
- *  `tdx_last_error()` set to `"streaming already started"`. Free with
- *  `tdx_fpss_event_iter_free` when done iterating.
- *
- *  Returns NULL on connection / auth / state failure. */
-TdxFpssEventIterator* tdx_unified_start_streaming_iter(const TdxUnified* handle);
-
-/** Pop the next streaming event into `*out_event`. `timeout_ms = 0` is a
- *  non-blocking poll; positive `timeout_ms` blocks up to that
- *  deadline.
- *
- *  Return values:
- *  -  0 — event filled into `*out_event`.
- *  -  1 — timeout expired with no event; `*out_event` untouched.
- *  - -1 — terminal end-of-stream (queue drained on a stopped session)
- *         OR call-site error (check `tdx_last_error()`).
- *
- *  The borrowed pointer fields inside `*out_event` (`Contract.symbol`,
- *  `LoginSuccess.permissions`, payload byte slices, etc.) reference
- *  heap memory owned by the iterator handle's internal buffer. They
- *  are valid until the next `tdx_fpss_event_iter_next` call OR until
- *  `tdx_fpss_event_iter_free` is invoked, whichever happens first.
- *  Copy any fields the consumer wants to outlive the next call. */
-int tdx_fpss_event_iter_next(TdxFpssEventIterator* it,
-                             TdxFpssEvent* out_event,
-                             int32_t timeout_ms);
-
-/** Mark the iterator closed. Subsequent `_next` calls return -1
- *  (terminal) once the queue is drained, without shutting down the
- *  underlying streaming session. Idempotent. */
-void tdx_fpss_event_iter_close(TdxFpssEventIterator* it);
-
-/** Free a pull-iter handle. Does NOT stop the underlying streaming
- *  session — call `tdx_unified_stop_streaming` first if you need a
- *  full shutdown. */
-void tdx_fpss_event_iter_free(TdxFpssEventIterator* it);
 
 /* ── FLATFILES surface ────────────────────────────────────────────────
  *

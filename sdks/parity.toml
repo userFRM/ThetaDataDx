@@ -62,36 +62,6 @@ typescript = false  # JS uses a Promise-based async iterator instead — equival
 cpp = false         # C++ uses RAII guard pattern instead
 
 [[class]]
-name = "StreamingIterSession"
-python = true
-typescript = false  # JS uses `[Symbol.asyncIterator]` directly on `EventIterator`
-cpp = true          # exposed as `tdx::UnifiedFpssIterSession`
-
-[[class]]
-name = "StreamingAsyncSession"
-python = true
-typescript = false  # JS asyncio analogue is `[Symbol.asyncIterator]` on `EventIterator` + the async-IPC bridge below; no separate session class
-cpp = false         # C++ async surface deferred — RAII guard + sync iter cover the documented C++ idiom
-
-[[class]]
-name = "StreamingAsyncBatchesSession"
-python = true
-typescript = false  # Python-only for now — Arrow IPC zero-copy surface lands on the Python binding first; TS/C++ follow once napi-arrow / arrow-cpp shape lock in
-cpp = false         # Python-only for now — same rationale as StreamingAsyncSession plus zero-copy Arrow buffer aliasing depends on pyo3's PyCapsule integration
-
-[[class]]
-name = "BackpressurePolicy"
-python = true
-typescript = false  # Python-only for now — TS streaming surface ships DropNewest-only; the Block / DropOldest knobs land once the cross-binding asyncio analogue is ported
-cpp = false         # Python-only for now — C++ async surface deferred, so the policy enum follows the session class
-
-[[class]]
-name = "EventIterator"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
 name = "Contract"
 python = true
 typescript = true   # exposed as `ContractRef` (Contract aliased post-build)
@@ -405,7 +375,7 @@ cpp = true
 # ─── EOD-Greek + index-price tick anchors ─────────────────────────────
 #
 # Two tick types model the verified-live wire shape on two endpoints
-# whose v10 routing dropped server-emitted columns:
+# whose earlier routing dropped server-emitted columns:
 #
 #   * `GreeksEodTick` (39 columns) -- `option_history_greeks_eod`.
 #     Previously routed to the bare `GreeksAllTick` (28 columns),
@@ -422,7 +392,7 @@ cpp = true
 # catch-all (`scripts/check_binding_parity.py::_is_implicitly_tracked`)
 # alongside every other generator-emitted tick wrapper. The rows
 # below are documentation anchors so the parity matrix records the
-# v11 additions; the script does not gate on dotted-name rows.
+# Additions; the script does not gate on dotted-name rows.
 
 [[class]]
 name = "GreeksEodTick.cross_binding_anchor"

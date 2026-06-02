@@ -3,4 +3,4 @@
 
 set -euo pipefail
 
-exec bash crates/thetadatadx/tests/regen_byte_identical.sh "$@"
+exec bash crates/thetadatadx-engine/tests/regen_byte_identical.sh "$@"

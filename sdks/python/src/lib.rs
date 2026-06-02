@@ -700,11 +700,11 @@ impl Config {
     /// ``None`` (the default) auto-sizes to
     /// :py:func:`os.process_cpu_count` (the same number
     /// :py:func:`std::thread::available_parallelism` reads on the
-    /// Rust side), matching how Bloomberg / LSEG feed handlers fan
-    /// parsing across every logical core. ``0`` is a legal explicit
-    /// value — the underlying pool clamps it to ``1`` internally so
-    /// stage-1 never deadlocks pushing into a zero-worker pool.
-    /// Explicit values are otherwise retained verbatim.
+    /// Rust side), fanning parse work across every logical core.
+    /// ``0`` is a legal explicit value — the underlying pool clamps
+    /// it to ``1`` internally so stage-1 never deadlocks pushing into
+    /// a zero-worker pool. Explicit values are otherwise retained
+    /// verbatim.
     ///
     /// Raises ``ValueError`` if ``n`` is negative.
     #[setter]
@@ -876,6 +876,22 @@ struct ThetaDataDxClient {
     /// inner `thetadatadx::ThetaDataDxClient` is not `Clone` — its
     /// streaming mutex and subscription-tier state forbid it — so the
     /// builder cannot hold the value directly without Arc ref-counting.
+    ///
+    /// Shutdown contract: when the pyclass auto-drops while the GIL is
+    /// held, the final `Arc::drop` may trigger the core
+    /// `ThetaDataDxClient::Drop` chain, which joins the FPSS dispatcher
+    /// thread that itself re-acquires the GIL via `Python::attach`.
+    /// Holding the GIL across that join would deadlock. Callers MUST
+    /// invoke `stop_streaming()` (the generated method uses `py.detach`
+    /// around the teardown so the dispatcher exits cleanly) before
+    /// letting the pyclass fall out of scope. The `with tdx.streaming(cb)`
+    /// context manager pairs `start_streaming(cb)` with
+    /// `stop_streaming() + await_drain(5000)` on exit to enforce this
+    /// ordering automatically. The fully-shared `Arc<>` (cloned into
+    /// every fluent builder pyclass) cannot enforce the contract at the
+    /// `Drop` site without restructuring every accessor, so the
+    /// invariant is enforced by documentation plus the explicit
+    /// `stop_streaming(py)` path.
     tdx: std::sync::Arc<thetadatadx::ThetaDataDxClient>,
     /// User-registered Python callable that receives every streaming
     /// event after `start_streaming(callback)` succeeds. The dispatcher's
@@ -1243,7 +1259,7 @@ impl ThetaDataDxClient {
 // accidentally call a blocking sync path.
 //
 // The full split (separate codegen pass that emits async-only
-// builders, no sync surface) lands in v9.2.0. Today the wrapper is a
+// builders, no sync surface) lands in future release. Today the wrapper is a
 // disciplined façade — same Rust core, narrower public Python
 // surface.
 
@@ -1285,13 +1301,10 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     "active_subscriptions",
     // Streaming lifecycle.
     "start_streaming",
-    "start_streaming_iter",
     "stop_streaming",
     "shutdown",
     "reconnect",
     "streaming",
-    "streaming_iter",
-    "streaming_async",
     "is_streaming",
     "await_drain",
     // Diagnostics.
@@ -1313,11 +1326,8 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
 /// name in `ALLOWED_UNIFIED_PROXY_METHODS` must appear in either this
 /// list or `PYTHON_UNIFIED_FPSS_METHODS`, otherwise the build fails.
 const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
-    // Hand-written streaming-session factories.
-    "start_streaming_iter",
+    // Hand-written streaming-session factory.
     "streaming",
-    "streaming_iter",
-    "streaming_async",
     // FLATFILES namespace getter (lives in `flatfile_methods.rs`).
     "flat_files",
     // Subscription management (hand-written on the unified client to
@@ -1468,34 +1478,10 @@ include!("_generated/streaming_methods.rs");
 mod streaming_session;
 use streaming_session::StreamingSession;
 
-// Pull-iter delivery mode: hand-written PyO3 wrappers around
-// `thetadatadx::EventIterator`. Two pyclasses — `EventIterator` (the
-// drain handle) and `StreamingIterSession` (context-manager). Both
-// live in a second `#[pymethods] impl ThetaDataDxClient` block.
-mod event_iterator;
-mod streaming_iter_session;
-use event_iterator::EventIterator;
-use streaming_iter_session::StreamingIterSession;
-
-// Shared machinery between the per-tick and Arrow-batched asyncio
-// streaming sessions — the typed `AsyncStreamableHandle` sum that
-// dispatches subscribe / start / stop / drain through the underlying
-// streaming pyclass.
-mod streaming_async_common;
-
-// Asyncio-native streaming surface — sibling of `StreamingSession`
-// (sync callback) and `StreamingIterSession` (sync iterator). Uses a
-// self-pipe write FD as the wake signal so the asyncio loop's
-// `add_reader` wakes the awaiting coroutine without polling. See
-// `streaming_async_session.rs` for the FD-readiness protocol.
-mod streaming_async_session;
-use streaming_async_session::{BackpressurePolicy, StreamingAsyncSession};
-
-// Arrow IPC zero-copy batched streaming — sibling of the per-tick
-// `StreamingAsyncSession` that yields one `pyarrow.RecordBatch` per
-// OS wake instead of `list[FpssEvent]`. Closes #562.
-mod streaming_async_batches;
-use streaming_async_batches::StreamingAsyncBatchesSession;
+// `start_streaming(cb)` plus the `StreamingSession` context manager is
+// the sole streaming surface on the bundled client. Async / Arrow-batched
+// surfaces will return on the unified poller backplane in a future
+// release.
 
 include!("_generated/historical_methods.rs");
 
@@ -1630,11 +1616,6 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<fpss_client::FpssClient>()?;
     m.add_class::<mdds_client::MddsClient>()?;
     m.add_class::<StreamingSession>()?;
-    m.add_class::<StreamingIterSession>()?;
-    m.add_class::<StreamingAsyncSession>()?;
-    m.add_class::<StreamingAsyncBatchesSession>()?;
-    m.add_class::<BackpressurePolicy>()?;
-    m.add_class::<EventIterator>()?;
     fluent::register(m)?;
     m.add_class::<flatfile_methods::FlatFilesNamespace>()?;
     m.add_class::<flatfile_methods::FlatFileRowList>()?;
