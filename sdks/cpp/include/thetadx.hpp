@@ -690,8 +690,18 @@ public:
         return has_value ? std::optional<std::uint16_t>{port} : std::nullopt;
     }
 
-    /** Set FPSS flush mode. 0=Batched (default), 1=Immediate. */
-    void set_flush_mode(int mode) { tdx_config_set_flush_mode(handle_.get(), mode); }
+    /** Set FPSS flush mode. 0=Batched (default), 1=Immediate.
+     *  Throws std::runtime_error when @p mode is outside the documented
+     *  `{0, 1}` set or when the underlying FFI returns an error. */
+    void set_flush_mode(int mode) {
+        const int rc = tdx_config_set_flush_mode(handle_.get(), mode);
+        if (rc != 0) {
+            const char* err = tdx_last_error();
+            throw std::runtime_error(
+                std::string("tdx_config_set_flush_mode failed: ") +
+                (err == nullptr ? "(null config handle)" : err));
+        }
+    }
 
     /** Set whether to derive OHLCVC bars locally from trades. */
     void set_derive_ohlcvc(bool enabled) { tdx_config_set_derive_ohlcvc(handle_.get(), enabled ? 1 : 0); }

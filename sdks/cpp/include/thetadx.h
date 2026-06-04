@@ -1017,8 +1017,12 @@ int32_t tdx_config_get_metrics_port(const TdxConfig* config, bool* out_has_value
  * Set streaming flush mode on a config handle.
  *   mode=0: Batched (default) -- flush only on PING every 100ms.
  *   mode=1: Immediate -- flush after every frame write.
+ *
+ * Returns 0 on success. Returns -1 and sets `tdx_last_error` /
+ * `tdx_last_error_code = TDX_ERR_CONFIG` when `mode` is outside the
+ * documented `{0, 1}` set or when `config` is null.
  */
-void tdx_config_set_flush_mode(TdxConfig* config, int mode);
+int tdx_config_set_flush_mode(TdxConfig* config, int mode);
 
 /**
  * Set streaming OHLCVC derivation on a config handle.

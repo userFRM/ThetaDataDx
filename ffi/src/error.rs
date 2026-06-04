@@ -48,6 +48,17 @@ pub(crate) fn set_error(msg: &str) {
     LAST_ERROR_CODE.with(|c| c.set(TDX_ERR_OTHER));
 }
 
+/// Set the error string and pin the typed discriminant explicitly. Used by
+/// FFI entry points that surface validation failures whose category is known
+/// at the call site (e.g. an out-of-range enum int maps to [`TDX_ERR_CONFIG`]
+/// rather than the default [`TDX_ERR_OTHER`]).
+pub(crate) fn set_error_with_code(msg: &str, code: i32) {
+    LAST_ERROR.with(|e| {
+        *e.borrow_mut() = CString::new(msg).ok();
+    });
+    LAST_ERROR_CODE.with(|c| c.set(code));
+}
+
 /// Set both the formatted error string AND the typed discriminant
 /// from a [`thetadatadx::Error`]. The string keeps the previous
 /// surface; the code is what the C++ / TypeScript bindings dispatch
