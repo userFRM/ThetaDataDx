@@ -23,7 +23,7 @@ path = "src/main.rs"
 
 [dependencies]
 thetadatadx = { path = "../../crates/thetadatadx", features = ["config-file", "__internal"] }
-rustls = { version = "0.23.38", features = ["ring"] }
+rustls = { version = "0.23.38", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 tdbe = { version = "0.14.0", path = "../../crates/tdbe" }
 axum = { version = "0.8.9", features = ["ws"] }
 tokio = { version = "1.52.1", features = ["full"] }
