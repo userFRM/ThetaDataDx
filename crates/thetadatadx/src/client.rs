@@ -492,9 +492,9 @@ impl ThetaDataDxClient {
     /// per-invocation `catch_unwind` boundary, plus Python exceptions
     /// raised inside the callback and routed through
     /// `PyErr::write_unraisable` (the Python binding bumps this counter via
-    /// [`Self::record_panic`] on the unraisable path). The TypeScript binding
-    /// surfaces JS errors via Node's `uncaughtException` instead of this
-    /// counter. Returns `0` when streaming has not started.
+    /// the binding-only `record_panic` shim on the unraisable path). The
+    /// TypeScript binding surfaces JS errors via Node's `uncaughtException`
+    /// instead of this counter. Returns `0` when streaming has not started.
     #[must_use]
     pub fn panic_count(&self) -> u64 {
         let snap = self.state.load();
@@ -509,6 +509,8 @@ impl ThetaDataDxClient {
     /// Called by language-binding dispatchers when the user callback raises
     /// a language-level exception that bypasses the Rust `catch_unwind`
     /// boundary. No-op when streaming is not active.
+    #[cfg(feature = "__internal")]
+    #[doc(hidden)]
     pub fn record_panic(&self) {
         let snap = self.state.load();
         if let StreamingSlot::Live { client } = &**snap {

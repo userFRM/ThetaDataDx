@@ -1105,6 +1105,8 @@ impl FpssClient {
     /// unified fault counter for both Rust panics and Python exceptions.
     /// The TypeScript binding does not wire this entry point today — JS
     /// errors surface through Node's `uncaughtException`.
+    #[cfg(feature = "__internal")]
+    #[doc(hidden)]
     pub fn record_panic(&self) {
         self.panics.fetch_add(1, Ordering::Relaxed);
     }
