@@ -139,7 +139,6 @@ def collect_cpp_classes(cpp_hpp: pathlib.Path) -> set[str]:
 CPP_ALIASES: dict[str, str] = {
     "ThetaDataDxClient": "UnifiedClient",
     "FlatFilesNamespace": "FlatFiles",
-    "StreamingIterSession": "UnifiedFpssIterSession",
     "Contract": "FluentContract",
     "Subscription": "FluentSubscription",
     "SecType": "FluentSecType",
