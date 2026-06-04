@@ -1,5 +1,8 @@
 # Migrating from v9 to v10
 
+> Historical migration guide. For the current release, see
+> [Migrating from v11 to v12](/migration/v11-to-v12).
+
 ThetaDataDx v10 is a major version bump. SDK callers (Python /
 TypeScript / C++) see NO public API breakage from the v10 transport
 rewrite; direct consumers of the Rust core (`thetadatadx` crate)

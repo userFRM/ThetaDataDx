@@ -295,7 +295,8 @@ export default withMermaid(defineConfig({
         collapsed: true,
         items: [
           { text: 'Changelog', link: '/changelog' },
-          { text: 'Earlier-version migration', link: '/migration/v9-to-v10' },
+          { text: 'Migration: v11 → v12', link: '/migration/v11-to-v12' }, // VOCAB-OK: nav label for the migration guide whose canonical name names the transitioned versions
+          { text: 'Migration: v9 → v10 (historical)', link: '/migration/v9-to-v10' },
         ],
       },
     ],
