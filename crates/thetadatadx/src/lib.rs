@@ -354,16 +354,14 @@ pub mod prelude {
 
 /// Install the ring `CryptoProvider` as the process-wide rustls default.
 ///
-/// `reqwest`'s `rustls-no-provider` feature drops the bundled aws-lc-rs
-/// pull, but `hyper-rustls` (a transitive of reqwest's `rustls` codepath)
-/// still pulls aws-lc-rs through its own default features. Rustls then
-/// sees two providers compiled in and bails the first handshake with
-/// `Could not automatically determine the process-level CryptoProvider`.
-/// Pinning ring here keeps the workspace single-provider at the call
-/// site. Idempotent — second-and-later calls return `false` and leave
-/// the prior provider intact. Returns `true` on the install pass that
-/// won the race. Full removal of aws-lc-rs from the dep graph is the
-/// proper fix; tracked as a follow-up.
+/// `rustls`, `tokio-rustls`, `hyper-rustls`, and `rustls-platform-verifier`
+/// are pinned workspace-wide to `default-features = false, features =
+/// ["ring", ...]`, so ring is the sole `CryptoProvider` in the dep graph.
+/// `rustls::crypto::CryptoProvider::install_default` still has to fire
+/// before any TLS handshake; this helper is the binding-side hook the
+/// language bindings call from their module-init paths. Idempotent —
+/// second-and-later calls return `false` and leave the prior provider
+/// intact. Returns `true` on the install pass that won the race.
 #[doc(hidden)]
 pub fn __internal_install_ring_crypto_provider() -> bool {
     rustls::crypto::ring::default_provider()
