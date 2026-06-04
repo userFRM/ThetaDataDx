@@ -18,10 +18,7 @@ from __future__ import annotations
 
 from typing import (
     Any,
-    AsyncIterator,
-    Awaitable,
     Callable,
-    Iterator,
     List,
     Literal,
     Optional,
