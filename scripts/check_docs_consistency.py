@@ -298,6 +298,19 @@ def check_static_docs() -> None:
         ROOT / "docs-site/docs/streaming/reconnection.md",
         "Python, TypeScript/Node.js, and C++ expose `reconnect()` on their public streaming clients.",
     )
+    # Same streaming-API guards apply to interactive Vue components under the
+    # VitePress theme. Code samples embedded in recipe builders deploy to the
+    # public docs site on every push to main; a dead-API reference there
+    # ships broken paste-and-run examples to readers.
+    vue_components_dir = ROOT / "docs-site/docs/.vitepress/theme/components"
+    for vue_file in sorted(vue_components_dir.rglob("*.vue")):
+        expect_not_contains(vue_file, "start_streaming_iter")
+        expect_not_contains(vue_file, "streaming_iter")
+        expect_not_contains(vue_file, "streaming_async")
+        expect_not_contains(vue_file, "startStreamingIter")
+        expect_not_contains(vue_file, "EventIterator")
+        expect_not_contains(vue_file, "FpssEventPoller")
+        expect_not_contains(vue_file, "tdx_fpss_event_iter")
 
 
 def check_api_reference() -> None:
