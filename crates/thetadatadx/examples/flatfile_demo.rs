@@ -53,11 +53,11 @@ fn parse_format(s: &str) -> Result<FlatFileFormat, String> {
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> ExitCode {
-    // Workspace pulls multiple rustls crypto-provider candidates (ring via
-    // `rustls = ["ring"]` and aws-lc-rs through some transitive dep). Pick
-    // one explicitly so rustls' process-default resolver doesn't panic at
-    // first TLS connect. ring is what `rustls`'s feature flag in this
-    // workspace selects.
+    // Pin ring as the single rustls `CryptoProvider` via the standard
+    // `install_default` path. The workspace builds rustls/tokio-rustls
+    // with `default-features = false, features = ["ring", ...]`, so ring
+    // is the only provider compiled in; this call seats it as the
+    // process-wide default before the first TLS handshake.
     let _ = rustls::crypto::ring::default_provider().install_default();
 
     let args: Vec<String> = std::env::args().collect();

@@ -85,9 +85,12 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
 /// when the `.node` module is loaded by Node.js. Without this, the
 /// first `ThetaDataDxClient.connect()` call panics with
 /// "Could not automatically determine the process-level CryptoProvider"
-/// because reqwest's rustls path finds two providers compiled in
-/// (ring + aws-lc-rs) and cannot pick one automatically.
-/// Mirrors the equivalent call in the Python SDK's `#[pymodule]` init.
+/// — rustls 0.23 requires `install_default` before the first handshake
+/// even when a single provider is compiled in. The workspace builds
+/// rustls / tokio-rustls / hyper-rustls with `default-features = false,
+/// features = ["ring", ...]`, so ring is the only provider in the dep
+/// graph; this hook seats it on Node module load. Mirrors the
+/// equivalent call in the Python SDK's `#[pymodule]` init.
 #[module_init]
 fn init() {
     let _ = thetadatadx::__internal_install_ring_crypto_provider();
