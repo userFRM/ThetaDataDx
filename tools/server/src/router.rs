@@ -54,6 +54,9 @@ use tower::limit::ConcurrencyLimitLayer;
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::key_extractor::PeerIpKeyExtractor;
 use tower_governor::{GovernorError, GovernorLayer};
+use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
+use tower_http::LatencyUnit;
+use tracing::Level;
 
 use thetadatadx::{EndpointMeta, ENDPOINTS};
 
@@ -260,6 +263,20 @@ pub fn build(state: AppState, rate_limit_general: bool) -> Router {
 
         app = app.layer(GovernorLayer::new(global_governor).error_handler(governor_error_response));
     }
+
+    // Per-request access log: one INFO line per request with method +
+    // URI (span fields) and status + latency (event fields). Outermost
+    // layer so rate-limit rejections are logged too. Operators silence
+    // it with `--log-level info,tower_http=off`.
+    let app = app.layer(
+        TraceLayer::new_for_http()
+            .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+            .on_response(
+                DefaultOnResponse::new()
+                    .level(Level::INFO)
+                    .latency_unit(LatencyUnit::Millis),
+            ),
+    );
 
     app.with_state(state)
 }

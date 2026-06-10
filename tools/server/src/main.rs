@@ -23,6 +23,7 @@
 mod flatfile_routes;
 mod format;
 mod handler;
+mod logging;
 mod router;
 mod state;
 mod validation;
@@ -32,7 +33,6 @@ use std::net::SocketAddr;
 
 use clap::Parser;
 use tower_http::cors::CorsLayer;
-use tracing_subscriber::EnvFilter;
 use zeroize::Zeroizing;
 
 use thetadatadx::{Credentials, DirectConfig, ThetaDataDxClient};
@@ -80,8 +80,20 @@ struct Args {
     bind: String,
 
     /// Log level filter (e.g. "info", "debug", "thetadatadx=trace").
+    /// The per-request access log emits at "info" under the
+    /// "tower_http" target; silence it with e.g. "info,tower_http=off".
     #[arg(long, default_value = "info")]
     log_level: String,
+
+    /// Also write logs to this path, rotated daily (e.g. "terminal.log"
+    /// produces "terminal.log.YYYY-MM-DD"). Stderr output is unaffected.
+    #[arg(long)]
+    log_file: Option<String>,
+
+    /// Log line format: "text" (default), "json", or "legacy"
+    /// (bracketed "[YYYY-MM-DD HH:MM:SS] LEVEL: message", UTC).
+    #[arg(long, value_enum, default_value_t = logging::LogFormat::Text)]
+    log_format: logging::LogFormat,
 
     /// Skip FPSS (streaming) connection at startup.
     #[arg(long)]
@@ -104,11 +116,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut args = Args::parse();
 
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&args.log_level)),
-        )
-        .init();
+    // Initialise tracing. The returned guard owns the non-blocking
+    // file-writer thread; it must live until process exit or buffered
+    // log lines are lost on shutdown.
+    let _log_guard = logging::init(&args.log_level, args.log_format, args.log_file.as_deref())?;
 
     // Generate a random shutdown token and print it.
     let shutdown_token = {
@@ -120,10 +131,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
     };
 
-    // Startup banner matching the Java terminal style.
+    // Startup banner. Named after the binary so operator automation
+    // matching the banner string keys on the same identifier as the
+    // process list and the docs.
     let version = env!("CARGO_PKG_VERSION");
     eprintln!();
-    eprintln!("ThetaDataDxClient Server v{version}");
+    eprintln!("thetadatadx-server v{version}");
     eprintln!("Configuration: {}", args.fpss_region);
     eprintln!("REST API: http://{}:{}/", args.bind, args.http_port);
     eprintln!("WebSocket: ws://{}:{}/v1/events", args.bind, args.ws_port);

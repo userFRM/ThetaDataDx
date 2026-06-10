@@ -41,9 +41,18 @@ This starts:
 | `--http-port <port>` | `25503` | HTTP REST API port |
 | `--ws-port <port>` | `25520` | WebSocket server port |
 | `--bind <addr>` | `127.0.0.1` | Bind address |
-| `--log-level <filter>` | `info` | Tracing filter |
+| `--log-level <filter>` | `info` | Tracing filter (`info,tower_http=off` silences the access log) |
+| `--log-file <path>` | | Also write logs to `<path>.YYYY-MM-DD`, rotated daily |
+| `--log-format <fmt>` | `text` | Log line format: `text`, `json`, or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC) |
 | `--no-fpss` | | Skip FPSS streaming startup |
 | `--no-ohlcvc` | | Disable derived OHLCVC bars |
+
+## Logging
+
+- **Access log (default on).** Every request emits one `INFO` line with method, URI, status, and latency, e.g. `request{method=GET uri=/v3/system/status version=HTTP/1.1}: finished processing request latency=0 ms status=200`. Silence it with `--log-level info,tower_http=off`.
+- **`--log-file terminal.log`** tees the same lines into a daily-rotated file (`terminal.log.YYYY-MM-DD`) through a non-blocking writer; stderr output is unaffected.
+- **`--log-format legacy`** switches lines to the bracketed `[YYYY-MM-DD HH:MM:SS] LEVEL: message` shape (UTC) that tooling written against the legacy terminal's log file parses; `--log-format json` emits one structured JSON object per line for aggregators.
+- The startup banner prints `thetadatadx-server v<version>` — the binary's own name, matching the process list.
 
 ## REST API
 

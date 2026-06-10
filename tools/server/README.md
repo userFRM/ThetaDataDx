@@ -40,8 +40,12 @@ The server starts:
 | `--http-port` | `25503` | HTTP REST API port |
 | `--ws-port` | `25520` | WebSocket server port |
 | `--bind` | `127.0.0.1` | Bind address |
-| `--log-level` | `info` | Log level (`debug`, `trace`, `thetadatadx=trace`) |
+| `--log-level` | `info` | Log level (`debug`, `trace`, `thetadatadx=trace`; `info,tower_http=off` silences the access log) |
+| `--log-file` | | Also write logs to `<path>.YYYY-MM-DD`, rotated daily |
+| `--log-format` | `text` | Log line format: `text`, `json`, or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC) |
 | `--no-fpss` | | Skip FPSS streaming connection at startup |
+
+Every request emits one `INFO` access-log line (method, URI, status, latency) by default. The startup banner prints `thetadatadx-server v<version>`.
 
 ## REST API
 
