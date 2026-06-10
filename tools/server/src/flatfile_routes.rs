@@ -74,10 +74,7 @@ fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
         });
     (
         status,
-        [(
-            header::CONTENT_TYPE,
-            "application/json; charset=utf-8".to_string(),
-        )],
+        [(header::CONTENT_TYPE, crate::handler::JSON_CONTENT_TYPE)],
         json_bytes,
     )
         .into_response()

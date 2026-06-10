@@ -76,7 +76,7 @@ POST /v3/system/shutdown        # requires X-Shutdown-Token header
 
 ### Response format
 
-Responses use the terminal JSON envelope:
+Responses use the terminal JSON envelope with `Content-Type: application/json` (bare media type, no `charset` parameter — UTF-8 is implied per RFC 8259):
 
 ```json
 {
@@ -87,6 +87,18 @@ Responses use the terminal JSON envelope:
     "response": [
         {"ms_of_day": 34200000, "open": 150.25, ...}
     ]
+}
+```
+
+Failures use one canonical error envelope across every route family (registry endpoints, flat files, rate-limit rejections), so a single error parser covers the whole surface:
+
+```json
+{
+    "header": {
+        "error_type": "bad_request",
+        "error_msg": "missing required parameter: 'date' (Date YYYYMMDD)"
+    },
+    "response": []
 }
 ```
 

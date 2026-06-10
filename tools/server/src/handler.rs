@@ -24,6 +24,15 @@ use crate::validation;
 //  Helpers
 // ---------------------------------------------------------------------------
 
+/// Content type for JSON envelope responses.
+///
+/// Deliberately the bare media type without a `charset` parameter: RFC 8259
+/// specifies UTF-8 as the only encoding for `application/json`, and the Java
+/// terminal emits the bare form. Strict HTTP clients that exact-match the
+/// content-type string during negotiation break on a `; charset=utf-8`
+/// suffix, so the suffix must never come back.
+pub(crate) const JSON_CONTENT_TYPE: &str = "application/json";
+
 /// Build a JSON error response with the Java terminal error envelope format.
 ///
 /// The envelope is hand-built from string + array primitives, so
@@ -46,10 +55,7 @@ fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
         });
     (
         status,
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "application/json; charset=utf-8",
-        )],
+        [(axum::http::header::CONTENT_TYPE, JSON_CONTENT_TYPE)],
         json_bytes,
     )
         .into_response()
@@ -66,10 +72,7 @@ fn json_response(val: &mut sonic_rs::Value) -> Response {
     match tdbe::json_canon::canonicalize_and_serialize(val) {
         Ok(json_bytes) => (
             StatusCode::OK,
-            [(
-                axum::http::header::CONTENT_TYPE,
-                "application/json; charset=utf-8",
-            )],
+            [(axum::http::header::CONTENT_TYPE, JSON_CONTENT_TYPE)],
             json_bytes,
         )
             .into_response(),
@@ -530,6 +533,74 @@ mod tests {
         let body = resp.into_body();
         let bytes = to_bytes(body, usize::MAX).await.expect("body collect");
         String::from_utf8(bytes.to_vec()).expect("body utf8")
+    }
+
+    // -----------------------------------------------------------------------
+    //  Canonical error envelope + content type
+    // -----------------------------------------------------------------------
+
+    /// Every error response must serialise the canonical envelope
+    /// (`header.error_type` + `header.error_msg` + empty `response`) with
+    /// the bare `application/json` content type. Clients write one error
+    /// parser against this shape; the nested `error.message` variant and
+    /// the `; charset=utf-8` suffix must never reappear.
+    #[tokio::test]
+    async fn error_response_emits_canonical_envelope_and_bare_content_type() {
+        let resp = error_response(
+            StatusCode::BAD_REQUEST,
+            "bad_request",
+            "missing required parameter: 'date'",
+        );
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("application/json"),
+            "content type must be the bare media type"
+        );
+
+        let body = read_body(resp).await;
+        let parsed: Value = sonic_rs::from_str(&body).expect("error body must be valid JSON");
+        assert_eq!(
+            parsed
+                .get("header")
+                .and_then(|h| h.get("error_type"))
+                .and_then(Value::as_str),
+            Some("bad_request")
+        );
+        assert_eq!(
+            parsed
+                .get("header")
+                .and_then(|h| h.get("error_msg"))
+                .and_then(Value::as_str),
+            Some("missing required parameter: 'date'")
+        );
+        assert!(
+            parsed
+                .get("response")
+                .and_then(|r: &Value| r.as_array())
+                .is_some_and(|rows| rows.is_empty()),
+            "error envelope must carry an empty response array: {body}"
+        );
+        assert!(
+            parsed.get("error").is_none(),
+            "nested error.message form must not be emitted: {body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn json_response_uses_bare_json_content_type() {
+        let mut envelope = format::ok_envelope(vec![Value::from("AAPL")]);
+        let resp = json_response(&mut envelope);
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("application/json"),
+            "JSON envelope responses must use the bare media type"
+        );
     }
 
     #[tokio::test]

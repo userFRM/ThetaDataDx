@@ -67,12 +67,21 @@ curl "http://127.0.0.1:25503/v3/calendar/open_today"
 Current REST parameters use the registry names (`symbol`, `expiration`, `strike`, `interval`, etc.), not older shorthand aliases like `root`, `exp`, or `ivl`.
 :::
 
-Responses use the terminal JSON envelope:
+Responses use the terminal JSON envelope with `Content-Type: application/json` (bare media type, no `charset` parameter — UTF-8 is implied per RFC 8259):
 
 ```json
 {
     "header": { "format": "json", "error_type": "null" },
     "response": [ ... ]
+}
+```
+
+Failures use one canonical error envelope across every route family (registry endpoints, flat files, rate-limit rejections), so a single error parser covers the whole surface:
+
+```json
+{
+    "header": { "error_type": "bad_request", "error_msg": "missing required parameter: 'date' (Date YYYYMMDD)" },
+    "response": []
 }
 ```
 
