@@ -58,10 +58,6 @@ fn check_gregorian(
 /// Calendar correctness is left to [`check_gregorian`] so the shape
 /// check and the calendar check stay independent of each other and
 /// can be composed by callers that already know which form they hold.
-// Only compiled under `__internal`: called exclusively by `validate_expiration`
-// which is itself gated (only reached from `EndpointArgs::required_expiration`
-// and friends in the gated `impl EndpointArgs` block).
-#[cfg(feature = "__internal")]
 fn parse_iso_date_components(value: &str) -> Option<(i32, u32, u32)> {
     let mut parts = value.splitn(3, '-');
     let (y, m, d) = match (parts.next(), parts.next(), parts.next(), parts.next()) {
@@ -88,10 +84,25 @@ fn parse_iso_date_components(value: &str) -> Option<(i32, u32, u32)> {
     Some((year, month, day))
 }
 
+/// Validate a date parameter: accepts `YYYYMMDD` and `YYYY-MM-DD`.
+///
+/// Both textual forms run the same calendar check, so the surface
+/// accepts exactly the same set of real dates regardless of which
+/// shape the caller used. ISO-dashed input is canonicalized to the
+/// compact wire form by [`crate::mdds::wire_semantics::normalize_date`]
+/// at request-construction time, mirroring `normalize_expiration`.
 pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), EndpointError> {
+    // ISO-dashed shape (`YYYY-MM-DD`): parse components and run the
+    // same calendar check the compact path uses. Date-typed formatters
+    // (Pandas / Polars / `datetime.date.isoformat()`) emit this form by
+    // default; rejecting it while `expiration` accepts it was a
+    // vocabulary split on the same surface.
+    if let Some((year, month, day)) = parse_iso_date_components(value) {
+        return check_gregorian(year, month, day, value, param_name);
+    }
     if value.len() != 8 || !value.bytes().all(|b| b.is_ascii_digit()) {
         return Err(EndpointError::InvalidParams(format!(
-            "'{param_name}' must be exactly 8 digits (YYYYMMDD), got: '{value}'"
+            "'{param_name}' must be 'YYYYMMDD' (8 digits) or 'YYYY-MM-DD', got: '{value}'"
         )));
     }
     // Shape passed; now apply the calendar check. Rejects the
@@ -122,18 +133,18 @@ pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), E
     if matches!(value, "*" | "0") {
         return Ok(());
     }
-    // ISO-dashed shape: parse components and run the same calendar
-    // check the `YYYYMMDD` path uses, so the two surface forms accept
-    // exactly the same set of dates. A shape mismatch falls through
-    // to the digits-only path which may still recognise the input.
-    if let Some((year, month, day)) = parse_iso_date_components(value) {
-        return check_gregorian(year, month, day, value, param_name);
-    }
-    validate_date(value, param_name).map_err(|_| {
-        EndpointError::InvalidParams(format!(
+    // Shape gate first so garbage input surfaces the full expiration
+    // vocabulary (wildcards included). Anything date-shaped delegates
+    // to the shared date validator, which runs the same calendar
+    // check on both textual forms and yields the precise Gregorian
+    // diagnostic on impossible dates.
+    let is_compact_shape = value.len() == 8 && value.bytes().all(|b| b.is_ascii_digit());
+    if !is_compact_shape && parse_iso_date_components(value).is_none() {
+        return Err(EndpointError::InvalidParams(format!(
             "'{param_name}' must be '*' (wildcard), '0' (legacy wildcard), 'YYYYMMDD', or 'YYYY-MM-DD', got: '{value}'"
-        ))
-    })
+        )));
+    }
+    validate_date(value, param_name)
 }
 
 /// Validate the `strike` parameter.
@@ -346,6 +357,54 @@ mod tests {
             assert!(
                 validate_date(bad, "date").is_err(),
                 "expected calendar rejection on digits-only form: {bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_date_accepts_iso_dashed_form() {
+        // `date` / `start_date` / `end_date` accept the same
+        // ISO-dashed form `expiration` always accepted, so date-typed
+        // formatters (Pandas, Polars, `datetime.date.isoformat()`)
+        // work uniformly across every date parameter.
+        for good in ["2026-01-01", "2024-02-29", "2000-02-29", "1900-01-01"] {
+            assert!(
+                validate_date(good, "start_date").is_ok(),
+                "expected ISO acceptance: {good}"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_date_iso_dashed_form_enforces_calendar_bounds() {
+        // The dashed form runs the same Gregorian check as the compact
+        // form — impossible dates are rejected on both shapes.
+        for bad in [
+            "2026-02-30", // Feb 30 — no such day
+            "2026-13-01", // month 13
+            "2026-04-31", // Apr 31 — only 30 days
+            "1899-12-31", // year < 1900
+            "2101-01-01", // year > 2100
+            "0000-00-00", // sentinel
+            "1900-02-29", // /100 non-leap
+        ] {
+            assert!(
+                validate_date(bad, "date").is_err(),
+                "expected calendar rejection on dashed form: {bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_date_rejects_malformed_dashed_shapes() {
+        // Near-miss dashed shapes fall through to the digits-only path
+        // and reject — only the exact `4-2-2` digit layout parses.
+        for bad in ["2026-1-01", "2026-011", "26-01-01", "2026-01-01x", "2026/01/01"] {
+            let err = validate_date(bad, "date").expect_err(bad);
+            let msg = format!("{err}");
+            assert!(
+                msg.contains("YYYY-MM-DD"),
+                "shape error must name both accepted forms, got: {msg}"
             );
         }
     }

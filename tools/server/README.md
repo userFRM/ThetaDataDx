@@ -63,7 +63,7 @@ GET /v3/calendar/open_today
 GET /v3/rate/history/eod?symbol=SOFR&start_date=20240101&end_date=20240301
 ```
 
-Endpoint query parameters follow the registry names (`symbol`, `expiration`, `strike`, `right`, `interval`, etc.), not the legacy shorthand aliases (`root`, `exp`, `ivl`).
+Endpoint query parameters follow the registry names (`symbol`, `expiration`, `strike`, `right`, `interval`, etc.), not the legacy shorthand aliases (`root`, `exp`, `ivl`). Date parameters (`date`, `start_date`, `end_date`, `expiration`) accept both `YYYYMMDD` and ISO `YYYY-MM-DD`.
 
 ### System Routes (4)
 

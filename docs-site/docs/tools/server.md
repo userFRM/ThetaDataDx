@@ -64,7 +64,7 @@ curl "http://127.0.0.1:25503/v3/calendar/open_today"
 ```
 
 ::: tip
-Current REST parameters use the registry names (`symbol`, `expiration`, `strike`, `interval`, etc.), not older shorthand aliases like `root`, `exp`, or `ivl`.
+Current REST parameters use the registry names (`symbol`, `expiration`, `strike`, `interval`, etc.), not older shorthand aliases like `root`, `exp`, or `ivl`. Date parameters (`date`, `start_date`, `end_date`, `expiration`) accept both `YYYYMMDD` and ISO `YYYY-MM-DD`.
 :::
 
 Responses use the terminal JSON envelope with `Content-Type: application/json` (bare media type, no `charset` parameter — UTF-8 is implied per RFC 8259):
