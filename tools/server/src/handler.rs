@@ -232,6 +232,48 @@ fn build_endpoint_args(
     Ok(args)
 }
 
+/// Resolve the endpoint a request should actually dispatch to.
+///
+/// The legacy terminal serves both the single-date and the date-range
+/// shape on the single-date URL, dispatching on which params are
+/// populated. The registry models the range shape as a dedicated
+/// `<stem>_range` sibling endpoint, so a query that carries
+/// `start_date` + `end_date` without `date` on a path whose endpoint
+/// requires `date` re-dispatches to the sibling instead of failing
+/// with `missing required parameter: 'date'`. Every current and future
+/// single-date endpoint with a `_range` sibling inherits the bridge
+/// automatically; endpoints without a sibling keep their existing
+/// missing-param diagnostics.
+fn resolve_range_sibling<'a>(
+    ep: &'a EndpointMeta,
+    params: &HashMap<String, String>,
+) -> &'a EndpointMeta {
+    let wants_range = params.contains_key("start_date")
+        && params.contains_key("end_date")
+        && !params.contains_key("date");
+    if !wants_range {
+        return ep;
+    }
+    let requires_date = ep
+        .params
+        .iter()
+        .any(|param| param.name == "date" && param.required);
+    if !requires_date {
+        return ep;
+    }
+    match thetadatadx::find(&format!("{}_range", ep.name)) {
+        Some(sibling) => {
+            tracing::debug!(
+                from = ep.name,
+                to = sibling.name,
+                "date-range query on single-date path; dispatching to range sibling"
+            );
+            sibling
+        }
+        None => ep,
+    }
+}
+
 fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response {
     match error {
         EndpointError::InvalidParams(message) => {
@@ -260,9 +302,11 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
 /// 1. The [`BoundedQuery`] extractor enforces [`MAX_QUERY_PARAMS`] DURING
 ///    URL parse so `?a=1&b=2&...` flood attacks can't force a multi-MB
 ///    HashMap allocation before the cap trips.
-/// 2. Validates required query params against `EndpointMeta.params`.
-/// 3. Invokes the shared endpoint runtime.
-/// 4. Returns JSON envelope or CSV depending on `format=csv`.
+/// 2. Re-dispatches `start_date`+`end_date` queries on a single-date path
+///    to the `_range` registry sibling (see [`resolve_range_sibling`]).
+/// 3. Validates required query params against `EndpointMeta.params`.
+/// 4. Invokes the shared endpoint runtime.
+/// 5. Returns JSON envelope or CSV depending on `format=csv`.
 pub async fn generic(
     State(state): State<AppState>,
     BoundedQuery(params): BoundedQuery<MAX_QUERY_PARAMS>,
@@ -271,6 +315,8 @@ pub async fn generic(
     let use_csv = params
         .get("format")
         .is_some_and(|v| v.eq_ignore_ascii_case("csv"));
+
+    let ep = resolve_range_sibling(ep, &params);
 
     let args = match build_endpoint_args(ep, &params) {
         Ok(args) => args,
@@ -484,6 +530,95 @@ mod tests {
                 "count cap tripped at the boundary: {msg}"
             );
         }
+    }
+
+    // -----------------------------------------------------------------------
+    //  Range-sibling auto-routing
+    // -----------------------------------------------------------------------
+
+    fn string_params(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+            .collect()
+    }
+
+    /// `start_date`+`end_date` (without `date`) on a single-date path
+    /// dispatches to the registry's `_range` sibling, matching the
+    /// legacy terminal which accepts both shapes on one URL.
+    #[test]
+    fn range_query_on_single_date_path_routes_to_range_sibling() {
+        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
+        let params = string_params(&[
+            ("symbol", "AMZN"),
+            ("start_date", "20260603"),
+            ("end_date", "20260605"),
+            ("interval", "1m"),
+        ]);
+        let resolved = resolve_range_sibling(ep, &params);
+        assert_eq!(resolved.name, "stock_history_ohlc_range");
+
+        // ...and the resolved endpoint accepts the params end-to-end.
+        build_endpoint_args(resolved, &params)
+            .expect("range sibling must accept the range-shaped query");
+    }
+
+    #[test]
+    fn single_date_query_stays_on_single_date_endpoint() {
+        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
+        let params = string_params(&[("symbol", "AMZN"), ("date", "20260603")]);
+        let resolved = resolve_range_sibling(ep, &params);
+        assert_eq!(resolved.name, "stock_history_ohlc");
+    }
+
+    /// An explicit `date` wins even when the range pair is also present:
+    /// the single-date endpoint already accepts optional `start_date` /
+    /// `end_date` pass-through, so no re-dispatch happens.
+    #[test]
+    fn explicit_date_disables_range_routing() {
+        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
+        let params = string_params(&[
+            ("symbol", "AMZN"),
+            ("date", "20260603"),
+            ("start_date", "20260603"),
+            ("end_date", "20260605"),
+        ]);
+        assert_eq!(resolve_range_sibling(ep, &params).name, "stock_history_ohlc");
+    }
+
+    /// Endpoints without a `_range` sibling keep their existing
+    /// missing-param diagnostics — no silent re-dispatch to nowhere.
+    #[test]
+    fn endpoints_without_range_sibling_keep_missing_date_diagnostic() {
+        let ep = thetadatadx::find("stock_history_trade").expect("endpoint exists");
+        let params = string_params(&[
+            ("symbol", "AMZN"),
+            ("start_date", "20260603"),
+            ("end_date", "20260605"),
+        ]);
+        let resolved = resolve_range_sibling(ep, &params);
+        assert_eq!(resolved.name, "stock_history_trade");
+        let err = build_endpoint_args(resolved, &params)
+            .expect_err("missing required date must still surface");
+        match err {
+            EndpointError::InvalidParams(msg) => {
+                assert!(msg.contains("'date'"), "diagnostic names the param: {msg}");
+            }
+            other => panic!("expected InvalidParams, got {other:?}"),
+        }
+    }
+
+    /// Endpoints whose range shape is native (required `start_date` /
+    /// `end_date`, no `date` param) never re-dispatch.
+    #[test]
+    fn native_range_endpoints_are_untouched() {
+        let ep = thetadatadx::find("stock_history_eod").expect("endpoint exists");
+        let params = string_params(&[
+            ("symbol", "AAPL"),
+            ("start_date", "20260101"),
+            ("end_date", "20260301"),
+        ]);
+        assert_eq!(resolve_range_sibling(ep, &params).name, "stock_history_eod");
     }
 
     // -----------------------------------------------------------------------
