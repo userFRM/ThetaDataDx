@@ -18,12 +18,18 @@ use sha2::{Digest, Sha256};
 
 /// Constant-time byte-slice equality.
 ///
-/// Compares every byte regardless of where the first difference sits,
-/// preventing a remote attacker from probing the content of a secret
-/// one byte at a time via response-latency measurements. A length
-/// mismatch returns `false` immediately — this leaks the lengths but
-/// not the contents, which is the same contract `subtle::ConstantTimeEq`
-/// provides for `[u8]`.
+/// Compares every byte regardless of where the first difference sits, so
+/// comparison latency carries no information about the position of a
+/// mismatch. In this module both inputs are effectively public (the pin
+/// is a hard-coded constant in the binary and the peer's SPKI digest is
+/// observable on the wire), so the constant-time shape is defence in
+/// depth rather than a secrecy requirement — it keeps the helper safe
+/// for reuse against secret material. A length mismatch returns `false`
+/// immediately — this leaks the lengths but not the contents, the same
+/// contract `subtle::ConstantTimeEq` provides for `[u8]`.
+///
+/// `black_box` pins the accumulator on every iteration so the optimizer
+/// cannot collapse the full scan into a short-circuiting compare.
 #[inline]
 pub(crate) fn ct_eq_bytes(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
@@ -31,7 +37,7 @@ pub(crate) fn ct_eq_bytes(a: &[u8], b: &[u8]) -> bool {
     }
     let mut diff: u8 = 0;
     for (x, y) in a.iter().zip(b) {
-        diff |= x ^ y;
+        diff = std::hint::black_box(diff | (x ^ y));
     }
     diff == 0
 }

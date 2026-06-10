@@ -598,9 +598,14 @@ struct SpawnArgs<'a, P> {
 ///
 /// # Lifecycle
 ///
-/// 1. `FpssClient::connect()` -- TLS connect + authenticate + start background tasks
+/// 1. [`FpssClient::builder`] -- configure (`ring_size`, `flush_mode`,
+///    timeouts, reconnect policy), then `build()?` to TLS-connect,
+///    authenticate, and start the background I/O thread
 /// 2. `subscribe(...)` / `unsubscribe(...)` -- subscribe to market data
-/// 3. Events delivered via the user's `FnMut(&FpssEvent)` callback on the event-dispatch thread
+/// 3. Drain events on the caller's thread via [`Self::next_event`]
+///    (blocking), [`Self::try_next_event`] (non-blocking),
+///    [`Self::poll_batch`] / [`Self::for_each`] (callback adapters), or
+///    the `Iterator` impl on `&FpssClient`
 /// 4. `shutdown()` -- clean disconnect
 ///
 /// # Thread safety
@@ -1616,9 +1621,8 @@ impl FpssClient {
     /// Test-only constructor that wires up the same event ring +
     /// I/O-thread topology as [`Self::connect_with_stream`] **without**
     /// touching the network. It exists to drive the `Drop` self-join
-    /// guard from `tests/streaming_soak.rs` against the real
-    /// `FpssClient` instance and the real `consumer_thread_id`
-    /// plumbing, not a mock of either.
+    /// guard against the real `FpssClient` instance and the real
+    /// `consumer_thread_id` plumbing, not a mock of either.
     ///
     /// Topology:
     /// - The user `handler` runs on the event-dispatch consumer thread,
