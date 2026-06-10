@@ -27,12 +27,13 @@ pub enum TdxFpssEventKind {
     Reconnected = 11,
     ReconnectedServer = 12,
     Reconnecting = 13,
-    ReqResponse = 14,
-    Restart = 15,
-    ServerError = 16,
-    Trade = 17,
-    UnknownControl = 18,
-    UnknownFrame = 19,
+    ReconnectsExhausted = 14,
+    ReqResponse = 15,
+    Restart = 16,
+    ServerError = 17,
+    Trade = 18,
+    UnknownControl = 19,
+    UnknownFrame = 20,
 }
 
 /// FPSS `Contract` shared across every data event.
@@ -222,6 +223,13 @@ pub struct TdxFpssReconnecting {
     pub delay_ms: u64,
 }
 
+/// FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Mirrors `FpssControl::ReconnectsExhausted`. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the `RemoveReason` discriminant of the final drop cast to `i32`; `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
+#[repr(C)]
+pub struct TdxFpssReconnectsExhausted {
+    pub reason: i32,
+    pub attempts: i32,
+}
+
 /// FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
 #[repr(C)]
 pub struct TdxFpssReqResponse {
@@ -285,6 +293,7 @@ pub struct TdxFpssEvent {
     pub reconnected: TdxFpssReconnected,
     pub reconnected_server: TdxFpssReconnectedServer,
     pub reconnecting: TdxFpssReconnecting,
+    pub reconnects_exhausted: TdxFpssReconnectsExhausted,
     pub req_response: TdxFpssReqResponse,
     pub restart: TdxFpssRestart,
     pub server_error: TdxFpssServerError,
@@ -381,6 +390,10 @@ pub(crate) const ZERO_RECONNECTING: TdxFpssReconnecting = TdxFpssReconnecting {
     reason: 0,
     attempt: 0,
     delay_ms: 0,
+};
+pub(crate) const ZERO_RECONNECTS_EXHAUSTED: TdxFpssReconnectsExhausted = TdxFpssReconnectsExhausted {
+    reason: 0,
+    attempts: 0,
 };
 pub(crate) const ZERO_REQ_RESPONSE: TdxFpssReqResponse = TdxFpssReqResponse {
     req_id: 0,

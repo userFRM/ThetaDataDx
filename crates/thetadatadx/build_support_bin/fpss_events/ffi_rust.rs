@@ -360,6 +360,13 @@ fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<&'static str>
                 "delay_ms: *delay_ms",
             ],
         ),
+        "ReconnectsExhausted" => (
+            "reason, attempts",
+            vec![
+                "reason: *reason as i32",
+                "attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)",
+            ],
+        ),
         "Error" => ("message", vec!["message: message_ptr"]),
         "UnknownFrame" => (
             "code, payload",

@@ -189,6 +189,15 @@ pub struct Reconnecting {
     pub reason_name: String,
 }
 
+/// FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Mirrors `FpssControl::ReconnectsExhausted`. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the `RemoveReason` discriminant of the final drop cast to `i32`; `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct ReconnectsExhausted {
+    pub reason: i32,
+    pub attempts: i32,
+}
+
 /// FPSS subscription response (wire code 40). Mirrors `FpssControl::ReqResponse`. `result` is the `StreamResponseType` discriminant cast to `i32` (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
 #[must_use]
 #[napi(object)]
@@ -239,7 +248,7 @@ pub struct FpssEvent {
     /// Discriminator matching one of the typed payload fields below.
     /// Narrowed to a literal union in TS so `switch (event.kind)`
     /// correctly narrows the optional payload fields.
-    #[napi(ts_type = "'connected' | 'contract_assigned' | 'disconnected' | 'error' | 'login_success' | 'market_close' | 'market_open' | 'ohlcvc' | 'open_interest' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'")]
+    #[napi(ts_type = "'connected' | 'contract_assigned' | 'disconnected' | 'error' | 'login_success' | 'market_close' | 'market_open' | 'ohlcvc' | 'open_interest' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'")]
     pub kind: &'static str,
     pub ohlcvc: Option<Ohlcvc>,
     pub open_interest: Option<OpenInterest>,
@@ -256,6 +265,7 @@ pub struct FpssEvent {
     pub reconnected: Option<Reconnected>,
     pub reconnected_server: Option<ReconnectedServer>,
     pub reconnecting: Option<Reconnecting>,
+    pub reconnects_exhausted: Option<ReconnectsExhausted>,
     pub req_response: Option<ReqResponse>,
     pub restart: Option<Restart>,
     pub server_error: Option<ServerError>,
@@ -281,6 +291,7 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
         reconnected: None,
         reconnected_server: None,
         reconnecting: None,
+        reconnects_exhausted: None,
         req_response: None,
         restart: None,
         server_error: None,
@@ -509,6 +520,16 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> FpssEvent {
                 attempt,
                 delay_ms: BigInt::from(delay_ms),
                 reason_name: tdbe::types::enums::RemoveReason::from_code(reason as i16).as_str().to_string(),
+            });
+        }
+        BufferedEvent::ReconnectsExhausted {
+            reason,
+            attempts,
+        } => {
+            out.kind = "reconnects_exhausted";
+            out.reconnects_exhausted = Some(ReconnectsExhausted {
+                reason,
+                attempts,
             });
         }
         BufferedEvent::ReqResponse {

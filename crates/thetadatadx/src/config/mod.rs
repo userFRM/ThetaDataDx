@@ -52,14 +52,17 @@ pub use env::{
     ENV_CLIENT_TYPE, ENV_FPSS_HOST, ENV_FPSS_PORT, ENV_MDDS_HOST, ENV_MDDS_PORT, ENV_NEXUS_URL,
 };
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
-pub use fpss::{bounds as fpss_bounds, FpssConfig, FpssFlushMode};
+pub use fpss::{bounds as fpss_bounds, FpssConfig, FpssFlushMode, HostSelectionPolicy};
 pub use mdds::MddsConfig;
 pub use metrics::MetricsConfig;
 pub use reconnect::{
     ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectConfig, ReconnectPolicy,
+    RATE_LIMITED_JITTER_WINDOW,
 };
 pub use retry::RetryPolicy;
 pub use runtime::RuntimeConfig;
+
+pub use crate::backoff::JitterMode;
 
 /// Configuration for connecting to `ThetaData` servers directly.
 ///
@@ -252,6 +255,53 @@ impl DirectConfig {
                 to_i64(self.fpss.ping_interval_ms),
                 to_i64(*fpss_bounds::PING_INTERVAL_MS.start()),
                 to_i64(*fpss_bounds::PING_INTERVAL_MS.end()),
+            ));
+        }
+        if !fpss_bounds::IO_READ_SLICE_MS.contains(&self.fpss.io_read_slice_ms) {
+            return Err(Error::config_out_of_range(
+                "fpss.io_read_slice_ms",
+                to_i64(self.fpss.io_read_slice_ms),
+                to_i64(*fpss_bounds::IO_READ_SLICE_MS.start()),
+                to_i64(*fpss_bounds::IO_READ_SLICE_MS.end()),
+            ));
+        }
+        if !fpss_bounds::KEEPALIVE_IDLE_SECS.contains(&self.fpss.keepalive_idle_secs) {
+            return Err(Error::config_out_of_range(
+                "fpss.keepalive_idle_secs",
+                to_i64(self.fpss.keepalive_idle_secs),
+                to_i64(*fpss_bounds::KEEPALIVE_IDLE_SECS.start()),
+                to_i64(*fpss_bounds::KEEPALIVE_IDLE_SECS.end()),
+            ));
+        }
+        if !fpss_bounds::KEEPALIVE_INTERVAL_SECS.contains(&self.fpss.keepalive_interval_secs) {
+            return Err(Error::config_out_of_range(
+                "fpss.keepalive_interval_secs",
+                to_i64(self.fpss.keepalive_interval_secs),
+                to_i64(*fpss_bounds::KEEPALIVE_INTERVAL_SECS.start()),
+                to_i64(*fpss_bounds::KEEPALIVE_INTERVAL_SECS.end()),
+            ));
+        }
+        if !fpss_bounds::KEEPALIVE_RETRIES.contains(&self.fpss.keepalive_retries) {
+            return Err(Error::config_out_of_range(
+                "fpss.keepalive_retries",
+                i64::from(self.fpss.keepalive_retries),
+                i64::from(*fpss_bounds::KEEPALIVE_RETRIES.start()),
+                i64::from(*fpss_bounds::KEEPALIVE_RETRIES.end()),
+            ));
+        }
+        if self.reconnect.replay_burst_size == 0 {
+            return Err(Error::config_invalid(
+                "reconnect.replay_burst_size",
+                "replay_burst_size must be at least 1".to_string(),
+            ));
+        }
+        if self.reconnect.wait_max_ms < self.reconnect.wait_ms {
+            return Err(Error::config_invalid(
+                "reconnect.wait_max_ms",
+                format!(
+                    "wait_max_ms ({}) must be >= wait_ms ({})",
+                    self.reconnect.wait_max_ms, self.reconnect.wait_ms
+                ),
             ));
         }
         // Validate ring_size eagerly so a bad config fails fast rather
@@ -1017,9 +1067,60 @@ mod tests {
         let config = DirectConfig::production_defaults();
         let validated = config.validate().expect("production defaults validate");
         assert_eq!(validated.mdds.window_size_kb, 64);
-        assert_eq!(validated.fpss.timeout_ms, 10_000);
-        assert_eq!(validated.fpss.ping_interval_ms, 100);
+        assert_eq!(validated.fpss.timeout_ms, 3_000);
+        assert_eq!(validated.fpss.ping_interval_ms, 250);
         assert_eq!(validated.fpss.connect_timeout_ms, 2_000);
+        assert_eq!(validated.fpss.io_read_slice_ms, 25);
+        assert_eq!(validated.fpss.data_watchdog_ms, 30_000);
+        assert_eq!(validated.fpss.keepalive_idle_secs, 5);
+        assert_eq!(validated.fpss.keepalive_interval_secs, 2);
+        assert_eq!(validated.fpss.keepalive_retries, 2);
+        assert_eq!(validated.reconnect.wait_ms, 250);
+        assert_eq!(validated.reconnect.wait_max_ms, 30_000);
+        assert_eq!(validated.reconnect.replay_burst_size, 50);
+        assert_eq!(validated.reconnect.replay_pace_ms, 5);
+    }
+
+    #[test]
+    fn validate_rejects_io_read_slice_out_of_range() {
+        let mut config = DirectConfig::production_defaults();
+        config.fpss.io_read_slice_ms = 5;
+        let err = config.validate().expect_err("must reject below-minimum");
+        assert!(err.to_string().contains("io_read_slice_ms"));
+    }
+
+    #[test]
+    fn validate_rejects_keepalive_out_of_range() {
+        let mut config = DirectConfig::production_defaults();
+        config.fpss.keepalive_idle_secs = 0;
+        let err = config.validate().expect_err("must reject zero idle");
+        assert!(err.to_string().contains("keepalive_idle_secs"));
+
+        let mut config = DirectConfig::production_defaults();
+        config.fpss.keepalive_interval_secs = 80;
+        let err = config
+            .validate()
+            .expect_err("must reject oversize interval");
+        assert!(err.to_string().contains("keepalive_interval_secs"));
+
+        let mut config = DirectConfig::production_defaults();
+        config.fpss.keepalive_retries = 0;
+        let err = config.validate().expect_err("must reject zero retries");
+        assert!(err.to_string().contains("keepalive_retries"));
+    }
+
+    #[test]
+    fn validate_rejects_degenerate_replay_and_ladder() {
+        let mut config = DirectConfig::production_defaults();
+        config.reconnect.replay_burst_size = 0;
+        let err = config.validate().expect_err("must reject zero burst");
+        assert!(err.to_string().contains("replay_burst_size"));
+
+        let mut config = DirectConfig::production_defaults();
+        config.reconnect.wait_ms = 60_000;
+        config.reconnect.wait_max_ms = 1_000;
+        let err = config.validate().expect_err("must reject inverted ladder");
+        assert!(err.to_string().contains("wait_max_ms"));
     }
 
     #[test]
@@ -1132,7 +1233,8 @@ mod tests {
         let p = RetryPolicy::default();
         assert_eq!(p.initial_delay, std::time::Duration::from_millis(250));
         assert_eq!(p.max_delay, std::time::Duration::from_secs(30));
-        assert_eq!(p.max_attempts, 5);
+        assert_eq!(p.max_attempts, 20);
+        assert_eq!(p.max_elapsed, std::time::Duration::from_secs(300));
         assert!(p.jitter);
     }
 
@@ -1143,6 +1245,7 @@ mod tests {
             initial_delay: Duration::from_millis(100),
             max_delay: Duration::from_millis(800),
             max_attempts: 10,
+            max_elapsed: Duration::ZERO,
             jitter: false,
         };
         assert_eq!(p.capped_backoff(0), Duration::ZERO);
@@ -1162,6 +1265,7 @@ mod tests {
             initial_delay: Duration::from_millis(100),
             max_delay: Duration::from_millis(1_000),
             max_attempts: 10,
+            max_elapsed: Duration::ZERO,
             jitter: true,
         };
         // Full-jitter envelope: sample ∈ [0, capped_backoff(attempt)].
@@ -1187,6 +1291,7 @@ mod tests {
             initial_delay: Duration::from_millis(50),
             max_delay: Duration::from_millis(400),
             max_attempts: 5,
+            max_elapsed: Duration::ZERO,
             jitter: false,
         };
         // No jitter → every draw equals the capped backoff envelope.

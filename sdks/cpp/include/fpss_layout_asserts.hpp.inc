@@ -163,6 +163,13 @@ static_assert(offsetof(TdxFpssReconnecting, delay_ms) == 8,
 static_assert(sizeof(TdxFpssReconnecting) == 16,
               "TdxFpssReconnecting total size drifted");
 
+static_assert(offsetof(TdxFpssReconnectsExhausted, reason) == 0,
+              "TdxFpssReconnectsExhausted::reason offset drifted");
+static_assert(offsetof(TdxFpssReconnectsExhausted, attempts) == 4,
+              "TdxFpssReconnectsExhausted::attempts offset drifted");
+static_assert(sizeof(TdxFpssReconnectsExhausted) == 8,
+              "TdxFpssReconnectsExhausted total size drifted");
+
 static_assert(offsetof(TdxFpssReqResponse, req_id) == 0,
               "TdxFpssReqResponse::req_id offset drifted");
 static_assert(offsetof(TdxFpssReqResponse, result) == 4,
@@ -226,15 +233,17 @@ static_assert(offsetof(TdxFpssEvent, reconnected_server) == 473,
               "TdxFpssEvent::reconnected_server offset drifted");
 static_assert(offsetof(TdxFpssEvent, reconnecting) == 480,
               "TdxFpssEvent::reconnecting offset drifted");
-static_assert(offsetof(TdxFpssEvent, req_response) == 496,
+static_assert(offsetof(TdxFpssEvent, reconnects_exhausted) == 496,
+              "TdxFpssEvent::reconnects_exhausted offset drifted");
+static_assert(offsetof(TdxFpssEvent, req_response) == 504,
               "TdxFpssEvent::req_response offset drifted");
-static_assert(offsetof(TdxFpssEvent, restart) == 504,
+static_assert(offsetof(TdxFpssEvent, restart) == 512,
               "TdxFpssEvent::restart offset drifted");
-static_assert(offsetof(TdxFpssEvent, server_error) == 512,
+static_assert(offsetof(TdxFpssEvent, server_error) == 520,
               "TdxFpssEvent::server_error offset drifted");
-static_assert(offsetof(TdxFpssEvent, unknown_control) == 520,
+static_assert(offsetof(TdxFpssEvent, unknown_control) == 528,
               "TdxFpssEvent::unknown_control offset drifted");
-static_assert(offsetof(TdxFpssEvent, unknown_frame) == 528,
+static_assert(offsetof(TdxFpssEvent, unknown_frame) == 536,
               "TdxFpssEvent::unknown_frame offset drifted");
-static_assert(sizeof(TdxFpssEvent) == 552,
+static_assert(sizeof(TdxFpssEvent) == 560,
               "TdxFpssEvent total size drifted");

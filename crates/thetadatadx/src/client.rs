@@ -299,11 +299,23 @@ impl ThetaDataDxClient {
             .flush_mode(config.fpss.flush_mode)
             .reconnect_policy(config.reconnect.policy.clone())
             .reconnect_wait_ms(config.reconnect.wait_ms)
+            .reconnect_wait_max_ms(config.reconnect.wait_max_ms)
             .reconnect_wait_rate_limited_ms(config.reconnect.wait_rate_limited_ms)
+            .reconnect_wait_server_restart_ms(config.reconnect.wait_server_restart_ms)
+            .reconnect_jitter(config.reconnect.jitter)
+            .reconnect_replay_burst_size(config.reconnect.replay_burst_size)
+            .reconnect_replay_pace_ms(config.reconnect.replay_pace_ms)
             .derive_ohlcvc(config.fpss.derive_ohlcvc)
             .connect_timeout_ms(config.fpss.connect_timeout_ms)
             .read_timeout_ms(config.fpss.timeout_ms)
             .ping_interval_ms(config.fpss.ping_interval_ms)
+            .io_read_slice_ms(config.fpss.io_read_slice_ms)
+            .data_watchdog_ms(config.fpss.data_watchdog_ms)
+            .keepalive_idle_secs(config.fpss.keepalive_idle_secs)
+            .keepalive_interval_secs(config.fpss.keepalive_interval_secs)
+            .keepalive_retries(config.fpss.keepalive_retries)
+            .host_selection(config.fpss.host_selection)
+            .host_shuffle_seed(config.fpss.host_shuffle_seed)
             .build()
             .map_err(crate::error::Error::from)?;
         let client_arc = Arc::new(client);
@@ -485,6 +497,50 @@ impl ThetaDataDxClient {
         match &**snap {
             StreamingSlot::Live { client } => client.dropped_count(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
+        }
+    }
+
+    /// Milliseconds since the most recent inbound streaming frame of
+    /// any kind (data tick, heartbeat, control), or `None` when
+    /// streaming has not started or no frame has been received yet.
+    ///
+    /// The operator-facing staleness clock: a healthy session stays in
+    /// the low hundreds of milliseconds (the upstream heartbeats every
+    /// ~100 ms even when no market data flows), so a steadily growing
+    /// value is the earliest external signal of a dead or wedged
+    /// connection.
+    #[must_use]
+    pub fn millis_since_last_event(&self) -> Option<u64> {
+        let snap = self.state.load();
+        match &**snap {
+            StreamingSlot::Live { client } => client.millis_since_last_event(),
+            StreamingSlot::Idle | StreamingSlot::Stopped => None,
+        }
+    }
+
+    /// UNIX-nanosecond receive timestamp of the most recent inbound
+    /// streaming frame of any kind. Returns `0` when streaming has not
+    /// started or no frame has been received yet. Raw feed for
+    /// [`Self::millis_since_last_event`], exposed for callers
+    /// correlating against their own pipeline timestamps.
+    #[must_use]
+    pub fn last_event_received_at_unix_nanos(&self) -> i64 {
+        let snap = self.state.load();
+        match &**snap {
+            StreamingSlot::Live { client } => client.last_event_received_at_unix_nanos(),
+            StreamingSlot::Idle | StreamingSlot::Stopped => 0,
+        }
+    }
+
+    /// Address (`host:port`) of the streaming server the current
+    /// session is connected to, following the session across
+    /// auto-reconnects. Returns `None` when streaming has not started.
+    #[must_use]
+    pub fn last_connected_addr(&self) -> Option<String> {
+        let snap = self.state.load();
+        match &**snap {
+            StreamingSlot::Live { client } => Some(client.last_connected_addr()),
+            StreamingSlot::Idle | StreamingSlot::Stopped => None,
         }
     }
 
@@ -948,11 +1004,48 @@ impl ThetaDataDxClient {
         // 3. Start a new streaming connection
         self.start_streaming(handler)?;
 
-        // 4. Re-subscribe all saved subscriptions, accumulating failures
+        // 4. Re-subscribe all saved subscriptions (paced), accumulating
+        //    failures.
         let (per_contract, full_type) = saved_subs;
+        self.restore_subscriptions(&per_contract, &full_type)
+    }
+
+    /// Re-subscribe a saved subscription snapshot onto the live
+    /// streaming session, paced per the configured replay knobs
+    /// ([`crate::config::ReconnectConfig::replay_burst_size`] /
+    /// [`crate::config::ReconnectConfig::replay_pace_ms`]).
+    ///
+    /// This is the single replay engine behind
+    /// [`Self::reconnect_streaming`] and the embedded bindings'
+    /// reconnect paths: subscriptions are submitted in bursts with a
+    /// jittered pause between bursts, so a large saved set is spread
+    /// over wall-clock time instead of being fired at a recovering
+    /// upstream back-to-back.
+    ///
+    /// Use [`Self::active_subscriptions`] /
+    /// [`Self::active_full_subscriptions`] to capture the snapshot
+    /// before tearing the previous session down.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::PartialReconnect`] carrying the structured
+    /// list of subscriptions that failed to restore; everything not in
+    /// the list was re-installed. Per-subscription `tracing::warn!`
+    /// lines are emitted for operational visibility.
+    pub fn restore_subscriptions(
+        &self,
+        per_contract: &[(SubscriptionKind, Contract)],
+        full_type: &[(SubscriptionKind, SecType)],
+    ) -> Result<(), Error> {
+        let reconnect = &self.historical.config().reconnect;
+        let pacing = ReplayPacing {
+            burst_size: reconnect.replay_burst_size,
+            pace_ms: reconnect.replay_pace_ms,
+        };
         let failed = restore_subscriptions(
-            &per_contract,
-            &full_type,
+            per_contract,
+            full_type,
+            pacing,
             |kind, contract| {
                 self.subscribe(Subscription::Contract {
                     contract: contract.clone(),
@@ -1333,6 +1426,7 @@ impl std::ops::Deref for ThetaDataDxClient {
 fn restore_subscriptions<P, F>(
     per_contract: &[(SubscriptionKind, Contract)],
     full_type: &[(SubscriptionKind, SecType)],
+    pacing: ReplayPacing,
     mut per_subscribe: P,
     mut full_subscribe: F,
 ) -> Vec<(SubscriptionKind, Contract)>
@@ -1341,6 +1435,25 @@ where
     F: FnMut(SubscriptionKind, SecType) -> Option<Result<(), Error>>,
 {
     let mut failed: Vec<(SubscriptionKind, Contract)> = Vec::new();
+    let mut submitted_in_burst: u32 = 0;
+    let burst_size = pacing.burst_size.max(1);
+
+    let pace = |submitted_in_burst: &mut u32| {
+        *submitted_in_burst += 1;
+        if *submitted_in_burst >= burst_size {
+            *submitted_in_burst = 0;
+            if pacing.pace_ms > 0 {
+                // ±20% jitter on the inter-burst pause so a fleet of
+                // simultaneously-reconnecting clients does not submit
+                // replay bursts in phase.
+                let pace = Duration::from_millis(pacing.pace_ms);
+                std::thread::sleep(crate::backoff::uniform_duration(
+                    pace.mul_f64(0.8),
+                    pace.mul_f64(1.2),
+                ));
+            }
+        }
+    };
 
     for (kind, contract) in per_contract {
         if let Err(e) = per_subscribe(*kind, contract) {
@@ -1352,6 +1465,7 @@ where
             );
             failed.push((*kind, contract.clone()));
         }
+        pace(&mut submitted_in_burst);
     }
 
     for (kind, sec_type) in full_type {
@@ -1378,9 +1492,31 @@ where
                 );
             }
         }
+        pace(&mut submitted_in_burst);
     }
 
     failed
+}
+
+/// Burst/pause pacing for a subscription replay. Mirrors
+/// [`crate::config::ReconnectConfig::replay_burst_size`] /
+/// [`crate::config::ReconnectConfig::replay_pace_ms`].
+#[derive(Debug, Clone, Copy)]
+struct ReplayPacing {
+    burst_size: u32,
+    pace_ms: u64,
+}
+
+impl ReplayPacing {
+    /// Pacing disabled — submit back-to-back. Test-only shape; the
+    /// production paths read the configured knobs.
+    #[cfg(test)]
+    fn unpaced() -> Self {
+        Self {
+            burst_size: u32::MAX,
+            pace_ms: 0,
+        }
+    }
 }
 
 /// Downcast a thread-panic payload to a human-readable string.
@@ -1499,6 +1635,7 @@ mod tests {
         let failed = restore_subscriptions(
             &per_contract,
             &full_type,
+            ReplayPacing::unpaced(),
             |_kind, contract| {
                 if &*contract.symbol == "MSFT" {
                     Err(Error::Fpss {
@@ -1528,6 +1665,7 @@ mod tests {
         let failed = restore_subscriptions(
             &per_contract,
             &full_type,
+            ReplayPacing::unpaced(),
             |_, _| Ok(()),
             |_, _| Some(Ok(())),
         );
@@ -1547,6 +1685,7 @@ mod tests {
         let failed = restore_subscriptions(
             &per_contract,
             &full_type,
+            ReplayPacing::unpaced(),
             |_, _| Ok(()),
             |_, _| {
                 Some(Err(Error::Fpss {
@@ -1581,6 +1720,7 @@ mod tests {
         let failed = restore_subscriptions(
             &per_contract,
             &full_type,
+            ReplayPacing::unpaced(),
             |_, _| {
                 Err(Error::Fpss {
                     kind: crate::error::FpssErrorKind::Disconnected,

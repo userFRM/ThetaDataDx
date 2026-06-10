@@ -218,6 +218,14 @@ fn control_variant_mapping(event_name: &str, _def: &EventDef) -> (&'static str, 
                 "delay_ms: *delay_ms".to_string(),
             ],
         ),
+        "ReconnectsExhausted" => (
+            "reason, attempts",
+            vec![
+                "reason: *reason as i32".to_string(),
+                // Same saturating shape as `Reconnecting.attempt`.
+                "attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)".to_string(),
+            ],
+        ),
         "Error" => ("message", vec!["message: message.clone()".to_string()]),
         "UnknownFrame" => (
             "code, payload",

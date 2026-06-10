@@ -55,8 +55,10 @@ static FPSS_RECONNECTS: LazyLock<Counter> =
 use tdbe::types::enums::{RemoveReason, StreamMsgType};
 
 use crate::auth::Credentials;
+use crate::backoff::{BackoffSchedule, JitterMode};
 use crate::config::{
     FpssFlushMode, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy,
+    RATE_LIMITED_JITTER_WINDOW,
 };
 use crate::error::Error;
 
@@ -69,8 +71,8 @@ use super::framing::{
     write_raw_frame_no_flush, Frame, FrameReadState,
 };
 use super::protocol::{self, build_credentials_payload, Contract};
+use super::reconnect_delay;
 use super::ring::{self, AdaptiveWaitStrategy, RingEvent};
-use super::{reconnect_delay, reconnect_delay_for};
 
 type ActiveSubs = Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract)>>>;
 type ActiveFullSubs = Arc<
@@ -122,25 +124,58 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     pub authenticated: Arc<AtomicBool>,
     pub permissions: String,
     pub pending_control: Vec<FpssControl>,
-    pub _server_addr: String,
     pub derive_ohlcvc: bool,
     pub flush_mode: FpssFlushMode,
     pub policy: ReconnectPolicy,
-    /// Mirrors [`crate::config::ReconnectConfig::wait_ms`]. The
-    /// [`ReconnectPolicy::Auto`] arm passes this to
-    /// [`super::reconnect_delay_for`] for generic transient drops so
-    /// caller-tuned cadences flow through instead of the wire constant.
+    /// Mirrors [`crate::config::ReconnectConfig::wait_ms`]: the
+    /// initial delay of the generic-transient exponential ladder the
+    /// [`ReconnectPolicy::Auto`] arm drives.
     pub wait_ms: u64,
+    /// Mirrors [`crate::config::ReconnectConfig::wait_max_ms`]: the
+    /// cap on the generic-transient ladder.
+    pub wait_max_ms: u64,
     /// Mirrors [`crate::config::ReconnectConfig::wait_rate_limited_ms`].
-    /// Used for `TooManyRequests` drops by the same path.
+    /// Floor delay for `TooManyRequests` drops; jitter samples
+    /// `[floor, floor + RATE_LIMITED_JITTER_WINDOW]`.
     pub wait_rate_limited_ms: u64,
+    /// Mirrors [`crate::config::ReconnectConfig::wait_server_restart_ms`].
+    /// Flat cadence for `ServerRestarting` drops.
+    pub wait_server_restart_ms: u64,
+    /// Mirrors [`crate::config::ReconnectConfig::jitter`]. Applied to
+    /// every computed reconnect delay.
+    pub jitter: JitterMode,
+    /// Mirrors [`crate::config::ReconnectConfig::replay_burst_size`].
+    pub replay_burst_size: u32,
+    /// Mirrors [`crate::config::ReconnectConfig::replay_pace_ms`].
+    pub replay_pace_ms: u64,
     pub creds: Credentials,
+    /// Host list in per-client selection order (see
+    /// [`connection::order_hosts`]). The reconnect path additionally
+    /// promotes the last successfully-connected address to the front.
     pub hosts: Vec<(String, u16)>,
     pub active_subs: ActiveSubs,
     pub active_full_subs: ActiveFullSubs,
     pub dropped: Arc<AtomicU64>,
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
+    /// Per-iteration blocking-read slice. Mirrors
+    /// [`crate::config::FpssConfig::io_read_slice_ms`].
+    pub io_read_slice: Duration,
+    /// Last-frame watchdog deadline; [`Duration::ZERO`] disables.
+    /// Mirrors [`crate::config::FpssConfig::data_watchdog_ms`].
+    pub data_watchdog: Duration,
+    /// Keepalive schedule for reconnect-time socket construction.
+    pub keepalive: connection::TcpKeepaliveSpec,
+    /// Wall-clock receive timestamp (UNIX nanoseconds; `0` = never) of
+    /// the most recent inbound frame of any kind. Shared with the
+    /// owning client so `millis_since_last_event()` reads it without
+    /// touching I/O-thread state.
+    pub last_event_at_ns: Arc<AtomicI64>,
+    /// Address of the server this session is currently connected to.
+    /// Updated after every successful (re)connect + login; read by
+    /// `last_connected_addr()` on the owning client and used by the
+    /// reconnect path to try the last-good host first.
+    pub connected_addr: Arc<Mutex<String>>,
     /// Shared monotonic request-id counter. The auto-reconnect path
     /// allocates fresh `req_id` values from this counter for each
     /// re-subscribe so `ReqResponse` events on the reconnected session
@@ -167,12 +202,16 @@ where
         authenticated,
         permissions,
         mut pending_control,
-        _server_addr,
         derive_ohlcvc,
         flush_mode,
         policy,
         wait_ms,
+        wait_max_ms,
         wait_rate_limited_ms,
+        wait_server_restart_ms,
+        jitter,
+        replay_burst_size,
+        replay_pace_ms,
         creds,
         hosts,
         active_subs,
@@ -180,6 +219,11 @@ where
         dropped,
         connect_timeout,
         read_timeout,
+        io_read_slice,
+        data_watchdog,
+        keepalive,
+        last_event_at_ns,
+        connected_addr,
         next_req_id,
     } = args;
     // `ring_size` was validated upstream by `ring::check_ring_size` at
@@ -267,31 +311,33 @@ where
     // ([`ReconnectAttemptClass`]) so a rate-limited transient
     // (`TooManyRequests`, 130 s spacing) does not burn through the
     // generic transient budget meant for fast TimedOut / Unspecified
-    // retries. Each counter resets to zero on a successful read; an
-    // additional time-based reset fires when the connection has been
-    // running cleanly for at least
+    // retries, and a `ServerRestarting` pool bounce gets its own
+    // evenly-paced window. Each counter resets to zero on a successful
+    // read; an additional time-based reset fires when the connection
+    // has been running cleanly for at least
     // `ReconnectAttemptLimits::stable_window`, so a connection that
     // ran cleanly for a minute before dropping picks up the full
     // budget again rather than inheriting the previous cycle's count.
-    let mut reconnect_state = ReconnectCounters::new();
+    let mut reconnect_state = ReconnectCounters::new(BackoffSchedule::new(
+        Duration::from_millis(wait_ms),
+        Duration::from_millis(wait_max_ms),
+    ));
 
-    // Per-iteration short blocking-read timeout. 50 ms is short enough
-    // that pings (default 100 ms cadence) are serviced promptly but
-    // long enough to avoid burning CPU during quiet periods. The
-    // overall user-configured deadline is enforced by counting
-    // consecutive 50 ms timeouts up to `max_consecutive_timeouts`.
-    let io_read_slice = Duration::from_millis(50);
-    // Convert the user-configured `read_timeout` into the matching
-    // count of `io_read_slice`-sized timeouts that must elapse without
-    // any data before the I/O loop publishes
-    // [`tdbe::types::enums::RemoveReason::TimedOut`]. Bottoms out at 1
-    // so a hypothetical sub-50ms `read_timeout` still triggers exactly
-    // one cycle of timeout-then-disconnect rather than zero.
+    // The read deadline is enforced on a wall clock rather than by
+    // counting timeout slices: `last_frame_at` advances on every
+    // complete inbound frame, and a slice that expires with
+    // `last_frame_at.elapsed() >= read_timeout` declares the session
+    // dead. Slice-count accounting drifted (each slice is "roughly"
+    // `io_read_slice` long, plus scheduling), so the deadline now
+    // holds regardless of the configured slice size.
     let read_timeout_ms_total = u64::try_from(read_timeout.as_millis()).unwrap_or(u64::MAX);
-    let max_consecutive_timeouts = (read_timeout_ms_total / 50).max(1);
 
     'session: loop {
-        let mut consecutive_timeouts: u64 = 0;
+        // Session-local liveness clock: starts at session entry so a
+        // session that never delivers a frame still times out exactly
+        // `read_timeout` after it began, and feeds the shared
+        // `last_event_at_ns` operator-facing staleness clock.
+        let mut last_frame_at = Instant::now();
 
         // --- Inner read/write loop for one connection session ---
         // When the inner loop breaks, `disconnect_reason` holds the reason.
@@ -308,14 +354,14 @@ where
                 read_timeout,
             ) {
                 Ok(Some((code, payload_len))) => {
-                    consecutive_timeouts = 0;
+                    last_frame_at = Instant::now();
+                    last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
                     // Reset reconnect counters on successful data reception
                     // and mark "data did flow on this session" so the
                     // stable-window check on the next drop knows whether
                     // the connection ran long enough to deserve a fresh
                     // retry budget.
-                    reconnect_state.transient = 0;
-                    reconnect_state.rate_limited = 0;
+                    reconnect_state.reset_counters();
                     reconnect_state.note_data_received();
 
                     let (primary, secondary) = decode_frame(
@@ -376,19 +422,29 @@ where
                     break 'inner RemoveReason::Unspecified;
                 }
                 Err(ref e) if is_read_timeout(e) => {
-                    consecutive_timeouts += 1;
-                    if consecutive_timeouts >= max_consecutive_timeouts {
-                        tracing::warn!(
-                            timeout_ms = read_timeout_ms_total,
-                            "FPSS read timed out (no data for {}ms)",
-                            // `saturating_mul` so a wild future bump to
-                            // `max_consecutive_timeouts` past `u64::MAX
-                            // / 50` cannot wrap the duration field on
-                            // the warn line. 50 is the inner-loop
-                            // poll cadence (ms); explicit `u64`
-                            // suffix pins the diagnostic shape.
-                            consecutive_timeouts.saturating_mul(50_u64)
-                        );
+                    let quiet = last_frame_at.elapsed();
+                    let read_deadline_hit = quiet >= read_timeout;
+                    // Last-frame watchdog: a hard wall-clock backstop
+                    // above the read timeout. With the default 3 s
+                    // read timeout the deadline above fires first;
+                    // the watchdog catches configurations that widen
+                    // the read timeout past the watchdog window.
+                    let watchdog_hit = !data_watchdog.is_zero() && quiet >= data_watchdog;
+                    if read_deadline_hit || watchdog_hit {
+                        if watchdog_hit && !read_deadline_hit {
+                            tracing::warn!(
+                                watchdog_ms =
+                                    u64::try_from(data_watchdog.as_millis()).unwrap_or(u64::MAX),
+                                quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
+                                "FPSS last-frame watchdog tripped; forcing reconnect",
+                            );
+                        } else {
+                            tracing::warn!(
+                                timeout_ms = read_timeout_ms_total,
+                                quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
+                                "FPSS read timed out (no frames inside the read deadline)",
+                            );
+                        }
                         if producer
                             .try_publish(|slot| {
                                 slot.event =
@@ -502,9 +558,35 @@ where
         // --- Reconnection decision ---
         let reason = disconnect_reason;
 
+        // Helper shape: publish the terminal "auto-recovery has
+        // stopped" event before every break that is not a
+        // user-initiated shutdown, so operators can distinguish
+        // budget exhaustion from a clean `shutdown()` call.
+        macro_rules! publish_exhausted {
+            ($attempts:expr) => {
+                if producer
+                    .try_publish(|slot| {
+                        slot.event =
+                            FpssEventInternal::Control(FpssControl::ReconnectsExhausted {
+                                reason,
+                                attempts: $attempts,
+                            });
+                    })
+                    .is_err()
+                {
+                    dropped.fetch_add(1, Ordering::Relaxed);
+                    tracing::warn!(
+                        target: "thetadatadx::fpss::io_loop",
+                        "ring full while publishing ReconnectsExhausted; dropped",
+                    );
+                }
+            };
+        }
+
         let (delay, reconnect_attempt) = match &policy {
             ReconnectPolicy::Manual => {
                 tracing::info!(reason = ?reason, "manual reconnect policy -- not reconnecting");
+                publish_exhausted!(0);
                 break 'session;
             }
             ReconnectPolicy::Auto(limits) => {
@@ -512,35 +594,88 @@ where
                 // budget — no amount of retrying will fix bad credentials.
                 let Some(class) = ReconnectAttemptLimits::class_for(reason) else {
                     tracing::error!(reason = ?reason, "permanent disconnect -- not reconnecting");
+                    publish_exhausted!(0);
                     break 'session;
                 };
                 // Optional time-based reset BEFORE incrementing. A
                 // session that ran cleanly for >= `stable_window`
-                // before this drop earns a fresh budget across both
+                // before this drop earns a fresh budget across all
                 // classes.
                 reconnect_state.maybe_reset_after_stable(limits);
                 let attempt = reconnect_state.record(class);
                 let budget = limits.budget_for(class);
-                if attempt > budget {
-                    tracing::error!(
-                        attempts = attempt - 1,
-                        class = ?class,
-                        "max reconnect attempts reached for this class, giving up"
-                    );
+                // Two stop conditions, whichever trips first: the
+                // per-class attempt budget and (for the classes it
+                // applies to) the wall-clock envelope measured from
+                // the first attempt of this consecutive-reconnect
+                // sequence.
+                let envelope_spent = ReconnectAttemptLimits::elapsed_budget_applies(class)
+                    && !limits.max_elapsed.is_zero()
+                    && reconnect_state.burst_elapsed() > limits.max_elapsed;
+                if attempt > budget || envelope_spent {
+                    let attempts_consumed = attempt - 1;
+                    if envelope_spent {
+                        tracing::error!(
+                            attempts = attempts_consumed,
+                            class = ?class,
+                            max_elapsed_ms =
+                                u64::try_from(limits.max_elapsed.as_millis()).unwrap_or(u64::MAX),
+                            "reconnect wall-clock envelope exhausted, giving up"
+                        );
+                    } else {
+                        tracing::error!(
+                            attempts = attempts_consumed,
+                            class = ?class,
+                            "max reconnect attempts reached for this class, giving up"
+                        );
+                    }
+                    publish_exhausted!(attempts_consumed);
                     break 'session;
                 }
-                // Honour caller-tuned `wait_ms` /
-                // `wait_rate_limited_ms` from `ReconnectConfig`. The
-                // permanent-reason check above already short-circuited
-                // the `None` case via `class_for(reason).is_none()`,
-                // so this lookup is a belt-and-braces guard.
-                let Some(ms) = reconnect_delay_for(reason, wait_ms, wait_rate_limited_ms) else {
-                    tracing::error!(reason = ?reason, "permanent disconnect -- not reconnecting");
-                    break 'session;
+                let delay = match class {
+                    ReconnectAttemptClass::Transient => {
+                        // Exponential ladder `wait_ms * 2^(n-1)`
+                        // capped at `wait_max_ms`, then jittered.
+                        let base = reconnect_state.schedule.deterministic(attempt);
+                        jitter.sample(base, &mut reconnect_state.schedule)
+                    }
+                    ReconnectAttemptClass::ServerRestart => {
+                        // Flat patient cadence for a pool bounce,
+                        // jittered so a fleet spreads its retries.
+                        let base = Duration::from_millis(wait_server_restart_ms);
+                        jitter.sample(base, &mut reconnect_state.schedule)
+                    }
+                    ReconnectAttemptClass::RateLimited => {
+                        // The floor is an upstream-instructed cooldown
+                        // and must be honoured in full — jitter ADDS a
+                        // window on top rather than sampling below the
+                        // floor.
+                        let floor = Duration::from_millis(wait_rate_limited_ms);
+                        match jitter {
+                            JitterMode::None => floor,
+                            _ => {
+                                floor
+                                    + crate::backoff::uniform_duration(
+                                        Duration::ZERO,
+                                        RATE_LIMITED_JITTER_WINDOW,
+                                    )
+                            }
+                        }
+                    }
                 };
-                (Duration::from_millis(ms), attempt)
+                (delay, attempt)
             }
             ReconnectPolicy::Custom(f) => {
+                // Permanent reasons never reach the user closure —
+                // no return value can turn a credential rejection
+                // into a retry loop. This matches the `Auto` arm's
+                // short-circuit and is part of the documented
+                // `ReconnectPolicy::Custom` contract.
+                if ReconnectAttemptLimits::class_for(reason).is_none() {
+                    tracing::error!(reason = ?reason, "permanent disconnect -- not reconnecting");
+                    publish_exhausted!(0);
+                    break 'session;
+                }
                 // Custom policies bypass the split-budget enforcement
                 // (no `Auto`-side budget check), and the user closure
                 // receives the consecutive-transient attempt counter.
@@ -556,6 +691,7 @@ where
                 let attempt = reconnect_state.record(ReconnectAttemptClass::Transient);
                 let Some(d) = f(reason, attempt) else {
                     tracing::info!(reason = ?reason, "custom policy returned None -- not reconnecting");
+                    publish_exhausted!(attempt - 1);
                     break 'session;
                 };
                 (d, attempt)
@@ -588,22 +724,64 @@ where
             );
         }
 
-        thread::sleep(delay);
+        // Shutdown-responsive cooldown: sleep in short slices so a
+        // `shutdown()` raised mid-cooldown wakes the thread within
+        // ~100 ms instead of parking it for a full rate-limited
+        // 130 s+ delay.
+        sleep_until_or_shutdown(delay, &shutdown);
 
         if shutdown.load(Ordering::Relaxed) {
             break 'session;
         }
 
+        // Discard commands queued against the dead session BEFORE
+        // dialling the new one: stale heartbeats would land on a
+        // fresh peer as a meaningless inbound burst, and stale
+        // subscribe frames would duplicate the paced replay below
+        // (the subscription sets are the source of truth for replay).
+        // `Shutdown` is the one command that must survive the drain.
+        loop {
+            match cmd_rx.try_recv() {
+                Ok(IoCommand::WriteFrame { .. }) => {}
+                Ok(IoCommand::Shutdown) => {
+                    shutdown.store(true, Ordering::Release);
+                    break 'session;
+                }
+                Err(std_mpsc::TryRecvError::Empty) => break,
+                Err(std_mpsc::TryRecvError::Disconnected) => {
+                    shutdown.store(true, Ordering::Release);
+                    break 'session;
+                }
+            }
+        }
+
         // --- Attempt new TLS connection and re-authenticate ---
+        // Try the last successfully-connected address first: after a
+        // brief blip on a healthy host, the host that was just working
+        // is the best first guess, and skipping straight back to
+        // list-front would burn a connect timeout against a host that
+        // may still be down. The remaining hosts follow in the
+        // client's selection order.
         let new_stream = {
-            let borrowed: Vec<(&str, u16)> = hosts.iter().map(|(h, p)| (h.as_str(), *p)).collect();
-            connection::connect_to_servers(&borrowed, connect_timeout, read_timeout)
+            let last_good = connected_addr
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let mut ordered: Vec<(&str, u16)> = Vec::with_capacity(hosts.len());
+            for (h, p) in &hosts {
+                if format!("{h}:{p}") == last_good {
+                    ordered.insert(0, (h.as_str(), *p));
+                } else {
+                    ordered.push((h.as_str(), *p));
+                }
+            }
+            connection::connect_to_servers(&ordered, connect_timeout, read_timeout, keepalive)
         };
 
-        let mut new_stream = match new_stream {
+        let (mut new_stream, new_addr) = match new_stream {
             Ok((s, addr)) => {
                 tracing::info!(server = %addr, "reconnected to FPSS server");
-                s
+                (s, addr)
             }
             Err(e) => {
                 tracing::warn!(error = %e, "reconnection failed, will retry");
@@ -677,12 +855,39 @@ where
                             "ring full while publishing permanent-rejection Disconnected; dropped",
                         );
                     }
+                    // Same terminal-event contract as the budget /
+                    // permanent paths above: recovery has stopped for
+                    // a non-user-initiated cause. The inner `reason`
+                    // (the login rejection) is the one operators need.
+                    if producer
+                        .try_publish(|slot| {
+                            slot.event =
+                                FpssEventInternal::Control(FpssControl::ReconnectsExhausted {
+                                    reason,
+                                    attempts: reconnect_attempt,
+                                });
+                        })
+                        .is_err()
+                    {
+                        dropped.fetch_add(1, Ordering::Relaxed);
+                        tracing::warn!(
+                            target: "thetadatadx::fpss::io_loop",
+                            "ring full while publishing ReconnectsExhausted; dropped",
+                        );
+                    }
                     shutdown.store(true, Ordering::Release);
                     break 'session;
                 }
                 continue 'session;
             }
         };
+
+        // Record the address that just accepted the login so the next
+        // reconnect tries it first, and so `last_connected_addr()` on
+        // the owning client reflects the live session.
+        *connected_addr
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = new_addr;
 
         // Set the short I/O read timeout on the new stream so the io
         // loop can drain commands between reads. Matches the
@@ -704,6 +909,10 @@ where
         reconnect_state.last_data_at = None;
 
         authenticated.store(true, Ordering::Release);
+        // The login handshake just exchanged frames — feed the
+        // staleness clock so `millis_since_last_event()` reflects the
+        // live session immediately.
+        last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
 
         // Publish reconnection events. Drain every handshake-time typed
         // control frame (`Connected` / `Ping` / `ReconnectedServer` /
@@ -760,6 +969,14 @@ where
         // re-sends each. Without this, the server accepts the login but
         // receives no subscribe commands → data stops flowing.
         //
+        // The replay is PACED: frames are written in bursts of
+        // `replay_burst_size`, each burst flushed and followed by a
+        // jittered `replay_pace_ms` pause. A large subscription set is
+        // thereby spread over wall-clock time instead of being handed
+        // to a recovering server as one syscall-sized burst — and a
+        // fleet of reconnecting clients additionally de-phases through
+        // the ±20% pause jitter.
+        //
         // Snapshot + drop lock before writing: holding the mutex during
         // network I/O would stall concurrent subscribe/unsubscribe calls.
         let subs_snapshot = active_subs
@@ -771,6 +988,7 @@ where
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
 
+        let mut pacer = ReplayPacer::new(replay_burst_size, replay_pace_ms);
         let writer = reader.get_mut();
         for (kind, contract) in &subs_snapshot {
             // Allocate a fresh req_id per re-subscribe so the server's
@@ -791,6 +1009,10 @@ where
             } else {
                 tracing::debug!(kind = ?kind, contract = %contract, req_id, "re-subscribed on auto-reconnect");
             }
+            pacer.frame_written(writer, &shutdown);
+            if shutdown.load(Ordering::Relaxed) {
+                break 'session;
+            }
         }
         for (kind, sec_type) in &full_subs_snapshot {
             let req_id = super::wire_req_id(next_req_id.fetch_add(1, Ordering::Relaxed));
@@ -800,6 +1022,10 @@ where
                 tracing::warn!(error = %e, sec_type = ?sec_type, req_id, "failed to re-subscribe full-type on reconnect");
             } else {
                 tracing::debug!(kind = ?kind, sec_type = ?sec_type, req_id, "re-subscribed full-type on auto-reconnect");
+            }
+            pacer.frame_written(writer, &shutdown);
+            if shutdown.load(Ordering::Relaxed) {
+                break 'session;
             }
         }
         if !subs_snapshot.is_empty() || !full_subs_snapshot.is_empty() {
@@ -902,22 +1128,123 @@ pub(in crate::fpss) fn build_poller_producer(
     (builder.build(), poller)
 }
 
+/// Current wall-clock time as UNIX nanoseconds, clamped into `i64`.
+/// Feeds the shared `last_event_at_ns` staleness clock (`0` = never).
+fn unix_nanos_now() -> i64 {
+    i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos()),
+    )
+    .unwrap_or(i64::MAX)
+}
+
+/// Sleep for `delay`, waking within ~100 ms of `shutdown` being
+/// raised.
+///
+/// The reconnect cooldowns reach 130 s+ on the rate-limited class; an
+/// uninterruptible `thread::sleep` there would pin a shutting-down
+/// process for the full cooldown, and an operator who concludes the
+/// process is hung will SIGKILL it — leaking the TCP socket until the
+/// OS-level timeout. Sleeping in bounded slices caps the
+/// shutdown-observation latency regardless of how long the cooldown
+/// grows.
+fn sleep_until_or_shutdown(delay: Duration, shutdown: &AtomicBool) {
+    const SLICE: Duration = Duration::from_millis(100);
+    let deadline = Instant::now() + delay;
+    loop {
+        if shutdown.load(Ordering::Relaxed) {
+            return;
+        }
+        let now = Instant::now();
+        if now >= deadline {
+            return;
+        }
+        thread::sleep(SLICE.min(deadline - now));
+    }
+}
+
+/// Jittered pause between subscription-replay bursts: ±20 % around the
+/// configured pace so a fleet of reconnecting clients does not flush
+/// replay bursts in phase. Returns [`Duration::ZERO`] for a zero pace.
+fn replay_pause(pace: Duration) -> Duration {
+    if pace.is_zero() {
+        return Duration::ZERO;
+    }
+    let lo = pace.mul_f64(0.8);
+    let hi = pace.mul_f64(1.2);
+    crate::backoff::uniform_duration(lo, hi)
+}
+
+/// Burst accounting for the post-reconnect subscription replay.
+///
+/// Counts frames written via [`ReplayPacer::frame_written`]; when a
+/// burst fills, flushes the writer and pauses for a jittered
+/// [`replay_pause`] (shutdown-responsive). The final partial burst is
+/// flushed by the caller's tail flush.
+struct ReplayPacer {
+    burst_size: u32,
+    pace: Duration,
+    written_in_burst: u32,
+}
+
+impl ReplayPacer {
+    fn new(burst_size: u32, pace_ms: u64) -> Self {
+        Self {
+            // A zero burst size would never flush; clamp to 1 (the
+            // config validator rejects 0 up front, this is the
+            // belt-and-braces guard for direct builder callers).
+            burst_size: burst_size.max(1),
+            pace: Duration::from_millis(pace_ms),
+            written_in_burst: 0,
+        }
+    }
+
+    /// Account one written frame; on a full burst, flush + pause.
+    fn frame_written<W: Write>(&mut self, writer: &mut W, shutdown: &AtomicBool) {
+        self.written_in_burst += 1;
+        if self.written_in_burst < self.burst_size {
+            return;
+        }
+        self.written_in_burst = 0;
+        if let Err(e) = writer.flush() {
+            tracing::warn!(error = %e, "failed to flush re-subscribe burst on reconnect");
+        }
+        if !self.pace.is_zero() {
+            sleep_until_or_shutdown(replay_pause(self.pace), shutdown);
+        }
+    }
+}
+
 /// Per-class consecutive-reconnect counters with a stable-window reset
-/// driven from the read-side's last-frame timestamp.
+/// driven from the read-side's last-frame timestamp, plus the
+/// wall-clock anchor for the reconnect envelope and the jitter
+/// schedule state.
 struct ReconnectCounters {
     transient: u32,
     rate_limited: u32,
+    server_restart: u32,
     /// Wall-clock instant of the last successful frame read; `None`
     /// until the first frame on the current session arrives.
     last_data_at: Option<Instant>,
+    /// Instant of the first attempt in the current
+    /// consecutive-reconnect sequence; `None` outside a sequence.
+    /// Anchors the `max_elapsed` envelope.
+    burst_started_at: Option<Instant>,
+    /// Exponential-ladder bounds + decorrelated-jitter walk state for
+    /// the generic-transient class.
+    schedule: BackoffSchedule,
 }
 
 impl ReconnectCounters {
-    fn new() -> Self {
+    fn new(schedule: BackoffSchedule) -> Self {
         Self {
             transient: 0,
             rate_limited: 0,
+            server_restart: 0,
             last_data_at: None,
+            burst_started_at: None,
+            schedule,
         }
     }
 
@@ -928,21 +1255,41 @@ impl ReconnectCounters {
         self.last_data_at = Some(Instant::now());
     }
 
+    /// Zero every per-class counter and end the current reconnect
+    /// sequence (envelope anchor + jitter walk state).
+    fn reset_counters(&mut self) {
+        self.transient = 0;
+        self.rate_limited = 0;
+        self.server_restart = 0;
+        self.burst_started_at = None;
+        self.schedule.reset();
+    }
+
     /// Decide whether the connection that just disconnected ran long
-    /// enough to be considered "stable" — if so, reset both counters
+    /// enough to be considered "stable" — if so, reset all counters
     /// before scheduling the next attempt.
     fn maybe_reset_after_stable(&mut self, limits: &ReconnectAttemptLimits) {
         if let Some(t) = self.last_data_at {
             if t.elapsed() >= limits.stable_window {
-                self.transient = 0;
-                self.rate_limited = 0;
+                self.reset_counters();
             }
         }
     }
 
+    /// Wall-clock time since the first attempt of the current
+    /// consecutive-reconnect sequence. Zero outside a sequence.
+    fn burst_elapsed(&self) -> Duration {
+        self.burst_started_at
+            .map_or(Duration::ZERO, |t| t.elapsed())
+    }
+
     /// Increment the counter for `class` and return the new attempt
-    /// number (1-based after increment).
+    /// number (1-based after increment). The first record of a
+    /// sequence anchors the wall-clock envelope.
     fn record(&mut self, class: ReconnectAttemptClass) -> u32 {
+        if self.burst_started_at.is_none() {
+            self.burst_started_at = Some(Instant::now());
+        }
         match class {
             ReconnectAttemptClass::Transient => {
                 self.transient = self.transient.saturating_add(1);
@@ -951,6 +1298,10 @@ impl ReconnectCounters {
             ReconnectAttemptClass::RateLimited => {
                 self.rate_limited = self.rate_limited.saturating_add(1);
                 self.rate_limited
+            }
+            ReconnectAttemptClass::ServerRestart => {
+                self.server_restart = self.server_restart.saturating_add(1);
+                self.server_restart
             }
         }
     }
@@ -975,18 +1326,19 @@ fn is_read_timeout(e: &Error) -> bool {
 mod tests {
     use super::*;
 
+    fn test_schedule() -> BackoffSchedule {
+        BackoffSchedule::new(Duration::from_millis(250), Duration::from_secs(30))
+    }
+
     #[test]
     fn split_budget_defaults_cover_multi_hour_throttle() {
-        // The previous wholesale cap was 5; the new default splits
-        // into 3 generic-transient + 100 rate-limited.
         let limits = ReconnectAttemptLimits::default();
-        assert_eq!(limits.max_attempts, 3);
+        assert_eq!(limits.max_attempts, 30);
         assert_eq!(limits.max_rate_limited_attempts, 100);
+        assert_eq!(limits.max_server_restart_attempts, 60);
         // 100 attempts × 130 s/attempt = 13_000 s = ~3.6 h of patient
-        // retry on sustained `TooManyRequests`. The previous cap of 5
-        // gave up at ~10 minutes — well below the goal of riding
+        // retry on sustained `TooManyRequests` — the goal of riding
         // through a multi-hour throttle without operator intervention.
-        // 3.6 h is the floor the default explicitly accepts.
         let rate_limited_horizon_ms = u128::from(limits.max_rate_limited_attempts)
             * u128::from(crate::fpss::protocol::TOO_MANY_REQUESTS_DELAY_MS);
         assert!(
@@ -996,15 +1348,40 @@ mod tests {
         );
     }
 
+    /// The generic-transient defaults must survive a multi-minute
+    /// outage: the attempt budget (30) outlasts the 5-minute envelope
+    /// at the un-jittered ladder, so `max_elapsed` is the effective
+    /// operator-facing bound — exactly the contract the docs state.
+    #[test]
+    fn transient_defaults_survive_a_multi_minute_outage() {
+        let limits = ReconnectAttemptLimits::default();
+        let schedule = test_schedule();
+        let total: Duration = (1..=limits.max_attempts)
+            .map(|a| schedule.deterministic(a))
+            .sum();
+        assert!(
+            total >= limits.max_elapsed,
+            "un-jittered ladder across the attempt budget ({total:?}) must \
+             outlast the wall-clock envelope ({:?})",
+            limits.max_elapsed
+        );
+        // First attempts are fast (sub-second) so a brief blip
+        // recovers quickly...
+        assert_eq!(schedule.deterministic(1), Duration::from_millis(250));
+        assert_eq!(schedule.deterministic(2), Duration::from_millis(500));
+        // ...and the tail rides the 30 s cap.
+        assert_eq!(schedule.deterministic(8), Duration::from_secs(30));
+        assert_eq!(schedule.deterministic(30), Duration::from_secs(30));
+    }
+
     /// 10 consecutive `TooManyRequests` disconnects must NOT exhaust
-    /// the rate-limited budget — the previous cap of 5 would have given
-    /// up after attempt 5, the new default tolerates 100. Each
-    /// attempt's delay equals `reconnect_delay(TooManyRequests)` =
-    /// `TOO_MANY_REQUESTS_DELAY_MS` (130 s).
+    /// the rate-limited budget. Each attempt's floor equals
+    /// `reconnect_delay(TooManyRequests)` = `TOO_MANY_REQUESTS_DELAY_MS`
+    /// (130 s).
     #[test]
     fn ten_too_many_requests_stays_under_rate_limited_budget() {
         let limits = ReconnectAttemptLimits::default();
-        let mut counters = ReconnectCounters::new();
+        let mut counters = ReconnectCounters::new(test_schedule());
         let mut last_attempt = 0;
         for _ in 0..10 {
             let class = ReconnectAttemptLimits::class_for(RemoveReason::TooManyRequests)
@@ -1017,9 +1394,9 @@ mod tests {
             last_attempt <= limits.budget_for(ReconnectAttemptClass::RateLimited),
             "10 consecutive TooManyRequests must stay inside the rate-limited budget"
         );
-        // Per-attempt delay budget surfaces the wall-clock cost: 10 *
-        // 130 s = 1300 s = ~21 min of patient retry, well within the
-        // ~3.6 h envelope the default permits.
+        // Per-attempt floor surfaces the wall-clock cost: 10 * 130 s =
+        // 1300 s = ~21 min of patient retry, well within the ~3.6 h
+        // envelope the default permits.
         let ms = crate::fpss::reconnect_delay(RemoveReason::TooManyRequests)
             .expect("TooManyRequests yields a finite reconnect delay");
         let total_ms = u128::from(ms) * u128::from(last_attempt);
@@ -1038,14 +1415,16 @@ mod tests {
             stable_window: Duration::from_millis(5),
             ..ReconnectAttemptLimits::default()
         };
-        let mut counters = ReconnectCounters::new();
+        let mut counters = ReconnectCounters::new(test_schedule());
         counters.record(ReconnectAttemptClass::Transient);
         counters.record(ReconnectAttemptClass::Transient);
         counters.record(ReconnectAttemptClass::RateLimited);
+        counters.record(ReconnectAttemptClass::ServerRestart);
         // No data received yet → no reset.
         counters.maybe_reset_after_stable(&limits);
         assert_eq!(counters.transient, 2);
         assert_eq!(counters.rate_limited, 1);
+        assert_eq!(counters.server_restart, 1);
 
         counters.note_data_received();
         // Data received but not long enough → still no reset.
@@ -1057,6 +1436,166 @@ mod tests {
         counters.maybe_reset_after_stable(&limits);
         assert_eq!(counters.transient, 0, "stable-window elapsed → reset");
         assert_eq!(counters.rate_limited, 0);
+        assert_eq!(counters.server_restart, 0);
+        assert!(
+            counters.burst_started_at.is_none(),
+            "stable-window reset must also end the envelope sequence"
+        );
+    }
+
+    /// The wall-clock envelope anchors at the FIRST attempt of a
+    /// consecutive-reconnect sequence, accumulates while the sequence
+    /// runs, and resets with the counters.
+    #[test]
+    fn burst_elapsed_anchors_and_resets() {
+        let mut counters = ReconnectCounters::new(test_schedule());
+        assert_eq!(counters.burst_elapsed(), Duration::ZERO);
+        counters.record(ReconnectAttemptClass::Transient);
+        std::thread::sleep(Duration::from_millis(10));
+        counters.record(ReconnectAttemptClass::Transient);
+        assert!(
+            counters.burst_elapsed() >= Duration::from_millis(10),
+            "envelope must measure from the first attempt of the sequence"
+        );
+        counters.reset_counters();
+        assert_eq!(counters.burst_elapsed(), Duration::ZERO);
+        // A fresh sequence re-anchors.
+        counters.record(ReconnectAttemptClass::ServerRestart);
+        assert!(counters.burst_elapsed() < Duration::from_millis(10));
+    }
+
+    /// The reconnect cooldown must wake promptly on shutdown: signal
+    /// the flag ~50 ms into a 5 s cooldown and require the sleeper to
+    /// return well under the full delay (bounded by the 100 ms slice
+    /// plus scheduling slack).
+    #[test]
+    fn reconnect_sleep_wakes_promptly_on_shutdown() {
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let signaller = Arc::clone(&shutdown);
+        let signal_thread = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(50));
+            signaller.store(true, Ordering::Release);
+        });
+        let start = Instant::now();
+        sleep_until_or_shutdown(Duration::from_secs(5), &shutdown);
+        let elapsed = start.elapsed();
+        signal_thread.join().expect("signal thread joins");
+        assert!(
+            elapsed < Duration::from_millis(500),
+            "5 s cooldown must be interrupted within one slice of the \
+             shutdown signal; slept {elapsed:?}"
+        );
+        assert!(
+            elapsed >= Duration::from_millis(45),
+            "sleeper must not return before the signal; slept {elapsed:?}"
+        );
+    }
+
+    /// A shutdown raised BEFORE the sleep starts must return
+    /// immediately, and a zero delay must not sleep at all.
+    #[test]
+    fn reconnect_sleep_degenerate_cases() {
+        let raised = AtomicBool::new(true);
+        let start = Instant::now();
+        sleep_until_or_shutdown(Duration::from_secs(5), &raised);
+        assert!(start.elapsed() < Duration::from_millis(50));
+
+        let clear = AtomicBool::new(false);
+        let start = Instant::now();
+        sleep_until_or_shutdown(Duration::ZERO, &clear);
+        assert!(start.elapsed() < Duration::from_millis(50));
+    }
+
+    /// Replay pacing: a writer fed N frames through the pacer must see
+    /// one flush per full burst, and the burst pauses must keep the
+    /// total replay duration at roughly `(N / burst - 1) * pace`.
+    #[test]
+    fn replay_pacer_flushes_per_burst_and_paces() {
+        struct CountingWriter {
+            flushes: usize,
+        }
+        impl Write for CountingWriter {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                self.flushes += 1;
+                Ok(())
+            }
+        }
+
+        let shutdown = AtomicBool::new(false);
+        let mut writer = CountingWriter { flushes: 0 };
+        // 125 frames at burst 50 → 2 full bursts (flush + pause each),
+        // 25-frame tail left for the caller's final flush.
+        let mut pacer = ReplayPacer::new(50, 20);
+        let start = Instant::now();
+        for _ in 0..125 {
+            pacer.frame_written(&mut writer, &shutdown);
+        }
+        let elapsed = start.elapsed();
+        assert_eq!(writer.flushes, 2, "one flush per completed burst");
+        // Two pauses jittered across [16 ms, 24 ms] each.
+        assert!(
+            elapsed >= Duration::from_millis(30),
+            "two paced bursts must take at least 2 × 0.8 × pace; got {elapsed:?}"
+        );
+        assert!(
+            elapsed < Duration::from_millis(200),
+            "pacing must not balloon past the jitter ceiling; got {elapsed:?}"
+        );
+    }
+
+    /// Pacer accounting must clamp a zero burst size to 1 instead of
+    /// never flushing, and a zero pace must flush without sleeping.
+    #[test]
+    fn replay_pacer_degenerate_knobs() {
+        struct CountingWriter {
+            flushes: usize,
+        }
+        impl Write for CountingWriter {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                self.flushes += 1;
+                Ok(())
+            }
+        }
+        let shutdown = AtomicBool::new(false);
+        let mut writer = CountingWriter { flushes: 0 };
+        let mut pacer = ReplayPacer::new(0, 0);
+        let start = Instant::now();
+        for _ in 0..8 {
+            pacer.frame_written(&mut writer, &shutdown);
+        }
+        assert_eq!(writer.flushes, 8, "burst size 0 must clamp to 1");
+        assert!(
+            start.elapsed() < Duration::from_millis(100),
+            "zero pace must not sleep"
+        );
+    }
+
+    /// The inter-burst pause is jittered ±20 % around the configured
+    /// pace and degrades to zero for a zero pace.
+    #[test]
+    fn replay_pause_jitter_bounds() {
+        let pace = Duration::from_millis(100);
+        for _ in 0..128 {
+            let pause = replay_pause(pace);
+            assert!(pause >= pace.mul_f64(0.8) && pause <= pace.mul_f64(1.2));
+        }
+        assert_eq!(replay_pause(Duration::ZERO), Duration::ZERO);
+    }
+
+    /// The staleness clock helper must produce a strictly-positive,
+    /// monotone-enough UNIX timestamp (`0` is the "never" sentinel).
+    #[test]
+    fn unix_nanos_now_is_positive() {
+        let a = unix_nanos_now();
+        let b = unix_nanos_now();
+        assert!(a > 0);
+        assert!(b >= a);
     }
 
     /// Permanent disconnect reasons during the reconnect handshake
