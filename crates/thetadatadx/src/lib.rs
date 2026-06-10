@@ -219,16 +219,12 @@ pub use error::{
 };
 
 // ─── Real-time streaming (FPSS) ──────────────────────────────────────────────
+// The streaming surface lives in the [`fpss`] module: build a client with
+// [`fpss::FpssClient::builder`], subscribe via [`fpss::protocol::Contract`],
+// then drain with `next_event` / `poll_batch` / the `Iterator` impl.
 
-/// Real-time streaming via ThetaData's FPSS service.
-///
-/// Build a [`fpss::FpssClient`] with [`fpss::FpssClient::builder`], subscribe
-/// to contracts, then drive the event loop with
-/// [`fpss::FpssClient::next_event`], [`fpss::FpssClient::poll_batch`], or the
-/// [`Iterator`] impl.
-///
-/// The `protocol` submodule exposes [`fpss::protocol::Contract`] and the
-/// subscription builder shapes.
+/// Outcome of a single [`fpss::FpssClient::poll_batch`] call, re-exported at
+/// the crate root for callers that drive the batch loop directly.
 pub use fpss::PollOutcome;
 
 // ─── Flat-file bulk pulls ─────────────────────────────────────────────────────

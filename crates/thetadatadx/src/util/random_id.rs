@@ -16,9 +16,9 @@ pub(crate) fn random_id_hex() -> String {
 }
 
 /// Validate that `s` is a UUID string with the canonical
-/// `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` shape (8-4-4-4-12 lowercase
-/// hex groups separated by hyphens). Does **not** enforce version or
-/// variant nibbles, so v1, v4, and v7 all pass.
+/// `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` shape (8-4-4-4-12 hex groups
+/// separated by hyphens; both hex cases accepted). Does **not** enforce
+/// version or variant nibbles, so v1, v4, and v7 all pass.
 ///
 /// Returns `s` unchanged on success.
 pub(crate) fn validate_uuid_format(s: &str) -> Result<&str, &'static str> {
