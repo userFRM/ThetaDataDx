@@ -458,11 +458,12 @@ fn ndjson_response(json_val: &mut sonic_rs::Value) -> Response {
 /// 1. The [`BoundedQuery`] extractor enforces [`MAX_QUERY_PARAMS`] DURING
 ///    URL parse so `?a=1&b=2&...` flood attacks can't force a multi-MB
 ///    HashMap allocation before the cap trips.
-/// 2. Negotiates the response format (`json` default, `csv`,
-///    `ndjson`/`jsonl`); unknown `format` values are a 400.
-/// 3. Re-dispatches `start_date`+`end_date` queries on a single-date path
+/// 2. Re-dispatches `start_date`+`end_date` queries on a single-date path
 ///    to the `_range` registry sibling (see [`resolve_range_sibling`]).
-/// 4. Validates required query params against `EndpointMeta.params`.
+/// 3. Validates query params against `EndpointMeta.params` (length caps
+///    included — `format` falls under the generic 64-byte cap here).
+/// 4. Negotiates the response format (`json` default, `csv`,
+///    `ndjson`/`jsonl`); unknown `format` values are a 400.
 /// 5. Invokes the shared endpoint runtime.
 /// 6. Renders the negotiated format.
 pub async fn generic(
@@ -470,15 +471,19 @@ pub async fn generic(
     BoundedQuery(params): BoundedQuery<MAX_QUERY_PARAMS>,
     ep: &EndpointMeta,
 ) -> Response {
-    let response_format = match parse_response_format(&params) {
-        Ok(f) => f,
-        Err(error) => return endpoint_error_response(ep, error),
-    };
-
     let ep = resolve_range_sibling(ep, &params);
 
     let args = match build_endpoint_args(ep, &params) {
         Ok(args) => args,
+        Err(error) => return endpoint_error_response(ep, error),
+    };
+
+    // Format negotiation runs AFTER `build_endpoint_args` on purpose:
+    // the length validators in there cap `format` at the generic
+    // 64-byte bound, so the lowercase copy and the echoed-value 400
+    // below can never amplify an oversized query value.
+    let response_format = match parse_response_format(&params) {
+        Ok(f) => f,
         Err(error) => return endpoint_error_response(ep, error),
     };
 
