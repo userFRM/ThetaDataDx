@@ -338,6 +338,33 @@ fn parse_response_format(params: &HashMap<String, String>) -> Result<ResponseFor
     }
 }
 
+/// Build the `Content-Disposition` attachment filename for a CSV
+/// response: `<endpoint>_<date>.csv`, or `<endpoint>_<start>_<end>.csv`
+/// for range queries, or `<endpoint>.csv` when no date param is present.
+///
+/// Browser downloads (`<a download>`) fall back to the URL path's last
+/// segment without this header, saving files as the bare endpoint stem
+/// (`ohlc`, no extension); the legacy terminal sends a date-stamped
+/// filename. Date values are filtered to `[A-Za-z0-9._-]` before being
+/// embedded — they are validated upstream, but a header value must never
+/// depend on a validator elsewhere staying tight.
+fn csv_attachment_filename(ep: &EndpointMeta, params: &HashMap<String, String>) -> String {
+    fn sanitize(value: &str) -> String {
+        value
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+            .collect()
+    }
+
+    if let Some(date) = params.get("date") {
+        return format!("{}_{}.csv", ep.name, sanitize(date));
+    }
+    if let (Some(start), Some(end)) = (params.get("start_date"), params.get("end_date")) {
+        return format!("{}_{}_{}.csv", ep.name, sanitize(start), sanitize(end));
+    }
+    format!("{}.csv", ep.name)
+}
+
 /// Render the `response` rows of a canonicalised envelope as NDJSON.
 ///
 /// One JSON object per row, `\n`-delimited — the line-at-a-time framing
@@ -424,24 +451,25 @@ pub async fn generic(
         ResponseFormat::Json => json_response(&mut json_val),
         ResponseFormat::Ndjson => ndjson_response(&mut json_val),
         ResponseFormat::Csv => {
-            if let Some(arr) = json_val
+            let disposition = format!(
+                "attachment; filename=\"{}\"",
+                csv_attachment_filename(ep, &params)
+            );
+            let body = json_val
                 .get("response")
                 .and_then(|v: &sonic_rs::Value| v.as_array())
-            {
-                let items: Vec<sonic_rs::Value> = arr.iter().cloned().collect();
-                if let Some(csv) = format::json_to_csv(&items) {
-                    return (
-                        StatusCode::OK,
-                        [("content-type", "text/csv; charset=utf-8")],
-                        csv,
-                    )
-                        .into_response();
-                }
-            }
+                .and_then(|arr| {
+                    let items: Vec<sonic_rs::Value> = arr.iter().cloned().collect();
+                    format::json_to_csv(&items)
+                })
+                .unwrap_or_default();
             (
                 StatusCode::OK,
-                [("content-type", "text/csv; charset=utf-8")],
-                String::new(),
+                [
+                    ("content-type", "text/csv; charset=utf-8"),
+                    ("content-disposition", disposition.as_str()),
+                ],
+                body,
             )
                 .into_response()
         }
@@ -917,6 +945,56 @@ mod tests {
         assert!(
             body.contains("\"vega\":null"),
             "non-finite cells collapse to null on the NDJSON path too: {body}"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    //  CSV attachment filename
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn csv_filename_stamps_endpoint_and_date() {
+        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
+        let params = string_params(&[("symbol", "AAPL"), ("date", "20260603")]);
+        assert_eq!(
+            csv_attachment_filename(ep, &params),
+            "stock_history_ohlc_20260603.csv"
+        );
+    }
+
+    #[test]
+    fn csv_filename_stamps_date_range() {
+        let ep = thetadatadx::find("stock_history_eod").expect("endpoint exists");
+        let params = string_params(&[
+            ("symbol", "AAPL"),
+            ("start_date", "20260101"),
+            ("end_date", "20260301"),
+        ]);
+        assert_eq!(
+            csv_attachment_filename(ep, &params),
+            "stock_history_eod_20260101_20260301.csv"
+        );
+    }
+
+    #[test]
+    fn csv_filename_falls_back_to_endpoint_stem() {
+        let ep = thetadatadx::find("stock_list_symbols").expect("endpoint exists");
+        assert_eq!(
+            csv_attachment_filename(ep, &HashMap::new()),
+            "stock_list_symbols.csv"
+        );
+    }
+
+    /// Header values must never carry quote / control bytes even if a
+    /// validator elsewhere loosens — the filename filter is the last
+    /// line of defence against header splitting.
+    #[test]
+    fn csv_filename_strips_header_unsafe_bytes() {
+        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
+        let params = string_params(&[("date", "2026\"06\r\n03;")]);
+        assert_eq!(
+            csv_attachment_filename(ep, &params),
+            "stock_history_ohlc_20260603.csv"
         );
     }
 
