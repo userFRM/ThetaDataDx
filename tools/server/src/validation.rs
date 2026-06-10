@@ -21,6 +21,7 @@
 //! The WebSocket handler renders it as `REQ_RESPONSE { response: ERROR }`.
 
 use thetadatadx::endpoint::EndpointError;
+use thetadatadx::{ParamMeta, ParamType};
 
 // ---------------------------------------------------------------------------
 //  Length caps
@@ -279,12 +280,45 @@ fn sanitize_param_name(param_name: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-//  Unified entry point for REST query-param validation
+//  Unified entry points for REST query-param validation
 // ---------------------------------------------------------------------------
 
-/// Dispatch a raw query-param to the appropriate length validator based on
-/// the known parameter name. Unrecognized names fall back to the generic
-/// 64-byte cap.
+/// Dispatch a registry-declared query-param to the matching length
+/// validator based on its [`ParamType`].
+///
+/// Type-driven dispatch is the only correct routing for params whose
+/// meaning depends on the endpoint: the snapshot endpoints declare a
+/// comma-separated list under the param NAME `symbol` (registry type
+/// `Symbols`, 512-byte cap), while the historical endpoints declare a
+/// single ticker under the same name (registry type `Symbol`, 16-byte
+/// cap). Name-based dispatch cannot tell the two apart and rejected
+/// every multi-symbol snapshot list past 16 bytes.
+///
+/// `ParamMeta.name` is `&'static str` so the error label costs nothing.
+pub fn validate_param_value(param: &ParamMeta, value: &str) -> Result<(), ValidationError> {
+    match param.param_type {
+        ParamType::Symbol => validate_symbol(value, param.name),
+        ParamType::Symbols => validate_symbols_list(value, param.name),
+        ParamType::Date | ParamType::Expiration => validate_date(value, param.name),
+        ParamType::Strike => validate_strike(value, param.name),
+        ParamType::Right => validate_right(value, param.name),
+        ParamType::Interval => validate_interval(value, param.name),
+        ParamType::Venue => validate_venue(value, param.name),
+        // Remaining scalar types (`Str`, `Bool`, `Int`, `Float`,
+        // `RequestType`, `RateType`, `Version`, `Year`, and any future
+        // variant) carry no dedicated cap; the generic 64-byte bound
+        // both kills memory-DoS and comfortably fits every legitimate
+        // value of those types.
+        _ => validate_generic_named(value, param.name),
+    }
+}
+
+/// Dispatch a query-param that does NOT appear in the endpoint's registry
+/// metadata (`format`, pagination knobs, unknown keys) to a length
+/// validator based on the parameter name. Registry-declared params route
+/// through [`validate_param_value`] instead — the name-based table below
+/// cannot know whether `symbol` means a single ticker or a list at the
+/// current endpoint.
 ///
 /// This is called from `handler::build_endpoint_args` BEFORE the raw value
 /// is parsed into an `EndpointArgValue` so we bound memory + CPU before
@@ -405,6 +439,72 @@ mod tests {
         let mb = "A".repeat(1024 * 1024);
         let err = validate_query_param("root", &mb).unwrap_err();
         assert_eq!(err.field, "root");
+    }
+
+    // -----------------------------------------------------------------------
+    //  ParamType-driven dispatch for registry-declared params
+    // -----------------------------------------------------------------------
+
+    fn param_meta(name: &'static str, param_type: ParamType) -> ParamMeta {
+        ParamMeta {
+            name,
+            description: "",
+            param_type,
+            required: true,
+        }
+    }
+
+    #[test]
+    fn symbols_typed_param_named_symbol_accepts_long_lists() {
+        // The snapshot endpoints declare comma-separated lists under the
+        // param NAME `symbol` with registry type `Symbols`. Type-driven
+        // dispatch must apply the 512-byte list cap, not the 16-byte
+        // single-ticker cap that rejected every list past ~3 tickers.
+        let param = param_meta("symbol", ParamType::Symbols);
+        validate_param_value(&param, "AAPL,MSFT,TSLA,GOOG,AMZN,NVDA")
+            .expect("multi-symbol list within the 512-byte cap must pass");
+    }
+
+    #[test]
+    fn symbols_typed_param_still_caps_at_list_limit() {
+        let param = param_meta("symbol", ParamType::Symbols);
+        let oversized = "A".repeat(MAX_SYMBOLS_LEN + 1);
+        let err = validate_param_value(&param, &oversized).unwrap_err();
+        assert!(err.message.contains(&MAX_SYMBOLS_LEN.to_string()));
+    }
+
+    #[test]
+    fn symbol_typed_param_keeps_single_ticker_cap() {
+        let param = param_meta("symbol", ParamType::Symbol);
+        let err = validate_param_value(&param, "AAPL,MSFT,TSLA,GOOG,AMZN,NVDA").unwrap_err();
+        assert!(
+            err.message.contains(&MAX_SYMBOL_LEN.to_string()),
+            "single-ticker params must keep the 16-byte cap: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn typed_dispatch_covers_remaining_param_types() {
+        // Spot-check the per-type routing: each value below passes its
+        // own validator but would overflow the generic 64-byte cap if
+        // misrouted (or vice versa for the control-char case).
+        validate_param_value(&param_meta("expiration", ParamType::Expiration), "2026-06-19")
+            .expect("ISO expiration fits the date cap");
+        validate_param_value(&param_meta("strike", ParamType::Strike), "550.5")
+            .expect("decimal strike fits");
+        validate_param_value(&param_meta("right", ParamType::Right), "both")
+            .expect("right vocabulary fits");
+        validate_param_value(&param_meta("interval", ParamType::Interval), "1h")
+            .expect("interval preset fits");
+        validate_param_value(&param_meta("venue", ParamType::Venue), "utp_cta")
+            .expect("venue code fits");
+        validate_param_value(&param_meta("request_type", ParamType::RequestType), "QUOTE")
+            .expect("request type routes to the generic cap");
+        assert!(
+            validate_param_value(&param_meta("date", ParamType::Date), "2026\r\n01").is_err(),
+            "control characters must reject on typed dispatch too"
+        );
     }
 
     #[test]

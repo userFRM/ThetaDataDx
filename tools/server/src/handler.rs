@@ -202,11 +202,18 @@ fn build_endpoint_args(
     // (digit-count, right vocabulary, strike wildcard) but accept
     // arbitrarily long strings.
     //
-    // The generic fallback (`MAX_GENERIC_LEN`) also blocks unknown params
-    // like `?format=<megabytes>` that don't appear in `ep.params` but
-    // could still be passed through `HashMap<String, String>`.
+    // Params declared in `ep.params` dispatch on the registry
+    // `ParamType` — the param NAME alone cannot pick the right cap
+    // (`symbol` is a single 16-byte ticker on historical endpoints but
+    // a 512-byte comma-separated list on the snapshot endpoints).
+    // Params outside the registry metadata (`format`, unknown keys)
+    // fall back to the name-based table, whose generic 64-byte cap
+    // blocks `?format=<megabytes>` style floods.
     for (name, raw) in params {
-        validation::validate_query_param(name, raw)?;
+        match ep.params.iter().find(|param| param.name == name) {
+            Some(param) => validation::validate_param_value(param, raw)?,
+            None => validation::validate_query_param(name, raw)?,
+        }
     }
 
     let mut args = EndpointArgs::new();
@@ -403,6 +410,56 @@ mod tests {
                 assert!(
                     msg.contains(&MAX_QUERY_PARAMS.to_string()),
                     "error message should mention the cap: {msg}"
+                );
+            }
+            other => panic!("expected InvalidParams, got {other:?}"),
+        }
+    }
+
+    /// Registry-declared params dispatch on `ParamType`, so the
+    /// multi-symbol snapshot endpoints (param NAME `symbol`, registry
+    /// type `Symbols`) accept comma-separated lists past the 16-byte
+    /// single-ticker cap. Name-based dispatch used to reject any list
+    /// with more than ~3 tickers.
+    #[test]
+    fn build_endpoint_args_accepts_multi_symbol_snapshot_lists() {
+        let ep = thetadatadx::find("stock_snapshot_ohlc")
+            .expect("snapshot endpoint must exist in the registry");
+        let mut params: HashMap<String, String> = HashMap::new();
+        params.insert(
+            "symbol".to_string(),
+            "AAPL,MSFT,TSLA,GOOG,AMZN,NVDA".to_string(),
+        );
+
+        let args = build_endpoint_args(ep, &params)
+            .expect("six-ticker list must pass the Symbols-typed cap");
+        assert_eq!(
+            args.required_str("symbol").unwrap(),
+            "AAPL,MSFT,TSLA,GOOG,AMZN,NVDA"
+        );
+    }
+
+    /// Single-ticker endpoints keep the tight 16-byte cap — the typed
+    /// dispatch must not loosen the historical surface.
+    #[test]
+    fn build_endpoint_args_keeps_single_symbol_cap_on_historical_endpoints() {
+        let ep = thetadatadx::find("stock_history_eod")
+            .expect("historical endpoint must exist in the registry");
+        let mut params: HashMap<String, String> = HashMap::new();
+        params.insert(
+            "symbol".to_string(),
+            "AAPL,MSFT,TSLA,GOOG,AMZN,NVDA".to_string(),
+        );
+        params.insert("start_date".to_string(), "20260101".to_string());
+        params.insert("end_date".to_string(), "20260301".to_string());
+
+        let err = build_endpoint_args(ep, &params)
+            .expect_err("comma list must overflow the single-ticker cap");
+        match err {
+            EndpointError::InvalidParams(msg) => {
+                assert!(
+                    msg.contains("'symbol'") && msg.contains("16"),
+                    "expected the 16-byte single-ticker rejection: {msg}"
                 );
             }
             other => panic!("expected InvalidParams, got {other:?}"),
